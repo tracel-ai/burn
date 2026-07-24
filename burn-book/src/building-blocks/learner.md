@@ -43,21 +43,54 @@ The `launch` method will start the training and return the trained model once fi
 Again, please refer to the [training section](../basic-workflow/training.md) for a relevant code
 snippet.
 
+## Multiple optimizers
+
+It's common practice to set different learning rates, optimizer parameters, or use different optimizers entirely, for different parts
+of a model. You can leverage Burn's `ParamGroup`s to mix and match optimizers and learning rate schedulers easily!
+
+```rust,ignore
+let lr_scheduler_base = ComposedLrSchedulerConfig::new()
+    .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
+    .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
+    .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
+let lr_scheduler = lr_scheduler_base.init().unwrap().with_group(
+    ParamGroup::from_predicate("conv"),
+    LinearLrSchedulerConfig::new(1e-6, 1e-3, 14000)
+        .build()
+        .unwrap(),
+);
+
+let optimizer_base = AdamWConfig::new()
+    .with_cautious_weight_decay(true)
+    .with_weight_decay(5e-5);
+let optim = optimizer_base.init().with_group(
+    ParamGroup::from_predicate("conv"),
+    SgdConfig::new().build(),
+    None,
+);
+
+let result = training.launch(Learner::new(
+    model, 
+    optim, 
+    lr_scheduler,
+));
+```
+
 ## Artifacts
 
 When creating a `SupervisedTraining` instance, all the collected data will be saved under the directory provided as
-the argument to the `new` method. Here is an example of the data layout for a model recorded using
-the compressed message pack format, with the accuracy and loss metrics registered:
+the argument to the `new` method. Here is an example of the data layout for a model checkpointed to
+the burnpack format, with the accuracy and loss metrics registered:
 
 ```
 ├── experiment.log
 ├── checkpoint
-│   ├── model-1.mpk.gz
-│   ├── optim-1.mpk.gz
-│   └── scheduler-1.mpk.gz
-│   ├── model-2.mpk.gz
-│   ├── optim-2.mpk.gz
-│   └── scheduler-2.mpk.gz
+│   ├── model-1.bpk
+│   ├── optim-1.bpk
+│   └── scheduler-1.bpk
+│   ├── model-2.bpk
+│   ├── optim-2.bpk
+│   └── scheduler-2.bpk
 ├── train
 │   ├── epoch-1
 │   │   ├── Accuracy.log

@@ -20,10 +20,6 @@ impl IntTensorOps<Self> for Dispatch {
         creation_op!(Int, device, |device| B::int_from_data(data, device))
     }
 
-    fn int_device(tensor: &IntTensor<Self>) -> DispatchDevice {
-        tensor.device()
-    }
-
     fn int_to_device(tensor: IntTensor<Self>, device: &DispatchDevice) -> IntTensor<Self> {
         to_device!(Int, int, tensor, device, int_to_device, |inner, device| {
             let data = burn_backend::read_sync(B1::int_into_data(inner)).expect("Should read data");
@@ -288,6 +284,18 @@ impl IntTensorOps<Self> for Dispatch {
 
     fn int_topk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
         unary_op!(tensor, int, |tensor| B::int_topk(tensor, dim, k) => Int)
+    }
+
+    fn int_topk_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, int)],
+            outputs[(out, Int), (indices, Int)],
+            B::int_topk_with_indices(tensor, dim, k)
+        )
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {

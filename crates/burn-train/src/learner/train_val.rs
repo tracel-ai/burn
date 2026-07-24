@@ -1,6 +1,9 @@
 use crate::{ItemLazy, renderer::MetricsRenderer};
 use burn_core::{module::AutodiffModule, tensor::Gradients};
-use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
+use burn_optim::{
+    GradientsParams, ModuleOptimizer, MultiGradientsParams,
+    lr_scheduler::module_lr_scheduler::ModuleLearningRate,
+};
 
 /// A training output.
 pub struct TrainOutput<TO> {
@@ -68,12 +71,16 @@ pub trait TrainStep {
     /// # Returns
     ///
     /// The updated model.
-    fn optimize<O>(self, optim: &mut O, lr: f64, grads: GradientsParams) -> Self
+    fn optimize(
+        self,
+        optim: &mut ModuleOptimizer,
+        lr_module: ModuleLearningRate,
+        grads: GradientsParams,
+    ) -> Self
     where
-        O: Optimizer<Self>,
-        Self: AutodiffModule,
+        Self: AutodiffModule + Sized,
     {
-        optim.step(lr, self, grads)
+        optim.step(lr_module, self, grads)
     }
     /// Optimize the current module with the provided gradients and learning rate.
     ///
@@ -86,12 +93,16 @@ pub trait TrainStep {
     /// # Returns
     ///
     /// The updated model.
-    fn optimize_multi<O>(self, optim: &mut O, lr: f64, grads: MultiGradientsParams) -> Self
+    fn optimize_multi(
+        self,
+        optim: &mut ModuleOptimizer,
+        lr_module: ModuleLearningRate,
+        grads: MultiGradientsParams,
+    ) -> Self
     where
-        O: Optimizer<Self>,
-        Self: AutodiffModule,
+        Self: AutodiffModule + Sized,
     {
-        optim.step_multi(lr, self, grads)
+        optim.step_multi(lr_module, self, grads)
     }
 }
 

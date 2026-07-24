@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{
     data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
@@ -7,7 +9,6 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::AdamConfig,
     prelude::*,
-    record::CompactRecorder,
     train::{
         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
@@ -66,8 +67,7 @@ pub struct TrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -97,7 +97,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -110,6 +110,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .expect("Trained model should be saved successfully");
 }

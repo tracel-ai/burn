@@ -113,10 +113,6 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
-        tensor.client.device().clone()
-    }
-
     fn q_to_device(
         tensor: QuantizedTensor<Self>,
         device_dst: &Device<Self>,

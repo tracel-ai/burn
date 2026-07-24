@@ -4,8 +4,8 @@ use burn_backend::{
 };
 use burn_std::BoolStore;
 
-use crate::NdArrayStorage;
 use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
+use crate::{NdArrayDevice, NdArrayStorage};
 use alloc::vec::Vec;
 use ndarray::{ArcArray, ArrayD, IxDyn};
 
@@ -377,6 +377,7 @@ macro_rules! execute_with_int_out_dtype {
 }
 
 impl TensorMetadata for NdArrayTensor {
+    type Device = NdArrayDevice;
     fn dtype(&self) -> DType {
         match self {
             NdArrayTensor::F64(_) => DType::F64,
@@ -407,6 +408,17 @@ impl TensorMetadata for NdArrayTensor {
 
     fn rank(&self) -> usize {
         self.shape().num_dims()
+    }
+
+    fn device(&self) -> NdArrayDevice {
+        NdArrayDevice::Cpu
+    }
+
+    fn can_mut(&self) -> bool {
+        // NdArray storage is copy-on-write (`ArcArray`) without a public
+        // uniqueness check at this level; in-place ops resolve sharing
+        // themselves, so conservatively report the buffer as shared.
+        false
     }
 }
 
@@ -537,9 +549,14 @@ macro_rules! reshape {
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape, justdim);
         let array = match $array.is_standard_layout() {
+            // Move the array into the new shape rather than going through
+            // `to_shape`: the latter returns a borrowed view here, which
+            // `into_shared` then clones, copying the buffer on every reshape.
+            // Moving rewrites the dimensions in place, and the buffer stays
+            // shared for copy-on-write like in any other operation.
             true => {
-                match $array.to_shape(dim) {
-                    Ok(val) => val.into_shared(),
+                match $array.into_shape_with_order(dim) {
+                    Ok(val) => val,
                     Err(err) => {
                         core::panic!("Shape should be compatible shape={dim:?}: {err:?}");
                     }
@@ -739,6 +756,7 @@ impl NdArrayQTensor {
 }
 
 impl TensorMetadata for NdArrayQTensor {
+    type Device = NdArrayDevice;
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
     }
@@ -749,6 +767,14 @@ impl TensorMetadata for NdArrayQTensor {
 
     fn rank(&self) -> usize {
         self.shape().num_dims()
+    }
+
+    fn device(&self) -> Self::Device {
+        NdArrayDevice::Cpu
+    }
+
+    fn can_mut(&self) -> bool {
+        self.qtensor.can_mut()
     }
 }
 

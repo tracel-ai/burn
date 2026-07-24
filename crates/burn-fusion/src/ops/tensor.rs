@@ -2,7 +2,7 @@ use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
     client::GlobalFusionClient,
-    get_client, reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    get_client, reduce_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{StreamId, execution::Operation},
     unary_float_ops,
 };
@@ -178,10 +178,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.into_data::<B>().await
-    }
-
-    fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
-        tensor.client.device().clone()
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
@@ -1294,7 +1290,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, axis: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(SumDimOps, |tensor, axis, _| B::float_sum_dim(tensor, axis));
+        reduce_ops!(SumDimOps, float, |tensor, axis, _| B::float_sum_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1307,6 +1305,92 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::SumDim(desc.clone())),
                 SumDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_any(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce_ops!(FloatAnyOps, float => bool, whole, |tensor, dtype| B::float_any(tensor, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        // Whole-tensor `Any`: not fused (the reduce fuser only fuses `*Dim`), so it
+        // runs the bare backend's dedicated cubek Any instruction via the fallback.
+        let desc = ReduceOpIr::create_bool(tensor.into_ir(), out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::Any(desc.clone())),
+                FloatAnyOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_any_dim(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        reduce_ops!(FloatAnyDimOps, float => bool, |tensor, axis, dtype| B::float_any_dim(tensor, axis, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::AnyDim(desc.clone())),
+                FloatAnyDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_all(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce_ops!(FloatAllOps, float => bool, whole, |tensor, dtype| B::float_all(tensor, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceOpIr::create_bool(tensor.into_ir(), out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::All(desc.clone())),
+                FloatAllOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_all_dim(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        reduce_ops!(FloatAllDimOps, float => bool, |tensor, axis, dtype| B::float_all_dim(tensor, axis, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::AllDim(desc.clone())),
+                FloatAllDimOps::<B>::new(desc),
             )
             .output()
     }
@@ -1329,7 +1413,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(ProdDimOps, |tensor, axis, _| B::float_prod_dim(
+        reduce_ops!(ProdDimOps, float, |tensor, axis, _| B::float_prod_dim(
             tensor, axis
         ));
 
@@ -1368,7 +1452,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(MeanDimOps, |tensor, axis, _| B::float_mean_dim(
+        reduce_ops!(MeanDimOps, float, |tensor, axis, _| B::float_mean_dim(
             tensor, axis
         ));
 
@@ -1906,9 +1990,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
-        reduce_float2int_ops!(ArgMaxOps, |input, axis, _, dtype| B::float_argmax(
-            input, axis, dtype
-        ));
+        reduce_ops!(ArgMaxOps, float => int, |input, axis, _, dtype| B::float_argmax(input, axis, dtype));
 
         let streams = StreamId::current();
 
@@ -1935,7 +2017,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         k: usize,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        reduce_float2int_ops!(ArgTopKOps, B::float_argtopk);
+        reduce_ops!(ArgTopKOps, float => int, B::float_argtopk);
 
         let streams = StreamId::current();
 
@@ -1957,7 +2039,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(TopKOps, B::float_topk);
+        reduce_ops!(TopKOps, float, B::float_topk);
 
         let streams = StreamId::current();
 
@@ -1971,6 +2053,56 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 TopKOps::<B>::new(desc),
             )
             .output()
+    }
+
+    fn float_topk_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        // Forwarded explicitly rather than left to the trait default: the default would run
+        // its own sort here and never reach the backend's fused top-k.
+        #[derive(new, Debug)]
+        struct TopKWithIndicesOps<B: FusionBackend> {
+            desc: TopKWithIndicesOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for TopKWithIndicesOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
+                let (output, indices) = B::float_topk_with_indices(
+                    tensor,
+                    self.desc.dim,
+                    self.desc.k,
+                    self.desc.out_indices.dtype.into(),
+                );
+
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+                handles.register_int_tensor::<B>(&self.desc.out_indices.id, indices);
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc =
+            TopKWithIndicesOpIr::create(tensor.into_ir(), dim, k, indices_dtype.into(), || {
+                client.create_empty_handle()
+            });
+
+        client
+            .register(
+                streams,
+                OperationIr::NumericFloat(
+                    desc.tensor.dtype,
+                    NumericOperationIr::TopKWithIndices(desc.clone()),
+                ),
+                TopKWithIndicesOps::<B>::new(desc),
+            )
+            .outputs()
+            .into()
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
@@ -2007,9 +2139,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
-        reduce_float2int_ops!(ArgMinOps, |input, axis, _, dtype| B::float_argmin(
-            input, axis, dtype
-        ));
+        reduce_ops!(ArgMinOps, float => int, |input, axis, _, dtype| B::float_argmin(input, axis, dtype));
 
         let streams = StreamId::current();
 
@@ -2048,7 +2178,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(MaxDimOps, |tensor, axis, _| B::float_max_dim(tensor, axis));
+        reduce_ops!(MaxDimOps, float, |tensor, axis, _| B::float_max_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -2128,7 +2260,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(MinDimOps, |tensor, axis, _| B::float_min_dim(tensor, axis));
+        reduce_ops!(MinDimOps, float, |tensor, axis, _| B::float_min_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -2207,7 +2341,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(MaxAbsDimOps, |tensor, axis, _| B::float_max_abs_dim(
+        reduce_ops!(MaxAbsDimOps, float, |tensor, axis, _| B::float_max_abs_dim(
             tensor, axis
         ));
 
@@ -2571,6 +2705,25 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::Float(desc.out.dtype, FloatOperationIr::GridSample2d(desc.clone())),
                 GridSample2dOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_hypot(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        binary_float_ops!(HypotOps, B::float_hypot);
+
+        let streams = StreamId::current();
+
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Hypot(desc.clone())),
+                HypotOps::<B>::new(desc),
             )
             .output()
     }

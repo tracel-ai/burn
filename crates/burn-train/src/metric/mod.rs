@@ -32,6 +32,7 @@ pub use memory_use::*;
 
 // Training metrics
 mod acc;
+mod auc_pr;
 mod auroc;
 mod base;
 mod bleu;
@@ -50,6 +51,7 @@ mod top_k_acc;
 mod wer;
 
 pub use acc::*;
+pub use auc_pr::*;
 pub use auroc::*;
 pub use base::*;
 pub use bleu::*;

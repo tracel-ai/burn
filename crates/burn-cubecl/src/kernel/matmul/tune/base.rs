@@ -1,6 +1,9 @@
 use crate::{
     CubeRuntime, CubeTuneId,
-    kernel::matmul::{launch_matmul, launch_matmul_naive, utils::init_matmul_output},
+    kernel::matmul::{
+        launch_matmul, launch_matmul_naive, tune::bounds::create_matmul_bounds,
+        utils::init_matmul_output,
+    },
     tensor::CubeTensor,
 };
 use burn_backend::DType;
@@ -12,19 +15,25 @@ use cubecl::{
 use cubek::matmul::{
     components::tile::TileMatmulKind,
     definition::MatmulKind,
-    launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
-        BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-        double_unit::DoubleUnitSelectionArgs, gemm::GemmStrategy,
-        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-        simple_unit::SimpleUnitSelectionArgs,
+        BlueprintStrategy, TileSizeSelection,
+        batch::{
+            double_buffering::DoubleBufferingArgs, double_unit::DoubleUnitSelectionArgs,
+            ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
+            simple_unit::SimpleUnitSelectionArgs,
+        },
+        cpu_gemm::CpuGemmStrategy,
+        gemm::GemmStrategy,
     },
+    strategy::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
 };
+
+pub(super) type Inputs<R> = (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>);
 
 fn matmul_input_gen<R: CubeRuntime>(
     _key: &MatmulAutotuneKey,
-    (lhs, rhs, out): &(CubeTensor<R>, CubeTensor<R>, CubeTensor<R>),
-) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
+    (lhs, rhs, out): &Inputs<R>,
+) -> Inputs<R> {
     (lhs.clone(), rhs.clone(), out.copy())
 }
 
@@ -37,7 +46,13 @@ pub fn matmul_autotune<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let output = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
+    // Short-circuit: zero-sized matmul produces a zero-sized output.
+    if lhs.meta.shape().iter().any(|&d| d == 0) || rhs.meta.shape().iter().any(|&d| d == 0) {
+        return output;
+    }
+
     let client = lhs.client.clone();
+    let bounds_client = client.clone();
     let num_cpu_cores = client.properties().hardware.num_cpu_cores;
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
@@ -78,6 +93,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
         });
 
         let tma = TuneGroup::<MatmulAutotuneKey>::new("tma", |key| {
+            // Zero-sized matmuls cannot use TMA kernels.
+            if key.definition.m == 0 || key.definition.n == 0 || key.definition.k == 0 {
+                return PRIORITY_NEVER;
+            }
+
             // For large matmul, we set the max priority to TMA kernels, higher than any other
             // matmuls, since they are the best kernels no matter what.
             //
@@ -151,6 +171,13 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
+        // CPU-only group
+        let cpu =
+            TuneGroup::<MatmulAutotuneKey>::new("cpu", move |_key| match num_cpu_cores.is_some() {
+                true => PRIORITY_MAX,
+                false => PRIORITY_NEVER,
+            });
+
         fn double_buffering_priority(key: &MatmulAutotuneKey, max: i8, min: i8) -> i8 {
             if should_tune_double_buffering(false, key) {
                 max
@@ -160,6 +187,8 @@ pub fn matmul_autotune<R: CubeRuntime>(
         }
 
         let mut set = TunableSet::new(create_key::<R>, matmul_input_gen::<R>);
+
+        set = set.with_bounds(create_matmul_bounds(&bounds_client));
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
@@ -255,6 +284,17 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 },
             )
             .group(&unit, move |_key| PRIORITY_MAX),
+        );
+
+        // CPU GEMM (CPU-only via the `cpu` group; the size limit is specific to this strategy).
+        let cpu_gemm_strategy =
+            Strategy::CpuGemm(BlueprintStrategy::Inferred(CpuGemmStrategy::default()));
+        set = set.with(
+            Tunable::new(&cpu_gemm_strategy.to_string(), move |(lhs, rhs, out)| {
+                launch_matmul::<R>(&cpu_gemm_strategy, lhs, rhs, out)
+                    .map_err(|err| format!("{err:?}"))
+            })
+            .group(&cpu, move |_key| PRIORITY_MAX),
         );
 
         // Accelerated matmuls
@@ -470,9 +510,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     output
 }
 
-fn create_key<R: CubeRuntime>(
-    (lhs, rhs, out): &(CubeTensor<R>, CubeTensor<R>, CubeTensor<R>),
-) -> MatmulAutotuneKey {
+fn create_key<R: CubeRuntime>((lhs, rhs, out): &Inputs<R>) -> MatmulAutotuneKey {
     MatmulAutotuneKey::generate(
         &lhs.client,
         lhs.meta.shape(),

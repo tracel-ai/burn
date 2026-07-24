@@ -23,7 +23,7 @@ pub struct Autodiff<B, C = NoCheckpointing> {
     _checkpoint_strategy: PhantomData<C>,
 }
 
-impl<B: Backend, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
+impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     type Device = B::Device;
 
     type FloatTensorPrimitive = AutodiffTensor<B>;
@@ -33,6 +33,10 @@ impl<B: Backend, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     type BoolTensorPrimitive = B::BoolTensorPrimitive;
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
+
+    // A replayed graph would skip re-recording the autodiff tape, so capture
+    // is not supported under autodiff.
+    type GraphPrimitive = burn_backend::GraphUnsupported;
 }
 
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {

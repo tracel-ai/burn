@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{path::PathBuf, time::Instant};
 
 use crate::{
     data::{ClassificationBatch, ClassificationBatcher},
@@ -10,7 +10,6 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::SgdConfig,
     prelude::*,
-    record::CompactRecorder,
     train::{
         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
@@ -71,8 +70,7 @@ pub struct TrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -108,7 +106,7 @@ pub fn train(config: TrainingConfig, device: Device) {
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -126,6 +124,7 @@ pub fn train(config: TrainingConfig, device: Device) {
 
     result
         .model
-        .save_file(format!("{ARTIFACT_DIR}/model"), &CompactRecorder::new())
+        .into_record()
+        .save(format!("{ARTIFACT_DIR}/model"))
         .expect("Trained model should be saved successfully");
 }

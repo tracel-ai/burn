@@ -69,7 +69,7 @@ impl Gradients {
             root_node.id,
             B::float_ones(
                 root_tensor.shape(),
-                &B::float_device(&root_tensor),
+                &root_tensor.device(),
                 root_tensor.dtype().into(),
             ),
         );

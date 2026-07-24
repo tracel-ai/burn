@@ -4,21 +4,18 @@ use crate::module::generics::{
     GenericKind, ModuleGenerics, parse_module_generics, parse_ty_generics,
 };
 
-use super::{codegen::ModuleCodegen, record_struct::StructModuleRecordCodegen};
+use super::codegen::ModuleCodegen;
 use proc_macro2::{Ident, TokenStream};
 use quote::{ToTokens, quote};
-use syn::{Field, Visibility};
+use syn::Field;
 
 pub(crate) struct StructModuleCodegen {
     pub name: Ident,
     pub fields: Vec<ModuleField>,
-    pub vis: Visibility,
     pub generics: ModuleGenerics,
 }
 
 impl ModuleCodegen for StructModuleCodegen {
-    type RecordCodegen = StructModuleRecordCodegen;
-
     fn gen_num_params(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name, field_type| {
             if field_type.is_parameter_module() || field_type.maybe_generic_module() {
@@ -189,48 +186,6 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
-    fn gen_into_record(&self) -> TokenStream {
-        let body = self.gen_fields_fn(|name, field_type| {
-            if field_type.is_persistent_module() || field_type.maybe_generic_module() {
-                quote! { #name: burn::module::Module::into_record(self.#name), }
-            } else {
-                match field_type.attr {
-                    // Default (None) gets skipped
-                    None | Some(ModuleFieldAttribute::Skip) => {
-                        quote! { #name: burn::module::EmptyRecord::new(), }
-                    }
-                }
-            }
-        });
-
-        quote! {
-            fn into_record(self) -> Self::Record {
-                Self::Record { #body }
-            }
-        }
-    }
-
-    fn gen_load_record(&self) -> TokenStream {
-        let body = self.gen_fields_fn(|name, field_type| {
-            if field_type.is_persistent_module() || field_type.maybe_generic_module() {
-                quote! { #name: burn::module::Module::load_record(self.#name, record.#name), }
-            } else {
-                match field_type.attr {
-                    // Default (None) gets skipped
-                    None | Some(ModuleFieldAttribute::Skip) => {
-                        quote! { #name: self.#name, }
-                    }
-                }
-            }
-        });
-
-        quote! {
-            fn load_record(self, record: Self::Record) -> Self {
-                Self { #body }
-            }
-        }
-    }
-
     fn gen_clone(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name, _field_type| {
             quote! {
@@ -244,10 +199,6 @@ impl ModuleCodegen for StructModuleCodegen {
                 Self { #(#names),* }
             }
         }
-    }
-
-    fn record_codegen(self) -> Self::RecordCodegen {
-        StructModuleRecordCodegen::new(self.fields, self.vis)
     }
 
     fn module_generics(&self) -> &ModuleGenerics {
@@ -286,7 +237,6 @@ impl StructModuleCodegen {
         Ok(Self {
             name: ast.ident.clone(),
             fields: parse_module_fields(ast, &mut generics)?,
-            vis: ast.vis.clone(),
             generics,
         })
     }
@@ -357,11 +307,6 @@ impl ModuleFieldType {
     /// (i.e., a real module that is neither skipped nor constant).
     pub fn is_parameter_module(&self) -> bool {
         self.is_module && self.attr.is_none()
-    }
-
-    /// Returns true for modules that should be persisted, including constants.
-    pub fn is_persistent_module(&self) -> bool {
-        self.is_module && !matches!(self.attr, Some(ModuleFieldAttribute::Skip))
     }
 
     /// Returns true for generic fields that are assumed to be modules.

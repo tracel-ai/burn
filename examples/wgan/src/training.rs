@@ -1,14 +1,13 @@
 use crate::dataset::MnistBatcher;
 use crate::model::{Clip, ModelConfig};
-use burn::optim::{GradientsParams, Optimizer, RmsPropConfig};
+use burn::optim::{GradientsParams, RmsPropConfig};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     prelude::*,
-    record::CompactRecorder,
     tensor::Distribution,
 };
 use image::{Rgb32FImage, RgbImage, buffer::ConvertBuffer, error::ImageResult};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Config, Debug)]
 pub struct TrainingConfig {
@@ -39,8 +38,7 @@ pub struct TrainingConfig {
 
 // Create the directory to save the model and model config
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -120,7 +118,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
     // Iterate over our training for X epochs
     for epoch in 0..config.num_epochs {
         // Implement our training loop
-        for (iteration, batch) in dataloader_train.iter().enumerate() {
+        for (iteration, batch) in dataloader_train.iter().map(Result::unwrap).enumerate() {
             // Generate a batch of fake images from noise (standarded normal distribution)
             let noise = Tensor::<2>::random(
                 [config.batch_size, config.model.latent_dim],
@@ -144,7 +142,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
             // Gradients linked to each parameter of the discriminator
             let grads = GradientsParams::from_grads(grads, &discriminator);
             // Update the discriminator using the optimizer
-            discriminator = optimizer_d.step(config.lr, discriminator, grads);
+            discriminator = optimizer_d.step(config.lr.into(), discriminator, grads);
             // Clip parameters (weights) of discriminator
             discriminator = discriminator.map(&mut clip);
 
@@ -163,7 +161,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
 
                 let grads = loss_g.backward();
                 let grads = GradientsParams::from_grads(grads, &generator);
-                generator = optimizer_g.step(config.lr, generator, grads);
+                generator = optimizer_g.step(config.lr.into(), generator, grads);
 
                 // Print the progression
                 let batch_num = (dataloader_train.num_items() as f32 / config.batch_size as f32)
@@ -198,12 +196,11 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
 
     // Save the trained models
     generator
-        .save_file(format!("{artifact_dir}/generator"), &CompactRecorder::new())
+        .into_record()
+        .save(format!("{artifact_dir}/generator"))
         .expect("Generator should be saved successfully");
     discriminator
-        .save_file(
-            format!("{artifact_dir}/discriminator"),
-            &CompactRecorder::new(),
-        )
+        .into_record()
+        .save(format!("{artifact_dir}/discriminator"))
         .expect("Discriminator should be saved successfully");
 }

@@ -225,8 +225,8 @@ impl BasicOps for Float {
     fn device(tensor: &BridgeTensor) -> Device {
         let (kind, tensor) = tensor.as_parts();
         match kind {
-            BridgeKind::Float => Device::new(Dispatch::float_device(tensor)),
-            BridgeKind::QFloat => Device::new(Dispatch::q_device(tensor)),
+            BridgeKind::Float => Device::new(tensor.device()),
+            BridgeKind::QFloat => Device::new(tensor.device()),
             _ => panic!("Should be Float primitive kind"),
         }
     }
@@ -819,6 +819,28 @@ impl Ordered for Float {
         match kind {
             BridgeKind::Float => BridgeTensor::float(Dispatch::float_topk(tensor, dim, k)),
             BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_topk(tensor, dim, k)),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn topk_with_indices(
+        tensor: BridgeTensor,
+        dim: usize,
+        k: usize,
+    ) -> (BridgeTensor, BridgeTensor) {
+        let settings = tensor.device_settings();
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let (values, indices) =
+                    Dispatch::float_topk_with_indices(tensor, dim, k, settings.int_dtype);
+                (BridgeTensor::float(values), BridgeTensor::int(indices))
+            }
+            BridgeKind::QFloat => {
+                let (values, indices) =
+                    Dispatch::q_topk_with_indices(tensor, dim, k, settings.int_dtype);
+                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
+            }
             _ => panic!("Should be Float primitive kind"),
         }
     }

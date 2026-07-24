@@ -214,3 +214,26 @@ fn test_sort_descending_1d() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&values_expected, Tolerance::default());
 }
+
+#[test]
+fn test_sort_apis_support_negative_dims_float() {
+    let tensor = TestTensor::<2>::from([[3., 1., 5.], [2., 6., 4.]]);
+
+    let values = tensor.clone().sort(-1);
+    let values_expected = TensorData::from([[1., 3., 5.], [2., 4., 6.]]);
+    values
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&values_expected, Tolerance::default());
+
+    let (values, indices) = tensor.clone().sort_with_indices(-2);
+    let values_expected = TensorData::from([[2., 1., 4.], [3., 6., 5.]]);
+    values
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&values_expected, Tolerance::default());
+    let indices_expected = TensorData::from([[1, 0, 1], [0, 1, 0]]);
+    indices.into_data().assert_eq(&indices_expected, false);
+
+    let indices = tensor.argsort(-1);
+    let indices_expected = TensorData::from([[1, 0, 2], [0, 2, 1]]);
+    indices.into_data().assert_eq(&indices_expected, false);
+}

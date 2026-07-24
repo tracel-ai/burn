@@ -48,10 +48,10 @@ impl ModuleDisplay for Unfold4d {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
-            .add("kernel_size", &alloc::format!("{:?}", &self.kernel_size))
-            .add("stride", &alloc::format!("{:?}", &self.stride))
-            .add("dilation", &alloc::format!("{:?}", &self.dilation))
-            .add("padding", &alloc::format!("{:?}", &self.padding))
+            .add("kernel_size", &alloc::format!("{:?}", self.kernel_size))
+            .add("stride", &alloc::format!("{:?}", self.stride))
+            .add("dilation", &alloc::format!("{:?}", self.dilation))
+            .add("padding", &alloc::format!("{:?}", self.padding))
             .optional()
     }
 }

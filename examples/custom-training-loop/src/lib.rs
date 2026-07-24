@@ -2,7 +2,7 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     module::AutodiffModule,
     nn::loss::CrossEntropyLoss,
-    optim::{AdamConfig, GradientsParams, Optimizer},
+    optim::{AdamConfig, GradientsParams},
     prelude::*,
 };
 use guide::{data::MnistBatcher, model::ModelConfig};
@@ -55,7 +55,7 @@ pub fn run(device: Device) {
     // Iterate over our training and validation loop for X epochs.
     for epoch in 1..config.num_epochs + 1 {
         // Implement our training loop.
-        for (iteration, batch) in dataloader_train.iter().enumerate() {
+        for (iteration, batch) in dataloader_train.iter().map(Result::unwrap).enumerate() {
             let output = model.forward(batch.images);
             let loss = CrossEntropyLoss::new(None, &output.device())
                 .forward(output.clone(), batch.targets.clone());
@@ -74,14 +74,14 @@ pub fn run(device: Device) {
             // Gradients linked to each parameter of the model.
             let grads = GradientsParams::from_grads(grads, &model);
             // Update the model using the optimizer.
-            model = optim.step(config.lr, model, grads);
+            model = optim.step(config.lr.into(), model, grads);
         }
 
         // Get the model without autodiff.
         let model_valid = model.valid();
 
         // Implement our validation loop.
-        for (iteration, batch) in dataloader_test.iter().enumerate() {
+        for (iteration, batch) in dataloader_test.iter().map(Result::unwrap).enumerate() {
             let output = model_valid.forward(batch.images);
             let loss = CrossEntropyLoss::new(None, &output.device())
                 .forward(output.clone(), batch.targets.clone());

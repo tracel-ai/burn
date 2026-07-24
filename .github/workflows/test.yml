@@ -31,7 +31,7 @@ env:
   # Note: It is not possible to define top level env vars and pass them to composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
-  RUST_PREVIOUS_VERSION: 1.92.0
+  RUST_PREVIOUS_VERSION: 1.95.0
 
   # Dependency versioning
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
@@ -68,7 +68,7 @@ jobs:
             toolchain: stable
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v9
@@ -104,7 +104,7 @@ jobs:
             toolchain: stable
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v9
@@ -139,7 +139,7 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v9
@@ -180,7 +180,7 @@ jobs:
     needs: linux-std-tests
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download All Coverage Artifacts
         uses: actions/download-artifact@v8
@@ -209,7 +209,7 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v9
@@ -239,7 +239,7 @@ jobs:
             toolchain: stable
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v9
@@ -263,7 +263,7 @@ jobs:
             toolchain: stable
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v9

@@ -1,9 +1,0 @@
-[profiling]
-logger = { log = "info", level = "disabled" }
-
-[autotune]
-logger = { log = "info", level = "disabled" }
-
-[compilation]
-logger = { log = "info", level = "disabled" }
-cache = "target"

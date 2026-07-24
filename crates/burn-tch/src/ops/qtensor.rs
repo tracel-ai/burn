@@ -31,10 +31,6 @@ impl QTensorOps<Self> for LibTorch {
         unimplemented!()
     }
 
-    fn q_device(_tensor: &QuantizedTensor<Self>) -> LibTorchDevice {
-        unimplemented!()
-    }
-
     fn q_to_device(
         _tensor: QuantizedTensor<Self>,
         _device: &Device<Self>,

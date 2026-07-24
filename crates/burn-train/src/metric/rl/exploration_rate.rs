@@ -62,6 +62,7 @@ impl Metric for ExplorationRateMetric {
         NumericAttributes {
             unit: Some(String::from("%")),
             higher_is_better: false,
+            ..Default::default()
         }
         .into()
     }

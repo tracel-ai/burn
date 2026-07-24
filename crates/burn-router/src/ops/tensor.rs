@@ -12,7 +12,8 @@ use burn_ir::{
     InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr,
     OperationOutput, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr,
     RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr,
-    SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, TopKWithIndicesOpIr,
+    UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
@@ -83,10 +84,6 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.into_data().await
-    }
-
-    fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
-        tensor.client.device()
     }
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
@@ -1036,6 +1033,20 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn float_hypot(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Hypot(desc),
+            ))
+            .output()
+    }
+
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
@@ -1210,6 +1221,29 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
                 NumericOperationIr::MaxDim(desc),
             ))
             .output()
+    }
+
+    fn float_topk_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        // Forwarded explicitly rather than left to the trait default: the default would run
+        // its own sort here and never reach the backend's fused top-k.
+        let client = tensor.client.clone();
+        let desc =
+            TopKWithIndicesOpIr::create(tensor.into_ir(), dim, k, indices_dtype.into(), || {
+                client.create_empty_handle()
+            });
+
+        client
+            .register(OperationIr::NumericFloat(
+                desc.tensor.dtype,
+                NumericOperationIr::TopKWithIndices(desc),
+            ))
+            .outputs()
+            .into()
     }
 
     fn float_max_dim_with_indices(

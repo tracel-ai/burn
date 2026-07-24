@@ -33,7 +33,8 @@ impl Metric for LearningRateMetric {
     type Input = ();
 
     fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> SerializedEntry {
-        let lr = metadata.lr.unwrap_or(0.0);
+        // TODO: We only log the default learning rate. Yet another motivation to introduce metric groups.
+        let lr = metadata.lr.as_ref().map(|val| val.base()).unwrap_or(0.0);
 
         self.state
             .update(lr, 1, FormatOptions::new(self.name()).precision(2))
@@ -51,6 +52,7 @@ impl Metric for LearningRateMetric {
         NumericAttributes {
             unit: None,
             higher_is_better: false,
+            ..Default::default()
         }
         .into()
     }

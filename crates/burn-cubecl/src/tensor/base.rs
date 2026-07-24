@@ -99,6 +99,7 @@ where
 }
 
 impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
+    type Device = R::CubeDevice;
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -109,6 +110,14 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
 
     fn rank(&self) -> usize {
         self.meta.rank()
+    }
+
+    fn device(&self) -> Self::Device {
+        self.device.clone()
+    }
+
+    fn can_mut(&self) -> bool {
+        self.handle.can_mut()
     }
 }
 

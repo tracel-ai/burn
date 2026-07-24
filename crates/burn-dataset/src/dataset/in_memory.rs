@@ -6,7 +6,7 @@ use std::{
 
 use serde::de::DeserializeOwned;
 
-use crate::Dataset;
+use crate::{Dataset, DatasetError};
 
 /// Dataset where all items are stored in ram.
 pub struct InMemDataset<I> {
@@ -24,8 +24,14 @@ impl<I> Dataset<I> for InMemDataset<I>
 where
     I: Clone + Send + Sync,
 {
-    fn get(&self, index: usize) -> Option<I> {
-        self.items.get(index).cloned()
+    fn get(&self, index: usize) -> Result<I, DatasetError> {
+        match self.items.get(index) {
+            Some(item) => Ok(item.clone()),
+            None => panic!(
+                "Index out of bounds for InMemDataset: {index} >= {}",
+                self.items.len()
+            ),
+        }
     }
     fn len(&self) -> usize {
         self.items.len()
@@ -37,8 +43,11 @@ where
     I: Clone + DeserializeOwned,
 {
     /// Create from a dataset. All items are loaded in memory.
-    pub fn from_dataset(dataset: &impl Dataset<I>) -> Self {
-        let items: Vec<I> = dataset.iter().collect();
+    pub fn from_dataset<E>(dataset: &impl Dataset<I, E>) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        let items: Vec<I> = dataset.iter().map(Result::unwrap).collect();
         Self::new(items)
     }
 
@@ -130,23 +139,33 @@ mod tests {
     pub fn from_dataset(train_dataset: SqlDs) {
         let dataset = InMemDataset::from_dataset(&train_dataset);
 
-        let non_existing_record_index: usize = 10;
         let record_index: usize = 0;
 
-        assert_eq!(train_dataset.get(non_existing_record_index), None);
         assert_eq!(dataset.get(record_index).unwrap().column_str, "HI1");
+    }
+
+    #[rstest]
+    #[should_panic(expected = "Index out of bounds")]
+    pub fn from_dataset_out_of_bounds(train_dataset: SqlDs) {
+        let non_existing_record_index: usize = 10;
+        train_dataset.get(non_existing_record_index).unwrap();
     }
 
     #[test]
     pub fn from_json_rows() {
         let dataset = InMemDataset::<Sample>::from_json_rows(JSON_FILE).unwrap();
 
-        let non_existing_record_index: usize = 10;
         let record_index: usize = 1;
 
-        assert_eq!(dataset.get(non_existing_record_index), None);
         assert_eq!(dataset.get(record_index).unwrap().column_str, "HI2");
         assert!(!dataset.get(record_index).unwrap().column_bool);
+    }
+
+    #[test]
+    #[should_panic(expected = "Index out of bounds")]
+    pub fn from_json_rows_out_of_bounds() {
+        let dataset = InMemDataset::<Sample>::from_json_rows(JSON_FILE).unwrap();
+        dataset.get(10).unwrap();
     }
 
     #[test]
@@ -154,10 +173,8 @@ mod tests {
         let rdr = csv::ReaderBuilder::new();
         let dataset = InMemDataset::<SampleCsv>::from_csv(CSV_FILE, &rdr).unwrap();
 
-        let non_existing_record_index: usize = 10;
         let record_index: usize = 1;
 
-        assert_eq!(dataset.get(non_existing_record_index), None);
         assert_eq!(dataset.get(record_index).unwrap().column_str, "HI2");
         assert_eq!(dataset.get(record_index).unwrap().column_int, 1);
         assert!(!dataset.get(record_index).unwrap().column_bool);
@@ -170,10 +187,8 @@ mod tests {
         let rdr = rdr.delimiter(b' ').has_headers(false);
         let dataset = InMemDataset::<SampleCsv>::from_csv(CSV_FMT_FILE, rdr).unwrap();
 
-        let non_existing_record_index: usize = 10;
         let record_index: usize = 1;
 
-        assert_eq!(dataset.get(non_existing_record_index), None);
         assert_eq!(dataset.get(record_index).unwrap().column_str, "HI2");
         assert_eq!(dataset.get(record_index).unwrap().column_int, 1);
         assert!(!dataset.get(record_index).unwrap().column_bool);
@@ -185,7 +200,7 @@ mod tests {
         let items_original = test_data::string_items();
         let dataset = InMemDataset::new(items_original.clone());
 
-        let items: Vec<String> = dataset.iter().collect();
+        let items: Vec<String> = dataset.iter().map(Result::unwrap).collect();
 
         assert_eq!(items_original, items);
     }

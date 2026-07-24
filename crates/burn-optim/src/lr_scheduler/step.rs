@@ -2,8 +2,9 @@ use burn_core as burn;
 
 use burn::config::Config;
 
-use super::{LrScheduler, String};
-use crate::LearningRate;
+use super::{LrScheduler, LrSchedulerRecord, String};
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
+use crate::{LearningRate, RecordState};
 
 /// The configuration for create a [step learning rate scheduler](StepLrScheduler).
 ///
@@ -32,11 +33,7 @@ pub struct StepLrSchedulerConfig {
 
 impl StepLrSchedulerConfig {
     /// Initializes a [step learning rate scheduler](StepLrScheduler).
-    ///
-    /// # Errors
-    ///
-    /// An error will be returned if `step_size` is 0.
-    pub fn init(&self) -> Result<StepLrScheduler, String> {
+    pub(crate) fn build(&self) -> Result<StepLrScheduler, String> {
         if self.step_size == 0 {
             return Err("Step size must be greater than 0".into());
         }
@@ -65,6 +62,15 @@ impl StepLrSchedulerConfig {
             iter_idx: -1,
         })
     }
+
+    /// Initializes a [module learning rate scheduler](ModuleLrScheduler).
+    ///
+    /// # Errors
+    ///
+    /// An error will be returned if `step_size` is 0.
+    pub fn init(&self) -> Result<ModuleLrScheduler, String> {
+        self.build().map(|s| s.into())
+    }
 }
 
 /// Step learning rate scheduler.
@@ -79,8 +85,6 @@ pub struct StepLrScheduler {
 }
 
 impl LrScheduler for StepLrScheduler {
-    type Record = i32;
-
     fn step(&mut self) -> LearningRate {
         self.iter_idx = self
             .iter_idx
@@ -93,14 +97,23 @@ impl LrScheduler for StepLrScheduler {
                 .powi((self.iter_idx as usize / self.step_size) as i32)
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.iter_idx
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::from_state(&StepLrSchedulerState {
+            iter_idx: self.iter_idx,
+        })
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.iter_idx = record;
-        self
+    fn load_record(&mut self, record: LrSchedulerRecord) {
+        if let Some(state) = record.into_state::<StepLrSchedulerState>() {
+            self.iter_idx = state.iter_idx;
+        }
     }
+}
+
+/// The serializable state of a [step learning rate scheduler](StepLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct StepLrSchedulerState {
+    iter_idx: i32,
 }
 
 #[cfg(test)]
@@ -128,13 +141,13 @@ mod tests {
 
     #[test]
     fn test_config_step_size_zero() {
-        let r = StepLrSchedulerConfig::new(1.0, 0).init();
+        let r = StepLrSchedulerConfig::new(1.0, 0).build();
         assert!(r.is_err(), "Should return an error");
     }
 
     #[test]
     fn test_config_step_size_nonzero() {
-        let r = StepLrSchedulerConfig::new(1.0, 1).init();
+        let r = StepLrSchedulerConfig::new(1.0, 1).build();
         assert!(r.is_ok(), "Should return a success value");
     }
 
@@ -144,11 +157,11 @@ mod tests {
         const STEP_SIZE: usize = 2;
 
         let mut default = StepLrSchedulerConfig::new(INIT_LR, STEP_SIZE)
-            .init()
+            .build()
             .unwrap();
         let mut explicit = StepLrSchedulerConfig::new(INIT_LR, STEP_SIZE)
             .with_gamma(0.1)
-            .init()
+            .build()
             .unwrap();
         test_utils::compare_steps(&mut default, &mut explicit, 3 * STEP_SIZE);
     }
@@ -157,7 +170,7 @@ mod tests {
     fn test_lr_decreasing() {
         let scheduler = StepLrSchedulerConfig::new(0.5, 3)
             .with_gamma(0.1)
-            .init()
+            .build()
             .unwrap();
         let expected_lrs = [0.5, 0.5, 0.5, 0.05, 0.05, 0.05, 0.005, 0.005, 0.005];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
@@ -167,7 +180,7 @@ mod tests {
     fn test_lr_increasing() {
         let scheduler = StepLrSchedulerConfig::new(0.1, 2)
             .with_gamma(2.0)
-            .init()
+            .build()
             .unwrap();
         let expected_lrs = [0.1, 0.1, 0.2, 0.2, 0.4, 0.4];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
@@ -177,7 +190,7 @@ mod tests {
     fn test_lr_unchanging() {
         let scheduler = StepLrSchedulerConfig::new(3.1, 1)
             .with_gamma(1.0)
-            .init()
+            .build()
             .unwrap();
         let expected_lrs = [3.1, 3.1, 3.1];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
@@ -189,7 +202,7 @@ mod tests {
 
         let scheduler = StepLrSchedulerConfig::new(0.007, STEP_SIZE)
             .with_gamma(0.03)
-            .init()
+            .build()
             .unwrap();
         test_utils::check_save_load(scheduler, 3 * STEP_SIZE / 2);
     }
@@ -199,8 +212,10 @@ mod tests {
     #[test]
     fn test_number_of_calls_within_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
-        let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record(i32::MAX - 1);
+        let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).build().unwrap();
+        scheduler.load_record(LrSchedulerRecord::from_state(&StepLrSchedulerState {
+            iter_idx: i32::MAX - 1,
+        }));
         scheduler.step();
     }
 
@@ -208,8 +223,10 @@ mod tests {
     #[should_panic = "i32::MAX"]
     fn test_number_of_calls_over_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
-        let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record(i32::MAX - 1);
+        let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).build().unwrap();
+        scheduler.load_record(LrSchedulerRecord::from_state(&StepLrSchedulerState {
+            iter_idx: i32::MAX - 1,
+        }));
         scheduler.step();
         scheduler.step();
     }

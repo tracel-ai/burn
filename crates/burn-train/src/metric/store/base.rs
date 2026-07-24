@@ -4,7 +4,9 @@ use crate::metric::{MetricDefinition, MetricEntry, NumericEntry};
 
 /// Event happening during the training/validation process.
 pub enum Event {
-    /// Signal the iniialization of the metrics
+    /// Signal the start of an epoch with the wpoch number.
+    StartSplit(usize),
+    /// Signal the initialization of the metrics
     MetricsInit(Vec<MetricDefinition>),
     /// Signal that metrics have been updated.
     MetricsUpdate(MetricsUpdate),
@@ -91,6 +93,16 @@ impl std::fmt::Display for Split {
             Split::Train => write!(f, "train"),
             Split::Valid => write!(f, "valid"),
             Split::Test(_) => write!(f, "test"),
+        }
+    }
+}
+
+impl From<Split> for &'static str {
+    fn from(value: Split) -> Self {
+        match value {
+            Split::Train => "train",
+            Split::Valid => "valid",
+            Split::Test(_) => "test",
         }
     }
 }

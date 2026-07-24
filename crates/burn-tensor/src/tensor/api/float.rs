@@ -50,6 +50,14 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Self::new(erf_impl(self.primitive))
     }
 
+    /// Applies [hypotenuse operation](https://en.wikipedia.org/wiki/Hypotenuse) element wise.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i^2 + y_i^2}$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i^2 + y_i^2)`")]
+    pub fn hypot(self, other: Self) -> Self {
+        Self::new(hypot_impl(self.primitive, other.primitive))
+    }
+
     /// Applies [reciprocal operation](https://en.wikipedia.org/wiki/Multiplicative_inverse)
     /// (or multiplicative inverse) element wise.
     ///
@@ -140,24 +148,36 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     }
 
     /// Calculate the variance along the given dimension.
-    pub fn var(self, dim: usize) -> Self {
+    ///
+    /// Negative dimensions are supported and count from the end.
+    pub fn var<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         stats::var(self, dim)
     }
 
     /// Calculate the variance along the given dimension without applying the Bessel’s correction.
-    pub fn var_bias(self, dim: usize) -> Self {
+    ///
+    /// Negative dimensions are supported and count from the end.
+    pub fn var_bias<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         stats::var_bias(self, dim)
     }
 
     /// Calculate the variance along the given dimension and also returns the mean.
-    pub fn var_mean(self, dim: usize) -> (Self, Self) {
+    ///
+    /// Negative dimensions are supported and count from the end.
+    pub fn var_mean<I: AsIndex>(self, dim: I) -> (Self, Self) {
+        let dim = dim.expect_dim_index(D);
         let mean = self.clone().mean_dim(dim);
         let var = stats::var_with_mean(self, mean.clone(), dim);
         (var, mean)
     }
 
     /// Calculate the variance along the given dimension without applying the Bessel’s correction and also returns the mean.
-    pub fn var_mean_bias(self, dim: usize) -> (Self, Self) {
+    ///
+    /// Negative dimensions are supported and count from the end.
+    pub fn var_mean_bias<I: AsIndex>(self, dim: I) -> (Self, Self) {
+        let dim = dim.expect_dim_index(D);
         let mean = self.clone().mean_dim(dim);
         let var = stats::var_with_mean_bias(self, mean.clone(), dim);
         (var, mean)
@@ -179,6 +199,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Arguments
     ///
     /// - `dim` - The dimension along which to compute the median.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -216,7 +237,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let median = flattened_tensor.median(0);
     /// // Result: [4.0]
     /// ```
-    pub fn median(self, dim: usize) -> Self {
+    pub fn median<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         // TODO: Allow backend specialization. Optimally, implement a median kernel for cubecl
         // instead of leveraging a full sort to get the median.
         stats::median(self, dim)
@@ -238,6 +260,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Arguments
     ///
     /// - `dim` - The dimension along which to compute the median.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -259,7 +282,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let (values, indices) = tensor.median_with_indices(1);
     /// // values: [[2.0], [6.0]], indices: [[3], [2]] (position in the original tensor)
     /// ```
-    pub fn median_with_indices(self, dim: usize) -> (Self, Tensor<D, Int>) {
+    pub fn median_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
+        let dim = dim.expect_dim_index(D);
         // TODO: Allow backend specialization. Optimally, implement a median kernel for cubecl
         // instead of leveraging a full sort to get the median.
         stats::median_with_indices(self, dim)
@@ -331,9 +355,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// # Arguments
     ///
-    /// * `size` - The size of the square matrix.
+    /// * `dim` - The dimension along which to calculate the covariance.
+    ///   Negative dimensions are supported and count from the end.
     /// * `correction_factor` - Is usually 1 for samples and 0 for population.
-    pub fn cov(self, dim: usize, correction_factor: usize) -> Tensor<D> {
+    pub fn cov<I: AsIndex>(self, dim: I, correction_factor: usize) -> Tensor<D> {
+        let dim = dim.expect_dim_index(D);
         let n = self.dims()[dim];
         let centered = (self.clone() - self.mean_dim(dim)).swap_dims(dim, 0);
         centered
@@ -1096,6 +1122,10 @@ fn recip_impl(p: BridgeTensor) -> BridgeTensor {
     BridgeTensor::float(Dispatch::float_recip(p.into_float()))
 }
 
+fn hypot_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_hypot(lhs.into_float(), rhs.into_float()))
+}
+
 fn round_impl(p: BridgeTensor) -> BridgeTensor {
     BridgeTensor::float(Dispatch::float_round(p.into_float()))
 }
@@ -1117,7 +1147,7 @@ fn random_like_impl(p: &BridgeTensor, distribution: Distribution) -> BridgeTenso
     BridgeTensor::float(Dispatch::float_random(
         p.shape(),
         distribution,
-        &Dispatch::float_device(p.as_dispatch()),
+        &p.as_dispatch().device(),
         p.dtype().into(),
     ))
 }

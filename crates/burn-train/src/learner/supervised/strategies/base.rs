@@ -1,19 +1,18 @@
 use crate::{
-    EarlyStoppingStrategyRef, InferenceModel, Interrupter, Learner, LearnerSummaryConfig,
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerModel, LearnerSummaryConfig,
     LearningCheckpointer, LearningResult, SupervisedTrainingEventProcessor, TrainLoader,
-    TrainingModel, ValidLoader,
-    components::LearningComponentsTypes,
+    ValidLoader,
     metric::{
         processor::{EventProcessorTraining, LearnerEvent},
         store::EventStoreClient,
     },
 };
+use burn_core::prelude::Device;
 use burn_core::tensor::distributed::{DistributedConfig, DistributedContext};
-use burn_core::{module::AutodiffModule, prelude::Device};
 use std::sync::Arc;
 
 /// A reference to an implementation of SupervisedLearningStrategy.
-pub type CustomLearningStrategy<LC> = Arc<dyn SupervisedLearningStrategy<LC>>;
+pub type CustomLearningStrategy<M> = Arc<dyn SupervisedLearningStrategy<M>>;
 
 #[derive(Clone, Copy, Debug)]
 /// Determine how the optimization is performed when training with multiple devices.
@@ -74,20 +73,20 @@ impl ExecutionStrategy {
 }
 
 /// How should the learner run the learning for the model
-pub enum TrainingStrategy<LC: LearningComponentsTypes> {
+pub enum TrainingStrategy<M: LearnerModel> {
     /// Default training loop with specified device strategy.
     Default(ExecutionStrategy),
     /// Training using a custom learning strategy
-    Custom(CustomLearningStrategy<LC>),
+    Custom(CustomLearningStrategy<M>),
 }
 
-impl<LC: LearningComponentsTypes> From<ExecutionStrategy> for TrainingStrategy<LC> {
+impl<M: LearnerModel> From<ExecutionStrategy> for TrainingStrategy<M> {
     fn from(value: ExecutionStrategy) -> Self {
         Self::Default(value)
     }
 }
 
-impl<LC: LearningComponentsTypes> Default for TrainingStrategy<LC> {
+impl<M: LearnerModel> Default for TrainingStrategy<M> {
     fn default() -> Self {
         Self::Default(ExecutionStrategy::SingleDevice(Default::default()))
     }
@@ -95,13 +94,13 @@ impl<LC: LearningComponentsTypes> Default for TrainingStrategy<LC> {
 
 /// Struct to minimise parameters passed to [SupervisedLearningStrategy::train].
 /// These components are used during training.
-pub struct TrainingComponents<LC: LearningComponentsTypes> {
+pub struct TrainingComponents<M: LearnerModel> {
     /// The total number of epochs
     pub num_epochs: usize,
     /// The epoch number from which to continue the training.
     pub checkpoint: Option<usize>,
     /// A checkpointer used to load and save learner checkpoints.
-    pub checkpointer: Option<LearningCheckpointer<LC>>,
+    pub checkpointer: Option<LearningCheckpointer<M>>,
     /// Enables gradients accumulation.
     pub grad_accumulation: Option<usize>,
     /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
@@ -109,7 +108,7 @@ pub struct TrainingComponents<LC: LearningComponentsTypes> {
     /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
     /// An [EventProcessor](crate::EventProcessorTraining) that processes events happening during training and validation.
-    pub event_processor: SupervisedTrainingEventProcessor<LC>,
+    pub event_processor: SupervisedTrainingEventProcessor<M>,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
     /// Config for creating a summary of the learning
@@ -117,26 +116,16 @@ pub struct TrainingComponents<LC: LearningComponentsTypes> {
 }
 
 /// Provides the `fit` function for any learning strategy
-pub trait SupervisedLearningStrategy<LC: LearningComponentsTypes> {
+pub trait SupervisedLearningStrategy<M: LearnerModel> {
     /// Train the learner's model with this strategy.
     fn train(
         &self,
-        mut learner: Learner<LC>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-        mut training_components: TrainingComponents<LC>,
-    ) -> LearningResult<InferenceModel<LC>> {
-        let starting_epoch = match training_components.checkpoint {
-            Some(checkpoint) => {
-                if let Some(checkpointer) = &mut training_components.checkpointer {
-                    learner =
-                        checkpointer.load_checkpoint(learner, &Default::default(), checkpoint);
-                }
-                checkpoint + 1
-            }
-            None => 1,
-        };
-
+        learner: Learner<M>,
+        dataloader_train: TrainLoader<M>,
+        dataloader_valid: ValidLoader<M>,
+        mut training_components: TrainingComponents<M>,
+    ) -> LearningResult<M> {
+        let starting_epoch = training_components.checkpoint.unwrap_or(0) + 1;
         let summary_config = training_components.summary.clone();
 
         // Event processor start training
@@ -144,6 +133,7 @@ pub trait SupervisedLearningStrategy<LC: LearningComponentsTypes> {
             .event_processor
             .process_train(LearnerEvent::Start {
                 total_epochs: training_components.num_epochs,
+                starting_epoch,
             });
         // Training loop
         let (model, mut event_processor) = self.fit(
@@ -167,16 +157,16 @@ pub trait SupervisedLearningStrategy<LC: LearningComponentsTypes> {
         let model = model.valid();
         let renderer = event_processor.renderer();
 
-        LearningResult::<InferenceModel<LC>> { model, renderer }
+        LearningResult::<M> { model, renderer }
     }
 
     /// Training loop for this strategy
     fn fit(
         &self,
-        training_components: TrainingComponents<LC>,
-        learner: Learner<LC>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
+        training_components: TrainingComponents<M>,
+        learner: Learner<M>,
+        dataloader_train: TrainLoader<M>,
+        dataloader_valid: ValidLoader<M>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>);
+    ) -> (M, SupervisedTrainingEventProcessor<M>);
 }

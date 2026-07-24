@@ -17,7 +17,7 @@ impl<B: Backend> Backward<B, 1> for SortDim {
     ) {
         unary::<B, _>(ops.parents, ops.node, grads, |grad| {
             let (indices, shape, dim) = ops.state;
-            let device = B::float_device(&grad);
+            let device = grad.device();
             let dtype = grad.dtype();
             let zeros = B::float_zeros(shape, &device, dtype.into());
 

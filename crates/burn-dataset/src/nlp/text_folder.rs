@@ -1,5 +1,5 @@
 use crate::transform::{Mapper, MapperDataset};
-use crate::{Dataset, InMemDataset};
+use crate::{Dataset, DatasetError, InMemDataset};
 
 use encoding_rs::{GB18030, GBK, UTF_8, UTF_16BE, UTF_16LE};
 use globwalk::{self, DirEntry};
@@ -157,7 +157,7 @@ pub struct TextFolderDataset {
 }
 
 impl Dataset<TextDatasetItem> for TextFolderDataset {
-    fn get(&self, index: usize) -> Option<TextDatasetItem> {
+    fn get(&self, index: usize) -> Result<TextDatasetItem, DatasetError> {
         self.dataset.get(index)
     }
 
@@ -335,7 +335,7 @@ mod tests {
 
         // Dataset should have 4 elements (2 positive + 2 negative)
         assert_eq!(dataset.len(), 4);
-        assert_eq!(dataset.get(4), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(4))).is_err());
 
         // Check that we have items from both classes
         let mut found_positive = false;
@@ -387,7 +387,7 @@ mod tests {
 
         // Dataset should have 2 elements
         assert_eq!(dataset.len(), 2);
-        assert_eq!(dataset.get(2), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(2))).is_err());
 
         // Get items
         let item0 = dataset.get(0).unwrap();

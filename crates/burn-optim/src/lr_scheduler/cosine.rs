@@ -1,7 +1,9 @@
 use burn_core as burn;
 
-use super::{LrScheduler, String};
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
+use crate::RecordState;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use burn::config::Config;
 
 /// The configuration for creating a [Cosine Annealing learning rate scheduler with warm
@@ -24,15 +26,7 @@ pub struct CosineAnnealingLrSchedulerConfig {
 
 impl CosineAnnealingLrSchedulerConfig {
     /// Initializes a [Cosine learning rate scheduler](CosineAnnealingLrScheduler).
-    ///
-    /// # Errors
-    ///
-    /// An error will be returned if any of the following conditions is true:
-    ///
-    /// * `initial_lr` is out of range (0.0, 1.0]
-    /// * `min_lr` is out of range [0.0, `initial_lr`]
-    /// * `num_iters` is 0
-    pub fn init(&self) -> Result<CosineAnnealingLrScheduler, String> {
+    pub(crate) fn build(&self) -> Result<CosineAnnealingLrScheduler, String> {
         if self.initial_lr <= 0. || self.initial_lr > 1. {
             return Err("Initial learning rate must be greater than 0 and at most 1".into());
         }
@@ -54,6 +48,19 @@ impl CosineAnnealingLrSchedulerConfig {
             current_iter: usize::MAX,
         })
     }
+
+    /// Initializes a [module learning rate scheduler](ModuleLrScheduler).
+    ///
+    /// # Errors
+    ///
+    /// An error will be returned if any of the following conditions is true:
+    ///
+    /// * `initial_lr` is out of range (0.0, 1.0]
+    /// * `min_lr` is out of range [0.0, `initial_lr`]
+    /// * `num_iters` is 0
+    pub fn init(&self) -> Result<ModuleLrScheduler, String> {
+        self.build().map(|s| s.into())
+    }
 }
 
 /// A Cosine Annealing learning rate scheduler.
@@ -70,8 +77,6 @@ pub struct CosineAnnealingLrScheduler {
 }
 
 impl LrScheduler for CosineAnnealingLrScheduler {
-    type Record = usize;
-
     fn step(&mut self) -> LearningRate {
         // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
         // first call. We could've used i64 with an initial value -1, but keeping it in usize saves
@@ -85,14 +90,23 @@ impl LrScheduler for CosineAnnealingLrScheduler {
                         .cos())
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.current_iter
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::from_state(&CosineAnnealingLrSchedulerState {
+            current_iter: self.current_iter,
+        })
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.current_iter = record;
-        self
+    fn load_record(&mut self, record: LrSchedulerRecord) {
+        if let Some(state) = record.into_state::<CosineAnnealingLrSchedulerState>() {
+            self.current_iter = state.current_iter;
+        }
     }
+}
+
+/// The serializable state of a [cosine annealing scheduler](CosineAnnealingLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct CosineAnnealingLrSchedulerState {
+    current_iter: usize,
 }
 
 #[cfg(test)]
@@ -102,7 +116,7 @@ mod tests {
 
     #[test]
     fn config_initial_lr_too_low() {
-        let r = CosineAnnealingLrSchedulerConfig::new(0., 10).init();
+        let r = CosineAnnealingLrSchedulerConfig::new(0., 10).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -113,7 +127,7 @@ mod tests {
 
     #[test]
     fn config_initial_lr_too_high() {
-        let r = CosineAnnealingLrSchedulerConfig::new(1.5, 10).init();
+        let r = CosineAnnealingLrSchedulerConfig::new(1.5, 10).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -126,7 +140,7 @@ mod tests {
     fn config_min_lr_too_low() {
         let r = CosineAnnealingLrSchedulerConfig::new(0.5, 10)
             .with_min_lr(-0.1)
-            .init();
+            .build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -140,7 +154,7 @@ mod tests {
     fn config_min_lr_too_high() {
         let r = CosineAnnealingLrSchedulerConfig::new(0.5, 10)
             .with_min_lr(0.6)
-            .init();
+            .build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -152,7 +166,7 @@ mod tests {
 
     #[test]
     fn config_num_iters_too_low() {
-        let r = CosineAnnealingLrSchedulerConfig::new(0.5, 0).init();
+        let r = CosineAnnealingLrSchedulerConfig::new(0.5, 0).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -168,7 +182,7 @@ mod tests {
 
         let scheduler = CosineAnnealingLrSchedulerConfig::new(INITIAL_LR, 2)
             .with_min_lr(MIN_LR)
-            .init()
+            .build()
             .unwrap();
         let expected_lrs = [
             INITIAL_LR,                  // cos(0)
@@ -183,7 +197,7 @@ mod tests {
     fn test_save_and_load() {
         const NUM_ITERS: usize = 9;
         let scheduler = CosineAnnealingLrSchedulerConfig::new(1.0, NUM_ITERS)
-            .init()
+            .build()
             .unwrap();
         test_utils::check_save_load(scheduler, NUM_ITERS / 3 * 2);
     }

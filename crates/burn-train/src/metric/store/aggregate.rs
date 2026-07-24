@@ -1,6 +1,6 @@
 use crate::{
     logger::MetricLogger,
-    metric::{NumericEntry, store::Split},
+    metric::{MetricAttributes, MetricDefinition, NumericAggregation, NumericEntry, store::Split},
 };
 use std::collections::HashMap;
 
@@ -10,6 +10,7 @@ use super::{Aggregate, Direction};
 #[derive(Default, Debug)]
 pub(crate) struct NumericMetricsAggregate {
     value_for_each_epoch: HashMap<Key, f64>,
+    aggregations: HashMap<String, NumericAggregation>,
 }
 
 #[derive(new, Hash, PartialEq, Eq, Debug)]
@@ -21,6 +22,16 @@ struct Key {
 }
 
 impl NumericMetricsAggregate {
+    /// Record each numeric metric's epoch-aggregation strategy from its definition.
+    pub(crate) fn register_definitions(&mut self, definitions: &[MetricDefinition]) {
+        for def in definitions {
+            if let MetricAttributes::Numeric(numeric) = &def.attributes {
+                self.aggregations
+                    .insert(def.name.clone(), numeric.aggregation);
+            }
+        }
+    }
+
     pub(crate) fn aggregate(
         &mut self,
         name: &str,
@@ -34,6 +45,9 @@ impl NumericMetricsAggregate {
         if let Some(value) = self.value_for_each_epoch.get(&key) {
             return Some(*value);
         }
+
+        // How this metric reduces its per-batch points (defaults to a weighted mean).
+        let aggregation = self.aggregations.get(name).copied().unwrap_or_default();
 
         let points = || {
             let mut errors = Vec::new();
@@ -53,23 +67,28 @@ impl NumericMetricsAggregate {
             return None;
         }
 
-        // Accurately compute the aggregated value based on the *actual* number of points
-        // since not all mini-batches are guaranteed to have the specified batch size
-        let (sum, num_points) = points
-            .into_iter()
-            .map(|entry| match entry {
-                NumericEntry::Value(v) => (v, 1),
-                // Right now the mean is the only aggregate available, so we can assume that the sum
-                // of an entry corresponds to (value * number of elements)
-                NumericEntry::Aggregated {
-                    aggregated_value,
-                    count,
-                } => (aggregated_value * count as f64, count),
-            })
-            .reduce(|(acc_v, acc_n), (v, n)| (acc_v + v, acc_n + n))
-            .unwrap();
-        let value = match aggregate {
-            Aggregate::Mean => sum / num_points as f64,
+        let value = match aggregation {
+            // Already computed over the whole epoch; do not average.
+            NumericAggregation::Last => points.last().expect("Points are not empty").current(),
+            // Weighted by the *actual* number of points since mini-batches may differ in size.
+            NumericAggregation::Mean => {
+                let (sum, num_points) = points
+                    .into_iter()
+                    .map(|entry| match entry {
+                        NumericEntry::Value(v) => (v, 1),
+                        // Right now the mean is the only aggregate available, so we can assume that the sum
+                        // of an entry corresponds to (value * number of elements)
+                        NumericEntry::Aggregated {
+                            aggregated_value,
+                            count,
+                        } => (aggregated_value * count as f64, count),
+                    })
+                    .reduce(|(acc_v, acc_n), (v, n)| (acc_v + v, acc_n + n))
+                    .unwrap();
+                match aggregate {
+                    Aggregate::Mean => sum / num_points as f64,
+                }
+            }
         };
 
         self.value_for_each_epoch.insert(key, value);
@@ -247,5 +266,47 @@ mod tests {
 
         // Average should be (0.5 + 1.25 * 2) / 3 = 1.0, not (0.5 + 1.25) / 2 = 0.875
         assert_eq!(value, 1.0);
+    }
+
+    #[test]
+    fn should_take_last_value_for_last_aggregation() {
+        let mut logger = InMemoryMetricLogger::default();
+        let mut aggregate = NumericMetricsAggregate::default();
+        let metric_name = Arc::new("AUROC".to_string());
+        let metric_id = MetricId::new(metric_name.clone());
+        let definition = MetricDefinition {
+            metric_id: metric_id.clone(),
+            name: metric_name.to_string(),
+            attributes: crate::metric::NumericAttributes {
+                unit: None,
+                higher_is_better: true,
+                aggregation: NumericAggregation::Last,
+            }
+            .into(),
+            description: None,
+        };
+        logger.log_metric_definition(definition.clone());
+        aggregate.register_definitions(&[definition]);
+
+        for value in [0.6, 0.7, 0.85] {
+            let entry = MetricEntry::new(
+                metric_id.clone(),
+                SerializedEntry::new(value.to_string(), NumericEntry::Value(value).serialize()),
+            );
+            logger.log(MetricsUpdate::new(vec![entry], vec![]), 1, &Split::Train);
+        }
+
+        let value = aggregate
+            .aggregate(
+                &metric_name,
+                1,
+                &Split::Train,
+                Aggregate::Mean,
+                &mut [Box::new(logger)],
+            )
+            .unwrap();
+
+        // Last point, not the mean (~0.717).
+        assert_eq!(value, 0.85);
     }
 }

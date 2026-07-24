@@ -62,8 +62,8 @@ These methods are available for all modules.
 | `module.map(mapper)`                    | N/A                                      |
 | `module.into_record()`                  | Similar to `state_dict`                  |
 | `module.load_record(record)`            | Similar to `load_state_dict(state_dict)` |
-| `module.save_file(file_path, recorder)` | N/A                                      |
-| `module.load_file(file_path, recorder)` | N/A                                      |
+| `module.into_record().save(file_path)`  | Similar to `torch.save(state_dict, ...)` |
+| `ModuleRecord::load(file_path)`         | Similar to `torch.load(...)`             |
 
 Similar to the backend trait, there is also the `AutodiffModule` trait to signify a module with
 autodiff support.
@@ -240,16 +240,23 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `GroupNorm`       | `nn.GroupNorm`                                |
 | `HardShrink`      | `nn.Hardshrink`                               |
 | `HardSigmoid`     | `nn.Hardsigmoid`                              |
+| `CosineSimilarity` | `nn.CosineSimilarity`                         |
 | `HardSwish`       | `nn.Hardswish`                                |
 | `InstanceNorm`    | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `LayerNorm`       | `nn.LayerNorm`                                |
 | `LocalResponseNorm` | `nn.LocalResponseNorm`                      |
 | `LeakyRelu`       | `nn.LeakyReLU`                                |
+| `LogSigmoid`      | `nn.LogSigmoid`                               |
+| `Mish`            | `nn.Mish`                                     |
 | `Linear`          | `nn.Linear`                                   |
+| `PairwiseDistance` | `nn.PairwiseDistance`                         |
+| `PixelShuffle`    | `nn.PixelShuffle`                             |
+| `PixelUnshuffle`  | `nn.PixelUnshuffle`                           |
 | `Prelu`           | `nn.PReLu`                                    |
 | `Relu`            | `nn.ReLU`                                     |
 | `Selu`            | `nn.SELU`                                     |
 | `Sigmoid`         | `nn.Sigmoid`                                  |
+| `SiLU`            | `nn.SiLU`                                     |
 | `Softplus`        | `nn.Softplus`                                 |
 | `SoftShrink`      | `nn.Softshrink`                               |
 | `Softsign`        | `nn.Softsign`                                 |
@@ -334,10 +341,15 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `CrossEntropyLoss`       | `nn.CrossEntropyLoss`    |
 | `CTCLoss`                | `nn.CTCLoss`             |
 | `GramMatrixLoss`         | _No direct equivalent_   |
+| `GaussianNLLLoss`        | `nn.GaussianNLLLoss`     |
+| `HingeEmbeddingLoss`     | `nn.HingeEmbeddingLoss`  |
 | `HuberLoss`              | `nn.HuberLoss`           |
 | `KLDivLoss`              | `nn.KLDivLoss`           |
 | `LpLoss`                 | _No direct equivalent_   |
+| `MarginRankingLoss`     | `nn.MarginRankingLoss`   |
 | `MseLoss`                | `nn.MSELoss`             |
+| `MultiMarginLoss`        | `nn.MultiMarginLoss`     |
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
 | `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |
 | `SmoothL1Loss`           | `nn.SmoothL1Loss`        |
+| `TripletMarginLoss`      | `nn.TripletMarginLoss`   |

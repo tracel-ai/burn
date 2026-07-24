@@ -1,7 +1,9 @@
 use burn_core as burn;
 
-use super::{LrScheduler, String};
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
+use crate::RecordState;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use burn::config::Config;
 
 /// The configuration for creating a [linear learning rate scheduler](LinearLrScheduler).
@@ -22,15 +24,7 @@ pub struct LinearLrSchedulerConfig {
 
 impl LinearLrSchedulerConfig {
     /// Initializes a [linear learning rate scheduler](LinearLrScheduler).
-    ///
-    /// # Errors
-    ///
-    /// An error will be returned if any of the following conditions is true:
-    ///
-    /// * `initial_lr` is out of range (0.0, 1.0]
-    /// * `final_lr` is out of range [0.0, 1.0]
-    /// * `num_iters` is 0
-    pub fn init(&self) -> Result<LinearLrScheduler, String> {
+    pub(crate) fn build(&self) -> Result<LinearLrScheduler, String> {
         if self.initial_lr <= 0. || self.initial_lr > 1. {
             return Err("Initial learning rate must be greater than 0 and at most 1".into());
         }
@@ -46,6 +40,19 @@ impl LinearLrSchedulerConfig {
             step_size: (self.final_lr - self.initial_lr) / self.num_iters as f64,
             remaining_iters: self.num_iters + 1,
         })
+    }
+
+    /// Initializes a [module learning rate scheduler](ModuleLrScheduler).
+    ///
+    /// # Errors
+    ///
+    /// An error will be returned if any of the following conditions is true:
+    ///
+    /// * `initial_lr` is out of range (0.0, 1.0]
+    /// * `final_lr` is out of range [0.0, 1.0]
+    /// * `num_iters` is 0
+    pub fn init(&self) -> Result<ModuleLrScheduler, String> {
+        self.build().map(|s| s.into())
     }
 }
 
@@ -63,21 +70,28 @@ pub struct LinearLrScheduler {
 }
 
 impl LrScheduler for LinearLrScheduler {
-    type Record = usize;
-
     fn step(&mut self) -> LearningRate {
         self.remaining_iters -= (self.remaining_iters != 0) as usize;
         self.final_lr - self.step_size * self.remaining_iters as f64
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.remaining_iters
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::from_state(&LinearLrSchedulerState {
+            remaining_iters: self.remaining_iters,
+        })
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.remaining_iters = record;
-        self
+    fn load_record(&mut self, record: LrSchedulerRecord) {
+        if let Some(state) = record.into_state::<LinearLrSchedulerState>() {
+            self.remaining_iters = state.remaining_iters;
+        }
     }
+}
+
+/// The serializable state of a [linear scheduler](LinearLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct LinearLrSchedulerState {
+    remaining_iters: usize,
 }
 
 #[cfg(test)]
@@ -87,7 +101,7 @@ mod tests {
 
     #[test]
     fn config_initial_lr_too_low() {
-        let r = LinearLrSchedulerConfig::new(0., 0.5, 100).init();
+        let r = LinearLrSchedulerConfig::new(0., 0.5, 100).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -98,7 +112,7 @@ mod tests {
 
     #[test]
     fn config_initial_lr_too_high() {
-        let r = LinearLrSchedulerConfig::new(1.5, 0.5, 100).init();
+        let r = LinearLrSchedulerConfig::new(1.5, 0.5, 100).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -109,7 +123,7 @@ mod tests {
 
     #[test]
     fn config_final_lr_too_low() {
-        let r = LinearLrSchedulerConfig::new(0.5, -0.5, 100).init();
+        let r = LinearLrSchedulerConfig::new(0.5, -0.5, 100).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -120,7 +134,7 @@ mod tests {
 
     #[test]
     fn config_final_lr_too_high() {
-        let r = LinearLrSchedulerConfig::new(0.5, 1.5, 100).init();
+        let r = LinearLrSchedulerConfig::new(0.5, 1.5, 100).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -131,7 +145,7 @@ mod tests {
 
     #[test]
     fn config_num_iters_too_low() {
-        let r = LinearLrSchedulerConfig::new(0.9, 0.1, 0).init();
+        let r = LinearLrSchedulerConfig::new(0.9, 0.1, 0).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -142,21 +156,21 @@ mod tests {
 
     #[test]
     fn test_lr_decreasing() {
-        let scheduler = LinearLrSchedulerConfig::new(0.9, 0.5, 4).init().unwrap();
+        let scheduler = LinearLrSchedulerConfig::new(0.9, 0.5, 4).build().unwrap();
         let expected_lrs = [0.9, 0.8, 0.7, 0.6, 0.5, 0.5];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
 
     #[test]
     fn test_lr_increasing() {
-        let scheduler = LinearLrSchedulerConfig::new(0.01, 0.04, 3).init().unwrap();
+        let scheduler = LinearLrSchedulerConfig::new(0.01, 0.04, 3).build().unwrap();
         let expected_lrs = [0.01, 0.02, 0.03, 0.04, 0.04];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
 
     #[test]
     fn test_lr_unchanging() {
-        let scheduler = LinearLrSchedulerConfig::new(0.3, 0.3, 2).init().unwrap();
+        let scheduler = LinearLrSchedulerConfig::new(0.3, 0.3, 2).build().unwrap();
         let expected_lrs = [0.3, 0.3, 0.3, 0.3];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
@@ -165,7 +179,7 @@ mod tests {
     fn test_save_and_load() {
         const NUM_ITERS: usize = 6;
         let scheduler = LinearLrSchedulerConfig::new(1.0, 0.01, NUM_ITERS)
-            .init()
+            .build()
             .unwrap();
         test_utils::check_save_load(scheduler, NUM_ITERS / 3 * 2);
     }

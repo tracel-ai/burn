@@ -15,7 +15,11 @@ impl EventStore for LogEventStore {
         let epoch = *self.epochs.entry(split.clone()).or_insert(1);
 
         match event {
+            Event::StartSplit(epoch) => {
+                self.epochs.insert(split, epoch);
+            }
             Event::MetricsInit(definitions) => {
+                self.aggregate.register_definitions(&definitions);
                 definitions.iter().for_each(|def| {
                     self.loggers
                         .iter_mut()
@@ -28,7 +32,6 @@ impl EventStore for LogEventStore {
                     .for_each(|logger| logger.log(update.clone(), epoch, &split));
             }
             Event::EndEpoch(summary) => {
-                self.epochs.insert(split, summary.epoch_number + 1);
                 self.loggers
                     .iter_mut()
                     .for_each(|logger| logger.log_epoch_summary(summary.clone()));

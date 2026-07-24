@@ -1,6 +1,7 @@
 use burn_tensor::Device;
 
 pub use crate::data::dataset::{Dataset, DatasetIterator};
+use burn_dataset::DatasetError;
 use core::iter::Iterator;
 use std::sync::Arc;
 
@@ -18,7 +19,10 @@ pub struct Progress {
 }
 
 /// A data loader iterator that can be used to iterate over a data loader.
-pub trait DataLoaderIterator<O>: Iterator<Item = O> {
+///
+/// Yields `Err` instead of panicking when a dataset retrieval fails, so callers can decide
+/// how to handle it (e.g. abort the training run with a clear message).
+pub trait DataLoaderIterator<O>: Iterator<Item = Result<O, DatasetError>> {
     /// Returns the progress of the data loader.
     fn progress(&self) -> Progress;
 }

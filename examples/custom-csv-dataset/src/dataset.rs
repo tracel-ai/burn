@@ -1,5 +1,5 @@
 use crate::{diabetes_patient::DiabetesPatient, utils::download_csv_if_missing};
-use burn::data::dataset::{Dataset, InMemDataset};
+use burn::data::dataset::{Dataset, DatasetError, InMemDataset};
 
 /// Diabetes patients dataset, also used in [scikit-learn](https://scikit-learn.org/stable/).
 /// See [Diabetes dataset](https://scikit-learn.org/stable/datasets/toy_dataset.html#diabetes-dataset).
@@ -32,7 +32,7 @@ impl DiabetesDataset {
 
 // Implement the `Dataset` trait which requires `get` and `len`
 impl Dataset<DiabetesPatient> for DiabetesDataset {
-    fn get(&self, index: usize) -> Option<DiabetesPatient> {
+    fn get(&self, index: usize) -> Result<DiabetesPatient, DatasetError> {
         self.dataset.get(index)
     }
 

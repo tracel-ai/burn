@@ -90,20 +90,20 @@ mod tests {
         let mut items_dataloader = HashSet::new();
         let mut items_dataloader_split = HashSet::new();
 
-        for (items, _device) in dataloader.iter() {
+        for (items, _device) in dataloader.iter().map(Result::unwrap) {
             for item in items {
                 items_dataloader.insert(item);
             }
         }
 
-        for (items, device) in dataloader_1.iter() {
+        for (items, device) in dataloader_1.iter().map(Result::unwrap) {
             assert_eq!(&device, &device1);
             for item in items {
                 items_dataloader_split.insert(item);
             }
         }
 
-        for (items, device) in dataloader_2.iter() {
+        for (items, device) in dataloader_2.iter().map(Result::unwrap) {
             assert_eq!(&device, &device2);
             for item in items {
                 items_dataloader_split.insert(item);

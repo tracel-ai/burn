@@ -18,7 +18,6 @@ use burn_core as burn;
 
 use burn_core::module::Module;
 use burn_core::prelude::*;
-use burn_core::record::{FullPrecisionSettings, NamedMpkFileRecorder};
 use burn_nn as nn;
 use burn_store::{BurnpackStore, ModuleSnapshot, SafetensorsStore};
 use divan::{AllocProfiler, Bencher};
@@ -122,9 +121,8 @@ macro_rules! bench_backend {
                     let device = $device;
                     let model = LargeModel::new(&device);
                     let output_path = get_output_dir().join("test_namedmpk.mpk");
-                    let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
                     model
-                        .save_file(output_path.clone(), &recorder)
+                        .save_file(output_path.clone())
                         .expect("Failed to save with NamedMpkFileRecorder");
                     // Clean up
                     let _ = fs::remove_file(output_path);

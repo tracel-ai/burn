@@ -64,6 +64,7 @@ impl<I, O> BatchDataLoader<I, O> {
 /// A data loader iterator that can be used to iterate over a data loader.
 struct BatchDataloaderIterator<I, O> {
     current_index: usize,
+    len: usize,
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<I, O>>,
@@ -147,8 +148,11 @@ impl<I, O> BatchDataloaderIterator<I, O> {
         batcher: Arc<dyn Batcher<I, O>>,
         device: Device,
     ) -> Self {
+        let len = dataset.len();
+
         BatchDataloaderIterator {
             current_index: 0,
+            len,
             strategy,
             dataset,
             batcher,
@@ -158,20 +162,34 @@ impl<I, O> BatchDataloaderIterator<I, O> {
 }
 
 impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
-    type Item = O;
+    type Item = Result<O, burn_dataset::DatasetError>;
 
-    fn next(&mut self) -> Option<O> {
-        while let Some(item) = self.dataset.get(self.current_index) {
-            self.current_index += 1;
-            self.strategy.add(item);
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current_index < self.len {
+            let chunk_size = self
+                .strategy
+                .batch_size()
+                .unwrap_or(1)
+                .min(self.len - self.current_index);
+            let indexes = (self.current_index..self.current_index + chunk_size).collect();
+
+            let items = match self.dataset.get_many(indexes) {
+                Ok(items) => items,
+                Err(err) => return Some(Err(err)),
+            };
+            self.current_index += chunk_size;
+
+            for item in items {
+                self.strategy.add(item);
+            }
 
             if let Some(items) = self.strategy.batch(false) {
-                return Some(self.batcher.batch(items, &self.device));
+                return Some(Ok(self.batcher.batch(items, &self.device)));
             }
         }
 
         if let Some(items) = self.strategy.batch(true) {
-            return Some(self.batcher.batch(items, &self.device));
+            return Some(Ok(self.batcher.batch(items, &self.device)));
         }
 
         None
@@ -182,7 +200,7 @@ impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
     fn progress(&self) -> Progress {
         let unit: Option<String> = Some("items".to_string());
 
-        Progress::new(self.current_index, self.dataset.len(), unit)
+        Progress::new(self.current_index, self.len, unit)
     }
 }
 
@@ -210,11 +228,11 @@ mod tests {
         let mut items_dataset = HashSet::new();
         let mut items_dataloader = HashSet::new();
 
-        for item in dataset.iter() {
+        for item in dataset.iter().map(Result::unwrap) {
             items_dataset.insert(item);
         }
 
-        for items in dataloader.iter() {
+        for items in dataloader.iter().map(Result::unwrap) {
             for item in items {
                 items_dataloader.insert(item);
             }
@@ -240,7 +258,7 @@ mod tests {
         let mut items_dataloader_slice = HashSet::new();
 
         let mut idx = 0;
-        for items in dataloader.iter() {
+        for items in dataloader.iter().map(Result::unwrap) {
             for item in items {
                 if (5..15).contains(&idx) {
                     items_dataloader.insert(item);
@@ -249,12 +267,69 @@ mod tests {
             }
         }
 
-        for items in dataloader_slice.iter() {
+        for items in dataloader_slice.iter().map(Result::unwrap) {
             for item in items {
                 items_dataloader_slice.insert(item);
             }
         }
 
         assert_eq!(items_dataloader, items_dataloader_slice);
+    }
+
+    #[test]
+    fn test_batch_dataloader_incomplete_last_batch() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+        let dataloader = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            Default::default(),
+            None,
+        );
+
+        let batch_sizes: Vec<usize> = dataloader
+            .iter()
+            .map(Result::unwrap)
+            .map(|items| items.len())
+            .collect();
+
+        assert_eq!(batch_sizes, vec![5, 5, 5, 5, 5, 2]);
+    }
+
+    #[test]
+    fn test_batch_dataloader_exact_multiple_batches() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(25));
+        let dataloader = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            Default::default(),
+            None,
+        );
+
+        let batch_sizes: Vec<usize> = dataloader
+            .iter()
+            .map(Result::unwrap)
+            .map(|items| items.len())
+            .collect();
+
+        assert_eq!(batch_sizes, vec![5, 5, 5, 5, 5]);
+    }
+
+    #[test]
+    fn test_batch_dataloader_empty_dataset() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(0));
+        let dataloader = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            Default::default(),
+            None,
+        );
+
+        assert!(dataloader.iter().next().is_none());
     }
 }

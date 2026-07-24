@@ -75,6 +75,7 @@ pub fn interpolate<R: CubeRuntime>(
                 BlueprintStrategy::<SharedMemoryRoutine>::Inferred(strategy),
             ),
         ),
+        #[cfg(feature = "autotune")]
         InterpolateStrategy::Autotune => Ok(interpolate_autotune(input, output_size, options)),
     }
 }
@@ -149,19 +150,19 @@ pub fn interpolate_backward<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
-fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
+pub(crate) fn map_mode(mode: InterpolateMode) -> CubekInterpolateMode {
+    match mode {
+        InterpolateMode::Nearest => CubekInterpolateMode::Nearest(CubekNearestMode::Floor),
+        InterpolateMode::NearestExact => CubekInterpolateMode::Nearest(CubekNearestMode::Exact),
+        InterpolateMode::Bilinear => CubekInterpolateMode::Bilinear,
+        InterpolateMode::Bicubic => CubekInterpolateMode::Bicubic,
+        InterpolateMode::Lanczos3 => CubekInterpolateMode::Lanczos3,
+    }
+}
+
+pub(crate) fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
     CubekInterpolateOptions {
-        mode: {
-            match options.mode {
-                InterpolateMode::Nearest => CubekInterpolateMode::Nearest(CubekNearestMode::Floor),
-                InterpolateMode::NearestExact => {
-                    CubekInterpolateMode::Nearest(CubekNearestMode::Exact)
-                }
-                InterpolateMode::Bilinear => CubekInterpolateMode::Bilinear,
-                InterpolateMode::Bicubic => CubekInterpolateMode::Bicubic,
-                InterpolateMode::Lanczos3 => CubekInterpolateMode::Lanczos3,
-            }
-        },
+        mode: map_mode(options.mode),
         align_corners: options.align_corners,
     }
 }

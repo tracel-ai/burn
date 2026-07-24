@@ -1,5 +1,5 @@
 use crate::transform::{Mapper, MapperDataset};
-use crate::{Dataset, InMemDataset};
+use crate::{Dataset, DatasetError, InMemDataset};
 
 use globwalk::{self, DirEntry};
 use image::{self, ColorType};
@@ -460,7 +460,7 @@ pub struct ImageFolderDataset {
 }
 
 impl Dataset<ImageDatasetItem> for ImageFolderDataset {
-    fn get(&self, index: usize) -> Option<ImageDatasetItem> {
+    fn get(&self, index: usize) -> Result<ImageDatasetItem, DatasetError> {
         self.dataset.get(index)
     }
 
@@ -513,6 +513,7 @@ impl ImageFolderDataset {
                     .join(",")
             )],
         )
+        .case_insensitive(true)
         .follow_links(true)
         .sort_by(|p1: &DirEntry, p2: &DirEntry| p1.path().cmp(p2.path())) // order by path
         .build()
@@ -712,7 +713,10 @@ impl ImageFolderDataset {
     /// Check if extension is supported.
     fn check_extension<S: AsRef<str>>(extension: &S) -> Result<String, ImageLoaderError> {
         let extension = extension.as_ref();
-        if !SUPPORTED_FILES.contains(&extension) {
+        if !SUPPORTED_FILES
+            .iter()
+            .any(|&e| e.eq_ignore_ascii_case(extension))
+        {
             Err(ImageLoaderError::InvalidFileExtensionError(
                 extension.to_string(),
             ))
@@ -736,7 +740,7 @@ mod tests {
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // Dataset elements should be: orange (0), red (1), red (1)
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
@@ -750,7 +754,7 @@ mod tests {
 
         // Filtered dataset has 2 elements
         assert_eq!(dataset.len(), 2);
-        assert_eq!(dataset.get(2), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(2))).is_err());
 
         // Dataset elements should be: orange (0), red (1)
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
@@ -762,7 +766,7 @@ mod tests {
         let root = Path::new(DATASET_ROOT);
         let items = vec![
             (root.join("orange").join("dot.jpg"), "orange".to_string()),
-            (root.join("red").join("dot.jpg"), "red".to_string()),
+            (root.join("red").join("dot.JPG"), "red".to_string()),
             (root.join("red").join("dot.png"), "red".to_string()),
         ];
         let dataset =
@@ -770,7 +774,7 @@ mod tests {
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // Test item sizes
 
@@ -802,7 +806,7 @@ mod tests {
         let root = Path::new(DATASET_ROOT);
         let items = vec![
             (root.join("orange").join("dot.jpg"), "orange".to_string()),
-            (root.join("red").join("dot.jpg"), "red".to_string()),
+            (root.join("red").join("dot.JPG"), "red".to_string()),
             (root.join("red").join("dot.png"), "red".to_string()),
         ];
         let dataset =
@@ -810,7 +814,7 @@ mod tests {
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // Dataset elements should be: orange (0), red (1), red (1)
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
@@ -827,7 +831,7 @@ mod tests {
                 vec!["dot".to_string(), "orange".to_string()],
             ),
             (
-                root.join("red").join("dot.jpg"),
+                root.join("red").join("dot.JPG"),
                 vec!["dot".to_string(), "red".to_string()],
             ),
             (
@@ -843,7 +847,7 @@ mod tests {
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // Dataset elements should be: [dot, orange] (0, 1), [dot, red] (0, 2), [dot, red] (0, 2)
         assert_eq!(
@@ -1011,7 +1015,7 @@ mod tests {
 
         // Dataset has 3 elements; each (image, annotation) is a single item
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // checkerboard mask
         const TEST_CHECKERBOARD_MASK_PATTERN: [u8; 64] = [
@@ -1064,7 +1068,7 @@ mod tests {
     pub fn coco_detection_dataset() {
         let dataset = ImageFolderDataset::new_coco_detection(COCO_JSON, COCO_IMAGES).unwrap();
         assert_eq!(dataset.len(), 3); // we have only three images defined
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         const TWO_DOTS_AND_TRIANGLE_B1: BoundingBox = BoundingBox {
             coords: [3.125_172, 18.090_784, 10.960_11, 10.740_027],
@@ -1096,7 +1100,7 @@ mod tests {
             label: 0,
         };
 
-        for item in dataset.iter() {
+        for item in dataset.iter().map(Result::unwrap) {
             let file_name = Path::new(&item.image_path).file_name().unwrap();
             match item.annotation {
                 // check if the number of bounding boxes is correct

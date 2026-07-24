@@ -11,7 +11,6 @@ use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
     prelude::*,
-    record::{CompactRecorder, DefaultRecorder, Recorder},
     train::{
         Learner, SupervisedTraining,
         metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric, PerplexityMetric},
@@ -78,7 +77,7 @@ pub fn train<D: Dataset<TextGenerationItem> + 'static>(
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_default_checkpointers()
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
         .summary();
@@ -87,10 +86,9 @@ pub fn train<D: Dataset<TextGenerationItem> + 'static>(
 
     config.save(format!("{artifact_dir}/config.json")).unwrap();
 
-    DefaultRecorder::new()
-        .record(
-            result.model.into_record(),
-            format!("{artifact_dir}/model").into(),
-        )
+    result
+        .model
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .unwrap();
 }

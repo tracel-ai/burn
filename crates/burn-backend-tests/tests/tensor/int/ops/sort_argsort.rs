@@ -151,3 +151,22 @@ fn test_sort_descending_1d() {
     let values_expected = TensorData::from([5, 4, 3, 2, 1]);
     values.into_data().assert_eq(&values_expected, false);
 }
+
+#[test]
+fn test_sort_apis_support_negative_dims_int() {
+    let tensor = TestTensorInt::<2>::from([[3, 1, 5], [2, 6, 4]]);
+
+    let values = tensor.clone().sort_descending(-1);
+    let values_expected = TensorData::from([[5, 3, 1], [6, 4, 2]]);
+    values.into_data().assert_eq(&values_expected, false);
+
+    let (values, indices) = tensor.clone().sort_descending_with_indices(-2);
+    let values_expected = TensorData::from([[3, 6, 5], [2, 1, 4]]);
+    values.into_data().assert_eq(&values_expected, false);
+    let indices_expected = TensorData::from([[0, 1, 0], [1, 0, 1]]);
+    indices.into_data().assert_eq(&indices_expected, false);
+
+    let indices = tensor.argsort_descending(-1);
+    let indices_expected = TensorData::from([[2, 0, 1], [1, 2, 0]]);
+    indices.into_data().assert_eq(&indices_expected, false);
+}

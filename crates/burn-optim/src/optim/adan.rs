@@ -1,11 +1,11 @@
 use burn_core as burn;
 
+use crate::RecordState;
 use burn::config::Config;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::{module::AutodiffModule, record::Record};
 
-use super::{SimpleOptimizer, adaptor::OptimizerAdaptor};
+use super::{Optimizer, module_optimizer::ModuleOptimizer};
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 #[cfg(not(feature = "std"))]
@@ -54,13 +54,13 @@ pub struct Adan {
 }
 
 /// Adan state.
-#[derive(Record, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct AdanState<const D: usize> {
     /// The current adaptive Nesterov momentum state.
     pub momentum: AdaptiveNesterovMomentumState<D>,
 }
 
-impl SimpleOptimizer for Adan {
+impl Optimizer for Adan {
     type State<const D: usize> = AdanState<D>;
 
     fn step<const D: usize>(
@@ -101,7 +101,7 @@ impl SimpleOptimizer for Adan {
 
 impl AdanConfig {
     /// Build an [`Adan`] from the config.
-    pub fn build(&self) -> Adan {
+    pub(crate) fn build(&self) -> Adan {
         Adan {
             momentum: AdaptiveNesterovMomentum {
                 beta_1: self.beta_1,
@@ -119,8 +119,8 @@ impl AdanConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Adan, M> {
-        let mut optim = OptimizerAdaptor::from(self.build());
+    pub fn init(&self) -> ModuleOptimizer {
+        let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
@@ -129,7 +129,7 @@ impl AdanConfig {
 }
 
 /// Adaptive Nesterov momentum state.
-#[derive(Record, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct AdaptiveNesterovMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,
@@ -229,11 +229,11 @@ impl<const D: usize> AdaptiveNesterovMomentumState<D> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{GradientsParams, Optimizer};
-    use burn::module::{Module, Param};
+    use crate::GradientsParams;
+    use burn::module::Param;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, Tensor, TensorData};
-    use burn_nn::{Linear, LinearConfig, LinearRecord};
+    use burn_nn::{Linear, LinearConfig};
 
     type FT = f32;
 
@@ -247,33 +247,18 @@ mod tests {
         let mut optimizer = create_adan();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let _linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+
+        let bytes = optimizer.into_bytes().unwrap();
+        assert!(!bytes.is_empty());
 
         #[cfg(feature = "std")]
-        {
-            use burn::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
-
-            BinFileRecorder::<FullPrecisionSettings>::default()
-                .record(
-                    optimizer.to_record(),
-                    std::env::temp_dir().as_path().join("test_optim_adan"),
-                )
-                .unwrap();
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
-
-            let result = BinBytesRecorder::<FullPrecisionSettings>::default()
-                .record(optimizer.to_record(), ())
-                .unwrap();
-            assert!(!result.is_empty());
-        }
+        optimizer
+            .save(std::env::temp_dir().as_path().join("test_optim_adan"))
+            .unwrap();
 
         let state_optim_before = optimizer.to_record();
-        let state_optim_before_copy = optimizer.to_record();
-        let optimizer = create_adan();
-        let optimizer = optimizer.load_record(state_optim_before_copy);
+        let optimizer = create_adan().from_bytes(bytes).unwrap();
         let state_optim_after = optimizer.to_record();
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
@@ -321,13 +306,13 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weights_expected = TensorData::from([
             [
                 -0.34034607,
@@ -429,26 +414,24 @@ mod tests {
 
         let grads = linear.forward(x.clone()).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
-        let record = LinearRecord {
+        Linear {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
-        };
-
-        LinearConfig::new(6, 6).init(device).load_record(record)
+        }
     }
 
-    fn create_adan() -> OptimizerAdaptor<Adan, Linear> {
+    fn create_adan() -> ModuleOptimizer {
         let config = AdanConfig::new();
         Adan {
             momentum: AdaptiveNesterovMomentum {

@@ -1,7 +1,6 @@
 use burn::{
     grad_clipping::GradientClippingConfig,
     optim::AdamWConfig,
-    record::CompactRecorder,
     tensor::Device,
     train::{
         OffPolicyConfig, RLTraining,
@@ -53,7 +52,7 @@ pub fn run(device: Device) {
         .metrics_train((LossMetric::new(),))
         .metrics_agent((ExplorationRateMetric::new(),))
         .metrics_episode((EpisodeLengthMetric::new(), CumulativeRewardMetric::new()))
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_checkpointer()
         .num_steps(40_000)
         .with_learning_strategy(burn::train::RLStrategies::OffPolicyStrategy(
             learning_config,

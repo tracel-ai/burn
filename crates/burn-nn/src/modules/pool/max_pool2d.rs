@@ -59,10 +59,10 @@ impl ModuleDisplay for MaxPool2d {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
-            .add("kernel_size", &alloc::format!("{:?}", &self.kernel_size))
-            .add("stride", &alloc::format!("{:?}", &self.stride))
+            .add("kernel_size", &alloc::format!("{:?}", self.kernel_size))
+            .add("stride", &alloc::format!("{:?}", self.stride))
             .add_debug_attribute("padding", &self.padding)
-            .add("dilation", &alloc::format!("{:?}", &self.dilation))
+            .add("dilation", &alloc::format!("{:?}", self.dilation))
             .add("ceil_mode", &self.ceil_mode)
             .optional()
     }

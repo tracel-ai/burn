@@ -1,6 +1,10 @@
-use super::{Param, ParamId, Quantizer};
-use crate::record::Record;
-use alloc::{string::String, vec::Vec};
+use crate::module::{LoraConfig, ParamGroup};
+
+use super::{LoraMapper, Param, ParamId, QLoraMapper, Quantizer};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Device, Int, Tensor};
 
@@ -22,6 +26,37 @@ macro_rules! module {
             }
         }
         let mut mapper = Mapper;
+        $module.map(&mut mapper)
+    }};
+    (map=$module:ident, ops=$item:expr, group=$group:ident) => {{
+        struct Mapper {
+            pub path: Vec<String>,
+            pub group: ParamGroup,
+        }
+        impl ModuleMapper for Mapper {
+            fn enter_module(&mut self, name: &str, _container_type: &str) {
+                self.path.push(name.to_string());
+            }
+
+            fn exit_module(&mut self, _name: &str, _container_type: &str) {
+                self.path.pop();
+            }
+
+            fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+                let (id, tensor, mapper) = param.consume();
+                let path = self.path.join(".");
+                if self.group.matches(&id, Some(&path)) {
+                    let func = $item;
+                    let tensor = func(tensor);
+                    return Param::from_mapped_value(id, tensor, mapper);
+                }
+                Param::from_mapped_value(id, tensor, mapper)
+            }
+        }
+        let mut mapper = Mapper {
+            path: alloc::vec![],
+            group: $group,
+        };
         $module.map(&mut mapper)
     }};
     (visit_float=$module:ident, ops=$item:expr, state=$state_ty:ty, init=$init:expr) => {{
@@ -67,9 +102,6 @@ macro_rules! module {
 /// }
 /// ```
 pub trait Module: Clone + Send + core::fmt::Debug {
-    /// Type to save and load the module.
-    type Record: Record;
-
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
     fn collect_devices(&self, devices: Devices) -> Devices;
@@ -111,6 +143,37 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         )
     }
 
+    /// Set `require_grad` to `false` for every parameter in the given group, leaving the rest
+    /// of the module untouched.
+    ///
+    /// This is the group-scoped counterpart to [no_grad](Module::no_grad): where `no_grad` freezes
+    /// the whole module tree, `freeze_group` freezes only the parameters matched by `group`.  
+    ///
+    /// # Warnings
+    ///
+    /// Like [no_grad](Module::no_grad), this should not be used for inference; use
+    /// [valid](AutodiffModule::valid) with AD modules instead.
+    fn freeze_group(self, group: ParamGroup) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(false),
+            group = group
+        )
+    }
+
+    /// Set `require_grad` to `true` for every parameter in the given group, leaving the rest
+    /// of the module untouched.
+    ///
+    /// The inverse of [freeze_group](Module::freeze_group): it re-enables gradient tracking for the
+    /// parameters matched by `group`, e.g. to unfreeze a previously frozen module.
+    fn unfreeze_group(self, group: ParamGroup) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(true),
+            group = group
+        )
+    }
+
     /// Move the module and all of its sub-modules to the autodiff backend.
     ///
     /// # Notes
@@ -122,7 +185,6 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     where
         Self: AutodiffModule,
     {
-        // <Self as HasAutodiffModule>::TrainModule::from_inner(self)
         AutodiffModule::from_inner(self)
     }
 
@@ -143,70 +205,119 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Map each tensor parameter in the module with a [mapper](ModuleMapper).
     fn map<Mapper: ModuleMapper>(self, mapper: &mut Mapper) -> Self;
 
-    /// Load the module state from a record.
-    fn load_record(self, record: Self::Record) -> Self;
-
-    /// Convert the module into a record containing the state.
-    fn into_record(self) -> Self::Record;
-
-    #[cfg(feature = "std")]
-    /// Save the module to a file using the provided [file recorder](crate::record::FileRecorder).
-    ///
-    /// List of supported file recorders:
-    ///
-    /// * [default](crate::record::DefaultFileRecorder)
-    /// * [bincode](crate::record::BinFileRecorder)
-    /// * [bincode compressed with gzip](crate::record::BinGzFileRecorder)
-    /// * [json pretty](crate::record::PrettyJsonFileRecorder)
-    /// * [json compressed with gzip](crate::record::JsonGzFileRecorder)
-    /// * [named mpk](crate::record::NamedMpkFileRecorder)
-    /// * [named mpk compressed with gzip](crate::record::NamedMpkGzFileRecorder)
-    ///
-    /// ## Notes
-    ///
-    /// The file extension is automatically added depending on the file recorder provided, you
-    /// don't have to specify it.
-    fn save_file<FR, PB>(
-        self,
-        file_path: PB,
-        recorder: &FR,
-    ) -> Result<(), crate::record::RecorderError>
-    where
-        FR: crate::record::FileRecorder,
-        PB: Into<std::path::PathBuf>,
-    {
-        let record = Self::into_record(self);
-        recorder.record(record, file_path.into())
-    }
-
-    #[cfg(feature = "std")]
-    /// Load the module from a file using the provided [file recorder](crate::record::FileRecorder).
-    ///
-    /// The recorder should be the same as the one used to save the module, see
-    /// [save_file](Self::save_file).
-    ///
-    /// ## Notes
-    ///
-    /// The file extension is automatically added depending on the file recorder provided, you
-    /// don't have to specify it.
-    fn load_file<FR, PB>(
-        self,
-        file_path: PB,
-        recorder: &FR,
-        device: &Device,
-    ) -> Result<Self, crate::record::RecorderError>
-    where
-        FR: crate::record::FileRecorder,
-        PB: Into<std::path::PathBuf>,
-    {
-        let record = recorder.load(file_path.into(), device)?;
-
-        Ok(self.load_record(record))
-    }
-
     /// Quantize the weights of the module.
     fn quantize_weights(self, quantizer: &mut Quantizer) -> Self {
         self.map(quantizer)
+    }
+
+    /// Quantize the weights of the given parameter group.
+    fn quantize_weights_group(self, quantizer: &mut Quantizer, group: ParamGroup) -> Self {
+        quantizer.set_param_group(group);
+        self.map(quantizer)
+    }
+
+    /// Attach LoRA adapters to the module's 2-D weights, freezing the base weights.
+    ///
+    /// The same module keeps working without any code changes; adapted weights now produce
+    /// `base + scale * (a @ b)`, and only the adapter factors are trainable.
+    fn apply_lora(self, config: LoraConfig) -> Self
+    where
+        Self: Sized,
+    {
+        let mut mapper = LoraMapper::new(config);
+        self.map(&mut mapper)
+    }
+
+    /// Apply QLoRA to the module: quantize the (frozen) base weights and attach trainable LoRA
+    /// adapters to 2-D weights.
+    fn apply_qlora(self, config: LoraConfig, quantizer: Quantizer) -> Self
+    where
+        Self: Sized,
+    {
+        let mut mapper = QLoraMapper::new(config, quantizer);
+        self.map(&mut mapper)
+    }
+
+    /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
+    ///
+    /// The record can be saved to a burnpack file or byte buffer and applied back with
+    /// [`load_record`](Module::load_record).
+    fn into_record(self) -> crate::store::ModuleRecord
+    where
+        Self: Sized,
+    {
+        crate::store::ModuleRecord::from_module(self)
+    }
+
+    /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, returning the loaded
+    /// module.
+    ///
+    /// Honors the record's [`DTypePolicy`](crate::store::DTypePolicy), `validate`, and
+    /// `allow_partial` settings.
+    fn try_load_record(
+        self,
+        record: crate::store::ModuleRecord,
+    ) -> Result<Self, crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        record.apply(self)
+    }
+
+    /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, consuming and returning
+    /// it.
+    ///
+    /// Panics if validation fails; use [`try_load_record`](Module::try_load_record) for the
+    /// fallible variant.
+    fn load_record(self, record: crate::store::ModuleRecord) -> Self
+    where
+        Self: Sized,
+    {
+        self.try_load_record(record).expect("Failed to load record")
+    }
+
+    /// Save this module's parameters to a burnpack file on disk.
+    ///
+    /// Convenience for [`into_record`](Module::into_record) followed by
+    /// [`ModuleRecord::save`](crate::store::ModuleRecord::save). For non-default load behavior
+    /// (dtype policy, partial loading, validation), go through the record directly.
+    #[cfg(feature = "std")]
+    fn save_file<P: AsRef<std::path::Path>>(self, path: P) -> Result<(), crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        self.into_record().save(path)
+    }
+
+    /// Load this module's parameters from a burnpack file on disk, returning the loaded module.
+    ///
+    /// Uses the default load behavior. Panics on I/O or validation errors; use
+    /// [`try_load_file`](Module::try_load_file) for the fallible variant, or go through
+    /// [`ModuleRecord`](crate::store::ModuleRecord) to configure dtype policy, partial loading or
+    /// validation.
+    #[cfg(feature = "std")]
+    fn load_file<P: AsRef<std::path::Path>>(self, path: P) -> Self
+    where
+        Self: Sized,
+    {
+        self.try_load_file(path)
+            .expect("Failed to load module from file")
+    }
+
+    /// Fallible variant of [`load_file`](Module::load_file).
+    ///
+    /// Reads the record from `path` with [`ModuleRecord::load`](crate::store::ModuleRecord::load)
+    /// and applies it through [`try_load_record`](Module::try_load_record).
+    #[cfg(feature = "std")]
+    fn try_load_file<P: AsRef<std::path::Path>>(
+        self,
+        path: P,
+    ) -> Result<Self, crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        let record = crate::store::ModuleRecord::load(path)?;
+        self.try_load_record(record)
     }
 }
 
@@ -407,6 +518,7 @@ pub trait AutodiffModule: Module + Send + core::fmt::Debug {
 mod tests {
     use super::*;
 
+    use crate::module::ParamGroup;
     use crate::{test_device, test_utils::SimpleLinear};
 
     #[test]
@@ -438,5 +550,40 @@ mod tests {
         let module = module.train();
         assert!(!module.weight.is_require_grad());
         assert!(!module.weight.require_grad); // stateful
+    }
+
+    #[test]
+    fn freeze_group_freezes_only_selected_params() {
+        let device = test_device().autodiff();
+        let module = SimpleLinear::new(4, 4, &device);
+
+        assert!(module.weight.is_require_grad());
+        assert!(module.bias.as_ref().unwrap().is_require_grad());
+
+        let module = module.freeze_group(ParamGroup::from_path("weight"));
+
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.weight.require_grad);
+
+        let bias = module.bias.as_ref().unwrap();
+        assert!(bias.is_require_grad());
+        assert!(bias.require_grad);
+    }
+
+    #[test]
+    fn unfreeze_group_only_thaws_selected_params() {
+        let device = test_device().autodiff();
+        let module = SimpleLinear::new(4, 4, &device);
+
+        let module = module.no_grad();
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.bias.as_ref().unwrap().is_require_grad());
+
+        let module = module.unfreeze_group(ParamGroup::from_path("weight"));
+
+        assert!(module.weight.is_require_grad());
+        assert!(module.weight.require_grad);
+        assert!(!module.bias.as_ref().unwrap().is_require_grad());
+        assert!(!module.bias.as_ref().unwrap().require_grad);
     }
 }

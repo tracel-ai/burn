@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::dataset::{HousingBatcher, HousingDataset};
 use crate::model::RegressionModelConfig;
 use burn::optim::AdamConfig;
@@ -5,7 +7,6 @@ use burn::train::{Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     prelude::*,
-    record::{CompactRecorder, NoStdTrainingRecorder},
     train::metric::LossMetric,
 };
 
@@ -27,8 +28,7 @@ pub struct ExpConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -71,7 +71,7 @@ pub fn run(artifact_dir: &str, device: impl Into<Device>) {
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -83,9 +83,7 @@ pub fn run(artifact_dir: &str, device: impl Into<Device>) {
 
     result
         .model
-        .save_file(
-            format!("{artifact_dir}/model"),
-            &NoStdTrainingRecorder::new(),
-        )
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .expect("Failed to save trained model");
 }

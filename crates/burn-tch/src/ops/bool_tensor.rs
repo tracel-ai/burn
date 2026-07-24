@@ -39,10 +39,6 @@ impl BoolTensorOps<Self> for LibTorch {
         TchOps::reshape(tensor, shape)
     }
 
-    fn bool_device(tensor: &TchTensor) -> LibTorchDevice {
-        tensor.tensor.device().into()
-    }
-
     fn bool_empty(shape: Shape, device: &LibTorchDevice, _dtype: BoolDType) -> TchTensor {
         let tensor = tch::Tensor::empty(
             TchShape::from(shape).dims,

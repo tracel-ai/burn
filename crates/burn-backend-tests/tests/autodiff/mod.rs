@@ -42,6 +42,8 @@ mod gather_scatter;
 mod gather_scatter_nd;
 mod gelu;
 mod gradients;
+mod hypot;
+mod linear;
 mod log;
 mod log1p;
 mod log_sigmoid;

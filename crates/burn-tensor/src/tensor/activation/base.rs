@@ -3,7 +3,7 @@ use burn_dispatch::Dispatch;
 
 use crate::check::TensorCheck;
 use crate::ops::BridgeTensor;
-use crate::{Tensor, check, s};
+use crate::{AsIndex, Tensor, check, s};
 
 /// Applies the rectified linear unit function element-wise
 /// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
@@ -12,6 +12,30 @@ use crate::{Tensor, check, s};
 #[cfg_attr(not(doc), doc = "`ReLU(x) = max(0, x)`")]
 pub fn relu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     tensor.relu()
+}
+
+/// Applies the HardTanh function element-wise, clamping each element to the
+/// range `[min_val, max_val]` (a cheap, piecewise-linear approximation of tanh).
+///
+#[cfg_attr(not(doc), doc = "`HardTanh(x) = max(min_val, min(max_val, x))`")]
+pub fn hardtanh<const D: usize>(tensor: Tensor<D>, min_val: f64, max_val: f64) -> Tensor<D> {
+    tensor.clamp(min_val, max_val)
+}
+
+/// Applies the Tanhshrink function element-wise, `x - tanh(x)`.
+///
+#[cfg_attr(not(doc), doc = "`Tanhshrink(x) = x - tanh(x)`")]
+pub fn tanhshrink<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
+    tensor.clone().sub(tensor.tanh())
+}
+
+/// Applies the ReLU6 function element-wise, the rectified linear unit clamped to
+/// the range `[0, 6]` (as used in [MobileNetV2](https://arxiv.org/abs/1801.04381)).
+///
+#[cfg_attr(doc, doc = "$$\\text{ReLU6}\\(x\\) = \\min\\(\\max\\(0, x\\), 6\\)$$")]
+#[cfg_attr(not(doc), doc = "`ReLU6(x) = min(max(0, x), 6)`")]
+pub fn relu6<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
+    tensor.clamp(0.0, 6.0)
 }
 
 /// Applies the leaky rectified linear unit function element-wise.
@@ -156,10 +180,12 @@ $$
 ///
 /// # Arguments
 /// - `dim`: the dimension along which Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
+/// - If `dim` is outside [-D, D)
+pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
     Tensor::new(softmax_impl(tensor.primitive, dim))
@@ -178,11 +204,13 @@ $$
 #[cfg_attr(not(doc), doc = "`softmin(x_i) = exp(-x_i) / sum_j(exp(-x_j)`")]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Softmin will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
+/// - If `dim` is outside [-D, D)
+pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::dim_ops::<D>("softmin", dim));
 
     Tensor::new(softmin_impl(tensor.primitive, dim))
@@ -227,11 +255,13 @@ $$
 )]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Quiet Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn quiet_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
+/// - If `dim` is outside [-D, D)
+pub fn quiet_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
     let max_vals = tensor.clone().detach().max_dim(dim);
@@ -259,11 +289,13 @@ $$
 )]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Log Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
+/// - If `dim` is outside [-D, D)
+pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::dim_ops::<D>("log softmax", dim));
 
     Tensor::new(log_softmax_impl(tensor.primitive, dim))
@@ -489,21 +521,39 @@ pub fn thresholded_relu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor
     tensor.mask_fill(mask, 0)
 }
 
+/// Applies the Threshold function element-wise, generalising `thresholded_relu`
+/// (which fixes `value = 0`): returns `x` where `x > threshold`, and `value`
+/// otherwise.
+///
+#[cfg_attr(
+    not(doc),
+    doc = "`f(x) =`\n- `x if x > threshold`\n- `value otherwise`"
+)]
+///
+/// # Arguments
+/// - `threshold`: the value to threshold at.
+/// - `value`: the value to replace with where `x <= threshold`.
+pub fn threshold<const D: usize>(tensor: Tensor<D>, threshold: f64, value: f64) -> Tensor<D> {
+    let mask = tensor.clone().lower_equal_elem(threshold);
+    tensor.mask_fill(mask, value)
+}
+
 /// Applies the gated linear unit function.
 ///
 /// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.
 ///
 /// **Note**:
 /// * The size of the input tensor along `dim` must be divisible by 2.
+/// * Negative dimensions are supported and count from the end.
 ///
 /// ### Arguments
 /// * `tensor` - The input tensor.
+/// * `dim` - The dimension on which to split the input.
 ///
 /// ### Returns
 /// * A tensor with the same shape as the input, except the size along `dim` is halved.
-pub fn glu<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
-    // TODO: Handle negative indices with AsIndex for compatibility with Pytorch nn.GLU.
-
+pub fn glu<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     assert!(
         tensor.dims()[dim].is_multiple_of(2),
         "Input tensor along dimension {dim} must have an even size. N is divisible by 2."

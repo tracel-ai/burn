@@ -99,6 +99,7 @@ impl Metric for TopKAccuracyMetric {
         NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: true,
+            ..Default::default()
         }
         .into()
     }

@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    AutodiffBackend, Distribution, Scalar, TensorData,
+    AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata,
     ops::{IntTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
@@ -149,7 +149,7 @@ impl BasicOps for Int {
     }
 
     fn device(tensor: &BridgeTensor) -> Device {
-        Device::new(Dispatch::int_device(tensor.as_dispatch()))
+        Device::new(tensor.as_dispatch().device())
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {
@@ -429,6 +429,15 @@ impl Ordered for Int {
 
     fn topk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_topk(tensor.into(), dim, k))
+    }
+
+    fn topk_with_indices(
+        tensor: BridgeTensor,
+        dim: usize,
+        k: usize,
+    ) -> (BridgeTensor, BridgeTensor) {
+        let (values, indices) = Dispatch::int_topk_with_indices(tensor.into(), dim, k);
+        (BridgeTensor::int(values), BridgeTensor::int(indices))
     }
 
     fn argmin(tensor: BridgeTensor, dim: usize) -> BridgeTensor {

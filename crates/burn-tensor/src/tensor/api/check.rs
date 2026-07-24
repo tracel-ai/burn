@@ -144,42 +144,6 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn movedim_args_usize<const D: usize>(dim: usize) -> Self {
-        let mut check = Self::Ok;
-
-        if dim >= D {
-            check = check.register(
-                "Movedim",
-                TensorError::new(
-                    "The given dimension exceeds the number of dimensions of the current tensor.",
-                )
-                .details(format!(
-                    "Current tensor has {D} dimensions, but the given dimension is {dim}.",
-                )),
-            );
-        }
-
-        check
-    }
-
-    pub(crate) fn movedim_args_i32<const D: usize>(dim: i32) -> Self {
-        let mut check = Self::Ok;
-
-        if dim < -(D as i32) || dim >= D as i32 {
-            check = check.register(
-                "Movedim",
-                TensorError::new(
-                    "The given dimension is out of bounds for the current tensor dimensions.",
-                )
-                .details(format!(
-                    "Current tensor has {D} dimensions, but the given dimension is {dim}.",
-                )),
-            );
-        }
-
-        check
-    }
-
     pub(crate) fn movedim_args_vec<const D: usize>(dims: &Vec<usize>) -> Self {
         let mut check = Self::Ok;
 
@@ -1705,23 +1669,6 @@ mod tests {
             &5, // We can pass anything that implements PartialEq as device
             &8
         ));
-    }
-
-    #[test]
-    #[should_panic]
-    fn movedim_args_out_of_bounds() {
-        check!(TensorCheck::movedim_args_usize::<3>(5));
-    }
-
-    #[test]
-    fn movedim_args_i32() {
-        check!(TensorCheck::movedim_args_i32::<3>(-3));
-    }
-
-    #[test]
-    #[should_panic]
-    fn movedim_args_too_negative() {
-        check!(TensorCheck::movedim_args_i32::<3>(-4));
     }
 
     #[test]

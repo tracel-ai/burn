@@ -1,7 +1,9 @@
 use burn_core as burn;
 
-use super::{LrScheduler, String};
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
+use crate::RecordState;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use burn::config::Config;
 
 /// The configuration for creating an [exponential learning rate scheduler](ExponentialLrScheduler).
@@ -19,14 +21,7 @@ pub struct ExponentialLrSchedulerConfig {
 
 impl ExponentialLrSchedulerConfig {
     /// Initializes a [exponential learning rate scheduler](ExponentialLrScheduler).
-    ///
-    /// # Errors
-    ///
-    /// An error will be returned if any of the following conditions is true:
-    ///
-    /// * `initial_lr` is out of range (0.0, 1.0]
-    /// * `gamma` is out of range (0.0, 1.0]
-    pub fn init(&self) -> Result<ExponentialLrScheduler, String> {
+    pub(crate) fn build(&self) -> Result<ExponentialLrScheduler, String> {
         if self.initial_lr <= 0. || self.initial_lr > 1. {
             return Err("Initial learning rate must be greater than 0 and at most 1".into());
         }
@@ -40,6 +35,18 @@ impl ExponentialLrSchedulerConfig {
             previous_lr: self.initial_lr / self.gamma,
             gamma: self.gamma,
         })
+    }
+
+    /// Initializes a [module learning rate scheduler](ModuleLrScheduler).
+    ///
+    /// # Errors
+    ///
+    /// An error will be returned if any of the following conditions is true:
+    ///
+    /// * `initial_lr` is out of range (0.0, 1.0]
+    /// * `gamma` is out of range (0.0, 1.0]
+    pub fn init(&self) -> Result<ModuleLrScheduler, String> {
+        self.build().map(|s| s.into())
     }
 }
 
@@ -55,21 +62,29 @@ pub struct ExponentialLrScheduler {
 }
 
 impl LrScheduler for ExponentialLrScheduler {
-    type Record = LearningRate;
-
     fn step(&mut self) -> LearningRate {
         self.previous_lr *= self.gamma;
         self.previous_lr
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.previous_lr
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::from_state(&ExponentialLrSchedulerState {
+            previous_lr: self.previous_lr,
+        })
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.previous_lr = record;
-        self
+    fn load_record(&mut self, record: LrSchedulerRecord) {
+        if let Some(state) = record.into_state::<ExponentialLrSchedulerState>() {
+            self.previous_lr = state.previous_lr;
+        }
     }
+}
+
+/// The serializable state of an [exponential scheduler](ExponentialLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct ExponentialLrSchedulerState {
+    // `f64` (not the `LearningRate` alias) so the derive recognizes it as a scalar leaf.
+    previous_lr: f64,
 }
 
 #[cfg(test)]
@@ -79,7 +94,7 @@ mod tests {
 
     #[test]
     fn config_initial_lr_too_low() {
-        let r = ExponentialLrSchedulerConfig::new(0., 0.5).init();
+        let r = ExponentialLrSchedulerConfig::new(0., 0.5).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -90,7 +105,7 @@ mod tests {
 
     #[test]
     fn config_initial_lr_too_high() {
-        let r = ExponentialLrSchedulerConfig::new(1.5, 0.5).init();
+        let r = ExponentialLrSchedulerConfig::new(1.5, 0.5).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -101,7 +116,7 @@ mod tests {
 
     #[test]
     fn config_gamma_too_low() {
-        let r = ExponentialLrSchedulerConfig::new(0.5, 0.0).init();
+        let r = ExponentialLrSchedulerConfig::new(0.5, 0.0).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -112,7 +127,7 @@ mod tests {
 
     #[test]
     fn config_gamma_too_high() {
-        let r = ExponentialLrSchedulerConfig::new(0.5, 1.5).init();
+        let r = ExponentialLrSchedulerConfig::new(0.5, 1.5).build();
         assert!(r.is_err(), "Should return an error");
         assert_eq!(
             r.unwrap_err(),
@@ -123,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_lr_change() {
-        let scheduler = ExponentialLrSchedulerConfig::new(0.8, 0.1).init().unwrap();
+        let scheduler = ExponentialLrSchedulerConfig::new(0.8, 0.1).build().unwrap();
         let expected_lrs = [0.8, 0.08, 0.008, 0.0008, 0.00008];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
@@ -131,7 +146,7 @@ mod tests {
     #[test]
     fn test_save_and_load() {
         let scheduler = ExponentialLrSchedulerConfig::new(0.083, 0.3)
-            .init()
+            .build()
             .unwrap();
         test_utils::check_save_load(scheduler, 7);
     }

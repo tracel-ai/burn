@@ -48,10 +48,6 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         }
     }
 
-    fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
-        tensor.device.clone()
-    }
-
     fn int_to_device(tensor: IntTensor<Self>, device: &Device<Self>) -> IntTensor<Self> {
         super::to_device(tensor, device)
     }
@@ -347,6 +343,22 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         .unwrap()
     }
 
+    fn int_any(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce::reduce_logical(tensor, None, ReduceOperationConfig::Any, out_dtype)
+    }
+
+    fn int_any_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce::reduce_logical(tensor, Some(dim), ReduceOperationConfig::Any, out_dtype)
+    }
+
+    fn int_all(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce::reduce_logical(tensor, None, ReduceOperationConfig::All, out_dtype)
+    }
+
+    fn int_all_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce::reduce_logical(tensor, Some(dim), ReduceOperationConfig::All, out_dtype)
+    }
+
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
         reduce::reduce(
             tensor,
@@ -392,6 +404,18 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
             ReduceOperationConfig::TopK(k),
         )
         .unwrap()
+    }
+
+    fn int_topk_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // One pass, rather than the default's TopK followed by ArgTopK: the reduction
+        // already carries both halves, and these kernels are memory bound. Indices take
+        // the input dtype, matching `int_argtopk`.
+        let dtype = tensor.dtype;
+        reduce::reduce_dim_with_indices(tensor, dtype, dim, Default::default(), k).unwrap()
     }
 
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {

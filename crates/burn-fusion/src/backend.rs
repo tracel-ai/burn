@@ -4,10 +4,10 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendTypes, DType, DeviceOps, ExecutionError,
+    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
-use burn_ir::{BackendIr, OperationIr, TensorHandle};
+use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 
@@ -29,6 +29,10 @@ impl<B: FusionBackend> BackendTypes for Fusion<B> {
     type IntTensorPrimitive = FusionTensor<B::FusionRuntime>;
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
+
+    // Fusion adds nothing to a captured graph: the fused kernels are recorded
+    // on the inner backend's stream, so the graph handle is the inner one.
+    type GraphPrimitive = B::GraphPrimitive;
 }
 
 impl<B: FusionBackend> Backend for Fusion<B> {
@@ -61,7 +65,27 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         input: Input,
         func: Func,
     ) -> Output {
-        B::memory_persistent_allocations(device, input, func)
+        // The inner backend's closure-bracketed toggle would arm the *calling*
+        // thread's stream, but fused operations execute on the fusion server
+        // thread and allocate on its stream. Arm a standing mode from that
+        // thread instead — `sync` drains previously recorded operations
+        // first, keeping them out of the persistent window.
+        //
+        // Note that sync here doesn't call `B::sync`.
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let armed = device.clone();
+        client.sync(move || B::memory_persistent(&armed, true));
+
+        // Record on this thread; the server drains the fused operations onto
+        // its (armed) stream as it goes.
+        let output = func(input);
+
+        // Drain the remaining recording inside the window (`sync` drains
+        // before running its closure), then disarm.
+        let disarmed = device.clone();
+        client.sync(move || B::memory_persistent(&disarmed, false));
+
+        output
     }
 
     fn memory_cleanup(device: &Self::Device) {
@@ -91,6 +115,42 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
         client.sync(move || B::flush(&device))
+    }
+
+    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // `client.sync` drains the lazy queue and runs the closure without a
+        // device sync — the inner backend then arms persistent allocation.
+        client.sync(move || B::graph_prepare(&device))
+    }
+
+    fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain any pending fused operations so nothing leaks into the capture
+        // window before it opens, then begin capture on the same stream.
+        client.sync(move || B::graph_start_capture(&device))
+    }
+
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the capture run's fused kernels onto the captured stream (this
+        // is where they actually launch), then close the capture.
+        client.sync(move || B::graph_stop_capture(&device))
+    }
+
+    unsafe fn graph_replay(
+        device: &Self::Device,
+        graph: &BackendGraph<Self>,
+    ) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        // Drain any queued fused operations onto the stream first (no device
+        // sync), then launch the captured graph after them.
+        client.sync(|| ());
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { B::graph_replay(device, graph) }
     }
 }
 
@@ -188,6 +248,38 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
 
     /// The list of fusers that will be used to optimize the computational graph.
     fn fusers(device: Self::FusionDevice) -> Vec<Box<dyn OperationFuser<Self::Optimization>>>;
+
+    /// Create a cross-stream alias of `handle` to register under a fresh tensor id.
+    ///
+    /// Called by [`MultiStream::tag_shared_view`](crate::stream::MultiStream::tag_shared_view) when
+    /// a tensor is shared from one stream to another. The new handle must be an *independent*
+    /// container entry over the *same* backing buffer, so that consuming one alias (a `ReadWrite`
+    /// last-use that frees its handle) never frees the buffer out from under the other stream.
+    ///
+    /// The default just clones the handle, which is exactly right for local backends whose handle
+    /// is an `Arc`-style refcount over a device buffer — the clone is a new map entry sharing the
+    /// allocation. Backends whose handle is a *remote* resource (the router/remote backend, where
+    /// the handle is a thin id pointing at a server-side tensor) must override this: a bare clone
+    /// keeps the same server id, so all aliases collapse to one server handle and the first consume
+    /// frees it for everyone. Such backends allocate a fresh server id aliasing the same buffer.
+    fn alias_handle(handle: &Self::FusionHandle) -> Self::FusionHandle {
+        handle.clone()
+    }
+
+    /// Reclaim a `ReadWrite` (last-use) handle as the fusion engine drains a block.
+    ///
+    /// The default removes the container entry; the handle's own `Drop` releases the backend
+    /// resource. This is correct for local backends, whose handle is an `Arc`-style buffer refcount.
+    ///
+    /// A runtime whose handle is a *remote* resource must override this. The router/remote backend
+    /// frees a tensor by registering an `OperationIr::Drop`, but the drained block **already** freed
+    /// it server-side — every consumed op (including any `Drop`) is replayed on the server, popping
+    /// its `ReadWrite` inputs. So letting the handle's `Drop` run here registers a *second*,
+    /// redundant `Drop` for the same id (the "unfused drop" traffic). The override removes the
+    /// container entry while suppressing that re-registration.
+    fn free_handle(handles: &mut HandleContainer<Self::FusionHandle>, tensor: &TensorIr) {
+        handles.free(tensor);
+    }
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
@@ -207,6 +299,17 @@ pub trait FusionBackend:
 
     /// Pointer to the full precision fusion backend.
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
+
+    /// Set the standing persistent-allocation mode of the device stream that
+    /// executes fused operations.
+    ///
+    /// `Fusion`'s `memory_persistent_allocations` cannot bracket the inner
+    /// allocations with a closure: fused operations are recorded on the
+    /// calling thread but execute later, on the fusion execution thread and
+    /// its own device stream. The execution thread arms/disarms this standing
+    /// mode instead (see the `Backend` impl). Defaults to a no-op for
+    /// backends without allocation modes.
+    fn memory_persistent(_device: &Self::Device, _enabled: bool) {}
 }
 
 // Fusion implements `BackendIr` to enable router backend usage.

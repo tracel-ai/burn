@@ -21,7 +21,7 @@ fn should_support_slice_dim_1d() {
 }
 
 #[test]
-#[should_panic(expected = "The provided dimension exceeds the tensor dimensions")]
+#[should_panic(expected = "Index { kind: Dimension, index: 1, bounds: 0..1 }")]
 fn should_panic_when_slice_dim_1d_bad_dim() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());

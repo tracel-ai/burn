@@ -51,7 +51,7 @@ impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
                 "{{ id: {:?}, shape: {:?}, device: {:?} }}",
                 self.id,
                 self.shape,
-                self.client.device().clone(),
+                self.client.device(),
             )
             .as_str(),
         )
@@ -59,6 +59,7 @@ impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
 }
 
 impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
+    type Device = R::FusionDevice;
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -69,6 +70,20 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
 
     fn rank(&self) -> usize {
         self.shape.num_dims()
+    }
+
+    fn device(&self) -> Self::Device {
+        self.client.device().clone()
+    }
+
+    fn can_mut(&self) -> bool {
+        // Same rule as `status` at drain time: a handle shared on its stream
+        // (count > 1) is read-only, a unique one is read-write and the fused
+        // kernel may write its buffer in place.
+        matches!(
+            self.status(self.count.load(Ordering::Acquire)),
+            TensorStatus::ReadWrite
+        )
     }
 }
 
@@ -239,10 +254,21 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                     dtype: self.dtype,
                 };
 
-                // Drop is targeted at the tensor's home stream so it runs after any pending ops
-                // on this id, regardless of the thread we happen to be dropping from.
-                self.client
-                    .register(self.stream, OperationIr::Drop(ir), DropOp { id: self.id });
+                // A drop issued from a *different* thread than the home stream interleaves at a
+                // nondeterministic point in that stream's pending fused segment, where the block
+                // DAG can reorder the free ahead of a still-pending read and let the buffer be
+                // reused while an in-flight kernel still reads it. Route those through a path that
+                // flushes the home stream to a clean boundary first.
+                if StreamId::current() == self.stream {
+                    self.client.register(
+                        self.stream,
+                        OperationIr::Drop(ir),
+                        DropOp { id: self.id },
+                    );
+                } else {
+                    self.client
+                        .register_foreign_drop(self.stream, ir, DropOp { id: self.id });
+                }
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}

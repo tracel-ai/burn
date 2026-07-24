@@ -58,10 +58,10 @@ where
             .map(|name| {
                 df.schema()
                     .try_get_full(name)
-                    .expect("Corresponding column should exist in the DataFrame")
-                    .0
+                    .map(|(index, _, _)| index)
+                    .map_err(|err| DataframeDatasetError::Other(err.to_string()))
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(DataframeDataset {
             df,
@@ -72,7 +72,7 @@ where
     }
 }
 
-impl<I> Dataset<I> for DataframeDataset<I>
+impl<I> Dataset<I, DataframeDatasetError> for DataframeDataset<I>
 where
     I: Clone + Send + Sync + DeserializeOwned,
 {
@@ -82,14 +82,24 @@ where
     ///
     /// * `index` - The index of the item to retrieve
     ///
-    /// # Returns
+    /// # Panics
     ///
-    /// An Option containing the item if it exists, or None if it doesn't
-    fn get(&self, index: usize) -> Option<I> {
-        let row = self.df.get_row(index).ok()?;
+    /// Panics if `index >= len()`.
+    fn get(&self, index: usize) -> Result<I, DataframeDatasetError> {
+        assert!(
+            index < self.len,
+            "Index out of bounds for DataframeDataset: {} >= {}",
+            index,
+            self.len,
+        );
+
+        let row = self
+            .df
+            .get_row(index)
+            .map_err(|err| DataframeDatasetError::Other(err.to_string()))?;
 
         let mut deserializer = RowDeserializer::new(&row, &self.column_name_mapping);
-        I::deserialize(&mut deserializer).ok()
+        I::deserialize(&mut deserializer)
     }
 
     /// Get the length of the dataset
@@ -356,10 +366,11 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Index out of bounds")]
     fn test_dataframe_dataset_out_of_bounds() {
         let df = create_test_dataframe();
         let dataset = DataframeDataset::<TestData>::new(df).unwrap();
-        assert!(dataset.get(3).is_none());
+        dataset.get(3).unwrap();
     }
 
     #[test]
@@ -409,7 +420,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Corresponding column should exist in the DataFrame: SchemaFieldNotFound(ErrString(\"non_existent\"))"]
     fn test_non_existing_struct_fields() {
         #[derive(Clone, Debug, Deserialize, PartialEq)]
         struct PartialTestData {

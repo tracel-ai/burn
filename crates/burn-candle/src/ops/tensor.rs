@@ -81,10 +81,6 @@ impl FloatTensorOps<Self> for Candle {
         super::base::into_data(tensor)
     }
 
-    fn float_device(tensor: &CandleTensor) -> Device<Self> {
-        super::base::device(tensor)
-    }
-
     fn float_to_device(tensor: CandleTensor, device: &Device<Self>) -> CandleTensor {
         super::base::to_device(tensor, device)
     }
@@ -589,15 +585,6 @@ impl FloatTensorOps<Self> for Candle {
                 .to_dtype(out_dtype.into_dtype())
                 .unwrap(),
         )
-    }
-
-    fn float_argtopk(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        k: usize,
-        out_dtype: IntDType,
-    ) -> IntTensor<Self> {
-        panic!("argtopk not implemented for candle backend")
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {

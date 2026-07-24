@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use crate::{
-    Backend, DeviceId,
+    Backend, DeviceId, TensorMetadata,
     distributed::CollectiveTensor,
     tensor::{Device, FloatTensor},
 };
@@ -144,7 +144,7 @@ pub trait DistributedOps<B: Backend> {
     ///
     /// Ensure that the tensors are not accessed/modified when calling.
     unsafe fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
-        unsafe { B::float_device(&(*tensor.0)) }
+        unsafe { &(*tensor.0) }.device()
     }
 
     /// Returns a clone of the float tensor from the tensor reference.

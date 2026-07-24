@@ -46,10 +46,6 @@ impl IntTensorOps<Self> for NdArray {
         slice!(tensor, slices)
     }
 
-    fn int_device(_tensor: &NdArrayTensor) -> NdArrayDevice {
-        NdArrayDevice::Cpu
-    }
-
     fn int_empty(shape: Shape, device: &NdArrayDevice, dtype: IntDType) -> NdArrayTensor {
         Self::int_zeros(shape, device, dtype)
     }

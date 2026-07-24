@@ -9,7 +9,7 @@ use crate::{
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::Dataset},
     prelude::*,
-    record::{CompactRecorder, Recorder},
+    store::ModuleRecord,
 };
 use polars::prelude::*;
 
@@ -17,14 +17,13 @@ pub fn infer(artifact_dir: &str, device: Device) {
     // Loading model
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
-    let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
+    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist; run train first");
 
     let model: LstmNetwork = config.model.init(&device).load_record(record);
 
     let dataset = SequenceDataset::new(NUM_SEQUENCES / 5, SEQ_LENGTH, NOISE_LEVEL);
-    let items: Vec<SequenceDatasetItem> = dataset.iter().collect();
+    let items: Vec<SequenceDatasetItem> = dataset.iter().map(|item| item.unwrap()).collect();
 
     let batcher = SequenceBatcher::default();
     // Put all items in one batch
@@ -41,5 +40,5 @@ pub fn infer(artifact_dir: &str, device: Device) {
         "expected" => &expected.to_vec::<f32>().unwrap(),
     ]
     .unwrap();
-    println!("{}", &results.head(Some(10)));
+    println!("{}", results.head(Some(10)));
 }

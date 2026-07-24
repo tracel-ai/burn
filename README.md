@@ -13,17 +13,104 @@
 
 ---
 
-**Burn is a next generation Tensor Library and Deep Learning Framework that doesn't compromise on
-<br /> flexibility, efficiency and portability.**
+**Burn is both a tensor library and a deep learning framework, optimized for <br /> numerical
+computing, training and inference.**
 
 <br/>
 </div>
 
 <div align="left">
 
-Burn is both a tensor library and a deep learning framework optimized for numerical computing, model
-inference and model training. Burn leverages Rust to perform optimizations normally only available
-in static-graph frameworks, offering optimal speed without impacting flexibility.
+Training and inference usually live in separate worlds. Models are typically trained in Python then
+exported to an open format like ONNX or optimized for production engines like vLLM, ONNX Runtime, or
+TensorRT. This export step is often brittle and lossy, ruling out complex architectures and advanced
+deployment use cases.
+
+Burn unifies the two. By executing multi-platform tensor operations via a single, unified API, the
+exact code used for training is the exact code that runs in production. This makes workloads like
+on-device personalization and federated learning straightforward, while enabling teams to go from
+prototype to deployment in a single codebase.
+
+Burn preserves the intuitive ergonomics of PyTorch, with dynamic shapes and graphs, but JIT-compiles
+streams of tensor operations, performing automatic kernel fusion. You get the flexibility of dynamic
+graphs without the performance drop.
+
+## Rust for Research?
+
+Rust used to be a tough sell for research: long compilation times disrupted the fast
+edit-compile-run loop that draws researchers to Python. Burn changes this paradigm. Designed around
+incremental compilation, modifying model code recompiles in under 5 seconds, even in release mode.
+This delivers a Python-like feedback loop with the speed and safety of Rust.
+
+## Ecosystem
+
+<div align="left">
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-blazingly-fast.png" height="96px"/>
+
+Burn is the core of a growing, fully open-source Rust AI ecosystem. You are not adopting a single
+library, you are joining a stack that spans GPU compute, model interop and domain toolkits, with
+plenty of room to help shape what comes next.
+
+</div>
+
+| Category      | Project                                               | Description                                                                                                                                                       |
+| ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Compute       | [CubeCL](https://github.com/tracel-ai/cubecl)         | GPU compute language and compiler behind Burn's accelerated backends. Write kernels once in Rust, run on CUDA, ROCm, Metal, Vulkan and WebGPU. Usable standalone. |
+| Model interop | [burn-onnx](https://github.com/tracel-ai/burn-onnx)   | Import ONNX models into Burn as native Rust code                                                                                                                  |
+|               | `burn-store`                                          | Save, load and import model weights, including PyTorch and Safetensors                                                                                            |
+| Domains       | `burn-vision`                                         | Computer vision operators and building blocks                                                                                                                     |
+|               | `burn-rl`                                             | Reinforcement learning building blocks                                                                                                                            |
+|               | `burn-dataset`                                        | Dataset loading, transforms and ready-made sources                                                                                                                |
+| Models        | [models](https://github.com/tracel-ai/models)         | Curated pre-trained models and examples built with Burn                                                                                                           |
+| Tooling       | [burn-bench](https://github.com/tracel-ai/burn-bench) | Benchmark and compare backends, tracking performance over time                                                                                                    |
+
+Burn's [CubeCL](https://github.com/tracel-ai/cubecl) backends (CUDA, ROCm, Metal, Vulkan, WebGPU,
+CPU) compose with autodiff, fusion and remote-execution decorators, while external and simpler
+backends (LibTorch and pure-Rust CPU/`no_std`) compose with autodiff only. See
+[Supported Backends](#supported-backends) below for the full matrix.
+
+Every project here is open-source and actively developed. Want to help build the Rust AI ecosystem?
+The [good first issues](https://github.com/tracel-ai/burn/contribute) are a great place to start,
+and the [Contributing](#contributing) guide will get you set up.
+
+<details>
+<summary>
+<b>Community crates 🌱</b>
+</summary>
+<br />
+
+These crates are not maintained by Tracel, but they are part of the same Rust AI story. Anything
+that helps you load data, build environments, or ship models belongs here. Built something that
+fits? Open a PR to add it!
+
+| Category                   | Crate                                                           | Description                                                       |
+| -------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Data & loading             | [polars](https://github.com/pola-rs/polars)                     | Fast DataFrames for tabular data                                  |
+|                            | [arrow-rs](https://github.com/apache/arrow-rs)                  | Apache Arrow columnar memory format                               |
+|                            | [image](https://github.com/image-rs/image)                      | Image decoding, encoding and processing                           |
+|                            | [hf-hub](https://github.com/huggingface/hf-hub)                 | Download models and datasets from the Hugging Face Hub            |
+| Tokenization & NLP         | [tokenizers](https://github.com/huggingface/tokenizers)         | Fast, production-ready tokenizers                                 |
+|                            | [rust-bert](https://github.com/guillaume-be/rust-bert)          | Ready-to-use NLP pipelines and transformer models                 |
+| Numerical & linear algebra | [ndarray](https://github.com/rust-ndarray/ndarray)              | N-dimensional arrays                                              |
+|                            | [nalgebra](https://github.com/dimforge/nalgebra)                | Linear algebra                                                    |
+| Classical ML               | [linfa](https://github.com/rust-ml/linfa)                       | Classical ML toolkit, in the spirit of scikit-learn               |
+|                            | [smartcore](https://github.com/smartcorelib/smartcore)          | Classical ML algorithms, no BLAS/LAPACK required                  |
+| Inference & runtimes       | [candle](https://github.com/huggingface/candle)                 | Minimalist ML framework with a focus on LLM inference             |
+|                            | [mistral.rs](https://github.com/EricLBuehler/mistral.rs)        | Fast, multimodal LLM inference engine                             |
+|                            | [ort](https://github.com/pykeio/ort)                            | ONNX Runtime bindings for hardware-accelerated inference          |
+|                            | [tract](https://github.com/sonos/tract)                         | Pure-Rust inference for ONNX and NNEF models                      |
+|                            | [wonnx](https://github.com/webonnx/wonnx)                       | 100% Rust, WebGPU-accelerated ONNX runtime for native and the web |
+| LLM apps & RAG             | [rig](https://github.com/0xPlaygrounds/rig)                     | Build modular LLM applications and agents                         |
+|                            | [langchain-rust](https://github.com/Abraxas-365/langchain-rust) | LangChain-style chain orchestration                               |
+| Embeddings & vector search | [fastembed](https://github.com/Anush008/fastembed-rs)           | Generate text embeddings and rerank locally                       |
+|                            | [qdrant](https://github.com/qdrant/qdrant)                      | Vector search engine, written in Rust                             |
+|                            | [lancedb](https://github.com/lancedb/lancedb)                   | Embedded, developer-friendly vector database                      |
+| Computer vision            | [kornia-rs](https://github.com/kornia/kornia-rs)                | Low-level 3D computer vision library                              |
+| Simulation & environments  | [rapier](https://github.com/dimforge/rapier)                    | Physics engine for robotics and RL environments                   |
+| Visualization              | [rerun](https://github.com/rerun-io/rerun)                      | Multimodal data and CV/robotics visualization                     |
+|                            | [plotters](https://github.com/plotters-rs/plotters)             | Plotting and charting                                             |
+
+</details>
 
 ## Backend
 
@@ -421,29 +508,28 @@ community section!
 
 <details>
 <summary>
-Why use Rust for Deep Learning? 🦀
+Why use Rust for AI? 🦀
 </summary>
 <br />
 
 Deep Learning is a special form of software where you need very high level abstractions as well as
 extremely fast execution time. Rust is the perfect candidate for that use case since it provides
 zero-cost abstractions to easily create neural network modules, and fine-grained control over memory
-to optimize every detail.
+to optimize every detail. To this day, the mainstream solution has been to offer APIs in Python but
+rely on bindings to low-level languages such as C/C++. This reduces portability, increases
+complexity and creates friction between researchers and engineers. Rust's approach to abstractions
+is versatile enough to tackle this two-language dichotomy, and Cargo makes it easy to build, test
+and deploy from any environment, which is usually a pain in Python.
 
-It's important that a framework be easy to use at a high level so that its users can focus on
-innovating in the AI field. However, since running models relies so heavily on computations,
-performance can't be neglected.
+Rust's AI ecosystem is young, but it is real and growing quickly. Foundational pieces are already
+here: Burn and [CubeCL](https://github.com/tracel-ai/cubecl) for training and compute,
+[candle](https://github.com/huggingface/candle) for inference, Hugging Face's `tokenizers` and
+`safetensors`, and `polars` and `ndarray` for data. Betting on Rust today means betting on a stack
+that is growing, and one where contributors still shape the direction. The pieces that don't exist
+yet are opportunities rather than dead-ends (see [Contributing](#contributing)).
 
-To this day, the mainstream solution to this problem has been to offer APIs in Python, but rely on
-bindings to low-level languages such as C/C++. This reduces portability, increases complexity and
-creates frictions between researchers and engineers. We feel like Rust's approach to abstractions
-makes it versatile enough to tackle this two languages dichotomy.
-
-Rust also comes with the Cargo package manager, which makes it incredibly easy to build, test, and
-deploy from any environment, which is usually a pain in Python.
-
-Although Rust has the reputation of being a difficult language at first, we strongly believe it
-leads to more reliable, bug-free solutions built faster (after some practice 😅)!
+Rust is also what makes one-stack-everywhere possible: a single self-contained binary with no Python
+runtime to ship, running from servers down to `no_std` embedded targets.
 
 </details>
 
@@ -507,7 +593,7 @@ any background. You can ask your questions and share what you built with the com
 
 <br/>
 
-**Contributing**
+### Contributing
 
 Before contributing, please read the [Contributing Guidelines](./CONTRIBUTING.md) and our
 [Code of Conduct](./CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/contributor-book/)

@@ -38,25 +38,12 @@ fn should_diff_cumprod_2d() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
-// TODO: The following tests are currently ignored due to a known limitation
-// in the cumprod gradient implementation. The current implementation uses
-// division (grad / input), which produces NaN when the input contains zeros.
-//
-// A proper fix requires implementing a zero-safe algorithm using exclusive
-// cumulative products (similar to PyTorch's cumprod_backward or JAX's
-// associative_scan approach). This is a non-trivial implementation that
-// requires careful handling of cumulative products in both forward and
-// reverse directions.
-//
-// See: https://github.com/tracel-ai/burn/issues/3864
-//
-// References:
-// - PyTorch: https://github.com/pytorch/pytorch (cumprod_backward)
-// - JAX PR #2596: Parallel prefix scan implementation
-// - TensorFlow Issue #3862: tf.cumprod's gradient produces nans given zeros
+// these exercise the zero-safe cumprod gradient (#3864): `left[i] * tail[i]`
+// (exclusive prefix product times a reverse-accumulated tail) instead of
+// `reverse_cumsum(grad * output) / input`, so zeros don't blow up to NaN.
+// expected values from PyTorch's `torch.cumprod` backward.
 
 #[test]
-#[ignore = "cumprod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_cumprod_zero_in_middle() {
     // Test cumprod with zero in the middle - edge case for division
     let device = AutodiffDevice::new();
@@ -74,7 +61,6 @@ fn should_diff_cumprod_zero_in_middle() {
 }
 
 #[test]
-#[ignore = "cumprod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_cumprod_zero_at_start() {
     // Test cumprod with zero at the beginning
     let device = AutodiffDevice::new();
@@ -92,7 +78,6 @@ fn should_diff_cumprod_zero_at_start() {
 }
 
 #[test]
-#[ignore = "cumprod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_cumprod_zero_at_end() {
     // Test cumprod with zero at the end
     let device = AutodiffDevice::new();
@@ -110,7 +95,6 @@ fn should_diff_cumprod_zero_at_end() {
 }
 
 #[test]
-#[ignore = "cumprod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_cumprod_multiple_zeros() {
     // Test cumprod with multiple zeros
     let device = AutodiffDevice::new();

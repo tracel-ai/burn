@@ -1,14 +1,16 @@
-use burn_core as burn;
+use burn_core::{self as burn};
 
-use super::cosine::{CosineAnnealingLrScheduler, CosineAnnealingLrSchedulerConfig};
-use super::exponential::{ExponentialLrScheduler, ExponentialLrSchedulerConfig};
-use super::linear::{LinearLrScheduler, LinearLrSchedulerConfig};
-use super::noam::{NoamLrScheduler, NoamLrSchedulerConfig};
-use super::{LrScheduler, String};
+use super::cosine::CosineAnnealingLrSchedulerConfig;
+use super::exponential::ExponentialLrSchedulerConfig;
+use super::linear::LinearLrSchedulerConfig;
+use super::noam::NoamLrSchedulerConfig;
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
+use crate::lr_scheduler::step::StepLrSchedulerConfig;
+use crate::lr_scheduler::{DynLrScheduler, LrSchedulerConfig};
 
 use burn::config::Config;
-use burn::record::Record;
 
 /// Compose multiple [learning rate schedulers](LrScheduler) together.
 #[derive(Config, Debug)]
@@ -22,7 +24,7 @@ pub struct ComposedLrSchedulerConfig {
 /// Compose multiple [learning rate schedulers](LrScheduler) together.
 #[derive(Clone)]
 pub struct ComposedLrScheduler {
-    schedulers: Vec<LrSchedulerItem>,
+    schedulers: Vec<DynLrScheduler>,
     reduction: SchedulerReduction,
 }
 
@@ -39,16 +41,17 @@ pub enum SchedulerReduction {
 
 impl ComposedLrSchedulerConfig {
     /// Initialize the learning rate scheduler.
-    pub fn init(&self) -> Result<ComposedLrScheduler, String> {
-        let mut schedulers = Vec::with_capacity(self.schedulers.len());
+    pub(crate) fn build(&self) -> Result<ComposedLrScheduler, String> {
+        let mut schedulers: Vec<DynLrScheduler> = Vec::with_capacity(self.schedulers.len());
         for config in self.schedulers.iter() {
             let config = match config {
-                LrSchedulerConfig::Linear(config) => LrSchedulerItem::Linear(config.init()?),
-                LrSchedulerConfig::Cosine(config) => LrSchedulerItem::Cosine(config.init()?),
-                LrSchedulerConfig::Exponential(config) => {
-                    LrSchedulerItem::Exponential(config.init()?)
-                }
-                LrSchedulerConfig::Noam(config) => LrSchedulerItem::Noam(config.init()?),
+                LrSchedulerConfig::Constant(lr) => (*lr).into(),
+                LrSchedulerConfig::Linear(config) => config.build()?.into(),
+                LrSchedulerConfig::Cosine(config) => config.build()?.into(),
+                LrSchedulerConfig::Exponential(config) => config.build()?.into(),
+                LrSchedulerConfig::Noam(config) => config.build()?.into(),
+                LrSchedulerConfig::Step(config) => config.build()?.into(),
+                LrSchedulerConfig::Composed(config) => config.build()?.into(),
             };
             schedulers.push(config);
         }
@@ -59,7 +62,18 @@ impl ComposedLrSchedulerConfig {
         })
     }
 
-    /// Appends a [linear scheduler](LinearLrScheduler).
+    /// Initializes a [module learning rate scheduler](ModuleLrScheduler).
+    pub fn init(&self) -> Result<ModuleLrScheduler, String> {
+        self.build().map(|s| s.into())
+    }
+
+    /// Appends a [constant learning rate](crate::lr_scheduler::constant::ConstantLr).
+    pub fn constant(mut self, lr: LearningRate) -> Self {
+        self.schedulers.push(LrSchedulerConfig::Constant(lr));
+        self
+    }
+
+    /// Appends a [linear scheduler](crate::lr_scheduler::linear::LinearLrScheduler).
     pub fn linear(mut self, config: LinearLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Linear(config));
         self
@@ -71,57 +85,40 @@ impl ComposedLrSchedulerConfig {
         self
     }
 
-    /// Appends an [exponential scheduler](ExponentialLrScheduler).
+    /// Appends an [exponential scheduler](crate::lr_scheduler::exponential::ExponentialLrScheduler).
     pub fn exponential(mut self, config: ExponentialLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Exponential(config));
         self
     }
 
-    /// Appends a [noam scheduler](NoamLrScheduler).
+    /// Appends a [noam scheduler](crate::lr_scheduler::noam::NoamLrScheduler).
     pub fn noam(mut self, config: NoamLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Noam(config));
         self
     }
+
+    /// Appends a [step scheduler](crate::lr_scheduler::step::StepLrScheduler).
+    pub fn step(mut self, config: StepLrSchedulerConfig) -> Self {
+        self.schedulers.push(LrSchedulerConfig::Step(config));
+        self
+    }
+
+    /// Appends a [composed scheduler](ComposedLrScheduler).
+    pub fn composed(mut self, config: Self) -> Self {
+        self.schedulers.push(LrSchedulerConfig::Composed(config));
+        self
+    }
 }
 
-#[derive(Config, Debug)]
-enum LrSchedulerConfig {
-    Linear(LinearLrSchedulerConfig),
-    Cosine(CosineAnnealingLrSchedulerConfig),
-    Exponential(ExponentialLrSchedulerConfig),
-    Noam(NoamLrSchedulerConfig),
-}
-
-#[derive(Clone)]
-enum LrSchedulerItem {
-    Linear(LinearLrScheduler),
-    Cosine(CosineAnnealingLrScheduler),
-    Exponential(ExponentialLrScheduler),
-    Noam(NoamLrScheduler),
-}
-
-#[derive(Record, Clone)]
-/// Record item for the [composed learning rate scheduler](ComposedLrScheduler).
-pub enum LrSchedulerRecord {
-    /// The linear variant.
-    Linear(<LinearLrScheduler as LrScheduler>::Record),
-    /// The cosine variant.
-    Cosine(<CosineAnnealingLrScheduler as LrScheduler>::Record),
-    /// The exponential variant.
-    Exponential(<ExponentialLrScheduler as LrScheduler>::Record),
-    /// The noam variant.
-    Noam(<NoamLrScheduler as LrScheduler>::Record),
-}
-
-#[derive(Record, Clone)]
-/// Records for the [composed learning rate scheduler](ComposedLrScheduler).
-pub struct ComposedLrSchedulerRecord {
-    schedulers: Vec<LrSchedulerRecord>,
+impl ComposedLrScheduler {
+    /// Add a custom learning rate scheduler to existing ones.
+    pub fn with_custom_scheduler<S: LrScheduler + 'static>(mut self, scheduler: S) -> Self {
+        self.schedulers.push(scheduler.into());
+        self
+    }
 }
 
 impl LrScheduler for ComposedLrScheduler {
-    type Record = ComposedLrSchedulerRecord;
-
     fn step(&mut self) -> LearningRate {
         let mut step = match self.reduction {
             SchedulerReduction::Avg => 0.0,
@@ -130,12 +127,7 @@ impl LrScheduler for ComposedLrScheduler {
         };
         let num_scheduler = self.schedulers.len() as f64;
 
-        for lr in self.schedulers.iter_mut().map(|s| match s {
-            LrSchedulerItem::Linear(item) => item.step(),
-            LrSchedulerItem::Cosine(item) => item.step(),
-            LrSchedulerItem::Exponential(item) => item.step(),
-            LrSchedulerItem::Noam(item) => item.step(),
-        }) {
+        for lr in self.schedulers.iter_mut().map(|s| s.step()) {
             step = match self.reduction {
                 SchedulerReduction::Avg => step + (lr / num_scheduler),
                 SchedulerReduction::Sum => step + lr,
@@ -146,45 +138,25 @@ impl LrScheduler for ComposedLrScheduler {
         step
     }
 
-    fn to_record(&self) -> Self::Record {
-        ComposedLrSchedulerRecord {
-            schedulers: self
-                .schedulers
-                .iter()
-                .map(|s| match s {
-                    LrSchedulerItem::Linear(item) => LrSchedulerRecord::Linear(item.to_record()),
-                    LrSchedulerItem::Cosine(item) => LrSchedulerRecord::Cosine(item.to_record()),
-                    LrSchedulerItem::Exponential(item) => {
-                        LrSchedulerRecord::Exponential(item.to_record())
-                    }
-                    LrSchedulerItem::Noam(item) => LrSchedulerRecord::Noam(item.to_record()),
-                })
-                .collect(),
+    fn to_record(&self) -> LrSchedulerRecord {
+        let mut record = LrSchedulerRecord::new();
+        for (index, item) in self.schedulers.iter().enumerate() {
+            let sub = item.to_record();
+            record = record.with_record(&index.to_string(), sub);
         }
+        record
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
+    fn load_record(&mut self, record: LrSchedulerRecord) {
         self.schedulers = self
             .schedulers
-            .into_iter()
-            .zip(record.schedulers)
-            .map(|scheduler| match scheduler {
-                (LrSchedulerItem::Linear(item), LrSchedulerRecord::Linear(record)) => {
-                    LrSchedulerItem::Linear(item.load_record(record))
-                }
-                (LrSchedulerItem::Cosine(item), LrSchedulerRecord::Cosine(record)) => {
-                    LrSchedulerItem::Cosine(item.load_record(record))
-                }
-                (LrSchedulerItem::Exponential(item), LrSchedulerRecord::Exponential(record)) => {
-                    LrSchedulerItem::Exponential(item.load_record(record))
-                }
-                (LrSchedulerItem::Noam(item), LrSchedulerRecord::Noam(record)) => {
-                    LrSchedulerItem::Noam(item.load_record(record))
-                }
-                _ => panic!("Invalid state"),
+            .clone()
+            .iter_mut()
+            .enumerate()
+            .map(|(index, item)| {
+                let sub = record.record(&index.to_string());
+                item.clone().load_record(sub)
             })
             .collect();
-
-        self
     }
 }

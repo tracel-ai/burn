@@ -17,6 +17,11 @@ pub struct Context<H> {
     pub scalars: HashMap<ScalarId, ScalarIr>,
     /// Shape mapping from relative shape ids to global (real) shape ids.
     pub shapes_relative2global: HashMap<usize, usize>,
+    /// Concrete slice ranges found in the graph, indexed by the placeholder id assigned during
+    /// relativization (the value carried in a relativized range's `start` field). Ranges can change
+    /// for the same relative graph — like scalars — so they are kept out of the relative form and
+    /// rebound per invocation.
+    pub ranges: Vec<Slice>,
 }
 
 impl<H: Clone> Context<H> {
@@ -30,6 +35,7 @@ impl<H: Clone> Context<H> {
             handles: self.handles.fork(),
             scalars: self.scalars.clone(),
             shapes_relative2global: self.shapes_relative2global.clone(),
+            ranges: self.ranges.clone(),
         }
     }
 }
@@ -47,6 +53,7 @@ pub(crate) struct OperationConverter {
     shapes_global2relative: HashMap<usize, usize>,
     shapes_relative2global: HashMap<usize, usize>,
     scalars: HashMap<ScalarId, ScalarIr>,
+    ranges: Vec<Slice>,
 }
 
 impl Default for OperationConverter {
@@ -57,6 +64,7 @@ impl Default for OperationConverter {
             shapes_global2relative: Default::default(),
             shapes_relative2global: Default::default(),
             scalars: Default::default(),
+            ranges: Default::default(),
         };
 
         // global 1 is always shape id 0.
@@ -88,6 +96,7 @@ impl<'a, H> ContextGuard<'a, H> {
             tensors: core::mem::take(&mut converter.tensors_relative2global),
             scalars: core::mem::take(&mut converter.scalars),
             shapes_relative2global: core::mem::take(&mut converter.shapes_relative2global),
+            ranges: core::mem::take(&mut converter.ranges),
             handles: core::mem::take(handles),
         };
 
@@ -119,6 +128,7 @@ impl<H> Drop for ContextGuard<'_, H> {
             self.converter.tensors_relative2global = ctx.tensors;
             self.converter.scalars = ctx.scalars;
             self.converter.shapes_relative2global = ctx.shapes_relative2global;
+            self.converter.ranges = ctx.ranges;
             *self.handles = ctx.handles;
         }
     }
@@ -149,6 +159,22 @@ impl OperationConverter {
         self.shapes_relative2global.insert(0, 1);
 
         self.scalars.clear();
+        self.ranges.clear();
+    }
+
+    /// Relativize a slice range: stash the concrete bounds (they vary per invocation) and return a
+    /// placeholder whose `start` carries the binding id, mirroring how scalars become
+    /// `ScalarIr::UInt(placeholder)`. The relative form is thus invariant to the actual bounds, so
+    /// graphs that differ only in slice ranges still match — and graph replay restores the concrete
+    /// range from [`Context::ranges`] / `GraphBindings::ranges`.
+    fn relative_range(&mut self, range: &Slice) -> Slice {
+        let id = self.ranges.len();
+        self.ranges.push(*range);
+        Slice {
+            start: id as isize,
+            end: None,
+            step: 1,
+        }
     }
 }
 
@@ -669,6 +695,11 @@ impl RelativeOps for FloatOperationIr {
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            FloatOperationIr::Hypot(desc) => FloatOperationIr::Hypot(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             FloatOperationIr::PowfScalar(desc) => FloatOperationIr::PowfScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
@@ -778,7 +809,7 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            FloatOperationIr::Trunc(desc) => FloatOperationIr::Ceil(UnaryOpIr {
+            FloatOperationIr::Trunc(desc) => FloatOperationIr::Trunc(UnaryOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -1022,6 +1053,11 @@ impl RelativeOps for CustomOpIr {
                 .iter()
                 .map(|x| x.to_relative(converter))
                 .collect(),
+            scalars: self
+                .scalars
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
         }
     }
 }
@@ -1201,6 +1237,15 @@ impl RelativeOps for NumericOperationIr {
                     out_indices: desc.out_indices.to_relative(converter),
                 })
             }
+            NumericOperationIr::TopKWithIndices(desc) => {
+                NumericOperationIr::TopKWithIndices(TopKWithIndicesOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    dim: desc.dim,
+                    k: desc.k,
+                    out: desc.out.to_relative(converter),
+                    out_indices: desc.out_indices.to_relative(converter),
+                })
+            }
             NumericOperationIr::MinDimWithIndices(desc) => {
                 NumericOperationIr::MinDimWithIndices(ReduceDimWithIndicesOpIr {
                     tensor: desc.tensor.to_relative(converter),
@@ -1354,12 +1399,20 @@ impl RelativeOps for BaseOperationIr {
             }),
             BaseOperationIr::Slice(desc) => BaseOperationIr::Slice(SliceOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_info| Slice::from(0..1)).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|r| converter.relative_range(r))
+                    .collect(),
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::SliceAssign(desc) => BaseOperationIr::SliceAssign(SliceAssignOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_range| Slice::from(0..1)).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|r| converter.relative_range(r))
+                    .collect(),
                 value: desc.value.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -1570,10 +1623,9 @@ impl RelativeOps for TensorId {
 
 impl RelativeOps for ScalarIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        if matches!(self, ScalarIr::Bool(_)) {
-            todo!("Unsupported dtype ({self:?}) for scalar")
-        }
-
+        // Every scalar variant (including `Bool`) is stashed verbatim and replaced by a positional
+        // `UInt` placeholder; replay rebinds it by index from `GraphBindings::scalars`, so the
+        // concrete type is irrelevant to relativization.
         let id = ScalarId {
             value: converter.scalars.len() as u64,
         };
@@ -1596,6 +1648,7 @@ mod tests {
             handles: HandleContainer::new(),
             scalars: HashMap::new(),
             shapes_relative2global: HashMap::new(),
+            ranges: Vec::new(),
         };
 
         let id_input = TensorId::new(1);
@@ -1728,5 +1781,21 @@ mod tests_ir {
 
         assert_eq!(scalar1_local, ScalarIr::UInt(0));
         assert_eq!(scalar2_local, ScalarIr::UInt(1));
+    }
+
+    #[test]
+    fn scalar_ir_bool_to_relative() {
+        // A `Bool` scalar used to `todo!()`-panic here, which crashed any custom op carrying a bool
+        // argument the moment it was fused into a cached graph. It must relativize like every other
+        // scalar: replaced by a positional `UInt` placeholder, with the concrete value stashed so
+        // replay can rebind it from `GraphBindings::scalars`.
+        let mut converter = OperationConverter::default();
+        let relative = ScalarIr::Bool(true).to_relative(&mut converter);
+
+        assert_eq!(relative, ScalarIr::UInt(0));
+        assert_eq!(
+            converter.scalars.get(&ScalarId { value: 0 }),
+            Some(&ScalarIr::Bool(true))
+        );
     }
 }

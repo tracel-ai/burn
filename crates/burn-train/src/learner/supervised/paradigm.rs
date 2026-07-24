@@ -1,8 +1,7 @@
 use crate::checkpoint::{
-    AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
-    KeepLastNCheckpoints, MetricCheckpointingStrategy,
+    AsyncCheckpointer, Checkpointer, CheckpointingStrategy, ComposedCheckpointingStrategy,
+    FileCheckpointer, KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
-use crate::components::{InferenceModelOutput, TrainingModelOutput};
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger, TrainingProgressLogger};
@@ -16,43 +15,38 @@ use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDeviceTrainingStrategy;
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, ExecutionStrategy,
-    FileApplicationLoggerInstaller, InferenceModel, InferenceModelInput, InferenceStep,
-    LearnerEvent, LearnerModelRecord, LearnerOptimizerRecord, LearnerSchedulerRecord,
-    LearnerSummaryConfig, LearningCheckpointer, LearningComponentsMarker, LearningComponentsTypes,
-    LearningResult, TrainStep, TrainingComponents, TrainingModelInput, TrainingStrategy,
+    FileApplicationLoggerInstaller, InferenceModelInput, InferenceModelOutput, InferenceStep,
+    LearnerEvent, LearnerModel, LearnerSummaryConfig, LearningCheckpointer, LearningResult,
+    TrainStep, TrainingComponents, TrainingModelInput, TrainingModelOutput, TrainingStrategy,
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::module::{AutodiffModule, Module};
-use burn_core::record::FileRecorder;
+use burn_core::store::ModuleRecord;
 use burn_core::tensor::Device;
-use burn_optim::Optimizer;
-use burn_optim::lr_scheduler::LrScheduler;
+use burn_optim::OptimizerRecord;
+use burn_optim::lr_scheduler::LrSchedulerRecord;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// A reference to the training split [DataLoader](DataLoader).
-pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainingModelInput<LC>>>;
+pub type TrainLoader<M> = Arc<dyn DataLoader<TrainingModelInput<M>>>;
 /// A reference to the validation split [DataLoader](DataLoader).
-pub type ValidLoader<LC> = Arc<dyn DataLoader<InferenceModelInput<LC>>>;
+pub type ValidLoader<M> = Arc<dyn DataLoader<InferenceModelInput<M>>>;
 /// The event processor type for supervised learning.
-pub type SupervisedTrainingEventProcessor<LC> = AsyncProcessorTraining<
-    LearnerEvent<TrainingModelOutput<LC>>,
-    LearnerEvent<InferenceModelOutput<LC>>,
+pub type SupervisedTrainingEventProcessor<M> = AsyncProcessorTraining<
+    LearnerEvent<TrainingModelOutput<M>>,
+    LearnerEvent<InferenceModelOutput<M>>,
 >;
 
 /// Structure to configure and launch supervised learning trainings.
-pub struct SupervisedTraining<LC>
-where
-    LC: LearningComponentsTypes,
-{
+pub struct SupervisedTraining<M: LearnerModel> {
     // Not that complex. Extracting into another type would only make it more confusing.
     #[allow(clippy::type_complexity)]
     checkpointers: Option<(
-        AsyncCheckpointer<LearnerModelRecord<LC>>,
-        AsyncCheckpointer<LearnerOptimizerRecord<LC>>,
-        AsyncCheckpointer<LearnerSchedulerRecord<LC>>,
+        AsyncCheckpointer<ModuleRecord>,
+        AsyncCheckpointer<OptimizerRecord>,
+        AsyncCheckpointer<LrSchedulerRecord>,
     )>,
     num_epochs: usize,
     checkpoint: Option<usize>,
@@ -60,27 +54,22 @@ where
     grad_accumulation: Option<usize>,
     grad_checkpointing: bool,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: MetricsTraining<TrainingModelOutput<LC>, InferenceModelOutput<LC>>,
+    metrics: MetricsTraining<TrainingModelOutput<M>, InferenceModelOutput<M>>,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<EarlyStoppingStrategyRef>,
-    training_strategy: Option<TrainingStrategy<LC>>,
-    dataloader_train: TrainLoader<LC>,
-    dataloader_valid: ValidLoader<LC>,
+    training_strategy: Option<TrainingStrategy<M>>,
+    dataloader_train: TrainLoader<M>,
+    dataloader_valid: ValidLoader<M>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
     progress_logger: Option<Box<dyn TrainingProgressLogger>>,
 }
 
-impl<LR, M, O> SupervisedTraining<LearningComponentsMarker<LR, M, O>>
-where
-    LR: LrScheduler + 'static,
-    M: TrainStep + InferenceStep + AutodiffModule + core::fmt::Display + 'static,
-    O: Optimizer<M> + 'static,
-{
+impl<M: LearnerModel> SupervisedTraining<M> {
     /// Creates a new runner for a supervised training.
     ///
     /// # Arguments
@@ -131,13 +120,13 @@ where
     }
 }
 
-impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
+impl<M: LearnerModel> SupervisedTraining<M> {
     /// Replace the default training strategy (SingleDeviceTrainingStrategy) with the provided one.
     ///
     /// # Arguments
     ///
     /// * `training_strategy` - The training strategy.
-    pub fn with_training_strategy(mut self, training_strategy: TrainingStrategy<LC>) -> Self {
+    pub fn with_training_strategy(mut self, training_strategy: TrainingStrategy<M>) -> Self {
         self.training_strategy = Some(training_strategy);
         self
     }
@@ -196,19 +185,19 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn metrics<Me: MetricRegistration<LC>>(self, metrics: Me) -> Self {
+    pub fn metrics<Me: MetricRegistration<M>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register all metrics as text for the training and validation set.
-    pub fn metrics_text<Me: TextMetricRegistration<LC>>(self, metrics: Me) -> Self {
+    pub fn metrics_text<Me: TextMetricRegistration<M>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        TrainingModelOutput<LC>: Adaptor<Me::Input>,
+        TrainingModelOutput<M>: Adaptor<Me::Input>,
     {
         self.metrics.register_train_metric(metric);
         self
@@ -217,7 +206,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// Register a validation metric.
     pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        InferenceModelOutput<LC>: Adaptor<Me::Input>,
+        InferenceModelOutput<M>: Adaptor<Me::Input>,
     {
         self.metrics.register_valid_metric(metric);
         self
@@ -254,7 +243,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
-        TrainingModelOutput<LC>: Adaptor<Me::Input>,
+        TrainingModelOutput<M>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_train_metric_numeric(metric);
@@ -264,7 +253,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
     pub fn metric_valid_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
     where
-        InferenceModelOutput<LC>: Adaptor<Me::Input>,
+        InferenceModelOutput<M>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_valid_metric_numeric(metric);
@@ -315,24 +304,40 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         self
     }
 
-    /// Register a checkpointer that will save the [optimizer](Optimizer), the
-    /// [model](AutodiffModule) and the [scheduler](LrScheduler) to different files.
-    pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
-    where
-        FR: FileRecorder + 'static,
-        FR: FileRecorder + 'static,
-    {
+    /// Register a checkpointer that will save the [optimizer](burn_optim::ModuleOptimizer), the
+    /// [model](LearnerModel) and the [learning rate scheduler](burn_optim::lr_scheduler::module_lr_scheduler::ModuleLrScheduler) to separate burnpack files.
+    pub fn with_default_checkpointers(mut self) -> Self {
         let checkpoint_dir = self.directory.join("checkpoint");
-        let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
-        let checkpointer_optimizer =
-            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "optim");
-        let checkpointer_scheduler: FileCheckpointer<FR> =
-            FileCheckpointer::new(recorder, &checkpoint_dir, "scheduler");
+        let checkpointer_model = FileCheckpointer::new(&checkpoint_dir, "model");
+        let checkpointer_optimizer = FileCheckpointer::new(&checkpoint_dir, "optim");
+        let checkpointer_scheduler = FileCheckpointer::new(&checkpoint_dir, "scheduler");
 
         self.checkpointers = Some((
             AsyncCheckpointer::new(checkpointer_model),
             AsyncCheckpointer::new(checkpointer_optimizer),
             AsyncCheckpointer::new(checkpointer_scheduler),
+        ));
+
+        self
+    }
+
+    /// Register your own checkpointers that will save the [optimizer](burn_optim::ModuleOptimizer), the
+    /// [model](LearnerModel) and the [learning rate scheduler](burn_optim::lr_scheduler::module_lr_scheduler::ModuleLrScheduler) to separate burnpack files.
+    pub fn with_custom_checkpointers<CM, CO, CL>(
+        mut self,
+        module_checkpointer: CM,
+        optimizer_checkpointer: CO,
+        lr_checkpointer: CL,
+    ) -> Self
+    where
+        CM: Checkpointer<ModuleRecord> + 'static,
+        CO: Checkpointer<OptimizerRecord> + 'static,
+        CL: Checkpointer<LrSchedulerRecord> + 'static,
+    {
+        self.checkpointers = Some((
+            AsyncCheckpointer::new(module_checkpointer),
+            AsyncCheckpointer::new(optimizer_checkpointer),
+            AsyncCheckpointer::new(lr_checkpointer),
         ));
 
         self
@@ -347,12 +352,9 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     }
 }
 
-impl<LC> SupervisedTraining<LC>
-where
-    LC: LearningComponentsTypes + Send + 'static,
-{
+impl<M: LearnerModel> SupervisedTraining<M> {
     /// Launch this training with the given [Learner](Learner).
-    pub fn launch(mut self, learner: Learner<LC>) -> LearningResult<InferenceModel<LC>> {
+    pub fn launch(mut self, learner: Learner<M>) -> LearningResult<M> {
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
         {
@@ -414,6 +416,13 @@ where
             )),
         ));
 
+        let mut learner = learner;
+        if let Some(checkpoint) = components.checkpoint
+            && let Some(checkpointer) = &components.checkpointer
+        {
+            learner = checkpointer.load_checkpoint(learner, checkpoint);
+        }
+
         match training_strategy {
             TrainingStrategy::Custom(learning_paradigm) => learning_paradigm.train(
                 learner,
@@ -435,7 +444,7 @@ where
                     )
                 }
                 ExecutionStrategy::MultiDevice(devices, multi_device_optim) => {
-                    let strategy: Box<dyn SupervisedLearningStrategy<LC>> = match devices.len() == 1
+                    let strategy: Box<dyn SupervisedLearningStrategy<M>> = match devices.len() == 1
                     {
                         true => Box::new(SingleDeviceTrainingStrategy::new(autodiff_device(
                             devices[0].clone(),
@@ -492,30 +501,30 @@ fn autodiff_device(mut device: Device, grad_checkpointing: bool) -> Device {
 }
 
 /// Trait to fake variadic generics.
-pub trait MetricRegistration<LC: LearningComponentsTypes>: Sized {
+pub trait MetricRegistration<M: LearnerModel>: Sized {
     /// Register the metrics.
-    fn register(self, builder: SupervisedTraining<LC>) -> SupervisedTraining<LC>;
+    fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M>;
 }
 
 /// Trait to fake variadic generics.
-pub trait TextMetricRegistration<LC: LearningComponentsTypes>: Sized {
+pub trait TextMetricRegistration<M: LearnerModel>: Sized {
     /// Register the metrics.
-    fn register(self, builder: SupervisedTraining<LC>) -> SupervisedTraining<LC>;
+    fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M>;
 }
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* LC: LearningComponentsTypes> TextMetricRegistration<LC> for ($($M,)*)
+        impl<$($M,)* M: LearnerModel> TextMetricRegistration<M> for ($($M,)*)
         where
-            $(TrainingModelOutput<LC>: Adaptor<$M::Input>,)*
-            $(InferenceModelOutput<LC>: Adaptor<$M::Input>,)*
+            $(TrainingModelOutput<M>: Adaptor<$M::Input>,)*
+            $(InferenceModelOutput<M>: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: SupervisedTraining<LC>,
-            ) -> SupervisedTraining<LC> {
+                builder: SupervisedTraining<M>,
+            ) -> SupervisedTraining<M> {
                 let ($($M,)*) = self;
                 $(let builder = builder.metric_train($M.clone());)*
                 $(let builder = builder.metric_valid($M);)*
@@ -523,17 +532,17 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* LC: LearningComponentsTypes> MetricRegistration<LC> for ($($M,)*)
+        impl<$($M,)* M: LearnerModel> MetricRegistration<M> for ($($M,)*)
         where
-            $(TrainingModelOutput<LC>: Adaptor<$M::Input>,)*
-            $(InferenceModelOutput<LC>: Adaptor<$M::Input>,)*
+            $(TrainingModelOutput<M>: Adaptor<$M::Input>,)*
+            $(InferenceModelOutput<M>: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: SupervisedTraining<LC>,
-            ) -> SupervisedTraining<LC> {
+                builder: SupervisedTraining<M>,
+            ) -> SupervisedTraining<M> {
                 let ($($M,)*) = self;
                 $(let builder = builder.metric_train_numeric($M.clone());)*
                 $(let builder = builder.metric_valid_numeric($M);)*

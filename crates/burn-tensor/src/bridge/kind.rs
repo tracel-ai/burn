@@ -1,8 +1,5 @@
 use alloc::vec::Vec;
-use burn_backend::{
-    TensorMetadata, TensorPrimitive, get_device_settings,
-    ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
-};
+use burn_backend::{TensorMetadata, TensorPrimitive, get_device_settings};
 use burn_dispatch::{Dispatch, DispatchTensor};
 use burn_std::DeviceSettings;
 
@@ -281,6 +278,17 @@ impl BridgeTensor {
         }
     }
 
+    /// Whether the tensor's buffer can be mutated in place (see
+    /// [`TensorMetadata::can_mut`]).
+    pub fn can_mut(&self) -> bool {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::Int(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::Float(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.can_mut(),
+        }
+    }
+
     /// Returns the shape of the tensor.
     pub fn shape(&self) -> burn_std::Shape {
         match self.as_variant() {
@@ -335,10 +343,10 @@ impl BridgeTensor {
 
     pub(crate) fn device_settings(&self) -> DeviceSettings {
         let device = match self.as_variant() {
-            BridgeTensorVariant::Bool(tensor) => Dispatch::bool_device(tensor),
-            BridgeTensorVariant::Int(tensor) => Dispatch::int_device(tensor),
-            BridgeTensorVariant::Float(tensor) => Dispatch::float_device(tensor),
-            BridgeTensorVariant::QFloat(tensor) => Dispatch::q_device(tensor),
+            BridgeTensorVariant::Bool(tensor) => tensor.device(),
+            BridgeTensorVariant::Int(tensor) => tensor.device(),
+            BridgeTensorVariant::Float(tensor) => tensor.device(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.device(),
         };
 
         get_device_settings::<Dispatch>(&device)

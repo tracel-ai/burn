@@ -132,12 +132,14 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
-#[cfg(feature = "server")]
+#[cfg(feature = "remote-server")]
 pub use burn_core::tensor::server;
 
-/// Module for model storage and serialization
-#[cfg(feature = "store")]
+/// Model storage and serialization: the non-generic record system (always available), plus —
+/// with the `store` feature — the snapshot tooling and importers (SafeTensors, PyTorch, burnpack).
 pub mod store {
+    pub use burn_core::store::*;
+    #[cfg(feature = "store")]
     pub use burn_store::*;
 }
 

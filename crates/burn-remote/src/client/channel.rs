@@ -1,7 +1,4 @@
-use std::marker::PhantomData;
-
 use burn_backend::Shape;
-use burn_communication::ProtocolClient;
 use burn_ir::TensorIr;
 use burn_router::{RouterChannel, RouterTensor, get_client};
 
@@ -11,34 +8,31 @@ use super::{
 };
 
 /// A local channel with direct connection to the backend runner clients.
-pub struct RemoteChannel<C: ProtocolClient> {
-    _p: PhantomData<C>,
-}
+pub struct RemoteChannel;
 
-impl<C: ProtocolClient> RouterChannel for RemoteChannel<C> {
+impl RouterChannel for RemoteChannel {
     type Device = RemoteDevice;
-    type Bridge = RemoteBridge<C>;
-    type Client = RemoteClient<C>;
+    type Bridge = RemoteBridge;
+    type Client = RemoteClient;
 
     fn name(device: &Self::Device) -> String {
         format!("remote-{device:?}")
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {
-        RemoteClient::<C>::init(device.clone())
+        RemoteClient::init(device.clone())
     }
 
-    fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> RemoteTensorHandle<C> {
+    fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> RemoteTensorHandle {
         RemoteTensorHandle {
             client: client.clone(),
             tensor: tensor.clone(),
-            _p: PhantomData,
         }
     }
 
     fn register_tensor(
         _client: &Self::Client,
-        _handle: RemoteTensorHandle<C>,
+        _handle: RemoteTensorHandle,
         _shape: Shape,
         _dtype: burn_backend::DType,
     ) -> RouterTensor<Self::Client> {
@@ -62,15 +56,15 @@ impl<C: ProtocolClient> RouterChannel for RemoteChannel<C> {
         let id = handle.tensor.id;
 
         let target_client = get_client::<Self>(target_device);
-        let router_tensor: RouterTensor<RemoteClient<C>> =
+        let router_tensor: RouterTensor<RemoteClient> =
             RouterTensor::new(id, handle.tensor.shape, handle.tensor.dtype, target_client);
 
         router_tensor
     }
 }
 
-impl<C: ProtocolClient> Clone for RemoteChannel<C> {
+impl Clone for RemoteChannel {
     fn clone(&self) -> Self {
-        RemoteChannel { _p: PhantomData }
+        RemoteChannel
     }
 }
