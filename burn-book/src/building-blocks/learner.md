@@ -36,7 +36,8 @@ The `SupervisedLearning` struct must be created with the training and validation
 
 When the training is configured to your liking, you can then move forward to running the training. The
 `launch` method requires a learner object providing: the model, the optimizer and the learning rate scheduler. Note
-that the latter can be a simple float if you want it to be constant during training.
+that the latter can be a simple float if you want it to be constant during training. See the
+[learning rate scheduler section](./lr-scheduler.md) for the available schedulers.
 
 The `launch` method will start the training and return the trained model once finished.
 
