@@ -13,7 +13,8 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
-    definition::MatmulKind,
+    components::tile::TileMatmulKind,
+    definition::{MatmulElems, MatmulGlobalElems, MatmulKind},
     strategy::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
 };
 use serde::{Deserialize, Serialize};
@@ -32,9 +33,10 @@ pub fn fused_matmul_autotune<R: Runtime>(
     optimization: MatmulOptimizationTuneArg<R>,
     context: &mut Context<CubeFusionHandle<R>>,
 ) {
+    let tune_client = optimization.info.client.clone();
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_HIGH: i8 = 2;
         const PRIORITY_MEDIUM: i8 = 1;
@@ -172,6 +174,10 @@ pub fn fused_matmul_autotune<R: Runtime>(
 
         // Accelerated matmuls
         for tile_matmul in [AcceleratedTileKind::Cmma, AcceleratedTileKind::Mma] {
+            let tm = match tile_matmul {
+                AcceleratedTileKind::Cmma => TileMatmulKind::Cmma,
+                AcceleratedTileKind::Mma => TileMatmulKind::Mma,
+            };
             for (selector, double_buf, extra_group) in [
                 (
                     FusedMatmulSelector::Simple {
@@ -211,21 +217,63 @@ pub fn fused_matmul_autotune<R: Runtime>(
                     Some(&odd),
                 ),
             ] {
-                let priority_within_group =
-                    |key: &FusedMatmulAutotuneKey, double_buf: bool| match double_buf {
-                        false => PRIORITY_MAX,
-                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                    };
+                let client_1 = tune_client.clone();
                 let mut tunable = Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
                 .group(&accelerated, move |key| {
-                    priority_within_group(key, double_buf)
+                    let elems = MatmulElems::from_globals(&MatmulGlobalElems {
+                        lhs: key.matmul_key.definition.elem_lhs,
+                        rhs: key.matmul_key.definition.elem_rhs,
+                        out: key.matmul_key.definition.elem_out,
+                    });
+
+                    let supported = !tm
+                        .supported_sizes(
+                            &client_1,
+                            elems.lhs_register,
+                            elems.rhs_register,
+                            elems.acc_register,
+                        )
+                        .is_empty();
+
+                    if !supported {
+                        return PRIORITY_NEVER;
+                    }
+
+                    match double_buf {
+                        false => PRIORITY_MAX,
+                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                    }
                 });
 
                 if let Some(group) = extra_group {
-                    tunable =
-                        tunable.group(group, move |key| priority_within_group(key, double_buf));
+                    let client_2 = tune_client.clone();
+                    tunable = tunable.group(group, move |key| {
+                        let elems = MatmulElems::from_globals(&MatmulGlobalElems {
+                            lhs: key.matmul_key.definition.elem_lhs,
+                            rhs: key.matmul_key.definition.elem_rhs,
+                            out: key.matmul_key.definition.elem_out,
+                        });
+
+                        let supported = !tm
+                            .supported_sizes(
+                                &client_2,
+                                elems.lhs_register,
+                                elems.rhs_register,
+                                elems.acc_register,
+                            )
+                            .is_empty();
+
+                        if !supported {
+                            return PRIORITY_NEVER;
+                        }
+
+                        match double_buf {
+                            false => PRIORITY_MAX,
+                            true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                        }
+                    });
                 }
                 set = set.with(tunable);
             }

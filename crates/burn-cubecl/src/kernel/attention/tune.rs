@@ -21,11 +21,14 @@ pub fn attention_autotune<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let client = query.client.clone();
 
+    let accelerated_client = client.clone();
+
     static TUNER: LocalTuner<AttentionAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_MIN: i8 = 0;
+        const PRIORITY_NEVER: i8 = -1;
 
         let flash_attention =
             TuneGroup::<AttentionAutotuneKey>::new("flash_attention", |_key| PRIORITY_MAX);
@@ -76,6 +79,7 @@ pub fn attention_autotune<R: CubeRuntime>(
         let seq_kv = 1;
         for num_planes in [2, 4, 8] {
             let name = format!("blackbox_accelerated_{num_planes}_planes_p_{seq_q}-{seq_kv}");
+            let client_accelerated = client.clone();
             set = set.with(
                 Tunable::new(
                     &name,
@@ -98,7 +102,18 @@ pub fn attention_autotune<R: CubeRuntime>(
                         .map_err(|err| std::format!("{err:?}"))
                     },
                 )
-                .group(&flash_attention, |_key| PRIORITY_MAX),
+                .group(&flash_attention, move |_key| {
+                    let features = &client_accelerated.properties().features;
+                    let has_accelerated = !features.matmul.cmma.is_empty()
+                        || !features.matmul.mma.is_empty()
+                        || !features.tma.is_empty();
+
+                    if !has_accelerated {
+                        return PRIORITY_NEVER;
+                    }
+
+                    PRIORITY_MAX
+                }),
             );
         }
 
@@ -122,8 +137,8 @@ pub fn attention_autotune<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&client, &query.device),
-        &client,
+        &CubeTuneId::new(&accelerated_client, &query.device),
+        &accelerated_client,
         tunables,
         (query, key, value, mask, attn_bias, options),
     )
