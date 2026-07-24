@@ -2,7 +2,6 @@ use burn_backend::Scalar;
 
 use crate::alloc::borrow::ToOwned;
 use crate::kind::Numeric;
-use alloc::vec::Vec;
 
 use crate::{
     AsIndex, Bool, Distribution, ElementConversion, Int, Shape, Tensor, check, check::TensorCheck,
@@ -494,12 +493,7 @@ where
     /// }
     /// ```
     pub fn sum_dims_squeeze<const D2: usize, I: AsIndex>(self, dims: &[I]) -> Tensor<D2, K> {
-        // TODO: remove idims when squeeze_dims uses AsIndex.
-        let idims = dims
-            .iter()
-            .map(|&dim| (dim.expect_dim_index(D)) as isize)
-            .collect::<Vec<_>>();
-        self.sum_dims(dims).squeeze_dims::<D2>(&idims)
+        self.sum_dims(dims).squeeze_dims::<D2>(dims)
     }
 
     /// Aggregate all elements in the tensor with the product operation.

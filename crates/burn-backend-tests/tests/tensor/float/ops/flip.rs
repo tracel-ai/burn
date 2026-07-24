@@ -23,7 +23,7 @@ fn flip_float() {
     flipped.into_data().assert_eq(&expected, false);
 
     // Test with no flip
-    let flipped = tensor.clone().flip([]);
+    let flipped = tensor.clone().flip([] as [isize; 0]);
     tensor.into_data().assert_eq(&flipped.into_data(), false);
 }
 

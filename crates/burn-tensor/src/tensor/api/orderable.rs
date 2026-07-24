@@ -303,7 +303,8 @@ where
     /// * `num_classes`: The number of classes for the one-hot encoding, which defines the size of the one-hot dimension.
     /// * `on_value`: The value to assign for active positions (corresponding to indices).
     /// * `off_value`: The value to assign for inactive positions.
-    /// * `axis`: The axis along which the one-hot dimension is added. Supports negative indexing.
+    /// * `axis`: The axis along which the one-hot dimension is added.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -329,36 +330,26 @@ where
         num_classes: usize,
         on_value: f32,
         off_value: f32,
-        axis: i64,
+        axis: impl AsIndex,
     ) -> Tensor<D2, K> {
         check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
+        let axis = axis.expect_dim_index(D + 1);
+
         // Initialize shape from the current tensor dimensions and prepare for modification
         let mut shape = self.shape();
         let device = self.device();
-        let rank = self.dims().len();
 
-        // Adjust negative axis to a positive index
-        let axis = if axis < 0 {
-            axis + rank as i64 + 1
-        } else {
-            axis
-        };
-
-        // Ensure axis is within valid range
-        if axis < 0 || axis > rank as i64 {
-            panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
-        }
         // Convert the input tensor to integer indices
         let indices: Tensor<D, Int> = Tensor::from_data(self.to_data().convert::<i64>(), &device);
         // Insert the new dimension for the one-hot representation
-        shape.insert(axis as usize, num_classes);
+        shape.insert(axis, num_classes);
         // Adjust indices to valid range and handle invalid indices
         let adjusted_indices = indices
             .clone()
             .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
         // Unsqueeze the indices tensor along the specified axis
-        let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
+        let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
 
         // Initialize the output tensor with the off_value
         let output = Tensor::full(shape.clone(), off_value, &device);
@@ -369,7 +360,7 @@ where
 
         // Scatter on_value at the appropriate indices to create the one-hot representation
         output.scatter(
-            axis as usize,
+            axis,
             indices_unsqueezed,
             scatter_on_values,
             IndexingUpdateOp::Add,
@@ -574,6 +565,11 @@ where
 
     /// Applies the argmax function along the given dimension and returns an integer tensor.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which to find the maximum value.
+    ///   Negative dimensions are supported and count from the end.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -587,11 +583,18 @@ where
     ///     // Shape { dims: [2, 1, 3] }
     /// }
     /// ```
-    pub fn argmax(self, dim: usize) -> Tensor<D, Int> {
+    pub fn argmax(self, dim: impl AsIndex) -> Tensor<D, Int> {
+        let dim = dim.expect_dim_index(D);
         Tensor::new(K::argmax(self.primitive, dim))
     }
 
     /// Applies the argtopk function along the given dimension and returns an integer tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `k` - The number of indices to return.
+    /// * `dim` - The dimension along which to find the largest values.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -605,7 +608,8 @@ where
     ///     println!("{:?}", tensor.shape());
     /// }
     /// ```
-    pub fn argtopk(self, k: usize, dim: usize) -> Tensor<D, Int> {
+    pub fn argtopk(self, k: usize, dim: impl AsIndex) -> Tensor<D, Int> {
+        let dim = dim.expect_dim_index(D);
         assert!(self.shape()[dim] > k);
         Tensor::new(K::argtopk(self.primitive, dim, k))
     }
@@ -773,6 +777,11 @@ where
 
     /// Applies the argmin function along the given dimension and returns an integer tensor.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which to find the minimum value.
+    ///   Negative dimensions are supported and count from the end.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -786,7 +795,8 @@ where
     ///     // Shape { dims: [2, 1, 3] }
     /// }
     /// ```
-    pub fn argmin(self, dim: usize) -> Tensor<D, Int> {
+    pub fn argmin(self, dim: impl AsIndex) -> Tensor<D, Int> {
+        let dim = dim.expect_dim_index(D);
         Tensor::new(K::argmin(self.primitive, dim))
     }
 

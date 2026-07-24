@@ -16,7 +16,7 @@ fn flip_float() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-1));
 
     // Test with no flip
-    let flipped = tensor.clone().flip([]);
+    let flipped = tensor.clone().flip([] as [isize; 0]);
     tensor.into_data().assert_eq(&flipped.into_data(), true);
 }
 

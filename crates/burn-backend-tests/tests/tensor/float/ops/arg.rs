@@ -48,6 +48,29 @@ fn test_argmin_2d_dim1() {
 }
 
 #[test]
+fn test_argmax_and_argmin_support_negative_dims() {
+    let tensor = TestTensor::<2>::from([[10.0, 11.0, 2.0], [30.0, 4.0, 5.0]]);
+
+    let output = tensor.clone().argmax(-1_i64);
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1], [0]]), false);
+
+    let output = tensor.argmin(-1_isize);
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[2], [1]]), false);
+}
+
+#[test]
+#[should_panic]
+fn test_argmax_should_panic_when_negative_dim_is_out_of_bounds() {
+    let tensor = TestTensor::<2>::from([[10.0, 11.0, 2.0], [3.0, 4.0, 5.0]]);
+
+    let _ = tensor.argmax(-3_i64);
+}
+
+#[test]
 fn test_argmax_flipped() {
     // Flip [1, 5, 3, 2, 4] -> [4, 2, 3, 5, 1]; max is at index 3.
     let tensor = TestTensor::<1>::from([1.0, 5.0, 3.0, 2.0, 4.0]);

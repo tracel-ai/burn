@@ -534,6 +534,7 @@ where
     ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// * `dst` - Destination positions for each of the original dims. These must also be unique.
+    ///   Negative dimensions are counted from the end.
     ///
     /// # Panics
     ///
@@ -637,15 +638,11 @@ where
     ///     println!("{flipped}");
     /// }
     /// ```
-    pub fn flip<const N: usize>(self, axes: [isize; N]) -> Tensor<D, K> {
-        // Convert the axes to usize and handle negative values without using vector
+    pub fn flip<const N: usize>(self, axes: [impl AsIndex; N]) -> Tensor<D, K> {
+        // Convert the axes to usize without allocating.
         let mut transformed_axes: [usize; N] = [0; N];
-        for (i, &x) in axes.iter().enumerate() {
-            transformed_axes[i] = if x < 0 {
-                (D as isize + x) as usize
-            } else {
-                x as usize
-            };
+        for (i, axis) in axes.into_iter().enumerate() {
+            transformed_axes[i] = axis.expect_dim_index(D);
         }
 
         // Check if the axes are valid
@@ -751,7 +748,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `dim`: The dimension to be squeezed.
+    /// - `dim`: The dimension to be squeezed. Supports negative indexing.
     ///
     /// # Type Parameters
     ///
@@ -785,7 +782,8 @@ where
     ///     println!("{squeezed}");
     /// }
     /// ```
-    pub fn squeeze_dim<const D2: usize>(self, dim: usize) -> Tensor<D2, K> {
+    pub fn squeeze_dim<const D2: usize>(self, dim: impl AsIndex) -> Tensor<D2, K> {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::squeeze::<D2>(dim, &self.shape()));
 
         let current_dims = self.shape();
@@ -834,7 +832,7 @@ where
     ///     println!("{squeezed}");
     /// }
     /// ```
-    pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<D2, K> {
+    pub fn squeeze_dims<const D2: usize>(self, dims: &[impl AsIndex]) -> Tensor<D2, K> {
         let current_dims = self.shape();
         let mut dim_indices: Vec<usize>;
 
@@ -846,17 +844,7 @@ where
                 .filter_map(|(index, &dim)| if dim == 1 { Some(index) } else { None })
                 .collect();
         } else {
-            // If negative dims, count from the back
-            dim_indices = dims
-                .iter()
-                .map(|&d| {
-                    if d < 0 {
-                        (current_dims.len() as isize + d) as usize
-                    } else {
-                        d as usize
-                    }
-                })
-                .collect();
+            dim_indices = dims.iter().map(|dim| dim.expect_dim_index(D)).collect();
         }
 
         // Sort indices and remove duplicates
@@ -930,6 +918,8 @@ where
 
     /// Creates a new tensor with a dimension of size one inserted at the specified position.
     ///
+    /// Negative dimensions are counted from the end of the valid insertion positions.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -945,7 +935,8 @@ where
     ///     println!("{unsqueezed}");
     /// }
     /// ```
-    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> Tensor<D2, K> {
+    pub fn unsqueeze_dim<const D2: usize>(self, dim: impl AsIndex) -> Tensor<D2, K> {
+        let dim = dim.expect_dim_index(D + 1);
         check!(TensorCheck::unsqueeze_dim::<D, D2>(dim));
 
         let mut dims = [1; D2];
@@ -955,7 +946,7 @@ where
 
         if dim < D {
             dims[dim] = 1;
-            dims[(dim + 1)..].copy_from_slice(&shape[dim..]);
+            dims[(dim + 1)..(D + 1)].copy_from_slice(&shape[dim..]);
         } else {
             dims[dim] = 1;
         }
@@ -1516,7 +1507,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim`: The dimension to slice.
+    /// * `dim`: The dimension to slice. Supports negative indexing.
     /// * `slice`: The slice specification for the dimension. Can be a range (e.g., `2..5`),
     ///   slice with step (via `s!` macro, e.g., `s![0..10;2]`), or any type that implements `Into<Slice>`.
     ///
@@ -1565,11 +1556,11 @@ where
     /// - [`s!`] - The macro for creating complex slice specifications
     ///
     /// [`s!`]: crate::s!
-    pub fn slice_dim<S>(self, dim: usize, slice: S) -> Self
+    pub fn slice_dim<S>(self, dim: impl AsIndex, slice: S) -> Self
     where
         S: Into<Slice>,
     {
-        check!(TensorCheck::check_dim::<D>(dim));
+        let dim = dim.expect_dim_index(D);
         let slice: Slice = slice.into();
 
         let mut slices = vec![Slice::full(); D];
@@ -1717,6 +1708,7 @@ where
     }
 
     /// Gather tensor elements corresponding to the given indices from the specified dim.
+    /// The dimension supports negative indexing.
     ///
     /// Example using a 3D tensor:
     ///
@@ -1732,7 +1724,8 @@ where
     /// # Warning
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn gather(self, dim: usize, indices: Tensor<D, Int>) -> Self {
+    pub fn gather(self, dim: impl AsIndex, indices: Tensor<D, Int>) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::gather::<D>(
             dim,
             &self.shape(),
@@ -1752,7 +1745,7 @@ where
     /// `input[i, j, indices[i, j, k]] += values[i, j, k]; // dim = 2`
     ///
     /// # Arguments
-    /// * `dim` - The axis along which to scatter elements.
+    /// * `dim` - The axis along which to scatter elements. Supports negative indexing.
     /// * `indices` - The indices of the elements to scatter.
     /// * `values` - The values to scatter into the tensor.
     /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
@@ -1772,11 +1765,12 @@ where
     /// If the `update` is not `IndexingUpdateOp::Add`. Other operations are currently not implemented.
     pub fn scatter(
         self,
-        dim: usize,
+        dim: impl AsIndex,
         indices: Tensor<D, Int>,
         values: Self,
         update: IndexingUpdateOp,
     ) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::scatter::<D>(
             dim,
             &self.shape(),
@@ -1928,7 +1922,7 @@ where
     /// The output tensor has the same shape, except along the given dimension.
     ///
     /// # Arguments
-    /// - `dim`: The dimension to repeat.
+    /// - `dim`: The dimension to repeat. Supports negative indexing.
     /// - `times`: The number of times to repeat the tensor along the given dimension in the new tensor.
     ///
     /// # Returns
@@ -1952,7 +1946,8 @@ where
     ///     println!("{repeated}");
     /// }
     /// ```
-    pub fn repeat_dim(self, dim: usize, times: usize) -> Self {
+    pub fn repeat_dim(self, dim: impl AsIndex, times: usize) -> Self {
+        let dim = dim.expect_dim_index(D);
         if times > 0 {
             Self::new(K::repeat_dim(self.primitive, dim, times))
         } else {
@@ -2116,6 +2111,7 @@ where
     }
 
     /// Concatenates all tensors into a new one along the given dimension.
+    /// The dimension supports negative indexing.
     ///
     /// # Panics
     ///
@@ -2140,7 +2136,8 @@ where
     ///     println!("{concat}");
     /// }
     /// ```
-    pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
+    pub fn cat(tensors: Vec<Self>, dim: impl AsIndex) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::cat(tensors.as_slice(), dim));
 
         // Filter out tensors with size 0 along the concatenation dimension.
@@ -2167,11 +2164,12 @@ where
     }
 
     /// Concatenates all tensors into a new one along a new dimension.
+    /// The dimension supports negative indexing.
     ///
     /// # Panics
     ///
     /// - If all tensors don't have the same shape.
-    /// - If given dimension is not with range of 0..D2
+    /// - If the given dimension is outside the `D + 1` valid insertion positions.
     ///
     /// # Example
     ///
@@ -2193,13 +2191,15 @@ where
     ///     println!("{stacked}");
     /// }
     /// ```
-    pub fn stack<const D2: usize>(tensors: Vec<Tensor<D, K>>, dim: usize) -> Tensor<D2, K> {
+    pub fn stack<const D2: usize>(tensors: Vec<Tensor<D, K>>, dim: impl AsIndex) -> Tensor<D2, K> {
+        let dim = dim.expect_dim_index(D + 1);
         check!(TensorCheck::stack::<D, K, D2>(tensors.as_slice(), dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
         Tensor::<D2, K>::cat(tensors, dim)
     }
 
     /// Iterate over slices of tensors alongside a given dimension.
+    /// The dimension supports negative indexing.
     ///
     /// # Panics
     ///
@@ -2225,12 +2225,14 @@ where
     ///  }
     /// }
     /// ```
-    pub fn iter_dim(self, dim: usize) -> DimIter<D, K> {
+    pub fn iter_dim(self, dim: impl AsIndex) -> DimIter<D, K> {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::dim_ops::<D>("iter_dim", dim));
         DimIter::new(self, dim)
     }
 
     /// Returns a new tensor with the given dimension narrowed to the given range.
+    /// The dimension supports negative indexing.
     ///
     /// # Panics
     ///
@@ -2265,7 +2267,8 @@ where
     ///     println!("{narrowed}");
     /// }
     /// ```
-    pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
+    pub fn narrow(self, dim: impl AsIndex, start: usize, length: usize) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::dim_ops::<D>("narrow", dim));
         check!(TensorCheck::narrow(&self, dim, start, length));
         let dims = self.dims();
@@ -2288,6 +2291,7 @@ where
     }
 
     /// Attempts to split the tensor into a specified number of chunks along a given dimension.
+    /// The dimension supports negative indexing.
     /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
     ///
     /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
@@ -2326,7 +2330,8 @@ where
     ///     println!("{chunks:?}");
     /// }
     /// ```
-    pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
+    pub fn chunk(self, chunks: usize, dim: impl AsIndex) -> Vec<Self> {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::dim_ops::<D>("chunk", dim));
         let size = self.shape()[dim];
         if size < chunks {
@@ -2357,6 +2362,7 @@ where
     }
 
     /// Splits the tensor into chunks of a specified size along a given dimension.
+    /// The dimension supports negative indexing.
     /// Each chunk is a view of the original tensor.
     ///
     /// If the tensor size along the given dimension is not divisible by `split_size`,
@@ -2385,7 +2391,8 @@ where
     ///     println!("{:?}", chunks);
     /// }
     /// ```
-    pub fn split(self, split_size: usize, dim: usize) -> Vec<Self> {
+    pub fn split(self, split_size: usize, dim: impl AsIndex) -> Vec<Self> {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::split::<D>(&self.shape(), split_size, dim));
         let size = self.shape()[dim];
         let mut tensors = Vec::new();
@@ -2401,6 +2408,7 @@ where
     }
 
     /// Splits the tensor into chunks with the specified sizes along a given dimension.
+    /// The dimension supports negative indexing.
     /// Each chunk is a view of the original tensor.
     ///
     /// The sizes of the chunks are specified in the `split_sizes` vector. The sum of the sizes
@@ -2430,7 +2438,8 @@ where
     ///     println!("{:?}", chunks);
     /// }
     /// ```
-    pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: usize) -> Vec<Self> {
+    pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: impl AsIndex) -> Vec<Self> {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::split_with_sizes::<D>(
             &self.shape(),
             &split_sizes,
@@ -2491,7 +2500,7 @@ where
     /// # Arguments
     ///
     /// * `tensor` - The tensor to test. All input tensor types (Float, Int, Bool) are supported.
-    /// * `dim` - The axis along which to test.
+    /// * `dim` - The axis along which to test. Supports negative indexing.
     ///
     /// # Returns
     ///
@@ -2514,7 +2523,8 @@ where
     ///     println!("{any_dim}");
     /// }
     /// ```
-    pub fn any_dim(self, dim: usize) -> Tensor<D, Bool> {
+    pub fn any_dim(self, dim: impl AsIndex) -> Tensor<D, Bool> {
+        let dim = dim.expect_dim_index(D);
         Tensor::new(K::any_dim(self.primitive, dim))
     }
 
@@ -2553,7 +2563,7 @@ where
     /// # Arguments
     ///
     /// * `tensor` - The tensor to test. All input tensor types (Float, Int, Bool) are supported.
-    /// * `dim` - The axis along which to test.
+    /// * `dim` - The axis along which to test. Supports negative indexing.
     ///
     /// # Returns
     ///
@@ -2576,7 +2586,8 @@ where
     ///     println!("{all_dim}");
     /// }
     /// ```
-    pub fn all_dim(self, dim: usize) -> Tensor<D, Bool> {
+    pub fn all_dim(self, dim: impl AsIndex) -> Tensor<D, Bool> {
+        let dim = dim.expect_dim_index(D);
         Tensor::new(K::all_dim(self.primitive, dim))
     }
 
@@ -2917,17 +2928,11 @@ pub trait MovedimArgs {
     fn into_dim_vec<const D: usize>(self) -> Vec<usize>;
 }
 
-impl MovedimArgs for Vec<i32> {
+impl<I: AsIndex> MovedimArgs for Vec<I> {
     fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
         let set = self
-            .iter()
-            .map(|&dim| {
-                if dim < 0 {
-                    (D as i32 + dim) as usize
-                } else {
-                    dim as usize
-                }
-            })
+            .into_iter()
+            .map(|dim| dim.expect_dim_index(D))
             .collect::<Vec<usize>>();
         check!(TensorCheck::movedim_args_vec::<D>(&set));
 
@@ -2935,42 +2940,19 @@ impl MovedimArgs for Vec<i32> {
     }
 }
 
-impl MovedimArgs for Vec<usize> {
-    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
-        check!(TensorCheck::movedim_args_vec::<D>(&self));
-        self
-    }
+macro_rules! impl_movedim_args {
+    ($($ty:ty),*) => {
+        $(
+            impl MovedimArgs for $ty {
+                fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+                    vec![self.expect_dim_index(D)]
+                }
+            }
+        )*
+    };
 }
 
-impl MovedimArgs for usize {
-    #[allow(clippy::vec_init_then_push)]
-    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
-        check!(TensorCheck::movedim_args_usize::<D>(self));
-
-        let mut set = Vec::with_capacity(1);
-        set.push(self);
-
-        set
-    }
-}
-
-impl MovedimArgs for i32 {
-    #[allow(clippy::vec_init_then_push)]
-    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
-        check!(TensorCheck::movedim_args_i32::<D>(self));
-
-        let dim = if self < 0 {
-            (D as i32 + self) as usize
-        } else {
-            self as usize
-        };
-
-        let mut set = Vec::with_capacity(1);
-        set.push(dim);
-
-        set
-    }
-}
+impl_movedim_args!(usize, isize, i64, u64, i32, u32, i16, u16, i8, u8);
 
 /// Trait used for reshape arguments.
 pub trait ReshapeArgs<const D2: usize>: Debug {
