@@ -525,7 +525,7 @@ mod tests {
             alpha: 0.99,
             epsilon: 1e-9,
             centered: false,
-            weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
+            weight_decay: Some(WeightDecayConfig { penalty: 0.05, projective: false  }),
             momentum: 0.9,
             grad_clipping: None,
         }
