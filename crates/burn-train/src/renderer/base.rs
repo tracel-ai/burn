@@ -108,7 +108,12 @@ pub enum MetricState {
     /// A generic metric.
     Generic(MetricEntry),
     /// A numeric metric.
-    Numeric(MetricEntry, NumericEntry),
+    ///
+    /// - `MetricEntry`: ID, formatted text string ("epoch N/A - batch N/A").
+    /// - `Option<NumericEntry>`:
+    ///     - `Some(entry)`: A plottable point.
+    ///     - `None`: A valid step tick on the X-axis, but with no drawable Y-coordinate point.
+    Numeric(MetricEntry, Option<NumericEntry>),
 }
 
 fn default_summary_action(summary: Option<LearnerSummary>) {

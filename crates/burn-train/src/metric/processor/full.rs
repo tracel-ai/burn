@@ -2,7 +2,7 @@ use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use crate::metric::MetricMetadata;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
-use crate::metric::store::{EpochSummary, EventStoreClient, Split};
+use crate::metric::store::{EpochSummary, EventStoreClient, MetricsUpdate, Split};
 use crate::renderer::{MetricState, MetricsRenderer};
 use std::sync::Arc;
 
@@ -49,6 +49,46 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
     pub(crate) fn with_progress_logger(mut self, logger: Box<dyn TrainingProgressLogger>) -> Self {
         self.progress_logger = Some(logger);
         self
+    }
+
+    fn handle_train_metrics_update(&mut self, update: MetricsUpdate) {
+        self.store
+            .add_event_train(crate::metric::store::Event::MetricsUpdate(update.clone()));
+
+        update
+            .entries
+            .into_iter()
+            .for_each(|entry| self.renderer.update_train(MetricState::Generic(entry)));
+
+        update
+            .entries_numeric
+            .into_iter()
+            .for_each(|numeric_update| {
+                self.renderer.update_train(MetricState::Numeric(
+                    numeric_update.entry,
+                    numeric_update.numeric_entry,
+                ))
+            });
+    }
+
+    fn handle_valid_metrics_update(&mut self, update: MetricsUpdate) {
+        self.store
+            .add_event_valid(crate::metric::store::Event::MetricsUpdate(update.clone()));
+
+        update
+            .entries
+            .into_iter()
+            .for_each(|entry| self.renderer.update_valid(MetricState::Generic(entry)));
+
+        update
+            .entries_numeric
+            .into_iter()
+            .for_each(|numeric_update| {
+                self.renderer.update_valid(MetricState::Numeric(
+                    numeric_update.entry,
+                    numeric_update.numeric_entry,
+                ))
+            });
     }
 }
 
@@ -207,24 +247,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 };
 
                 let update = self.metrics.update_train(&item, &metadata);
-
-                self.store
-                    .add_event_train(crate::metric::store::Event::MetricsUpdate(update.clone()));
-
-                update
-                    .entries
-                    .into_iter()
-                    .for_each(|entry| self.renderer.update_train(MetricState::Generic(entry)));
-
-                update
-                    .entries_numeric
-                    .into_iter()
-                    .for_each(|numeric_update| {
-                        self.renderer.update_train(MetricState::Numeric(
-                            numeric_update.entry,
-                            numeric_update.numeric_entry,
-                        ))
-                    });
+                self.handle_train_metrics_update(update);
 
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_split(item.progress.items_processed);
@@ -234,6 +257,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.renderer.log_event_training("Iteration".to_string());
             }
             LearnerEvent::EndSplit(epoch) => {
+                let update = self.metrics.end_epoch_train();
+                self.handle_train_metrics_update(update);
+
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
@@ -243,7 +269,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     logger.end_split();
                 }
                 self.renderer.end_split();
-                self.metrics.end_epoch_train();
             }
             LearnerEvent::EndEpoch(epoch) => {
                 self.current_epoch = epoch + 1;
@@ -285,24 +310,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 };
 
                 let update = self.metrics.update_valid(&item, &metadata);
-
-                self.store
-                    .add_event_valid(crate::metric::store::Event::MetricsUpdate(update.clone()));
-
-                update
-                    .entries
-                    .into_iter()
-                    .for_each(|entry| self.renderer.update_valid(MetricState::Generic(entry)));
-
-                update
-                    .entries_numeric
-                    .into_iter()
-                    .for_each(|numeric_update| {
-                        self.renderer.update_valid(MetricState::Numeric(
-                            numeric_update.entry,
-                            numeric_update.numeric_entry,
-                        ))
-                    });
+                self.handle_valid_metrics_update(update);
 
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_split(item.progress.items_processed);
@@ -312,6 +320,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.renderer.log_event_training("Iteration".to_string());
             }
             LearnerEvent::EndSplit(epoch) => {
+                let update = self.metrics.end_epoch_valid();
+                self.handle_valid_metrics_update(update);
+
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
@@ -321,7 +332,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     logger.end_split();
                 }
                 self.renderer.end_split();
-                self.metrics.end_epoch_valid();
             }
             LearnerEvent::EndEpoch(_) => {} // update_epoch is handled in process_train(EndEpoch)
             LearnerEvent::End(_) => {}      // no-op

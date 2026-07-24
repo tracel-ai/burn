@@ -14,7 +14,8 @@ pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
     valid: Vec<Box<dyn MetricUpdater<V>>>,
     train_numeric: Vec<Box<dyn NumericMetricUpdater<T>>>,
     valid_numeric: Vec<Box<dyn NumericMetricUpdater<V>>>,
-    metric_definitions: HashMap<MetricId, MetricDefinition>,
+    // Vec preserves metrics registration order; reflected in TUI tabs order
+    metric_definitions: Vec<MetricDefinition>,
 }
 
 pub(crate) struct MetricsEvaluation<T: ItemLazy> {
@@ -40,7 +41,7 @@ impl<T: ItemLazy, V: ItemLazy> Default for MetricsTraining<T, V> {
             valid: Vec::default(),
             train_numeric: Vec::default(),
             valid_numeric: Vec::default(),
-            metric_definitions: HashMap::default(),
+            metric_definitions: Vec::default(),
         }
     }
 }
@@ -148,15 +149,20 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     }
 
     fn register_definition<Me: Metric>(&mut self, metric: &MetricWrapper<Me>) {
-        self.metric_definitions.insert(
-            metric.id.clone(),
-            MetricDefinition::new(metric.id.clone(), &metric.metric),
-        );
+        // Avoid duplicate definitions if the same metric is registered for both train and valid
+        if !self
+            .metric_definitions
+            .iter()
+            .any(|def| def.metric_id == metric.id)
+        {
+            self.metric_definitions
+                .push(MetricDefinition::new(metric.id.clone(), &metric.metric));
+        }
     }
 
     /// Get metric definitions for all splits
     pub(crate) fn metric_definitions(&mut self) -> Vec<MetricDefinition> {
-        self.metric_definitions.values().cloned().collect()
+        self.metric_definitions.clone()
     }
 
     /// Update the training information from the training item.
@@ -204,23 +210,39 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     }
 
     /// Signal the end of a training epoch.
-    pub(crate) fn end_epoch_train(&mut self) {
+    /// Returns the final metric entries for the epoch.
+    pub(crate) fn end_epoch_train(&mut self) -> MetricsUpdate {
+        let mut entries = Vec::with_capacity(self.train.len());
+        let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
+
         for metric in self.train.iter_mut() {
+            entries.push(metric.compute());
             metric.clear();
         }
         for metric in self.train_numeric.iter_mut() {
+            entries_numeric.push(metric.compute());
             metric.clear();
         }
+
+        MetricsUpdate::new(entries, entries_numeric)
     }
 
     /// Signal the end of a validation epoch.
-    pub(crate) fn end_epoch_valid(&mut self) {
+    /// Returns the final metric entries for the epoch.
+    pub(crate) fn end_epoch_valid(&mut self) -> MetricsUpdate {
+        let mut entries = Vec::with_capacity(self.valid.len());
+        let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
+
         for metric in self.valid.iter_mut() {
+            entries.push(metric.compute());
             metric.clear();
         }
         for metric in self.valid_numeric.iter_mut() {
+            entries_numeric.push(metric.compute());
             metric.clear();
         }
+
+        MetricsUpdate::new(entries, entries_numeric)
     }
 }
 
@@ -246,11 +268,13 @@ impl<T> From<&EvaluationItem<T>> for MetricMetadata {
 
 pub(crate) trait NumericMetricUpdater<T>: Send + Sync {
     fn update(&mut self, item: &T, metadata: &MetricMetadata) -> NumericMetricUpdate;
+    fn compute(&mut self) -> NumericMetricUpdate;
     fn clear(&mut self);
 }
 
 pub(crate) trait MetricUpdater<T>: Send + Sync {
     fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry;
+    fn compute(&mut self) -> MetricEntry;
     fn clear(&mut self);
 }
 
@@ -287,6 +311,19 @@ where
         }
     }
 
+    fn compute(&mut self) -> NumericMetricUpdate {
+        let serialized_entry = self.metric.compute();
+        let update = MetricEntry::new(self.id.clone(), serialized_entry);
+        let final_entry = self.metric.final_value();
+
+        NumericMetricUpdate {
+            entry: update,
+            // Running entry is not applicable. This is the final epoch-level value computed.
+            numeric_entry: Some(final_entry),
+            running_entry: None,
+        }
+    }
+
     fn clear(&mut self) {
         self.metric.clear()
     }
@@ -300,6 +337,11 @@ where
 {
     fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry {
         let serialized_entry = self.metric.update(&item.adapt(), metadata);
+        MetricEntry::new(self.id.clone(), serialized_entry)
+    }
+
+    fn compute(&mut self) -> MetricEntry {
+        let serialized_entry = self.metric.compute();
         MetricEntry::new(self.id.clone(), serialized_entry)
     }
 

@@ -109,6 +109,7 @@ impl ConfusionStats {
         self.clone().true_negative() + self.false_positive()
     }
 
+    #[allow(unused)]
     pub fn predicted_positive(self) -> Tensor<1> {
         self.clone().true_positive() + self.false_positive()
     }

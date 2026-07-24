@@ -36,8 +36,14 @@ impl Metric for LearningRateMetric {
         // TODO: We only log the default learning rate. Yet another motivation to introduce metric groups.
         let lr = metadata.lr.as_ref().map(|val| val.base()).unwrap_or(0.0);
 
+        self.state.update(lr, 1);
         self.state
-            .update(lr, 1, FormatOptions::new(self.name()).precision(2))
+            .compute_update(FormatOptions::new(self.name()).precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).precision(2))
     }
 
     fn clear(&mut self) {
@@ -52,18 +58,22 @@ impl Metric for LearningRateMetric {
         NumericAttributes {
             unit: None,
             higher_is_better: false,
-            ..Default::default()
         }
         .into()
     }
 }
 
+// TODO: LR should probably just report the current value, the aggregated values don't make as much sense esp. for visualization
 impl Numeric for LearningRateMetric {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }

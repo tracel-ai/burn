@@ -34,6 +34,10 @@ impl Metric for CudaMetric {
     type Input = ();
 
     fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> SerializedEntry {
+        self.compute()
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
         let not_available =
             || SerializedEntry::new("Unavailable".to_string(), "Unavailable".to_string());
 

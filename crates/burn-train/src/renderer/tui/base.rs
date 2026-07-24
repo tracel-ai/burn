@@ -49,7 +49,7 @@ impl MetricsView<'_> {
     }
 }
 
-#[derive(Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub(crate) enum TuiSplit {
     Train,
     Valid,

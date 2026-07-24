@@ -3,7 +3,7 @@ use crate::metric::{
     SerializedEntry,
     state::{FormatOptions, NumericMetricState},
 };
-use burn_core::{prelude::Tensor, tensor::ElementConversion};
+use burn_core::prelude::Tensor;
 use std::f64::consts::LN_10;
 
 /// Input type for the [PsnrMetric].
@@ -179,11 +179,14 @@ impl Metric for PsnrMetric {
             .mul_scalar(10.0 / LN_10);
         let avg_psnr = psnr_per_image.mean().into_scalar::<f64>();
 
-        self.state.update(
-            avg_psnr,
-            batch_size,
-            FormatOptions::new(self.name()).unit("dB").precision(2),
-        )
+        self.state.update(avg_psnr, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("dB").precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("dB").precision(2))
     }
 
     /// Clears the metric state.
@@ -195,19 +198,22 @@ impl Metric for PsnrMetric {
         NumericAttributes {
             unit: Some("dB".to_string()),
             higher_is_better: true,
-            ..Default::default()
         }
         .into()
     }
 }
 
 impl Numeric for PsnrMetric {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -235,7 +241,7 @@ mod tests {
 
         // With epsilon = 1e-10 and max=1.0:
         // PSNR = 10 * log10(1.0 / 1e-10) = 100 dB
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         assert!(
             psnr >= 99.0,
             "PSNR for perfect reconstruction should be ~100 dB, got {} dB",
@@ -258,7 +264,7 @@ mod tests {
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         assert!(
             (psnr - 20.0).abs() < 0.01,
             "Expected PSNR ~20 dB, got {} dB",
@@ -281,7 +287,7 @@ mod tests {
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         let expected_psnr = 10.0 * (1.0_f64 / 0.075).log10();
         assert!(
             (psnr - expected_psnr).abs() < 0.01,
@@ -309,7 +315,7 @@ mod tests {
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         let expected_psnr = 10.0 * (255.0_f64 * 255.0 / 100.0).log10();
         assert!(
             (psnr - expected_psnr).abs() < 0.01,
@@ -346,7 +352,7 @@ mod tests {
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         let expected_psnr = 30.0;
         assert!(
             (psnr - expected_psnr).abs() < 0.01,
@@ -376,7 +382,7 @@ mod tests {
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         let expected_psnr = 20.0;
         assert!(
             (psnr - expected_psnr).abs() < 0.01,
@@ -400,7 +406,7 @@ mod tests {
         let input1 = PsnrInput::new(outputs1, targets1);
         let _entry = metric.update(&input1, &MetricMetadata::fake());
 
-        let psnr1 = metric.value().current();
+        let psnr1 = metric.value().unwrap().current();
         let expected_psnr1 = 20.0;
         assert!(
             (psnr1 - expected_psnr1).abs() < 0.01,
@@ -419,7 +425,7 @@ mod tests {
         let _entry = metric.update(&input2, &MetricMetadata::fake());
 
         // Running average: (20 + 40) / 2 = 30 dB
-        let running_avg_psnr = metric.running_value().current();
+        let running_avg_psnr = metric.running_value().unwrap().current();
         let expected_running_avg_psnr = 30.0;
         assert!(
             (running_avg_psnr - expected_running_avg_psnr).abs() < 0.01,
@@ -442,7 +448,7 @@ mod tests {
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         let expected_psnr = 20.0;
         assert!(
             (psnr - expected_psnr).abs() < 0.01,
@@ -453,7 +459,7 @@ mod tests {
 
         // Clear and verify reset
         metric.clear();
-        let psnr = metric.running_value().current();
+        let psnr = metric.running_value().unwrap().current();
         assert!(psnr.is_nan(), "Expected NaN after clear, got {} dB", psnr)
     }
 
@@ -479,7 +485,7 @@ mod tests {
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
         // With epsilon = 0.01, PSNR = 10 * log10(1.0 / 0.01) = 20 dB
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         let expected_psnr = 20.0;
         assert!(
             (psnr - expected_psnr).abs() < 0.01,
@@ -504,7 +510,7 @@ mod tests {
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
         // Same MSE as positive errors (0.01), so PSNR = 20 dB
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         let expected_psnr = 20.0;
         assert!(
             (psnr - expected_psnr).abs() < 0.01,
@@ -529,7 +535,7 @@ mod tests {
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let psnr = metric.value().current();
+        let psnr = metric.value().unwrap().current();
         let expected_psnr = 20.0;
         assert!(
             (psnr - expected_psnr).abs() < 0.01,

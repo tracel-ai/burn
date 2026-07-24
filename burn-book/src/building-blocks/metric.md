@@ -215,11 +215,11 @@ When the metric you are implementing is numeric in nature, you may want to also 
 
 ```rust, ignore
 impl<B: Backend> Numeric for LossMetric<B> {
-    fn value(&self) -> NumericEntry {
+    fn value(&self) -> Option<NumericEntry> {
         self.state.current_value()
     }
 
-    fn running_value(&self) -> NumericEntry {
+    fn running_value(&self) -> Option<NumericEntry> {
         self.state.running_value()
     }
 }
