@@ -10,7 +10,6 @@ use crate::{
     graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use alloc::boxed::Box;
 use burn_backend::{Backend, TensorMetadata, tensor::FloatTensor};
 use burn_std::Shape;
 use core::marker::PhantomData;
@@ -256,8 +255,13 @@ where
     T: Backward<B, N, State = SB>,
     SB: Clone + Send + core::fmt::Debug + 'static,
 {
-    fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
-        self.backward.backward(self.ops, grads, checkpointer);
+    fn step(&self, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
+        let ops = Ops::new(
+            self.ops.parents.clone(),
+            self.ops.node.clone(),
+            self.ops.state.clone(),
+        );
+        self.backward.backward(ops, grads, checkpointer);
     }
 
     fn node(&self) -> NodeId {
@@ -283,7 +287,7 @@ struct UntrackedOpsStep<const N: usize> {
 }
 
 impl<const N: usize> Step for UntrackedOpsStep<N> {
-    fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
+    fn step(&self, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         // Nothing to do
     }
 

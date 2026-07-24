@@ -52,6 +52,13 @@ impl<const D: usize> Tensor<D> {
         backward_impl(&self.primitive)
     }
 
+    /// Backward pass of the tensor without consuming the computational graph.
+    ///
+    /// The graph remains intact after backward, allowing multiple backward passes on the same graph.
+    pub fn backward_retain(&self) -> Gradients {
+        backward_retain_impl(&self.primitive)
+    }
+
     /// Get the gradients of a tensor if it exist.
     ///
     /// Returns a new reference to the same tensor. Therefore the same grad tensor can
@@ -76,6 +83,11 @@ impl<const D: usize> Tensor<D> {
 #[cfg(feature = "autodiff")]
 fn backward_impl(p: &BridgeTensor) -> Gradients {
     Gradients::from_inner(Dispatch::backward(p.clone().into_float()))
+}
+
+#[cfg(feature = "autodiff")]
+fn backward_retain_impl(p: &BridgeTensor) -> Gradients {
+    Gradients::from_inner(Dispatch::backward_retain(&p.clone().into_float()))
 }
 
 #[cfg(feature = "autodiff")]

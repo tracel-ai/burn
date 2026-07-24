@@ -268,6 +268,20 @@ pub trait AutodiffBackend: Backend {
     /// The gradients.
     fn backward(tensor: FloatTensor<Self>) -> Self::Gradients;
 
+    /// Backward pass without consuming the graph, allowing repeated backward passes.
+    ///
+    /// Equivalent to PyTorch's `loss.backward(retain_graph=True)`. The computational graph
+    /// is preserved after the backward pass so it can be used again.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor is the last node of computational graph where the gradients are computed.
+    ///
+    /// # Returns
+    ///
+    /// The gradients.
+    fn backward_retain(tensor: &FloatTensor<Self>) -> Self::Gradients;
+
     /// Returns the gradients of a tensor.
     ///
     /// # Arguments

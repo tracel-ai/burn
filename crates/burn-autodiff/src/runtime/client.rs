@@ -12,6 +12,8 @@ pub trait AutodiffClient: Send + Clone {
     fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder);
     /// Call backpropagation from the given tensor.
     fn backward<B: Backend>(&self, tensor: AutodiffTensor<B>, mode: BackwardMode) -> Gradients;
+    /// Call backpropagation without consuming the graph, allowing repeated backward passes.
+    fn backward_retain<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Gradients;
 }
 
 /// Client implementation in used.

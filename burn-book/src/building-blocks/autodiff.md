@@ -88,3 +88,40 @@ with optimizers from `burn-core`. To work with the `Module` trait, a translation
 link tensor parameters with their gradients. This step is necessary to easily support gradient
 accumulation and training on multiple devices, where each module can be forked and run on different
 devices in parallel. We'll explore deeper into this topic in the [Module](./module.md) section.
+
+## Retaining the Computational Graph
+
+By default, calling `backward()` consumes the computational graph. Every node is removed from the
+graph during the backward pass, freeing activation memory. This is the correct default for
+standard training loops where you never need the graph twice.
+
+However, for scientific machine learning use cases such as computing Jacobians, Hessians or
+higher-order derivatives, you may need to run multiple backward passes over the same
+graph. Burn provides `backward_retain()` for this purpose, equivalent to PyTorch's
+`loss.backward(retain_graph=True)`.
+
+```rust, ignore
+fn calculate_jacobian<B: AutodiffBackend>(tensor: Tensor<B, 2>) {
+    let result = tensor.clone().matmul(tensor.clone());
+
+    // Each slice can be differentiated independently over the same graph
+    let result1 = result.clone().slice([0..1, 0..1]).sum();
+    let result2 = result.clone().slice([1..2, 0..1]).sum();
+
+    let grads1 = result1.backward_retain(); // graph retained
+    let grads2 = result2.backward_retain(); // graph retained again
+
+    let grad1 = tensor.grad(&grads1).unwrap();
+    let grad2 = tensor.grad(&grads2).unwrap();
+}
+```
+
+The tradeoff is memory: `backward_retain()` holds all activation memory for the full duration of
+the retained backward passes, whereas standard `backward()` consumes activations as each node
+is visited. Only use `backward_retain()` when multiple backward passes over the same graph are
+genuinely required.
+
+| Burn API                  | PyTorch Equivalent                        |
+| ------------------------- | ----------------------------------------- |
+| `tensor.backward()`       | `loss.backward()`                         |
+| `tensor.backward_retain()`| `loss.backward(retain_graph=True)`        |
