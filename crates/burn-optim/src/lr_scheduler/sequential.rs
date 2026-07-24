@@ -96,10 +96,7 @@ pub struct SequentialLrScheduler {
 
 impl SequentialLrScheduler {
     fn active_scheduler(&self) -> usize {
-        self.milestones
-            .iter()
-            .take_while(|milestone| self.step >= **milestone)
-            .count()
+        self.milestones.partition_point(|&m| self.step >= m)
     }
 }
 
@@ -128,9 +125,8 @@ impl LrScheduler for SequentialLrScheduler {
             self.step = state.step;
         }
 
-        self.schedulers = self
-            .schedulers
-            .clone()
+        let schedulers = core::mem::take(&mut self.schedulers);
+        self.schedulers = schedulers
             .into_iter()
             .enumerate()
             .map(|(index, scheduler)| scheduler.load_record(record.record(&index.to_string())))

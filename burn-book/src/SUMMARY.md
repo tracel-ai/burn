@@ -14,6 +14,7 @@
   - [Autodiff](./building-blocks/autodiff.md)
   - [Module](./building-blocks/module.md)
   - [Learner](./building-blocks/learner.md)
+  - [Learning Rate Scheduler](./building-blocks/lr-scheduler.md)
   - [Metric](./building-blocks/metric.md)
   - [Config](./building-blocks/config.md)
   - [Record](./building-blocks/record.md)
