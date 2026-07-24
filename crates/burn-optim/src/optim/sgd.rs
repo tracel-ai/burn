@@ -222,7 +222,7 @@ mod tests {
 
     fn sgd_with_all() -> ModuleOptimizer {
         SgdConfig {
-            weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
+            weight_decay: Some(WeightDecayConfig { penalty: 0.05, projective: false }),
             momentum: Some(MomentumConfig {
                 momentum: 0.9,
                 dampening: 0.1,
