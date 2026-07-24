@@ -8,7 +8,7 @@ mod float {
             TestTensor::<1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &Default::default());
         assert_eq!(tensor.dims(), [4]);
 
-        let mut old: Tensor<1> = tensor.release();
+        let mut old: Tensor<1> = tensor.take();
         assert_eq!(tensor.dims(), [0]);
         assert_eq!(old.dims(), [4]);
 
@@ -39,7 +39,7 @@ mod int {
             TestTensorInt::<1>::from_data(TensorData::from([0, 1, 2, 3]), &Default::default());
         assert_eq!(tensor.dims(), [4]);
 
-        let mut old: Tensor<1, Int> = tensor.release();
+        let mut old: Tensor<1, Int> = tensor.take();
         assert_eq!(tensor.dims(), [0]);
         assert_eq!(old.dims(), [4]);
 
@@ -72,7 +72,7 @@ mod bool {
         );
         assert_eq!(tensor.dims(), [4]);
 
-        let mut old: Tensor<1, Bool> = tensor.release();
+        let mut old: Tensor<1, Bool> = tensor.take();
         assert_eq!(tensor.dims(), [0]);
         assert_eq!(old.dims(), [4]);
 
