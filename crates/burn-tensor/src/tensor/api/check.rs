@@ -394,7 +394,7 @@ impl TensorCheck {
         let mut check = Self::Ok;
         if index_tensor
             .clone()
-            .greater_equal_elem(num_classes as i32)
+            .greater_equal_scalar(num_classes as i32)
             .any()
             .into_scalar::<i64>()
             .to_bool()

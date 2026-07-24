@@ -2066,7 +2066,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -2076,21 +2076,21 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.equal_elem(3.0);
+    ///    let tensor = tensor.equal_scalar(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [false, false, false]]
     /// }
     /// ```
-    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
+    pub fn equal_scalar<E: Element>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::equal_elem(self.primitive, other))
+        Tensor::new(K::equal_scalar(self.primitive, other))
     }
 
     /// Applies element wise non-equality comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -2100,14 +2100,24 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.not_equal_elem(3.0);
+    ///    let tensor = tensor.not_equal_scalar(3.0);
     ///    println!("{tensor}");
     ///    // [[true, true, false], [true, true, true]]
     /// }
     /// ```
-    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
+    pub fn not_equal_scalar<E: Element>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::not_equal_elem(self.primitive, other))
+        Tensor::new(K::not_equal_scalar(self.primitive, other))
+    }
+
+    /// Alias for [equal_scalar](Self::equal_scalar).
+    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
+        self.equal_scalar(other)
+    }
+
+    /// Alias for [not_equal_scalar](Self::not_equal_scalar).
+    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
+        self.not_equal_scalar(other)
     }
 
     /// Concatenates all tensors into a new one along the given dimension.

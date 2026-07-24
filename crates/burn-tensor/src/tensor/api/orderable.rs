@@ -346,8 +346,8 @@ where
         // Adjust indices to valid range and handle invalid indices
         let adjusted_indices = indices
             .clone()
-            .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
-            .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
+            .mask_fill(self.clone().lower_scalar(0), num_classes as i64) // Handle negative indices
+            .add(indices.clone().mask_fill(self.clone().greater_scalar(0), 0)); // Handle positive indices
         // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
 
@@ -471,7 +471,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -481,21 +481,21 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.greater_elem(3.0);
+    ///    let tensor = tensor.greater_scalar(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [true, true, true]]
     /// }
     /// ```
-    pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+    pub fn greater_scalar<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::greater_elem(self.primitive, other))
+        Tensor::new(K::greater_scalar(self.primitive, other))
     }
 
     /// Applies greater-equal than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -505,21 +505,21 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.greater_equal_elem(3.0);
+    ///    let tensor = tensor.greater_equal_scalar(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [true, true, true]]
     /// }
     /// ```
-    pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+    pub fn greater_equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::greater_equal_elem(self.primitive, other))
+        Tensor::new(K::greater_equal_scalar(self.primitive, other))
     }
 
     /// Applies lower than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -529,21 +529,21 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///     let tensor = tensor.lower_elem(3.0);
+    ///     let tensor = tensor.lower_scalar(3.0);
     ///     println!("{tensor}");
     ///     // [[true, true, false], [false, false, false]]
     /// }
     /// ```
-    pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+    pub fn lower_scalar<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::lower_elem(self.primitive, other))
+        Tensor::new(K::lower_scalar(self.primitive, other))
     }
 
     /// Applies lower-equal than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -553,14 +553,34 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.lower_equal_elem(3.0);
+    ///    let tensor = tensor.lower_equal_scalar(3.0);
     ///    println!("{tensor}");
     ///    // [[true, true, true], [false, false, false]]
     /// }
     /// ```
-    pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+    pub fn lower_equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::lower_equal_elem(self.primitive, other))
+        Tensor::new(K::lower_equal_scalar(self.primitive, other))
+    }
+
+    /// Alias for [greater_scalar](Self::greater_scalar).
+    pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+        self.greater_scalar(other)
+    }
+
+    /// Alias for [greater_equal_scalar](Self::greater_equal_scalar).
+    pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+        self.greater_equal_scalar(other)
+    }
+
+    /// Alias for [lower_scalar](Self::lower_scalar).
+    pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+        self.lower_scalar(other)
+    }
+
+    /// Alias for [lower_equal_scalar](Self::lower_equal_scalar).
+    pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+        self.lower_equal_scalar(other)
     }
 
     /// Applies the argmax function along the given dimension and returns an integer tensor.

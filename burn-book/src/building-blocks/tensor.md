@@ -205,7 +205,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.dtype()`                                     | `tensor.dtype`                                                            |
 | `tensor.dims()`                                      | `tensor.size()`                                                           |
 | `tensor.equal(other)`                                | `x == y`                                                                  |
-| `tensor.equal_elem(other)`                           | `tensor.eq(other)`                                                        |
+| `tensor.equal_scalar(other)`                           | `tensor.eq(other)`                                                        |
 | `tensor.expand(shape)`                               | `tensor.expand(shape)`                                                    |
 | `tensor.flatten(start_dim, end_dim)`                 | `tensor.flatten(start_dim, end_dim)`                                      |
 | `tensor.flip(axes)`                                  | `tensor.flip(axes)`                                                       |
@@ -219,7 +219,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.movedim(src, dst)`                           | `tensor.movedim(src, dst)`                                                |
 | `tensor.narrow(dim, start, length)`                  | `tensor.narrow(dim, start, length)`                                       |
 | `tensor.not_equal(other)`                            | `x != y`                                                                  |
-| `tensor.not_equal_elem(scalar)`                      | `tensor.ne(scalar)`                                                       |
+| `tensor.not_equal_scalar(scalar)`                      | `tensor.ne(scalar)`                                                       |
 | `tensor.ones_like()`                                 | `torch.ones_like(tensor)`                                                 |
 | `tensor.permute(axes)`                               | `tensor.permute(axes)`                                                    |
 | `tensor.repeat_dim(dim, times)`                      | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])` |
@@ -280,13 +280,13 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                             |
 | `tensor.dot(other)`                                             | `torch.dot(tensor, other)`                    |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                            |
-| `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                           |
+| `tensor.greater_scalar(scalar)`                                   | `tensor.gt(scalar)`                           |
 | `tensor.greater_equal(other)`                                   | `tensor.ge(other)`                            |
-| `tensor.greater_equal_elem(scalar)`                             | `tensor.ge(scalar)`                           |
+| `tensor.greater_equal_scalar(scalar)`                             | `tensor.ge(scalar)`                           |
 | `tensor.lower(other)`                                           | `tensor.lt(other)`                            |
-| `tensor.lower_elem(scalar)`                                     | `tensor.lt(scalar)`                           |
+| `tensor.lower_scalar(scalar)`                                     | `tensor.lt(scalar)`                           |
 | `tensor.lower_equal(other)`                                     | `tensor.le(other)`                            |
-| `tensor.lower_equal_elem(scalar)`                               | `tensor.le(scalar)`                           |
+| `tensor.lower_equal_scalar(scalar)`                               | `tensor.le(scalar)`                           |
 | `tensor.max()`                                                  | `tensor.max()`                                |
 | `tensor.max_abs()`                                              | `tensor.abs().max()`                          |
 | `tensor.max_abs_dim(dim)`                                       | `tensor.abs().max(dim, keepdim=True)`         |

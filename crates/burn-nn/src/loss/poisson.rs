@@ -172,7 +172,7 @@ impl PoissonNllLoss {
                 + (targets.clone() * 2. * PI).log() * 0.5;
             loss = loss
                 + log_stirling_term
-                    .mask_where(targets.clone().lower_equal_elem(1), targets.zeros_like());
+                    .mask_where(targets.clone().lower_equal_scalar(1), targets.zeros_like());
         }
         loss
     }
@@ -193,7 +193,7 @@ impl PoissonNllLoss {
         assert!(
             targets
                 .clone()
-                .greater_equal_elem(0.)
+                .greater_equal_scalar(0.)
                 .all()
                 .into_scalar::<bool>(),
             "All the values of `targets` must be non-negative."
@@ -202,7 +202,7 @@ impl PoissonNllLoss {
             assert!(
                 predictions
                     .clone()
-                    .greater_equal_elem(0.)
+                    .greater_equal_scalar(0.)
                     .all()
                     .into_scalar::<bool>(),
                 "When `log_input` is `false`, all the values of `predictions` must be non-negative."

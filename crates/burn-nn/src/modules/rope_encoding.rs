@@ -444,7 +444,7 @@ mod tests {
         let wavelen = freqs.clone().recip().mul_scalar(2. * core::f32::consts::PI);
 
         // if wavelen >= high_freq_wavelen
-        let cond = wavelen.clone().greater_equal_elem(high_freq_wavelen);
+        let cond = wavelen.clone().greater_equal_scalar(high_freq_wavelen);
         let smooth = wavelen
             .clone()
             .recip()
@@ -461,11 +461,11 @@ mod tests {
         let new_freqs = freqs.clone().mask_where(cond, new_freqs);
 
         // if wavelen > low_freq_wavelen
-        let cond = wavelen.clone().greater_elem(low_freq_wavelen);
+        let cond = wavelen.clone().greater_scalar(low_freq_wavelen);
         let new_freqs = new_freqs.mask_where(cond, freqs.clone().div_scalar(scale_factor));
 
         // if wavelen < high_freq_wavelen
-        let cond = wavelen.lower_elem(high_freq_wavelen);
+        let cond = wavelen.lower_scalar(high_freq_wavelen);
         new_freqs.mask_where(cond, freqs)
     }
 

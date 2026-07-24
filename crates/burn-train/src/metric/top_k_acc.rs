@@ -64,7 +64,7 @@ impl Metric for TopKAccuracyMetric {
         let (targets, num_pad) = match self.pad_token {
             Some(pad_token) => {
                 // we ignore the samples where the target is equal to the pad token
-                let mask = targets.clone().equal_elem(pad_token as i64);
+                let mask = targets.clone().equal_scalar(pad_token as i64);
                 let num_pad = mask.clone().int().sum().into_scalar::<f64>();
                 (targets.clone().mask_fill(mask, -1_i64), num_pad)
             }

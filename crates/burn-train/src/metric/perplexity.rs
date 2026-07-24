@@ -189,7 +189,7 @@ impl Metric for PerplexityMetric {
         let (sum_log_prob, effective_tokens) = match self.pad_token {
             Some(pad_token) => {
                 // Create a mask for non-padding tokens
-                let mask = targets.clone().not_equal_elem(pad_token as i64);
+                let mask = targets.clone().not_equal_scalar(pad_token as i64);
 
                 // Apply mask to log probabilities (set padding log probs to 0)
                 let masked_log_probs = target_log_probs.mask_fill(mask.clone().bool_not(), 0.0);
