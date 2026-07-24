@@ -23,6 +23,7 @@ mod quantization;
 mod reduce;
 mod repeat_dim;
 mod scatter;
+mod scatter_nd;
 mod select;
 mod select_assign;
 mod slice;
