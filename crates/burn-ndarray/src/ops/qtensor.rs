@@ -213,7 +213,7 @@ impl QTensorOps<Self> for NdArray {
         let lhs = match lhs {
             TensorPrimitive::Float(lhs) => lhs,
             TensorPrimitive::QFloat(lhs) => {
-                let settings = get_device_settings::<Self>(&Self::q_device(&lhs));
+                let settings = get_device_settings::<Self>(&lhs.device());
                 propagation = settings.quantization.propagation;
                 scheme = lhs.scheme;
                 let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
@@ -223,7 +223,7 @@ impl QTensorOps<Self> for NdArray {
         let rhs = match rhs {
             TensorPrimitive::Float(rhs) => rhs,
             TensorPrimitive::QFloat(rhs) => {
-                let settings = get_device_settings::<Self>(&Self::q_device(&rhs));
+                let settings = get_device_settings::<Self>(&rhs.device());
                 propagation = settings.quantization.propagation;
                 scheme = rhs.scheme;
                 let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
