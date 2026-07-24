@@ -46,5 +46,6 @@ mod stack;
 mod sub;
 mod tan;
 mod tanh;
+mod ternary_matmul;
 mod topk;
 mod transpose;

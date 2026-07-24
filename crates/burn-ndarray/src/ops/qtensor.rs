@@ -1,10 +1,10 @@
 use alloc::{vec, vec::Vec};
 
 use burn_backend::{
-    DType, ExecutionError, Shape, TensorData, TensorMetadata,
-    ops::QTensorOps,
+    DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive, get_device_settings,
+    ops::{FloatTensorOps, QTensorOps},
     quantization::{
-        QParams, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue,
+        QParams, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
         QuantizationParametersPrimitive, QuantizedBytes,
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
@@ -91,8 +91,10 @@ impl QTensorOps<Self> for NdArray {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
+                // `Q2S` is supported natively (stored as i8) — it feeds the multiply-free
+                // ternary matmul fast path in `q_matmul` (BitNet b1.58).
                 #[cfg(not(feature = "export_tests"))]
-                    value: QuantValue::Q8F | QuantValue::Q8S,
+                    value: QuantValue::Q8F | QuantValue::Q8S | QuantValue::Q2S,
                 // For tests, "native" sub-byte quant serves as a reference for value equality.
                 // Values are stored as i8 regardless.
                 #[cfg(feature = "export_tests")]
@@ -180,6 +182,63 @@ impl QTensorOps<Self> for NdArray {
             _ => unreachable!(),
         };
         NdArrayTensor::from_data(data)
+    }
+
+    /// Matrix multiplication with at least one quantized operand.
+    ///
+    /// Fast path — BitNet b1.58 ternary weights: when `rhs` is a `Q2S` symmetric per-tensor weight
+    /// (values in `{-1, 0, +1}`) and `lhs` is an `f32` activation, the product is computed WITHOUT
+    /// dequantizing the weight and WITHOUT a single multiply in the inner loop: `+1 => add`,
+    /// `-1 => subtract`, `0 => skip`, then the per-tensor scale `γ` is applied once per output
+    /// element — the multiply-free compute path BitNet is built on. The result matches the
+    /// dequantize-then-`float_matmul` path to within f32 rounding.
+    ///
+    /// Every other case (Q8, per-block, non-f32 activation, batched weights, ...) falls through to
+    /// the regular `dequantize -> float_matmul` path — byte-for-byte the default behaviour.
+    fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
+        if let (TensorPrimitive::Float(l), TensorPrimitive::QFloat(r)) = (&lhs, &rhs)
+            && let Some(out) = ternary_matmul(l, r)
+        {
+            return TensorPrimitive::Float(out);
+        }
+
+        // Fallback: identical to the default `QTensorOps::q_matmul` — dequantize any quantized
+        // operand, run the regular float matmul, and preserve quantization propagation.
+        let mut propagation = QuantPropagation::Inhibit;
+        let mut scheme = QuantScheme::default();
+        let target_dtype: Option<FloatDType> = match (&lhs, &rhs) {
+            (TensorPrimitive::Float(t), _) | (_, TensorPrimitive::Float(t)) => {
+                Some(t.dtype().into())
+            }
+            _ => None,
+        };
+        let lhs = match lhs {
+            TensorPrimitive::Float(lhs) => lhs,
+            TensorPrimitive::QFloat(lhs) => {
+                let settings = get_device_settings::<Self>(&lhs.device());
+                propagation = settings.quantization.propagation;
+                scheme = lhs.scheme;
+                let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
+                Self::dequantize(lhs, float_dtype)
+            }
+        };
+        let rhs = match rhs {
+            TensorPrimitive::Float(rhs) => rhs,
+            TensorPrimitive::QFloat(rhs) => {
+                let settings = get_device_settings::<Self>(&rhs.device());
+                propagation = settings.quantization.propagation;
+                scheme = rhs.scheme;
+                let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
+                Self::dequantize(rhs, float_dtype)
+            }
+        };
+        let out_f = <Self as FloatTensorOps<Self>>::float_matmul(lhs, rhs);
+        match propagation {
+            QuantPropagation::Propagate => {
+                TensorPrimitive::QFloat(Self::quantize_dynamic(out_f, &scheme))
+            }
+            QuantPropagation::Inhibit => TensorPrimitive::Float(out_f),
+        }
     }
 
     fn q_to_device(
@@ -322,6 +381,93 @@ impl QTensorOps<Self> for NdArray {
             qparams: tensor.qparams,
         }
     }
+}
+
+/// Native multiply-free ternary matmul (BitNet b1.58): an `f32` activation `lhs` times a `Q2S`
+/// symmetric per-tensor ternary weight `rhs` (values in `{-1, 0, +1}`).
+///
+/// Returns `None` — so the caller falls back to the regular dequantize path — unless every
+/// precondition holds: `rhs` is `Q2S` / `Symmetric` / per-tensor, `rhs` is a 2D weight `[K, N]`,
+/// and `lhs` is an `f32` tensor whose last dim is `K`. Leading dims of `lhs` are flattened into the
+/// row count `M`, so this covers the `Linear`-style `[.., K] x [K, N] -> [.., N]` case.
+///
+/// The inner loop contains no multiplies: `+1 => add`, `-1 => subtract`, `0 => skip`. The single
+/// per-tensor scale `γ` is applied once per output element at the end — `M·N` multiplies instead of
+/// the `M·N·K` of a dense matmul, with zeros never touched.
+fn ternary_matmul(
+    lhs: &FloatTensor<NdArray>,
+    rhs: &NdArrayQTensor,
+) -> Option<FloatTensor<NdArray>> {
+    // Canonical BitNet b1.58 weight quantization: Q2S, symmetric, per-tensor.
+    if !matches!(
+        rhs.scheme,
+        QuantScheme {
+            value: QuantValue::Q2S,
+            mode: QuantMode::Symmetric,
+            level: QuantLevel::Tensor,
+            ..
+        }
+    ) {
+        return None;
+    }
+    // Only an f32 activation (the reference float dtype) takes the fast path.
+    if !matches!(lhs, NdArrayTensor::F32(_)) {
+        return None;
+    }
+
+    // rhs is a 2D weight [K, N].
+    let wdims = rhs.qtensor.shape().to_vec();
+    if wdims.len() != 2 {
+        return None;
+    }
+    let (k, n) = (wdims[0], wdims[1]);
+
+    // lhs is [.., M, K] with a matching K; flatten the leading dims into M.
+    let ldims = lhs.shape().to_vec();
+    if ldims.len() < 2 || *ldims.last().unwrap() != k {
+        return None;
+    }
+    let m: usize = ldims[..ldims.len() - 1].iter().product();
+
+    // Per-tensor scale γ.
+    let gamma = rhs.qparams.first()?.scales;
+
+    // Canonical row-major values for both operands (`into_data` normalizes any strided layout).
+    let a_data = lhs.clone().into_data();
+    let a = a_data.as_slice::<f32>().ok()?;
+    let w_data = rhs.qtensor.clone().into_data();
+    let w = w_data.as_slice::<i8>().ok()?;
+    if a.len() != m * k || w.len() != k * n {
+        return None;
+    }
+
+    // Multiply-free accumulation; one scale per output element at the end.
+    let mut out = vec![0f32; m * n];
+    for i in 0..m {
+        let arow = &a[i * k..(i + 1) * k];
+        let orow = &mut out[i * n..(i + 1) * n];
+        for kk in 0..k {
+            let x = arow[kk];
+            let wrow = &w[kk * n..(kk + 1) * n];
+            for (o, &t) in orow.iter_mut().zip(wrow) {
+                match t {
+                    1 => *o += x,
+                    -1 => *o -= x,
+                    _ => {} // 0 -> skip
+                }
+            }
+        }
+        for o in orow.iter_mut() {
+            *o *= gamma;
+        }
+    }
+
+    let mut out_dims = ldims[..ldims.len() - 1].to_vec();
+    out_dims.push(n);
+    Some(NdArrayTensor::from_data(TensorData::new(
+        out,
+        Shape::from(out_dims),
+    )))
 }
 
 fn dequantize<Q: QuantElement>(
