@@ -7,17 +7,16 @@ use burn_tensor::{
 
 const BIAS: f32 = 1000.0;
 
-fn assert_eq_data(output: TestTensor<4>, expected: impl Into<Vec<f32>>) {
-    assert_eq!(output.into_data().to_vec::<f32>().unwrap(), expected.into());
-}
-
 #[test]
 fn fusion_test_elementwise_operation_followed_by_max_pool2d() {
     let dev: Device = Default::default();
 
     let output = pool_2x2(add_zeros(seq_input(&dev), &dev));
 
-    assert_eq_data(output, [3.0, 7.0, 11.0, 15.0]);
+    output.into_data().assert_eq(
+        &TensorData::new(vec![3.0, 7.0, 11.0, 15.0], [2, 2, 1, 1]),
+        false,
+    );
 }
 
 #[test]
@@ -35,11 +34,9 @@ fn fusion_test_elementwise_max_pool2d_vectorized_widths() {
             flat[((nn * c + cc) * h + hh) * w + ww] + BIAS
         });
 
-        assert_eq!(
-            output.into_data().to_vec::<f32>().unwrap(),
-            expected,
-            "mismatch for shape {dims:?}"
-        );
+        output
+            .into_data()
+            .assert_eq(&TensorData::new(expected, [n, c, h / 2, w / 2]), false);
     }
 }
 
@@ -59,11 +56,9 @@ fn fusion_test_elementwise_max_pool2d_noncontiguous_input() {
             flat[((nn * c + cc) * w + ww) * h + hh] + BIAS
         });
 
-        assert_eq!(
-            output.into_data().to_vec::<f32>().unwrap(),
-            expected,
-            "mismatch for non-contiguous shape {dims:?}"
-        );
+        output
+            .into_data()
+            .assert_eq(&TensorData::new(expected, [n, c, h / 2, w / 2]), false);
     }
 }
 
@@ -82,36 +77,38 @@ fn fusion_test_elementwise_operation_followed_by_interpolate_nearest() {
         },
     );
 
-    let expected = TestTensor::<4>::from_data(
-        TensorData::from([
+    let expected = TensorData::from([
+        [
             [
-                [
-                    [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0],
-                    [2.0, 2.0, 3.0, 3.0, 2.0, 2.0, 3.0, 3.0],
-                ],
-                [
-                    [4.0, 4.0, 5.0, 5.0, 4.0, 4.0, 5.0, 5.0],
-                    [6.0, 6.0, 7.0, 7.0, 6.0, 6.0, 7.0, 7.0],
-                ],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.0, 1.0, 1.0],
+                [2.0, 2.0, 3.0, 3.0],
+                [2.0, 2.0, 3.0, 3.0],
             ],
             [
-                [
-                    [8.0, 8.0, 9.0, 9.0, 8.0, 8.0, 9.0, 9.0],
-                    [10.0, 10.0, 11.0, 11.0, 10.0, 10.0, 11.0, 11.0],
-                ],
-                [
-                    [12.0, 12.0, 13.0, 13.0, 12.0, 12.0, 13.0, 13.0],
-                    [14.0, 14.0, 15.0, 15.0, 14.0, 14.0, 15.0, 15.0],
-                ],
+                [4.0, 4.0, 5.0, 5.0],
+                [4.0, 4.0, 5.0, 5.0],
+                [6.0, 6.0, 7.0, 7.0],
+                [6.0, 6.0, 7.0, 7.0],
             ],
-        ]),
-        &dev,
-    );
+        ],
+        [
+            [
+                [8.0, 8.0, 9.0, 9.0],
+                [8.0, 8.0, 9.0, 9.0],
+                [10.0, 10.0, 11.0, 11.0],
+                [10.0, 10.0, 11.0, 11.0],
+            ],
+            [
+                [12.0, 12.0, 13.0, 13.0],
+                [12.0, 12.0, 13.0, 13.0],
+                [14.0, 14.0, 15.0, 15.0],
+                [14.0, 14.0, 15.0, 15.0],
+            ],
+        ],
+    ]);
 
-    assert_eq!(
-        output.into_data().to_vec::<f32>().unwrap(),
-        expected.into_data().to_vec::<f32>().unwrap()
-    );
+    output.into_data().assert_eq(&expected, false);
 }
 
 #[test]
@@ -129,7 +126,10 @@ fn fusion_test_nhwc_relayout_inplace() {
 
     let output = pool_2x2(input * 2.0);
 
-    assert_eq_data(output, [8.0, 16.0, 24.0, 32.0]);
+    output.into_data().assert_eq(
+        &TensorData::new(vec![8.0, 16.0, 24.0, 32.0], [2, 2, 1, 1]),
+        false,
+    );
 }
 
 #[test]
@@ -148,7 +148,10 @@ fn fusion_test_nhwc_relayout_broadcast_scalar() {
 
     let output = pool_2x2(input + scalar);
 
-    assert_eq_data(output, [14.0, 18.0, 22.0, 26.0]);
+    output.into_data().assert_eq(
+        &TensorData::new(vec![14.0, 18.0, 22.0, 26.0], [2, 2, 1, 1]),
+        false,
+    );
 }
 
 #[test]
@@ -164,7 +167,10 @@ fn fusion_test_nhwc_relayout_broadcast_different_shapes() {
 
     let output = pool_2x2(a + b);
 
-    assert_eq_data(output, [11.0, 12.0, 21.0, 22.0]);
+    output.into_data().assert_eq(
+        &TensorData::new(vec![11.0, 12.0, 21.0, 22.0], [2, 2, 1, 1]),
+        false,
+    );
 }
 
 fn seq_input(dev: &Device) -> TestTensor<4> {
