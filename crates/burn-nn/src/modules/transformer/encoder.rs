@@ -27,6 +27,21 @@ pub struct TransformerEncoderConfig {
     /// The dropout rate. Default: 0.1
     #[config(default = 0.1)]
     pub dropout: f64,
+    /// Dropout rate applied to the self-attention weights.
+    ///
+    /// Falls back to [`dropout`](Self::dropout) when `None`. Default: None
+    #[config(default = "None")]
+    pub attention_dropout: Option<f64>,
+    /// Dropout rate applied within the position-wise feed-forward network.
+    ///
+    /// Falls back to [`dropout`](Self::dropout) when `None`. Default: None
+    #[config(default = "None")]
+    pub ffn_dropout: Option<f64>,
+    /// Dropout rate applied to the residual connections.
+    ///
+    /// Falls back to [`dropout`](Self::dropout) when `None`. Default: None
+    #[config(default = "None")]
+    pub residual_dropout: Option<f64>,
     /// Layer norm will be applied first instead of after the other modules.
     #[config(default = false)]
     pub norm_first: bool,
@@ -227,9 +242,14 @@ pub struct TransformerEncoderLayer {
 impl TransformerEncoderLayer {
     /// Create a new transformer encoder layer from the given configuration.
     pub fn new(config: &TransformerEncoderConfig, device: &Device) -> Self {
+        // Each stage-specific rate falls back to the shared `dropout` when unset.
+        let attention_dropout = config.attention_dropout.unwrap_or(config.dropout);
+        let ffn_dropout = config.ffn_dropout.unwrap_or(config.dropout);
+        let residual_dropout = config.residual_dropout.unwrap_or(config.dropout);
+
         let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
-            .with_dropout(config.dropout)
+            .with_dropout(attention_dropout)
             .with_quiet_softmax(config.quiet_softmax)
             .init(device);
         let norm_1 = LayerNormConfig::new(config.d_model)
@@ -238,10 +258,10 @@ impl TransformerEncoderLayer {
         let norm_2 = LayerNormConfig::new(config.d_model)
             .with_epsilon(config.layer_norm_eps)
             .init(device);
-        let dropout = DropoutConfig::new(config.dropout).init();
+        let dropout = DropoutConfig::new(residual_dropout).init();
         let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
             .with_initializer(config.initializer.clone())
-            .with_dropout(config.dropout)
+            .with_dropout(ffn_dropout)
             .with_activation(config.activation.clone())
             .init(device);
 
@@ -485,5 +505,32 @@ mod tests {
             "TransformerEncoder {d_model: 2, d_ff: 4, n_heads: 2, \
             n_layers: 3, dropout: 0.1, norm_first: false, quiet_softmax: false, params: 162}"
         );
+    }
+
+    #[test]
+    fn per_stage_dropout_defaults_to_shared_dropout() {
+        let config = TransformerEncoderConfig::new(8, 16, 2, 1).with_dropout(0.3);
+        let transformer = config.init(&Default::default());
+        let layer = &transformer.layers[0];
+
+        // With no per-stage overrides, every stage uses the shared rate.
+        assert_eq!(layer.mha.dropout.prob, 0.3);
+        assert_eq!(layer.pwff.dropout.prob, 0.3);
+        assert_eq!(layer.dropout.prob, 0.3);
+    }
+
+    #[test]
+    fn per_stage_dropout_overrides_are_applied() {
+        let config = TransformerEncoderConfig::new(8, 16, 2, 1)
+            .with_dropout(0.3)
+            .with_attention_dropout(Some(0.1))
+            .with_ffn_dropout(Some(0.2))
+            .with_residual_dropout(Some(0.05));
+        let transformer = config.init(&Default::default());
+        let layer = &transformer.layers[0];
+
+        assert_eq!(layer.mha.dropout.prob, 0.1);
+        assert_eq!(layer.pwff.dropout.prob, 0.2);
+        assert_eq!(layer.dropout.prob, 0.05);
     }
 }
