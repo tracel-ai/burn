@@ -211,7 +211,7 @@ where
     K: Numeric,
 {
     x.zeros_like()
-        .mask_fill(x.not_equal_elem(0), 1)
+        .mask_fill(x.not_equal_scalar(0), 1)
         .sum_dim(dim)
 }
 

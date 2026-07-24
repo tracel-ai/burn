@@ -56,7 +56,9 @@ impl ConfusionStats {
     /// Expects `predictions` to be normalized.
     pub fn new(input: &ConfusionStatsInput, config: &ClassificationMetricConfig) -> Self {
         let prediction_mask = match config.decision_rule {
-            DecisionRule::Threshold(threshold) => input.predictions.clone().greater_elem(threshold),
+            DecisionRule::Threshold(threshold) => {
+                input.predictions.clone().greater_scalar(threshold)
+            }
             DecisionRule::TopK(top_k) => {
                 let mask = input.predictions.zeros_like();
                 let indexes =
@@ -86,19 +88,19 @@ impl ConfusionStats {
     }
 
     pub fn true_positive(self) -> Tensor<1> {
-        Self::aggregate(self.confusion_classes.equal_elem(3), self.class_reduction)
+        Self::aggregate(self.confusion_classes.equal_scalar(3), self.class_reduction)
     }
 
     pub fn true_negative(self) -> Tensor<1> {
-        Self::aggregate(self.confusion_classes.equal_elem(0), self.class_reduction)
+        Self::aggregate(self.confusion_classes.equal_scalar(0), self.class_reduction)
     }
 
     pub fn false_positive(self) -> Tensor<1> {
-        Self::aggregate(self.confusion_classes.equal_elem(1), self.class_reduction)
+        Self::aggregate(self.confusion_classes.equal_scalar(1), self.class_reduction)
     }
 
     pub fn false_negative(self) -> Tensor<1> {
-        Self::aggregate(self.confusion_classes.equal_elem(2), self.class_reduction)
+        Self::aggregate(self.confusion_classes.equal_scalar(2), self.class_reduction)
     }
 
     pub fn positive(self) -> Tensor<1> {

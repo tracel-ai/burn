@@ -147,7 +147,7 @@ pub fn det<const D: usize, const D1: usize, const D2: usize>(mut tensor: Tensor<
         .not_equal(batched_range_tensor)
         .int()
         .sum_dim(D1 - 1);
-    let odd_mask = n_row_swaps.clone().remainder_scalar(2).equal_elem(1);
+    let odd_mask = n_row_swaps.clone().remainder_scalar(2).equal_scalar(1);
     let p_det = n_row_swaps
         .cast(working_float_dtype)
         .ones_like()

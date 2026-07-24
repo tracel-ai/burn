@@ -823,7 +823,7 @@ where
     ///   // ]
     /// }
     pub fn bool(self) -> Tensor<D, Bool> {
-        self.not_equal_elem(0)
+        self.not_equal_scalar(0)
     }
 
     /// Create a random tensor of the given shape on the given device where each element is

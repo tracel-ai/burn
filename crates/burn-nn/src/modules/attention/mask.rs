@@ -96,7 +96,7 @@ pub fn generate_padding_mask(
         );
     }
 
-    let mask = tensor.clone().equal_elem(pad_token as i64);
+    let mask = tensor.clone().equal_scalar(pad_token as i64);
 
     GeneratePaddingMask { tensor, mask }
 }

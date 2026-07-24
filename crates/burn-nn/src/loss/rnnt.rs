@@ -90,7 +90,7 @@ impl RNNTLoss {
             let new = neg_inf.clone().mask_where(u_mask.clone(), new);
 
             // Only update alpha for samples where t < logit_lengths[b]
-            let valid = logit_lengths_exp.clone().greater_elem(t as i64);
+            let valid = logit_lengths_exp.clone().greater_scalar(t as i64);
             alpha = alpha.mask_where(valid, new);
         }
 
@@ -285,8 +285,8 @@ impl RNNTLoss {
 
     /// Numerically stable `log(exp(a) + exp(b))`, handling `-inf` inputs.
     fn log_sum_exp<const D: usize>(&self, a: Tensor<D>, b: Tensor<D>) -> Tensor<D> {
-        let a_inf = a.clone().equal_elem(f32::NEG_INFINITY);
-        let b_inf = b.clone().equal_elem(f32::NEG_INFINITY);
+        let a_inf = a.clone().equal_scalar(f32::NEG_INFINITY);
+        let b_inf = b.clone().equal_scalar(f32::NEG_INFINITY);
 
         // Replace -inf with 0 to prevent NaN in the subtraction (masked out below)
         let a_safe = a.clone().mask_fill(a_inf.clone(), 0.0);

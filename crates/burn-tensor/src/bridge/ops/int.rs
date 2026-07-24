@@ -181,12 +181,12 @@ impl BasicOps for Int {
         BridgeTensor::int(Dispatch::int_not_equal(lhs.into(), rhs.into(), bool_dtype))
     }
 
-    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::int(Dispatch::int_equal_elem(lhs.into(), rhs, bool_dtype))
     }
 
-    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn not_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::int(Dispatch::int_not_equal_elem(lhs.into(), rhs, bool_dtype))
     }
@@ -372,7 +372,7 @@ impl Ordered for Int {
         BridgeTensor::int(Dispatch::int_greater(lhs.into(), rhs.into(), bool_dtype))
     }
 
-    fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn greater_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::int_greater_elem(lhs.into(), rhs, bool_dtype))
     }
@@ -386,7 +386,7 @@ impl Ordered for Int {
         ))
     }
 
-    fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn greater_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::int_greater_equal_elem(
             lhs.into(),
@@ -400,7 +400,7 @@ impl Ordered for Int {
         BridgeTensor::bool(Dispatch::int_lower(lhs.into(), rhs.into(), bool_dtype))
     }
 
-    fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn lower_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::int_lower_elem(lhs.into(), rhs, bool_dtype))
     }
@@ -414,7 +414,7 @@ impl Ordered for Int {
         ))
     }
 
-    fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn lower_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::int_lower_equal_elem(lhs.into(), rhs, bool_dtype))
     }

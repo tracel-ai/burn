@@ -426,7 +426,7 @@ $$
     doc = "`f(x) =`\n- `x for x > 0`\n- `alpha * (exp(x) - 1) for x <= 0`"
 )]
 pub fn elu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor<D> {
-    let mask = tensor.clone().lower_equal_elem(0);
+    let mask = tensor.clone().lower_equal_scalar(0);
     let scaled = tensor.clone().exp().sub_scalar(1).mul_scalar(alpha);
     tensor.mask_where(mask, scaled)
 }
@@ -455,7 +455,7 @@ $$
 /// # Arguments
 /// - `alpha`: scaling parameter for the negative part.
 pub fn celu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor<D> {
-    let mask = tensor.clone().lower_equal_elem(0);
+    let mask = tensor.clone().lower_equal_scalar(0);
     let scaled = tensor
         .clone()
         .div_scalar(alpha)
@@ -491,7 +491,7 @@ pub fn selu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     const ALPHA: f64 = 1.6732632423543772848170429916717_f64;
     const GAMMA: f64 = 1.0507009873554804934193349852946_f64;
 
-    let mask = tensor.clone().greater_equal_elem(0.0);
+    let mask = tensor.clone().greater_equal_scalar(0.0);
     let positive = tensor.clone().mul_scalar(GAMMA);
     let negative = tensor.exp().sub_scalar(1.0).mul_scalar(ALPHA * GAMMA);
 
@@ -517,7 +517,7 @@ $$
 /// # Arguments
 /// - `alpha`: threshold value (default in ONNX is 1.0).
 pub fn thresholded_relu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor<D> {
-    let mask = tensor.clone().lower_equal_elem(alpha);
+    let mask = tensor.clone().lower_equal_scalar(alpha);
     tensor.mask_fill(mask, 0)
 }
 
@@ -534,7 +534,7 @@ pub fn thresholded_relu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor
 /// - `threshold`: the value to threshold at.
 /// - `value`: the value to replace with where `x <= threshold`.
 pub fn threshold<const D: usize>(tensor: Tensor<D>, threshold: f64, value: f64) -> Tensor<D> {
-    let mask = tensor.clone().lower_equal_elem(threshold);
+    let mask = tensor.clone().lower_equal_scalar(threshold);
     tensor.mask_fill(mask, value)
 }
 
@@ -603,7 +603,7 @@ $$
 /// # Arguments
 /// - `lambda`: the lambda value for the Hard Shrink formulation. Default is 0.5.
 pub fn hard_shrink<const D: usize>(tensor: Tensor<D>, lambda: f64) -> Tensor<D> {
-    let mask = tensor.clone().abs().lower_equal_elem(lambda);
+    let mask = tensor.clone().abs().lower_equal_scalar(lambda);
     tensor.mask_fill(mask, 0)
 }
 
@@ -658,7 +658,7 @@ pub fn shrink<const D: usize>(tensor: Tensor<D>, lambda: f64, bias: f64) -> Tens
     let abs_tensor = tensor.clone().abs();
     let sign = tensor.clone().sign();
     let shrunk = tensor.sub(sign.mul_scalar(bias));
-    let mask = abs_tensor.lower_equal_elem(lambda);
+    let mask = abs_tensor.lower_equal_scalar(lambda);
     shrunk.mask_fill(mask, 0)
 }
 

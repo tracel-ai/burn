@@ -128,7 +128,7 @@ impl SmoothL1Loss {
         // The L2 case: 0.5 * (error)^2 / beta (when |error| < beta)
         let l2_loss = error.square().mul_scalar(0.5).div_scalar(self.beta);
 
-        let l2_mask = abs_error.lower_elem(self.beta);
+        let l2_mask = abs_error.lower_scalar(self.beta);
         l1_loss.mask_where(l2_mask, l2_loss)
     }
 

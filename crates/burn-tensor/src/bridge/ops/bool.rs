@@ -197,11 +197,11 @@ impl BasicOps for Bool {
         BridgeTensor::bool(Dispatch::bool_not_equal(lhs.into(), rhs.into()))
     }
 
-    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         BridgeTensor::bool(Dispatch::bool_equal_elem(lhs.into(), rhs))
     }
 
-    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn not_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         BridgeTensor::bool(Dispatch::bool_not_equal_elem(lhs.into(), rhs))
     }
 

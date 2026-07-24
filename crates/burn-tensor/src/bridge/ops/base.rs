@@ -568,9 +568,9 @@ pub(crate) trait BasicOps: TensorKind {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise equality between two tensors, users should prefer the [`Tensor::equal_elem`](crate::Tensor::equal_elem)
+    /// For element-wise equality between two tensors, users should prefer the [`Tensor::equal_scalar`](crate::Tensor::equal_scalar)
     /// function, which is more high-level and designed for public use.
-    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    fn equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Applies element-wise non-equality comparison between the given tensors.
     ///
@@ -611,9 +611,9 @@ pub(crate) trait BasicOps: TensorKind {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise non-equality between two tensors, users should prefer the [`Tensor::not_equal_elem`](crate::Tensor::not_equal_elem)
+    /// For element-wise non-equality between two tensors, users should prefer the [`Tensor::not_equal_scalar`](crate::Tensor::not_equal_scalar)
     /// function, which is more high-level and designed for public use.
-    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    fn not_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Tests if any element in the `tensor` evaluates to True.
     ///

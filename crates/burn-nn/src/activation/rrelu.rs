@@ -83,7 +83,7 @@ impl RRelu {
 
         // Training: sample a per-element slope in [lower, upper) and apply it to
         // the negative part only (positives pass through unchanged).
-        let is_negative = input.clone().lower_elem(0.0);
+        let is_negative = input.clone().lower_scalar(0.0);
         let slope = input.random_like(Distribution::Uniform(self.lower, self.upper));
         let scaled = input.clone() * slope;
         input.mask_where(is_negative, scaled)
