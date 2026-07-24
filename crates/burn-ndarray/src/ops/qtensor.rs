@@ -91,8 +91,10 @@ impl QTensorOps<Self> for NdArray {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
+                // `Q2S` is supported natively (stored as i8) — it feeds the multiply-free
+                // ternary matmul fast path in `q_matmul` (BitNet b1.58).
                 #[cfg(not(feature = "export_tests"))]
-                    value: QuantValue::Q8F | QuantValue::Q8S,
+                    value: QuantValue::Q8F | QuantValue::Q8S | QuantValue::Q2S,
                 // For tests, "native" sub-byte quant serves as a reference for value equality.
                 // Values are stored as i8 regardless.
                 #[cfg(feature = "export_tests")]
