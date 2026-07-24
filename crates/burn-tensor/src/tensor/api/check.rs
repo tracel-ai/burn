@@ -1485,6 +1485,11 @@ impl TensorCheck {
         check
     }
 
+    /// Check if input tensor for qr decomposition is valid
+    pub fn qr_input_tensor<const D: usize>(ops: &str, dims: &[usize], dtype: DType) -> Self {
+        Self::lu_input_tensor::<D>(ops, dims, dtype)
+    }
+
     /// Check if input tensor and generic parameters of `linalg::det()` are valid.
     pub fn det<const D: usize, const D1: usize, const D2: usize>(
         dims: [usize; D],
