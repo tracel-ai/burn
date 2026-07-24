@@ -147,7 +147,15 @@ impl<'a> GraphCleaner<'a> {
         let mut should_remove = Vec::new();
         for graph in graphs.values() {
             {
-                let mut guard = graph.state.lock();
+                // Best-effort sweep: a graph whose mutex is contended is in
+                // use — possibly by this very thread, when a `Backward` step
+                // itself runs an inner `backward()` (the outer backward holds
+                // its graph's lock across step execution, and this mutex is
+                // not reentrant). Skip it; a later backward's sweep will
+                // collect its orphans.
+                let Some(mut guard) = graph.state.try_lock() else {
+                    continue;
+                };
                 // Double safety: in case it was marked as no longer useful, but other
                 // nodes are still relevant, we only check which nodes can safely be removed.
                 if !guard.server.maybe_useful() {
