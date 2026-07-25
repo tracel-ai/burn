@@ -67,7 +67,9 @@ impl LstmCellConfig {
             .clone()
             .unwrap()
             .val()
-            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias.clone());
+            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias.clone())
+            .detach()
+            .require_grad();
         weight_ih.bias = weight_ih.bias.map(|p| p.map(|_t| bias));
 
         let mut weight_hh = LinearConfig::new(self.hidden_size, 4 * self.hidden_size)
@@ -78,7 +80,9 @@ impl LstmCellConfig {
             .clone()
             .unwrap()
             .val()
-            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias);
+            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias)
+            .detach()
+            .require_grad();
         weight_hh.bias = weight_hh.bias.map(|p| p.map(|_t| bias));
 
         LstmCell {
