@@ -58,6 +58,26 @@ fn test_topk() {
 }
 
 #[test]
+fn test_argtopk_1d() {
+    let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
+
+    let indices = tensor.argtopk(3, /*dim*/ 0);
+
+    let expected = TensorData::from([4, 3, 2]);
+    indices.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_argtopk() {
+    let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 7]]]);
+
+    let indices = tensor.argtopk(2, /*dim*/ 2);
+
+    let expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
+    indices.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 fn test_topk_with_indices_supports_negative_dim_int() {
     let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 7]]]);
 
@@ -67,4 +87,14 @@ fn test_topk_with_indices_supports_negative_dim_int() {
 
     let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
     indices.into_data().assert_eq(&indices_expected, false);
+}
+
+#[test]
+fn test_argtopk_supports_negative_dim_int() {
+    let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 7]]]);
+
+    let indices = tensor.argtopk(2, -1);
+
+    let expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
+    indices.into_data().assert_eq(&expected, false);
 }
