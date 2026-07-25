@@ -93,7 +93,7 @@ fn edge_different_sizes() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn edge_out_of_bound_axis() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
@@ -113,7 +113,7 @@ fn edge_vec_is_not_a_set() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn edge_out_of_bound_axis_vec() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);

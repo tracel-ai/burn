@@ -1,4 +1,6 @@
-use crate::{AsIndex, Int, Tensor, check, check::TensorCheck, kind::Basic};
+use crate::{
+    AsIndex, Int, Tensor, check, check::TensorCheck, check::unwrap_dim_index, kind::Basic,
+};
 use alloc::vec::Vec;
 
 impl<const D: usize, K> Tensor<D, K>
@@ -43,7 +45,7 @@ where
         dim: impl AsIndex,
         indices: Tensor<DI, Int>,
     ) -> Tensor<DO, K> {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         check!(TensorCheck::take::<D, DI, DO>(dim));
 
         // Store the indices shape for reshaping later

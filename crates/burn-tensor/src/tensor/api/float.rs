@@ -5,6 +5,7 @@ use crate::Tensor;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
+use crate::check::unwrap_dim_index;
 use crate::kind::FloatMath;
 use crate::ops::{BridgeKind, BridgeTensor};
 use crate::quantization::{QuantScheme, QuantizationParameters};
@@ -151,7 +152,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// Negative dimensions are supported and count from the end.
     pub fn var<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         stats::var(self, dim)
     }
 
@@ -159,7 +160,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// Negative dimensions are supported and count from the end.
     pub fn var_bias<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         stats::var_bias(self, dim)
     }
 
@@ -167,7 +168,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// Negative dimensions are supported and count from the end.
     pub fn var_mean<I: AsIndex>(self, dim: I) -> (Self, Self) {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         let mean = self.clone().mean_dim(dim);
         let var = stats::var_with_mean(self, mean.clone(), dim);
         (var, mean)
@@ -177,7 +178,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// Negative dimensions are supported and count from the end.
     pub fn var_mean_bias<I: AsIndex>(self, dim: I) -> (Self, Self) {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         let mean = self.clone().mean_dim(dim);
         let var = stats::var_with_mean_bias(self, mean.clone(), dim);
         (var, mean)
@@ -238,7 +239,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// // Result: [4.0]
     /// ```
     pub fn median<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         // TODO: Allow backend specialization. Optimally, implement a median kernel for cubecl
         // instead of leveraging a full sort to get the median.
         stats::median(self, dim)
@@ -283,7 +284,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// // values: [[2.0], [6.0]], indices: [[3], [2]] (position in the original tensor)
     /// ```
     pub fn median_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         // TODO: Allow backend specialization. Optimally, implement a median kernel for cubecl
         // instead of leveraging a full sort to get the median.
         stats::median_with_indices(self, dim)
@@ -359,7 +360,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///   Negative dimensions are supported and count from the end.
     /// * `correction_factor` - Is usually 1 for samples and 0 for population.
     pub fn cov<I: AsIndex>(self, dim: I, correction_factor: usize) -> Tensor<D> {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         let n = self.dims()[dim];
         let centered = (self.clone() - self.mean_dim(dim)).swap_dims(dim, 0);
         centered
@@ -672,7 +673,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// A tensor containing the cross product of `self` and `other` along `dim`.
     pub fn cross<Dim: AsIndex>(self, other: Tensor<D>, dim: Dim) -> Tensor<D> {
-        let dim = dim.expect_dim_index(D);
+        let dim = unwrap_dim_index(dim.try_dim_index(D));
         check!(TensorCheck::cross(&self, &other, dim));
         Tensor::new(cross_impl(self.primitive, other.primitive, dim))
     }

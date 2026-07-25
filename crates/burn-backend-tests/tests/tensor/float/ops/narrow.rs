@@ -54,7 +54,7 @@ fn test_narrow_3() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn test_narrow_invalid_dim() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),
