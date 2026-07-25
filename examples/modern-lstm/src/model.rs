@@ -350,3 +350,33 @@ impl LstmNetwork {
         self.fc.forward(output.slice_dim(1, -1).squeeze_dim::<2>(1))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gate_biases_stay_trainable() {
+        let device = Device::default().autodiff();
+        let cell = LstmCellConfig::new(3, 4, 0.0).init(&device);
+
+        assert!(
+            cell.weight_ih
+                .bias
+                .as_ref()
+                .unwrap()
+                .val()
+                .is_require_grad(),
+            "weight_ih bias is frozen"
+        );
+        assert!(
+            cell.weight_hh
+                .bias
+                .as_ref()
+                .unwrap()
+                .val()
+                .is_require_grad(),
+            "weight_hh bias is frozen"
+        );
+    }
+}
