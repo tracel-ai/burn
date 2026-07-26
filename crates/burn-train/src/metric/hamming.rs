@@ -78,7 +78,7 @@ impl Metric for HammingScore {
         }
 
         let score = outputs
-            .greater_elem(self.threshold)
+            .greater_scalar(self.threshold)
             .equal(targets.bool())
             .float()
             .mean()

@@ -2,10 +2,10 @@ use alloc::vec;
 use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 
-use crate::Tensor;
 use crate::check;
 use crate::check::TensorCheck;
 use crate::ops::BridgeTensor;
+use crate::{AsIndex, Tensor};
 
 /// Computes the 1-dimensional discrete Fourier Transform of real-valued input.
 ///
@@ -29,6 +29,7 @@ where $N$ is the size of the signal along the specified dimension.
 ///
 /// * `signal` - The input tensor containing the real-valued signal.
 /// * `dim` - The dimension along which to take the FFT.
+///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional FFT length. When `None`, the signal must be a power of two along `dim`.
 ///   When `Some(n)`, `n` must also be a power of two; the signal is truncated or zero-padded
 ///   to length `n`. Non-power-of-two `n` is rejected with a panic (true arbitrary-size DFT
@@ -54,9 +55,10 @@ where $N$ is the size of the signal along the specified dimension.
 /// ```
 pub fn rfft<const D: usize>(
     signal: Tensor<D>,
-    dim: usize,
+    dim: impl AsIndex,
     n: Option<usize>,
 ) -> (Tensor<D>, Tensor<D>) {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::check_dim::<D>(dim));
 
     match n {
@@ -106,6 +108,7 @@ where $N$ is the size of the reconstructed signal.
 /// * `spectrum_re` - The real part of the spectrum.
 /// * `spectrum_im` - The imaginary part of the spectrum.
 /// * `dim` - The dimension along which to take the inverse FFT.
+///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional output signal length. When `None`, the reconstructed signal length
 ///   `2 * (size - 1)` must be a power of two. When `Some(n)`, `n` must also be a power of
 ///   two and the output has exactly `n` samples. Non-power-of-two `n` is rejected.
@@ -129,9 +132,10 @@ where $N$ is the size of the reconstructed signal.
 pub fn irfft<const D: usize>(
     spectrum_re: Tensor<D>,
     spectrum_im: Tensor<D>,
-    dim: usize,
+    dim: impl AsIndex,
     n: Option<usize>,
 ) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::check_dim::<D>(dim));
 
     if let Some(n) = n {
@@ -192,6 +196,7 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 /// * `signal_im` - The imaginary part of the complex input signal. Must have the
 ///   same shape as `signal_re`.
 /// * `dim` - The dimension along which to take the FFT.
+///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional FFT length. When `None`, the signal must be a power of two
 ///   along `dim`. When `Some(n)`, `n` must also be a power of two; the signal is
 ///   truncated or zero-padded to length `n`.
@@ -216,7 +221,7 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 pub fn cfft<const D: usize>(
     signal_re: Tensor<D>,
     signal_im: Tensor<D>,
-    dim: usize,
+    dim: impl AsIndex,
     n: Option<usize>,
 ) -> (Tensor<D>, Tensor<D>) {
     assert!(
@@ -227,6 +232,7 @@ pub fn cfft<const D: usize>(
         signal_im.shape(),
     );
 
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::check_dim::<D>(dim));
     let fft_size = n.unwrap_or(signal_re.dims()[dim]);
 

@@ -95,7 +95,7 @@ fn test_split_with_zero_split_size_non_zero_tensor() {
 }
 
 #[test]
-#[should_panic(expected = "Given dimension is greater than or equal to the tensor rank.")]
+#[should_panic(expected = "Index { kind: Dimension, index: 2, bounds: 0..1 }")]
 fn test_split_invalid_dim() {
     let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
 

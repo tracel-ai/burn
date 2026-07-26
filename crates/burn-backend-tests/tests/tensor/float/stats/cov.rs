@@ -64,3 +64,15 @@ fn test_cov_3() {
     let data_expected = TestTensor::<3>::zeros([4, 4, 4], &device).to_data();
     data_expected.assert_approx_eq::<FloatElem>(&data_actual, Tolerance::default());
 }
+
+#[test]
+fn test_cov_negative_dim() {
+    let data = TensorData::from([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
+    let tensor = TestTensor::<2>::from_data(data, &Default::default());
+
+    let expected = tensor.clone().cov(1, 1).into_data();
+    tensor
+        .cov(-1, 1)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}

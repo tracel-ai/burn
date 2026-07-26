@@ -1,8 +1,8 @@
 use burn_std::FloatDType;
 
-use crate::tensor::Tensor;
+use crate::{AsIndex, tensor::Tensor};
 
-use super::l2_norm;
+use super::vector_norm::l2_norm_impl;
 
 /// Computes the cosine similarity between two tensors along a specified dimension.
 ///
@@ -13,8 +13,8 @@ use super::l2_norm;
 ///
 /// * `x1` - First input tensor
 /// * `x2` - Second input tensor
-/// * `dim` - Dimension along which to compute the similarity
-///   (negative indices allowed: -1 for last dimension)
+/// * `dim` - Dimension along which to compute the similarity.
+///   Negative dimensions are supported and count from the end.
 /// * `eps` - Small value to avoid division by zero (default: dtype's smallest positive normal)
 ///
 /// # Returns
@@ -23,9 +23,10 @@ use super::l2_norm;
 pub fn cosine_similarity<const D: usize>(
     x1: Tensor<D>,
     x2: Tensor<D>,
-    dim: i32,
+    dim: impl AsIndex,
     eps: Option<f64>,
 ) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     let eps = eps.unwrap_or_else(|| {
         x1.dtype()
             .finfo()
@@ -33,15 +34,12 @@ pub fn cosine_similarity<const D: usize>(
             .min_positive
     });
 
-    // Convert negative dimension to positive
-    let dim_idx = if dim < 0 { D as i32 + dim } else { dim } as usize;
-
     // Compute dot product: sum(x1 * x2) along the specified dimension
-    let dot_product = (x1.clone() * x2.clone()).sum_dim(dim_idx);
+    let dot_product = (x1.clone() * x2.clone()).sum_dim(dim);
 
     // Compute L2 norms: ||x1|| and ||x2||
-    let norm_x1 = l2_norm(x1, dim_idx);
-    let norm_x2 = l2_norm(x2, dim_idx);
+    let norm_x1 = l2_norm_impl(x1, dim);
+    let norm_x2 = l2_norm_impl(x2, dim);
 
     // Calculate the denominator (product of the norms) with epsilon to avoid division by zero
     let denominator = norm_x1.clamp_min(eps) * norm_x2.clamp_min(eps);

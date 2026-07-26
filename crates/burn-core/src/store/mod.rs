@@ -262,23 +262,29 @@ impl ModuleVisitor for Collector {
         self.path.pop();
     }
 
+    // Record the `on_save` form: it is what the load side validates against and
+    // un-maps with `on_load`. Recording `val()` breaks any param whose mapper
+    // changes the shape (a `Col`-layout `Linear` weight).
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 
     fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 }
 
-/// Mapper that loads recorded tensors back onto matching parameters by module path.
+/// Mapper that loads recorded tensors back onto matching parameters by module path,
+/// restoring the persisted [`ParamId`] so optimizer state (keyed by id) survives
+/// save/load cycles.
 struct ModuleRecordMapper {
     path: Vec<String>,
-    tensors: HashMap<String, TensorData>,
+    /// Map from module path to (persisted ParamId, tensor data).
+    tensors: HashMap<String, (ParamId, TensorData)>,
     dtype_policy: DTypePolicy,
     missing: Vec<String>,
     errors: Vec<String>,
@@ -289,7 +295,7 @@ impl ModuleRecordMapper {
         let tensors = record
             .tensors
             .into_iter()
-            .map(|t| (t.path, t.data))
+            .map(|t| (t.path, (t.id, t.data)))
             .collect();
         Self {
             path: Vec::new(),
@@ -303,6 +309,8 @@ impl ModuleRecordMapper {
     /// Look up the recorded tensor for the current path and build the tensor to load,
     /// or `None` (recording it as missing / errored) to leave the parameter unchanged.
     ///
+    /// Returns the tensor and the persisted [`ParamId`] on a hit.
+    ///
     /// `module_dtype` is only evaluated on a hit under [`DTypePolicy::CastToModule`], so a
     /// missing parameter never materializes its current value just to read a dtype.
     fn take<const D: usize, K: Basic>(
@@ -310,10 +318,10 @@ impl ModuleRecordMapper {
         device: &Device,
         target_shape: Shape,
         module_dtype: impl FnOnce() -> DType,
-    ) -> Option<Tensor<D, K>> {
+    ) -> Option<(Tensor<D, K>, ParamId)> {
         let path = self.path.join(".");
-        let data = match self.tensors.remove_entry(&path) {
-            Some(data) => data.1,
+        let (id, data) = match self.tensors.remove_entry(&path) {
+            Some(entry) => entry.1,
             None => {
                 self.missing.push(path);
                 return None;
@@ -334,7 +342,7 @@ impl ModuleRecordMapper {
             return None;
         }
 
-        Some(Tensor::from_data(data, (device, dtype)))
+        Some((Tensor::from_data(data, (device, dtype)), id))
     }
 }
 
@@ -347,11 +355,10 @@ macro_rules! map_kind {
             &mut self,
             param: Param<Tensor<D, $kind>>,
         ) -> Param<Tensor<D, $kind>> {
-            let id = param.id;
             let device = param.lazy_device();
             let shape = param.lazy_shape();
             match self.take(&device, shape, || param.val().dtype()) {
-                Some(tensor) => param.transform_for_load(tensor, id),
+                Some((tensor, record_id)) => param.transform_for_load(tensor, record_id),
                 None => param,
             }
         }
@@ -533,6 +540,33 @@ mod tests {
     }
 
     #[test]
+    fn load_record_preserves_param_id() {
+        let device = Default::default();
+        let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
+
+        // Capture original ParamIds before saving.
+        let weight_id = model.weight.id;
+        let bias_id = model.bias.id;
+
+        let bytes = model.into_record().into_bytes().unwrap();
+        let record = ModuleRecord::from_bytes(bytes).unwrap();
+
+        // Load into a fresh model (new init() = different ParamIds).
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record(record);
+
+        // The loaded model should have the ORIGINAL ParamIds from the record,
+        // not the fresh ones from init().
+        assert_eq!(
+            loaded.weight.id, weight_id,
+            "weight ParamId should be restored from record"
+        );
+        assert_eq!(
+            loaded.bias.id, bias_id,
+            "bias ParamId should be restored from record"
+        );
+    }
+
+    #[test]
     fn validate_false_ignores_shape_mismatch() {
         let device = Default::default();
         let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device).into_record();
@@ -549,6 +583,55 @@ mod tests {
         assert_eq!(
             loaded.bias.val().to_data().to_vec::<f32>().unwrap(),
             vec![0.0, 0.0, 0.0]
+        );
+    }
+
+    /// Mirrors a `Col`-layout `Linear` weight: persisted as `[3, 2]`, live as
+    /// the transposed `[2, 3]` through the init/save/load mappers.
+    #[derive(Module, Debug)]
+    struct ColLike {
+        weight: Param<Tensor<2>>,
+    }
+
+    impl ColLike {
+        fn new(seed: f32, device: &Device) -> Self {
+            let init_device = device.clone();
+            let weight = Param::uninitialized(
+                crate::module::ParamId::new(),
+                move |device, _| Tensor::<2>::full([3, 2], seed, device),
+                init_device,
+                true,
+                [3, 2].into(),
+            )
+            .init_mapper(|t: Tensor<2>| t.transpose())
+            .save_mapper(|t: Tensor<2>| t.transpose())
+            .load_mapper(|t: Tensor<2>| t.transpose());
+            Self { weight }
+        }
+    }
+
+    /// A param whose mapper changes the shape must round-trip through the
+    /// record in its save form.
+    #[test]
+    fn round_trip_a_shape_mapped_param() {
+        let device = Default::default();
+
+        let saved = ColLike::new(1.0, &device);
+        assert_eq!(saved.weight.val().dims(), [2, 3]);
+        let record = saved.into_record();
+        assert_eq!(
+            record.tensors[0].data.shape,
+            Shape::from([3, 2]),
+            "the record must hold the save form, not the live form"
+        );
+
+        let record = ModuleRecord::from_bytes(record.into_bytes().unwrap()).unwrap();
+        let loaded = ColLike::new(0.0, &device).load_record(record);
+        assert_eq!(loaded.weight.val().dims(), [2, 3]);
+        assert_eq!(
+            loaded.weight.val().to_data().to_vec::<f32>().unwrap(),
+            vec![1.0; 6],
+            "the recorded values must land, mapped back to the live form"
         );
     }
 }

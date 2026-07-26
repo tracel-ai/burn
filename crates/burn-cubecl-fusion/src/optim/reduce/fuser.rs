@@ -11,7 +11,7 @@ use crate::{
     optim::CubeOptimization,
 };
 use burn_fusion::{FuserStatus, OperationFuser};
-use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
+use burn_ir::{BaseOperationIr, NumericOperationIr, OperationIr, ReduceDimOpIr};
 use burn_std::Shape;
 use cubecl::Runtime;
 
@@ -257,6 +257,21 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
                         self.on_elemwise_read(operation);
                     }
                 };
+            } else if let OperationIr::BaseBool(op)
+            | OperationIr::BaseFloat(op)
+            | OperationIr::BaseInt(op) = operation
+            {
+                match op {
+                    BaseOperationIr::AnyDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Any);
+                    }
+                    BaseOperationIr::AllDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::All);
+                    }
+                    _ => {
+                        self.on_elemwise_read(operation);
+                    }
+                }
             } else {
                 self.on_elemwise_read(operation);
             }

@@ -70,7 +70,12 @@ pub enum DeviceError {
         dtype: DType,
     },
     /// Device settings have already been initialized.
-    #[error("Device {device} settings have already been initialized")]
+    #[error(
+        "Device {device} settings have already been initialized and cannot be changed.\n\
+         Default data types lock on the first tensor operation for a device (or on a previous \
+         `set_default_dtypes`/`configure` call). Configure the device before creating any tensor \
+         on it, or create tensors with an explicit dtype instead."
+    )]
     AlreadyInitialized {
         /// The string representation of the device.
         device: String,

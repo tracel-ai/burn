@@ -1,7 +1,8 @@
+use burn::nn::LstmState;
 use burn::{
     nn::{
         Dropout, DropoutConfig, Initializer, LayerNorm, LayerNormConfig, Linear, LinearConfig,
-        LstmState, Sigmoid, Tanh,
+        Sigmoid, Tanh,
     },
     prelude::*,
 };
@@ -141,10 +142,7 @@ impl LstmCell {
 
     // Initialize cell state and hidden state if provided or with zeros
     pub fn init_state(&self, batch_size: usize, device: &Device) -> LstmState<2> {
-        let cell = Tensor::zeros([batch_size, self.hidden_size], device);
-        let hidden = Tensor::zeros([batch_size, self.hidden_size], device);
-
-        LstmState::new(cell, hidden)
+        LstmState::initial([batch_size, self.hidden_size], device)
     }
 }
 
@@ -330,7 +328,6 @@ impl LstmNetwork {
     /// Returns:
     ///     Output tensor of shape (batch_size, output_size)
     pub fn forward(&self, x: Tensor<3>, states: Option<Vec<LstmState<2>>>) -> Tensor<2> {
-        let seq_length = x.dims()[1];
         // Forward direction
         let (mut output, _states) = self.stacked_lstm.forward(x.clone(), states);
 
@@ -350,10 +347,6 @@ impl LstmNetwork {
         // Apply dropout before final layer
         output = self.dropout.forward(output);
         // Use final timestep output for prediction
-        self.fc.forward(
-            output
-                .slice(s![.., seq_length - 1..seq_length, ..])
-                .squeeze_dim::<2>(1),
-        )
+        self.fc.forward(output.slice_dim(1, -1).squeeze_dim::<2>(1))
     }
 }

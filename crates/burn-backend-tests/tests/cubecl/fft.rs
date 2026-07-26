@@ -126,6 +126,21 @@ fn rfft_dim1_2d_tensor_distinct_rows() {
 }
 
 #[test]
+fn rfft_negative_dim_matches_positive_dim() {
+    let signal = TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0], [0.0, 1.0, 0.0, -1.0]]);
+
+    let (expected_re, expected_im) = rfft(signal.clone(), 1, None);
+    let (actual_re, actual_im) = rfft(signal, -1, None);
+
+    actual_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re.into_data(), Tolerance::absolute(1e-4));
+    actual_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im.into_data(), Tolerance::absolute(1e-4));
+}
+
+#[test]
 fn rfft_dim0_2d_tensor() {
     let signal = TestTensor::<2>::from([
         [0.0, 0.0],
@@ -271,6 +286,19 @@ fn irfft_dim1_2d_tensor_distinct_rows() {
     signal
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn irfft_negative_dim_matches_positive_dim() {
+    let spectrum_re = TestTensor::<2>::from([[10.0, -2.0, -2.0], [0.0, 0.0, 0.0]]);
+    let spectrum_im = TestTensor::<2>::from([[0.0, 2.0, 0.0], [0.0, -2.0, 0.0]]);
+
+    let expected = irfft(spectrum_re.clone(), spectrum_im.clone(), 1, None);
+    let actual = irfft(spectrum_re, spectrum_im, -1, None);
+
+    actual
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::absolute(1e-4));
 }
 
 #[test]
@@ -593,6 +621,22 @@ fn cfft_dim1_2d_tensor() {
     cfft_im
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn cfft_negative_dim_matches_positive_dim() {
+    let re = TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0], [1.0, 0.0, -1.0, 0.0]]);
+    let im = TestTensor::<2>::from([[0.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, -1.0]]);
+
+    let (expected_re, expected_im) = cfft(re.clone(), im.clone(), 1, None);
+    let (actual_re, actual_im) = cfft(re, im, -1, None);
+
+    actual_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re.into_data(), Tolerance::absolute(1e-4));
+    actual_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im.into_data(), Tolerance::absolute(1e-4));
 }
 
 #[test]

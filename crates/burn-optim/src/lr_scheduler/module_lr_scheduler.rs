@@ -84,30 +84,14 @@ impl ModuleLrSchedulerConfig {
     pub fn init(&self) -> Result<ModuleLrScheduler, String> {
         let mut groups = Vec::with_capacity(self.scheduler_groups.len());
 
-        let base = match &self.base {
-            LrSchedulerConfig::Constant(lr) => (*lr).into(),
-            LrSchedulerConfig::Linear(config) => config.build()?.into(),
-            LrSchedulerConfig::Cosine(config) => config.build()?.into(),
-            LrSchedulerConfig::Exponential(config) => config.build()?.into(),
-            LrSchedulerConfig::Noam(config) => config.build()?.into(),
-            LrSchedulerConfig::Step(config) => config.build()?.into(),
-            LrSchedulerConfig::Composed(config) => config.build()?.into(),
-        };
+        let base = self.base.build()?;
         groups.push(LrSchedulerGroup {
             group: ParamGroup::all(),
             scheduler: base,
         });
 
         for group in self.scheduler_groups.iter() {
-            let scheduler = match &group.scheduler {
-                LrSchedulerConfig::Constant(lr) => (*lr).into(),
-                LrSchedulerConfig::Linear(config) => config.build()?.into(),
-                LrSchedulerConfig::Cosine(config) => config.build()?.into(),
-                LrSchedulerConfig::Exponential(config) => config.build()?.into(),
-                LrSchedulerConfig::Noam(config) => config.build()?.into(),
-                LrSchedulerConfig::Step(config) => config.build()?.into(),
-                LrSchedulerConfig::Composed(config) => config.build()?.into(),
-            };
+            let scheduler = group.scheduler.build()?;
             groups.push(LrSchedulerGroup::new(group.group.clone(), scheduler));
         }
 

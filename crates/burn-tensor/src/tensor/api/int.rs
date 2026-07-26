@@ -105,6 +105,14 @@ impl<const D: usize> Tensor<D, Int> {
         cartesian_grid::<S, D, D2>(shape, device)
     }
 
+    /// Applies element wise square operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = x_i * x_i$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = x_i * x_i`")]
+    pub fn square(self) -> Self {
+        Self::new(square_impl(self.primitive))
+    }
+
     /// Applies the bitwise logical and operation with each bit representing the integer.
     pub fn bitwise_and(self, other: Self) -> Self {
         Self::new(bitwise_and_impl(self.primitive, other.primitive))
@@ -225,7 +233,9 @@ fn int_to_float_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
     let out_dtype = device.settings().float_dtype;
     BridgeTensor::float(Dispatch::int_into_float(p.into(), out_dtype))
 }
-
+fn square_impl(tensor: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::int(Dispatch::int_square(tensor.into()))
+}
 fn bitwise_and_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
     BridgeTensor::int(Dispatch::bitwise_and(lhs.into(), rhs.into()))
 }

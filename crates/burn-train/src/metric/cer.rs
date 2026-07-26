@@ -83,8 +83,8 @@ impl Metric for CharErrorRate {
 
         let (output_lengths, target_lengths) = if let Some(pad) = self.pad_token {
             // Create boolean masks for non-padding tokens.
-            let output_mask = outputs.clone().not_equal_elem(pad as i64);
-            let target_mask = targets.clone().not_equal_elem(pad as i64);
+            let output_mask = outputs.clone().not_equal_scalar(pad as i64);
+            let target_mask = targets.clone().not_equal_scalar(pad as i64);
 
             let output_lengths_tensor = output_mask.int().sum_dim(1);
             let target_lengths_tensor = target_mask.int().sum_dim(1);

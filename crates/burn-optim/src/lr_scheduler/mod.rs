@@ -22,6 +22,9 @@ pub mod cosine;
 /// Step learning rate scheduler
 pub mod step;
 
+/// Sequential learning rate scheduler
+pub mod sequential;
+
 mod base;
 
 pub use base::*;

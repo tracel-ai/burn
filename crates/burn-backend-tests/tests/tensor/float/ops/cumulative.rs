@@ -1,7 +1,6 @@
 use super::*;
 use burn_tensor::TensorData;
 
-#[cfg(feature = "flex")]
 use burn_tensor::ElementConversion;
 
 #[test]
@@ -20,6 +19,18 @@ fn test_cumsum_float_dim_1() {
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
 
     let output = tensor.cumsum(1);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]),
+        false,
+    );
+}
+
+#[test]
+fn test_cumsum_float_negative_dim() {
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+
+    let output = tensor.cumsum(-1);
 
     output.into_data().assert_eq(
         &TensorData::from([[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]),
@@ -75,6 +86,18 @@ fn test_cumprod_float_dim_1() {
 }
 
 #[test]
+fn test_cumprod_float_negative_dim() {
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+
+    let output = tensor.cumprod(-1);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[1.0, 2.0, 6.0], [4.0, 20.0, 120.0]]),
+        false,
+    );
+}
+
+#[test]
 fn test_cumprod_float_3d() {
     let tensor = TestTensor::<3>::from([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]);
 
@@ -102,6 +125,17 @@ fn test_cummin_float_dim_1() {
     let tensor = TestTensor::<2>::from([[3.0, 1.0, 4.0], [2.0, 5.0, 1.0]]);
 
     let output = tensor.cummin(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[3.0, 1.0, 1.0], [2.0, 2.0, 1.0]]), false);
+}
+
+#[test]
+fn test_cummin_float_negative_dim() {
+    let tensor = TestTensor::<2>::from([[3.0, 1.0, 4.0], [2.0, 5.0, 1.0]]);
+
+    let output = tensor.cummin(-1);
 
     output
         .into_data()
@@ -143,6 +177,17 @@ fn test_cummax_float_dim_1() {
 }
 
 #[test]
+fn test_cummax_float_negative_dim() {
+    let tensor = TestTensor::<2>::from([[3.0, 1.0, 4.0], [1.0, 5.0, 2.0]]);
+
+    let output = tensor.cummax(-1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[3.0, 3.0, 4.0], [1.0, 5.0, 5.0]]), false);
+}
+
+#[test]
 fn test_cummax_float_3d() {
     let tensor = TestTensor::<3>::from([[[1.0, 3.0], [2.0, 4.0]], [[5.0, 2.0], [6.0, 1.0]]]);
 
@@ -154,11 +199,8 @@ fn test_cummax_float_3d() {
     );
 }
 
-// NaN-propagation tests below. Only run under the `flex` backend
-// feature; other burn backends follow IEEE 754 min/max and drop NaN.
-// Positive-gate form because the default CI build doesn't set
-// identifying feature flags on burn-backend-tests. See issue #4814.
-#[cfg(feature = "flex")]
+// NaN-propagation tests. All burn backends should propagate NaN from
+// cummin/cummax (matching PyTorch/NumPy/JAX/TF semantics). See issue #4814.
 #[test]
 fn test_cummin_nan_propagation() {
     // Once NaN appears, cummin propagates it forward.
@@ -173,7 +215,6 @@ fn test_cummin_nan_propagation() {
     assert!(data[3].is_nan());
 }
 
-#[cfg(feature = "flex")]
 #[test]
 fn test_cummax_nan_propagation() {
     let tensor = TestTensor::<1>::from([1.0, f32::NAN, 5.0, 2.0]);
@@ -187,7 +228,6 @@ fn test_cummax_nan_propagation() {
     assert!(data[3].is_nan());
 }
 
-#[cfg(feature = "flex")]
 #[test]
 fn test_cummin_nan_at_start() {
     // NaN on the first element should poison the entire output.

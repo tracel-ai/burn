@@ -86,8 +86,8 @@ mod tensor_snapshot;
 mod traits;
 
 pub use adapter::{
-    BurnToPyTorchAdapter, ChainAdapter, HalfPrecisionAdapter, IdentityAdapter, ModuleAdapter,
-    PyTorchToBurnAdapter,
+    BurnToPyTorchAdapter, ChainAdapter, FloatCastAdapter, HalfPrecisionAdapter, IdentityAdapter,
+    ModuleAdapter, PyTorchToBurnAdapter,
 };
 pub use applier::Applier;
 pub use apply_result::{ApplyError, ApplyResult};

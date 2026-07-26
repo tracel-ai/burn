@@ -89,7 +89,11 @@ pub(crate) fn cummin_dim<E: NdArrayElement + core::cmp::PartialOrd<E>>(
     dim: usize,
 ) -> SharedArray<E> {
     cumulative_with_op(tensor, dim, |c, &p| {
-        if p < *c {
+        // NaN propagation: if p is NaN, it replaces c (NaN propagates forward).
+        // If c is NaN, it stays (first NaN wins, stable).
+        let is_c_nan = (*c).partial_cmp(&*c).is_none();
+        let is_p_nan = p.partial_cmp(&p).is_none();
+        if !is_c_nan && (is_p_nan || p < *c) {
             *c = p;
         }
     })
@@ -100,7 +104,11 @@ pub(crate) fn cummax_dim<E: NdArrayElement + core::cmp::PartialOrd<E>>(
     dim: usize,
 ) -> SharedArray<E> {
     cumulative_with_op(tensor, dim, |c, &p| {
-        if p > *c {
+        // NaN propagation: if p is NaN, it replaces c (NaN propagates forward).
+        // If c is NaN, it stays (first NaN wins, stable).
+        let is_c_nan = (*c).partial_cmp(&*c).is_none();
+        let is_p_nan = p.partial_cmp(&p).is_none();
+        if !is_c_nan && (is_p_nan || p > *c) {
             *c = p;
         }
     })

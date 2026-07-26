@@ -153,6 +153,7 @@ fn classify_numeric(op: &NumericOperationIr) -> OpClass {
         | N::ArgMin(_)
         | N::ArgTopK(_)
         | N::TopK(_)
+        | N::TopKWithIndices(_)
         | N::CumSum(_)
         | N::CumProd(_)
         | N::CumMin(_)
