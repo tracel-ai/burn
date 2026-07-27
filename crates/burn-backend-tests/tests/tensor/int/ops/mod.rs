@@ -39,6 +39,7 @@ mod sign;
 mod slice;
 mod slice_assign;
 mod sort_argsort;
+mod square;
 mod stack;
 mod sub;
 mod take;

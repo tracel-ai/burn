@@ -1,5 +1,6 @@
 use core::panic;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
+use std::thread;
 
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
@@ -38,6 +39,16 @@ pub struct DdpTrainingStrategy {
     /// Kept alive to anchor the lifetime of the underlying distributed server.
     /// Spawns communication servers on creation, automatically tears them down on drop.
     _context: DistributedContext,
+}
+
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic in distributed data parallel worker".to_string()
+    }
 }
 
 impl DdpTrainingStrategy {
@@ -117,17 +128,43 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
             secondary_workers.push(handle);
         }
 
-        // Wait for all devices to finish
-        for worker in secondary_workers {
-            worker
-                .join()
-                .expect("Distributed data parallel worker failed");
-        }
+        const MAIN_ID: usize = usize::MAX;
+        let (result_tx, result_rx) = mpsc::channel();
 
+        for (id, worker) in secondary_workers.into_iter().enumerate() {
+            let tx = result_tx.clone();
+            thread::spawn(move || {
+                tx.send((id, worker.join())).ok();
+            });
+        }
+        {
+            let tx = result_tx.clone();
+            thread::spawn(move || {
+                tx.send((MAIN_ID, main_handle.join())).ok();
+            });
+        }
+        drop(result_tx);
+
+        let mut main_model = None;
+        for _ in 0..peer_count {
+            match result_rx
+                .recv()
+                .expect("worker reaper thread disconnected unexpectedly")
+            {
+                (MAIN_ID, Ok(model)) => main_model = Some(model),
+                (id, Err(payload)) => {
+                    let msg = panic_message(payload.as_ref());
+                    if id == MAIN_ID {
+                        panic!("Distributed data parallel main worker failed: {msg}");
+                    } else {
+                        panic!("Distributed data parallel worker {id} failed: {msg}");
+                    }
+                }
+                (_, Ok(_)) => {}
+            }
+        }
         // Main worker had the event processor
-        let model = main_handle
-            .join()
-            .expect("Distributed data parallel main worker failed");
+        let model = main_model.expect("main worker should have produced a model");
 
         if interrupter.should_stop() {
             let reason = interrupter

@@ -174,8 +174,8 @@ pub(crate) trait Ordered: Numeric {
     /// or use this function directly.
     ///
     /// For element-wise greater than comparison between a tensor and a scalar, users should prefer the
-    /// [`Tensor::greater_elem`](crate::Tensor::greater_elem) function, which is more high-level and designed for public use.
-    fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    /// [`Tensor::greater_scalar`](crate::Tensor::greater_scalar) function, which is more high-level and designed for public use.
+    fn greater_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise greater than or equal comparison between two tensors.
     ///
@@ -220,8 +220,8 @@ pub(crate) trait Ordered: Numeric {
     /// or use this function directly.
     ///
     /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer the
-    /// [`Tensor::greater_equal_elem`](crate::Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
-    fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    /// [`Tensor::greater_equal_scalar`](crate::Tensor::greater_equal_scalar) function, which is more high-level and designed for public use.
+    fn greater_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise less than comparison between two tensors.
     ///
@@ -266,8 +266,8 @@ pub(crate) trait Ordered: Numeric {
     /// or use this function directly.
     ///
     /// For element-wise less than comparison between a tensor and a scalar, users should prefer the
-    /// [`Tensor::lower_elem`](crate::Tensor::lower_elem) function, which is more high-level and designed for public use.
-    fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    /// [`Tensor::lower_scalar`](crate::Tensor::lower_scalar) function, which is more high-level and designed for public use.
+    fn lower_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise less than or equal comparison between two tensors.
     ///
@@ -312,8 +312,8 @@ pub(crate) trait Ordered: Numeric {
     /// or use this function directly.
     ///
     /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer the
-    /// [`Tensor::lower_equal_elem`](crate::Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
-    fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    /// [`Tensor::lower_equal_scalar`](crate::Tensor::lower_equal_scalar) function, which is more high-level and designed for public use.
+    fn lower_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///

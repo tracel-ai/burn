@@ -1,6 +1,7 @@
 use crate::CubeRuntime;
 use burn_cubecl_fusion::optim::elemwise::{self, ElementWiseFuser, ElemwiseOptimization};
 use burn_cubecl_fusion::optim::matmul::{self, MatmulFuser, MatmulOptimization};
+use burn_cubecl_fusion::optim::nhwc_relayout::{self, NHWCRelayoutFuser, NHWCRelayoutOptimization};
 use burn_cubecl_fusion::optim::reduce::{self, ReduceFuser, ReduceOptimization, ReduceSettings};
 use burn_cubecl_fusion::optim::reduce_broadcasted::{
     self, ReduceBroadcastedFuser, ReduceBroadcastedOptimization,
@@ -80,6 +81,7 @@ struct ElemwiseProvider;
 struct MatmulProvider;
 struct ReduceProvider;
 struct ReduceBroadcastedProvider;
+struct NHWCRelayoutProvider;
 
 impl<R: CubeRuntime> OptimizationProvider<R> for ElemwiseProvider {
     type Operation = ElemwiseOptimization<R>;
@@ -113,13 +115,22 @@ impl<R: CubeRuntime> OptimizationProvider<R> for ReduceBroadcastedProvider {
     }
 }
 
+impl<R: CubeRuntime> OptimizationProvider<R> for NHWCRelayoutProvider {
+    type Operation = NHWCRelayoutOptimization<R>;
+
+    fn fuser(&self, device: &R::Device) -> CubeFuser<R> {
+        CubeFuser::new(NHWCRelayoutFuser::new(device.clone()))
+    }
+}
+
 /// Names of the built-in fusion optimizations, in the order streams try them —
 /// the values [`remove`] accepts besides registered provider names.
-pub const BUILTIN_NAMES: [&str; 4] = [
+pub const BUILTIN_NAMES: [&str; 5] = [
     elemwise::NAME,
     matmul::NAME,
     reduce::NAME,
     reduce_broadcasted::NAME,
+    nhwc_relayout::NAME,
 ];
 
 /// The default providers seeding a runtime's registry entry.
@@ -129,6 +140,7 @@ fn builtins<R: CubeRuntime>() -> Vec<(String, Slot)> {
         slot::<R>(MatmulProvider),
         slot::<R>(ReduceProvider),
         slot::<R>(ReduceBroadcastedProvider),
+        slot::<R>(NHWCRelayoutProvider),
     ]
 }
 

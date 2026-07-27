@@ -1,4 +1,5 @@
 use crate::Dataset;
+use crate::DatasetError;
 use crate::transform::{RngSource, SizeConfig};
 use rand::prelude::SliceRandom;
 use rand::{RngExt, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
@@ -291,11 +292,13 @@ where
     D: Dataset<I>,
     I: Send + Sync,
 {
-    fn get(&self, index: usize) -> Option<I> {
-        if index >= self.size {
-            return None;
-        }
-
+    fn get(&self, index: usize) -> Result<I, DatasetError> {
+        assert!(
+            index < self.size,
+            "Index out of bounds for SamplerDataset: {} >= {}",
+            index,
+            self.size
+        );
         self.dataset.get(self.index())
     }
 
@@ -397,7 +400,7 @@ mod tests {
 
         let mut buckets = HashMap::new();
 
-        for item in dataset_sampler.iter() {
+        for item in dataset_sampler.iter().map(Result::unwrap) {
             let count = match buckets.get(&item) {
                 Some(count) => count + 1,
                 None => 1,

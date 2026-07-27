@@ -473,6 +473,19 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the addition.
     fn int_add_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
+    /// Element-wise square with a IntTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The IntTensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise square of `tensor`.
+    fn int_square(tensor: IntTensor<B>) -> IntTensor<B> {
+        Self::int_powi_scalar(tensor, Scalar::from(2))
+    }
+
     /// Element-wise power with a IntTensor.
     ///
     /// # Arguments
@@ -923,7 +936,12 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The indices of the maximum elements along the dimension.
-    fn int_argtopk(tensor: IntTensor<B>, dim: usize, k: usize) -> IntTensor<B>;
+    fn int_argtopk(tensor: IntTensor<B>, dim: usize, k: usize) -> IntTensor<B> {
+        let device = &tensor.device();
+        let dtype = get_device_settings::<B>(device).int_dtype;
+        let k_indices = B::int_arange(0..k as i64, device, dtype);
+        Self::int_select(Self::int_argsort(tensor, dim, true), dim, k_indices)
+    }
 
     /// Gets the values of the k maximum elements along a dimension.
     /// # Arguments

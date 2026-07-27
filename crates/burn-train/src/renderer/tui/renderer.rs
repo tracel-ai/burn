@@ -16,6 +16,8 @@ use ratatui::{
 };
 use std::collections::HashMap;
 use std::panic::{set_hook, take_hook};
+use std::sync::Once;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::JoinHandle;
@@ -38,6 +40,10 @@ pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a>;
 type PanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + 'static + Sync + Send>;
 
 const MAX_REFRESH_RATE_MILLIS: u64 = 100;
+
+static USER_KILL_REQUESTED: AtomicBool = AtomicBool::new(false);
+// `Once` to have a single error message while subsequent threads silently unwind
+static USER_KILL_NOTIFICATION: Once = Once::new();
 
 enum TuiRendererEvent {
     MetricRegistration(MetricDefinition),
@@ -122,11 +128,18 @@ impl TuiMetricsRendererWrapper {
     }
 
     fn send_event(&self, event: TuiRendererEvent) {
-        if self.kill_signal.lock().unwrap().try_recv().is_ok() {
-            panic!("Killing training from user input.")
+        if self.kill_signal.lock().unwrap().try_recv().is_ok()
+            || USER_KILL_REQUESTED.load(Ordering::Relaxed)
+        {
+            USER_KILL_REQUESTED.store(true, Ordering::Relaxed);
+            panic!("Killing training from user input.");
         }
+
         if let Err(e) = self.sender.send(event) {
-            log::warn!("Failed to send TUI event: {e}");
+            // Ignore send errors if we are already in the middle of killing
+            if !USER_KILL_REQUESTED.load(Ordering::Relaxed) {
+                log::warn!("Failed to send TUI event: {e}");
+            }
         }
     }
 
@@ -352,6 +365,18 @@ impl TuiMetricsRenderer {
             move |panic_info| {
                 let _ = disable_raw_mode();
                 let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
+
+                if USER_KILL_REQUESTED.load(Ordering::Relaxed) {
+                    USER_KILL_NOTIFICATION.call_once(|| {
+                        log::warn!("Training killed by user.");
+                        eprintln!("\nTraining killed by user.");
+                    });
+                    // A user-requested kill causes several threads (main, renderer, worker, ...) to panic.
+                    // Suppress the normal panic hook so the user sees a single message instead of a
+                    // cascade of panic reports.
+                    return;
+                }
+
                 previous_panic_hook(panic_info);
             }
         }));
@@ -501,9 +526,8 @@ impl TuiMetricsRenderer {
                         ),
                         Callback::new(
                             "Stop the training immediately.",
-                            "Kill the program. This will create a panic! which will make \
-                                 the current training fails. Any code following the training \
-                                 won't be executed.",
+                            "Kill the program. This will abort the current training instantly. \
+                                 Any code following the training won't be executed.",
                             'k',
                             KillPopupAccept(self.kill_signal.clone()),
                         ),
@@ -606,6 +630,7 @@ struct PopupCancel;
 
 impl CallbackFn for KillPopupAccept {
     fn call(&self) -> bool {
+        USER_KILL_REQUESTED.store(true, Ordering::Relaxed);
         self.0.send(()).unwrap();
         panic!("Killing training from user input.");
     }

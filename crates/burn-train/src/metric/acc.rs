@@ -54,7 +54,7 @@ impl Metric for AccuracyMetric {
 
         let accuracy = match self.pad_token {
             Some(pad_token) => {
-                let mask = targets.clone().equal_elem(pad_token as i64);
+                let mask = targets.clone().equal_scalar(pad_token as i64);
                 let matches = outputs.equal(targets).float().mask_fill(mask.clone(), 0);
                 let num_pad = mask.float().sum();
 

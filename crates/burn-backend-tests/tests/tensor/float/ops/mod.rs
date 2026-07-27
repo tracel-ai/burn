@@ -100,6 +100,7 @@ mod mul;
 mod nan;
 mod narrow;
 mod neg;
+mod negative_dims;
 mod one_hot;
 mod padding;
 mod permute;

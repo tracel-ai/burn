@@ -65,6 +65,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 has_multiple_read(original),
             )),
             TensorView::SwapDims { .. } => None,
+            TensorView::NhwcStrides { .. } => None,
         });
         let tensors_swapped = self.resources.views.iter().filter_map(|view| match view {
             TensorView::SwapDims {
@@ -79,6 +80,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 dims,
             )),
             TensorView::Reshape { .. } => None,
+            TensorView::NhwcStrides { .. } => None,
         });
 
         let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);
@@ -164,6 +166,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         for tensor in self.resources.indexed.keys() {
             let global = context.tensors.get(tensor).unwrap();
             plan.vectorizations.insert(global.id, Vect::Aligned(1));
+        }
+
+        for view in self.resources.views.iter() {
+            if let TensorView::NhwcStrides { id, .. } = view {
+                let global = context.tensors.get(id).unwrap();
+                plan.vectorizations.insert(global.id, Vect::Aligned(1));
+            }
         }
 
         let mut block_vectorization = Vec::with_capacity(self.blocks.len());

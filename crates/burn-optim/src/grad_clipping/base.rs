@@ -56,8 +56,8 @@ impl GradientClipping {
     }
 
     fn clip_by_value<const D: usize>(&self, grad: Tensor<D>, threshold: f32) -> Tensor<D> {
-        let greater_mask = grad.clone().greater_elem(threshold);
-        let lower_mask = grad.clone().lower_elem(-threshold);
+        let greater_mask = grad.clone().greater_scalar(threshold);
+        let lower_mask = grad.clone().lower_scalar(-threshold);
 
         let clipped_grad = grad.mask_fill(greater_mask, threshold);
 
