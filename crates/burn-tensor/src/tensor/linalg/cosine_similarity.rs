@@ -1,6 +1,6 @@
 use burn_std::FloatDType;
 
-use crate::{AsIndex, tensor::Tensor};
+use crate::{AsIndex, check::unwrap_dim_index, tensor::Tensor};
 
 use super::vector_norm::l2_norm_impl;
 
@@ -26,7 +26,7 @@ pub fn cosine_similarity<const D: usize>(
     dim: impl AsIndex,
     eps: Option<f64>,
 ) -> Tensor<D> {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D));
     let eps = eps.unwrap_or_else(|| {
         x1.dtype()
             .finfo()

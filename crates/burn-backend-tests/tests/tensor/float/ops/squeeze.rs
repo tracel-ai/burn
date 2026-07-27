@@ -139,7 +139,7 @@ fn should_unsqueeze_dim_last() {
 
 /// Test if the function panics when the unsqueezed dimension is out of bounds.
 #[test]
-#[should_panic]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn should_unsqueeze_dim_panic() {
     let tensor = TestTensor::<4>::ones(Shape::new([2, 3, 4, 5]), &Default::default());
     let _unsqueezed_tensor: TestTensor<5> = tensor.unsqueeze_dim(5);
