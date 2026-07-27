@@ -1,5 +1,4 @@
 use super::Reduction;
-use alloc::vec::Vec;
 use burn::config::Config;
 use burn::module::Module;
 use burn::tensor::{AsIndex, Tensor};
@@ -172,7 +171,7 @@ impl SmoothL1Loss {
     /// Calculates element-wise smooth L1 loss, then takes the mean
     /// over the specified dimensions. Useful for per-sample or per-channel losses.
     ///
-    /// Dimensions can be provided in any order. They are normalized and sorted internally.
+    /// Dimensions can be provided in any order.
     ///
     /// # Arguments
     ///
@@ -202,15 +201,7 @@ impl SmoothL1Loss {
     ) -> Tensor<D> {
         let error = self.forward(predictions, targets);
 
-        // Normalize and sort the dimensions to ascending order.
-        let mut sorted_dims = dims
-            .iter()
-            .map(|dim| dim.expect_dim_index(D))
-            .collect::<Vec<_>>();
-        sorted_dims.sort();
-
-        // Reduce over specified dimensions
-        error.mean_dims(sorted_dims.as_slice())
+        error.mean_dims(dims)
     }
 }
 

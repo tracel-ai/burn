@@ -98,7 +98,6 @@ impl<const D: usize> LstmState<D> {
     ///
     /// See: [`Tensor::squeeze_dim`].
     pub fn squeeze_dim<const D2: usize>(self, dim: impl AsIndex) -> LstmState<D2> {
-        let dim = dim.expect_dim_index(D);
         self.map_state(|t| t.squeeze_dim(dim))
     }
 
@@ -108,7 +107,6 @@ impl<const D: usize> LstmState<D> {
     ///
     /// See: [`Tensor::unsqueeze_dim`].
     pub fn unsqueeze_dim<const D2: usize>(self, dim: impl AsIndex) -> LstmState<D2> {
-        let dim = dim.expect_dim_index(D + 1);
         self.map_state(|t| t.unsqueeze_dim(dim))
     }
 
@@ -118,7 +116,6 @@ impl<const D: usize> LstmState<D> {
     ///
     /// See: [`Tensor::stack`].
     pub fn stack<const D2: usize>(states: Vec<LstmState<D>>, dim: impl AsIndex) -> LstmState<D2> {
-        let dim = dim.expect_dim_index(D + 1);
         let (c_it, h_it): (Vec<_>, Vec<_>) = states.into_iter().map(|s| s.unpack()).unzip();
         LstmState {
             cell: Tensor::stack(c_it, dim),
@@ -135,7 +132,6 @@ impl<const D: usize> LstmState<D> {
     ///
     /// See: [`Tensor::chunk`].
     pub fn chunk(self, n: usize, dim: impl AsIndex) -> Vec<LstmState<D>> {
-        let dim = dim.expect_dim_index(D);
         let cells = self.cell.chunk(n, dim);
         let hiddens = self.hidden.chunk(n, dim);
         cells

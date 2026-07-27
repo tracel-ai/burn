@@ -2,8 +2,8 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::tensor::Tensor;
 use burn::tensor::linalg::cosine_similarity;
-use burn::tensor::{AsIndex, Tensor};
 
 /// Configuration to create a [CosineSimilarity](CosineSimilarity) layer using the
 /// [init function](CosineSimilarityConfig::init).
@@ -69,8 +69,7 @@ impl CosineSimilarity {
     /// - x2:     `[batch_size, features]`
     /// - output: `[batch_size]`
     pub fn forward(&self, x1: Tensor<2>, x2: Tensor<2>) -> Tensor<1> {
-        let dim = self.dim.expect_dim_index(2);
-        cosine_similarity(x1, x2, dim, Some(self.eps)).squeeze_dim(dim)
+        cosine_similarity(x1, x2, self.dim, Some(self.eps)).squeeze_dim(self.dim)
     }
 }
 
