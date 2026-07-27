@@ -1,9 +1,3 @@
-use crate::optim::{
-    elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
-    matmul::{MatmulOptimization, MatmulOptimizationState},
-    reduce::{ReduceOptimization, ReduceOptimizationState},
-    reduce_broadcasted::{ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationState},
-};
 use crate::{CubeFusionHandle, FallbackOperation};
 use burn_fusion::stream::Context;
 use cubecl::Runtime;
@@ -37,11 +31,11 @@ pub trait FusedOperation<R: Runtime>: Send + 'static {
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     );
 
-    /// The state of the optimization, from which [`from_state`](Self::from_state)
-    /// recovers it.
+    /// The state of the fused operation, from which
+    /// [`from_state`](Self::from_state) recovers it.
     fn to_state(&self) -> Self::State;
 
-    /// Recover the optimization from its [state](Self::to_state).
+    /// Recover the fused operation from its [state](Self::to_state).
     fn from_state(device: &R::Device, state: Self::State) -> Self;
 }
 
@@ -52,7 +46,7 @@ pub struct CubeOptimization<R: Runtime> {
 }
 
 impl<R: Runtime> CubeOptimization<R> {
-    /// Wrap the optimization.
+    /// Wrap the fused operation.
     pub fn new(optimization: impl FusedOperation<R>) -> Self {
         Self {
             optimization: Box::new(optimization),
@@ -171,139 +165,6 @@ impl CubeOptimizationState {
                 self.name
             )
         })
-    }
-}
-
-const ELEMWISE: &str = "ElementWise";
-const MATMUL: &str = "Matmul";
-const REDUCE: &str = "Reduce";
-const REDUCE_BROADCASTED: &str = "ReduceBroadcasted";
-
-/// Names of the built-in fusion optimizations, matching each one's
-/// [`FusedOperation::NAME`].
-pub const BUILTIN_NAMES: [&str; 4] = [ELEMWISE, MATMUL, REDUCE, REDUCE_BROADCASTED];
-
-/// Restore a built-in optimization from its [state](CubeOptimizationState),
-/// or `None` when the name is not a built-in's.
-pub fn restore_builtin<R: Runtime>(
-    device: &R::Device,
-    state: &CubeOptimizationState,
-) -> Option<CubeOptimization<R>> {
-    Some(match state.name.as_str() {
-        ELEMWISE => CubeOptimization::new(ElemwiseOptimization::<R>::from_state(
-            device,
-            state.decode(),
-        )),
-        MATMUL => {
-            CubeOptimization::new(MatmulOptimization::<R>::from_state(device, state.decode()))
-        }
-        REDUCE => {
-            CubeOptimization::new(ReduceOptimization::<R>::from_state(device, state.decode()))
-        }
-        REDUCE_BROADCASTED => CubeOptimization::new(
-            ReduceBroadcastedOptimization::<R>::from_state(device, state.decode()),
-        ),
-        _ => return None,
-    })
-}
-
-impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
-    const NAME: &'static str = ELEMWISE;
-    type State = ElemwiseOptimizationState;
-
-    fn num_ops_fused(&self) -> usize {
-        Self::num_ops_fused(self)
-    }
-
-    fn run(
-        &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        _fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
-    ) {
-        Self::execute(self, context)
-    }
-
-    fn to_state(&self) -> Self::State {
-        Self::to_state(self)
-    }
-
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
-        Self::from_state(device, state)
-    }
-}
-
-impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
-    const NAME: &'static str = MATMUL;
-    type State = MatmulOptimizationState;
-
-    fn num_ops_fused(&self) -> usize {
-        Self::num_ops_fused(self)
-    }
-
-    fn run(
-        &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
-    ) {
-        Self::execute(self, context, |index| fallback(index))
-    }
-
-    fn to_state(&self) -> Self::State {
-        Self::to_state(self)
-    }
-
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
-        Self::from_state(device, state)
-    }
-}
-
-impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
-    const NAME: &'static str = REDUCE;
-    type State = ReduceOptimizationState;
-
-    fn num_ops_fused(&self) -> usize {
-        Self::num_ops_fused(self)
-    }
-
-    fn run(
-        &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
-    ) {
-        Self::execute(self, context, |index| fallback(index))
-    }
-
-    fn to_state(&self) -> Self::State {
-        Self::to_state(self)
-    }
-
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
-        Self::from_state(device, state)
-    }
-}
-
-impl<R: Runtime> FusedOperation<R> for ReduceBroadcastedOptimization<R> {
-    const NAME: &'static str = REDUCE_BROADCASTED;
-    type State = ReduceBroadcastedOptimizationState;
-
-    fn num_ops_fused(&self) -> usize {
-        Self::num_ops_fused(self)
-    }
-
-    fn run(
-        &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
-    ) {
-        Self::execute(self, context, |index| fallback(index))
-    }
-
-    fn to_state(&self) -> Self::State {
-        Self::to_state(self)
-    }
-
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
-        Self::from_state(device, state)
     }
 }
 

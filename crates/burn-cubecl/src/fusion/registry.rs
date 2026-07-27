@@ -1,18 +1,15 @@
 use crate::CubeRuntime;
-use burn_cubecl_fusion::optim::reduce::{ReduceFuser, ReduceSettings};
-use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
-use burn_cubecl_fusion::optim::{
-    CubeOptimization, CubeOptimizationState, FusedOperation, elemwise::ElementWiseFuser,
-    matmul::MatmulFuser, restore_builtin,
+use burn_cubecl_fusion::optim::elemwise::{ElementWiseFuser, ElemwiseOptimization};
+use burn_cubecl_fusion::optim::matmul::{MatmulFuser, MatmulOptimization};
+use burn_cubecl_fusion::optim::reduce::{ReduceFuser, ReduceOptimization, ReduceSettings};
+use burn_cubecl_fusion::optim::reduce_broadcasted::{
+    ReduceBroadcastedFuser, ReduceBroadcastedOptimization,
 };
+use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
 use burn_fusion::OperationFuser;
 use core::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-
-/// Names of the built-in fusion optimizations — the values [`remove`] accepts
-/// besides registered provider names.
-pub use burn_cubecl_fusion::optim::BUILTIN_NAMES;
 
 /// The fuser type of the cubecl fusion runtime.
 type CubeFuser<R> = Box<dyn OperationFuser<CubeOptimization<R>>>;
@@ -63,6 +60,66 @@ impl<R: CubeRuntime, P: OptimizationProvider<R>> DynProvider<R> for P {
     }
 }
 
+/// The built-in optimizations: providers registered by default for every
+/// runtime, so removal and plan restoration treat them exactly like
+/// user-provided ones.
+struct ElemwiseProvider;
+struct MatmulProvider;
+struct ReduceProvider;
+struct ReduceBroadcastedProvider;
+
+impl<R: CubeRuntime> OptimizationProvider<R> for ElemwiseProvider {
+    type Operation = ElemwiseOptimization<R>;
+
+    fn fuser(&self, device: &R::Device) -> CubeFuser<R> {
+        Box::new(ElementWiseFuser::new(device.clone()))
+    }
+}
+
+impl<R: CubeRuntime> OptimizationProvider<R> for MatmulProvider {
+    type Operation = MatmulOptimization<R>;
+
+    fn fuser(&self, device: &R::Device) -> CubeFuser<R> {
+        Box::new(MatmulFuser::new(device.clone()))
+    }
+}
+
+impl<R: CubeRuntime> OptimizationProvider<R> for ReduceProvider {
+    type Operation = ReduceOptimization<R>;
+
+    fn fuser(&self, device: &R::Device) -> CubeFuser<R> {
+        Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always))
+    }
+}
+
+impl<R: CubeRuntime> OptimizationProvider<R> for ReduceBroadcastedProvider {
+    type Operation = ReduceBroadcastedOptimization<R>;
+
+    fn fuser(&self, device: &R::Device) -> CubeFuser<R> {
+        Box::new(ReduceBroadcastedFuser::new(device.clone()))
+    }
+}
+
+/// Names of the built-in fusion optimizations, in the order streams try them —
+/// the values [`remove`] accepts besides registered provider names. Matches
+/// each built-in's [`FusedOperation::NAME`].
+pub const BUILTIN_NAMES: [&str; 4] = ["ElementWise", "Matmul", "Reduce", "ReduceBroadcasted"];
+
+/// The default providers seeding a runtime's registry entry.
+fn builtins<R: CubeRuntime>() -> Vec<(String, Slot)> {
+    vec![
+        slot::<R>(ElemwiseProvider),
+        slot::<R>(MatmulProvider),
+        slot::<R>(ReduceProvider),
+        slot::<R>(ReduceBroadcastedProvider),
+    ]
+}
+
+fn slot<R: CubeRuntime>(provider: impl OptimizationProvider<R>) -> (String, Slot) {
+    let name = provider.name().to_string();
+    (name, Box::new(ProviderSlot::<R>(Box::new(provider))))
+}
+
 /// Error returned by [`register`] and [`remove`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegistryError {
@@ -110,16 +167,18 @@ impl std::error::Error for RegistryError {}
 /// service for `R` has started — call this at the start of the program, before
 /// the first tensor operation on the fusion backend — and with
 /// [`RegistryError::DuplicateOptimization`] when a provider with the same name
-/// is already registered.
+/// is already registered, built-ins included.
 pub fn register<R: CubeRuntime>(
     provider: impl OptimizationProvider<R>,
 ) -> Result<(), RegistryError> {
-    let name = provider.name().to_string();
-    let slot: Box<dyn Any + Send + Sync> = Box::new(ProviderSlot::<R>(Box::new(provider)));
-    registry()
-        .lock()
-        .unwrap()
-        .register(TypeId::of::<R>(), runtime_name::<R>(), name, slot)
+    let (name, slot) = slot::<R>(provider);
+    registry().lock().unwrap().register(
+        TypeId::of::<R>(),
+        runtime_name::<R>(),
+        name,
+        slot,
+        builtins::<R>,
+    )
 }
 
 /// Remove the fusion optimization named `name` for the runtime `R` — one of
@@ -136,23 +195,19 @@ pub fn remove<R: CubeRuntime>(name: &str) -> Result<(), RegistryError> {
     registry()
         .lock()
         .unwrap()
-        .remove(TypeId::of::<R>(), runtime_name::<R>(), name)
+        .remove(TypeId::of::<R>(), runtime_name::<R>(), name, builtins::<R>)
 }
 
-/// Restore the optimization described by `state`: one of the built-ins, or a
-/// registered provider's through [`OptimizationProvider::restore`].
+/// Restore the optimization described by `state` through its provider's
+/// [`restore`](OptimizationProvider::restore).
 pub(crate) fn restore<R: CubeRuntime>(
     device: &R::Device,
     state: CubeOptimizationState,
 ) -> CubeOptimization<R> {
-    if let Some(optimization) = restore_builtin::<R>(device, &state) {
-        return optimization;
-    }
-
     registry()
         .lock()
         .unwrap()
-        .provider(TypeId::of::<R>(), &state.name)
+        .provider(TypeId::of::<R>(), &state.name, builtins::<R>)
         .map(|slot| {
             slot.downcast_ref::<ProviderSlot<R>>()
                 .expect("registry entries are keyed by runtime type")
@@ -169,48 +224,23 @@ pub(crate) fn restore<R: CubeRuntime>(
         })
 }
 
-/// The fusers for a new execution stream: the built-ins, minus the
-/// [`remove`]d names, plus one fuser per registered provider. Seals the
-/// registry for `R` — streams only exist once the fusion service runs, and
+/// The fusers for a new execution stream: one per registered provider — the
+/// built-ins minus the [`remove`]d ones, plus the user-registered ones. Seals
+/// the registry for `R` — streams only exist once the fusion service runs, and
 /// later registrations could not apply to the streams already built.
 pub(crate) fn fusers<R: CubeRuntime>(device: &R::Device) -> Vec<CubeFuser<R>> {
-    let (removed, mut user) = {
-        let mut registry = registry().lock().unwrap();
-        let entry = registry.start(TypeId::of::<R>());
-        let user = entry
-            .providers
-            .iter()
-            .map(|(_, slot)| {
-                slot.downcast_ref::<ProviderSlot<R>>()
-                    .expect("registry entries are keyed by runtime type")
-                    .0
-                    .fuser(device)
-            })
-            .collect::<Vec<_>>();
-        (entry.removed.clone(), user)
-    };
-
-    let [elemwise, matmul, reduce, broadcasted] = BUILTIN_NAMES;
-    let builtins: [(&str, CubeFuser<R>); 4] = [
-        (elemwise, Box::new(ElementWiseFuser::new(device.clone()))),
-        (matmul, Box::new(MatmulFuser::new(device.clone()))),
-        (
-            reduce,
-            Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always)),
-        ),
-        (
-            broadcasted,
-            Box::new(ReduceBroadcastedFuser::new(device.clone())),
-        ),
-    ];
-
-    let mut fusers: Vec<_> = builtins
-        .into_iter()
-        .filter(|(name, _)| !removed.iter().any(|removed| removed == name))
-        .map(|(_, fuser)| fuser)
-        .collect();
-    fusers.append(&mut user);
-    fusers
+    let mut registry = registry().lock().unwrap();
+    registry
+        .start(TypeId::of::<R>(), builtins::<R>)
+        .providers
+        .iter()
+        .map(|(_, slot)| {
+            slot.downcast_ref::<ProviderSlot<R>>()
+                .expect("registry entries are keyed by runtime type")
+                .0
+                .fuser(device)
+        })
+        .collect()
 }
 
 fn registry() -> &'static Mutex<Registry> {
@@ -226,29 +256,43 @@ fn runtime_name<R: CubeRuntime>() -> &'static str {
 /// downcasting on the runtime's own `TypeId` key.
 struct ProviderSlot<R: CubeRuntime>(Box<dyn DynProvider<R>>);
 
-/// The non-generic registry core: per-runtime provider lists, removed names,
-/// and the started flag, keyed by the runtime's `TypeId`.
+/// A type-erased provider stored in the non-generic registry core.
+type Slot = Box<dyn Any + Send + Sync>;
+
+/// The non-generic registry core: per-runtime provider lists and the started
+/// flag, keyed by the runtime's `TypeId`. Entries are seeded with the default
+/// providers on first access.
 #[derive(Default)]
 struct Registry {
     entries: HashMap<TypeId, Entry>,
 }
 
-#[derive(Default)]
 struct Entry {
-    providers: Vec<(String, Box<dyn Any + Send + Sync>)>,
-    removed: Vec<String>,
+    providers: Vec<(String, Slot)>,
     started: bool,
 }
 
 impl Registry {
+    fn entry(
+        &mut self,
+        runtime: TypeId,
+        defaults: impl FnOnce() -> Vec<(String, Slot)>,
+    ) -> &mut Entry {
+        self.entries.entry(runtime).or_insert_with(|| Entry {
+            providers: defaults(),
+            started: false,
+        })
+    }
+
     fn register(
         &mut self,
         runtime: TypeId,
         runtime_name: &'static str,
         name: String,
-        slot: Box<dyn Any + Send + Sync>,
+        slot: Slot,
+        defaults: impl FnOnce() -> Vec<(String, Slot)>,
     ) -> Result<(), RegistryError> {
-        let entry = self.entries.entry(runtime).or_default();
+        let entry = self.entry(runtime, defaults);
         if entry.started {
             return Err(RegistryError::ServiceRunning {
                 runtime: runtime_name,
@@ -266,33 +310,35 @@ impl Registry {
         runtime: TypeId,
         runtime_name: &'static str,
         name: &str,
+        defaults: impl FnOnce() -> Vec<(String, Slot)>,
     ) -> Result<(), RegistryError> {
-        let entry = self.entries.entry(runtime).or_default();
+        let entry = self.entry(runtime, defaults);
         if entry.started {
             return Err(RegistryError::ServiceRunning {
                 runtime: runtime_name,
             });
         }
         entry.providers.retain(|(other, _)| other != name);
-        if !entry.removed.iter().any(|other| other == name) {
-            entry.removed.push(name.to_string());
-        }
         Ok(())
     }
 
-    fn start(&mut self, runtime: TypeId) -> &Entry {
-        let entry = self.entries.entry(runtime).or_default();
+    fn start(&mut self, runtime: TypeId, defaults: impl FnOnce() -> Vec<(String, Slot)>) -> &Entry {
+        let entry = self.entry(runtime, defaults);
         entry.started = true;
         entry
     }
 
-    fn provider(&self, runtime: TypeId, name: &str) -> Option<&(dyn Any + Send + Sync)> {
-        self.entries
-            .get(&runtime)?
+    fn provider(
+        &mut self,
+        runtime: TypeId,
+        name: &str,
+        defaults: impl FnOnce() -> Vec<(String, Slot)>,
+    ) -> Option<&Slot> {
+        self.entry(runtime, defaults)
             .providers
             .iter()
             .find(|(other, _)| other == name)
-            .map(|(_, slot)| slot.as_ref())
+            .map(|(_, slot)| slot)
     }
 }
 
@@ -303,8 +349,16 @@ mod tests {
     struct RuntimeA;
     struct RuntimeB;
 
-    fn slot() -> Box<dyn Any + Send + Sync> {
+    fn slot() -> Slot {
         Box::new(())
+    }
+
+    fn no_defaults() -> Vec<(String, Slot)> {
+        Vec::new()
+    }
+
+    fn defaults() -> Vec<(String, Slot)> {
+        vec![("builtin".into(), slot())]
     }
 
     #[test]
@@ -313,15 +367,15 @@ mod tests {
         let id = TypeId::of::<RuntimeA>();
 
         registry
-            .register(id, "A", "custom".into(), slot())
+            .register(id, "A", "custom".into(), slot(), no_defaults)
             .expect("first registration succeeds");
         registry
-            .remove(id, "A", "custom")
+            .remove(id, "A", "custom", no_defaults)
             .expect("removal succeeds");
 
         // The provider is gone, so the same name registers again.
         registry
-            .register(id, "A", "custom".into(), slot())
+            .register(id, "A", "custom".into(), slot(), no_defaults)
             .expect("re-registration after removal succeeds");
     }
 
@@ -330,9 +384,11 @@ mod tests {
         let mut registry = Registry::default();
         let id = TypeId::of::<RuntimeA>();
 
-        registry.register(id, "A", "custom".into(), slot()).unwrap();
+        registry
+            .register(id, "A", "custom".into(), slot(), no_defaults)
+            .unwrap();
         assert_eq!(
-            registry.register(id, "A", "custom".into(), slot()),
+            registry.register(id, "A", "custom".into(), slot(), no_defaults),
             Err(RegistryError::DuplicateOptimization {
                 name: "custom".into()
             })
@@ -343,14 +399,14 @@ mod tests {
     fn started_service_seals_the_registry() {
         let mut registry = Registry::default();
         let id = TypeId::of::<RuntimeA>();
-        registry.start(id);
+        registry.start(id, no_defaults);
 
         assert_eq!(
-            registry.register(id, "A", "custom".into(), slot()),
+            registry.register(id, "A", "custom".into(), slot(), no_defaults),
             Err(RegistryError::ServiceRunning { runtime: "A" })
         );
         assert_eq!(
-            registry.remove(id, "A", "matmul"),
+            registry.remove(id, "A", "builtin", no_defaults),
             Err(RegistryError::ServiceRunning { runtime: "A" })
         );
     }
@@ -358,11 +414,17 @@ mod tests {
     #[test]
     fn runtimes_are_independent() {
         let mut registry = Registry::default();
-        registry.start(TypeId::of::<RuntimeA>());
+        registry.start(TypeId::of::<RuntimeA>(), no_defaults);
 
         // Runtime B is unaffected by A's running service.
         registry
-            .register(TypeId::of::<RuntimeB>(), "B", "custom".into(), slot())
+            .register(
+                TypeId::of::<RuntimeB>(),
+                "B",
+                "custom".into(),
+                slot(),
+                no_defaults,
+            )
             .expect("other runtime still accepts registrations");
     }
 
@@ -370,25 +432,45 @@ mod tests {
     fn provider_lookup_by_name() {
         let mut registry = Registry::default();
         let id = TypeId::of::<RuntimeA>();
-        registry.register(id, "A", "custom".into(), slot()).unwrap();
+        registry
+            .register(id, "A", "custom".into(), slot(), no_defaults)
+            .unwrap();
 
-        assert!(registry.provider(id, "custom").is_some());
-        assert!(registry.provider(id, "unknown").is_none());
+        assert!(registry.provider(id, "custom", no_defaults).is_some());
+        assert!(registry.provider(id, "unknown", no_defaults).is_none());
         assert!(
             registry
-                .provider(TypeId::of::<RuntimeB>(), "custom")
+                .provider(TypeId::of::<RuntimeB>(), "custom", no_defaults)
                 .is_none()
         );
     }
 
     #[test]
-    fn removed_names_accumulate_without_duplicates() {
+    fn defaults_seed_the_entry_once() {
         let mut registry = Registry::default();
         let id = TypeId::of::<RuntimeA>();
 
-        registry.remove(id, "A", "matmul").unwrap();
-        registry.remove(id, "A", "matmul").unwrap();
+        assert!(registry.provider(id, "builtin", defaults).is_some());
+        // The entry already exists; later defaults are not re-applied.
+        assert_eq!(registry.start(id, defaults).providers.len(), 1);
+    }
 
-        assert_eq!(registry.entries[&id].removed, vec!["matmul".to_string()]);
+    #[test]
+    fn defaults_are_removable_and_reserve_their_name() {
+        let mut registry = Registry::default();
+        let id = TypeId::of::<RuntimeA>();
+
+        assert_eq!(
+            registry.register(id, "A", "builtin".into(), slot(), defaults),
+            Err(RegistryError::DuplicateOptimization {
+                name: "builtin".into()
+            })
+        );
+
+        registry.remove(id, "A", "builtin", defaults).unwrap();
+        assert!(registry.provider(id, "builtin", defaults).is_none());
+        registry
+            .register(id, "A", "builtin".into(), slot(), defaults)
+            .expect("the name is free after removal");
     }
 }

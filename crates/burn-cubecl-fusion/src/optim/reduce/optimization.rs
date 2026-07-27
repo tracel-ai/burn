@@ -16,7 +16,7 @@ use crate::{
         },
         trace::{FuseTrace, TraceError, TuneOutput},
     },
-    optim::{elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
+    optim::{FusedOperation, elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
 };
 use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use burn_fusion::stream::Context;
@@ -522,4 +522,29 @@ pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Siz
         blueprint,
         config,
     );
+}
+
+impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
+    const NAME: &'static str = "Reduce";
+    type State = ReduceOptimizationState;
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn run(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context, |index| fallback(index))
+    }
+
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
+    }
 }
