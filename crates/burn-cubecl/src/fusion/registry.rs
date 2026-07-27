@@ -197,6 +197,13 @@ impl std::error::Error for RegistryError {}
 /// the first tensor operation on the fusion backend — and with
 /// [`RegistryError::DuplicateOptimization`] when a provider with the same name
 /// is already registered, built-ins included.
+///
+/// # Warning
+///
+/// `R` must be the exact runtime the fusion backend executes on, generic
+/// parameters included — e.g. `WgpuRuntime<SpirvCompiler>` for the Vulkan
+/// backend, not the default-compiler `WgpuRuntime`. Registering for a runtime
+/// that never runs is not an error; the provider just never competes.
 pub fn register<R: CubeRuntime>(
     provider: impl OptimizationProvider<R>,
 ) -> Result<(), RegistryError> {

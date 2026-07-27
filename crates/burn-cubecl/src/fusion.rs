@@ -1,7 +1,7 @@
 use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
-use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
+pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
 use burn_fusion::UnfusedOp;
 use burn_fusion::{
     FusionBackend, FusionRuntime,
