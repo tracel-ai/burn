@@ -1,10 +1,7 @@
 use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
-use burn_cubecl_fusion::{
-    CubeFusionHandle, FallbackOperation,
-    optim::{CubeOptimization, CubeOptimizationState},
-};
+use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
 use burn_fusion::UnfusedOp;
 use burn_fusion::{
     FusionBackend, FusionRuntime,
@@ -16,9 +13,10 @@ use core::marker::PhantomData;
 use std::sync::Arc;
 
 mod registry;
+pub use burn_cubecl_fusion::optim::{CubeOptim, CubeOptimization, CubeOptimizationState};
 pub use registry::{BUILTIN_NAMES, OptimizationProvider, RegistryError, register, remove};
 
-impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for Box<dyn CubeOptimization<R>>
+impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for CubeOptim<R>
 where
     R: CubeRuntime,
 {
@@ -29,14 +27,14 @@ where
         >,
         execution: &OrderedExecution<FusionCubeRuntime<R>>,
     ) {
-        self.as_mut().execute(context, &|index| {
+        Self::execute(self, context, &|index| {
             let operation = execution.operation_within_optimization(index);
             Box::new(FallbackOperationWrapper::new(operation))
         })
     }
 
     fn to_state(&self) -> CubeOptimizationState {
-        self.as_ref().to_state()
+        Self::to_state(self)
     }
 
     fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {
@@ -108,7 +106,7 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
 
 impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
     type OptimizationState = CubeOptimizationState;
-    type Optimization = Box<dyn CubeOptimization<R>>;
+    type Optimization = CubeOptim<R>;
     type FusionHandle = CubeFusionHandle<R>;
     type FusionDevice = R::CubeDevice;
 

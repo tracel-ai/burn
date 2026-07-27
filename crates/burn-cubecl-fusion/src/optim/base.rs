@@ -1,23 +1,28 @@
 use crate::optim::{
-    elemwise::ElemwiseOptimization, matmul::MatmulOptimization, reduce::ReduceOptimization,
-    reduce_broadcasted::ReduceBroadcastedOptimization,
+    elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
+    matmul::{MatmulOptimization, MatmulOptimizationState},
+    reduce::{ReduceOptimization, ReduceOptimizationState},
+    reduce_broadcasted::{ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationState},
 };
 use crate::{CubeFusionHandle, FallbackOperation};
 use burn_fusion::stream::Context;
 use cubecl::Runtime;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// A fusion optimization for cubecl backends — the single trait the built-in
-/// optimizations and user-defined ones implement alike. The runtime's
-/// optimization type is `Box<dyn CubeOptimization<R>>`; a fuser's
-/// [`finish`](burn_fusion::OperationFuser::finish) boxes its optimization.
+/// optimizations and user-defined ones implement alike. A fuser's
+/// [`finish`](burn_fusion::OperationFuser::finish) wraps its optimization in a
+/// [`CubeOptim`], the type the fusion runtime executes.
 ///
 /// User-defined optimizations are registered through the optimization registry
 /// in `burn-cubecl` (`fusion::register`).
-pub trait CubeOptimization<R: Runtime>: Send {
+pub trait CubeOptimization<R: Runtime>: Send + 'static {
     /// Name of the optimization — the key serialized execution plans are
     /// restored by, also shown in diagnostics and fusion logs.
-    fn name(&self) -> &'static str;
+    const NAME: &'static str;
+
+    /// The serializable state of the optimization.
+    type State: Serialize + DeserializeOwned;
 
     /// The number of operations fused.
     fn num_ops_fused(&self) -> usize;
@@ -31,26 +36,103 @@ pub trait CubeOptimization<R: Runtime>: Send {
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     );
 
-    /// The serializable state of the optimization, built with
-    /// [`CubeOptimizationState::new`] under [`Self::name`]. Restoring reverses
-    /// it: the state is dispatched by name to the matching built-in or
-    /// registered provider, which [decodes](CubeOptimizationState::decode) it.
-    fn to_state(&self) -> CubeOptimizationState;
+    /// The state of the optimization, from which [`from_state`](Self::from_state)
+    /// recovers it.
+    fn to_state(&self) -> Self::State;
+
+    /// Recover the optimization from its [state](Self::to_state).
+    fn from_state(device: &R::Device, state: Self::State) -> Self;
 }
 
-impl<R: Runtime> core::fmt::Debug for dyn CubeOptimization<R> {
+/// A fusion optimization ready to run on an execution stream: what fusers
+/// finish and the fusion runtime executes. Wraps any [`CubeOptimization`].
+pub struct CubeOptim<R: Runtime> {
+    optimization: Box<dyn DynOptimization<R>>,
+}
+
+impl<R: Runtime> CubeOptim<R> {
+    /// Wrap the optimization.
+    pub fn new(optimization: impl CubeOptimization<R>) -> Self {
+        Self {
+            optimization: Box::new(optimization),
+        }
+    }
+
+    /// The optimization's [name](CubeOptimization::NAME).
+    pub fn name(&self) -> &'static str {
+        self.optimization.name()
+    }
+
+    /// The number of operations fused.
+    pub fn num_ops_fused(&self) -> usize {
+        self.optimization.num_ops_fused()
+    }
+
+    /// Execute the optimization. See [`CubeOptimization::execute`].
+    pub fn execute(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        self.optimization.execute(context, fallback)
+    }
+
+    /// Serialize the optimization: its name plus its
+    /// [state](CubeOptimization::to_state) encoded as bytes.
+    pub fn to_state(&self) -> CubeOptimizationState {
+        self.optimization.to_state()
+    }
+}
+
+impl<R: Runtime> core::fmt::Debug for CubeOptim<R> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{} ({} ops)", self.name(), self.num_ops_fused())
     }
 }
 
-impl<R: Runtime> burn_fusion::NumOperations for Box<dyn CubeOptimization<R>> {
+impl<R: Runtime> burn_fusion::NumOperations for CubeOptim<R> {
     fn len(&self) -> usize {
-        self.as_ref().num_ops_fused()
+        self.num_ops_fused()
     }
 
     fn name(&self) -> &'static str {
-        self.as_ref().name()
+        Self::name(self)
+    }
+}
+
+/// Object-safe view of a [`CubeOptimization`], implemented for every one of
+/// them below. Private on purpose: the erasure, like the box holding it, is an
+/// implementation detail of [`CubeOptim`].
+trait DynOptimization<R: Runtime>: Send {
+    fn name(&self) -> &'static str;
+    fn num_ops_fused(&self) -> usize;
+    fn execute(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    );
+    fn to_state(&self) -> CubeOptimizationState;
+}
+
+impl<R: Runtime, O: CubeOptimization<R>> DynOptimization<R> for O {
+    fn name(&self) -> &'static str {
+        O::NAME
+    }
+
+    fn num_ops_fused(&self) -> usize {
+        CubeOptimization::num_ops_fused(self)
+    }
+
+    fn execute(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        CubeOptimization::execute(self, context, fallback)
+    }
+
+    fn to_state(&self) -> CubeOptimizationState {
+        CubeOptimizationState::new(O::NAME, &CubeOptimization::to_state(self))
     }
 }
 
@@ -59,7 +141,7 @@ impl<R: Runtime> burn_fusion::NumOperations for Box<dyn CubeOptimization<R>> {
 /// optimizations alike.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CubeOptimizationState {
-    /// The optimization's [name](CubeOptimization::name) — the key
+    /// The optimization's [name](CubeOptimization::NAME) — the key
     /// restoration dispatches on.
     pub name: String,
     state: Vec<u8>,
@@ -81,7 +163,7 @@ impl CubeOptimizationState {
     ///
     /// When the bytes don't decode as `T` — the state was produced by a
     /// different optimization sharing the name, or by an incompatible version.
-    pub fn decode<T: serde::de::DeserializeOwned>(&self) -> T {
+    pub fn decode<T: DeserializeOwned>(&self) -> T {
         rmp_serde::from_slice(&self.state).unwrap_or_else(|err| {
             panic!(
                 "state of fusion optimization `{}` failed to decode: {err}",
@@ -96,8 +178,8 @@ const MATMUL: &str = "Matmul";
 const REDUCE: &str = "Reduce";
 const REDUCE_BROADCASTED: &str = "ReduceBroadcasted";
 
-/// Names of the built-in fusion optimizations, matching what
-/// [`CubeOptimization::name`] returns for each.
+/// Names of the built-in fusion optimizations, matching each one's
+/// [`CubeOptimization::NAME`].
 pub const BUILTIN_NAMES: [&str; 4] = [ELEMWISE, MATMUL, REDUCE, REDUCE_BROADCASTED];
 
 /// Restore a built-in optimization from its [state](CubeOptimizationState),
@@ -105,12 +187,12 @@ pub const BUILTIN_NAMES: [&str; 4] = [ELEMWISE, MATMUL, REDUCE, REDUCE_BROADCAST
 pub fn restore_builtin<R: Runtime>(
     device: &R::Device,
     state: &CubeOptimizationState,
-) -> Option<Box<dyn CubeOptimization<R>>> {
+) -> Option<CubeOptim<R>> {
     Some(match state.name.as_str() {
-        ELEMWISE => Box::new(ElemwiseOptimization::<R>::from_state(device, state.decode())),
-        MATMUL => Box::new(MatmulOptimization::<R>::from_state(device, state.decode())),
-        REDUCE => Box::new(ReduceOptimization::<R>::from_state(device, state.decode())),
-        REDUCE_BROADCASTED => Box::new(ReduceBroadcastedOptimization::<R>::from_state(
+        ELEMWISE => CubeOptim::new(ElemwiseOptimization::<R>::from_state(device, state.decode())),
+        MATMUL => CubeOptim::new(MatmulOptimization::<R>::from_state(device, state.decode())),
+        REDUCE => CubeOptim::new(ReduceOptimization::<R>::from_state(device, state.decode())),
+        REDUCE_BROADCASTED => CubeOptim::new(ReduceBroadcastedOptimization::<R>::from_state(
             device,
             state.decode(),
         )),
@@ -119,9 +201,8 @@ pub fn restore_builtin<R: Runtime>(
 }
 
 impl<R: Runtime> CubeOptimization<R> for ElemwiseOptimization<R> {
-    fn name(&self) -> &'static str {
-        ELEMWISE
-    }
+    const NAME: &'static str = ELEMWISE;
+    type State = ElemwiseOptimizationState;
 
     fn num_ops_fused(&self) -> usize {
         Self::num_ops_fused(self)
@@ -135,15 +216,18 @@ impl<R: Runtime> CubeOptimization<R> for ElemwiseOptimization<R> {
         Self::execute(self, context)
     }
 
-    fn to_state(&self) -> CubeOptimizationState {
-        CubeOptimizationState::new(ELEMWISE, &Self::to_state(self))
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
     }
 }
 
 impl<R: Runtime> CubeOptimization<R> for MatmulOptimization<R> {
-    fn name(&self) -> &'static str {
-        MATMUL
-    }
+    const NAME: &'static str = MATMUL;
+    type State = MatmulOptimizationState;
 
     fn num_ops_fused(&self) -> usize {
         Self::num_ops_fused(self)
@@ -157,15 +241,18 @@ impl<R: Runtime> CubeOptimization<R> for MatmulOptimization<R> {
         Self::execute(self, context, |index| fallback(index))
     }
 
-    fn to_state(&self) -> CubeOptimizationState {
-        CubeOptimizationState::new(MATMUL, &Self::to_state(self))
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
     }
 }
 
 impl<R: Runtime> CubeOptimization<R> for ReduceOptimization<R> {
-    fn name(&self) -> &'static str {
-        REDUCE
-    }
+    const NAME: &'static str = REDUCE;
+    type State = ReduceOptimizationState;
 
     fn num_ops_fused(&self) -> usize {
         Self::num_ops_fused(self)
@@ -179,15 +266,18 @@ impl<R: Runtime> CubeOptimization<R> for ReduceOptimization<R> {
         Self::execute(self, context, |index| fallback(index))
     }
 
-    fn to_state(&self) -> CubeOptimizationState {
-        CubeOptimizationState::new(REDUCE, &Self::to_state(self))
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
     }
 }
 
 impl<R: Runtime> CubeOptimization<R> for ReduceBroadcastedOptimization<R> {
-    fn name(&self) -> &'static str {
-        REDUCE_BROADCASTED
-    }
+    const NAME: &'static str = REDUCE_BROADCASTED;
+    type State = ReduceBroadcastedOptimizationState;
 
     fn num_ops_fused(&self) -> usize {
         Self::num_ops_fused(self)
@@ -201,8 +291,12 @@ impl<R: Runtime> CubeOptimization<R> for ReduceBroadcastedOptimization<R> {
         Self::execute(self, context, |index| fallback(index))
     }
 
-    fn to_state(&self) -> CubeOptimizationState {
-        CubeOptimizationState::new(REDUCE_BROADCASTED, &Self::to_state(self))
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
     }
 }
 

@@ -2,8 +2,8 @@ use crate::CubeRuntime;
 use burn_cubecl_fusion::optim::reduce::{ReduceFuser, ReduceSettings};
 use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
 use burn_cubecl_fusion::optim::{
-    CubeOptimization, CubeOptimizationState, elemwise::ElementWiseFuser, matmul::MatmulFuser,
-    restore_builtin,
+    CubeOptim, CubeOptimization, CubeOptimizationState, elemwise::ElementWiseFuser,
+    matmul::MatmulFuser, restore_builtin,
 };
 use burn_fusion::OperationFuser;
 use core::any::{Any, TypeId};
@@ -15,32 +15,52 @@ use std::sync::{Mutex, OnceLock};
 pub use burn_cubecl_fusion::optim::BUILTIN_NAMES;
 
 /// The fuser type of the cubecl fusion runtime.
-type CubeFuser<R> = Box<dyn OperationFuser<Box<dyn CubeOptimization<R>>>>;
+type CubeFuser<R> = Box<dyn OperationFuser<CubeOptim<R>>>;
 
 /// A user-provided fusion optimization: builds one
 /// [`OperationFuser`] per execution stream, competing with the built-in
-/// fusers. The fuser's [`finish`](OperationFuser::finish) boxes an
-/// implementation of [`CubeOptimization`].
+/// fusers. The fuser's [`finish`](OperationFuser::finish) wraps an
+/// implementation of [`CubeOptimization`] — normally
+/// [`Self::Optimization`], which the provided methods rely on.
 ///
 /// Register a provider with [`register`] **at the start of the program**,
 /// before the first tensor operation on the fusion backend.
 pub trait OptimizationProvider<R: CubeRuntime>: Send + Sync + 'static {
+    /// The optimization the [fusers](Self::fuser) finish.
+    type Optimization: CubeOptimization<R>;
+
     /// Name identifying the optimization — the handle [`remove`] takes, and
-    /// the key serialized execution plans are restored by, so the
-    /// optimizations the [fuser](Self::fuser) finishes must report it as their
-    /// [name](CubeOptimization::name) too.
-    fn name(&self) -> &str;
+    /// the key serialized execution plans are restored by.
+    fn name(&self) -> &str {
+        Self::Optimization::NAME
+    }
 
     /// Build a fuser for a new execution stream on `device`.
     fn fuser(&self, device: &R::Device) -> CubeFuser<R>;
 
     /// Recover an optimization produced by this provider's fuser from its
     /// serialized state — the counterpart of [`CubeOptimization::to_state`].
-    fn from_state(
-        &self,
-        device: &R::Device,
-        state: &CubeOptimizationState,
-    ) -> Box<dyn CubeOptimization<R>>;
+    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptim<R> {
+        CubeOptim::new(Self::Optimization::from_state(device, state.decode()))
+    }
+}
+
+/// Object-safe view of an [`OptimizationProvider`], implemented for every one
+/// of them below. Private on purpose: the erasure, like the box holding it,
+/// is an implementation detail of the registry.
+trait DynProvider<R: CubeRuntime>: Send + Sync {
+    fn fuser(&self, device: &R::Device) -> CubeFuser<R>;
+    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptim<R>;
+}
+
+impl<R: CubeRuntime, P: OptimizationProvider<R>> DynProvider<R> for P {
+    fn fuser(&self, device: &R::Device) -> CubeFuser<R> {
+        OptimizationProvider::fuser(self, device)
+    }
+
+    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptim<R> {
+        OptimizationProvider::restore(self, device, state)
+    }
 }
 
 /// Error returned by [`register`] and [`remove`].
@@ -120,11 +140,11 @@ pub fn remove<R: CubeRuntime>(name: &str) -> Result<(), RegistryError> {
 }
 
 /// Restore the optimization described by `state`: one of the built-ins, or a
-/// registered provider's through [`OptimizationProvider::from_state`].
+/// registered provider's through [`OptimizationProvider::restore`].
 pub(crate) fn restore<R: CubeRuntime>(
     device: &R::Device,
     state: CubeOptimizationState,
-) -> Box<dyn CubeOptimization<R>> {
+) -> CubeOptim<R> {
     if let Some(optimization) = restore_builtin::<R>(device, &state) {
         return optimization;
     }
@@ -137,7 +157,7 @@ pub(crate) fn restore<R: CubeRuntime>(
             slot.downcast_ref::<ProviderSlot<R>>()
                 .expect("registry entries are keyed by runtime type")
                 .0
-                .from_state(device, &state)
+                .restore(device, &state)
         })
         .unwrap_or_else(|| {
             panic!(
@@ -204,7 +224,7 @@ fn runtime_name<R: CubeRuntime>() -> &'static str {
 
 /// Wraps a provider so it can live in the type-erased registry; recovered by
 /// downcasting on the runtime's own `TypeId` key.
-struct ProviderSlot<R: CubeRuntime>(Box<dyn OptimizationProvider<R>>);
+struct ProviderSlot<R: CubeRuntime>(Box<dyn DynProvider<R>>);
 
 /// The non-generic registry core: per-runtime provider lists, removed names,
 /// and the started flag, keyed by the runtime's `TypeId`.

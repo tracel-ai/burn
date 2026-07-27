@@ -1,5 +1,5 @@
 use crate::optim::{
-    CubeOptimization,
+    CubeOptim,
     reduce::{ReduceFuser, ReduceFuserInfo, ReduceSettings},
     reduce_broadcasted::{
         ReduceBlockOptimInfo, ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
@@ -136,7 +136,7 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<Box<dyn CubeOptimization<R>>> for ReduceBroadcastedFuser<R> {
+impl<R: Runtime> OperationFuser<CubeOptim<R>> for ReduceBroadcastedFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         if matches!(
             &self.state,
@@ -160,7 +160,7 @@ impl<R: Runtime> OperationFuser<Box<dyn CubeOptimization<R>>> for ReduceBroadcas
         }
     }
 
-    fn finish(&mut self) -> Box<dyn CubeOptimization<R>> {
+    fn finish(&mut self) -> CubeOptim<R> {
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
         let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
         let mut num_ops = 0;
@@ -175,7 +175,7 @@ impl<R: Runtime> OperationFuser<Box<dyn CubeOptimization<R>>> for ReduceBroadcas
             fallbacks,
             broadcasted,
         });
-        Box::new(ReduceBroadcastedOptimization { info, num_ops })
+        CubeOptim::new(ReduceBroadcastedOptimization { info, num_ops })
     }
 
     fn reset(&mut self) {
@@ -218,7 +218,7 @@ impl<R: Runtime> OperationFuser<Box<dyn CubeOptimization<R>>> for ReduceBroadcas
         self.num_ops
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<Box<dyn CubeOptimization<R>>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptim<R>>> {
         Box::new(self.clone())
     }
 }
