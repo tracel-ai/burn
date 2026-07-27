@@ -4,7 +4,7 @@ use crate::{
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
-    optim::CubeOptim,
+    optim::CubeOptimization,
 };
 use burn_fusion::OperationFuser;
 use burn_std::Shape;
@@ -50,17 +50,17 @@ impl<R: Runtime> ElementWiseFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptim<R>> for ElementWiseFuser<R> {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ElementWiseFuser<R> {
     fn fuse(&mut self, operation: &burn_ir::OperationIr) {
         self.fuser.fuse(operation);
     }
 
-    fn finish(&mut self) -> CubeOptim<R> {
+    fn finish(&mut self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
         let elementwise = ElemwiseOptimization::new(trace, client, self.device.clone(), self.len());
 
-        CubeOptim::new(elementwise)
+        CubeOptimization::new(elementwise)
     }
 
     fn reset(&mut self) {
@@ -79,7 +79,7 @@ impl<R: Runtime> OperationFuser<CubeOptim<R>> for ElementWiseFuser<R> {
         self.fuser.len()
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptim<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
         Box::new(self.clone())
     }
 }

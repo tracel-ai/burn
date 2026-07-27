@@ -2,7 +2,7 @@ use crate::CubeRuntime;
 use burn_cubecl_fusion::optim::reduce::{ReduceFuser, ReduceSettings};
 use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
 use burn_cubecl_fusion::optim::{
-    CubeOptim, CubeOptimization, CubeOptimizationState, elemwise::ElementWiseFuser,
+    CubeOptimization, CubeOptimizationState, FusedOperation, elemwise::ElementWiseFuser,
     matmul::MatmulFuser, restore_builtin,
 };
 use burn_fusion::OperationFuser;
@@ -15,33 +15,33 @@ use std::sync::{Mutex, OnceLock};
 pub use burn_cubecl_fusion::optim::BUILTIN_NAMES;
 
 /// The fuser type of the cubecl fusion runtime.
-type CubeFuser<R> = Box<dyn OperationFuser<CubeOptim<R>>>;
+type CubeFuser<R> = Box<dyn OperationFuser<CubeOptimization<R>>>;
 
 /// A user-provided fusion optimization: builds one
 /// [`OperationFuser`] per execution stream, competing with the built-in
 /// fusers. The fuser's [`finish`](OperationFuser::finish) wraps an
-/// implementation of [`CubeOptimization`] — normally
-/// [`Self::Optimization`], which the provided methods rely on.
+/// implementation of [`FusedOperation`] — normally [`Self::Operation`],
+/// which the provided methods rely on.
 ///
 /// Register a provider with [`register`] **at the start of the program**,
 /// before the first tensor operation on the fusion backend.
 pub trait OptimizationProvider<R: CubeRuntime>: Send + Sync + 'static {
-    /// The optimization the [fusers](Self::fuser) finish.
-    type Optimization: CubeOptimization<R>;
+    /// The fused operation the [fusers](Self::fuser) finish.
+    type Operation: FusedOperation<R>;
 
     /// Name identifying the optimization — the handle [`remove`] takes, and
     /// the key serialized execution plans are restored by.
     fn name(&self) -> &str {
-        Self::Optimization::NAME
+        Self::Operation::NAME
     }
 
     /// Build a fuser for a new execution stream on `device`.
     fn fuser(&self, device: &R::Device) -> CubeFuser<R>;
 
     /// Recover an optimization produced by this provider's fuser from its
-    /// serialized state — the counterpart of [`CubeOptimization::to_state`].
-    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptim<R> {
-        CubeOptim::new(Self::Optimization::from_state(device, state.decode()))
+    /// serialized state — the counterpart of [`FusedOperation::to_state`].
+    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptimization<R> {
+        CubeOptimization::new(Self::Operation::from_state(device, state.decode()))
     }
 }
 
@@ -50,7 +50,7 @@ pub trait OptimizationProvider<R: CubeRuntime>: Send + Sync + 'static {
 /// is an implementation detail of the registry.
 trait DynProvider<R: CubeRuntime>: Send + Sync {
     fn fuser(&self, device: &R::Device) -> CubeFuser<R>;
-    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptim<R>;
+    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptimization<R>;
 }
 
 impl<R: CubeRuntime, P: OptimizationProvider<R>> DynProvider<R> for P {
@@ -58,7 +58,7 @@ impl<R: CubeRuntime, P: OptimizationProvider<R>> DynProvider<R> for P {
         OptimizationProvider::fuser(self, device)
     }
 
-    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptim<R> {
+    fn restore(&self, device: &R::Device, state: &CubeOptimizationState) -> CubeOptimization<R> {
         OptimizationProvider::restore(self, device, state)
     }
 }
@@ -144,7 +144,7 @@ pub fn remove<R: CubeRuntime>(name: &str) -> Result<(), RegistryError> {
 pub(crate) fn restore<R: CubeRuntime>(
     device: &R::Device,
     state: CubeOptimizationState,
-) -> CubeOptim<R> {
+) -> CubeOptimization<R> {
     if let Some(optimization) = restore_builtin::<R>(device, &state) {
         return optimization;
     }
@@ -315,7 +315,9 @@ mod tests {
         registry
             .register(id, "A", "custom".into(), slot())
             .expect("first registration succeeds");
-        registry.remove(id, "A", "custom").expect("removal succeeds");
+        registry
+            .remove(id, "A", "custom")
+            .expect("removal succeeds");
 
         // The provider is gone, so the same name registers again.
         registry
@@ -372,7 +374,11 @@ mod tests {
 
         assert!(registry.provider(id, "custom").is_some());
         assert!(registry.provider(id, "unknown").is_none());
-        assert!(registry.provider(TypeId::of::<RuntimeB>(), "custom").is_none());
+        assert!(
+            registry
+                .provider(TypeId::of::<RuntimeB>(), "custom")
+                .is_none()
+        );
     }
 
     #[test]

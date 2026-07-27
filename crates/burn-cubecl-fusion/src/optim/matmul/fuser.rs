@@ -1,7 +1,7 @@
 use super::optimization::{FusedMatmul, MatmulOptimization};
 use crate::{
     engine::{fuser::TraceOperationFuser, settings::FuseSettings},
-    optim::CubeOptim,
+    optim::CubeOptimization,
     optim::matmul::args::MatmulArg,
 };
 use burn_fusion::{FuserStatus, OperationFuser};
@@ -48,7 +48,7 @@ impl<R: Runtime> MatmulFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptim<R>> for MatmulFuser<R> {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = self.fuser.status() {
             return;
@@ -112,7 +112,7 @@ impl<R: Runtime> OperationFuser<CubeOptim<R>> for MatmulFuser<R> {
         }
     }
 
-    fn finish(&mut self) -> CubeOptim<R> {
+    fn finish(&mut self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
         let trace_fallback = self.fuser_fallback.finish();
@@ -126,7 +126,7 @@ impl<R: Runtime> OperationFuser<CubeOptim<R>> for MatmulFuser<R> {
             self.matmul.as_ref().unwrap().clone(),
         );
 
-        CubeOptim::new(matmul)
+        CubeOptimization::new(matmul)
     }
 
     fn reset(&mut self) {
@@ -148,7 +148,7 @@ impl<R: Runtime> OperationFuser<CubeOptim<R>> for MatmulFuser<R> {
         self.fuser.len() + 1
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptim<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
         Box::new(self.clone())
     }
 }

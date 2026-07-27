@@ -8,7 +8,7 @@ use crate::{
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
-    optim::CubeOptim,
+    optim::CubeOptimization,
 };
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{BaseOperationIr, NumericOperationIr, OperationIr, ReduceDimOpIr};
@@ -213,7 +213,7 @@ impl<R: Runtime> ReduceFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptim<R>> for ReduceFuser<R> {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = self.fuser.status() {
             return;
@@ -303,8 +303,8 @@ impl<R: Runtime> OperationFuser<CubeOptim<R>> for ReduceFuser<R> {
         }
     }
 
-    fn finish(&mut self) -> CubeOptim<R> {
-        CubeOptim::new(self.finish_reduce())
+    fn finish(&mut self) -> CubeOptimization<R> {
+        CubeOptimization::new(self.finish_reduce())
     }
 
     fn reset(&mut self) {
@@ -328,7 +328,7 @@ impl<R: Runtime> OperationFuser<CubeOptim<R>> for ReduceFuser<R> {
         self.fuser.len() + if self.reduce.is_some() { 1 } else { 0 }
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptim<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
         Box::new(self.clone())
     }
 }

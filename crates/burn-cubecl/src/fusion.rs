@@ -13,10 +13,10 @@ use core::marker::PhantomData;
 use std::sync::Arc;
 
 mod registry;
-pub use burn_cubecl_fusion::optim::{CubeOptim, CubeOptimization, CubeOptimizationState};
+pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
 pub use registry::{BUILTIN_NAMES, OptimizationProvider, RegistryError, register, remove};
 
-impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for CubeOptim<R>
+impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for CubeOptimization<R>
 where
     R: CubeRuntime,
 {
@@ -27,7 +27,7 @@ where
         >,
         execution: &OrderedExecution<FusionCubeRuntime<R>>,
     ) {
-        Self::execute(self, context, &|index| {
+        self.run(context, &|index| {
             let operation = execution.operation_within_optimization(index);
             Box::new(FallbackOperationWrapper::new(operation))
         })
@@ -106,7 +106,7 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
 
 impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
     type OptimizationState = CubeOptimizationState;
-    type Optimization = CubeOptim<R>;
+    type Optimization = CubeOptimization<R>;
     type FusionHandle = CubeFusionHandle<R>;
     type FusionDevice = R::CubeDevice;
 
