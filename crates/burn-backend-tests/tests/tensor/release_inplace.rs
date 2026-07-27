@@ -8,11 +8,11 @@ mod float {
             TestTensor::<1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &Default::default());
         assert_eq!(tensor.dims(), [4]);
 
-        let mut old: Tensor<1> = tensor.release();
+        let mut old: Tensor<1> = tensor.extract();
         assert_eq!(tensor.dims(), [0]);
         assert_eq!(old.dims(), [4]);
 
-        tensor.swap(&mut old);
+        core::mem::swap(&mut tensor, &mut old);
         assert_eq!(tensor.dims(), [4]);
         assert_eq!(old.dims(), [0]);
     }
@@ -39,11 +39,11 @@ mod int {
             TestTensorInt::<1>::from_data(TensorData::from([0, 1, 2, 3]), &Default::default());
         assert_eq!(tensor.dims(), [4]);
 
-        let mut old: Tensor<1, Int> = tensor.release();
+        let mut old: Tensor<1, Int> = tensor.extract();
         assert_eq!(tensor.dims(), [0]);
         assert_eq!(old.dims(), [4]);
 
-        tensor.swap(&mut old);
+        core::mem::swap(&mut tensor, &mut old);
         assert_eq!(tensor.dims(), [4]);
         assert_eq!(old.dims(), [0]);
     }
@@ -72,11 +72,11 @@ mod bool {
         );
         assert_eq!(tensor.dims(), [4]);
 
-        let mut old: Tensor<1, Bool> = tensor.release();
+        let mut old: Tensor<1, Bool> = tensor.extract();
         assert_eq!(tensor.dims(), [0]);
         assert_eq!(old.dims(), [4]);
 
-        tensor.swap(&mut old);
+        core::mem::swap(&tensor, &mut old);
         assert_eq!(tensor.dims(), [4]);
         assert_eq!(old.dims(), [0]);
     }

@@ -94,18 +94,13 @@ impl<const D: usize, K> Tensor<D, K>
 where
     K: Basic,
 {
-    /// Swap the contents of two tensors.
-    pub fn swap(&mut self, other: &mut Self) {
-        core::mem::swap(self, other);
-    }
-
     /// Drop the current value, and replace it with `Tensor::empty([0; D])`
     ///
     /// Returns the old value.
     #[allow(unused_must_use)]
-    pub fn release(&mut self) -> Self {
+    pub fn extract(&mut self) -> Self {
         let mut z = Tensor::empty([0; D], &self.device());
-        self.swap(&mut z);
+        core::mem::swap(self, &mut z);
         z
     }
 
@@ -120,8 +115,8 @@ where
     /// want to mutate a tensor by using owned operations. A plausible usage would be to
     /// update the weights of a mutable model reference.
     pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
-        let mut z = func(self.release());
-        self.swap(&mut z);
+        let mut z = func(self.extract());
+        core::mem::swap(self, &mut z);
     }
 
     /// Returns the number of dimensions of the tensor.
