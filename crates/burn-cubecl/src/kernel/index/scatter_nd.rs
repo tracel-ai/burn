@@ -54,12 +54,8 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
         data_slice_offset += coord * data.stride(k + dim);
     }
 
-    // values_shape covers values dims 1..rank.
-    // Decompose update_idx over batch dims (right-to-left), then slice_offset over
-    // trailing slice dims. Never use `update_idx * values.stride(0)` alone — when
-    // shape[0] == 1 that stride is the full volume and OOB-reads values.
-    let val_rank = values_shape.len().comptime();
-    let values_rank = val_rank + 1;
+    // values_shape covers all values dims (0..values_rank).
+    let values_rank = values_shape.len().comptime();
     let batch_rank = values_rank - slice_rank;
 
     let mut val_offset = 0usize;
@@ -67,25 +63,19 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     #[unroll]
     for i in 0..batch_rank {
         let dim = batch_rank - i - 1;
-        if dim == 0 {
-            let shape0 = values.shape(0);
-            let coord = remainder_u % shape0;
-            remainder_u /= shape0;
-            val_offset += coord * values.stride(0);
-        } else {
-            let (rem, coord) = values_shape[dim - 1].div_mod(remainder_u);
-            remainder_u = rem;
-            val_offset += coord * values.stride(dim);
-        }
+        let (rem, coord) = values_shape[dim].div_mod(remainder_u);
+        remainder_u = rem;
+        val_offset += coord * values.stride(dim);
     }
 
     let mut remainder_v = slice_offset;
     #[unroll]
     for i in 0..slice_rank {
-        let dim = values_rank - i - 1;
-        let (rem, coord) = values_shape[dim - 1].div_mod(remainder_v);
+        let dim = slice_rank - i - 1;
+        let val_dim = batch_rank + dim;
+        let (rem, coord) = values_shape[val_dim].div_mod(remainder_v);
         remainder_v = rem;
-        val_offset += coord * values.stride(dim);
+        val_offset += coord * values.stride(val_dim);
     }
 
     let data_idx = base_offset + data_slice_offset;
@@ -133,8 +123,7 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
     };
 
     let data_slice_shape = shape_divmod_range(&tensor, k..data_shape.num_dims());
-    // values dims 1.. (dim 0 is read from values.shape(0) in the kernel)
-    let values_slice_shape = shape_divmod_range(&values, 1..values.meta.shape.num_dims());
+    let values_shape = shape_divmod_range(&values, 0..values.meta.shape.num_dims());
 
     unsafe {
         launch(
@@ -146,7 +135,7 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
             indices.into_linear_view(),
             values.into_tensor_arg(),
             data_slice_shape,
-            values_slice_shape,
+            values_shape,
             slice_size,
             k,
             working_units,
