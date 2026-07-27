@@ -14,7 +14,9 @@ use std::sync::Arc;
 
 mod registry;
 pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
-pub use registry::{BUILTIN_NAMES, OptimizationProvider, RegistryError, register, remove};
+pub use registry::{
+    BUILTIN_NAMES, CubeFuser, OptimizationProvider, RegistryError, register, remove,
+};
 
 impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for CubeOptimization<R>
 where

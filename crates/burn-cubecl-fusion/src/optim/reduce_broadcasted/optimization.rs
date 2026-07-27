@@ -219,8 +219,11 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
     }
 }
 
+/// Name of the broadcasted-reduce fusion optimization.
+pub const NAME: &str = "ReduceBroadcasted";
+
 impl<R: Runtime> FusedOperation<R> for ReduceBroadcastedOptimization<R> {
-    const NAME: &'static str = "ReduceBroadcasted";
+    const NAME: &'static str = self::NAME;
     type State = ReduceBroadcastedOptimizationState;
 
     fn num_ops_fused(&self) -> usize {

@@ -524,8 +524,11 @@ pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Siz
     );
 }
 
+/// Name of the reduce fusion optimization.
+pub const NAME: &str = "Reduce";
+
 impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
-    const NAME: &'static str = "Reduce";
+    const NAME: &'static str = self::NAME;
     type State = ReduceOptimizationState;
 
     fn num_ops_fused(&self) -> usize {

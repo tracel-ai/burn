@@ -141,8 +141,11 @@ fn elemwise_fuse(
     }
 }
 
+/// Name of the element-wise fusion optimization.
+pub const NAME: &str = "ElementWise";
+
 impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
-    const NAME: &'static str = "ElementWise";
+    const NAME: &'static str = self::NAME;
     type State = ElemwiseOptimizationState;
 
     fn num_ops_fused(&self) -> usize {

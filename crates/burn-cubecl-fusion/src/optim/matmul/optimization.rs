@@ -708,8 +708,11 @@ fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
     )
 }
 
+/// Name of the matmul fusion optimization.
+pub const NAME: &str = "Matmul";
+
 impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
-    const NAME: &'static str = "Matmul";
+    const NAME: &'static str = self::NAME;
     type State = MatmulOptimizationState;
 
     fn num_ops_fused(&self) -> usize {
