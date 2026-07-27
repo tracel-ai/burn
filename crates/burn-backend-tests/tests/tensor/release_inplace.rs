@@ -76,7 +76,7 @@ mod bool {
         assert_eq!(tensor.dims(), [0]);
         assert_eq!(old.dims(), [4]);
 
-        core::mem::swap(&tensor, &mut old);
+        core::mem::swap(&mut tensor, &mut old);
         assert_eq!(tensor.dims(), [4]);
         assert_eq!(old.dims(), [0]);
     }

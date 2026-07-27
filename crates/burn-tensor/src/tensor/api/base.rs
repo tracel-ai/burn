@@ -94,9 +94,12 @@ impl<const D: usize, K> Tensor<D, K>
 where
     K: Basic,
 {
-    /// Drop the current value, and replace it with `Tensor::empty([0; D])`
+    /// Takes ownership of the tensor out of `self`, leaving an empty
+    /// zero-shape placeholder tensor in its place.
     ///
-    /// Returns the old value.
+    /// This is analogous to [`Option::take`] / [`core::mem::take`]: it lets you
+    /// obtain an owned `Tensor` from behind a `&mut Tensor` so you can call
+    /// owned operations on it.
     #[allow(unused_must_use)]
     pub fn extract(&mut self) -> Self {
         let mut z = Tensor::empty([0; D], &self.device());
