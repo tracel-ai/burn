@@ -17,6 +17,7 @@ struct PerplexityState {
     total_tokens: usize,
     /// Current batch perplexity (for display purposes)
     current: f64,
+    current_tokens: usize,
 }
 
 impl PerplexityState {
@@ -25,6 +26,7 @@ impl PerplexityState {
             sum_nll: 0.0,
             total_tokens: 0,
             current: f64::NAN,
+            current_tokens: 0,
         }
     }
 
@@ -32,15 +34,11 @@ impl PerplexityState {
         self.sum_nll = 0.0;
         self.total_tokens = 0;
         self.current = f64::NAN;
+        self.current_tokens = 0;
     }
 
     /// Update state with negative log-likelihood and token count from current batch
-    fn update(
-        &mut self,
-        sum_log_prob: f64,
-        effective_tokens: usize,
-        format: FormatOptions,
-    ) -> SerializedEntry {
+    fn update(&mut self, sum_log_prob: f64, effective_tokens: usize) {
         // sum_log_prob is already the sum of log probabilities (negative values)
         // We need to negate it to get negative log-likelihood
         let batch_nll = -sum_log_prob;
@@ -56,6 +54,21 @@ impl PerplexityState {
             f64::INFINITY
         };
         self.current = batch_perplexity;
+        self.current_tokens = effective_tokens;
+    }
+
+    /// Compute the metric for the current update.
+    pub fn compute_update(&self, format: FormatOptions) -> SerializedEntry {
+        self.compute(format, false)
+    }
+
+    /// Compute the final metric for the accumulated global state.
+    pub fn compute_final(&self, format: FormatOptions) -> SerializedEntry {
+        self.compute(format, true)
+    }
+
+    fn compute(&self, format: FormatOptions, final_entry: bool) -> SerializedEntry {
+        let batch_perplexity = self.current;
 
         // Compute running epoch perplexity
         let epoch_perplexity = if self.total_tokens > 0 {
@@ -81,30 +94,44 @@ impl PerplexityState {
         };
 
         // Serialize the state for aggregation
-        let serialized = NumericEntry::Aggregated {
-            aggregated_value: epoch_perplexity,
-            count: self.total_tokens,
-        }
-        .serialize();
+        let serialized = if final_entry {
+            NumericEntry::Final(epoch_perplexity).serialize()
+        } else {
+            NumericEntry::Aggregated {
+                aggregated_value: batch_perplexity,
+                count: self.current_tokens,
+            }
+            .serialize()
+        };
 
         SerializedEntry::new(formatted, serialized)
     }
 
-    fn value(&self) -> Option<NumericEntry> {
-        let perplexity = if self.total_tokens > 0 {
-            (self.sum_nll / self.total_tokens as f64).exp()
-        } else {
-            f64::INFINITY
-        };
-
+    fn current_value(&self) -> Option<NumericEntry> {
         Some(NumericEntry::Aggregated {
-            aggregated_value: perplexity,
-            count: self.total_tokens,
+            // self.current is already exp(batch_nll / effective_tokens)
+            aggregated_value: self.current,
+            count: self.current_tokens,
         })
     }
 
     fn running_value(&self) -> Option<NumericEntry> {
-        self.value()
+        Some(NumericEntry::Aggregated {
+            aggregated_value: entry_value(self.sum_nll, self.total_tokens),
+            count: self.total_tokens,
+        })
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        NumericEntry::Final(entry_value(self.sum_nll, self.total_tokens))
+    }
+}
+
+fn entry_value(value: f64, count: usize) -> f64 {
+    if count > 0 {
+        (value / count as f64).exp()
+    } else {
+        f64::INFINITY
     }
 }
 
@@ -209,15 +236,14 @@ impl Metric for PerplexityMetric {
 
         // Pass the sum_log_prob and effective_tokens to the state
         // The state will handle the correct accumulation and perplexity calculation
-        self.state.update(
-            sum_log_prob,
-            effective_tokens,
-            FormatOptions::new(self.name()).precision(2),
-        )
+        self.state.update(sum_log_prob, effective_tokens);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).precision(2))
     }
 
     fn compute(&mut self) -> SerializedEntry {
-        todo!()
+        self.state
+            .compute_final(FormatOptions::new(self.name()).precision(2))
     }
 
     fn clear(&mut self) {
@@ -239,7 +265,7 @@ impl Metric for PerplexityMetric {
 
 impl Numeric for PerplexityMetric {
     fn value(&self) -> Option<NumericEntry> {
-        self.state.value()
+        self.state.current_value()
     }
 
     fn running_value(&self) -> Option<NumericEntry> {
@@ -247,7 +273,7 @@ impl Numeric for PerplexityMetric {
     }
 
     fn final_value(&self) -> NumericEntry {
-        todo!()
+        self.state.final_value()
     }
 }
 
@@ -431,6 +457,61 @@ mod tests {
             "Multi-batch ({}) and single-batch ({}) perplexity should match",
             aggregated_perplexity,
             single_batch_perplexity
+        );
+    }
+
+    #[test]
+    fn test_perplexity_global_aggregation_end_to_end() {
+        let device = Default::default();
+        let mut metric = PerplexityMetric::new();
+
+        // Batch 1 (1 token, confident prediction -> low NLL):
+        // logits lead to log_prob ≈ -0.1 -> NLL = 0.1
+        let input_batch1 = PerplexityInput::new(
+            Tensor::from_data([[5.0, 0.0, 0.0]], &device),
+            Tensor::from_data([0], &device),
+        );
+        let _ = metric.update(&input_batch1, &MetricMetadata::fake());
+
+        let batch1_current = metric.value().unwrap().current();
+        let batch1_running = metric.running_value().unwrap().current();
+        assert_eq!(batch1_current, batch1_running);
+
+        // Batch 2 (5 tokens, uniform predictions -> higher NLL):
+        // uniform over 3 classes -> log_prob ≈ -log(3) ≈ -1.0986 -> NLL = 1.0986 per token
+        let input_batch2 = PerplexityInput::new(
+            Tensor::from_data(
+                [
+                    [0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0],
+                ],
+                &device,
+            ),
+            Tensor::from_data([0, 1, 2, 0, 1], &device),
+        );
+        let _ = metric.update(&input_batch2, &MetricMetadata::fake());
+
+        // Batch 2 current batch perplexity should be ≈ 3.0
+        let batch2_current = metric.value().unwrap().current();
+        assert!((batch2_current - 3.0).abs() < 0.1);
+
+        // Compute final epoch entry
+        let _serialized_compute = metric.compute();
+        let final_ppl = metric.final_value().current();
+
+        // Total NLL = 0.013416 + 5.493061 = 5.506477
+        // Global PPL = exp(5.506477 / 6 tokens) ≈ 2.5036
+        // Note: Simple unweighted average of batch PPLs would incorrectly give (1.0135 + 3.0) / 2 = 2.0067
+        let expected_global_ppl = 2.5036;
+
+        assert!(
+            (final_ppl - expected_global_ppl).abs() < 1e-3,
+            "Expected final aggregated perplexity ~{}, got {}",
+            expected_global_ppl,
+            final_ppl
         );
     }
 }
