@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 /// User-defined optimizations are registered through the optimization registry
 /// in `burn-cubecl` (`fusion::register`).
 pub trait CubeOptimization<R: Runtime>: Send {
-    /// Name of the optimization, for diagnostics and fusion logs.
+    /// Name of the optimization — the key serialized execution plans are
+    /// restored by, also shown in diagnostics and fusion logs.
     fn name(&self) -> &'static str;
 
     /// The number of operations fused.
@@ -29,6 +30,12 @@ pub trait CubeOptimization<R: Runtime>: Send {
         context: &mut Context<CubeFusionHandle<R>>,
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     );
+
+    /// The serializable state of the optimization, built with
+    /// [`CubeOptimizationState::new`] under [`Self::name`]. Restoring reverses
+    /// it: the state is dispatched by name to the matching built-in or
+    /// registered provider, which [decodes](CubeOptimizationState::decode) it.
+    fn to_state(&self) -> CubeOptimizationState;
 }
 
 impl<R: Runtime> core::fmt::Debug for dyn CubeOptimization<R> {
@@ -47,18 +54,73 @@ impl<R: Runtime> burn_fusion::NumOperations for Box<dyn CubeOptimization<R>> {
     }
 }
 
-/// Serializable stand-in for a fusion optimization: its name only. Restoring
-/// an optimization from state is not supported by the cubecl fusion runtime —
-/// optimizations are rebuilt by their fusers, never deserialized.
+/// Serializable state of a fusion optimization: its name plus its own state
+/// encoded as bytes, so one type covers built-in and user-defined
+/// optimizations alike.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CubeOptimizationState {
-    /// The optimization's [name](CubeOptimization::name).
+    /// The optimization's [name](CubeOptimization::name) — the key
+    /// restoration dispatches on.
     pub name: String,
+    state: Vec<u8>,
+}
+
+impl CubeOptimizationState {
+    /// Encode the state of the optimization named `name`.
+    pub fn new(name: &str, state: &impl Serialize) -> Self {
+        Self {
+            name: name.to_string(),
+            state: rmp_serde::to_vec(state)
+                .expect("fusion optimization state must be serializable"),
+        }
+    }
+
+    /// Decode the optimization's state.
+    ///
+    /// # Panics
+    ///
+    /// When the bytes don't decode as `T` — the state was produced by a
+    /// different optimization sharing the name, or by an incompatible version.
+    pub fn decode<T: serde::de::DeserializeOwned>(&self) -> T {
+        rmp_serde::from_slice(&self.state).unwrap_or_else(|err| {
+            panic!(
+                "state of fusion optimization `{}` failed to decode: {err}",
+                self.name
+            )
+        })
+    }
+}
+
+const ELEMWISE: &str = "ElementWise";
+const MATMUL: &str = "Matmul";
+const REDUCE: &str = "Reduce";
+const REDUCE_BROADCASTED: &str = "ReduceBroadcasted";
+
+/// Names of the built-in fusion optimizations, matching what
+/// [`CubeOptimization::name`] returns for each.
+pub const BUILTIN_NAMES: [&str; 4] = [ELEMWISE, MATMUL, REDUCE, REDUCE_BROADCASTED];
+
+/// Restore a built-in optimization from its [state](CubeOptimizationState),
+/// or `None` when the name is not a built-in's.
+pub fn restore_builtin<R: Runtime>(
+    device: &R::Device,
+    state: &CubeOptimizationState,
+) -> Option<Box<dyn CubeOptimization<R>>> {
+    Some(match state.name.as_str() {
+        ELEMWISE => Box::new(ElemwiseOptimization::<R>::from_state(device, state.decode())),
+        MATMUL => Box::new(MatmulOptimization::<R>::from_state(device, state.decode())),
+        REDUCE => Box::new(ReduceOptimization::<R>::from_state(device, state.decode())),
+        REDUCE_BROADCASTED => Box::new(ReduceBroadcastedOptimization::<R>::from_state(
+            device,
+            state.decode(),
+        )),
+        _ => return None,
+    })
 }
 
 impl<R: Runtime> CubeOptimization<R> for ElemwiseOptimization<R> {
     fn name(&self) -> &'static str {
-        "ElementWise"
+        ELEMWISE
     }
 
     fn num_ops_fused(&self) -> usize {
@@ -72,11 +134,15 @@ impl<R: Runtime> CubeOptimization<R> for ElemwiseOptimization<R> {
     ) {
         Self::execute(self, context)
     }
+
+    fn to_state(&self) -> CubeOptimizationState {
+        CubeOptimizationState::new(ELEMWISE, &Self::to_state(self))
+    }
 }
 
 impl<R: Runtime> CubeOptimization<R> for MatmulOptimization<R> {
     fn name(&self) -> &'static str {
-        "Matmul"
+        MATMUL
     }
 
     fn num_ops_fused(&self) -> usize {
@@ -89,12 +155,16 @@ impl<R: Runtime> CubeOptimization<R> for MatmulOptimization<R> {
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         Self::execute(self, context, |index| fallback(index))
+    }
+
+    fn to_state(&self) -> CubeOptimizationState {
+        CubeOptimizationState::new(MATMUL, &Self::to_state(self))
     }
 }
 
 impl<R: Runtime> CubeOptimization<R> for ReduceOptimization<R> {
     fn name(&self) -> &'static str {
-        "Reduce"
+        REDUCE
     }
 
     fn num_ops_fused(&self) -> usize {
@@ -107,12 +177,16 @@ impl<R: Runtime> CubeOptimization<R> for ReduceOptimization<R> {
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         Self::execute(self, context, |index| fallback(index))
+    }
+
+    fn to_state(&self) -> CubeOptimizationState {
+        CubeOptimizationState::new(REDUCE, &Self::to_state(self))
     }
 }
 
 impl<R: Runtime> CubeOptimization<R> for ReduceBroadcastedOptimization<R> {
     fn name(&self) -> &'static str {
-        "ReduceBroadcasted"
+        REDUCE_BROADCASTED
     }
 
     fn num_ops_fused(&self) -> usize {
@@ -125,5 +199,22 @@ impl<R: Runtime> CubeOptimization<R> for ReduceBroadcastedOptimization<R> {
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         Self::execute(self, context, |index| fallback(index))
+    }
+
+    fn to_state(&self) -> CubeOptimizationState {
+        CubeOptimizationState::new(REDUCE_BROADCASTED, &Self::to_state(self))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn state_round_trips_through_bytes() {
+        let state = CubeOptimizationState::new("custom", &vec![3u32, 7]);
+
+        assert_eq!(state.name, "custom");
+        assert_eq!(state.decode::<Vec<u32>>(), vec![3, 7]);
     }
 }

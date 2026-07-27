@@ -1,11 +1,18 @@
 use crate::CubeRuntime;
 use burn_cubecl_fusion::optim::reduce::{ReduceFuser, ReduceSettings};
 use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
-use burn_cubecl_fusion::optim::{CubeOptimization, elemwise::ElementWiseFuser, matmul::MatmulFuser};
+use burn_cubecl_fusion::optim::{
+    CubeOptimization, CubeOptimizationState, elemwise::ElementWiseFuser, matmul::MatmulFuser,
+    restore_builtin,
+};
 use burn_fusion::OperationFuser;
 use core::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
+
+/// Names of the built-in fusion optimizations — the values [`remove`] accepts
+/// besides registered provider names.
+pub use burn_cubecl_fusion::optim::BUILTIN_NAMES;
 
 /// The fuser type of the cubecl fusion runtime.
 type CubeFuser<R> = Box<dyn OperationFuser<Box<dyn CubeOptimization<R>>>>;
@@ -18,11 +25,22 @@ type CubeFuser<R> = Box<dyn OperationFuser<Box<dyn CubeOptimization<R>>>>;
 /// Register a provider with [`register`] **at the start of the program**,
 /// before the first tensor operation on the fusion backend.
 pub trait OptimizationProvider<R: CubeRuntime>: Send + Sync + 'static {
-    /// Name identifying the optimization — the handle [`remove`] takes.
+    /// Name identifying the optimization — the handle [`remove`] takes, and
+    /// the key serialized execution plans are restored by, so the
+    /// optimizations the [fuser](Self::fuser) finishes must report it as their
+    /// [name](CubeOptimization::name) too.
     fn name(&self) -> &str;
 
     /// Build a fuser for a new execution stream on `device`.
     fn fuser(&self, device: &R::Device) -> CubeFuser<R>;
+
+    /// Recover an optimization produced by this provider's fuser from its
+    /// serialized state — the counterpart of [`CubeOptimization::to_state`].
+    fn from_state(
+        &self,
+        device: &R::Device,
+        state: &CubeOptimizationState,
+    ) -> Box<dyn CubeOptimization<R>>;
 }
 
 /// Error returned by [`register`] and [`remove`].
@@ -101,9 +119,35 @@ pub fn remove<R: CubeRuntime>(name: &str) -> Result<(), RegistryError> {
         .remove(TypeId::of::<R>(), runtime_name::<R>(), name)
 }
 
-/// Names of the built-in fusion optimizations, in the order streams try them —
-/// the values [`remove`] accepts besides registered provider names.
-pub const BUILTIN_NAMES: [&str; 4] = ["element-wise", "matmul", "reduce", "reduce-broadcasted"];
+/// Restore the optimization described by `state`: one of the built-ins, or a
+/// registered provider's through [`OptimizationProvider::from_state`].
+pub(crate) fn restore<R: CubeRuntime>(
+    device: &R::Device,
+    state: CubeOptimizationState,
+) -> Box<dyn CubeOptimization<R>> {
+    if let Some(optimization) = restore_builtin::<R>(device, &state) {
+        return optimization;
+    }
+
+    registry()
+        .lock()
+        .unwrap()
+        .provider(TypeId::of::<R>(), &state.name)
+        .map(|slot| {
+            slot.downcast_ref::<ProviderSlot<R>>()
+                .expect("registry entries are keyed by runtime type")
+                .0
+                .from_state(device, &state)
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "no fusion optimization named `{}` is registered for `{}`; register its \
+                 provider before restoring serialized execution plans",
+                state.name,
+                runtime_name::<R>()
+            )
+        })
+}
 
 /// The fusers for a new execution stream: the built-ins, minus the
 /// [`remove`]d names, plus one fuser per registered provider. Seals the
@@ -221,6 +265,15 @@ impl Registry {
         entry.started = true;
         entry
     }
+
+    fn provider(&self, runtime: TypeId, name: &str) -> Option<&(dyn Any + Send + Sync)> {
+        self.entries
+            .get(&runtime)?
+            .providers
+            .iter()
+            .find(|(other, _)| other == name)
+            .map(|(_, slot)| slot.as_ref())
+    }
 }
 
 #[cfg(test)]
@@ -289,6 +342,17 @@ mod tests {
         registry
             .register(TypeId::of::<RuntimeB>(), "B", "custom".into(), slot())
             .expect("other runtime still accepts registrations");
+    }
+
+    #[test]
+    fn provider_lookup_by_name() {
+        let mut registry = Registry::default();
+        let id = TypeId::of::<RuntimeA>();
+        registry.register(id, "A", "custom".into(), slot()).unwrap();
+
+        assert!(registry.provider(id, "custom").is_some());
+        assert!(registry.provider(id, "unknown").is_none());
+        assert!(registry.provider(TypeId::of::<RuntimeB>(), "custom").is_none());
     }
 
     #[test]

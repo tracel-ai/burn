@@ -36,18 +36,11 @@ where
     }
 
     fn to_state(&self) -> CubeOptimizationState {
-        CubeOptimizationState {
-            name: self.as_ref().name().to_string(),
-        }
+        self.as_ref().to_state()
     }
 
-    fn from_state(_device: &R::Device, state: CubeOptimizationState) -> Self {
-        // Optimizations are rebuilt by their fusers; no stored plan is ever
-        // deserialized for the cubecl fusion runtime.
-        panic!(
-            "fusion optimization `{}` cannot be restored from a serialized execution plan",
-            state.name
-        )
+    fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {
+        registry::restore::<R>(device, state)
     }
 }
 
