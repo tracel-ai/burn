@@ -1710,6 +1710,78 @@ where
         Self::new(K::mask_fill(self.primitive, mask.primitive, value))
     }
 
+    /// Selects the elements of the tensor where `mask` is `true`, returned as a 1D tensor in the
+    /// order of the flattened input tensor.
+    ///
+    /// The mask must have the same shape as the tensor. Unlike `torch.masked_select`, the mask is
+    /// not broadcast against the tensor.
+    ///
+    /// # Notes
+    ///
+    /// The number of selected elements is data-dependent, so this performs a synchronous read of
+    /// the mask, consistent with [`argwhere`](Tensor::argwhere) and [`nonzero`](Tensor::nonzero).
+    /// On backends without a native `argwhere` implementation, this reads the entire mask back to
+    /// the host and computes the indices on the CPU; on lazy backends, it also forces the
+    /// execution of pending operations.
+    ///
+    /// This makes each call a synchronization point between the host and the device: prefer
+    /// calling it once on final results (e.g. filtering predictions) rather than inside
+    /// performance-critical loops.
+    ///
+    /// On an autodiff backend, gradients flow back to the selected elements; positions where
+    /// `mask` is `false` receive a zero gradient.
+    ///
+    /// # Panics
+    ///
+    /// - If `mask` does not have the same shape as the tensor.
+    /// - If the mask data cannot be read synchronously (e.g. on wasm); use
+    ///   [`mask_select_async`](Tensor::mask_select_async) instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///   let mask = Tensor::<2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let selected = tensor.mask_select(mask);
+    ///   println!("{selected}");
+    ///   // [1.0, 3.0, 5.0]
+    /// }
+    /// ```
+    pub fn mask_select(self, mask: Tensor<D, Bool>) -> Tensor<1, K> {
+        crate::try_read_sync(self.mask_select_async(mask)).expect(
+            "Failed to read tensor data synchronously. Try using mask_select_async instead.",
+        )
+    }
+
+    /// Selects the elements of the tensor where `mask` is `true`, returned as a 1D tensor in the
+    /// order of the flattened input tensor.
+    ///
+    /// Asynchronous version of [`mask_select`](Tensor::mask_select), for backends where the
+    /// mask cannot be read synchronously (e.g. wasm). The mask read and its synchronization cost
+    /// remain; only the waiting is non-blocking.
+    ///
+    /// # Panics
+    ///
+    /// If `mask` does not have the same shape as the tensor.
+    pub async fn mask_select_async(self, mask: Tensor<D, Bool>) -> Tensor<1, K> {
+        check!(TensorCheck::mask_select(&self.shape(), &mask.shape()));
+
+        // Flatten the mask to 1D and collect the flat indices of its `true` values. `argwhere`
+        // returns a `[count, 1]` tensor, which we squeeze to a 1D `[count]` index tensor.
+        let indices = mask
+            .flatten::<1>(0, D - 1)
+            .argwhere_async()
+            .await
+            .squeeze_dim::<1>(1);
+
+        // Flatten the tensor to 1D and gather the selected elements.
+        self.flatten::<1>(0, D - 1).select(0, indices)
+    }
+
     /// Gather tensor elements corresponding to the given indices from the specified dim.
     /// The dimension supports negative indexing.
     ///
