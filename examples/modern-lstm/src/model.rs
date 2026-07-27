@@ -137,7 +137,7 @@ impl LstmCell {
 
         let h_t = self.dropout.forward(h_t);
 
-        LstmState::new(h_t, c_t)
+        LstmState::new(c_t, h_t)
     }
 
     // Initialize cell state and hidden state if provided or with zeros
