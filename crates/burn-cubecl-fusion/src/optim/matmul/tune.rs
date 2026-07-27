@@ -9,15 +9,40 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,
+    client::ComputeClient,
     std::tensor::MatrixBatchLayout,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
     components::tile::TileMatmulKind,
     definition::{MatmulElems, MatmulGlobalElems, MatmulKind},
-    strategy::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+    strategy::{
+        MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, should_tune_double_buffering,
+    },
 };
 use serde::{Deserialize, Serialize};
+
+/// Whether the device can run `tile_matmul` with the element types of the matmul `definition`.
+fn tile_matmul_supported<R: Runtime>(
+    client: &ComputeClient<R>,
+    tile_matmul: TileMatmulKind,
+    definition: &MatmulProblemDefinition,
+) -> bool {
+    let elems = MatmulElems::from_globals(&MatmulGlobalElems {
+        lhs: definition.elem_lhs,
+        rhs: definition.elem_rhs,
+        out: definition.elem_out,
+    });
+
+    !tile_matmul
+        .supported_sizes(
+            client,
+            elems.lhs_register,
+            elems.rhs_register,
+            elems.acc_register,
+        )
+        .is_empty()
+}
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedMatmulAutotuneKey {
@@ -217,55 +242,11 @@ pub fn fused_matmul_autotune<R: Runtime>(
                     Some(&odd),
                 ),
             ] {
-                let client_1 = tune_client.clone();
-                let mut tunable = Tunable::new(&selector.name(), move |input| {
-                    tune_fused::<R>(input, selector)
-                })
-                .group(&accelerated, move |key| {
-                    let elems = MatmulElems::from_globals(&MatmulGlobalElems {
-                        lhs: key.matmul_key.definition.elem_lhs,
-                        rhs: key.matmul_key.definition.elem_rhs,
-                        out: key.matmul_key.definition.elem_out,
-                    });
-
-                    let supported = !tm
-                        .supported_sizes(
-                            &client_1,
-                            elems.lhs_register,
-                            elems.rhs_register,
-                            elems.acc_register,
-                        )
-                        .is_empty();
-
-                    if !supported {
-                        return PRIORITY_NEVER;
-                    }
-
-                    match double_buf {
-                        false => PRIORITY_MAX,
-                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                    }
-                });
-
-                if let Some(group) = extra_group {
-                    let client_2 = tune_client.clone();
-                    tunable = tunable.group(group, move |key| {
-                        let elems = MatmulElems::from_globals(&MatmulGlobalElems {
-                            lhs: key.matmul_key.definition.elem_lhs,
-                            rhs: key.matmul_key.definition.elem_rhs,
-                            out: key.matmul_key.definition.elem_out,
-                        });
-
-                        let supported = !tm
-                            .supported_sizes(
-                                &client_2,
-                                elems.lhs_register,
-                                elems.rhs_register,
-                                elems.acc_register,
-                            )
-                            .is_empty();
-
-                        if !supported {
+                // Accelerated kernels are only tuned when the device supports the tile matmul
+                // they are built on, otherwise they would be compiled just to fail.
+                let accelerated_priority =
+                    move |key: &FusedMatmulAutotuneKey, client: &ComputeClient<R>| {
+                        if !tile_matmul_supported::<R>(client, tm, &key.matmul_key.definition) {
                             return PRIORITY_NEVER;
                         }
 
@@ -273,7 +254,20 @@ pub fn fused_matmul_autotune<R: Runtime>(
                             false => PRIORITY_MAX,
                             true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
                         }
-                    });
+                    };
+
+                let client_accelerated = tune_client.clone();
+                let mut tunable = Tunable::new(&selector.name(), move |input| {
+                    tune_fused::<R>(input, selector)
+                })
+                .group(&accelerated, move |key| {
+                    accelerated_priority(key, &client_accelerated)
+                });
+
+                if let Some(group) = extra_group {
+                    let client_extra = tune_client.clone();
+                    tunable =
+                        tunable.group(group, move |key| accelerated_priority(key, &client_extra));
                 }
                 set = set.with(tunable);
             }

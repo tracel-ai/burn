@@ -9,6 +9,7 @@ use crate::{
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
+    client::ComputeClient,
     std::tensor::MatrixBatchLayout,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
@@ -25,10 +26,35 @@ use cubek::matmul::{
         cpu_gemm::CpuGemmStrategy,
         gemm::GemmStrategy,
     },
-    strategy::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
+    strategy::{
+        MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, Strategy,
+        should_tune_double_buffering,
+    },
 };
 
 pub(super) type Inputs<R> = (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>);
+
+/// Whether the device can run `tile_matmul` with the element types of the matmul `definition`.
+pub(crate) fn tile_matmul_supported<R: CubeRuntime>(
+    client: &ComputeClient<R>,
+    tile_matmul: TileMatmulKind,
+    definition: &MatmulProblemDefinition,
+) -> bool {
+    let elems = MatmulElems::from_globals(&MatmulGlobalElems {
+        lhs: definition.elem_lhs,
+        rhs: definition.elem_rhs,
+        out: definition.elem_out,
+    });
+
+    !tile_matmul
+        .supported_sizes(
+            client,
+            elems.lhs_register,
+            elems.rhs_register,
+            elems.acc_register,
+        )
+        .is_empty()
+}
 
 fn matmul_input_gen<R: CubeRuntime>(
     _key: &MatmulAutotuneKey,
@@ -501,25 +527,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
             });
 
-            // tile group
-            let client_1 = tune_client.clone();
-            tunable = tunable.group(tile_group, move |key| {
-                let elems = MatmulElems::from_globals(&MatmulGlobalElems {
-                    lhs: key.definition.elem_lhs,
-                    rhs: key.definition.elem_rhs,
-                    out: key.definition.elem_out,
-                });
-
-                let supported = !tile_matmul
-                    .supported_sizes(
-                        &client_1,
-                        elems.lhs_register,
-                        elems.rhs_register,
-                        elems.acc_register,
-                    )
-                    .is_empty();
-
-                if !supported {
+            // Accelerated kernels are only tuned when the device supports the tile matmul they
+            // are built on, otherwise they would be compiled just to fail.
+            let accelerated_priority = move |key: &MatmulAutotuneKey, client: &ComputeClient<R>| {
+                if !tile_matmul_supported::<R>(client, tile_matmul, &key.definition) {
                     return PRIORITY_NEVER;
                 }
 
@@ -527,36 +538,18 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     false => PRIORITY_MAX,
                     true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
                 }
+            };
+
+            // tile group
+            let client_tile = tune_client.clone();
+            tunable = tunable.group(tile_group, move |key| {
+                accelerated_priority(key, &client_tile)
             });
 
             // extra group
             if let Some(group) = group_extra {
-                let client_2 = tune_client.clone();
-                tunable = tunable.group(group, move |key| {
-                    let elems = MatmulElems::from_globals(&MatmulGlobalElems {
-                        lhs: key.definition.elem_lhs,
-                        rhs: key.definition.elem_rhs,
-                        out: key.definition.elem_out,
-                    });
-
-                    let supported = !tile_matmul
-                        .supported_sizes(
-                            &client_2,
-                            elems.lhs_register,
-                            elems.rhs_register,
-                            elems.acc_register,
-                        )
-                        .is_empty();
-
-                    if !supported {
-                        return PRIORITY_NEVER;
-                    }
-
-                    match double_buf {
-                        false => PRIORITY_MAX,
-                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                    }
-                });
+                let client_extra = tune_client.clone();
+                tunable = tunable.group(group, move |key| accelerated_priority(key, &client_extra));
             }
             set = set.with(tunable);
         }
