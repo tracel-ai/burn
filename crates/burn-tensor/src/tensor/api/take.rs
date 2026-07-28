@@ -45,8 +45,8 @@ where
         dim: impl AsIndex,
         indices: Tensor<DI, Int>,
     ) -> Tensor<DO, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::take::<D, DI, DO>(dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Take");
+        check!(TensorCheck::take::<D, DI, DO>());
 
         // Store the indices shape for reshaping later
         let indices_shape = indices.shape();
