@@ -1610,7 +1610,7 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::{Tensor, s};
+    /// use burn_tensor::{Tensor, TensorData, s};
     ///
     /// fn example() {
     ///     let device = Default::default();
