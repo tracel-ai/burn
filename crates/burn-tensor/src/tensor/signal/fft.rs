@@ -59,7 +59,7 @@ pub fn rfft<const D: usize>(
     dim: impl AsIndex,
     n: Option<usize>,
 ) -> (Tensor<D>, Tensor<D>) {
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "RFFT");
 
     match n {
         None => check!(TensorCheck::check_is_power_of_two::<D>(
@@ -135,7 +135,7 @@ pub fn irfft<const D: usize>(
     dim: impl AsIndex,
     n: Option<usize>,
 ) -> Tensor<D> {
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "IRFFT");
 
     if let Some(n) = n {
         assert!(n >= 1, "irfft: n must be >= 1, got {n}");
@@ -231,7 +231,7 @@ pub fn cfft<const D: usize>(
         signal_im.shape(),
     );
 
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "CFFT");
     let fft_size = n.unwrap_or(signal_re.dims()[dim]);
 
     // rfft validates power-of-two and n constraints internally

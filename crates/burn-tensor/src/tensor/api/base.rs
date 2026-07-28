@@ -480,9 +480,8 @@ where
         Dim1: AsIndex,
         Dim2: AsIndex,
     {
-        let dim1 = unwrap_dim_index(dim1.try_dim_index(D));
-        let dim2 = unwrap_dim_index(dim2.try_dim_index(D));
-        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
+        let dim1 = unwrap_dim_index(dim1.try_dim_index(D), "Swap Dims");
+        let dim2 = unwrap_dim_index(dim2.try_dim_index(D), "Swap Dims");
         if dim1 == dim2 {
             self
         } else {
@@ -529,7 +528,7 @@ where
         let mut no_op = true;
         let mut fixed_axes = [0; D];
         for (i, axis) in axes.into_iter().enumerate() {
-            let dim = unwrap_dim_index(axis.try_dim_index(D));
+            let dim = unwrap_dim_index(axis.try_dim_index(D), "Permute");
             no_op &= dim == i;
             fixed_axes[i] = dim;
         }
@@ -661,7 +660,7 @@ where
         // Convert the axes to usize without allocating.
         let mut transformed_axes: [usize; N] = [0; N];
         for (i, axis) in axes.into_iter().enumerate() {
-            transformed_axes[i] = unwrap_dim_index(axis.try_dim_index(D));
+            transformed_axes[i] = unwrap_dim_index(axis.try_dim_index(D), "Flip");
         }
 
         // Check if the axes are valid
@@ -712,8 +711,8 @@ where
         start_dim: impl AsIndex,
         end_dim: impl AsIndex,
     ) -> Tensor<D2, K> {
-        let start_dim = unwrap_dim_index(start_dim.try_dim_index(D));
-        let end_dim = unwrap_dim_index(end_dim.try_dim_index(D));
+        let start_dim = unwrap_dim_index(start_dim.try_dim_index(D), "Flatten");
+        let end_dim = unwrap_dim_index(end_dim.try_dim_index(D), "Flatten");
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
         let new_shape = self.shape().flatten_dims(start_dim, end_dim);
 
@@ -802,7 +801,7 @@ where
     /// }
     /// ```
     pub fn squeeze_dim<const D2: usize>(self, dim: impl AsIndex) -> Tensor<D2, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Squeeze");
         check!(TensorCheck::squeeze::<D2>(dim, &self.shape()));
 
         let current_dims = self.shape();
@@ -865,7 +864,7 @@ where
         } else {
             dim_indices = dims
                 .iter()
-                .map(|dim| unwrap_dim_index(dim.try_dim_index(D)))
+                .map(|dim| unwrap_dim_index(dim.try_dim_index(D), "Squeeze"))
                 .collect();
         }
 
@@ -958,7 +957,7 @@ where
     /// }
     /// ```
     pub fn unsqueeze_dim<const D2: usize>(self, dim: impl AsIndex) -> Tensor<D2, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D + 1));
+        let dim = unwrap_dim_index(dim.try_dim_index(D + 1), "Unsqueeze");
         check!(TensorCheck::unsqueeze_dim::<D, D2>(dim));
 
         let mut dims = [1; D2];
@@ -1083,7 +1082,7 @@ where
         Shift: AsIndex,
         Dim: AsIndex,
     {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Roll");
         let size = self.shape()[dim];
         if size == 0 {
             // If the dimension is empty, return the tensor as is.
@@ -1172,7 +1171,7 @@ where
         // Accumulate the effective shifts for each dimension.
         let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
         for i in 0..item_count {
-            let dim = unwrap_dim_index(dims[i].try_dim_index(D));
+            let dim = unwrap_dim_index(dims[i].try_dim_index(D), "Roll");
             accumulated_shifts[dim] += shifts[i].as_index();
         }
 
@@ -1582,7 +1581,7 @@ where
     where
         S: Into<Slice>,
     {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Slice");
         let slice: Slice = slice.into();
 
         let mut slices = vec![Slice::full(); D];
@@ -1623,8 +1622,7 @@ where
     /// }
     /// ```
     pub fn select(self, dim: impl AsIndex, indices: Tensor<1, Int>) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::select::<D>(dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Select");
         Self::new(K::select(self.primitive, dim, indices.primitive))
     }
 
@@ -1661,7 +1659,7 @@ where
         values: Tensor<D, K>,
         update: IndexingUpdateOp,
     ) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Select Assign");
         check!(TensorCheck::select_assign::<D>(
             dim,
             &indices.shape(),
@@ -1819,7 +1817,7 @@ where
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather(self, dim: impl AsIndex, indices: Tensor<D, Int>) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Gather");
         check!(TensorCheck::gather::<D>(
             dim,
             &self.shape(),
@@ -1864,7 +1862,7 @@ where
         values: Self,
         update: IndexingUpdateOp,
     ) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Scatter");
         check!(TensorCheck::scatter::<D>(
             dim,
             &self.shape(),
@@ -2041,7 +2039,7 @@ where
     /// }
     /// ```
     pub fn repeat_dim(self, dim: impl AsIndex, times: usize) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Repeat");
         if times > 0 {
             Self::new(K::repeat_dim(self.primitive, dim, times))
         } else {
@@ -2241,7 +2239,7 @@ where
     /// }
     /// ```
     pub fn cat(tensors: Vec<Self>, dim: impl AsIndex) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cat");
         check!(TensorCheck::cat(tensors.as_slice(), dim));
 
         // Filter out tensors with size 0 along the concatenation dimension.
@@ -2296,7 +2294,7 @@ where
     /// }
     /// ```
     pub fn stack<const D2: usize>(tensors: Vec<Tensor<D, K>>, dim: impl AsIndex) -> Tensor<D2, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D + 1));
+        let dim = unwrap_dim_index(dim.try_dim_index(D + 1), "Stack");
         check!(TensorCheck::stack::<D, K, D2>(tensors.as_slice(), dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
         Tensor::<D2, K>::cat(tensors, dim)
@@ -2330,7 +2328,7 @@ where
     /// }
     /// ```
     pub fn iter_dim(self, dim: impl AsIndex) -> DimIter<D, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Iter Dim");
         DimIter::new(self, dim)
     }
 
@@ -2371,7 +2369,7 @@ where
     /// }
     /// ```
     pub fn narrow(self, dim: impl AsIndex, start: usize, length: usize) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Narrow");
         check!(TensorCheck::narrow(&self, dim, start, length));
         let dims = self.dims();
 
@@ -2433,7 +2431,7 @@ where
     /// }
     /// ```
     pub fn chunk(self, chunks: usize, dim: impl AsIndex) -> Vec<Self> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Chunk");
         let size = self.shape()[dim];
         if size < chunks {
             return (0..size)
@@ -2493,7 +2491,7 @@ where
     /// }
     /// ```
     pub fn split(self, split_size: usize, dim: impl AsIndex) -> Vec<Self> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Split");
         check!(TensorCheck::split::<D>(&self.shape(), split_size, dim));
         let size = self.shape()[dim];
         let mut tensors = Vec::new();
@@ -2540,7 +2538,7 @@ where
     /// }
     /// ```
     pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: impl AsIndex) -> Vec<Self> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Split With Sizes");
         check!(TensorCheck::split_with_sizes::<D>(
             &self.shape(),
             &split_sizes,
@@ -2625,7 +2623,7 @@ where
     /// }
     /// ```
     pub fn any_dim(self, dim: impl AsIndex) -> Tensor<D, Bool> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Any");
         Tensor::new(K::any_dim(self.primitive, dim))
     }
 
@@ -2688,7 +2686,7 @@ where
     /// }
     /// ```
     pub fn all_dim(self, dim: impl AsIndex) -> Tensor<D, Bool> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "All");
         Tensor::new(K::all_dim(self.primitive, dim))
     }
 
@@ -2800,7 +2798,7 @@ where
     pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(self, shape: S) -> Tensor<D2, K> {
         let shape = shape.into_shape(&self.shape());
         check!(TensorCheck::expand::<D, D2>(
-            "expand",
+            "Expand",
             &self.shape(),
             &shape,
         ));
@@ -2839,9 +2837,9 @@ where
         size: usize,
         step: usize,
     ) -> Tensor<D2, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Unfold");
         check!(TensorCheck::unfold::<D, D2>(
-            "unfold",
+            "Unfold",
             &self.shape(),
             dim,
             size,
@@ -3033,7 +3031,7 @@ impl<I: AsIndex> MovedimArgs for Vec<I> {
     fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
         let set = self
             .into_iter()
-            .map(|dim| unwrap_dim_index(dim.try_dim_index(D)))
+            .map(|dim| unwrap_dim_index(dim.try_dim_index(D), "Movedim"))
             .collect::<Vec<usize>>();
         check!(TensorCheck::movedim_args_vec::<D>(&set));
 
@@ -3046,7 +3044,7 @@ macro_rules! impl_movedim_args {
         $(
             impl MovedimArgs for $ty {
                 fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
-                    vec![unwrap_dim_index(self.try_dim_index(D))]
+                    vec![unwrap_dim_index(self.try_dim_index(D), "Movedim")]
                 }
             }
         )*

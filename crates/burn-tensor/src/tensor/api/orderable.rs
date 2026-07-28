@@ -40,8 +40,7 @@ where
     /// }
     /// ```
     pub fn sort<I: AsIndex>(self, dim: I) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::sort_dim::<D>("Sort", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sort");
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ false))
     }
 
@@ -75,8 +74,7 @@ where
     /// }
     /// ```
     pub fn sort_descending<I: AsIndex>(self, dim: I) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::sort_dim::<D>("Sort", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sort Descending");
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ true))
     }
 
@@ -110,8 +108,7 @@ where
     /// }
     /// ```
     pub fn sort_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sort With Indices");
         let (values, indices) =
             K::sort_with_indices(self.primitive, dim, /*descending*/ false);
         (Tensor::new(values), Tensor::new(indices))
@@ -143,8 +140,7 @@ where
     /// }
     /// ```
     pub fn sort_descending_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sort Descending With Indices");
         let (values, indices) = K::sort_with_indices(self.primitive, dim, /*descending*/ true);
         (Tensor::new(values), Tensor::new(indices))
     }
@@ -172,8 +168,7 @@ where
     /// }
     /// ```
     pub fn argsort<I: AsIndex>(self, dim: I) -> Tensor<D, Int> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argsort");
         Tensor::new(K::argsort(self.primitive, dim, /*descending*/ false))
     }
 
@@ -203,8 +198,7 @@ where
     /// }
     /// ```
     pub fn argsort_descending<I: AsIndex>(self, dim: I) -> Tensor<D, Int> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argsort Descending");
         Tensor::new(K::argsort(self.primitive, dim, /*descending*/ true))
     }
 
@@ -237,7 +231,7 @@ where
     /// }
     /// ```
     pub fn topk<I: AsIndex>(self, k: usize, dim: I) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Top K");
         assert!(self.shape()[dim] > k);
         Tensor::new(K::topk(self.primitive, dim, k))
     }
@@ -272,7 +266,7 @@ where
     /// }
     /// ```
     pub fn topk_with_indices<I: AsIndex>(self, k: usize, dim: I) -> (Self, Tensor<D, Int>) {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Top K With Indices");
         let (values, indices) = K::topk_with_indices(self.primitive, dim, k);
         (Tensor::new(values), Tensor::new(indices))
     }
@@ -334,7 +328,7 @@ where
         axis: impl AsIndex,
     ) -> Tensor<D2, K> {
         check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
-        let axis = unwrap_dim_index(axis.try_dim_index(D + 1));
+        let axis = unwrap_dim_index(axis.try_dim_index(D + 1), "One Hot");
 
         // Initialize shape from the current tensor dimensions and prepare for modification
         let mut shape = self.shape();
@@ -605,7 +599,7 @@ where
     /// }
     /// ```
     pub fn argmax(self, dim: impl AsIndex) -> Tensor<D, Int> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argmax");
         Tensor::new(K::argmax(self.primitive, dim))
     }
 
@@ -630,7 +624,7 @@ where
     /// }
     /// ```
     pub fn argtopk(self, k: usize, dim: impl AsIndex) -> Tensor<D, Int> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argtopk");
         assert!(self.shape()[dim] > k);
         Tensor::new(K::argtopk(self.primitive, dim, k))
     }
@@ -674,8 +668,7 @@ where
     /// }
     /// ```
     pub fn max_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Dim With Indices");
 
         let (tensor, index) = K::max_dim_with_indices(self.primitive, dim);
 
@@ -760,8 +753,7 @@ where
     /// }
     /// ```
     pub fn max_abs_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::aggregate_dim::<D>("MaxAbs", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Abs Dim");
 
         Tensor::new(K::max_abs_dim(self.primitive, dim))
     }
@@ -817,7 +809,7 @@ where
     /// }
     /// ```
     pub fn argmin(self, dim: impl AsIndex) -> Tensor<D, Int> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argmin");
         Tensor::new(K::argmin(self.primitive, dim))
     }
 
@@ -866,8 +858,7 @@ where
     /// }
     /// ```
     pub fn min_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Min Dim");
         Tensor::new(K::min_dim(self.primitive, dim))
     }
 
@@ -920,8 +911,7 @@ where
     /// }
     /// ```
     pub fn min_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Min Dim With Indices");
 
         let (tensor, index) = K::min_dim_with_indices(self.primitive, dim);
 
@@ -1085,8 +1075,7 @@ where
     /// }
     /// ```
     pub fn cummin<I: AsIndex>(self, dim: I) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::aggregate_dim::<D>("CumMin", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cummin");
         Self::new(K::cummin(self.primitive, dim))
     }
 
@@ -1114,8 +1103,7 @@ where
     /// }
     /// ```
     pub fn cummax<I: AsIndex>(self, dim: I) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::aggregate_dim::<D>("CumMax", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cummax");
         Self::new(K::cummax(self.primitive, dim))
     }
     /// Find the maximum value along the given dimension.
@@ -1144,8 +1132,7 @@ where
     /// }
     /// ```
     pub fn max_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Dim");
         Tensor::new(K::max_dim(self.primitive, dim))
     }
 

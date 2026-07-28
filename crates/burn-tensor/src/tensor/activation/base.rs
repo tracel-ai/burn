@@ -186,7 +186,7 @@ $$
 /// # Panics
 /// - If `dim` is outside [-D, D)
 pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Softmax");
     Tensor::new(softmax_impl(tensor.primitive, dim))
 }
 
@@ -209,7 +209,7 @@ $$
 /// # Panics
 /// - If `dim` is outside [-D, D)
 pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Softmin");
     Tensor::new(softmin_impl(tensor.primitive, dim))
 }
 
@@ -258,7 +258,7 @@ $$
 /// # Panics
 /// - If `dim` is outside [-D, D)
 pub fn quiet_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Quiet Softmax");
     let max_vals = tensor.clone().detach().max_dim(dim);
     let exp_x = (tensor - max_vals.clone()).exp();
     let sum_exp = exp_x.clone().sum_dim(dim);
@@ -290,7 +290,7 @@ $$
 /// # Panics
 /// - If `dim` is outside [-D, D)
 pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Log Softmax");
     Tensor::new(log_softmax_impl(tensor.primitive, dim))
 }
 
@@ -546,7 +546,7 @@ pub fn threshold<const D: usize>(tensor: Tensor<D>, threshold: f64, value: f64) 
 /// ### Returns
 /// * A tensor with the same shape as the input, except the size along `dim` is halved.
 pub fn glu<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "GLU");
     assert!(
         tensor.dims()[dim].is_multiple_of(2),
         "Input tensor along dimension {dim} must have an even size. N is divisible by 2."
