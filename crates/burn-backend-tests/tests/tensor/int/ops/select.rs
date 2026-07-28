@@ -40,6 +40,20 @@ fn should_select_assign_2d_dim0_int() {
     output.into_data().assert_eq(&expected, false);
 }
 
+#[cfg(feature = "ndarray")]
+#[test]
+fn should_select_assign_2d_dim1_int() {
+    let device = Default::default();
+    let tensor = TestTensorInt::<2>::from_data([[10, 20, 30], [40, 50, 60]], &device);
+    let values = TestTensorInt::from_data([[7, 8], [9, 10]], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([2, 0]), &device);
+
+    let output = tensor.select_assign(1, indices, values, IndexingUpdateOp::Assign);
+    let expected = TensorData::from([[8, 20, 7], [10, 50, 9]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
 #[test]
 #[should_panic]
 fn should_panic_select_add_invalid_num_indices() {

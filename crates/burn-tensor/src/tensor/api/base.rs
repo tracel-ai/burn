@@ -1679,26 +1679,46 @@ where
     }
 
     /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// from the value tensor to the original tensor using sum reduction.
+    /// from the value tensor to the original tensor using the requested update operation.
     ///
     /// # Note
-    /// For booleans, the sum operator is logical or.
+    /// - `IndexingUpdateOp::Add` accumulates values at the selected positions (`+=`). For
+    ///   booleans, `Add` is logical or.
+    /// - `IndexingUpdateOp::Assign` replaces values at the selected positions (`=`), when
+    ///   supported by the backend.
+    ///
+    /// When `indices` contains duplicate entries, behavior varies by operation:
+    /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
+    ///   backends.
+    /// - For `Assign`, duplicate indices result in undefined behavior for both the forward result
+    ///   and the backward gradients.
+    ///
+    /// For deterministic results and correct gradient calculation across all operations,
+    /// `indices` should contain unique entries.
     ///
     /// # Arguments
     ///
     /// * `dim` - The dimension along which to select. Supports negative indexing.
     /// * `indices` - The indices to select from the tensor.
     /// * `values` - The values to assign to the selected indices.
-    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
+    /// * `update` - The operation used to update the existing values at the indexed positions.
     ///
     /// # Example
     ///
     /// Example using a 3D tensor:
     ///
+    /// With `IndexingUpdateOp::Add`:
+    ///
     /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
     /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
-    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = -1 (same as dim = 2)`
+    ///
+    /// With `IndexingUpdateOp::Assign`, when supported by the backend, the same indexed locations
+    /// are replaced instead:
+    ///
+    /// `input[indices[i], j, k] = values[i, j, k]; // dim = 0`
+    /// `input[i, indices[j], k] = values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[k]] = values[i, j, k]; // dim = 2`
     ///
     /// # Warning
     ///
@@ -1883,24 +1903,42 @@ where
     }
 
     /// Assign the gathered elements corresponding to the given indices along the specified dimension
-    /// from the value tensor to the original tensor using sum reduction.
+    /// from the value tensor to the original tensor using the requested update operation.
     ///
     /// Example using a 3D tensor:
+    ///
+    /// With `IndexingUpdateOp::Add`:
     ///
     /// `input[indices[i, j, k], j, k] += values[i, j, k]; // dim = 0`
     /// `input[i, indices[i, j, k], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[i, j, k]] += values[i, j, k]; // dim = 2`
     ///
+    /// With `IndexingUpdateOp::Assign`, when supported by the backend, the same indexed locations
+    /// are replaced instead:
+    ///
+    /// `input[indices[i, j, k], j, k] = values[i, j, k]; // dim = 0`
+    /// `input[i, indices[i, j, k], k] = values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[i, j, k]] = values[i, j, k]; // dim = 2`
+    ///
     /// # Arguments
     /// * `dim` - The axis along which to scatter elements. Supports negative indexing.
     /// * `indices` - The indices of the elements to scatter.
     /// * `values` - The values to scatter into the tensor.
-    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
+    /// * `update` - The operation used to update the existing values at the indexed positions.
     ///
     /// # Notes
     ///
     /// The index tensor should have the same shape as the original tensor except for the specified
     /// dimension. The value and index tensors should have the same shape.
+    ///
+    /// When `indices` contains duplicate entries, behavior varies by operation:
+    /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
+    ///   backends.
+    /// - For `Assign`, duplicate indices result in undefined behavior for both the forward result
+    ///   and the backward gradients.
+    ///
+    /// For deterministic results and correct gradient calculation across all operations,
+    /// `indices` should contain unique entries.
     ///
     /// Other references to the input tensor will not be modified by this operation.
     ///
