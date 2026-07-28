@@ -1633,10 +1633,10 @@ where
     ///         .assert_eq(&TensorData::from([2.0, 5.0]), false);
     /// }
     /// ```
-    pub fn select_dim<const D2: usize, Dim: AsIndex, Idx: AsIndex>(
+    pub fn select_dim<const D2: usize>(
         self,
-        dim: Dim,
-        index: Idx,
+        dim: impl AsIndex,
+        index: impl AsIndex,
     ) -> Tensor<D2, K> {
         let index = index.as_index();
         self.slice_dim(dim, index).squeeze_dim(dim)
