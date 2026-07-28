@@ -94,6 +94,19 @@ impl<const D: usize, K> Tensor<D, K>
 where
     K: Basic,
 {
+    /// Takes ownership of the tensor out of `self`, leaving an empty
+    /// zero-shape placeholder tensor in its place.
+    ///
+    /// This is analogous to [`Option::take`] / [`core::mem::take`]: it lets you
+    /// obtain an owned `Tensor` from behind a `&mut Tensor` so you can call
+    /// owned operations on it.
+    #[allow(unused_must_use)]
+    pub fn extract(&mut self) -> Self {
+        let mut z = Tensor::empty([0; D], &self.device());
+        core::mem::swap(self, &mut z);
+        z
+    }
+
     /// Executes an operation on the tensor and modifies its value.
     ///
     /// # Notes
@@ -105,11 +118,8 @@ where
     /// want to mutate a tensor by using owned operations. A plausible usage would be to
     /// update the weights of a mutable model reference.
     pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
-        let mut tensor_owned = Tensor::empty([0; D], &self.device());
-        core::mem::swap(&mut tensor_owned, self);
-
-        let mut tensor_new = func(tensor_owned);
-        core::mem::swap(&mut tensor_new, self);
+        let mut z = func(self.extract());
+        core::mem::swap(self, &mut z);
     }
 
     /// Returns the number of dimensions of the tensor.
