@@ -192,7 +192,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 |------------------------------------------------------|---------------------------------------------------------------------------|
 | `Tensor::cat(tensors, dim)`                          | `torch.cat(tensors, dim)`                                                 |
 | `Tensor::empty(shape, options)`                      | `torch.empty(shape, device=device, dtype=dtype)`                          |
-| `tensor::empty_like()`                               | `torch.empty_like()`                                                      |
+| `tensor::empty_like()`                               | `tensor.empty_like(tensor)`                                               |
 | `Tensor::from_primitive(primitive)`                  | N/A                                                                       |
 | `Tensor::stack(tensors, dim)`                        | `torch.stack(tensors, dim)`                                               |
 | `tensor.all()`                                       | `tensor.all()`                                                            |
