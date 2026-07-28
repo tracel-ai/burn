@@ -1600,6 +1600,48 @@ where
         self.slice(&slices)
     }
 
+    /// Returns a new tensor selecting a dimension index, and then squeezing that dim.
+    ///
+    /// This is defined as equivalent to `t.slice_dim(dim, index).squeeze_dim::<D2>(dim)`
+    ///
+    /// # Arguments
+    /// * `dim`: The dimension to slice. Supports negative indexing.
+    /// * `index`: the dimension index. Supports negative indexing.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::{Tensor, s};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<2>::from_data(
+    ///         [
+    ///             [1.0, 2.0, 3.0],
+    ///             [4.0, 5.0, 6.0],
+    ///         ],
+    ///         &device,
+    ///     );
+    ///
+    ///     let row1 : Tensor<1> = tensor.clone().select_dim(0, 1);
+    ///     row1
+    ///         .to_data()
+    ///         .assert_eq(&TensorData::from([4.0, 5.0, 6.0]), false);
+    ///
+    ///     let col1 : Tensor<1> = tensor.clone().select_dim(1, 1);
+    ///     col1
+    ///         .to_data()
+    ///         .assert_eq(&TensorData::from([2.0, 5.0]), false);
+    /// }
+    /// ```
+    pub fn select_dim<const D2: usize, Dim: AsIndex, Idx: AsIndex>(
+        self,
+        dim: Dim,
+        index: Idx,
+    ) -> Tensor<D2, K> {
+        let index = index.as_index();
+        self.slice_dim(dim, index).squeeze_dim(dim)
+    }
+
     /// Returns the device of the current tensor.
     pub fn device(&self) -> Device {
         K::device(&self.primitive)
