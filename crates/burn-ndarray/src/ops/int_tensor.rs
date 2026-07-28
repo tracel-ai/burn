@@ -279,6 +279,28 @@ impl IntTensorOps<Self> for NdArray {
         })
     }
 
+    fn int_scatter(
+        dim: usize,
+        tensor: NdArrayTensor,
+        indices: NdArrayTensor,
+        value: NdArrayTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> NdArrayTensor {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::int_scatter_add(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter_assign(
+                        dim, tensor, idx_array, value
+                    ))
+                })
+            }
+            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn int_scatter_nd(
         data: NdArrayTensor,
         indices: NdArrayTensor,
@@ -317,6 +339,28 @@ impl IntTensorOps<Self> for NdArray {
                 tensor, dim, idx_array, value
             ))
         })
+    }
+
+    fn int_select_assign(
+        tensor: NdArrayTensor,
+        dim: usize,
+        indices: NdArrayTensor,
+        value: NdArrayTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> NdArrayTensor {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::int_select_add(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| {
+                        NdArrayMathOps::<I>::select_assign_replace(tensor, dim, idx_array, value)
+                    })
+                })
+            }
+            other => unimplemented!("int_select_assign with {other:?} update is not implemented"),
+        }
     }
     fn int_argmax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
         // Use view() for zero-copy on borrowed storage

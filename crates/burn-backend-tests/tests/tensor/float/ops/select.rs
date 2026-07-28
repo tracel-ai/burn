@@ -80,6 +80,20 @@ fn should_select_add_1d() {
     output.into_data().assert_eq(&expected, false);
 }
 
+#[cfg(feature = "ndarray")]
+#[test]
+fn should_select_assign_2d_dim0() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], &device);
+    let values = TestTensor::from_data([[5.0, 70.0], [80.0, 1.0]], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([2, 0]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Assign);
+    let expected = TensorData::from([[80.0, 1.0], [30.0, 40.0], [5.0, 70.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
 #[test]
 fn should_select_add_1d_int() {
     let device = Default::default();

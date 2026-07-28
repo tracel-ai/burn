@@ -67,3 +67,18 @@ fn should_scatter_add_1d_int() {
         .into_data()
         .assert_eq(&TensorData::from([4, 5, 3]), false);
 }
+
+#[cfg(feature = "ndarray")]
+#[test]
+fn should_scatter_assign_1d_int() {
+    let device = Default::default();
+    let tensor = TestTensorInt::<1>::from_ints([10, 20, 30, 40], &device);
+    let values = TestTensorInt::from_ints([7, 50], &device);
+    let indices = TestTensorInt::from_ints([1, 3], &device);
+
+    let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Assign);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([10, 7, 30, 50]), false);
+}

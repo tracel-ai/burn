@@ -1704,6 +1704,9 @@ where
     ///
     /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    ///
+    /// # Panics
+    /// If the backend doesn't support the requested update operation.
     pub fn select_assign(
         self,
         dim: impl AsIndex,
@@ -1906,7 +1909,7 @@ where
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     ///
     /// # Panics
-    /// If the `update` is not `IndexingUpdateOp::Add`. Other operations are currently not implemented.
+    /// If the backend doesn't support the requested update operation.
     pub fn scatter(
         self,
         dim: impl AsIndex,

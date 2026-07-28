@@ -146,15 +146,13 @@ impl BasicOps for Float {
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
         // Select assign is ambiguous for QFloat
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::float(Dispatch::float_select_add(
-                tensor.into_float(),
-                dim,
-                indices.into(),
-                values.into_float(),
-            )),
-            other => unimplemented!("Unsupported update op {other:?}"),
-        }
+        BridgeTensor::float(Dispatch::float_select_assign(
+            tensor.into_float(),
+            dim,
+            indices.into(),
+            values.into_float(),
+            update,
+        ))
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
@@ -193,15 +191,13 @@ impl BasicOps for Float {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::float(Dispatch::float_scatter_add(
-                dim,
-                tensor.into_float(),
-                indices.into(),
-                values.into_float(),
-            )),
-            other => unimplemented!("Unsupported update op {other:?}"),
-        }
+        BridgeTensor::float(Dispatch::float_scatter(
+            dim,
+            tensor.into_float(),
+            indices.into(),
+            values.into_float(),
+            update,
+        ))
     }
 
     fn scatter_nd(
