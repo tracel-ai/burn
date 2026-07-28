@@ -114,4 +114,50 @@ macro_rules! binary_int_ops {
             }
         }
     };
+    (
+        $name:ident,
+        $ops:expr,
+        bitcast
+    ) => {
+        #[derive(new, Debug)]
+        struct $name<B: FusionBackend> {
+            desc: BinaryOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend + BitwiseIntTensorOps<B>> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_int_tensor::<B>(&self.desc.rhs);
+                let output = $ops(lhs, rhs);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! binary_bitcast_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new, Debug)]
+        struct $name<B: FusionBackend> {
+            desc: BinaryOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend + BitwiseIntTensorOps<B>> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_int_tensor::<B>(&self.desc.rhs);
+                let output = $ops(lhs, rhs);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
 }

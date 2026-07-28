@@ -21,7 +21,7 @@ pub struct FlexTensor {
     /// Layout describing shape, strides, and offset.
     layout: Layout,
     /// Runtime data type.
-    dtype: DType,
+    pub(crate) dtype: DType,
 }
 
 impl fmt::Debug for FlexTensor {

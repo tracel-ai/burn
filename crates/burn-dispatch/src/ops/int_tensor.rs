@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
-    ops::IntTensorOps,
-    tensor::{BoolTensor, FloatTensor, IntTensor},
+    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData, ops::{BitwiseIntTensorOps, IntTensorOps}, tensor::{BoolTensor, FloatTensor, IntTensor},
 };
 
 use crate::{Dispatch, DispatchDevice};
@@ -333,49 +331,7 @@ impl IntTensorOps<Self> for Dispatch {
         unary_op!(tensor, int, |tensor| B::int_expand(tensor, shape) => Int)
     }
 
-    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_and(lhs, rhs) => Int)
-    }
-
-    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::bitwise_and_scalar(lhs, rhs) => Int)
-    }
-
-    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_or(lhs, rhs) => Int)
-    }
-
-    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::bitwise_or_scalar(lhs, rhs) => Int)
-    }
-
-    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_xor(lhs, rhs) => Int)
-    }
-
-    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::bitwise_xor_scalar(lhs, rhs) => Int)
-    }
-
-    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        unary_op!(tensor, int, |tensor| B::bitwise_not(tensor) => Int)
-    }
-
-    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_left_shift(lhs, rhs) => Int)
-    }
-
-    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::bitwise_left_shift_scalar(lhs, rhs) => Int)
-    }
-
-    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_right_shift(lhs, rhs) => Int)
-    }
-
-    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::bitwise_right_shift_scalar(lhs, rhs) => Int)
-    }
+    
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
         unary_op!(tensor, int, |tensor| B::int_cast(tensor, dtype) => Int)
@@ -568,5 +524,53 @@ impl IntTensorOps<Self> for Dispatch {
 
     fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         unary_op!(tensor, int, |tensor| B::int_argsort(tensor, dim, descending) => Int)
+    }
+}
+
+pub struct DispatchBitCaster;
+
+impl BitwiseIntTensorOps<Self> for Dispatch {
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_and(lhs, rhs) => Int)
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::bitwise_and_scalar(lhs, rhs) => Int)
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_or(lhs, rhs) => Int)
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::bitwise_or_scalar(lhs, rhs) => Int)
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_xor(lhs, rhs) => Int)
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::bitwise_xor_scalar(lhs, rhs) => Int)
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::bitwise_not(tensor) => Int)
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_left_shift(lhs, rhs) => Int)
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::bitwise_left_shift_scalar(lhs, rhs) => Int)
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::bitwise_right_shift(lhs, rhs) => Int)
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::bitwise_right_shift_scalar(lhs, rhs) => Int)
     }
 }
