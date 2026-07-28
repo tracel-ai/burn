@@ -164,6 +164,25 @@ where
         Self::new(K::empty(shape, &opt.device, dtype))
     }
 
+    /// Create an empty tensor with the same shape, dtype, and device as the current tensor.
+    ///
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    // Create a zeroed tensor with dimensions [2, 3, 4].
+    ///    let tensor = Tensor::<3>::zeros([2, 3, 4], &device);
+    ///    // Create an empty tensor with dimensions [2, 3, 4].
+    ///    let tensor = tensor.empty_like();
+    /// }
+    /// ```
+    pub fn empty_like(&self) -> Self {
+        Self::new(K::empty(self.shape(), &self.device(), self.dtype()))
+    }
+
     /// Create a tensor of the given shape where each element is zero.
     ///
     /// # Example
