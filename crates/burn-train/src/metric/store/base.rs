@@ -20,9 +20,9 @@ pub struct NumericMetricUpdate {
     /// Generic metric information.
     pub entry: MetricEntry,
     /// The numeric information.
-    pub numeric_entry: NumericEntry,
+    pub numeric_entry: Option<NumericEntry>,
     /// Numeric value averaged over the global step (epoch).
-    pub running_entry: NumericEntry,
+    pub running_entry: Option<NumericEntry>,
 }
 
 /// Contains all metric information.
