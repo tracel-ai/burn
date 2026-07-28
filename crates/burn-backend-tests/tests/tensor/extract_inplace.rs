@@ -3,7 +3,7 @@ mod float {
     use burn_tensor::{Tensor, TensorData};
 
     #[test]
-    fn test_release_swap() {
+    fn test_extract_swap() {
         let mut tensor: Tensor<1> =
             TestTensor::<1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &Default::default());
         assert_eq!(tensor.dims(), [4]);
@@ -34,7 +34,7 @@ mod int {
     use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
-    fn test_release_swap() {
+    fn test_extract_swap() {
         let mut tensor: Tensor<1, Int> =
             TestTensorInt::<1>::from_data(TensorData::from([0, 1, 2, 3]), &Default::default());
         assert_eq!(tensor.dims(), [4]);
@@ -65,7 +65,7 @@ mod bool {
     use burn_tensor::{Bool, Tensor, TensorData};
 
     #[test]
-    fn test_release_swap() {
+    fn test_extract_swap() {
         let mut tensor: Tensor<1, Bool> = TestTensorBool::<1>::from_data(
             TensorData::from([true, true, false, false]),
             &Default::default(),
