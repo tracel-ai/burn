@@ -5,7 +5,7 @@ use burn_backend::{
 use burn_std::{
     BoolStore, DeviceSettings,
     rand::{SeedableRng, StdRng},
-    stub::Mutex,
+    sync::Mutex,
 };
 use candle_core::{DeviceLocation, backend::BackendDevice};
 
@@ -25,12 +25,12 @@ pub struct Candle {}
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 pub(crate) fn get_seeded_rng() -> StdRng {
-    let mut seed = SEED.lock().unwrap();
+    let mut seed = SEED.lock();
     seed.take().unwrap_or_else(burn_std::rand::get_seeded_rng)
 }
 
 pub(crate) fn set_seeded_rng(rng_seeded: StdRng) {
-    let mut seed = SEED.lock().unwrap();
+    let mut seed = SEED.lock();
     *seed = Some(rng_seeded);
 }
 

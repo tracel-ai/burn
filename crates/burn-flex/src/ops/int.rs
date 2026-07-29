@@ -503,7 +503,7 @@ impl IntTensorOps<Flex> for Flex {
         _device: &Device<Flex>,
         dtype: IntDType,
     ) -> IntTensor<Flex> {
-        let mut seed = crate::backend::SEED.lock().unwrap();
+        let mut seed = crate::backend::SEED.lock();
         let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
         let data = match dtype {
             IntDType::I64 => TensorData::random::<i64, _, _>(shape, distribution, &mut rng),

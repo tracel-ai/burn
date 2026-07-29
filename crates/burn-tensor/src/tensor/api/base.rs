@@ -12,7 +12,7 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_std::ExecutionError;
-use burn_std::{SliceOps, stub::RwLock};
+use burn_std::{SliceOps, sync::RwLock};
 use core::iter::ExactSizeIterator;
 use core::iter::repeat;
 use core::marker::PhantomData;
@@ -3017,7 +3017,7 @@ impl Default for PrintOptions {
 
 /// Set print options
 pub fn set_print_options(options: PrintOptions) {
-    let mut print_opts = PRINT_OPTS.write().unwrap();
+    let mut print_opts = PRINT_OPTS.write();
     *print_opts = options;
 }
 
@@ -3361,7 +3361,7 @@ fn display_fmt_impl(
 ) -> core::fmt::Result {
     writeln!(f, "Tensor {{")?;
     {
-        let mut po = { PRINT_OPTS.read().unwrap().clone() };
+        let mut po = { PRINT_OPTS.read().clone() };
         if let Some(precision) = f.precision() {
             po.precision = Some(precision);
         }

@@ -13,7 +13,7 @@ use alloc::sync::Arc;
 #[cfg(not(target_has_atomic = "ptr"))]
 use portable_atomic_util::Arc;
 
-use burn_std::stub::Mutex;
+use burn_std::sync::Mutex;
 use burn_tensor::{Device, Tensor};
 
 #[cfg(feature = "std")]
@@ -29,7 +29,7 @@ mod threading {
 
 #[cfg(not(feature = "std"))]
 mod threading {
-    pub(super) use burn_std::stub::ThreadId;
+    pub(super) use burn_std::sync::ThreadId;
     pub(super) use hashbrown::HashMap;
 
     #[inline(always)]
@@ -73,13 +73,13 @@ impl<V> ModuleDisplay for RunningState<V> {}
 
 impl<const D: usize> Module for RunningState<Tensor<D>> {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
-        let tensor = self.value.lock().unwrap();
+        let tensor = self.value.lock();
         let param = Param::initialized(self.id, tensor.clone());
         visitor.visit_float(&param)
     }
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
-        let mut tensor = self.value.lock().unwrap();
+        let mut tensor = self.value.lock();
         let param = Param::initialized(self.id, tensor.clone());
         let param_out = mapper.map_float(param);
         let (_, tensor_out, _) = param_out.consume();
@@ -91,7 +91,7 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
     }
 
     fn to_device(self, device: &Device) -> Self {
-        let mut tensor = self.value.lock().unwrap();
+        let mut tensor = self.value.lock();
         let tensor_out = tensor.clone().to_device(device);
 
         *tensor = tensor_out;
@@ -105,7 +105,7 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
     }
 
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
-        let device = self.value.lock().unwrap().device();
+        let device = self.value.lock().device();
 
         if !devices.contains(&device) {
             devices.push(device)
@@ -147,7 +147,7 @@ impl<const D: usize> RunningState<Tensor<D>> {
     /// Update the value on the current thread.
     pub fn update(&self, value: Tensor<D>) {
         let thread_id = get_thread_current_id();
-        let mut map = self.values.lock().unwrap();
+        let mut map = self.values.lock();
 
         if map.contains_key(&thread_id) {
             self.update_value(&mut map);
@@ -162,7 +162,7 @@ impl<const D: usize> RunningState<Tensor<D>> {
     ///
     /// The current value might be outdated by one update.
     pub fn value(&self) -> Tensor<D> {
-        let value = self.value.lock().unwrap();
+        let value = self.value.lock();
         value.clone()
     }
 
@@ -174,18 +174,18 @@ impl<const D: usize> RunningState<Tensor<D>> {
     /// register their update before the actual synchronization needs to happen.
     pub fn value_sync(&self) -> Tensor<D> {
         let thread_id = get_thread_current_id();
-        let mut map = self.values.lock().unwrap();
+        let mut map = self.values.lock();
 
         if map.contains_key(&thread_id) {
             self.update_value(&mut map);
         }
 
-        let value = self.value.lock().unwrap();
+        let value = self.value.lock();
         value.clone()
     }
 
     fn sync(&self) {
-        let mut map = self.values.lock().unwrap();
+        let mut map = self.values.lock();
 
         if !map.is_empty() {
             self.update_value(&mut map);
@@ -210,7 +210,7 @@ impl<const D: usize> RunningState<Tensor<D>> {
 
         if let Some(value) = value_updated {
             let value = value.div_scalar(counter);
-            let mut value_old = self.value.lock().unwrap();
+            let mut value_old = self.value.lock();
             *value_old = value;
         }
     }

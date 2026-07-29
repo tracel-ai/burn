@@ -9,6 +9,6 @@ mod base;
 mod logger;
 
 pub use base::*;
-pub use cubecl_common::config::RuntimeConfig;
-pub use cubecl_common::config::logger::{LogCrateLevel, LogLevel, LoggerConfig, LoggerSinks};
+pub use cubecl_environment::config::RuntimeConfig;
+pub use cubecl_environment::config::logger::{LogCrateLevel, LogLevel, LoggerConfig, LoggerSinks};
 pub use logger::*;
