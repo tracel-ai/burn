@@ -42,7 +42,7 @@ impl QTensorOps<Flex> for Flex {
         // Use native storage since we've unpacked to i8
         let scheme = scheme.with_store(QuantStore::Native);
 
-        FlexQTensor::new(tensor, scheme, qparams.scales)
+        FlexQTensor::new(tensor, scheme, qparams.block)
     }
 
     fn quantize_dynamic(tensor: FloatTensor<Flex>, scheme: &QuantScheme) -> QuantizedTensor<Flex> {
@@ -54,7 +54,7 @@ impl QTensorOps<Flex> for Flex {
 
         let (quantized, scales) = match scheme.level {
             QuantLevel::BlockTensor { .. } => {
-                unimplemented!("two-level quantization is not supported yet")
+                unimplemented!("two-level quantization is not supported on flex yet")
             }
             QuantLevel::Tensor => {
                 // Pass 1: find alpha = max(|min|, |max|)
@@ -143,7 +143,7 @@ impl QTensorOps<Flex> for Flex {
 
         let quantized = match scheme.level {
             QuantLevel::BlockTensor { .. } => {
-                unimplemented!("two-level quantization is not supported yet")
+                unimplemented!("two-level quantization is not supported on flex yet")
             }
             QuantLevel::Tensor => {
                 let inv_scale = 1.0 / scales[0];
@@ -185,7 +185,7 @@ impl QTensorOps<Flex> for Flex {
 
         let dequantized = match tensor.scheme.level {
             QuantLevel::BlockTensor { .. } => {
-                unimplemented!("two-level quantization is not supported yet")
+                unimplemented!("two-level quantization is not supported on flex yet")
             }
             QuantLevel::Tensor => {
                 let scale = tensor.scales[0];
@@ -243,6 +243,7 @@ impl QTensorOps<Flex> for Flex {
             shape.to_vec(),
             scheme,
             &tensor.scales,
+            None,
         ))
     }
 
@@ -273,7 +274,7 @@ impl QTensorOps<Flex> for Flex {
     ) -> QuantizedTensor<Flex> {
         match tensor.scheme.level {
             QuantLevel::BlockTensor { .. } => {
-                unimplemented!("two-level quantization is not supported yet")
+                unimplemented!("two-level quantization is not supported on flex yet")
             }
             QuantLevel::Tensor => FlexQTensor::new(
                 crate::ops::gather_scatter::select::<i8>(tensor.tensor, dim, indices),
@@ -326,7 +327,7 @@ impl QTensorOps<Flex> for Flex {
     ) -> QuantizedTensor<Flex> {
         match tensor.scheme.level {
             QuantLevel::BlockTensor { .. } => {
-                unimplemented!("two-level quantization is not supported yet")
+                unimplemented!("two-level quantization is not supported on flex yet")
             }
             QuantLevel::Tensor => FlexQTensor::new(
                 crate::ops::gather_scatter::gather::<i8>(tensor.tensor, dim, indices),
@@ -352,7 +353,7 @@ fn block_safe_layout_op(
 ) -> FlexQTensor {
     match qtensor.scheme.level {
         QuantLevel::BlockTensor { .. } => {
-            unimplemented!("two-level quantization is not supported yet")
+            unimplemented!("two-level quantization is not supported on flex yet")
         }
         QuantLevel::Tensor => FlexQTensor::new(op(qtensor.tensor), qtensor.scheme, qtensor.scales),
         QuantLevel::Block(_) => {
@@ -469,7 +470,7 @@ mod tests {
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native);
 
-        let data = TensorData::quantized(values.clone(), [2, 3], scheme, &[scale]);
+        let data = TensorData::quantized(values.clone(), [2, 3], scheme, &[scale], None);
 
         // Load into FlexQTensor
         let qtensor = Flex::q_from_data(data, &Default::default());

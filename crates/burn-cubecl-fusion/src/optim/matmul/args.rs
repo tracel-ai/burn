@@ -295,7 +295,7 @@ fn global_view<E: CubePrimitive>(
         MatmulArg::Quantized { scales, scheme, .. } => {
             let scales_layout = match comptime![scheme.level] {
                 QuantLevel::BlockTensor { .. } => {
-                    unimplemented!("two-level quantization is not supported yet")
+                    unimplemented!("two-level quantization is not supported in fused matmul yet")
                 }
                 QuantLevel::Tensor => GlobalScaleLayout::new_PerTensor(shape),
                 QuantLevel::Block(block_size) => {

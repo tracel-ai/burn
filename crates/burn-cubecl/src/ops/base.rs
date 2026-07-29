@@ -275,7 +275,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
         match tensor.scheme().level {
             QuantLevel::BlockTensor { .. } => todo!(),
             QuantLevel::Tensor => {}
-            QuantLevel::Block(_) => todo!(),
+            QuantLevel::Block(_) | QuantLevel::BlockTensor { .. } => todo!(),
         }
     }
 
@@ -399,7 +399,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
 
     let shape_scales = match scheme.level {
         QuantLevel::BlockTensor { .. } => {
-            unimplemented!("two-level quantization is not supported yet")
+            unimplemented!("two-level quantization is not supported on cubecl backends yet")
         }
         QuantLevel::Tensor => scales.meta.shape().clone(), // always [1], invariant under reshape
         QuantLevel::Block(block_size)

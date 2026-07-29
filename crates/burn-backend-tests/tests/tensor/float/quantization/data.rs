@@ -15,6 +15,7 @@ fn should_support_per_tensor_symmetric_int8() {
             .scheme
             .with_value(QuantValue::Q8S),
         &[0.014_173_228],
+        None,
     );
     let tensor = TestTensor::<1>::from_data(data.clone(), &device);
 
@@ -41,6 +42,7 @@ fn should_support_per_block_symmetric_int8() {
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::block([8])),
         &[0.014_173_228, 0.000_314_96],
+        None,
     );
     let tensor = TestTensor::<1>::from_data(data.clone(), &device);
 

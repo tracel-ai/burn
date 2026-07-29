@@ -67,6 +67,14 @@ fn new_quantized<R: CubeRuntime>(
     data: Option<Bytes>,
     alloc_kind: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
+    // This allocates one values buffer and one scales buffer. A two-level scheme needs a third
+    // for the per-tensor scale, so serving one here would quietly under-allocate.
+    assert!(
+        scheme.level.global_param().is_none(),
+        "two-level quantization is not supported on cubecl backends yet, got {:?}",
+        scheme.level
+    );
+
     let client = R::client(device);
     let shape: Shape = shape.into();
     let mut shape_value: Shape = shape.clone();
@@ -158,6 +166,14 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
+                // Nothing on this path applies a per-tensor scale, so serving one would
+                // silently drop it.
+                QuantScheme {
+                    level: QuantLevel::BlockTensor { .. },
+                    ..
+                } => {
+                    unimplemented!("two-level quantization is not supported on cubecl backends yet")
+                }
                 QuantScheme {
                     level: QuantLevel::BlockTensor { .. },
                     ..

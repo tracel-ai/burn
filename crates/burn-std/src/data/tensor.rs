@@ -74,11 +74,12 @@ impl TensorData {
         shape: S,
         scheme: QuantScheme,
         qparams: &[f32],
+        global: Option<f32>,
     ) -> Self {
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
 
-        let q_bytes = QuantizedBytes::new(value, scheme, qparams);
+        let q_bytes = QuantizedBytes::new(value, scheme, qparams, global);
 
         Self {
             bytes: q_bytes.bytes,
@@ -297,7 +298,7 @@ impl TensorData {
                 ),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
+                        level: QuantLevel::Tensor | QuantLevel::Block(_) | QuantLevel::BlockTensor { .. },
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::Q8F
@@ -326,7 +327,7 @@ impl TensorData {
                         )
                     }
                     QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
+                        level: QuantLevel::Tensor | QuantLevel::Block(_) | QuantLevel::BlockTensor { .. },
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
@@ -747,7 +748,7 @@ impl core::fmt::Display for TensorData {
             DType::Bool(BoolStore::U32) => format!("{:?}", self.as_slice::<u32>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::Tensor | QuantLevel::Block(_),
+                    level: QuantLevel::Tensor | QuantLevel::Block(_) | QuantLevel::BlockTensor { .. },
                     mode: QuantMode::Symmetric,
                     value:
                         QuantValue::Q8F
@@ -762,7 +763,7 @@ impl core::fmt::Display for TensorData {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 },
                 QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
+                        level: QuantLevel::Tensor | QuantLevel::Block(_) | QuantLevel::BlockTensor { .. },
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,

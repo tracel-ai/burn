@@ -713,6 +713,10 @@ impl NdArrayQTensor {
     pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
             QuantScheme {
+                level: QuantLevel::BlockTensor { .. },
+                ..
+            } => unimplemented!("two-level quantization is not supported on ndarray yet"),
+            QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 value:

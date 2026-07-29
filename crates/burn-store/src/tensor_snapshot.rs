@@ -263,8 +263,11 @@ impl TensorSnapshot {
 
                 let aligned_value_bytes = value_bytes.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
                 let scale_bytes = num_params * quant_param_size(scheme.param);
+                // A two-level scheme appends one more scale, at its own precision, after the
+                // block scales.
+                let global_bytes = scheme.level.global_param().map_or(0, quant_param_size);
 
-                aligned_value_bytes + scale_bytes
+                aligned_value_bytes + scale_bytes + global_bytes
             }
             _ => num_elements * self.dtype.size(),
         }
@@ -373,6 +376,35 @@ mod tests {
         let data = snapshot.to_data().unwrap();
         assert_eq!(data.shape, shape![2, 2]);
         assert_eq!(data.dtype, DType::Bool(BoolStore::Native));
+    }
+
+    /// `data_len` predicts the serialized size without materializing the tensor, so it has to
+    /// agree with what `TensorData::quantized` actually writes. A mismatch silently truncates or
+    /// over-reserves on save.
+    #[test]
+    fn data_len_matches_quantized_bytes() {
+        use burn_core::tensor::quantization::{
+            QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue,
+        };
+
+        let one_level = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .with_level(QuantLevel::block([4]))
+            .with_param(QuantParam::UE4M3);
+        let two_level = one_level.with_level(QuantLevel::block_tensor([4], QuantParam::F32));
+
+        for (scheme, global) in [(one_level, None), (two_level, Some(3.0f32))] {
+            let data = TensorData::quantized(vec![0i8; 8], [8], scheme, &[0.5, 0.125], global);
+            let snapshot = TensorSnapshot::from_data(data.clone(), vec![], vec![], ParamId::new());
+
+            assert_eq!(
+                snapshot.data_len(),
+                data.bytes.len(),
+                "predicted size disagrees with the written bytes for {:?}",
+                scheme.level
+            );
+        }
     }
 
     #[test]

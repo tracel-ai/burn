@@ -34,6 +34,10 @@ impl QTensorOps<Self> for NdArray {
 
                 match scheme {
                     QuantScheme {
+                        level: QuantLevel::BlockTensor { .. },
+                        ..
+                    } => unimplemented!("two-level quantization is not supported on ndarray yet"),
+                    QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value: QuantValue::Q8F | QuantValue::Q8S,
@@ -46,7 +50,7 @@ impl QTensorOps<Self> for NdArray {
                         let scheme = scheme.with_store(QuantStore::Native);
 
                         let qparams = qparams
-                            .scales
+                            .block
                             .into_iter()
                             .map(|scales| QParams { scales })
                             .collect();
@@ -124,7 +128,7 @@ impl QTensorOps<Self> for NdArray {
                 );
                 let values = strategy.quantize(data_f.as_slice().unwrap());
                 (
-                    TensorData::quantized(values, shape.clone(), *scheme, &[scales]),
+                    TensorData::quantized(values, shape.clone(), *scheme, &[scales], None),
                     vec![QParams { scales }],
                 )
             }
@@ -157,7 +161,7 @@ impl QTensorOps<Self> for NdArray {
                 let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, *block_size);
                 let values = strategy.quantize(data_f.as_slice().unwrap());
                 (
-                    TensorData::quantized(values, shape.clone(), *scheme, scales),
+                    TensorData::quantized(values, shape.clone(), *scheme, scales, None),
                     qparams,
                 )
             }
@@ -276,7 +280,7 @@ impl QTensorOps<Self> for NdArray {
             E,
             |array: SharedArray<E>| {
                 let values = array.into_iter().collect();
-                TensorData::quantized(values, shape, tensor.scheme, &scales)
+                TensorData::quantized(values, shape, tensor.scheme, &scales, None)
             }
         ))
     }
@@ -493,7 +497,7 @@ fn dequantize<Q: QuantElement>(
             quant.iter().map(|q| q.scale).collect()
         }
     };
-    let q_bytes = QuantizedBytes::new(data, scheme, &qparams);
+    let q_bytes = QuantizedBytes::new(data, scheme, &qparams, None);
     let (values, _qparams) = q_bytes.into_vec_i8();
     TensorData::new(strategy.dequantize(&values), shape).convert_dtype(dtype)
 }

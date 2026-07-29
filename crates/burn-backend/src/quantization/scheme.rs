@@ -13,7 +13,10 @@ pub fn compute_range<B: Backend>(
     match calibration {
         Calibration::MinMax => match scheme.level {
             QuantLevel::Tensor => (B::float_min(tensor.clone()), B::float_max(tensor)),
-            QuantLevel::Block(block_size) => {
+            QuantLevel::Block(block_size)
+            | QuantLevel::BlockTensor {
+                block: block_size, ..
+            } => {
                 let block_elems = block_size.num_elements();
                 let shape = tensor.shape();
                 let numel = shape.num_elements();
@@ -41,6 +44,10 @@ pub fn compute_range<B: Backend>(
         Calibration::AbsMean => {
             // gamma = mean(|W|) per tensor or block — symmetric range [-gamma, +gamma]
             let gamma = match scheme.level {
+                QuantLevel::BlockTensor { .. } => panic!(
+                    "AbsMean calibration has no two-level form: BitNet's gamma is a mean over \
+                     the whole tensor or block, which a per-tensor scale cannot decompose"
+                ),
                 QuantLevel::Tensor => B::float_mean(B::float_abs(tensor)),
                 QuantLevel::Block(block_size) => {
                     let block_elems = block_size.num_elements();
@@ -78,6 +85,12 @@ pub fn compute_q_params<B: Backend>(
     max: B::FloatTensorPrimitive,
 ) -> QuantizationParametersPrimitive<B> {
     match scheme {
+        // A two-level scheme needs the per-tensor scale computed first, then the block scales
+        // divided through by it, which this signature has nowhere to return.
+        QuantScheme {
+            level: QuantLevel::BlockTensor { .. },
+            ..
+        } => unimplemented!("two-level calibration is not implemented yet"),
         QuantScheme {
             level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
