@@ -35,7 +35,6 @@ multi-threads = [
 ]
 simd = ["macerator", "bytemuck", "seq-macro", "itertools"]
 std = [
-    "burn-autodiff",
     "burn-std/std",
     "burn-backend/std",
     "burn-ir/std",
@@ -47,7 +46,6 @@ std = [
     "macerator/std",
 ]
 tracing = [
-    "burn-autodiff?/tracing",
     "burn-std/tracing",
     "burn-backend/tracing",
     "burn-ir/tracing",
@@ -60,7 +58,6 @@ export_tests = []
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-autodiff = { workspace = true, optional = true }
 burn-std = { workspace = true }
 burn-ir = { workspace = true }
 burn-backend = { workspace = true }
