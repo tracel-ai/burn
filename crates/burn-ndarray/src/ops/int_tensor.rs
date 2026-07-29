@@ -325,10 +325,6 @@ impl IntTensorOps<Self> for NdArray {
         })
     }
 
-    fn int_argtopk(_tensor: NdArrayTensor, _dim: usize, _k: usize) -> NdArrayTensor {
-        unimplemented!("argtopk not implemented for ndarray");
-    }
-
     fn int_argmin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
         // Use view() for zero-copy on borrowed storage
         execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| {

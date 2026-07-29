@@ -1,6 +1,7 @@
 use burn_backend::Scalar;
 
 use crate::alloc::borrow::ToOwned;
+use crate::check::unwrap_dim_index;
 use crate::kind::Numeric;
 
 use crate::{
@@ -370,8 +371,7 @@ where
     /// }
     /// ```
     pub fn mean_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Mean Dim");
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
@@ -429,8 +429,7 @@ where
     /// }
     /// ```
     pub fn sum_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sum Dim");
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
@@ -545,8 +544,7 @@ where
     /// }
     /// ```
     pub fn prod_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Prod Dim");
         Self::new(K::prod_dim(self.primitive, dim))
     }
 
@@ -603,8 +601,7 @@ where
     /// }
     /// ```
     pub fn cumsum<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("CumSum", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cumsum");
         Self::new(K::cumsum(self.primitive, dim))
     }
 
@@ -632,8 +629,7 @@ where
     /// }
     /// ```
     pub fn cumprod<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("CumProd", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cumprod");
         Self::new(K::cumprod(self.primitive, dim))
     }
 

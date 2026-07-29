@@ -1,7 +1,7 @@
 use core::f64;
 
 use super::MetricMetadata;
-use super::state::{FormatOptions, NumericMetricState};
+use super::state::{FormatOptions, PredictionAccumulatorState};
 use crate::metric::{
     ClassReduction, ConfusionStatsInput, Metric, MetricName, Numeric, SerializedEntry,
 };
@@ -17,7 +17,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct AurocMetric {
     name: MetricName,
-    state: NumericMetricState,
+    state: PredictionAccumulatorState,
     class_reduction: ClassReduction,
 }
 
@@ -108,7 +108,7 @@ impl AurocMetric {
         if keep.dims()[0] == 0 {
             log::warn!(
                 "AUROC is undefined (no class has both positive and negative samples in the \
-                 batch); reporting 0.5 (chance level)."
+                 epoch); reporting 0.5 (chance level)."
             );
             return 0.5;
         }
@@ -125,13 +125,30 @@ impl Metric for AurocMetric {
         input: &ConfusionStatsInput,
         _metadata: &MetricMetadata,
     ) -> SerializedEntry {
-        let [sample_size, _] = input.predictions.dims();
+        // Update the state with predictions and targets
+        self.state
+            .accumulate(input.predictions.clone(), input.targets.clone());
 
-        let metric = self.compute_auc(&input.predictions, &input.targets);
+        // Serialize placeholder to indicate no valid scalar exists yet mid-epoch
+        self.state
+            .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
 
-        self.state.update(
+    fn compute(&mut self) -> SerializedEntry {
+        // Guard against an empty epoch calculation
+        if self.state.is_empty() {
+            return self
+                .state
+                .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2));
+        }
+
+        // Recompute over the whole epoch
+        let (predictions, targets) = self.state.tensors();
+        let metric = self.compute_auc(&predictions, &targets);
+
+        // Complete the state with the calculated scalar
+        self.state.compute(
             100.0 * metric,
-            sample_size,
             FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
@@ -146,12 +163,18 @@ impl Metric for AurocMetric {
 }
 
 impl Numeric for AurocMetric {
-    fn value(&self) -> super::NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<super::NumericEntry> {
+        None // current value is invalid; requires epoch-level aggregation
     }
 
-    fn running_value(&self) -> super::NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<super::NumericEntry> {
+        None
+    }
+
+    fn final_value(&self) -> super::NumericEntry {
+        self.state
+            .value()
+            .expect("Compute must be called to get final value")
     }
 }
 
@@ -247,8 +270,9 @@ mod tests {
         let mut metric = AurocMetric::new(class_reduction);
 
         let _entry = metric.update(&input(data), &MetricMetadata::fake());
+        let _entry = metric.compute();
 
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.final_value().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
@@ -265,7 +289,8 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value().current(), 100.0);
+        let _entry = metric.compute();
+        assert_eq!(metric.final_value().current(), 100.0);
     }
 
     #[rstest]
@@ -282,7 +307,8 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value().current(), 50.0);
+        let _entry = metric.compute();
+        assert_eq!(metric.final_value().current(), 50.0);
     }
 
     #[test]
@@ -306,7 +332,8 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value().current(), 100.0);
+        let _entry = metric.compute();
+        assert_eq!(metric.final_value().current(), 100.0);
     }
 
     #[test]
@@ -322,7 +349,8 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value().current(), 50.0);
+        let _entry = metric.compute();
+        assert_eq!(metric.final_value().current(), 50.0);
     }
 
     #[test]
@@ -331,5 +359,65 @@ mod tests {
         let micro_metric = AurocMetric::new(Micro);
 
         assert_ne!(macro_metric.name(), micro_metric.name());
+    }
+
+    #[test]
+    fn test_auroc_accumulates_across_batches() {
+        let dev = Default::default();
+
+        // Whole dataset as a single batch.
+        let mut single = AurocMetric::binary();
+        single.update(
+            &ConfusionStatsInput::new(
+                Tensor::from_data([[0.9], [0.4], [0.8], [0.2], [0.6], [0.1]], &dev),
+                Tensor::from_data([[1], [0], [1], [0], [1], [0]], &dev),
+            ),
+            &MetricMetadata::fake(),
+        );
+        single.compute();
+
+        // Same dataset split across two batches.
+        let mut split = AurocMetric::binary();
+        split.update(
+            &ConfusionStatsInput::new(
+                Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
+                Tensor::from_data([[1], [0], [1]], &dev),
+            ),
+            &MetricMetadata::fake(),
+        );
+        split.update(
+            &ConfusionStatsInput::new(
+                Tensor::from_data([[0.2], [0.6], [0.1]], &dev),
+                Tensor::from_data([[0], [1], [0]], &dev),
+            ),
+            &MetricMetadata::fake(),
+        );
+        split.compute();
+
+        TensorData::from([split.final_value().current()]).assert_approx_eq::<f64>(
+            &TensorData::from([single.final_value().current()]),
+            Tolerance::default(),
+        );
+    }
+
+    #[test]
+    #[should_panic = "Compute must be called to get final value"]
+    fn test_auroc_should_panic_before_compute() {
+        let dev = Default::default();
+
+        let mut split = AurocMetric::binary();
+        split.update(
+            &ConfusionStatsInput::new(
+                Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
+                Tensor::from_data([[1], [0], [1]], &dev),
+            ),
+            &MetricMetadata::fake(),
+        );
+
+        // AUROC is not valid for a batch, and is not meaningful until all statistics have been accumulated
+        assert!(split.value().is_none());
+        assert!(split.running_value().is_none());
+
+        split.final_value();
     }
 }

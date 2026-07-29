@@ -1,3 +1,4 @@
+use crate::check::unwrap_dim_index;
 use crate::tensor::Tensor;
 use crate::{
     AsIndex, ElementConversion,
@@ -120,7 +121,7 @@ pub fn vector_norm<const D: usize>(
     norm: impl Into<Norm>,
     dim: impl AsIndex,
 ) -> Tensor<D> {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Vector Norm");
     lp_norm_impl(x, norm.into().to_exponent(), dim)
 }
 
@@ -145,7 +146,7 @@ pub fn vector_norm<const D: usize>(
 ///
 /// The ``L(p)`` norm of the input tensor.
 pub fn lp_norm<const D: usize>(x: Tensor<D>, p: f64, dim: impl AsIndex) -> Tensor<D> {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Lp Norm");
     lp_norm_impl(x, p, dim)
 }
 
@@ -182,7 +183,7 @@ pub fn vector_normalize<const D: usize, E: ElementConversion>(
     dim: impl AsIndex,
     eps: E,
 ) -> Tensor<D> {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Vector Normalize");
     let norm = lp_norm_impl(x.clone(), norm.into().to_exponent(), dim).clamp_min(eps);
     x / norm
 }
@@ -202,7 +203,7 @@ pub fn l0_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<
 where
     K: Numeric,
 {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L0 Norm");
     l0_norm_impl(x, dim)
 }
 
@@ -232,7 +233,7 @@ pub fn l1_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<
 where
     K: Numeric,
 {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L1 Norm");
     l1_norm_impl(x, dim)
 }
 
@@ -255,7 +256,7 @@ where
 ///
 /// The L2 norm of the input tensor.
 pub fn l2_norm<const D: usize>(x: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L2 Norm");
     l2_norm_impl(x, dim)
 }
 
@@ -299,7 +300,7 @@ pub fn max_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Te
 where
     K: Ordered,
 {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Abs Norm");
     max_abs_norm_impl(x, dim)
 }
 
@@ -325,7 +326,7 @@ pub fn min_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Te
 where
     K: Ordered,
 {
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Min Abs Norm");
     min_abs_norm_impl(x, dim)
 }
 
