@@ -35,9 +35,6 @@ burn-std = { workspace = true }
 candle-core = { workspace = true }
 derive-new = { workspace = true }
 
-[dev-dependencies]
-burn-tch = { workspace = true }
-
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

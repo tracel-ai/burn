@@ -822,7 +822,6 @@ version = "0.22.0-pre.1"
 dependencies = [
  "burn-backend",
  "burn-std",
- "burn-tch",
  "candle-core",
  "derive-new",
 ]
