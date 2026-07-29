@@ -42,9 +42,8 @@ serde = { workspace = true, features = ["derive"] }
 hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
 
 [dev-dependencies]
-burn-nn = { workspace = true, features = ["default"] }
-burn-flex = { workspace = true, features = ["default"] }
-burn-autodiff = { workspace = true, features = ["default"] }
+# Use path instead of workspace dep (which specifies a version, creating a circular publish dependency chain)
+burn-nn = { path = "../burn-nn", features = ["default"] }
 rstest = { workspace = true }
 
 [package.metadata.docs.rs]
