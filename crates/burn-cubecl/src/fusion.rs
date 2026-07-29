@@ -9,6 +9,7 @@ use burn_cubecl_fusion::{
         CubeOptimization, CubeOptimizationState,
         elemwise::{ElementWiseFuser, ElemwiseOptimization},
         matmul::{MatmulFuser, MatmulOptimization},
+        nhwc_relayout::{NHWCRelayoutFuser, NHWCRelayoutOptimization},
         reduce::{ReduceFuser, ReduceOptimization},
         reduce_broadcasted::ReduceBroadcastedOptimization,
     },
@@ -36,6 +37,10 @@ where
     ) {
         match self {
             Self::ElementWise(op) => op.execute(context),
+            Self::NHWCRelayout(op) => op.execute(context, |index| {
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationWrapper::new(operation))
+            }),
             Self::Matmul(op) => op.execute(context, |index| {
                 let operation = execution.operation_within_optimization(index);
                 Box::new(FallbackOperationWrapper::new(operation))
@@ -59,6 +64,9 @@ where
         match state {
             CubeOptimizationState::ElementWise(state) => {
                 Self::ElementWise(ElemwiseOptimization::from_state(device, state))
+            }
+            CubeOptimizationState::NHWCRelayout(state) => {
+                Self::NHWCRelayout(NHWCRelayoutOptimization::from_state(device, state))
             }
             CubeOptimizationState::Matmul(state) => {
                 Self::Matmul(MatmulOptimization::from_state(device, state))
@@ -147,6 +155,7 @@ impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
             Box::new(MatmulFuser::new(device.clone())),
             Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always)),
             Box::new(ReduceBroadcastedFuser::new(device.clone())),
+            Box::new(NHWCRelayoutFuser::new(device.clone())),
         ]
     }
 }

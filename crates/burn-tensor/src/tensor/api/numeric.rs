@@ -1,8 +1,8 @@
 use burn_backend::Scalar;
 
 use crate::alloc::borrow::ToOwned;
+use crate::check::unwrap_dim_index;
 use crate::kind::Numeric;
-use alloc::vec::Vec;
 
 use crate::{
     AsIndex, Bool, Distribution, ElementConversion, Int, Shape, Tensor, check, check::TensorCheck,
@@ -371,8 +371,7 @@ where
     /// }
     /// ```
     pub fn mean_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Mean Dim");
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
@@ -430,8 +429,7 @@ where
     /// }
     /// ```
     pub fn sum_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sum Dim");
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
@@ -494,12 +492,7 @@ where
     /// }
     /// ```
     pub fn sum_dims_squeeze<const D2: usize, I: AsIndex>(self, dims: &[I]) -> Tensor<D2, K> {
-        // TODO: remove idims when squeeze_dims uses AsIndex.
-        let idims = dims
-            .iter()
-            .map(|&dim| (dim.expect_dim_index(D)) as isize)
-            .collect::<Vec<_>>();
-        self.sum_dims(dims).squeeze_dims::<D2>(&idims)
+        self.sum_dims(dims).squeeze_dims::<D2>(dims)
     }
 
     /// Aggregate all elements in the tensor with the product operation.
@@ -551,8 +544,7 @@ where
     /// }
     /// ```
     pub fn prod_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Prod Dim");
         Self::new(K::prod_dim(self.primitive, dim))
     }
 
@@ -590,6 +582,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative sum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -607,8 +600,8 @@ where
     ///    // [[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]
     /// }
     /// ```
-    pub fn cumsum(self, dim: usize) -> Self {
-        check!(TensorCheck::aggregate_dim::<D>("CumSum", dim));
+    pub fn cumsum<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cumsum");
         Self::new(K::cumsum(self.primitive, dim))
     }
 
@@ -617,6 +610,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative product.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -634,8 +628,8 @@ where
     ///    // [[1.0, 2.0, 6.0], [4.0, 20.0, 120.0]]
     /// }
     /// ```
-    pub fn cumprod(self, dim: usize) -> Self {
-        check!(TensorCheck::aggregate_dim::<D>("CumProd", dim));
+    pub fn cumprod<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cumprod");
         Self::new(K::cumprod(self.primitive, dim))
     }
 
@@ -825,7 +819,7 @@ where
     ///   // ]
     /// }
     pub fn bool(self) -> Tensor<D, Bool> {
-        self.not_equal_elem(0)
+        self.not_equal_scalar(0)
     }
 
     /// Create a random tensor of the given shape on the given device where each element is

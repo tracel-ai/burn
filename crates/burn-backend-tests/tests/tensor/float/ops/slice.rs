@@ -2,6 +2,20 @@ use super::*;
 use burn_tensor::{ElementConversion, Slice, TensorData, s};
 
 #[test]
+fn should_support_select_dim() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+
+    let row1: Tensor<1> = tensor.clone().select_dim(0, 1);
+    row1.to_data()
+        .assert_eq(&TensorData::from([4.0, 5.0, 6.0]), false);
+
+    let col1: Tensor<1> = tensor.clone().select_dim(1, 1);
+    col1.to_data()
+        .assert_eq(&TensorData::from([2.0, 5.0]), false);
+}
+
+#[test]
 fn should_support_slice_dim_1d() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
@@ -21,12 +35,20 @@ fn should_support_slice_dim_1d() {
 }
 
 #[test]
-#[should_panic(expected = "The provided dimension exceeds the tensor dimensions")]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn should_panic_when_slice_dim_1d_bad_dim() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
     let _output = tensor.slice_dim(1, 1..);
+}
+
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn should_panic_when_slice_dim_negative_dim_is_out_of_bounds() {
+    let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0]);
+
+    let _output = tensor.slice_dim(-2_i64, 1..);
 }
 
 #[test]

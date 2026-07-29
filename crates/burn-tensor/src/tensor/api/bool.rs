@@ -331,9 +331,9 @@ impl<const D: usize> Tensor<D, Bool> {
 
         // Select the appropriate comparison function based on `tri_part`.
         let compare = match tri_part {
-            TriPart::Upper => Tensor::greater_elem,
-            TriPart::Lower => Tensor::lower_elem,
-            TriPart::Diagonal => Tensor::not_equal_elem,
+            TriPart::Upper => Tensor::greater_scalar,
+            TriPart::Lower => Tensor::lower_scalar,
+            TriPart::Diagonal => Tensor::not_equal_scalar,
         };
 
         // Generate and return the mask by applying the comparison to the matrix.

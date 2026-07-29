@@ -26,15 +26,16 @@ pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) ->
     Arc::new(
         move |_key: &MatmulAutotuneKey, tensors: &Inputs<R>| Bounds {
             bounds: autotune_bounds(&owned_client, tensors),
-            launch_overhead: measure_peak_throughput(
-                &owned_client,
-                ThroughputKey {
-                    mode: ThroughputMode::Launch,
-                },
-            )
-            .duration,
+            launch_overhead: measure_peak_throughput(&owned_client, launch_overhead_key())
+                .duration_per_op(),
         },
     )
+}
+
+fn launch_overhead_key() -> ThroughputKey {
+    ThroughputKey {
+        mode: ThroughputMode::Launch,
+    }
 }
 
 /// Calculates the theoretical compute and memory throughput bounds for a specific matrix multiplication operation.

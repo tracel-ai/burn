@@ -2160,33 +2160,80 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 _checkpointer: &mut Checkpointer,
             ) {
                 let (input, dim) = ops.state;
-                let output = B::float_cumprod(input.clone(), dim);
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // Gradient of cumprod using negative step slicing
-                    // Formula: grad_input[i] = sum_{j>=i}(grad_output[j] * output[j] / input[i])
-                    //        = (1 / input[i]) * sum_{j>=i}(grad_output[j] * output[j])
-                    //        = (1 / input) * reverse_cumsum(grad * output)
+                    // grad_input[i] = sum_{j>=i}(grad[j] * prod_{k<=j, k!=i} input[k])
                     //
-                    // LIMITATION: This produces NaN when input contains zeros.
-                    // A proper zero-safe implementation requires more sophisticated algorithms
-                    // (see PyTorch's cumprod_backward or JAX's associative_scan approach).
-                    // TODO: Implement zero-safe gradient computation.
-                    // See: https://github.com/tracel-ai/burn/issues/3864
+                    // Where input[i] != 0 this reduces to the classic
+                    //   reverse_cumsum(grad * output) / input
+                    // but the division makes it NaN at zeros (#3864). Split each lane
+                    // along `dim` at its FIRST zero (the approach PyTorch's
+                    // cumprod_backward takes):
+                    //
+                    // * before the first zero: every input in the formula is nonzero,
+                    //   so the classic division form is exact;
+                    // * at the first zero: the omitted products keep every other
+                    //   factor, i.e. reverse_cumsum(grad * cumprod(input with that
+                    //   zero replaced by one)) evaluated at that position;
+                    // * after the first zero: every omitted product still contains
+                    //   that zero, so the gradient is exactly zero.
+                    //
+                    // All three regions are computed with cumsum/cumprod and
+                    // elementwise masks, so the whole gradient stays a fixed number
+                    // of parallel kernels, with no data-dependent branching.
 
-                    let grad_times_output = B::float_mul(grad, output.clone());
+                    let ndims = input.shape().num_dims();
+                    let dtype = grad.dtype();
+                    let bool_dtype = get_device_settings::<B>(&grad.device()).bool_dtype;
 
-                    // Create slices to reverse along the specified dimension
-                    let shape = grad_times_output.shape();
-                    let mut slices = vec![Slice::full(); shape.num_dims()];
-                    slices[dim] = Slice::with_step(0, None, -1);
+                    let reverse = |tensor: FloatTensor<B>| {
+                        let mut slices = vec![Slice::full(); ndims];
+                        slices[dim] = Slice::with_step(0, None, -1);
+                        B::float_slice(tensor, &slices)
+                    };
+                    let reverse_cumsum =
+                        |tensor: FloatTensor<B>| reverse(B::float_cumsum(reverse(tensor), dim));
 
-                    // Reverse, cumsum, reverse back using negative step slicing
-                    let grad_reversed = B::float_slice(grad_times_output, &slices);
-                    let grad_cumsum = B::float_cumsum(grad_reversed, dim);
-                    let grad_result = B::float_slice(grad_cumsum, &slices);
+                    // zeros_seen[i] counts zeros in input[0..=i]; comparing against
+                    // 0.5/1.5 sidesteps exact float equality on the running count.
+                    let zero_mask = B::bool_into_float(
+                        B::float_equal_elem(input.clone(), 0.into(), bool_dtype),
+                        dtype.into(),
+                    );
+                    let zeros_seen = B::float_cumsum(zero_mask.clone(), dim);
+                    let before_first = B::bool_into_float(
+                        B::float_lower_elem(zeros_seen.clone(), 0.5.into(), bool_dtype),
+                        dtype.into(),
+                    );
+                    let at_first = B::float_mul(
+                        zero_mask.clone(),
+                        B::bool_into_float(
+                            B::float_lower_elem(zeros_seen, 1.5.into(), bool_dtype),
+                            dtype.into(),
+                        ),
+                    );
 
-                    B::float_div(grad_result, input)
+                    // Replacing only the first zero lets one cumprod serve both
+                    // regions. Masking output_one before the first zero recovers the
+                    // regular cumprod output used by the classic gradient.
+                    let input_one = B::float_add(input.clone(), at_first.clone());
+                    let output_one = B::float_cumprod(input_one, dim);
+                    let output = B::float_mul(output_one.clone(), before_first.clone());
+
+                    // Classic form, with every zero divisor bumped to one. The
+                    // corresponding values are discarded by the region masks.
+                    let input_safe = B::float_add(input, zero_mask);
+                    let classic = B::float_div(
+                        reverse_cumsum(B::float_mul(grad.clone(), output)),
+                        input_safe,
+                    );
+
+                    let omitted = reverse_cumsum(B::float_mul(grad, output_one));
+
+                    B::float_add(
+                        B::float_mul(classic, before_first),
+                        B::float_mul(omitted, at_first),
+                    )
                 });
             }
         }

@@ -6,7 +6,7 @@ use crate::{
 };
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
-use burn_std::{CommunicationId, stub::RwLock};
+use burn_std::{CommunicationId, sync::RwLock};
 use hashbrown::HashSet;
 
 pub(crate) struct FusionUtilities {

@@ -182,6 +182,11 @@ impl FileMetricLogger {
 
 impl FileMetricLogger {
     fn log_item(&mut self, item: &MetricEntry, epoch: Option<usize>, split: &Split) {
+        // Skip writing placeholders to disk for global-only metrics
+        if item.serialized_entry.is_not_available() {
+            return;
+        }
+
         let name = &self.metric_definitions.get(&item.metric_id).unwrap().name;
         let key = logger_key(name, split);
         let value = &item.serialized_entry.serialized;

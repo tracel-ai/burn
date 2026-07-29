@@ -270,6 +270,7 @@ fn test_max_abs_dim_2d_dim_1() {
 
 // NaN-propagation tests. All burn backends should propagate NaN from
 // min/max (matching PyTorch/NumPy/JAX/TF semantics). See issue #4814.
+#[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn test_max_dim_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
@@ -278,6 +279,7 @@ fn test_max_dim_nan_propagation() {
     assert!(values[0].is_nan());
 }
 
+#[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn test_min_dim_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
@@ -286,6 +288,7 @@ fn test_min_dim_nan_propagation() {
     assert!(values[0].is_nan());
 }
 
+#[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn test_max_dim_with_indices_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);

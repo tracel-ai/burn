@@ -43,9 +43,19 @@ fn one_hot_fill_with_negative_axis_and_indices() {
         [[0.0, 5.0, 0.0], [0.0, 0.0, 5.0]],
     ]);
 
-    let one_hot_tensor: TestTensor<3> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
+    let one_hot_tensor: TestTensor<3> = tensor.one_hot_fill(3, 5.0, 0.0, -1_isize);
 
     one_hot_tensor.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn one_hot_fill_with_negative_axis_at_start() {
+    let tensor = TestTensor::<2>::from([[0, 1], [1, 0]]);
+
+    let expected: TestTensor<3> = tensor.clone().one_hot_fill(2, 1.0, 0.0, 0);
+    let actual: TestTensor<3> = tensor.one_hot_fill(2, 1.0, 0.0, -3_i8);
+
+    actual.into_data().assert_eq(&expected.into_data(), false);
 }
 
 #[test]
@@ -68,4 +78,12 @@ fn one_hot_fill_should_panic_when_axis_out_range_of_rank() {
     let tensor = TestTensor::<2>::from([[0.0, 2.0], [1.0, -1.0]]);
 
     let _one_hot_tensor: TestTensor<3> = tensor.one_hot_fill(2, 5.0, 0.0, 3);
+}
+
+#[should_panic]
+#[test]
+fn one_hot_fill_should_panic_when_negative_axis_out_range_of_rank() {
+    let tensor = TestTensor::<2>::from([[0.0, 2.0], [1.0, -1.0]]);
+
+    let _one_hot_tensor: TestTensor<3> = tensor.one_hot_fill(2, 5.0, 0.0, -4_i64);
 }

@@ -1465,6 +1465,42 @@ pub trait FloatTensorOps<B: Backend> {
         Self::float_select(Self::float_sort(tensor, dim, true), dim, k_indices)
     }
 
+    /// Gets the values of the k maximum elements of a tensor along an axis, and their indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of maximum elements
+    /// * `out_dtype` - The indices tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tuple with the values of the k maximum elements of `tensor` along `dim`, and their
+    /// indices.
+    ///
+    /// The default sorts once and keeps the first `k` of each half. It deliberately does not
+    /// compose `float_topk` with `float_argtopk`: those default to a sort each, so that would
+    /// sort twice, and it would also require `float_argtopk` from backends that only have
+    /// sorting. Backends whose top-k already carries both results should override this and
+    /// produce them in a single pass.
+    fn float_topk_with_indices(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> (FloatTensor<B>, IntTensor<B>) {
+        let device = tensor.device();
+        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let k_indices = B::int_arange(0..k as i64, &device, dtype);
+        let (values, indices) = Self::float_sort_with_indices(tensor, dim, true, out_dtype);
+
+        (
+            Self::float_select(values, dim, k_indices.clone()),
+            B::int_select(indices, dim, k_indices),
+        )
+    }
+
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments

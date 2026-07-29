@@ -68,7 +68,7 @@ where
     D: Dataset<I>,
     I: Clone + Send + Sync,
 {
-    fn get(&self, index: usize) -> Option<I> {
+    fn get(&self, index: usize) -> Result<I, crate::DatasetError> {
         self.wrapped.get(index)
     }
 
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn test_shuffled_dataset() {
         let dataset = FakeDataset::<String>::new(27);
-        let source_items = dataset.iter().collect::<Vec<_>>();
+        let source_items = dataset.iter().map(Result::unwrap).collect::<Vec<_>>();
 
         let seed = 42;
 
@@ -104,6 +104,9 @@ mod tests {
             .iter()
             .map(|&i| source_items[i].to_string())
             .collect();
-        assert_eq!(&shuffled.iter().collect::<Vec<_>>(), &expected_items);
+        assert_eq!(
+            &shuffled.iter().map(Result::unwrap).collect::<Vec<_>>(),
+            &expected_items
+        );
     }
 }

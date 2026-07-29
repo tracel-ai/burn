@@ -1,4 +1,4 @@
-use cubecl_common::config::logger::{LogLevel, LoggerConfig};
+use cubecl_environment::config::logger::{LogLevel, LoggerConfig};
 
 /// Configuration for autodiff in Burn.
 #[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]

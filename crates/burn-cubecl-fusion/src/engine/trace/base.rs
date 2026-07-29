@@ -226,6 +226,10 @@ pub enum TensorView {
         original: TensorId,
         dims: (usize, usize),
     },
+    NhwcStrides {
+        id: TensorId,
+        stride_relayout: Shape,
+    },
 }
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]

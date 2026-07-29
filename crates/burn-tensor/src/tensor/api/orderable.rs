@@ -1,6 +1,7 @@
 use burn_backend::{ElementConversion, Scalar};
 use burn_std::{AsIndex, IndexingUpdateOp};
 
+use crate::check::unwrap_dim_index;
 use crate::kind::Ordered;
 use crate::{Bool, Int, check};
 use crate::{Tensor, check::TensorCheck};
@@ -16,6 +17,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -37,8 +39,8 @@ where
     ///   // [[-2.0, 3.0, 12.0], [3.0, 5.0, 6.0]]
     /// }
     /// ```
-    pub fn sort(self, dim: usize) -> Self {
-        check!(TensorCheck::sort_dim::<D>("Sort", dim));
+    pub fn sort<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sort");
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ false))
     }
 
@@ -49,6 +51,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -70,8 +73,8 @@ where
     ///    // [[12.0, 3.0, -2.0], [6.0, 5.0, 3.0]]
     /// }
     /// ```
-    pub fn sort_descending(self, dim: usize) -> Self {
-        check!(TensorCheck::sort_dim::<D>("Sort", dim));
+    pub fn sort_descending<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sort Descending");
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ true))
     }
 
@@ -83,6 +86,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -103,8 +107,8 @@ where
     ///   // [[1, 0, 0], [0, 1, 1]]
     /// }
     /// ```
-    pub fn sort_with_indices(self, dim: usize) -> (Self, Tensor<D, Int>) {
-        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
+    pub fn sort_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sort With Indices");
         let (values, indices) =
             K::sort_with_indices(self.primitive, dim, /*descending*/ false);
         (Tensor::new(values), Tensor::new(indices))
@@ -118,6 +122,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -134,8 +139,8 @@ where
     ///    // [[0, 1, 1], [1, 0, 0]]
     /// }
     /// ```
-    pub fn sort_descending_with_indices(self, dim: usize) -> (Self, Tensor<D, Int>) {
-        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
+    pub fn sort_descending_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sort Descending With Indices");
         let (values, indices) = K::sort_with_indices(self.primitive, dim, /*descending*/ true);
         (Tensor::new(values), Tensor::new(indices))
     }
@@ -147,6 +152,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -161,8 +167,8 @@ where
     ///    // [[1, 0, 0], [0, 1, 1]]
     /// }
     /// ```
-    pub fn argsort(self, dim: usize) -> Tensor<D, Int> {
-        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
+    pub fn argsort<I: AsIndex>(self, dim: I) -> Tensor<D, Int> {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argsort");
         Tensor::new(K::argsort(self.primitive, dim, /*descending*/ false))
     }
 
@@ -173,6 +179,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -190,8 +197,8 @@ where
     ///    // [[0, 2, 1], [2, 0, 1]]
     /// }
     /// ```
-    pub fn argsort_descending(self, dim: usize) -> Tensor<D, Int> {
-        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
+    pub fn argsort_descending<I: AsIndex>(self, dim: I) -> Tensor<D, Int> {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argsort Descending");
         Tensor::new(K::argsort(self.primitive, dim, /*descending*/ true))
     }
 
@@ -200,6 +207,8 @@ where
     /// # Arguments
     ///
     /// * `k` - The number of elements to return.
+    /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -221,7 +230,8 @@ where
     ///   // [[12.0], [6.0]]
     /// }
     /// ```
-    pub fn topk(self, k: usize, dim: usize) -> Self {
+    pub fn topk<I: AsIndex>(self, k: usize, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Top K");
         assert!(self.shape()[dim] > k);
         Tensor::new(K::topk(self.primitive, dim, k))
     }
@@ -233,6 +243,7 @@ where
     ///
     /// * `k` - The number of elements to return.
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -254,13 +265,10 @@ where
     ///    // [[0], [2]]
     /// }
     /// ```
-    pub fn topk_with_indices(self, k: usize, dim: usize) -> (Self, Tensor<D, Int>) {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
-        let (values, indices) = self.sort_descending_with_indices(dim);
-        (
-            values.select(dim, k_indices.clone()),
-            indices.select(dim, k_indices),
-        )
+    pub fn topk_with_indices<I: AsIndex>(self, k: usize, dim: I) -> (Self, Tensor<D, Int>) {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Top K With Indices");
+        let (values, indices) = K::topk_with_indices(self.primitive, dim, k);
+        (Tensor::new(values), Tensor::new(indices))
     }
 
     /// Create a one hot tensor.
@@ -290,7 +298,8 @@ where
     /// * `num_classes`: The number of classes for the one-hot encoding, which defines the size of the one-hot dimension.
     /// * `on_value`: The value to assign for active positions (corresponding to indices).
     /// * `off_value`: The value to assign for inactive positions.
-    /// * `axis`: The axis along which the one-hot dimension is added. Supports negative indexing.
+    /// * `axis`: The axis along which the one-hot dimension is added.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -316,36 +325,26 @@ where
         num_classes: usize,
         on_value: f32,
         off_value: f32,
-        axis: i64,
+        axis: impl AsIndex,
     ) -> Tensor<D2, K> {
         check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
+        let axis = unwrap_dim_index(axis.try_dim_index(D + 1), "One Hot");
+
         // Initialize shape from the current tensor dimensions and prepare for modification
         let mut shape = self.shape();
         let device = self.device();
-        let rank = self.dims().len();
 
-        // Adjust negative axis to a positive index
-        let axis = if axis < 0 {
-            axis + rank as i64 + 1
-        } else {
-            axis
-        };
-
-        // Ensure axis is within valid range
-        if axis < 0 || axis > rank as i64 {
-            panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
-        }
         // Convert the input tensor to integer indices
         let indices: Tensor<D, Int> = Tensor::from_data(self.to_data().convert::<i64>(), &device);
         // Insert the new dimension for the one-hot representation
-        shape.insert(axis as usize, num_classes);
+        shape.insert(axis, num_classes);
         // Adjust indices to valid range and handle invalid indices
         let adjusted_indices = indices
             .clone()
-            .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
-            .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
+            .mask_fill(self.clone().lower_scalar(0), num_classes as i64) // Handle negative indices
+            .add(indices.clone().mask_fill(self.clone().greater_scalar(0), 0)); // Handle positive indices
         // Unsqueeze the indices tensor along the specified axis
-        let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
+        let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
 
         // Initialize the output tensor with the off_value
         let output = Tensor::full(shape.clone(), off_value, &device);
@@ -356,7 +355,7 @@ where
 
         // Scatter on_value at the appropriate indices to create the one-hot representation
         output.scatter(
-            axis as usize,
+            axis,
             indices_unsqueezed,
             scatter_on_values,
             IndexingUpdateOp::Add,
@@ -467,7 +466,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -477,21 +476,21 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.greater_elem(3.0);
+    ///    let tensor = tensor.greater_scalar(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [true, true, true]]
     /// }
     /// ```
-    pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+    pub fn greater_scalar<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::greater_elem(self.primitive, other))
+        Tensor::new(K::greater_scalar(self.primitive, other))
     }
 
     /// Applies greater-equal than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -501,21 +500,21 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.greater_equal_elem(3.0);
+    ///    let tensor = tensor.greater_equal_scalar(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [true, true, true]]
     /// }
     /// ```
-    pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+    pub fn greater_equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::greater_equal_elem(self.primitive, other))
+        Tensor::new(K::greater_equal_scalar(self.primitive, other))
     }
 
     /// Applies lower than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -525,21 +524,21 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///     let tensor = tensor.lower_elem(3.0);
+    ///     let tensor = tensor.lower_scalar(3.0);
     ///     println!("{tensor}");
     ///     // [[true, true, false], [false, false, false]]
     /// }
     /// ```
-    pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+    pub fn lower_scalar<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::lower_elem(self.primitive, other))
+        Tensor::new(K::lower_scalar(self.primitive, other))
     }
 
     /// Applies lower-equal than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
-    /// * `other` - The element to compare.
+    /// * `other` - The scalar to compare.
     ///
     /// # Example
     ///
@@ -549,17 +548,42 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.lower_equal_elem(3.0);
+    ///    let tensor = tensor.lower_equal_scalar(3.0);
     ///    println!("{tensor}");
     ///    // [[true, true, true], [false, false, false]]
     /// }
     /// ```
-    pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+    pub fn lower_equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
-        Tensor::new(K::lower_equal_elem(self.primitive, other))
+        Tensor::new(K::lower_equal_scalar(self.primitive, other))
+    }
+
+    /// Alias for [greater_scalar](Self::greater_scalar).
+    pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+        self.greater_scalar(other)
+    }
+
+    /// Alias for [greater_equal_scalar](Self::greater_equal_scalar).
+    pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+        self.greater_equal_scalar(other)
+    }
+
+    /// Alias for [lower_scalar](Self::lower_scalar).
+    pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+        self.lower_scalar(other)
+    }
+
+    /// Alias for [lower_equal_scalar](Self::lower_equal_scalar).
+    pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
+        self.lower_equal_scalar(other)
     }
 
     /// Applies the argmax function along the given dimension and returns an integer tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which to find the maximum value.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -574,11 +598,18 @@ where
     ///     // Shape { dims: [2, 1, 3] }
     /// }
     /// ```
-    pub fn argmax(self, dim: usize) -> Tensor<D, Int> {
+    pub fn argmax(self, dim: impl AsIndex) -> Tensor<D, Int> {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argmax");
         Tensor::new(K::argmax(self.primitive, dim))
     }
 
     /// Applies the argtopk function along the given dimension and returns an integer tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `k` - The number of indices to return.
+    /// * `dim` - The dimension along which to find the largest values.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -592,7 +623,8 @@ where
     ///     println!("{:?}", tensor.shape());
     /// }
     /// ```
-    pub fn argtopk(self, k: usize, dim: usize) -> Tensor<D, Int> {
+    pub fn argtopk(self, k: usize, dim: impl AsIndex) -> Tensor<D, Int> {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argtopk");
         assert!(self.shape()[dim] > k);
         Tensor::new(K::argtopk(self.primitive, dim, k))
     }
@@ -636,8 +668,7 @@ where
     /// }
     /// ```
     pub fn max_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Dim With Indices");
 
         let (tensor, index) = K::max_dim_with_indices(self.primitive, dim);
 
@@ -722,8 +753,7 @@ where
     /// }
     /// ```
     pub fn max_abs_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("MaxAbs", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Abs Dim");
 
         Tensor::new(K::max_abs_dim(self.primitive, dim))
     }
@@ -760,6 +790,11 @@ where
 
     /// Applies the argmin function along the given dimension and returns an integer tensor.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which to find the minimum value.
+    ///   Negative dimensions are supported and count from the end.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -773,7 +808,8 @@ where
     ///     // Shape { dims: [2, 1, 3] }
     /// }
     /// ```
-    pub fn argmin(self, dim: usize) -> Tensor<D, Int> {
+    pub fn argmin(self, dim: impl AsIndex) -> Tensor<D, Int> {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Argmin");
         Tensor::new(K::argmin(self.primitive, dim))
     }
 
@@ -822,8 +858,7 @@ where
     /// }
     /// ```
     pub fn min_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Min Dim");
         Tensor::new(K::min_dim(self.primitive, dim))
     }
 
@@ -876,8 +911,7 @@ where
     /// }
     /// ```
     pub fn min_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Min Dim With Indices");
 
         let (tensor, index) = K::min_dim_with_indices(self.primitive, dim);
 
@@ -1022,6 +1056,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative minimum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -1039,8 +1074,8 @@ where
     ///    // [[3.0, 3.0, 2.0], [4.0, 1.0, 1.0]]
     /// }
     /// ```
-    pub fn cummin(self, dim: usize) -> Self {
-        check!(TensorCheck::aggregate_dim::<D>("CumMin", dim));
+    pub fn cummin<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cummin");
         Self::new(K::cummin(self.primitive, dim))
     }
 
@@ -1049,6 +1084,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative maximum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -1066,8 +1102,8 @@ where
     ///    // [[3.0, 3.0, 3.0], [4.0, 5.0, 5.0]]
     /// }
     /// ```
-    pub fn cummax(self, dim: usize) -> Self {
-        check!(TensorCheck::aggregate_dim::<D>("CumMax", dim));
+    pub fn cummax<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cummax");
         Self::new(K::cummax(self.primitive, dim))
     }
     /// Find the maximum value along the given dimension.
@@ -1096,8 +1132,7 @@ where
     /// }
     /// ```
     pub fn max_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Dim");
         Tensor::new(K::max_dim(self.primitive, dim))
     }
 

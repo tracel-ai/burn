@@ -1,7 +1,7 @@
 use burn::{
     data::{
         dataloader::batcher::Batcher,
-        dataset::{Dataset, HuggingfaceDatasetLoader, SqliteDataset},
+        dataset::{Dataset, DatasetError, HuggingfaceDatasetLoader, SqliteDataset},
     },
     prelude::*,
 };
@@ -58,8 +58,8 @@ pub struct HousingDataset {
 }
 
 impl Dataset<HousingDistrictItem> for HousingDataset {
-    fn get(&self, index: usize) -> Option<HousingDistrictItem> {
-        self.dataset.get(index)
+    fn get(&self, index: usize) -> Result<HousingDistrictItem, DatasetError> {
+        self.dataset.get(index).map_err(DatasetError::new)
     }
 
     fn len(&self) -> usize {

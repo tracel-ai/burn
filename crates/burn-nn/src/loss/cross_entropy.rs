@@ -215,11 +215,11 @@ impl CrossEntropyLoss {
     fn padding_mask(&self, targets: &Tensor<1, Int>) -> Option<Tensor<1, Bool>> {
         let mut mask = None;
         if let Some(pad_tokens) = &self.pad_tokens {
-            let mut res = targets.clone().equal_elem(pad_tokens[0] as i64).int();
+            let mut res = targets.clone().equal_scalar(pad_tokens[0] as i64).int();
             for x in pad_tokens {
-                res = res + targets.clone().equal_elem(*x as i64).int();
+                res = res + targets.clone().equal_scalar(*x as i64).int();
             }
-            mask = Some(res.greater_elem(0));
+            mask = Some(res.greater_scalar(0));
         }
 
         mask

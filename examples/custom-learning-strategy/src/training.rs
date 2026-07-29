@@ -156,6 +156,13 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
             let mut iteration = 0;
 
             while let Some(item) = iterator.next() {
+                let item = match item {
+                    Ok(item) => item,
+                    Err(err) => {
+                        interrupter.stop(Some(&format!("dataset error during training: {err}")));
+                        break;
+                    }
+                };
                 iteration += 1;
                 learner.lr_step();
                 log::info!("Iteration {iteration} of my custom learning strategy");
@@ -193,6 +200,13 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
             let mut iteration = 0;
 
             while let Some(item) = iterator.next() {
+                let item = match item {
+                    Ok(item) => item,
+                    Err(err) => {
+                        interrupter.stop(Some(&format!("dataset error during validation: {err}")));
+                        break;
+                    }
+                };
                 let progress = iterator.progress();
                 iteration += 1;
 

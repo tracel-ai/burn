@@ -16,9 +16,6 @@ jobs:
   publish-burn-rl:
     needs:
       - publish-burn-core
-      - publish-burn-optim
-      # dev dependencies
-      - publish-burn-flex
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-rl
@@ -28,20 +25,11 @@ jobs:
 
   publish-burn-vision:
     needs:
-      - publish-burn-autodiff
-      - publish-burn-candle
       - publish-burn-fusion
-      - publish-burn-cubecl-fusion
       - publish-burn-cubecl
-      - publish-burn-flex
-      - publish-burn-tch
       - publish-burn-core
       - publish-burn-ir
       - publish-burn-store
-      # dev dependencies
-      - publish-burn-wgpu
-      - publish-burn-cuda
-      - publish-burn-backend-extension
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-vision
@@ -53,11 +41,8 @@ jobs:
     needs:
       - publish-burn-ir
       - publish-burn-std
-      - publish-burn-tensor
-      # dev dependencies
-      - publish-burn-autodiff
-      - publish-burn-flex
-      - publish-burn-wgpu
+      - publish-burn-backend
+      - publish-burn-fusion
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-router
@@ -69,8 +54,10 @@ jobs:
     needs:
       - publish-burn-ir
       - publish-burn-std
-      - publish-burn-tensor
+      - publish-burn-backend
+      - publish-burn-fusion
       - publish-burn-router
+      - publish-burn-communication
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-remote
@@ -117,6 +104,7 @@ jobs:
       - publish-burn-std
       - publish-burn-backend
       - publish-burn-dispatch
+      - publish-burn-backend-extension
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-tensor
@@ -136,7 +124,7 @@ jobs:
 
   publish-burn-ir:
     needs:
-      - publish-burn-tensor
+      - publish-burn-backend
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-ir
@@ -147,7 +135,7 @@ jobs:
   publish-burn-fusion:
     needs:
       - publish-burn-ir
-      - publish-burn-tensor
+      - publish-burn-backend
       - publish-burn-std
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
@@ -161,7 +149,7 @@ jobs:
       - publish-burn-ir
       - publish-burn-std
       - publish-burn-fusion
-      - publish-burn-tensor
+      - publish-burn-backend
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-cubecl-fusion
@@ -175,7 +163,7 @@ jobs:
       - publish-burn-std
       - publish-burn-fusion
       - publish-burn-cubecl-fusion
-      - publish-burn-tensor
+      - publish-burn-backend
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-cubecl
@@ -196,8 +184,7 @@ jobs:
 
   publish-burn-tch:
     needs:
-      - publish-burn-tensor
-      - publish-burn-autodiff
+      - publish-burn-backend
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-tch
@@ -208,8 +195,7 @@ jobs:
   publish-burn-ndarray:
     needs:
       - publish-burn-ir
-      - publish-burn-tensor
-      - publish-burn-autodiff
+      - publish-burn-backend
       - publish-burn-std
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
@@ -232,9 +218,8 @@ jobs:
 
   publish-burn-wgpu:
     needs:
-      - publish-burn-tensor
-      - publish-burn-autodiff
-      - publish-burn-std
+      - publish-burn-backend
+      - publish-burn-fusion
       - publish-burn-cubecl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
@@ -245,7 +230,7 @@ jobs:
 
   publish-burn-cpu:
     needs:
-      - publish-burn-tensor
+      - publish-burn-backend
       - publish-burn-fusion
       - publish-burn-cubecl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
@@ -257,9 +242,8 @@ jobs:
 
   publish-burn-cuda:
     needs:
-      - publish-burn-tensor
-      - publish-burn-autodiff
-      - publish-burn-std
+      - publish-burn-backend
+      - publish-burn-fusion
       - publish-burn-cubecl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
@@ -270,9 +254,8 @@ jobs:
 
   publish-burn-rocm:
     needs:
-      - publish-burn-tensor
-      - publish-burn-autodiff
-      - publish-burn-std
+      - publish-burn-backend
+      - publish-burn-fusion
       - publish-burn-cubecl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
@@ -283,9 +266,8 @@ jobs:
 
   publish-burn-candle:
     needs:
-      - publish-burn-tensor
-      - publish-burn-autodiff
-      - publish-burn-tch
+      - publish-burn-backend
+      - publish-burn-std
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-candle
@@ -293,26 +275,20 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
-  # publish-burn-collective:
-  #   needs:
-  #     - publish-burn-std
-  #     - publish-burn-tensor
-  #     - publish-burn-communication
-  #     # dev dependencies
-  #     - publish-burn-wgpu
-  #     - publish-burn-flex
-  #     - publish-burn-cuda
-  #   uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
-  #   with:
-  #     crate: burn-collective
-  #     dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
-  #   secrets:
-  #     CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+  publish-burn-pack:
+    needs:
+      - publish-burn-std
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
+    with:
+      crate: burn-pack
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
   publish-burn-communication:
     needs:
       - publish-burn-std
-      - publish-burn-tensor
+      - publish-burn-backend
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-communication
@@ -326,14 +302,10 @@ jobs:
       - publish-burn-std
       - publish-burn-derive
       - publish-burn-tensor
-      # dev dependencies
-      - publish-burn-autodiff
-      - publish-burn-wgpu
-      - publish-burn-tch
-      - publish-burn-cuda
-      - publish-burn-flex
-      - publish-burn-candle
-      - publish-burn-remote
+      - publish-burn-pack
+      - publish-burn-ir
+      - publish-burn-dispatch
+      - publish-burn-backend-extension
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-core
@@ -344,13 +316,6 @@ jobs:
   publish-burn-nn:
     needs:
       - publish-burn-core
-      # dev dependencies
-      - publish-burn-autodiff
-      - publish-burn-wgpu
-      - publish-burn-tch
-      - publish-burn-flex
-      - publish-burn-candle
-      - publish-burn-remote
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-nn
@@ -361,15 +326,8 @@ jobs:
   publish-burn-optim:
     needs:
       - publish-burn-core
-      - publish-burn-collective
-      # dev dependencies
-      - publish-burn-autodiff
-      - publish-burn-wgpu
-      - publish-burn-tch
-      - publish-burn-flex
-      - publish-burn-candle
-      - publish-burn-remote
-      - publish-burn-nn
+      - publish-burn-derive
+      - publish-burn-pack
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-optim
@@ -381,9 +339,10 @@ jobs:
     needs:
       - publish-burn-core
       - publish-burn-optim
-      - publish-burn-collective
       - publish-burn-rl
-      - publish-burn-flex
+      - publish-burn-nn
+      - publish-burn-store
+      - publish-burn-std
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-train
@@ -395,7 +354,6 @@ jobs:
     needs:
       - publish-burn-std
       - publish-burn-backend
-      - publish-burn-backend-extension
       - publish-burn-autodiff
       - publish-burn-cpu
       - publish-burn-cuda
@@ -404,6 +362,7 @@ jobs:
       - publish-burn-flex
       - publish-burn-ndarray
       - publish-burn-tch
+      - publish-burn-remote
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-dispatch
@@ -416,13 +375,14 @@ jobs:
       - publish-burn-core
       - publish-burn-nn
       - publish-burn-optim
-      - publish-burn-collective
       - publish-burn-store
       - publish-burn-train
       - publish-burn-cpu
       - publish-burn-dispatch
       - publish-burn-flex
       - publish-burn-vision
+      - publish-burn-store
+      - publish-burn-rl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn
@@ -433,8 +393,9 @@ jobs:
   publish-burn-store:
     needs:
       - publish-burn-core
-      - publish-burn-nn
+      - publish-burn-pack
       - publish-burn-tensor
+      - publish-burn-nn
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-store

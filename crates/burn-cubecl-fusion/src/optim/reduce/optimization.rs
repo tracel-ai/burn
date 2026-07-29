@@ -120,6 +120,8 @@ pub enum ReduceInstruction {
     Max,
     Min,
     MaxAbs,
+    Any,
+    All,
 }
 
 pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
@@ -459,6 +461,8 @@ pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> Redu
         ReduceInstruction::Max => ReduceOperationConfig::Max,
         ReduceInstruction::Min => ReduceOperationConfig::Min,
         ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
+        ReduceInstruction::Any => ReduceOperationConfig::Any,
+        ReduceInstruction::All => ReduceOperationConfig::All,
     }
 }
 

@@ -90,3 +90,25 @@ fn test_median_all_elements() {
         .into_data()
         .assert_eq(&TensorData::from([0.5]), false);
 }
+
+#[test]
+fn test_median_negative_dim() {
+    let tensor =
+        TestTensor::<2>::from_data([[5.0, 1.0, 3.0], [2.0, 8.0, 4.0]], &Default::default());
+
+    let median = tensor.clone().median(1).into_data();
+    tensor
+        .clone()
+        .median(-1)
+        .into_data()
+        .assert_eq(&median, false);
+
+    let (values, indices) = tensor.clone().median_with_indices(1);
+    let (values_negative, indices_negative) = tensor.median_with_indices(-1);
+    values_negative
+        .into_data()
+        .assert_eq(&values.into_data(), false);
+    indices_negative
+        .into_data()
+        .assert_eq(&indices.into_data(), false);
+}

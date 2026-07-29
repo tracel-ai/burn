@@ -2,8 +2,9 @@ use burn_backend::ops::ActivationOps;
 use burn_dispatch::Dispatch;
 
 use crate::check::TensorCheck;
+use crate::check::unwrap_dim_index;
 use crate::ops::BridgeTensor;
-use crate::{Tensor, check, s};
+use crate::{AsIndex, Tensor, check, s};
 
 /// Applies the rectified linear unit function element-wise
 /// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
@@ -180,12 +181,12 @@ $$
 ///
 /// # Arguments
 /// - `dim`: the dimension along which Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
-    check!(TensorCheck::dim_ops::<D>("softmax", dim));
-
+/// - If `dim` is outside [-D, D)
+pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Softmax");
     Tensor::new(softmax_impl(tensor.primitive, dim))
 }
 
@@ -202,13 +203,13 @@ $$
 #[cfg_attr(not(doc), doc = "`softmin(x_i) = exp(-x_i) / sum_j(exp(-x_j)`")]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Softmin will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
-    check!(TensorCheck::dim_ops::<D>("softmin", dim));
-
+/// - If `dim` is outside [-D, D)
+pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Softmin");
     Tensor::new(softmin_impl(tensor.primitive, dim))
 }
 
@@ -251,13 +252,13 @@ $$
 )]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Quiet Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn quiet_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
-    check!(TensorCheck::dim_ops::<D>("softmax", dim));
-
+/// - If `dim` is outside [-D, D)
+pub fn quiet_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Quiet Softmax");
     let max_vals = tensor.clone().detach().max_dim(dim);
     let exp_x = (tensor - max_vals.clone()).exp();
     let sum_exp = exp_x.clone().sum_dim(dim);
@@ -283,13 +284,13 @@ $$
 )]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Log Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
-    check!(TensorCheck::dim_ops::<D>("log softmax", dim));
-
+/// - If `dim` is outside [-D, D)
+pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Log Softmax");
     Tensor::new(log_softmax_impl(tensor.primitive, dim))
 }
 
@@ -418,7 +419,7 @@ $$
     doc = "`f(x) =`\n- `x for x > 0`\n- `alpha * (exp(x) - 1) for x <= 0`"
 )]
 pub fn elu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor<D> {
-    let mask = tensor.clone().lower_equal_elem(0);
+    let mask = tensor.clone().lower_equal_scalar(0);
     let scaled = tensor.clone().exp().sub_scalar(1).mul_scalar(alpha);
     tensor.mask_where(mask, scaled)
 }
@@ -447,7 +448,7 @@ $$
 /// # Arguments
 /// - `alpha`: scaling parameter for the negative part.
 pub fn celu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor<D> {
-    let mask = tensor.clone().lower_equal_elem(0);
+    let mask = tensor.clone().lower_equal_scalar(0);
     let scaled = tensor
         .clone()
         .div_scalar(alpha)
@@ -483,7 +484,7 @@ pub fn selu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     const ALPHA: f64 = 1.6732632423543772848170429916717_f64;
     const GAMMA: f64 = 1.0507009873554804934193349852946_f64;
 
-    let mask = tensor.clone().greater_equal_elem(0.0);
+    let mask = tensor.clone().greater_equal_scalar(0.0);
     let positive = tensor.clone().mul_scalar(GAMMA);
     let negative = tensor.exp().sub_scalar(1.0).mul_scalar(ALPHA * GAMMA);
 
@@ -509,7 +510,7 @@ $$
 /// # Arguments
 /// - `alpha`: threshold value (default in ONNX is 1.0).
 pub fn thresholded_relu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor<D> {
-    let mask = tensor.clone().lower_equal_elem(alpha);
+    let mask = tensor.clone().lower_equal_scalar(alpha);
     tensor.mask_fill(mask, 0)
 }
 
@@ -526,7 +527,7 @@ pub fn thresholded_relu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor
 /// - `threshold`: the value to threshold at.
 /// - `value`: the value to replace with where `x <= threshold`.
 pub fn threshold<const D: usize>(tensor: Tensor<D>, threshold: f64, value: f64) -> Tensor<D> {
-    let mask = tensor.clone().lower_equal_elem(threshold);
+    let mask = tensor.clone().lower_equal_scalar(threshold);
     tensor.mask_fill(mask, value)
 }
 
@@ -536,15 +537,16 @@ pub fn threshold<const D: usize>(tensor: Tensor<D>, threshold: f64, value: f64) 
 ///
 /// **Note**:
 /// * The size of the input tensor along `dim` must be divisible by 2.
+/// * Negative dimensions are supported and count from the end.
 ///
 /// ### Arguments
 /// * `tensor` - The input tensor.
+/// * `dim` - The dimension on which to split the input.
 ///
 /// ### Returns
 /// * A tensor with the same shape as the input, except the size along `dim` is halved.
-pub fn glu<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
-    // TODO: Handle negative indices with AsIndex for compatibility with Pytorch nn.GLU.
-
+pub fn glu<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "GLU");
     assert!(
         tensor.dims()[dim].is_multiple_of(2),
         "Input tensor along dimension {dim} must have an even size. N is divisible by 2."
@@ -594,7 +596,7 @@ $$
 /// # Arguments
 /// - `lambda`: the lambda value for the Hard Shrink formulation. Default is 0.5.
 pub fn hard_shrink<const D: usize>(tensor: Tensor<D>, lambda: f64) -> Tensor<D> {
-    let mask = tensor.clone().abs().lower_equal_elem(lambda);
+    let mask = tensor.clone().abs().lower_equal_scalar(lambda);
     tensor.mask_fill(mask, 0)
 }
 
@@ -649,7 +651,7 @@ pub fn shrink<const D: usize>(tensor: Tensor<D>, lambda: f64, bias: f64) -> Tens
     let abs_tensor = tensor.clone().abs();
     let sign = tensor.clone().sign();
     let shrunk = tensor.sub(sign.mul_scalar(bias));
-    let mask = abs_tensor.lower_equal_elem(lambda);
+    let mask = abs_tensor.lower_equal_scalar(lambda);
     shrunk.mask_fill(mask, 0)
 }
 

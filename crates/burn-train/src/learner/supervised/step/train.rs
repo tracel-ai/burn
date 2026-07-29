@@ -2,19 +2,38 @@ use crate::LearnerModel;
 use crate::{TrainOutput, TrainStep, TrainingModelInput, TrainingModelOutput};
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
+use burn_core::data::dataset::DatasetError;
 use burn_core::tensor::Device;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
+/// Outputs and progress collected from workers for one step.
+type StepOutput<TO> = (Vec<MultiTrainOutput<TO>>, Progress);
+
 /// Multi devices train step.
 pub struct MultiDevicesTrainStep<M: LearnerModel> {
     workers: Vec<Worker<M>>,
-    receiver: Receiver<MultiTrainOutput<TrainingModelOutput<M>>>,
+    receiver: Receiver<WorkerMessage<TrainingModelOutput<M>>>,
 }
 
 struct Message<M, TI> {
     item: TI,
     model: M,
+}
+
+enum WorkerMessage<TO> {
+    Output(MultiTrainOutput<TO>),
+    Error(usize, String),
+}
+
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic in training worker".to_string()
+    }
 }
 
 struct Worker<M: LearnerModel> {
@@ -38,7 +57,7 @@ impl<M: LearnerModel> Worker<M> {
     // #[allow(clippy::type_complexity)]
     fn start(
         &self,
-        sender_output: Sender<MultiTrainOutput<TrainingModelOutput<M>>>,
+        sender_output: Sender<WorkerMessage<TrainingModelOutput<M>>>,
         receiver_input: Receiver<Message<M, TrainingModelInput<M>>>,
     ) {
         let device = self.device.clone();
@@ -48,11 +67,23 @@ impl<M: LearnerModel> Worker<M> {
             loop {
                 match receiver_input.recv() {
                     Ok(item) => {
-                        let model = item.model.fork(&device);
-                        let output = TrainStep::step(&model, item.item);
-                        let item = MultiTrainOutput { output, device_id };
+                        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            let model = item.model.fork(&device);
+                            TrainStep::step(&model, item.item)
+                        }));
 
-                        sender_output.send(item).unwrap();
+                        let message = match result {
+                            Ok(output) => {
+                                WorkerMessage::Output(MultiTrainOutput { output, device_id })
+                            }
+                            Err(payload) => {
+                                WorkerMessage::Error(device_id, panic_message(payload.as_ref()))
+                            }
+                        };
+
+                        if sender_output.send(message).is_err() {
+                            break;
+                        }
                     }
                     Err(_err) => {
                         log::info!("Closing thread on device {device:?}");
@@ -120,7 +151,7 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
         &self,
         dataloaders: &mut [Box<dyn DataLoaderIterator<TrainingModelInput<M>> + 'a>],
         model: &M,
-    ) -> (Vec<MultiTrainOutput<TrainingModelOutput<M>>>, Progress) {
+    ) -> Result<StepOutput<TrainingModelOutput<M>>, DatasetError> {
         let mut num_send = 0;
 
         let mut items_total = 0;
@@ -129,22 +160,30 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
 
         for (i, worker) in self.workers.iter().enumerate() {
             let dataloader = &mut dataloaders[i];
-            if let Some(item) = dataloader.next() {
-                worker.register(item, model);
-                num_send += 1;
-                let progress = dataloader.progress();
-                items_total += progress.items_total;
-                items_processed += progress.items_processed;
+            match dataloader.next() {
+                Some(Ok(item)) => {
+                    worker.register(item, model);
+                    num_send += 1;
+                    let progress = dataloader.progress();
+                    items_total += progress.items_total;
+                    items_processed += progress.items_processed;
+                }
+                Some(Err(err)) => return Err(err),
+                None => {}
             }
         }
 
         let mut outputs = Vec::with_capacity(num_send);
 
         for _ in 0..num_send {
-            let output = self.receiver.recv().unwrap();
-            outputs.push(output);
+            match self.receiver.recv().unwrap() {
+                WorkerMessage::Output(output) => outputs.push(output),
+                WorkerMessage::Error(device_id, msg) => {
+                    panic!("training worker on device {device_id} failed: {msg}");
+                }
+            }
         }
 
-        (outputs, Progress::new(items_processed, items_total, unit))
+        Ok((outputs, Progress::new(items_processed, items_total, unit)))
     }
 }

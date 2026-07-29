@@ -7,7 +7,7 @@ use super::{
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
-use crate::engine::trace::block::QuantInput;
+use crate::engine::trace::{TensorView, block::QuantInput};
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorIr};
 use burn_std::{DType, Shape};
@@ -135,6 +135,22 @@ impl TraceFuser {
             .local_inputs
             .insert(tensor.id, src_arg.clone());
         src_arg
+    }
+
+    /// Register an output relayout to NHWC.
+    ///
+    /// This will apply the NHWC relayout to the given [tensor](TensorIr).
+    ///
+    /// The relayout will be applied when the tensor is written to global memory.
+    pub fn output_nhwc_layout(&mut self, tensor: &TensorIr, permutation: Shape) {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return;
+        }
+
+        self.resources.views.push(TensorView::NhwcStrides {
+            id: tensor.id,
+            stride_relayout: permutation,
+        });
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.

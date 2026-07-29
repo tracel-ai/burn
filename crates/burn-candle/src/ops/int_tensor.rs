@@ -396,10 +396,6 @@ impl IntTensorOps<Self> for Candle {
         CandleTensor::new(tensor.tensor.argmax_keepdim(dim).unwrap())
     }
 
-    fn int_argtopk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
-        panic!("argtopk not implemented for candle backend")
-    }
-
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(tensor.tensor.argmin_keepdim(dim).unwrap())
     }
