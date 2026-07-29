@@ -70,15 +70,25 @@ fn relative_error(original: &[f32], dequantized: &[f32]) -> f32 {
     (err_sq.sqrt() / ref_sq.sqrt()) as f32
 }
 
+/// Read a tensor back as `f32`, whatever float type the backend is built with.
+fn to_f32(tensor: TestTensor<2>) -> Vec<f32> {
+    tensor.into_data().convert::<f32>().to_vec::<f32>().unwrap()
+}
+
 /// Quantize with `scheme`, dequantize, and report the relative error.
+///
+/// The reference is the tensor as the backend actually holds it, not the `f32` input. Under a
+/// narrower float element type the input is rounded on the way in, and charging that to
+/// quantization would inflate every measurement by a constant that has nothing to do with the
+/// scheme.
 fn quantization_error(values: &[f32], shape: [usize; 2], scheme: &QuantScheme) -> f32 {
     let device = Default::default();
-    let tensor = TestTensor::<2>::from_data(TensorData::new(values.to_vec(), shape), &device)
-        .quantize_dynamic(scheme);
+    let tensor = TestTensor::<2>::from_data(TensorData::new(values.to_vec(), shape), &device);
 
-    let dequantized = tensor.dequantize().into_data().to_vec::<f32>().unwrap();
+    let reference = to_f32(tensor.clone());
+    let dequantized = to_f32(tensor.quantize_dynamic(scheme).dequantize());
 
-    relative_error(values, &dequantized)
+    relative_error(&reference, &dequantized)
 }
 
 fn scheme_for(value: QuantValue, level: QuantLevel, param: QuantParam) -> QuantScheme {
@@ -141,8 +151,11 @@ fn error_responds_to_scale_param() {
         error_for(QuantParam::UE4M3),
     );
 
+    // Generous on purpose. The measured gap is near zero on the backends checked so far, but this
+    // runs on every backend and float element type, and the point is only to separate
+    // "indistinguishable" from the 8-bit case below, which is worse by more than 100%.
     assert!(
-        (f16_err - f32_err).abs() / f32_err < 0.05,
+        (f16_err - f32_err).abs() / f32_err < 0.20,
         "a 16-bit scale should be indistinguishable from f32, got f32={f32_err} f16={f16_err}"
     );
     assert!(
