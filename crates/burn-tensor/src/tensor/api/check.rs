@@ -1401,6 +1401,20 @@ impl TensorCheck {
 
         check
     }
+
+    /// Check if the matrix dimensions are valid for QR decomposition.
+    pub fn qr_valid(ops: &str, m: usize, n: usize) -> Self {
+        let mut check = TensorCheck::Ok;
+        if m < n {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "The input matrix must have m >= n for QR decomposition, got m={m}, n={n}",
+                )),
+            );
+        }
+        check
+    }
 }
 
 pub(crate) struct FailedTensorCheck {
