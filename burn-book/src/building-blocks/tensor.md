@@ -239,7 +239,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.slice_assign(slices, values)`                | `tensor[(*ranges,)] = values`                                             |
 | `tensor.slice_fill(slices, value)`                   | `tensor[(*ranges,)] = value`                                              |
 | `tensor.slice_dim(dim, slice)`                       | N/A                                                                       |
-| `tensor.select_dim(dim, slice)`                      | `torch.select(tensor, dim, index)`                                        |
+| `tensor.select_dim(dim, index)`                      | `torch.select(tensor, dim, index)`                                        |
 | `tensor.squeeze()`                                   | `tensor.squeeze()`                                                        |
 | `tensor.squeeze_dim(dim)`                            | `tensor.squeeze(dim)`                                                     |
 | `tensor.squeeze_dims(dims)`                          | `tensor.squeeze(dims)` where `dims` is a tuple of ints                    |
