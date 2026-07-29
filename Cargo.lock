@@ -1052,7 +1052,6 @@ version = "0.22.0-pre.1"
 dependencies = [
  "atomic_float",
  "blas-src",
- "burn-autodiff",
  "burn-backend",
  "burn-ir",
  "burn-std",
@@ -1261,7 +1260,6 @@ name = "burn-tensor"
 version = "0.22.0-pre.1"
 dependencies = [
  "burn-backend",
- "burn-backend-extension",
  "burn-dispatch",
  "burn-std",
  "colored 3.1.1",
