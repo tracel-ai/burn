@@ -1174,7 +1174,6 @@ dependencies = [
  "burn-fusion",
  "burn-ir",
  "burn-std",
- "burn-tensor",
  "burn-wgpu",
  "hashbrown 0.16.1",
  "log",

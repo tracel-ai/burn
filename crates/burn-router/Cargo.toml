@@ -41,7 +41,6 @@ log = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-burn-tensor = { workspace = true }
 burn-flex = { workspace = true, features = ["default"] }
 burn-wgpu = { workspace = true, features = [
     "std",
