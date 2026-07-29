@@ -2,6 +2,20 @@ use super::*;
 use burn_tensor::{ElementConversion, Slice, TensorData, s};
 
 #[test]
+fn should_support_select_dim() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+
+    let row1: Tensor<1> = tensor.clone().select_dim(0, 1);
+    row1.to_data()
+        .assert_eq(&TensorData::from([4.0, 5.0, 6.0]), false);
+
+    let col1: Tensor<1> = tensor.clone().select_dim(1, 1);
+    col1.to_data()
+        .assert_eq(&TensorData::from([2.0, 5.0]), false);
+}
+
+#[test]
 fn should_support_slice_dim_1d() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
