@@ -189,9 +189,10 @@ for the sake of simplicity, we ignore type signatures. For more details, refer t
 Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 
 | Burn                                                 | PyTorch Equivalent                                                        |
-| ---------------------------------------------------- | ------------------------------------------------------------------------- |
+|------------------------------------------------------|---------------------------------------------------------------------------|
 | `Tensor::cat(tensors, dim)`                          | `torch.cat(tensors, dim)`                                                 |
 | `Tensor::empty(shape, options)`                      | `torch.empty(shape, device=device, dtype=dtype)`                          |
+| `tensor::empty_like()`                               | `tensor.empty_like(tensor)`                                               |
 | `Tensor::from_primitive(primitive)`                  | N/A                                                                       |
 | `Tensor::stack(tensors, dim)`                        | `torch.stack(tensors, dim)`                                               |
 | `tensor.all()`                                       | `tensor.all()`                                                            |
@@ -215,6 +216,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.into_primitive()`                            | N/A                                                                       |
 | `tensor.into_scalar()`                               | `tensor.item()`                                                           |
 | `tensor.mask_fill(mask, value)`                      | `tensor.masked_fill(mask, value)`                                         |
+| `tensor.mask_select(mask)`                           | `tensor.masked_select(mask)`                                              |
 | `tensor.mask_where(mask, value_tensor)`              | `torch.where(mask, value_tensor, tensor)`                                 |
 | `tensor.movedim(src, dst)`                           | `tensor.movedim(src, dst)`                                                |
 | `tensor.narrow(dim, start, length)`                  | `tensor.narrow(dim, start, length)`                                       |
@@ -268,6 +270,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.argmin(dim)`                                            | `tensor.argmin(dim)`                          |
 | `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                         |
 | `tensor.argsort_descending(dim)`                                | `tensor.argsort(dim, descending=True)`        |
+| `tensor.argtopk(k, dim)`                                        | `tensor.topk(k, dim).indices`                 |
 | `tensor.bool()`                                                 | `tensor.bool()`                               |
 | `tensor.clamp(min, max)`                                        | `torch.clamp(tensor, min=min, max=max)`       |
 | `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                |

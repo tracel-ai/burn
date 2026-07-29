@@ -3,7 +3,8 @@ use crate::{
     kernel::attention::{AttentionStrategy, attention},
     tensor::CubeTensor,
 };
-use burn_backend::cubecl::dtype_to_elem_type;
+use burn_backend::DType;
+use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use burn_backend::ops::AttentionModuleOptions;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
 use cubek::attention::forward::{
@@ -21,9 +22,11 @@ pub fn attention_autotune<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let client = query.client.clone();
 
+    let accelerated_client = client.clone();
+
     static TUNER: LocalTuner<AttentionAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_MIN: i8 = 0;
 
@@ -76,6 +79,7 @@ pub fn attention_autotune<R: CubeRuntime>(
         let seq_kv = 1;
         for num_planes in [2, 4, 8] {
             let name = format!("blackbox_accelerated_{num_planes}_planes_p_{seq_q}-{seq_kv}");
+            let client_accelerated = client.clone();
             set = set.with(
                 Tunable::new(
                     &name,
@@ -98,7 +102,29 @@ pub fn attention_autotune<R: CubeRuntime>(
                         .map_err(|err| std::format!("{err:?}"))
                     },
                 )
-                .group(&flash_attention, |_key| PRIORITY_MAX),
+                .group(&flash_attention, move |_key| {
+                    // The blackbox routine runs its tile matmuls on f16 fragments whatever the
+                    // problem dtype is, and validates them against the `cmma` feature list, so
+                    // that's what has to be available here — `mma` or `tma` support alone
+                    // wouldn't let the kernel run.
+                    let f16 = dtype_to_storage_type(DType::F16);
+                    let has_accelerated = client_accelerated
+                        .properties()
+                        .features
+                        .matmul
+                        .cmma
+                        .iter()
+                        .any(|config| config.a_type == f16 && config.b_type == f16);
+
+                    // Unsupported kernels keep the minimum priority rather than being
+                    // discarded, so they remain a last resort and the tune plan can never end
+                    // up empty.
+                    if has_accelerated {
+                        PRIORITY_MAX
+                    } else {
+                        PRIORITY_MIN
+                    }
+                }),
             );
         }
 
@@ -122,8 +148,8 @@ pub fn attention_autotune<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&client, &query.device),
-        &client,
+        &CubeTuneId::new(&accelerated_client, &query.device),
+        &accelerated_client,
         tunables,
         (query, key, value, mask, attn_bias, options),
     )

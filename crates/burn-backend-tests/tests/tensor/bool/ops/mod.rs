@@ -14,6 +14,7 @@ mod gather_scatter;
 mod init;
 mod logical;
 mod mask;
+mod mask_select;
 mod movedim;
 mod permute;
 mod repeat;
