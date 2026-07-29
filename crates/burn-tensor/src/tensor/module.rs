@@ -266,6 +266,38 @@ pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -
     )))
 }
 
+/// Applies a 3D to 4D fold, the inverse of [unfold4d].
+///
+/// Combines an array of sliding local blocks into a large containing tensor, summing the
+/// values of blocks that overlap. This is the operation performed by
+/// [`torch.nn.Fold`](https://pytorch.org/docs/stable/generated/torch.nn.Fold.html), and is the
+/// adjoint of [unfold4d]: it reuses the same one-hot kernel through a [conv_transpose2d].
+///
+/// # Arguments
+///
+/// * `x` - Input columns of shape
+///   `[batch_size, channels * kernel_size_0 * kernel_size_1, number_of_blocks]`.
+/// * `output_size` - The spatial size `[height, width]` of the folded output tensor.
+/// * `kernel_size` - The size of the sliding blocks.
+/// * `options` - The stride, padding and dilation of the matching unfold.
+///
+/// # Returns
+///
+/// A tensor of shape `[batch_size, channels, output_size_0, output_size_1]`.
+pub fn fold4d(
+    x: Tensor<3>,
+    output_size: [usize; 2],
+    kernel_size: [usize; 2],
+    options: UnfoldOptions,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::fold4d(
+        x.primitive.into_float(),
+        output_size,
+        kernel_size,
+        options,
+    )))
+}
+
 /// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
 pub fn max_pool1d(
     x: Tensor<3>,
