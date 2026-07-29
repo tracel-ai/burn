@@ -1,0 +1,13 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "autotune-adaptive-bench"
+publish = false
+version.workspace = true
+
+[dependencies]
+burn = { workspace = true, default-features = false, features = [
+    "std",
+    "cuda",
+    "autotune",
+] }

@@ -25,3 +25,6 @@ uv.lock
 tags
 
 examples/**/Cargo.lock
+
+autotune-bench-results/remote-k620/
+autotune-bench-results/round*/
