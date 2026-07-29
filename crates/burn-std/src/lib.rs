@@ -80,9 +80,9 @@ impl From<alloc::vec::Vec<cubecl_common::device::DeviceId>> for CommunicationId 
     }
 }
 
-pub use cubecl_environment::bytes::*;
 pub use cubecl_common::device_handle::DeviceHandle;
 pub use cubecl_common::*;
+pub use cubecl_environment::bytes::*;
 
 // Environment shims live in `cubecl-environment`. They are re-exported here so
 // backends and other burn crates don't have to depend on it directly.
