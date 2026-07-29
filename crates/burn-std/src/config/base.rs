@@ -1,12 +1,12 @@
-use cubecl_common::config::RuntimeConfig;
-use cubecl_common::stub::Arc;
+use cubecl_environment::config::RuntimeConfig;
+use cubecl_environment::sync::{Arc, Mutex};
 
 use super::autodiff::AutodiffConfig;
 use super::fusion::FusionConfig;
 use super::remote::RemoteConfig;
 
 /// Static mutex holding the global Burn configuration, initialized as `None`.
-static BURN_GLOBAL_CONFIG: spin::Mutex<Option<Arc<BurnConfig>>> = spin::Mutex::new(None);
+static BURN_GLOBAL_CONFIG: Mutex<Option<Arc<BurnConfig>>> = Mutex::new(None);
 
 /// Represents the global configuration for Burn.
 #[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -42,7 +42,7 @@ impl BurnConfig {
 }
 
 impl RuntimeConfig for BurnConfig {
-    fn storage() -> &'static spin::Mutex<Option<Arc<Self>>> {
+    fn storage() -> &'static Mutex<Option<Arc<Self>>> {
         &BURN_GLOBAL_CONFIG
     }
 

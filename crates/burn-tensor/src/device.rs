@@ -810,15 +810,30 @@ pub struct ThroughputStat {
     pub value: ThroughputValue,
 }
 
+/// Short, column-friendly name for a throughput mode.
+#[cfg(feature = "cubecl")]
+fn mode_label(mode: &burn_backend::cubecl::ThroughputMode) -> &'static str {
+    use burn_backend::cubecl::ThroughputMode;
+
+    match mode {
+        ThroughputMode::ComputeDirect { .. } => "compute-direct",
+        ThroughputMode::ComputeCmma { .. } => "compute-cmma",
+        ThroughputMode::Memory => "memory",
+        ThroughputMode::Launch => "launch",
+    }
+}
+
 #[cfg(feature = "cubecl")]
 impl core::fmt::Display for ThroughputStat {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // Width/alignment flags are ignored on `ThroughputMode`/`ElemType` directly
         // (their fmt impls don't call `f.pad`), so render them to `String`s first —
         // `str`'s `Display` honors padding. The value is "<number> <unit>"; split it
-        // so the numeric column can be right-aligned.
-        let mode = alloc::format!("{:?}", self.key.mode);
-        let dtype = alloc::format!("{}", self.key.dtype);
+        // so the numeric column can be right-aligned. The mode is labelled by hand
+        // rather than derived through `Debug`: its variants carry payloads that would
+        // blow out the column.
+        let mode = mode_label(&self.key.mode);
+        let dtype = alloc::format!("{}", self.key.dtype());
         let value = self.value.format(&self.key);
 
         write!(f, "{mode:<14} {dtype:<5} {value}")
