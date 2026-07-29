@@ -20,16 +20,16 @@ type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>> + Send + S
 const THRESHOLD: f32 = 1.0;
 
 /// Creates a closure that calculates performance bounds for matrix multiplication autotuning.
-pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) -> Arc<BoundsGen<R>> {
-    let owned_client = client.clone();
+pub(super) fn create_matmul_bounds<R: CubeRuntime>() -> Arc<BoundsGen<R>> {
+    Arc::new(|_key: &MatmulAutotuneKey, tensors: &Inputs<R>| {
+        let client = &tensors.0.client;
 
-    Arc::new(
-        move |_key: &MatmulAutotuneKey, tensors: &Inputs<R>| Bounds {
-            bounds: autotune_bounds(&owned_client, tensors),
-            launch_overhead: measure_peak_throughput(&owned_client, launch_overhead_key())
+        Bounds {
+            bounds: autotune_bounds(client, tensors),
+            launch_overhead: measure_peak_throughput(client, launch_overhead_key())
                 .duration_per_op(),
-        },
-    )
+        }
+    })
 }
 
 fn launch_overhead_key() -> ThroughputKey {

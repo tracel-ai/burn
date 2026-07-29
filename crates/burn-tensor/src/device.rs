@@ -812,9 +812,7 @@ pub struct ThroughputStat {
 
 /// Short, column-friendly name for a throughput mode.
 #[cfg(feature = "cubecl")]
-fn mode_label(mode: &burn_backend::cubecl::ThroughputMode) -> &'static str {
-    use burn_backend::cubecl::ThroughputMode;
-
+fn mode_label(mode: &ThroughputMode) -> &'static str {
     match mode {
         ThroughputMode::ComputeDirect { .. } => "compute-direct",
         ThroughputMode::ComputeCmma { .. } => "compute-cmma",
@@ -828,9 +826,8 @@ impl core::fmt::Display for ThroughputStat {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // Width/alignment flags are ignored on `ThroughputMode`/`ElemType` directly
         // (their fmt impls don't call `f.pad`), so render them to `String`s first —
-        // `str`'s `Display` honors padding. The value is "<number> <unit>"; split it.
-        use burn_backend::cubecl::ThroughputMode;
-
+        // `str`'s `Display` honors padding. The mode is labelled by hand rather than
+        // derived through `Debug`: its variants carry payloads that would blow out the column.
         let mode = mode_label(&self.key.mode);
 
         // `ThroughputKey::dtype()` reports f32 for the modes that don't compute with an
