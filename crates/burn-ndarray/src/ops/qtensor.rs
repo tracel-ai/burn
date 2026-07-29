@@ -5,7 +5,7 @@ use burn_backend::{
     ops::{FloatTensorOps, QTensorOps},
     quantization::{
         QParams, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
-        QuantizationParametersPrimitive, QuantizedBytes,
+        QuantizationParametersPrimitive, QuantizedBytes, round_to_param,
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -85,6 +85,12 @@ impl QTensorOps<Self> for NdArray {
         let shape = tensor.shape();
         let data_f = tensor.into_data();
         let scales = qparams.scales.into_data().convert::<f32>();
+        // Quantize against the scale that will actually be stored, so a save/load round trip
+        // reproduces these values instead of drifting by the param's rounding error.
+        let scales: Vec<f32> = scales
+            .iter::<f32>()
+            .map(|s| round_to_param(s, scheme.param))
+            .collect();
 
         // Implement with ndarray instead of QuantizationStrategy?
         let (data, qparams) = match scheme {
@@ -108,7 +114,7 @@ impl QTensorOps<Self> for NdArray {
                 store: QuantStore::Native,
                 ..
             } => {
-                let scales = scales.iter().next().unwrap();
+                let scales = scales[0];
                 let strategy = QuantizationStrategy::PerTensorSymmetric(
                     SymmetricQuantization::init(scales, scheme.value),
                 );
@@ -134,7 +140,7 @@ impl QTensorOps<Self> for NdArray {
                 store: QuantStore::Native,
                 ..
             } => {
-                let scales = scales.as_slice().unwrap();
+                let scales = scales.as_slice();
                 let (strategy, qparams) = scales
                     .iter()
                     .map(|&s| {

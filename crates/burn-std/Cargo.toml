@@ -44,6 +44,7 @@ uuid = { workspace = true }
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
     "shared-bytes",
+    "fp8",
 ] }
 cubecl-zspace = { workspace = true, default-features = false }
 # Enable extra-platforms for portable-atomic support on targets without native atomics (e.g., thumbv6m)
