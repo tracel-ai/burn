@@ -238,6 +238,71 @@ where
         }
     }
 
+    /// Get multiple items from the dataset in a single query.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `indexes[i] >= len()`.
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>> {
+        if indexes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        for &index in &indexes {
+            assert!(
+                index < self.len,
+                "Index out of bounds for SqliteDataset: {} >= {}",
+                index,
+                self.len,
+            );
+        }
+
+        // Bind (row_id, ord) pairs through a CTE so SQLite returns the rows already ordered
+        // (and duplicated) to match the requested `indexes`, instead of reordering in Rust.
+        let values_clause = vec!["(?, ?)"; indexes.len()].join(", ");
+        let params: Vec<i64> = indexes
+            .iter()
+            .enumerate()
+            .flat_map(|(ord, &index)| [(index + 1) as i64, ord as i64])
+            .collect();
+
+        let split = &self.split;
+        let connection = self.conn_pool.get()?;
+
+        if self.row_serialized {
+            let query = format!(
+                "WITH req(row_id, ord) AS (VALUES {values_clause}) \
+                 SELECT t.item FROM req JOIN {split} t ON t.row_id = req.row_id ORDER BY req.ord"
+            );
+            let mut statement = connection.prepare(&query)?;
+            let mut rows = statement.query(rusqlite::params_from_iter(params.iter()))?;
+
+            let mut items = Vec::with_capacity(indexes.len());
+            while let Some(row) = rows.next()? {
+                let blob: Vec<u8> = row
+                    .get_ref(0)?
+                    .as_blob()
+                    .map_err(rusqlite::Error::from)?
+                    .to_vec();
+                items.push(rmp_serde::from_slice::<I>(&blob)?);
+            }
+            Ok(items)
+        } else {
+            let query = format!(
+                "WITH req(row_id, ord) AS (VALUES {values_clause}) \
+                 SELECT t.* FROM req JOIN {split} t ON t.row_id = req.row_id ORDER BY req.ord"
+            );
+            let mut statement = connection.prepare(&query)?;
+            let mut rows = statement.query(rusqlite::params_from_iter(params.iter()))?;
+
+            let mut items = Vec::with_capacity(indexes.len());
+            while let Some(row) = rows.next()? {
+                items.push(from_row_with_columns::<I>(row, &self.columns)?);
+            }
+            Ok(items)
+        }
+    }
+
     /// Return the number of rows in the dataset.
     fn len(&self) -> usize {
         self.len
@@ -682,6 +747,28 @@ mod tests {
     #[should_panic(expected = "Index out of bounds")]
     pub fn get_none(train_dataset: SqlDs) {
         train_dataset.get(10).unwrap();
+    }
+
+    #[rstest]
+    pub fn get_many_out_of_order_with_duplicates(train_dataset: SqlDs) {
+        // Requested out of order and with a duplicate; result must follow the requested order.
+        let items = train_dataset.get_many(vec![1, 0, 1]).unwrap();
+
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0], train_dataset.get(1).unwrap());
+        assert_eq!(items[1], train_dataset.get(0).unwrap());
+        assert_eq!(items[2], train_dataset.get(1).unwrap());
+    }
+
+    #[rstest]
+    pub fn get_many_empty(train_dataset: SqlDs) {
+        assert_eq!(train_dataset.get_many(vec![]).unwrap(), Vec::new());
+    }
+
+    #[rstest]
+    #[should_panic(expected = "Index out of bounds")]
+    pub fn get_many_out_of_bounds(train_dataset: SqlDs) {
+        train_dataset.get_many(vec![0, 10]).unwrap();
     }
 
     #[rstest]

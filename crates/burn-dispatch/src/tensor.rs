@@ -117,6 +117,25 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
 
+    /// Lift a handle for backend `B` into the equivalent handle for `Autodiff<B>`.
+    ///
+    /// An already-tracked float (`Autodiff`) becomes the `Float` handle of `Autodiff<B>`; int/bool/
+    /// quantized handles are re-tagged unchanged (those primitives are shared between `B` and
+    /// `Autodiff<B>`). An untracked `Float` handle is invalid here (under autodiff, float tensors
+    /// arrive tracked), so it panics.
+    #[cfg(feature = "autodiff")]
+    pub fn into_autodiff(self) -> BackendTensor<Autodiff<B>> {
+        match self {
+            BackendTensor::Autodiff(tensor) => BackendTensor::Float(tensor),
+            BackendTensor::Int(tensor) => BackendTensor::Int(tensor),
+            BackendTensor::Bool(tensor) => BackendTensor::Bool(tensor),
+            BackendTensor::Quantized(tensor) => BackendTensor::Quantized(tensor),
+            BackendTensor::Float(_) => {
+                unreachable!("an untracked float handle can't be lifted to Autodiff<B>")
+            }
+        }
+    }
+
     /// Returns the tensor primitive kind name.
     pub fn name(&self) -> &'static str {
         match self {

@@ -117,7 +117,7 @@ impl HuberLoss {
     /// - residuals: [...dims]
     /// - output: [...dims]
     pub fn forward_residuals<const D: usize>(&self, residuals: Tensor<D>) -> Tensor<D> {
-        let is_large = residuals.clone().abs().greater_elem(self.delta);
+        let is_large = residuals.clone().abs().greater_scalar(self.delta);
         // We are interested in `sign(r)` when `abs(r) > self.delta`. Note that the
         // `sign()` function, in general, suffers from a jump at 0.
         // Instead the following tensor implements `delta * sign(r)` for values outside

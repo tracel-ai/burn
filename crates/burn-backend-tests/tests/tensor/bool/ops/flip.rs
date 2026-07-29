@@ -28,6 +28,6 @@ fn flip_bool() {
     flipped.into_data().assert_eq(&data_expected, false);
 
     // Test with no flip
-    let flipped = tensor.clone().flip([]);
+    let flipped = tensor.clone().flip([] as [isize; 0]);
     tensor.into_data().assert_eq(&flipped.into_data(), false);
 }

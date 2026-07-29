@@ -100,6 +100,23 @@ where
         self.dataset.get(index)
     }
 
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, E> {
+        let translated = indexes
+            .into_iter()
+            .map(|index| {
+                let index = index + self.start_index;
+                assert!(
+                    index >= self.start_index && index < self.end_index,
+                    "Index out of bounds for PartialDataset: {} >= {}",
+                    index,
+                    self.end_index
+                );
+                index
+            })
+            .collect();
+        self.dataset.get_many(translated)
+    }
+
     fn len(&self) -> usize {
         usize::min(self.end_index - self.start_index, self.dataset.len())
     }
@@ -169,6 +186,34 @@ mod tests {
         for item in items_original_2 {
             assert!(!items_partial.contains(&item));
         }
+    }
+
+    #[test]
+    fn test_get_many() {
+        let dataset_original = FakeDataset::<String>::new(27);
+        let source_items: Vec<String> = dataset_original.iter().map(Result::unwrap).collect();
+
+        let dataset_partial = PartialDataset::new(dataset_original, 10, 20);
+
+        // Local indices, out of order and with a duplicate.
+        let requested = vec![5, 0, 3, 0];
+        let expected: Vec<String> = requested
+            .iter()
+            .map(|&i| source_items[10 + i].clone())
+            .collect();
+
+        let items = dataset_partial.get_many(requested).unwrap();
+
+        assert_eq!(items, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Index out of bounds for PartialDataset: 20 >= 20")]
+    fn test_get_many_out_of_bounds() {
+        let dataset_original = FakeDataset::<String>::new(27);
+        let dataset_partial = PartialDataset::new(dataset_original, 10, 20);
+
+        let _ = dataset_partial.get_many(vec![0, 10]);
     }
 
     #[test]

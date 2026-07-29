@@ -1,7 +1,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::Tensor;
+use burn::tensor::{AsIndex, Tensor};
 use burn_core as burn;
 
 /// Configuration for the [SmoothL1Loss](SmoothL1Loss) module.
@@ -128,7 +128,7 @@ impl SmoothL1Loss {
         // The L2 case: 0.5 * (error)^2 / beta (when |error| < beta)
         let l2_loss = error.square().mul_scalar(0.5).div_scalar(self.beta);
 
-        let l2_mask = abs_error.lower_elem(self.beta);
+        let l2_mask = abs_error.lower_scalar(self.beta);
         l1_loss.mask_where(l2_mask, l2_loss)
     }
 
@@ -171,14 +171,14 @@ impl SmoothL1Loss {
     /// Calculates element-wise smooth L1 loss, then takes the mean
     /// over the specified dimensions. Useful for per-sample or per-channel losses.
     ///
-    /// Dimensions can be provided in any order. They are sorted internally and
-    /// reduced from highest to lowest to ensure indices remain valid.
+    /// Dimensions can be provided in any order.
     ///
     /// # Arguments
     ///
     /// - `predictions` - The model's predicted values.
     /// - `targets` - The ground truth target values.
     /// - `dims` - Dimensions to reduce over.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -197,16 +197,11 @@ impl SmoothL1Loss {
         &self,
         predictions: Tensor<D>,
         targets: Tensor<D>,
-        dims: &[usize],
+        dims: &[impl AsIndex],
     ) -> Tensor<D> {
         let error = self.forward(predictions, targets);
 
-        // Sort the dimensions to ascending order
-        let mut sorted_dims = dims.to_vec();
-        sorted_dims.sort();
-
-        // Reduce over specified dimensions
-        error.mean_dims(sorted_dims.as_slice())
+        error.mean_dims(dims)
     }
 }
 
@@ -491,11 +486,30 @@ mod tests {
             Tensor::<2>::from_data(TensorData::from([[0.5_f32, 2.0], [0.0, 3.0]]), &device);
         let targets = Tensor::<2>::zeros([2, 2], &device);
 
-        let loss_reduce_dims = loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[]);
+        let loss_reduce_dims =
+            loss.forward_reduce_dims::<2>(predictions.clone(), targets.clone(), &[] as &[usize]);
         let loss_no_reduction = loss.forward(predictions, targets);
 
         loss_reduce_dims
             .into_data()
             .assert_eq(&loss_no_reduction.into_data(), false);
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_reduce_dims_negative_dims() {
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+        let predictions = Tensor::<3>::from_data(
+            TensorData::from([[[1.0_f32, 2.0], [3.0, 4.0]], [[5.0_f32, 6.0], [7.0, 8.0]]]),
+            &device,
+        );
+        let targets = Tensor::<3>::zeros([2, 2, 2], &device);
+
+        let expected = loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[1, 2]);
+        let output = loss.forward_reduce_dims(predictions, targets, &[-2, -1]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::default());
     }
 }

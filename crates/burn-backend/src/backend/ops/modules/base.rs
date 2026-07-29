@@ -1,5 +1,5 @@
 use super::{conv, ctc, linear, pool};
-use crate::ops::unfold::unfold4d_using_conv2d;
+use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, TensorMetadata};
 pub use burn_std::ops::{
@@ -472,6 +472,83 @@ pub trait ModuleOps<B: Backend> {
         } else {
             unfold4d_using_conv2d::<B>(x, kernel_size, options)
         }
+    }
+
+    /// Four dimensional fold (`col2im`), the adjoint of [unfold4d](ModuleOps::unfold4d).
+    ///
+    /// Composes [conv_transpose2d](ModuleOps::conv_transpose2d) with the same one-hot weight
+    /// [unfold4d](ModuleOps::unfold4d) uses, so backends inherit a correct (and differentiable)
+    /// implementation for free and may override it with a custom one.
+    ///
+    /// # Shapes
+    ///
+    /// x: `[batch_size, channels * kernel_size_0 * kernel_size_1, num_blocks]`,
+    /// output: `[batch_size, channels, output_size_0, output_size_1]`
+    fn fold4d(
+        x: FloatTensor<B>,
+        output_size: [usize; 2],
+        kernel_size: [usize; 2],
+        options: UnfoldOptions,
+    ) -> FloatTensor<B> {
+        let [batch_size, channels_col, num_blocks] = x.shape().dims();
+        let [kernel_height, kernel_width] = kernel_size;
+        let [output_height, output_width] = output_size;
+        let [stride_height, stride_width] = options.stride;
+        let [padding_height, padding_width] = options.padding;
+        let [dilation_height, dilation_width] = options.dilation;
+
+        let kernel_elems = kernel_height * kernel_width;
+        assert_eq!(
+            channels_col % kernel_elems,
+            0,
+            "fold4d: input channels ({channels_col}) must be divisible by the kernel size product ({kernel_elems})"
+        );
+        let channels = channels_col / kernel_elems;
+
+        // Number of sliding blocks along each spatial dimension (the unfold output grid).
+        let blocks_height =
+            (output_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
+                / stride_height
+                + 1;
+        let blocks_width =
+            (output_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
+                / stride_width
+                + 1;
+        assert_eq!(
+            num_blocks,
+            blocks_height * blocks_width,
+            "fold4d: number of blocks ({num_blocks}) does not match the expected grid ({blocks_height} x {blocks_width}) for the given output size and options"
+        );
+
+        // The fold weight is identical to the one `unfold4d` builds for its `conv2d` — fold is its adjoint.
+        let weight = create_unfolding_weight::<B>(channels, kernel_size, &x.device(), x.dtype());
+
+        // Reshape the columns into the spatial grid of blocks, then scatter-add them back.
+        let x = B::float_reshape(
+            x,
+            Shape::new([batch_size, channels_col, blocks_height, blocks_width]),
+        );
+
+        // `padding_out` recovers the exact requested output size (always `< stride`).
+        let padding_out = [
+            (output_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
+                % stride_height,
+            (output_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
+                % stride_width,
+        ];
+
+        B::conv_transpose2d(
+            x,
+            weight,
+            None,
+            ConvTransposeOptions::new(
+                options.stride,
+                options.padding,
+                padding_out,
+                options.dilation,
+                1,
+            ),
+        )
     }
 
     /// One dimensional avg pooling.

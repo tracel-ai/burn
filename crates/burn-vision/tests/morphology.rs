@@ -299,13 +299,13 @@ fn should_support_dilate_rgb_anchor_cross() {
 #[test]
 fn should_support_dilate_boolean_rect() {
     let device = TestDevice::default().into();
-    let tensor = test_image("morphology/Base_1.png", &device, true).greater_elem(0);
+    let tensor = test_image("morphology/Base_1.png", &device, true).greater_scalar(0);
     let kernel = create_structuring_element(KernelShape::Rect, Size::new(5, 5), None, &device);
 
     // With default border, bottom left pixel is undefined with this particular kernel and anchor
     // Use replicate instead for comparability
     let output = tensor.dilate(kernel, MorphOptions::default());
-    let expected = test_image("morphology/Dilate_1_5x5_Rect.png", &device, true).greater_elem(0);
+    let expected = test_image("morphology/Dilate_1_5x5_Rect.png", &device, true).greater_scalar(0);
     let expected = TestTensorBool::<3>::from(expected);
 
     output
@@ -316,13 +316,13 @@ fn should_support_dilate_boolean_rect() {
 #[test]
 fn should_support_dilate_boolean_cross() {
     let device = TestDevice::default().into();
-    let tensor = test_image("morphology/Base_1.png", &device, true).greater_elem(0);
+    let tensor = test_image("morphology/Base_1.png", &device, true).greater_scalar(0);
     let kernel = create_structuring_element(KernelShape::Cross, Size::new(5, 5), None, &device);
 
     // With default border, bottom left pixel is undefined with this particular kernel and anchor
     // Use replicate instead for comparability
     let output = tensor.dilate(kernel, MorphOptions::default());
-    let expected = test_image("morphology/Dilate_1_5x5_Cross.png", &device, true).greater_elem(0);
+    let expected = test_image("morphology/Dilate_1_5x5_Cross.png", &device, true).greater_scalar(0);
     let expected = TestTensorBool::<3>::from(expected);
 
     output

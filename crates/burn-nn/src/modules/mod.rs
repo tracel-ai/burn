@@ -20,6 +20,7 @@ pub mod interpolate;
 mod cosine_similarity;
 mod dropout;
 mod embedding;
+mod fold;
 mod linear;
 mod noise;
 mod pairwise_distance;
@@ -36,6 +37,7 @@ pub use norm::{batch::*, group::*, instance::*, layer::*, local_response::*, rms
 pub use cosine_similarity::*;
 pub use dropout::*;
 pub use embedding::*;
+pub use fold::*;
 pub use identity::*;
 pub use linear::*;
 pub use noise::*;

@@ -73,8 +73,9 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 futures-util = { workspace = true }
 
 [dev-dependencies]
-burn-flex = { workspace = true, features = ["default"] }
-burn-tensor = { workspace = true, features = ["default", "remote-websocket"] }
+# Use path instead of workspace dep (which specifies a version, creating a circular publish dependency chain)
+burn-flex = { path = "../burn-flex", features = ["default"] }
+burn-tensor = { path = "../burn-tensor", features = ["default", "remote-websocket"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]
