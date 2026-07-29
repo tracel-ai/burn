@@ -375,7 +375,6 @@ jobs:
       - publish-burn-core
       - publish-burn-nn
       - publish-burn-optim
-      - publish-burn-collective
       - publish-burn-store
       - publish-burn-train
       - publish-burn-cpu
