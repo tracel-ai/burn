@@ -6,18 +6,20 @@ use alloc::vec::Vec;
 /// Decomposes `A` (m x n) into `U` (m x k), `S` (k), `Vt` (k x n) such that
 /// `A ≈ U @ diag(S) @ Vt`, where `k = min(m, n)`.
 ///
-/// Uses subspace iteration with fixed `iters` power steps per component. The
-/// operation is composed from tensor primitives and works on any backend.
+/// Uses subspace iteration with fixed power steps per component. All
+/// normalization and deflation uses pure tensor operations — no per-step
+/// CPU synchronizations. Singular values are collected via slice_assign
+/// into a pre-allocated tensor.
 ///
 /// # Arguments
 /// * `tensor` — An (m x n) 2D tensor.
-/// * `iters` — Power iteration steps per component (default 10).
+/// * `iters` — Power iteration steps per component (≥ 3).
 ///
 /// # Returns
 /// `(U, S, Vt)` where U is (m x k), S is (k), Vt is (k x n).
 ///
 /// # Performance note
-/// Each component requires `O(iters · m · n)` composed operations.
+/// Composed operation — O(k · iters · m · n) per component.
 /// A backend-kernel SVD is tracked for future optimization.
 ///
 /// # Example
@@ -33,16 +35,15 @@ pub fn svd(tensor: Tensor<2>, iters: usize) -> (Tensor<2>, Tensor<1>, Tensor<2>)
     let iters = iters.max(3);
 
     let mut u_cols: Vec<Tensor<2>> = Vec::with_capacity(k);
-    let mut s_vals: Vec<f32> = Vec::with_capacity(k);
     let mut vt_rows: Vec<Tensor<2>> = Vec::with_capacity(k);
+    let mut s_tensor = Tensor::zeros([k], &device);
     let mut residual = tensor;
 
-    for _comp in 0..k {
+    for comp in 0..k {
         let mut v = Tensor::<2>::random(
             [n, 1], crate::Distribution::Normal(0.0, 1.0), &device,
         );
 
-        // Power iteration: v ← (A^T A)^iters · v, normalized each step via tensor ops
         for _ in 0..iters {
             let av = residual.clone().transpose().matmul(residual.clone().matmul(v.clone()));
             let norm = av.clone().powf_scalar(2.0).sum_dim(0).sqrt().clamp_min(1e-12);
@@ -51,27 +52,21 @@ pub fn svd(tensor: Tensor<2>, iters: usize) -> (Tensor<2>, Tensor<1>, Tensor<2>)
 
         let av = residual.clone().matmul(v.clone());
         let sigma = av.clone().powf_scalar(2.0).sum_dim(0).sqrt();
-        let sf = f32::from_le_bytes(sigma.clone().into_data().bytes[..4].try_into().unwrap());
-
-        if sf < 1e-10 { break; }
 
         let u = av.div(sigma.clone());
-        s_vals.push(sf);
-        residual = residual - u.clone().matmul(v.clone().transpose()).mul(sigma);
+        residual = residual - u.clone().matmul(v.clone().transpose()).mul(sigma.clone());
+
+        // Store sigma via slice_assign — no CPU sync
+        s_tensor = s_tensor.slice_assign(
+            [comp..comp+1],
+            sigma.reshape([1]),
+        );
+
         u_cols.push(u);
         vt_rows.push(v.transpose());
     }
 
-    let kf = u_cols.len();
     let u = Tensor::cat(u_cols, 1);
     let vt = Tensor::cat(vt_rows, 0);
-    let s = Tensor::<1>::from_floats(s_vals.as_slice(), &device);
-
-    if kf < k {
-        (Tensor::cat(vec![u, Tensor::zeros([m, k - kf], &device)], 1),
-         Tensor::cat(vec![s, Tensor::zeros([k - kf], &device)], 0),
-         Tensor::cat(vec![vt, Tensor::zeros([k - kf, n], &device)], 0))
-    } else {
-        (u, s, vt)
-    }
+    (u, s_tensor, vt)
 }
