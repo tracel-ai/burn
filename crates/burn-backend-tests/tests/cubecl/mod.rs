@@ -16,6 +16,7 @@ mod gather;
 mod interpolate_nearest;
 mod mask_fill;
 mod mask_where;
+mod matmul;
 mod max_pool2d;
 mod max_pool2d_backward;
 mod normal;
