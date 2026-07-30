@@ -1,5 +1,6 @@
 pub use super::*; // re-export test types
 
+mod accuracy;
 mod calibration;
 mod data;
 mod ops;

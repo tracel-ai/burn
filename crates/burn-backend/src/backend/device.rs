@@ -2,7 +2,7 @@ pub use burn_std::device::*;
 use burn_std::{BoolDType, DType, FloatDType, IntDType};
 pub use burn_std::{DeviceError, DeviceSettings};
 
-use burn_std::stub::RwLock;
+use burn_std::sync::RwLock;
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
@@ -63,11 +63,11 @@ impl DeviceSettingsRegistry {
 
             // Entry does not exist in cache
             let settings = {
-                let read = REGISTRY.read().unwrap();
+                let read = REGISTRY.read();
                 read.get(&key).cloned()
             }
             .unwrap_or_else(|| {
-                let mut map = REGISTRY.write().unwrap();
+                let mut map = REGISTRY.write();
                 Arc::clone(map.entry(key).or_default())
             });
 
@@ -82,11 +82,11 @@ impl DeviceSettingsRegistry {
         #[cfg(not(feature = "std"))]
         {
             let settings = {
-                let read = REGISTRY.read().unwrap();
+                let read = REGISTRY.read();
                 read.get(&key).cloned()
             }
             .unwrap_or_else(|| {
-                let mut map = REGISTRY.write().unwrap();
+                let mut map = REGISTRY.write();
                 Arc::clone(map.entry(key).or_default())
             });
 
@@ -100,7 +100,7 @@ impl DeviceSettingsRegistry {
     /// Returns `Err` with the existing settings if already initialized.
     fn init<D: DeviceOps>(device: &D, settings: DeviceSettings) -> Result<(), DeviceError> {
         let key = Self::key(device);
-        let mut map = REGISTRY.write().unwrap();
+        let mut map = REGISTRY.write();
         let cell = map.entry(key).or_insert_with(|| Arc::new(OnceLock::new()));
 
         #[cfg(feature = "std")]
@@ -212,7 +212,7 @@ mod tests {
     use super::*;
 
     fn clear_registry() {
-        REGISTRY.write().unwrap().clear();
+        REGISTRY.write().clear();
     }
 
     #[derive(Clone, Debug, Default, PartialEq, new)]

@@ -339,7 +339,7 @@ pub struct LBFGSConfig {
 }
 
 impl LBFGSConfig {
-    /// Initialize AdamW optimizer
+    /// Initialize LBFGS optimizer.
     ///
     /// # Returns
     ///

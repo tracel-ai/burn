@@ -1,5 +1,6 @@
+use crate::optim::FusedOperation;
 use crate::{
-    CubeFusionHandle,
+    CubeFusionHandle, FallbackOperation,
     engine::{
         codegen::{
             DynSize,
@@ -137,5 +138,33 @@ fn elemwise_fuse(
 
     if pos < length {
         fuse_on_write::<f32, DynSize>(inputs, outputs, &mut locals, pos, values, args, &config)
+    }
+}
+
+/// Name of the element-wise fusion optimization.
+pub const NAME: &str = "ElementWise";
+
+impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
+    const NAME: &'static str = self::NAME;
+    type State = ElemwiseOptimizationState;
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn run(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        _fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context)
+    }
+
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
     }
 }

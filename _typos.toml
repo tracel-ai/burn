@@ -1,5 +1,5 @@
 [default]
-extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND", "log_lik"]
+extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND", "log_lik", ".*ue4m3.*"]
 
 [default.extend-identifiers]
 UE4M3 = "UE4M3"
