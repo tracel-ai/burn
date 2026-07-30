@@ -1,7 +1,7 @@
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{launch::FuseTraceLauncher, trace::FuseTrace},
-    optim::elemwise::ElemwiseRunner,
+    optim::{FusedOperation, elemwise::ElemwiseRunner},
 };
 use burn_fusion::stream::Context;
 use cubecl::{client::ComputeClient, prelude::*};
@@ -60,5 +60,33 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
             trace: self.trace.clone(),
             len: self.len,
         }
+    }
+}
+
+/// Name of the NHWC relayout fusion optimization.
+pub const NAME: &str = "NHWCRelayout";
+
+impl<R: Runtime> FusedOperation<R> for NHWCRelayoutOptimization<R> {
+    const NAME: &'static str = self::NAME;
+    type State = RelayoutOptimizationState;
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn run(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context, |index| fallback(index))
+    }
+
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
     }
 }

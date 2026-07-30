@@ -108,8 +108,7 @@ pub fn qr<const D: usize>(tensor: Tensor<D>, reduced: bool) -> (Tensor<D>, Tenso
             let aw_out = a.matmul(w.clone());
             let aw = aw_out.clone().mul(tau.clone());
 
-            let out = w.clone().matmul(aw.transpose());
-            out
+            w.clone().matmul(aw.transpose())
         };
 
         slices[D - 2] = s![i..];

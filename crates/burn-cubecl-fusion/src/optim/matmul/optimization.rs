@@ -12,6 +12,7 @@ use crate::{
         trace::{FuseTrace, TraceError, TuneOutput},
     },
     optim::{
+        FusedOperation,
         elemwise::ElemwiseRunner,
         matmul::args::{FusedMatmulArgs, MatmulArg},
     },
@@ -705,4 +706,32 @@ fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
         vector_sizes,
         blueprint_strategy,
     )
+}
+
+/// Name of the matmul fusion optimization.
+pub const NAME: &str = "Matmul";
+
+impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
+    const NAME: &'static str = self::NAME;
+    type State = MatmulOptimizationState;
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn run(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context, |index| fallback(index))
+    }
+
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
+    }
 }

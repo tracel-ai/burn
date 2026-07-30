@@ -126,7 +126,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
             self.matmul.as_ref().unwrap().clone(),
         );
 
-        CubeOptimization::Matmul(matmul)
+        CubeOptimization::new(matmul)
     }
 
     fn reset(&mut self) {

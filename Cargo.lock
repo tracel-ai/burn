@@ -925,6 +925,7 @@ dependencies = [
  "derive-new",
  "half",
  "hashbrown 0.16.1",
+ "rmp-serde",
  "serde",
  "spin",
 ]
