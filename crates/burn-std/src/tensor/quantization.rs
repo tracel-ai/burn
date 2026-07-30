@@ -14,6 +14,7 @@ pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 
 use alloc::vec::Vec;
 use core::any::TypeId;
+use cubecl_common::e4m3;
 use num_traits::PrimInt;
 use serde::{Deserialize, Serialize};
 
@@ -225,6 +226,24 @@ impl QuantizedBytes {
     }
 }
 
+/// Round a scale to the nearest value representable by the param dtype.
+///
+/// Backends that keep scales in `f32` must apply this when quantizing, so that the scale they
+/// divide by is the one that will actually be stored. Otherwise a tensor dequantizes differently
+/// after a save/load round trip.
+///
+/// Narrow params can round a small scale down to zero, so callers that guard against a zero or
+/// non-finite scale must do so *after* this, not before.
+pub fn round_to_param(scale: f32, param: QuantParam) -> f32 {
+    match param {
+        QuantParam::F32 => scale,
+        QuantParam::F16 => crate::f16::from_f32(scale).to_f32(),
+        QuantParam::BF16 => crate::bf16::from_f32(scale).to_f32(),
+        QuantParam::UE4M3 => e4m3::from_f32(scale).to_f32(),
+        QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
+    }
+}
+
 /// Bytes per stored scale entry for the given param dtype.
 fn scale_size(param: QuantParam) -> usize {
     match param {
@@ -249,7 +268,8 @@ fn decode_scales(bytes: &[u8], param: QuantParam) -> Vec<f32> {
             .chunks_exact(2)
             .map(|c| crate::bf16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
-        QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
+        QuantParam::UE4M3 => bytes.iter().map(|b| e4m3::from_bits(*b).to_f32()).collect(),
+        QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
     }
 }
 
@@ -265,7 +285,11 @@ fn encode_scales(scales: &[f32], param: QuantParam) -> Vec<u8> {
             .iter()
             .flat_map(|s| crate::bf16::from_f32(*s).to_ne_bytes())
             .collect(),
-        QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
+        QuantParam::UE4M3 => scales
+            .iter()
+            .map(|s| e4m3::from_f32(*s).to_bits())
+            .collect(),
+        QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
     }
 }
 
@@ -427,6 +451,74 @@ mod tests {
 
         assert_eq!(qparams.scales, vec![scale]);
 
+        assert_eq!(q_values, values);
+    }
+
+    /// Backends divide by what `round_to_param` returns, while serialization stores what
+    /// `encode_scales` produces. If the two disagreed, a tensor would dequantize differently
+    /// after a save/load round trip.
+    #[test]
+    fn round_to_param_agrees_with_the_codec() {
+        // Includes values that saturate (500), land in e4m3's subnormals (1e-3), and underflow
+        // it entirely (7.7e-4).
+        let scales = [0.5f32, 0.3, 1.0 / 3.0, 500.0, 1e-3, 7.7e-4];
+
+        for param in [
+            QuantParam::F32,
+            QuantParam::F16,
+            QuantParam::BF16,
+            QuantParam::UE4M3,
+        ] {
+            let via_codec = decode_scales(&encode_scales(&scales, param), param);
+            let via_round: Vec<f32> = scales.iter().map(|s| round_to_param(*s, param)).collect();
+
+            assert_eq!(
+                via_round, via_codec,
+                "round_to_param disagrees with the codec for {param:?}"
+            );
+        }
+    }
+
+    /// `scale_size` is what the readers use to locate the scales in the buffer, so an encoding
+    /// wider or narrower than it claims silently misreads every scale.
+    #[test]
+    fn encoded_scale_width_matches_scale_size() {
+        let scales = [0.5f32, 0.25, 0.125];
+
+        for param in [
+            QuantParam::F32,
+            QuantParam::F16,
+            QuantParam::BF16,
+            QuantParam::UE4M3,
+        ] {
+            assert_eq!(
+                encode_scales(&scales, param).len(),
+                scale_size(param) * scales.len(),
+                "encoded width disagrees with scale_size for {param:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_pack_unpack_ue4m3_block_scales() {
+        // Exactly representable in e4m3, so the round trip is lossless and the test pins the
+        // layout rather than the format's rounding.
+        let scales = [0.5f32, 0.125];
+        let values = vec![0i8, 25, 51, 76, 102, 127, -128, -1];
+
+        let q_bytes = QuantizedBytes::new(
+            values.clone(),
+            QuantScheme::default()
+                .with_value(QuantValue::Q8S)
+                .with_store(QuantStore::Native)
+                .with_level(QuantLevel::block([4]))
+                .with_param(QuantParam::UE4M3),
+            &scales,
+        );
+
+        let (q_values, qparams) = q_bytes.into_vec_i8();
+
+        assert_eq!(qparams.scales, scales);
         assert_eq!(q_values, values);
     }
 }
