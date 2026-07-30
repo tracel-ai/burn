@@ -2,9 +2,10 @@ use super::*;
 use alloc::{vec, vec::Vec};
 use burn_tensor::Tolerance;
 use burn_tensor::quantization::{
-    QuantLevel, QuantScheme, QuantStore, QuantValue, QuantizationParameters, QuantizedBytes,
+    QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue, QuantizationParameters,
+    QuantizedBytes,
 };
-use burn_tensor::{DType, Element, TensorData};
+use burn_tensor::{DType, Element, ElementConversion, TensorData};
 
 fn get_q_params(data: TensorData) -> Vec<f32> {
     let num_elements = data.num_elements();
@@ -160,6 +161,92 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
     output.into_data().assert_approx_eq::<FloatElem>(
         &input.into_data(),
         Tolerance::absolute(1e-1).set_relative(1e-2),
+    );
+}
+
+/// A two-level tensor keeps its two scale levels apart in memory and folds them only where
+/// dequantization reconstructs the product. Writing it to bytes and reading it back has to land on
+/// exactly the same values, which is what makes a saved model reproduce the accuracy it was
+/// measured at.
+///
+/// Bit equality rather than a tolerance: both paths reconstruct from the same stored scales, so
+/// any difference means a level was rounded, folded or sliced differently on one of them.
+///
+/// What this can still catch is the block scales, which are ue4m3 and so genuinely rounded, and
+/// the byte layout: two scale regions of different widths, sliced apart on the way back in.
+#[test]
+fn should_round_trip_two_level_through_bytes() {
+    let device = Default::default();
+
+    let input: TestTensor<2> = TestTensorInt::arange(0..256, &device)
+        .float()
+        .div_scalar(256.)
+        .reshape([16, 16]);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block_tensor([2, 16], QuantParam::F32))
+        .with_param(QuantParam::UE4M3);
+
+    let quantized = input.quantize_dynamic(&scheme);
+    let direct = quantized.clone().dequantize().into_data();
+
+    let reloaded = TestTensor::<2>::from_data(quantized.into_data(), &device);
+    let round_tripped = reloaded.dequantize().into_data();
+
+    round_tripped.assert_eq(&direct, true);
+}
+
+/// The per-tensor scale exists so that accuracy stops depending on how large the weights happen to
+/// be. That is the claim the whole feature rests on, and unlike the calibration test it cannot pass
+/// by restating the formula: it fails if any backend drops the global, folds it twice, or
+/// reconstructs with a copy that was not rounded to what it stores.
+#[test]
+fn two_level_error_should_not_track_weight_magnitude() {
+    let device = Default::default();
+
+    let big: TestTensor<2> = TestTensorInt::arange(-128..128, &device)
+        .float()
+        .div_scalar(128.)
+        .reshape([16, 16]);
+    let small = big.clone().mul_scalar(0.02);
+
+    let two_level = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block_tensor([2, 16], QuantParam::F32))
+        .with_param(QuantParam::UE4M3);
+    let one_level = two_level.with_level(QuantLevel::block([2, 16]));
+
+    let error = |tensor: TestTensor<2>, scheme: &QuantScheme| -> f32 {
+        let reference = tensor.clone();
+        let dequantized = tensor.quantize_dynamic(scheme).dequantize();
+        let diff: FloatElem = (reference.clone() - dequantized).abs().sum().into_scalar();
+        let total: FloatElem = reference.abs().sum().into_scalar();
+        diff.elem::<f32>() / total.elem::<f32>()
+    };
+
+    let big_error = error(big.clone(), &two_level);
+    let small_error = error(small.clone(), &two_level);
+
+    assert!(
+        (small_error - big_error).abs() / big_error < 0.2,
+        "two-level error should be the same at either magnitude, \
+         got {big_error} and {small_error}"
+    );
+
+    // The same weights under a one-level scheme with the same 8-bit block param: its scales have
+    // to cover the magnitude themselves, and at this size they underflow.
+    let small_one_level = error(small, &one_level);
+    assert!(
+        small_one_level > small_error * 2.0,
+        "one-level 8-bit scales should degrade on small weights where two-level does not, \
+         got one-level {small_one_level} and two-level {small_error}"
     );
 }
 
