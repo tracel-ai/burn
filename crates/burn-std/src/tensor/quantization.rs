@@ -128,6 +128,17 @@ pub fn validate_levels(scheme: &QuantScheme) {
             QuantParam::F32,
             "a two-level scheme currently requires an f32 per-tensor scale"
         );
+        // Backends divide the largest block scale by the block param's maximum to get the
+        // per-tensor scale. A param reaching f32's exponent range, which f32, bf16 and ue8m0 all
+        // do, drives that quotient subnormal for any realistic tensor and the renormalized block
+        // scales to infinity, reconstructing the largest block as zeros. Such a param has nothing
+        // to gain from a second level anyway, since it already spans the range the second level
+        // exists to absorb.
+        assert!(
+            scheme.param.max_representable() <= crate::f16::MAX.to_f32(),
+            "a two-level scheme needs block scales narrower than f32, got {:?}",
+            scheme.param
+        );
     }
 }
 
@@ -622,6 +633,20 @@ mod tests {
             .with_level(QuantLevel::block_tensor([4], QuantParam::F32));
 
         QuantizedBytes::new(vec![0i8; 8], scheme, &[0.5, 0.125], None);
+    }
+
+    /// Block scales spanning f32's range leave the per-tensor scale nothing to absorb, and the
+    /// division that produces it underflows, so the largest block reconstructs as zeros.
+    #[test]
+    #[should_panic(expected = "needs block scales narrower than f32")]
+    fn two_level_scheme_with_f32_block_scales_is_rejected() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .with_param(QuantParam::F32)
+            .with_level(QuantLevel::block_tensor([4], QuantParam::F32));
+
+        QuantizedBytes::new(vec![0i8; 8], scheme, &[0.5, 0.125], Some(3.0));
     }
 
     /// `scale_size` is what the readers use to locate the scales in the buffer, so an encoding
