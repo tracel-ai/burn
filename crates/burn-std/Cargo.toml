@@ -49,6 +49,7 @@ uuid = { workspace = true }
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
     "shared-bytes",
+    "fp8",
 ] }
 cubecl-environment = { workspace = true, default-features = false, features = [
     "shared-bytes",
