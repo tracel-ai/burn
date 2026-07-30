@@ -1,5 +1,5 @@
-use burn_std::{QuantLevel, QuantMode, QuantParam, QuantScheme, Shape};
 pub use burn_std::{QPARAM_ALIGN, params_shape};
+use burn_std::{QuantLevel, QuantMode, QuantParam, QuantScheme, Shape};
 
 use super::{Calibration, QuantizationParametersPrimitive};
 use crate::{Backend, TensorMetadata, get_device_settings};

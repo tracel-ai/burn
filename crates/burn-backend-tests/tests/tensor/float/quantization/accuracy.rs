@@ -208,7 +208,9 @@ fn report_quantization_accuracy() {
         for (level_name, level) in levels {
             for (param_name, param) in params {
                 // A two-level scheme requires block scales narrower than its per-tensor scale.
-                if level.global_param().is_some_and(|g| param_size_bits(param) >= param_size_bits(g))
+                if level
+                    .global_param()
+                    .is_some_and(|g| param_size_bits(param) >= param_size_bits(g))
                 {
                     continue;
                 }

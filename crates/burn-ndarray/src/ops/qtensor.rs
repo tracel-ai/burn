@@ -235,7 +235,15 @@ impl QTensorOps<Self> for NdArray {
         let data = match tensor.qtensor {
             NdArrayTensor::I8(storage) => {
                 let data = storage.into_shared().into_iter().collect();
-                dequantize(data, shape, scheme, &strategy, &scales, global, dtype.into())
+                dequantize(
+                    data,
+                    shape,
+                    scheme,
+                    &strategy,
+                    &scales,
+                    global,
+                    dtype.into(),
+                )
             }
             _ => unreachable!(),
         };
