@@ -14,7 +14,6 @@ fn matmul_double_unit_transposed_rhs_should_match_reference() {
 
     // TODO: force the DoubleUnit autotune choice
     let lhs: Tensor<2> = Tensor::ones(Shape::new([m, k]), &device);
-
     let rhs: Tensor<2> = Tensor::ones(Shape::new([n, k]), &device);
 
     let lhs_ref = Tensor::<2>::from_data(lhs.to_data(), &device_ref);
