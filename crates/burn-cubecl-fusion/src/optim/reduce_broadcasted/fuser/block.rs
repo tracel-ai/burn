@@ -1,5 +1,4 @@
 use crate::optim::{
-    CubeOptimization,
     elemwise::ElemwiseOptimization,
     reduce::{FusedReduce, ReduceFuser, ReduceFuserInfo},
     reduce_broadcasted::{ReduceBlockOptimInfo, fuser::full::ReduceBroadcastedFullFuser},
@@ -196,12 +195,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
             }
             ReduceBlockKind::Reduce { .. } => {
                 *num_ops += self.fuser.len();
-                let optim = self.fuser.finish();
-                let info = match optim {
-                    CubeOptimization::Reduce(optim) => optim.info,
-                    _ => unreachable!("Expected Reduce optimization"),
-                };
-                ReduceBlockOptimInfo::Reduce(info)
+                ReduceBlockOptimInfo::Reduce(self.fuser.finish_reduce().info)
             }
         }
     }

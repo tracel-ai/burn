@@ -7,6 +7,7 @@ use crate::{
         trace::{FuseTrace, TraceError, TuneOutput},
     },
     optim::{
+        FusedOperation,
         elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
         reduce::{ReduceOptimizationInfo, ReduceOptimizationState, ReduceOptimizationTuneArg},
         reduce_broadcasted::{
@@ -215,5 +216,33 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {
         self.num_ops
+    }
+}
+
+/// Name of the broadcasted-reduce fusion optimization.
+pub const NAME: &str = "ReduceBroadcasted";
+
+impl<R: Runtime> FusedOperation<R> for ReduceBroadcastedOptimization<R> {
+    const NAME: &'static str = self::NAME;
+    type State = ReduceBroadcastedOptimizationState;
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn run(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context, |index| fallback(index))
+    }
+
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
     }
 }
