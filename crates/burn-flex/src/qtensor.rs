@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use burn_backend::{DType, TensorMetadata};
-use burn_std::{QuantScheme, Shape};
+use burn_std::{QuantScheme, Shape, quantization::validate_levels};
 
 use crate::{FlexDevice, tensor::FlexTensor};
 
@@ -43,6 +43,7 @@ impl FlexQTensor {
             !scales.is_empty(),
             "quantized tensor must have at least one scale factor"
         );
+        validate_levels(&scheme);
         assert_eq!(
             scheme.level.global_param().is_some(),
             global.is_some(),

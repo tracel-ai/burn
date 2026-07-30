@@ -443,12 +443,16 @@ fn block_safe_layout_op(
 /// Rounding comes first, and only an exactly zero scale is replaced: subnormals of the param are
 /// representable and carry real information for a small tensor, so substituting them would throw
 /// away what rounding up preserved.
+///
+/// The replacement goes back through the param so that the scale held in memory is the one that
+/// gets stored. `f32::MIN_POSITIVE` on its own is not representable in a narrow param and would
+/// encode to zero, leaving a reloaded tensor dequantizing differently from the one in hand.
 fn validated_scale(scale: f32, param: QuantParam) -> f32 {
     let scale = scale_to_param(scale, param);
     if scale > 0.0 && scale.is_finite() {
         scale
     } else {
-        f32::MIN_POSITIVE
+        scale_to_param(f32::MIN_POSITIVE, param)
     }
 }
 

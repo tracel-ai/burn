@@ -142,7 +142,8 @@ fn normalize_scales<B: Backend>(
         B::float_max(scales.clone()),
         block_param.max_representable().into(),
     );
-    // Only reachable for an all-zero tensor, where the block scales would otherwise be `0 / 0`.
+    // Guards `0 / 0` for an all-zero tensor, and the flush to zero when the largest block scale is
+    // small enough that dividing it by the block param's maximum underflows.
     let global = B::float_clamp_min(global, f32::MIN_POSITIVE.into());
 
     let broadcast = Shape::from(vec![1usize; scales.shape().num_dims()]);

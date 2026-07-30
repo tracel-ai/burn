@@ -106,6 +106,31 @@ pub struct QParamTensor {
     pub dtype: DType,
 }
 
+/// Panic unless a two-level scheme keeps its per-tensor scale in `f32`. A no-op for levels that
+/// carry only one scale.
+///
+/// Calibration returns both levels unrounded and each backend rounds them to what it stores. A
+/// block scale absorbs that rounding, because the values are quantized against the rounded scale.
+/// The per-tensor scale does not: the block scales were divided by the unrounded one, so whatever
+/// precision the per-tensor param loses becomes a mismatch applied to every block. `f32` is the
+/// only param that loses none.
+///
+/// The width saved by anything narrower is one value per tensor, which no tensor large enough to
+/// want block quantization will notice. Measured with an `f16` per-tensor scale, the error stops
+/// being flat across weight magnitudes, which is the one property the second level exists for.
+///
+/// The field stays in [`QuantLevel::BlockTensor`] rather than being dropped, so that widening this
+/// later does not change the serialized shape.
+pub fn validate_levels(scheme: &QuantScheme) {
+    if let Some(global) = scheme.level.global_param() {
+        assert_eq!(
+            global,
+            QuantParam::F32,
+            "a two-level scheme currently requires an f32 per-tensor scale"
+        );
+    }
+}
+
 /// Calculate the shape of the block scale grid for a given tensor and level.
 ///
 /// This covers the block scales only. A [`QuantLevel::BlockTensor`] additionally carries a single
@@ -182,14 +207,7 @@ impl QuantizedBytes {
         // scales it normalizes.
         match (scheme.level.global_param(), global) {
             (Some(param), Some(global)) => {
-                // At equal width there is nothing to gain, and the per-tensor scale needed to
-                // bring a wide type's maximum into range underflows, taking the tensor with it.
-                assert!(
-                    scale_size(scheme.param) < scale_size(param),
-                    "a two-level scheme needs block scales narrower than its per-tensor scale, \
-                     got {:?} blocks under a {param:?} per-tensor scale",
-                    scheme.param
-                );
+                validate_levels(&scheme);
                 let global_bytes = encode_scales(&[global], param);
                 bytes.extend_from_byte_slice_aligned(global_bytes.as_slice(), QPARAM_ALIGN);
             }

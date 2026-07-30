@@ -181,14 +181,6 @@ fn report_quantization_accuracy() {
         ("block16", QuantLevel::block([16])),
         ("block32", QuantLevel::block([32])),
         (
-            "block16+f16",
-            QuantLevel::block_tensor([16], QuantParam::F16),
-        ),
-        (
-            "block32+f16",
-            QuantLevel::block_tensor([32], QuantParam::F16),
-        ),
-        (
             "block16+f32",
             QuantLevel::block_tensor([16], QuantParam::F32),
         ),
@@ -215,11 +207,9 @@ fn report_quantization_accuracy() {
 
         for (level_name, level) in levels {
             for (param_name, param) in params {
-                // A two-level scheme requires block scales narrower than its per-tensor scale.
-                if level
-                    .global_param()
-                    .is_some_and(|g| param_size_bits(param) >= param_size_bits(g))
-                {
+                // A per-tensor scale has nothing to absorb when the block scales already reach
+                // f32's range.
+                if level.global_param().is_some() && param == QuantParam::F32 {
                     continue;
                 }
                 let scheme = scheme_for(QuantValue::Q8S, level, param);

@@ -212,6 +212,14 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
+        // Rejected here as well as in the allocation below it, because dropping the per-tensor
+        // scale silently is the failure mode, and relying on a guard three frames away means the
+        // next fast path that allocates differently reintroduces it with nothing to say so.
+        assert!(
+            qparams.global.is_none(),
+            "two-level quantization is not supported on cubecl backends yet, got {:?}",
+            scheme.level
+        );
         kernel::quantization::quantize(tensor, scheme, qparams.scales)
     }
 
