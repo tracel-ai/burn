@@ -36,6 +36,7 @@ fn should_support_quantize_symmetric_int8() {
         .with_value(QuantValue::Q8S);
     let qparams = QuantizationParameters {
         scales: TestTensor::from_data([0.014_173_228], &device),
+        global: None,
     };
 
     let x_q = tensor.clone().quantize(&scheme, qparams);

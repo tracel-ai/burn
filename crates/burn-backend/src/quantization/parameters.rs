@@ -10,6 +10,9 @@ pub use burn_std::quantization::{QParamTensor, QParams};
 /// to the backends. It is not designed for direct usage by users, and not recommended to import
 /// or use this struct directly.
 pub struct QuantizationParametersPrimitive<B: Backend> {
-    /// The scaling factor.
+    /// The scaling factor, one per block or a single one for a per-tensor level.
     pub scales: B::FloatTensorPrimitive,
+    /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
+    /// two-level scheme. A value is reconstructed as `q * global * scale`.
+    pub global: Option<B::FloatTensorPrimitive>,
 }

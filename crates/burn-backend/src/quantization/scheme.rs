@@ -1,5 +1,5 @@
+use burn_std::{QuantLevel, QuantMode, QuantParam, QuantScheme, Shape};
 pub use burn_std::{QPARAM_ALIGN, params_shape};
-use burn_std::{QuantLevel, QuantMode, QuantScheme, Shape};
 
 use super::{Calibration, QuantizationParametersPrimitive};
 use crate::{Backend, TensorMetadata, get_device_settings};
@@ -85,14 +85,7 @@ pub fn compute_q_params<B: Backend>(
     max: B::FloatTensorPrimitive,
 ) -> QuantizationParametersPrimitive<B> {
     match scheme {
-        // A two-level scheme needs the per-tensor scale computed first, then the block scales
-        // divided through by it, which this signature has nowhere to return.
         QuantScheme {
-            level: QuantLevel::BlockTensor { .. },
-            ..
-        } => unimplemented!("two-level calibration is not implemented yet"),
-        QuantScheme {
-            level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             ..
         } => {
@@ -109,8 +102,20 @@ pub fn compute_q_params<B: Backend>(
             let values_range =
                 B::float_mul_scalar(B::float_mask_where(min_abs, mask, max_abs), 2f32.into());
 
-            QuantizationParametersPrimitive {
-                scales: B::float_div_scalar(values_range, (b - a).into()),
+            let scales = B::float_div_scalar(values_range, (b - a).into());
+
+            match scheme.level.global_param() {
+                None => QuantizationParametersPrimitive {
+                    scales,
+                    global: None,
+                },
+                Some(_) => {
+                    let (scales, global) = normalize_scales::<B>(scales, scheme.param);
+                    QuantizationParametersPrimitive {
+                        scales,
+                        global: Some(global),
+                    }
+                }
             }
         }
         QuantScheme {
@@ -118,4 +123,30 @@ pub fn compute_q_params<B: Backend>(
             ..
         } => unimplemented!("two-level quantization is not supported yet"),
     }
+}
+
+/// Split block scales into a per-tensor scale and block scales relative to it.
+///
+/// The global is picked so the largest block scale lands at the top of `block_param`'s range, which
+/// is what lets a narrow type cover a tensor whose raw scales would otherwise overflow or underflow
+/// it.
+///
+/// Both levels come back unrounded, as the one-level scales do. Backends round each to the
+/// precision it is stored in and quantize against that product, so the values they write already
+/// account for it.
+fn normalize_scales<B: Backend>(
+    scales: B::FloatTensorPrimitive,
+    block_param: QuantParam,
+) -> (B::FloatTensorPrimitive, B::FloatTensorPrimitive) {
+    let global = B::float_div_scalar(
+        B::float_max(scales.clone()),
+        block_param.max_representable().into(),
+    );
+    // Only reachable for an all-zero tensor, where the block scales would otherwise be `0 / 0`.
+    let global = B::float_clamp_min(global, f32::MIN_POSITIVE.into());
+
+    let broadcast = Shape::from(vec![1usize; scales.shape().num_dims()]);
+    let scales = B::float_div(scales, B::float_reshape(global.clone(), broadcast));
+
+    (scales, global)
 }

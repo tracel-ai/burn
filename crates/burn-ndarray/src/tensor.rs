@@ -706,6 +706,9 @@ pub struct NdArrayQTensor {
     pub scheme: QuantScheme,
     /// The quantization parameters.
     pub qparams: Vec<QParams<f32>>,
+    /// The per-tensor scale that [`qparams`](Self::qparams) are expressed relative to, for a
+    /// two-level scheme.
+    pub global: Option<f32>,
 }
 
 impl NdArrayQTensor {
@@ -713,9 +716,24 @@ impl NdArrayQTensor {
     pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
             QuantScheme {
-                level: QuantLevel::BlockTensor { .. },
+                level: QuantLevel::BlockTensor { block, .. },
+                mode: QuantMode::Symmetric,
                 ..
-            } => unimplemented!("two-level quantization is not supported on ndarray yet"),
+            } => {
+                // Kept apart on the tensor so a round trip through bytes preserves each level at
+                // the precision it is stored in, folded here because that is what dequantization
+                // reconstructs.
+                let global = self
+                    .global
+                    .expect("a two-level tensor should carry a per-tensor scale");
+                QuantizationStrategy::PerBlockSymmetric(
+                    self.qparams
+                        .iter()
+                        .map(|q| SymmetricQuantization::init(global * q.scales, self.scheme.value))
+                        .collect(),
+                    block,
+                )
+            }
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
@@ -867,6 +885,7 @@ mod tests {
             .with_store(QuantStore::Native);
         let qparams = QuantizationParametersPrimitive {
             scales: B::float_from_data(TensorData::from([scale]), &device),
+            global: None,
         };
         let qtensor: NdArrayQTensor = B::quantize(tensor, &scheme, qparams);
 

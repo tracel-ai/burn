@@ -182,6 +182,14 @@ impl QuantizedBytes {
         // scales it normalizes.
         match (scheme.level.global_param(), global) {
             (Some(param), Some(global)) => {
+                // At equal width there is nothing to gain, and the per-tensor scale needed to
+                // bring a wide type's maximum into range underflows, taking the tensor with it.
+                assert!(
+                    scale_size(scheme.param) < scale_size(param),
+                    "a two-level scheme needs block scales narrower than its per-tensor scale, \
+                     got {:?} blocks under a {param:?} per-tensor scale",
+                    scheme.param
+                );
                 let global_bytes = encode_scales(&[global], param);
                 bytes.extend_from_byte_slice_aligned(global_bytes.as_slice(), QPARAM_ALIGN);
             }

@@ -31,9 +31,10 @@ fn param_size_bits(param: QuantParam) -> usize {
 fn bits_per_element(scheme: &QuantScheme, shape: &Shape) -> f64 {
     let numel = shape.num_elements();
     let num_scales = params_shape(shape, scheme.level).num_elements();
+    let global_bits = scheme.level.global_param().map_or(0, param_size_bits);
 
     scheme.size_bits_value() as f64
-        + (param_size_bits(scheme.param) * num_scales) as f64 / numel as f64
+        + (param_size_bits(scheme.param) * num_scales + global_bits) as f64 / numel as f64
 }
 
 /// Deterministic standard-normal samples, so a reported number is reproducible across runs and
@@ -179,6 +180,14 @@ fn report_quantization_accuracy() {
         ("tensor", QuantLevel::Tensor),
         ("block16", QuantLevel::block([16])),
         ("block32", QuantLevel::block([32])),
+        (
+            "block16+f16",
+            QuantLevel::block_tensor([16], QuantParam::F16),
+        ),
+        (
+            "block32+f16",
+            QuantLevel::block_tensor([32], QuantParam::F16),
+        ),
     ];
     let params = [
         ("f32", QuantParam::F32),
@@ -192,17 +201,22 @@ fn report_quantization_accuracy() {
 
         println!("\nweight std = {std}  (shape {SHAPE:?})");
         println!(
-            "{:<10} {:<7} {:>8} {:>12}",
+            "{:<13} {:<7} {:>8} {:>12}",
             "level", "param", "bits/el", "rel. error"
         );
 
         for (level_name, level) in levels {
             for (param_name, param) in params {
+                // A two-level scheme requires block scales narrower than its per-tensor scale.
+                if level.global_param().is_some_and(|g| param_size_bits(param) >= param_size_bits(g))
+                {
+                    continue;
+                }
                 let scheme = scheme_for(QuantValue::Q8S, level, param);
                 let error = quantization_error(&values, SHAPE, &scheme);
 
                 println!(
-                    "{level_name:<10} {param_name:<7} {:>8.3} {error:>12.5}",
+                    "{level_name:<13} {param_name:<7} {:>8.3} {error:>12.5}",
                     bits_per_element(&scheme, &shape)
                 );
             }

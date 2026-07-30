@@ -17,13 +17,22 @@ pub struct FlexQTensor {
     pub(crate) scheme: QuantScheme,
     /// Per-tensor or per-block scale factors.
     pub(crate) scales: Vec<f32>,
+    /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
+    /// two-level scheme.
+    pub(crate) global: Option<f32>,
 }
 
 impl FlexQTensor {
     /// Create a new quantized tensor.
     ///
-    /// The tensor must store i8 data and scales must be non-empty.
-    pub fn new(tensor: FlexTensor, scheme: QuantScheme, scales: Vec<f32>) -> Self {
+    /// The tensor must store i8 data and scales must be non-empty. A two-level scheme takes a
+    /// per-tensor scale, and no other level does.
+    pub fn new(
+        tensor: FlexTensor,
+        scheme: QuantScheme,
+        scales: Vec<f32>,
+        global: Option<f32>,
+    ) -> Self {
         assert_eq!(
             tensor.dtype(),
             DType::I8,
@@ -34,10 +43,17 @@ impl FlexQTensor {
             !scales.is_empty(),
             "quantized tensor must have at least one scale factor"
         );
+        assert_eq!(
+            scheme.level.global_param().is_some(),
+            global.is_some(),
+            "{:?} does not match a per-tensor scale of {global:?}",
+            scheme.level
+        );
         Self {
             tensor,
             scheme,
             scales,
+            global,
         }
     }
 

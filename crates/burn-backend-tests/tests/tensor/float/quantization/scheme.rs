@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Device, Element, TensorData,
-    quantization::{CalibrationRange, QuantLevel, QuantValue, compute_q_params},
+    quantization::{CalibrationRange, QuantLevel, QuantParam, QuantValue, compute_q_params},
 };
 
 #[test]
@@ -46,6 +46,49 @@ fn per_block_symmetric_int8() {
         &TensorData::from([0.014_173_23, 0.014_173_23, 0.000_314_96, 0.000_314_96]),
         Tolerance::default(),
     );
+}
+
+#[test]
+fn block_tensor_symmetric_int8() {
+    let device = Default::default();
+    let min = TestTensor::<1>::from_data([-1.8, -0.5, 0.01, -0.04], &device);
+    let max = TestTensor::<1>::from_data([0.5, 1.8, 0.04, -0.01], &device);
+    let range = || CalibrationRange {
+        min: min.clone(),
+        max: max.clone(),
+    };
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+    let one_level = scheme.with_level(QuantLevel::block([4]));
+    let two_level = scheme
+        .with_level(QuantLevel::block_tensor([4], QuantParam::F32))
+        .with_param(QuantParam::UE4M3);
+
+    let expected = compute_q_params(&one_level, range()).scales.into_data();
+    let qparams = compute_q_params(&two_level, range());
+    let global = qparams
+        .global
+        .expect("a two-level scheme should produce a per-tensor scale");
+
+    // The largest block scale is pushed to the top of what ue4m3 can hold, which is the whole
+    // point of splitting the scale in two.
+    qparams
+        .scales
+        .clone()
+        .max()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([448.0]), Tolerance::default());
+
+    // The two levels multiply back to the scales a one-level scheme would have used.
+    qparams
+        .scales
+        .mul(global)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 #[test]

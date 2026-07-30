@@ -18,12 +18,12 @@ impl QTensorOps<Self> for Dispatch {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        binary_op!(
-            (tensor, float),
-            (qparams.scales, float),
-            |tensor, scales| {
-                B::quantize(tensor, scheme, QuantizationParametersPrimitive { scales })
-            } => Quantized
+        let QuantizationParametersPrimitive { scales, global } = qparams;
+        multi_op!(
+            inputs[(tensor, float), (scales, float)],
+            opt_inputs[(global, float)],
+            => Quantized,
+            B::quantize(tensor, scheme, QuantizationParametersPrimitive { scales, global })
         )
     }
 

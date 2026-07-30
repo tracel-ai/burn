@@ -9,7 +9,17 @@ use burn_dispatch::Dispatch;
 pub use burn_std::quantization::*;
 
 /// The tensor quantization parameters.
-pub type QuantizationParameters = QParams<Tensor<1>>;
+///
+/// Kept separate from [`QParams`], which also stands in for a *single* block's scale, so a
+/// per-tensor value has no place on it.
+#[derive(Clone, Debug)]
+pub struct QuantizationParameters {
+    /// The scaling factor, one per block or a single one for a per-tensor level.
+    pub scales: Tensor<1>,
+    /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
+    /// two-level scheme. A value is reconstructed as `q * global * scale`.
+    pub global: Option<Tensor<1>>,
+}
 
 /// The observed input calibration range.
 #[derive(Clone, Debug)]
@@ -50,6 +60,9 @@ pub fn compute_q_params(scheme: &QuantScheme, range: CalibrationRange) -> Quanti
             let qparams = quantization::compute_q_params::<Dispatch>(scheme, min, max);
             QuantizationParameters {
                 scales: Tensor::new(BridgeTensor::float(qparams.scales)),
+                global: qparams
+                    .global
+                    .map(|global| Tensor::new(BridgeTensor::float(global))),
             }
         }
         _ => unreachable!(),
