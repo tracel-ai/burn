@@ -41,14 +41,14 @@ use super::conv_common::{add_bias, squeeze_3d_to_1d, squeeze_3d_to_2d};
 
 /// Generates a conv3d_1x1 function that uses the optimized gemm fast path.
 macro_rules! conv3d_1x1_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr, $add_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr) => {
         fn $fn_name(
             x: FlexTensor,
             weight: FlexTensor,
             bias: Option<FlexTensor>,
             options: &ConvOptions<3>,
         ) -> FlexTensor {
-            conv3d_1x1_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one, $add_fn)
+            conv3d_1x1_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one)
         }
     };
 }
@@ -56,7 +56,7 @@ macro_rules! conv3d_1x1_typed {
 /// Generates a conv3d typed function with 1x1, depthwise, small-channel, and
 /// direct fast-path checks.
 macro_rules! conv3d_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $gemm_fn:ident, $add_fn:expr, $fn_1x1:ident, $fn_depthwise:ident, $fn_small_channel:ident $(, $fn_direct:ident)?) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $gemm_fn:ident, $fn_1x1:ident, $fn_depthwise:ident, $fn_small_channel:ident $(, $fn_direct:ident)?) => {
         pub fn $fn_name(
             x: FlexTensor,
             weight: FlexTensor,
@@ -79,7 +79,7 @@ macro_rules! conv3d_typed {
                     return $fn_direct(x, weight, bias, options);
                 }
             )?
-            conv3d_impl::<$T>(x, weight, bias, options, $dtype, $zero, $gemm_fn, $add_fn)
+            conv3d_impl::<$T>(x, weight, bias, options, $dtype, $zero, $gemm_fn)
         }
     };
 }
@@ -200,7 +200,6 @@ conv3d_typed!(
     DType::F32,
     0.0f32,
     gemm_f32,
-    |a, b| a + b,
     conv3d_1x1_f32,
     conv3d_depthwise_f32,
     conv3d_small_channel_f32,
@@ -212,7 +211,6 @@ conv3d_typed!(
     DType::F64,
     0.0f64,
     gemm_f64,
-    |a, b| a + b,
     conv3d_1x1_f64,
     conv3d_depthwise_f64,
     conv3d_small_channel_f64,
@@ -224,7 +222,6 @@ conv3d_typed!(
     DType::F16,
     f16::from_f32(0.0),
     gemm_f16,
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     conv3d_1x1_f16,
     conv3d_depthwise_f16,
     conv3d_small_channel_f16
@@ -238,7 +235,9 @@ bf16_via_f32!(conv3d_bf16, conv3d_f32, 3, ConvOptions);
 /// - Enables tile-level parallelism
 /// - Improves cache utilization
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn conv3d_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync>(
+fn conv3d_impl<
+    T: bytemuck::Pod + Clone + Copy + burn_backend::Element + burn_backend::ElementAdd + Send + Sync,
+>(
     x: FlexTensor,
     weight: FlexTensor,
     bias: Option<FlexTensor>,
@@ -246,7 +245,6 @@ fn conv3d_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + 
     dtype: DType,
     zero: T,
     gemm_fn: fn(&[T], &[T], usize, usize, usize) -> Vec<T>,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor {
     let x = x.to_contiguous();
     let weight = weight.to_contiguous();
@@ -525,7 +523,6 @@ fn conv3d_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + 
             batch_size,
             channels_out,
             spatial_out,
-            add_fn,
         );
     }
 
@@ -634,7 +631,9 @@ fn is_1x1_conv(
 /// to gemm as the RHS with appropriate strides, avoiding the transpose allocation
 /// and the intermediate result buffer.
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn conv3d_1x1_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync>(
+fn conv3d_1x1_impl<
+    T: bytemuck::Pod + Clone + Copy + burn_backend::Element + burn_backend::ElementAdd + Send + Sync,
+>(
     x: FlexTensor,
     weight: FlexTensor,
     bias: Option<FlexTensor>,
@@ -642,7 +641,6 @@ fn conv3d_1x1_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Sen
     dtype: DType,
     zero: T,
     one: T,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor {
     let x = x.to_contiguous();
     let weight = weight.to_contiguous();
@@ -766,14 +764,7 @@ fn conv3d_1x1_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Sen
     if let Some(bias) = bias {
         let bias = bias.to_contiguous();
         let bias_data: &[T] = bias.storage();
-        add_bias(
-            &mut output,
-            bias_data,
-            batch_size,
-            channels_out,
-            spatial,
-            add_fn,
-        );
+        add_bias(&mut output, bias_data, batch_size, channels_out, spatial);
     }
 
     let out_shape = Shape::from(vec![
@@ -790,17 +781,14 @@ fn conv3d_1x1_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Sen
     )
 }
 
-conv3d_1x1_typed!(conv3d_1x1_f32, f32, DType::F32, 0.0f32, 1.0f32, |a, b| a
-    + b);
-conv3d_1x1_typed!(conv3d_1x1_f64, f64, DType::F64, 0.0f64, 1.0f64, |a, b| a
-    + b);
+conv3d_1x1_typed!(conv3d_1x1_f32, f32, DType::F32, 0.0f32, 1.0f32);
+conv3d_1x1_typed!(conv3d_1x1_f64, f64, DType::F64, 0.0f64, 1.0f64);
 conv3d_1x1_typed!(
     conv3d_1x1_f16,
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    f16::from_f32(1.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32())
+    f16::from_f32(1.0)
 );
 
 // ============================================================================
@@ -1030,8 +1018,8 @@ fn conv_plane_accumulate_oh_outer<T: num_traits::Float + Copy>(
                     let run_len = ow_end - ow_start;
                     let in_slice = &in_row[iw_start..iw_start + run_len];
                     let out_slice = &mut out_row[ow_start..ow_end];
-                    for (o, &xv) in out_slice.iter_mut().zip(in_slice.iter()) {
-                        *o = *o + w_val * xv;
+                    for i in 0..run_len {
+                        out_slice[i] = in_slice[i] * w_val + out_slice[i];
                     }
                 } else {
                     let mut iw = iw_start;
@@ -1140,7 +1128,14 @@ fn conv3d_depthwise_impl<T>(
     dtype: DType,
 ) -> FlexTensor
 where
-    T: num_traits::Float + bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync,
+    T: num_traits::Float
+        + bytemuck::Pod
+        + Clone
+        + Copy
+        + burn_backend::Element
+        + burn_backend::ElementAdd
+        + Send
+        + Sync,
 {
     let zero = <T as num_traits::Zero>::zero();
     let x = x.to_contiguous();
@@ -1243,14 +1238,7 @@ where
             "conv depthwise: bias length ({}) must equal channels ({channels})",
             bias_data.len()
         );
-        add_bias(
-            &mut output,
-            bias_data,
-            batch_size,
-            channels,
-            out_spatial,
-            |a, b| a + b,
-        );
+        add_bias(&mut output, bias_data, batch_size, channels, out_spatial);
     }
 
     let out_shape = Shape::from(vec![batch_size, channels, 1, out_h, out_w]);
@@ -1362,7 +1350,14 @@ fn conv3d_small_channel_impl<T>(
     dtype: DType,
 ) -> FlexTensor
 where
-    T: num_traits::Float + bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync,
+    T: num_traits::Float
+        + bytemuck::Pod
+        + Clone
+        + Copy
+        + burn_backend::Element
+        + burn_backend::ElementAdd
+        + Send
+        + Sync,
 {
     let zero = <T as num_traits::Zero>::zero();
     let x = x.to_contiguous();
@@ -1481,7 +1476,6 @@ where
             batch_size,
             channels_out,
             out_spatial,
-            |a, b| a + b,
         );
     }
 
@@ -1531,34 +1525,20 @@ fn should_use_direct_conv(x_shape: &[usize], w_shape: &[usize], options: &ConvOp
 }
 
 macro_rules! conv3d_direct_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr, $add_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr) => {
         fn $fn_name(
             x: FlexTensor,
             weight: FlexTensor,
             bias: Option<FlexTensor>,
             options: &ConvOptions<3>,
         ) -> FlexTensor {
-            conv3d_direct_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one, $add_fn)
+            conv3d_direct_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one)
         }
     };
 }
 
-conv3d_direct_typed!(
-    conv3d_direct_f32,
-    f32,
-    DType::F32,
-    0.0f32,
-    1.0f32,
-    |a, b| a + b
-);
-conv3d_direct_typed!(
-    conv3d_direct_f64,
-    f64,
-    DType::F64,
-    0.0f64,
-    1.0f64,
-    |a, b| a + b
-);
+conv3d_direct_typed!(conv3d_direct_f32, f32, DType::F32, 0.0f32, 1.0f32);
+conv3d_direct_typed!(conv3d_direct_f64, f64, DType::F64, 0.0f64, 1.0f64);
 
 /// Direct conv3d: decompose into kw gemm calls on NCHW data directly.
 ///
@@ -1572,7 +1552,9 @@ conv3d_direct_typed!(
 ///
 /// Constraints: groups=1, padding=0, dilation=1, 1D-like (d=1, h=1).
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn conv3d_direct_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync>(
+fn conv3d_direct_impl<
+    T: bytemuck::Pod + Clone + Copy + burn_backend::Element + burn_backend::ElementAdd + Send + Sync,
+>(
     x: FlexTensor,
     weight: FlexTensor,
     bias: Option<FlexTensor>,
@@ -1580,7 +1562,6 @@ fn conv3d_direct_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + 
     dtype: DType,
     zero: T,
     one: T,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor {
     let x = x.to_contiguous();
     let weight = weight.to_contiguous();
@@ -1706,14 +1687,7 @@ fn conv3d_direct_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + 
     if let Some(bias) = bias {
         let bias = bias.to_contiguous();
         let bias_data: &[T] = bias.storage();
-        add_bias(
-            &mut output,
-            bias_data,
-            batch_size,
-            channels_out,
-            out_w,
-            add_fn,
-        );
+        add_bias(&mut output, bias_data, batch_size, channels_out, out_w);
     }
 
     let out_shape = Shape::from(vec![batch_size, channels_out, 1, 1, out_w]);
