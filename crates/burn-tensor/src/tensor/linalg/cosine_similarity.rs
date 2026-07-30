@@ -26,7 +26,7 @@ pub fn cosine_similarity<const D: usize>(
     dim: impl AsIndex,
     eps: Option<f64>,
 ) -> Tensor<D> {
-    let dim = unwrap_dim_index(dim.try_dim_index(D));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Cosine Similarity");
     let eps = eps.unwrap_or_else(|| {
         x1.dtype()
             .finfo()

@@ -379,7 +379,7 @@ impl IntTensorOps<Self> for NdArray {
         device: &NdArrayDevice,
         dtype: IntDType,
     ) -> NdArrayTensor {
-        let mut seed = SEED.lock().unwrap();
+        let mut seed = SEED.lock();
         let mut rng = seed.take().unwrap_or_else(get_seeded_rng);
 
         let effective_distribution = if distribution == Distribution::Default {

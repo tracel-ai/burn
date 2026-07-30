@@ -12,7 +12,7 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_std::ExecutionError;
-use burn_std::{SliceOps, stub::RwLock};
+use burn_std::{SliceOps, sync::RwLock};
 use core::iter::ExactSizeIterator;
 use core::iter::repeat;
 use core::marker::PhantomData;
@@ -94,6 +94,19 @@ impl<const D: usize, K> Tensor<D, K>
 where
     K: Basic,
 {
+    /// Takes ownership of the tensor out of `self`, leaving an empty
+    /// zero-shape placeholder tensor in its place.
+    ///
+    /// This is analogous to [`Option::take`] / [`core::mem::take`]: it lets you
+    /// obtain an owned `Tensor` from behind a `&mut Tensor` so you can call
+    /// owned operations on it.
+    #[allow(unused_must_use)]
+    pub fn extract(&mut self) -> Self {
+        let mut z = Tensor::empty([0; D], &self.device());
+        core::mem::swap(self, &mut z);
+        z
+    }
+
     /// Executes an operation on the tensor and modifies its value.
     ///
     /// # Notes
@@ -105,11 +118,8 @@ where
     /// want to mutate a tensor by using owned operations. A plausible usage would be to
     /// update the weights of a mutable model reference.
     pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
-        let mut tensor_owned = Tensor::empty([0; D], &self.device());
-        core::mem::swap(&mut tensor_owned, self);
-
-        let mut tensor_new = func(tensor_owned);
-        core::mem::swap(&mut tensor_new, self);
+        let mut z = func(self.extract());
+        core::mem::swap(self, &mut z);
     }
 
     /// Returns the number of dimensions of the tensor.
@@ -162,6 +172,25 @@ where
         let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape));
         Self::new(K::empty(shape, &opt.device, dtype))
+    }
+
+    /// Create an empty tensor with the same shape, dtype, and device as the current tensor.
+    ///
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    // Create a zeroed tensor with dimensions [2, 3, 4].
+    ///    let tensor = Tensor::<3>::zeros([2, 3, 4], &device);
+    ///    // Create an empty tensor with dimensions [2, 3, 4].
+    ///    let tensor = tensor.empty_like();
+    /// }
+    /// ```
+    pub fn empty_like(&self) -> Self {
+        Self::new(K::empty(self.shape(), &self.device(), self.dtype()))
     }
 
     /// Create a tensor of the given shape where each element is zero.
@@ -461,9 +490,8 @@ where
         Dim1: AsIndex,
         Dim2: AsIndex,
     {
-        let dim1 = unwrap_dim_index(dim1.try_dim_index(D));
-        let dim2 = unwrap_dim_index(dim2.try_dim_index(D));
-        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
+        let dim1 = unwrap_dim_index(dim1.try_dim_index(D), "Swap Dims");
+        let dim2 = unwrap_dim_index(dim2.try_dim_index(D), "Swap Dims");
         if dim1 == dim2 {
             self
         } else {
@@ -510,7 +538,7 @@ where
         let mut no_op = true;
         let mut fixed_axes = [0; D];
         for (i, axis) in axes.into_iter().enumerate() {
-            let dim = unwrap_dim_index(axis.try_dim_index(D));
+            let dim = unwrap_dim_index(axis.try_dim_index(D), "Permute");
             no_op &= dim == i;
             fixed_axes[i] = dim;
         }
@@ -642,7 +670,7 @@ where
         // Convert the axes to usize without allocating.
         let mut transformed_axes: [usize; N] = [0; N];
         for (i, axis) in axes.into_iter().enumerate() {
-            transformed_axes[i] = unwrap_dim_index(axis.try_dim_index(D));
+            transformed_axes[i] = unwrap_dim_index(axis.try_dim_index(D), "Flip");
         }
 
         // Check if the axes are valid
@@ -693,8 +721,8 @@ where
         start_dim: impl AsIndex,
         end_dim: impl AsIndex,
     ) -> Tensor<D2, K> {
-        let start_dim = unwrap_dim_index(start_dim.try_dim_index(D));
-        let end_dim = unwrap_dim_index(end_dim.try_dim_index(D));
+        let start_dim = unwrap_dim_index(start_dim.try_dim_index(D), "Flatten");
+        let end_dim = unwrap_dim_index(end_dim.try_dim_index(D), "Flatten");
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
         let new_shape = self.shape().flatten_dims(start_dim, end_dim);
 
@@ -783,7 +811,7 @@ where
     /// }
     /// ```
     pub fn squeeze_dim<const D2: usize>(self, dim: impl AsIndex) -> Tensor<D2, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Squeeze");
         check!(TensorCheck::squeeze::<D2>(dim, &self.shape()));
 
         let current_dims = self.shape();
@@ -846,7 +874,7 @@ where
         } else {
             dim_indices = dims
                 .iter()
-                .map(|dim| unwrap_dim_index(dim.try_dim_index(D)))
+                .map(|dim| unwrap_dim_index(dim.try_dim_index(D), "Squeeze"))
                 .collect();
         }
 
@@ -939,7 +967,7 @@ where
     /// }
     /// ```
     pub fn unsqueeze_dim<const D2: usize>(self, dim: impl AsIndex) -> Tensor<D2, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D + 1));
+        let dim = unwrap_dim_index(dim.try_dim_index(D + 1), "Unsqueeze");
         check!(TensorCheck::unsqueeze_dim::<D, D2>(dim));
 
         let mut dims = [1; D2];
@@ -1064,7 +1092,7 @@ where
         Shift: AsIndex,
         Dim: AsIndex,
     {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Roll");
         let size = self.shape()[dim];
         if size == 0 {
             // If the dimension is empty, return the tensor as is.
@@ -1153,7 +1181,7 @@ where
         // Accumulate the effective shifts for each dimension.
         let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
         for i in 0..item_count {
-            let dim = unwrap_dim_index(dims[i].try_dim_index(D));
+            let dim = unwrap_dim_index(dims[i].try_dim_index(D), "Roll");
             accumulated_shifts[dim] += shifts[i].as_index();
         }
 
@@ -1563,13 +1591,55 @@ where
     where
         S: Into<Slice>,
     {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Slice");
         let slice: Slice = slice.into();
 
         let mut slices = vec![Slice::full(); D];
         slices[dim] = slice;
 
         self.slice(&slices)
+    }
+
+    /// Returns a new tensor selecting a dimension index, and then squeezing that dim.
+    ///
+    /// This is defined as equivalent to `t.slice_dim(dim, index).squeeze_dim::<D2>(dim)`
+    ///
+    /// # Arguments
+    /// * `dim`: The dimension to slice. Supports negative indexing.
+    /// * `index`: the dimension index. Supports negative indexing.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::{Tensor, TensorData, s};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<2>::from_data(
+    ///         [
+    ///             [1.0, 2.0, 3.0],
+    ///             [4.0, 5.0, 6.0],
+    ///         ],
+    ///         &device,
+    ///     );
+    ///
+    ///     let row1 : Tensor<1> = tensor.clone().select_dim(0, 1);
+    ///     row1
+    ///         .to_data()
+    ///         .assert_eq(&TensorData::from([4.0, 5.0, 6.0]), false);
+    ///
+    ///     let col1 : Tensor<1> = tensor.clone().select_dim(1, 1);
+    ///     col1
+    ///         .to_data()
+    ///         .assert_eq(&TensorData::from([2.0, 5.0]), false);
+    /// }
+    /// ```
+    pub fn select_dim<const D2: usize>(
+        self,
+        dim: impl AsIndex,
+        index: impl AsIndex,
+    ) -> Tensor<D2, K> {
+        let index = index.as_index();
+        self.slice_dim(dim, index).squeeze_dim(dim)
     }
 
     /// Returns the device of the current tensor.
@@ -1604,8 +1674,7 @@ where
     /// }
     /// ```
     pub fn select(self, dim: impl AsIndex, indices: Tensor<1, Int>) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
-        check!(TensorCheck::select::<D>(dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Select");
         Self::new(K::select(self.primitive, dim, indices.primitive))
     }
 
@@ -1642,7 +1711,7 @@ where
         values: Tensor<D, K>,
         update: IndexingUpdateOp,
     ) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Select Assign");
         check!(TensorCheck::select_assign::<D>(
             dim,
             &indices.shape(),
@@ -1710,6 +1779,78 @@ where
         Self::new(K::mask_fill(self.primitive, mask.primitive, value))
     }
 
+    /// Selects the elements of the tensor where `mask` is `true`, returned as a 1D tensor in the
+    /// order of the flattened input tensor.
+    ///
+    /// The mask must have the same shape as the tensor. Unlike `torch.masked_select`, the mask is
+    /// not broadcast against the tensor.
+    ///
+    /// # Notes
+    ///
+    /// The number of selected elements is data-dependent, so this performs a synchronous read of
+    /// the mask, consistent with [`argwhere`](Tensor::argwhere) and [`nonzero`](Tensor::nonzero).
+    /// On backends without a native `argwhere` implementation, this reads the entire mask back to
+    /// the host and computes the indices on the CPU; on lazy backends, it also forces the
+    /// execution of pending operations.
+    ///
+    /// This makes each call a synchronization point between the host and the device: prefer
+    /// calling it once on final results (e.g. filtering predictions) rather than inside
+    /// performance-critical loops.
+    ///
+    /// On an autodiff backend, gradients flow back to the selected elements; positions where
+    /// `mask` is `false` receive a zero gradient.
+    ///
+    /// # Panics
+    ///
+    /// - If `mask` does not have the same shape as the tensor.
+    /// - If the mask data cannot be read synchronously (e.g. on wasm); use
+    ///   [`mask_select_async`](Tensor::mask_select_async) instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///   let mask = Tensor::<2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let selected = tensor.mask_select(mask);
+    ///   println!("{selected}");
+    ///   // [1.0, 3.0, 5.0]
+    /// }
+    /// ```
+    pub fn mask_select(self, mask: Tensor<D, Bool>) -> Tensor<1, K> {
+        crate::try_read_sync(self.mask_select_async(mask)).expect(
+            "Failed to read tensor data synchronously. Try using mask_select_async instead.",
+        )
+    }
+
+    /// Selects the elements of the tensor where `mask` is `true`, returned as a 1D tensor in the
+    /// order of the flattened input tensor.
+    ///
+    /// Asynchronous version of [`mask_select`](Tensor::mask_select), for backends where the
+    /// mask cannot be read synchronously (e.g. wasm). The mask read and its synchronization cost
+    /// remain; only the waiting is non-blocking.
+    ///
+    /// # Panics
+    ///
+    /// If `mask` does not have the same shape as the tensor.
+    pub async fn mask_select_async(self, mask: Tensor<D, Bool>) -> Tensor<1, K> {
+        check!(TensorCheck::mask_select(&self.shape(), &mask.shape()));
+
+        // Flatten the mask to 1D and collect the flat indices of its `true` values. `argwhere`
+        // returns a `[count, 1]` tensor, which we squeeze to a 1D `[count]` index tensor.
+        let indices = mask
+            .flatten::<1>(0, D - 1)
+            .argwhere_async()
+            .await
+            .squeeze_dim::<1>(1);
+
+        // Flatten the tensor to 1D and gather the selected elements.
+        self.flatten::<1>(0, D - 1).select(0, indices)
+    }
+
     /// Gather tensor elements corresponding to the given indices from the specified dim.
     /// The dimension supports negative indexing.
     ///
@@ -1728,7 +1869,7 @@ where
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather(self, dim: impl AsIndex, indices: Tensor<D, Int>) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Gather");
         check!(TensorCheck::gather::<D>(
             dim,
             &self.shape(),
@@ -1773,7 +1914,7 @@ where
         values: Self,
         update: IndexingUpdateOp,
     ) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Scatter");
         check!(TensorCheck::scatter::<D>(
             dim,
             &self.shape(),
@@ -1950,7 +2091,7 @@ where
     /// }
     /// ```
     pub fn repeat_dim(self, dim: impl AsIndex, times: usize) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Repeat");
         if times > 0 {
             Self::new(K::repeat_dim(self.primitive, dim, times))
         } else {
@@ -2150,7 +2291,7 @@ where
     /// }
     /// ```
     pub fn cat(tensors: Vec<Self>, dim: impl AsIndex) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cat");
         check!(TensorCheck::cat(tensors.as_slice(), dim));
 
         // Filter out tensors with size 0 along the concatenation dimension.
@@ -2205,7 +2346,7 @@ where
     /// }
     /// ```
     pub fn stack<const D2: usize>(tensors: Vec<Tensor<D, K>>, dim: impl AsIndex) -> Tensor<D2, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D + 1));
+        let dim = unwrap_dim_index(dim.try_dim_index(D + 1), "Stack");
         check!(TensorCheck::stack::<D, K, D2>(tensors.as_slice(), dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
         Tensor::<D2, K>::cat(tensors, dim)
@@ -2239,7 +2380,7 @@ where
     /// }
     /// ```
     pub fn iter_dim(self, dim: impl AsIndex) -> DimIter<D, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Iter Dim");
         DimIter::new(self, dim)
     }
 
@@ -2280,7 +2421,7 @@ where
     /// }
     /// ```
     pub fn narrow(self, dim: impl AsIndex, start: usize, length: usize) -> Self {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Narrow");
         check!(TensorCheck::narrow(&self, dim, start, length));
         let dims = self.dims();
 
@@ -2342,7 +2483,7 @@ where
     /// }
     /// ```
     pub fn chunk(self, chunks: usize, dim: impl AsIndex) -> Vec<Self> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Chunk");
         let size = self.shape()[dim];
         if size < chunks {
             return (0..size)
@@ -2402,7 +2543,7 @@ where
     /// }
     /// ```
     pub fn split(self, split_size: usize, dim: impl AsIndex) -> Vec<Self> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Split");
         check!(TensorCheck::split::<D>(&self.shape(), split_size, dim));
         let size = self.shape()[dim];
         let mut tensors = Vec::new();
@@ -2449,7 +2590,7 @@ where
     /// }
     /// ```
     pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: impl AsIndex) -> Vec<Self> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Split With Sizes");
         check!(TensorCheck::split_with_sizes::<D>(
             &self.shape(),
             &split_sizes,
@@ -2534,7 +2675,7 @@ where
     /// }
     /// ```
     pub fn any_dim(self, dim: impl AsIndex) -> Tensor<D, Bool> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Any");
         Tensor::new(K::any_dim(self.primitive, dim))
     }
 
@@ -2597,7 +2738,7 @@ where
     /// }
     /// ```
     pub fn all_dim(self, dim: impl AsIndex) -> Tensor<D, Bool> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "All");
         Tensor::new(K::all_dim(self.primitive, dim))
     }
 
@@ -2709,7 +2850,7 @@ where
     pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(self, shape: S) -> Tensor<D2, K> {
         let shape = shape.into_shape(&self.shape());
         check!(TensorCheck::expand::<D, D2>(
-            "expand",
+            "Expand",
             &self.shape(),
             &shape,
         ));
@@ -2748,9 +2889,9 @@ where
         size: usize,
         step: usize,
     ) -> Tensor<D2, K> {
-        let dim = unwrap_dim_index(dim.try_dim_index(D));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Unfold");
         check!(TensorCheck::unfold::<D, D2>(
-            "unfold",
+            "Unfold",
             &self.shape(),
             dim,
             size,
@@ -2918,7 +3059,7 @@ impl Default for PrintOptions {
 
 /// Set print options
 pub fn set_print_options(options: PrintOptions) {
-    let mut print_opts = PRINT_OPTS.write().unwrap();
+    let mut print_opts = PRINT_OPTS.write();
     *print_opts = options;
 }
 
@@ -2942,7 +3083,7 @@ impl<I: AsIndex> MovedimArgs for Vec<I> {
     fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
         let set = self
             .into_iter()
-            .map(|dim| unwrap_dim_index(dim.try_dim_index(D)))
+            .map(|dim| unwrap_dim_index(dim.try_dim_index(D), "Movedim"))
             .collect::<Vec<usize>>();
         check!(TensorCheck::movedim_args_vec::<D>(&set));
 
@@ -2955,7 +3096,7 @@ macro_rules! impl_movedim_args {
         $(
             impl MovedimArgs for $ty {
                 fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
-                    vec![unwrap_dim_index(self.try_dim_index(D))]
+                    vec![unwrap_dim_index(self.try_dim_index(D), "Movedim")]
                 }
             }
         )*
@@ -3262,7 +3403,7 @@ fn display_fmt_impl(
 ) -> core::fmt::Result {
     writeln!(f, "Tensor {{")?;
     {
-        let mut po = { PRINT_OPTS.read().unwrap().clone() };
+        let mut po = { PRINT_OPTS.read().clone() };
         if let Some(precision) = f.precision() {
             po.precision = Some(precision);
         }

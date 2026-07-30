@@ -127,19 +127,22 @@ impl Metric for CharErrorRate {
             })
             .sum();
 
-        let total_target_length = target_lengths.iter().map(|&x| x as f64).sum::<f64>();
+        let total_target_length = target_lengths.iter().map(|&x| x as usize).sum::<usize>();
 
-        let value = if total_target_length > 0.0 {
-            100.0 * total_edit_distance as f64 / total_target_length
+        let value = if total_target_length > 0 {
+            100.0 * total_edit_distance as f64 / total_target_length as f64
         } else {
             0.0
         };
 
-        self.state.update(
-            value,
-            batch_size,
-            FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        self.state.update(value, total_target_length);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -154,19 +157,22 @@ impl Metric for CharErrorRate {
         super::NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: false,
-            ..Default::default()
         }
         .into()
     }
 }
 
 impl Numeric for CharErrorRate {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -186,7 +192,7 @@ mod tests {
 
         metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
 
-        assert_eq!(0.0, metric.value().current());
+        assert_eq!(0.0, metric.value().unwrap().current());
     }
 
     /// Two edits in four target tokens ⇒ 50 %.
@@ -202,7 +208,7 @@ mod tests {
         metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
 
         // 2 edits / 4 tokens = 50 %
-        assert_eq!(50.0, metric.value().current());
+        assert_eq!(50.0, metric.value().unwrap().current());
     }
 
     /// Same scenario as above, but with right-padding (token 9) ignored.
@@ -217,7 +223,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 3, pad], [3, 4, pad]], &device);
 
         metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value().current());
+        assert_eq!(50.0, metric.value().unwrap().current());
     }
 
     /// `clear()` must reset the running statistics to zero.
@@ -233,9 +239,9 @@ mod tests {
             &CerInput::new(preds.clone(), tgts.clone()),
             &MetricMetadata::fake(),
         );
-        assert!(metric.value().current() > 0.0);
+        assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();
-        assert!(metric.value().current().is_nan());
+        assert!(metric.value().unwrap().current().is_nan());
     }
 }

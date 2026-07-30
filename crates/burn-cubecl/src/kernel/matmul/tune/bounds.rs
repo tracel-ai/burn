@@ -4,7 +4,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     client::ComputeClient,
     ir::StorageType,
-    std::throughput::{measure_launch_overhead, measure_peak_throughput},
+    std::throughput::measure_peak_throughput,
     throughput::{CmmaDims, ComputeCmmaConfig, ThroughputKey, ThroughputMode},
     tune::{AutotuneBound, Bounds, BoundsGenerator},
 };
@@ -16,7 +16,7 @@ use cubek::matmul::{
 
 use crate::{CubeRuntime, kernel::matmul::tune::base::Inputs};
 
-type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
+type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>> + Send + Sync;
 
 const THRESHOLD: f32 = 0.85;
 
@@ -27,9 +27,16 @@ pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) ->
     Arc::new(
         move |_key: &MatmulAutotuneKey, tensors: &Inputs<R>| Bounds {
             bounds: autotune_bounds(&owned_client, tensors),
-            launch_overhead: measure_launch_overhead(&owned_client),
+            launch_overhead: measure_peak_throughput(&owned_client, launch_overhead_key())
+                .duration_per_op(),
         },
     )
+}
+
+fn launch_overhead_key() -> ThroughputKey {
+    ThroughputKey {
+        mode: ThroughputMode::Launch,
+    }
 }
 
 /// Calculates the theoretical compute and memory throughput bounds for a specific matrix multiplication operation.
@@ -57,32 +64,27 @@ fn autotune_bounds<R: CubeRuntime>(
     // register type the availability check selected, not the accumulator:
     // an f16×f16→f32 cmma probed at the accumulator type builds f32 A/B
     // fragments, which HIP's WMMA cannot even compile.
-    let (compute_mode, compute_dtype) = match compute.cmma_tile {
-        Some((tile_m, tile_n, tile_k)) => (
-            ThroughputMode::ComputeCmma(ComputeCmmaConfig {
+    let compute_mode = match compute.cmma_tile {
+        Some((tile_m, tile_n, tile_k)) => ThroughputMode::ComputeCmma {
+            dtype: compute.input.elem_type(),
+            config: ComputeCmmaConfig {
                 accumulator_type: compute.acc.elem_type(),
                 cmma_dims: CmmaDims {
                     m: tile_m as usize,
                     n: tile_n as usize,
                     k: tile_k as usize,
                 },
-            }),
-            compute.input.elem_type(),
-        ),
-        None => (ThroughputMode::ComputeDirect, compute.acc.elem_type()),
+            },
+        },
+        None => ThroughputMode::ComputeDirect {
+            dtype: compute.acc.elem_type(),
+        },
     };
 
-    let compute_throughput = measure_peak_throughput(
-        client,
-        ThroughputKey {
-            mode: compute_mode,
-            dtype: compute_dtype,
-        },
-    );
+    let compute_throughput = measure_peak_throughput(client, ThroughputKey { mode: compute_mode });
 
     let memory_key = ThroughputKey {
         mode: ThroughputMode::Memory,
-        dtype: elem_out.elem_type(),
     };
 
     let memory_throughput = measure_peak_throughput(client, memory_key);

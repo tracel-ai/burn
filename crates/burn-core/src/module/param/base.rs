@@ -4,7 +4,7 @@ use super::sync_once_cell::SyncOnceCell;
 use alloc::format;
 
 use alloc::boxed::Box;
-use burn_std::stub::RwLock;
+use burn_std::sync::RwLock;
 use burn_tensor::{Device, Shape};
 use core::ops::Deref;
 
@@ -92,8 +92,7 @@ impl<T: Parameter> LazyInitState<T> {
                 .initialization
                 .as_ref()
                 .expect("Should have an initialization when no state provided.")
-                .write()
-                .unwrap();
+                .write();
             let state = init.take().expect("Should exist when not initialized");
             state.initialize()
         })
@@ -433,7 +432,7 @@ impl<T: Parameter> Param<T> {
             None => return self.map(func),
         };
 
-        let mut init = initialization.write().unwrap();
+        let mut init = initialization.write();
 
         match init.as_mut() {
             Some(value) => {
@@ -482,7 +481,7 @@ impl<T: Parameter> Param<T> {
             None => return self.device(),
         };
 
-        let init = initialization.read().unwrap();
+        let init = initialization.read();
 
         match init.as_ref() {
             Some(value) => value.device.clone(),
@@ -507,7 +506,7 @@ impl<T: Parameter> Param<T> {
             None => return self.is_require_grad(),
         };
 
-        let init = initialization.read().unwrap();
+        let init = initialization.read();
 
         match init.as_ref() {
             Some(value) => value.is_require_grad,
@@ -522,7 +521,7 @@ impl<T: Parameter> Param<T> {
             None => return self.map(|tensor| tensor.set_require_grad(require_grad)),
         };
 
-        let mut init = initialization.write().unwrap();
+        let mut init = initialization.write();
         let mut is_lazy = false;
 
         if let Some(value) = init.as_mut() {
@@ -553,7 +552,7 @@ impl<T: Parameter> Param<T> {
             None => return self.shape(),
         };
 
-        let init = initialization.read().unwrap();
+        let init = initialization.read();
 
         match init.as_ref() {
             Some(value) => value.shape.clone(),

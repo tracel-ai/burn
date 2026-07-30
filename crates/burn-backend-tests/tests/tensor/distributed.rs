@@ -1,6 +1,6 @@
 use burn_tensor::Tolerance;
 use burn_tensor::distributed::ReduceOperation;
-use burn_tensor::module::all_reduce;
+use burn_tensor::distributed::all_reduce;
 use burn_tensor::{Device, DeviceType, TensorData};
 use rand::RngExt;
 use serial_test::serial;

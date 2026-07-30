@@ -56,7 +56,7 @@ impl FloatTensorOps<Self> for NdArray {
         device: &NdArrayDevice,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        let mut seed = SEED.lock().unwrap();
+        let mut seed = SEED.lock();
         let mut rng = seed.take().unwrap_or_else(get_seeded_rng);
         let tensor = execute_with_float_out_dtype!(
             dtype,

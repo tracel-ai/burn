@@ -189,9 +189,10 @@ for the sake of simplicity, we ignore type signatures. For more details, refer t
 Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 
 | Burn                                                 | PyTorch Equivalent                                                        |
-| ---------------------------------------------------- | ------------------------------------------------------------------------- |
+|------------------------------------------------------|---------------------------------------------------------------------------|
 | `Tensor::cat(tensors, dim)`                          | `torch.cat(tensors, dim)`                                                 |
 | `Tensor::empty(shape, options)`                      | `torch.empty(shape, device=device, dtype=dtype)`                          |
+| `tensor::empty_like()`                               | `tensor.empty_like(tensor)`                                               |
 | `Tensor::from_primitive(primitive)`                  | N/A                                                                       |
 | `Tensor::stack(tensors, dim)`                        | `torch.stack(tensors, dim)`                                               |
 | `tensor.all()`                                       | `tensor.all()`                                                            |
@@ -215,6 +216,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.into_primitive()`                            | N/A                                                                       |
 | `tensor.into_scalar()`                               | `tensor.item()`                                                           |
 | `tensor.mask_fill(mask, value)`                      | `tensor.masked_fill(mask, value)`                                         |
+| `tensor.mask_select(mask)`                           | `tensor.masked_select(mask)`                                              |
 | `tensor.mask_where(mask, value_tensor)`              | `torch.where(mask, value_tensor, tensor)`                                 |
 | `tensor.movedim(src, dst)`                           | `tensor.movedim(src, dst)`                                                |
 | `tensor.narrow(dim, start, length)`                  | `tensor.narrow(dim, start, length)`                                       |
@@ -237,6 +239,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.slice_assign(slices, values)`                | `tensor[(*ranges,)] = values`                                             |
 | `tensor.slice_fill(slices, value)`                   | `tensor[(*ranges,)] = value`                                              |
 | `tensor.slice_dim(dim, slice)`                       | N/A                                                                       |
+| `tensor.select_dim(dim, index)`                      | `torch.select(tensor, dim, index)`                                        |
 | `tensor.squeeze()`                                   | `tensor.squeeze()`                                                        |
 | `tensor.squeeze_dim(dim)`                            | `tensor.squeeze(dim)`                                                     |
 | `tensor.squeeze_dims(dims)`                          | `tensor.squeeze(dims)` where `dims` is a tuple of ints                    |
@@ -494,6 +497,7 @@ strategies.
 | `linalg::l2_norm(tensor, dim)`                     | _No direct equivalent_                              |
 | `linalg::lp_norm(tensor, p, dim)`                  | _No direct equivalent_                              |
 | `linalg::lu(tensor)`                               | `torch.linalg.lu(tensor)`                           |
+| `linalg::qr(tensor)`                               | `torch.linalg.qr(tensor)`                           |
 | `linalg::matvec(matrix, vector)`                   | `torch.matmul(matrix, vector)` / `@` operator       |
 | `linalg::max_abs_norm(tensor, dim)`                | _No direct equivalent_                              |
 | `linalg::min_abs_norm(tensor, dim)`                | _No direct equivalent_                              |

@@ -19,7 +19,6 @@ impl EventStore for LogEventStore {
                 self.epochs.insert(split, epoch);
             }
             Event::MetricsInit(definitions) => {
-                self.aggregate.register_definitions(&definitions);
                 definitions.iter().for_each(|def| {
                     self.loggers
                         .iter_mut()
