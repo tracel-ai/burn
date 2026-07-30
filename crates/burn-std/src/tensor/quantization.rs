@@ -226,22 +226,44 @@ impl QuantizedBytes {
     }
 }
 
-/// Round a scale to the nearest value representable by the param dtype.
+/// Round a scale up to the smallest value representable by the param dtype that is no smaller.
 ///
 /// Backends that keep scales in `f32` must apply this when quantizing, so that the scale they
 /// divide by is the one that will actually be stored. Otherwise a tensor dequantizes differently
 /// after a save/load round trip.
 ///
-/// Narrow params can round a small scale down to zero, so callers that guard against a zero or
-/// non-finite scale must do so *after* this, not before.
-pub fn round_to_param(scale: f32, param: QuantParam) -> f32 {
-    match param {
-        QuantParam::F32 => scale,
+/// Up rather than to nearest, because a scale is derived from the largest magnitude it has to
+/// cover. Rounding down puts that value past the end of the quantized range, where it clips, which
+/// measured several times worse than the coarser step rounding up costs.
+pub fn scale_to_param(scale: f32, param: QuantParam) -> f32 {
+    let nearest = match param {
+        QuantParam::F32 => return scale,
         QuantParam::F16 => crate::f16::from_f32(scale).to_f32(),
         QuantParam::BF16 => crate::bf16::from_f32(scale).to_f32(),
         QuantParam::UE4M3 => e4m3::from_f32(scale).to_f32(),
         QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
+    };
+
+    if nearest >= scale || scale.is_nan() {
+        return nearest;
     }
+
+    // Positive floats are ordered by their bit pattern, so the next representable value up is the
+    // next bit pattern.
+    let next = match param {
+        QuantParam::F16 => {
+            crate::f16::from_bits(crate::f16::from_f32(nearest).to_bits() + 1).to_f32()
+        }
+        QuantParam::BF16 => {
+            crate::bf16::from_bits(crate::bf16::from_f32(nearest).to_bits() + 1).to_f32()
+        }
+        QuantParam::UE4M3 => e4m3::from_bits(e4m3::from_f32(nearest).to_bits() + 1).to_f32(),
+        QuantParam::F32 | QuantParam::UE8M0 => unreachable!(),
+    };
+
+    // Stepping off the largest finite value lands on an infinity or a NaN encoding, so the
+    // saturated value is already the best answer.
+    if next.is_finite() { next } else { nearest }
 }
 
 /// Bytes per stored scale entry for the given param dtype.
@@ -454,11 +476,11 @@ mod tests {
         assert_eq!(q_values, values);
     }
 
-    /// Backends divide by what `round_to_param` returns, while serialization stores what
-    /// `encode_scales` produces. If the two disagreed, a tensor would dequantize differently
-    /// after a save/load round trip.
+    /// Backends divide by what `scale_to_param` returns and hand that same value to
+    /// `encode_scales`. If encoding moved it, a tensor would dequantize differently after a
+    /// save/load round trip, so the codec has to leave an already-rounded scale alone.
     #[test]
-    fn round_to_param_agrees_with_the_codec() {
+    fn scale_to_param_survives_the_codec() {
         // Includes values that saturate (500), land in e4m3's subnormals (1e-3), and underflow
         // it entirely (7.7e-4).
         let scales = [0.5f32, 0.3, 1.0 / 3.0, 500.0, 1e-3, 7.7e-4];
@@ -469,13 +491,20 @@ mod tests {
             QuantParam::BF16,
             QuantParam::UE4M3,
         ] {
-            let via_codec = decode_scales(&encode_scales(&scales, param), param);
-            let via_round: Vec<f32> = scales.iter().map(|s| round_to_param(*s, param)).collect();
+            let rounded: Vec<f32> = scales.iter().map(|s| scale_to_param(*s, param)).collect();
+            let via_codec = decode_scales(&encode_scales(&rounded, param), param);
 
             assert_eq!(
-                via_round, via_codec,
-                "round_to_param disagrees with the codec for {param:?}"
+                rounded, via_codec,
+                "the codec moves a scale {param:?} can already represent"
             );
+            // 500 is past what e4m3 can hold, so it saturates rather than rounding up.
+            for (scale, rounded) in scales.iter().zip(&rounded).filter(|(s, _)| **s < 500.0) {
+                assert!(
+                    rounded >= scale,
+                    "{scale} rounded down to {rounded} for {param:?}"
+                );
+            }
         }
     }
 

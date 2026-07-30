@@ -136,6 +136,9 @@ fn narrow_scale_param_degrades_without_normalization() {
 /// the 8-bit one already costs something. Pinning both directions keeps the harness honest: it
 /// has to be sensitive enough to see the 8-bit loss, and not so noisy that it invents a 16-bit one.
 ///
+/// The upper bound on the 8-bit cost is what keeps `scale_to_param` rounding up. Rounding a scale
+/// to nearest instead lets a block's largest value clip, which measured several times worse.
+///
 /// Note this is not monotone in scale width. Rounding a scale can land favourably on a given
 /// sample, so f16 sitting a hair below f32 is expected and is not a signal.
 #[test]
@@ -153,14 +156,19 @@ fn error_responds_to_scale_param() {
 
     // Generous on purpose. The measured gap is near zero on the backends checked so far, but this
     // runs on every backend and float element type, and the point is only to separate
-    // "indistinguishable" from the 8-bit case below, which is worse by more than 100%.
+    // "indistinguishable" from the 8-bit case below.
     assert!(
         (f16_err - f32_err).abs() / f32_err < 0.20,
         "a 16-bit scale should be indistinguishable from f32, got f32={f32_err} f16={f16_err}"
     );
     assert!(
-        ue4m3_err > f32_err * 1.5,
-        "an 8-bit scale should cost real accuracy, got f32={f32_err} ue4m3={ue4m3_err}"
+        ue4m3_err > f32_err,
+        "an 8-bit scale should cost some accuracy, got f32={f32_err} ue4m3={ue4m3_err}"
+    );
+    assert!(
+        ue4m3_err < f32_err * 1.3,
+        "an 8-bit scale should cost only the coarser step, not a clipped block maximum, \
+         got f32={f32_err} ue4m3={ue4m3_err}"
     );
 }
 
