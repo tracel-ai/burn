@@ -188,6 +188,14 @@ fn report_quantization_accuracy() {
             "block32+f16",
             QuantLevel::block_tensor([32], QuantParam::F16),
         ),
+        (
+            "block16+f32",
+            QuantLevel::block_tensor([16], QuantParam::F32),
+        ),
+        (
+            "block32+f32",
+            QuantLevel::block_tensor([32], QuantParam::F32),
+        ),
     ];
     let params = [
         ("f32", QuantParam::F32),
