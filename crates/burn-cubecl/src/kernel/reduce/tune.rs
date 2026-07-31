@@ -1,9 +1,10 @@
 #![allow(missing_docs)]
 
-use super::SumAutotuneKey;
+use super::{SumAutotuneKey, accumulator_len};
 use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_elem_type;
 use cubecl::{
+    AutotuneKey,
     client::ComputeClient,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
@@ -13,6 +14,21 @@ use cubek::reduce::{
     launch::{RoutineStrategy, VectorizationStrategy, tune_key::ReduceAutotuneKey},
     routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
 };
+use serde::{Deserialize, Serialize};
+
+/// Autotune key for both dim-reduce tuners, values-only and fused values+indices.
+///
+/// [`ReduceAutotuneKey`] alone would put max/min and every top-k on the same entry: it
+/// carries the input shape and dtypes, but not the accumulator length. Since shared memory
+/// scales with that length, a routine benchmarked at one length can be infeasible at
+/// another, and the tuner's cached fast path panics rather than falling back.
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+pub struct ReduceDimAutotuneKey {
+    /// The accumulator slots per reduction (`k` for top-k, `1` otherwise).
+    accumulator_len: usize,
+    /// The shape and dtypes of the reduction itself.
+    reduce: ReduceAutotuneKey,
+}
 
 /// The configured autotune level, read once — [`ReduceStrategy`] carries it
 /// so the kernel blueprints know whether raw shapes are their own keys.
@@ -31,10 +47,10 @@ fn autotune_level() -> cubecl::config::autotune::AutotuneLevel {
 /// injected through `launch`; keeping the grid in one place keeps the two tuners
 /// from drifting apart when routines or priorities are adjusted.
 fn with_routine_tunables<In, Launch>(
-    mut set: TunableSet<ReduceAutotuneKey, In, ()>,
+    mut set: TunableSet<ReduceDimAutotuneKey, In, ()>,
     group_suffix: &str,
     launch: Launch,
-) -> TunableSet<ReduceAutotuneKey, In, ()>
+) -> TunableSet<ReduceDimAutotuneKey, In, ()>
 where
     In: Clone + Send + Sync + 'static,
     Launch: Fn(ReduceStrategy, In) -> Result<(), String> + Clone + Send + Sync + 'static,
@@ -44,13 +60,13 @@ where
     const PRIORITY_SKIP: i8 = -1;
 
     let default_group =
-        TuneGroup::<ReduceAutotuneKey>::new(&format!("default_{group_suffix}"), |_key| {
+        TuneGroup::<ReduceDimAutotuneKey>::new(&format!("default_{group_suffix}"), |_key| {
             PRIORITY_MAX
         });
-    let vectorized_parallel_group = TuneGroup::<ReduceAutotuneKey>::new(
+    let vectorized_parallel_group = TuneGroup::<ReduceDimAutotuneKey>::new(
         &format!("vectorized_parallel_{group_suffix}"),
         |key| {
-            if key.axis_is_contiguous {
+            if key.reduce.axis_is_contiguous {
                 PRIORITY_MAX
             } else {
                 // We disable the tunable with the setting [vector_size.parallel_output_vectorization]
@@ -121,7 +137,7 @@ where
 
             tunable = tunable.group(&default_group, move |key| match props {
                 ReduceProps::GreatWithLowReduceCount => {
-                    if key.vector_count < 128 {
+                    if key.reduce.vector_count < 128 {
                         PRIORITY_MAX
                     } else {
                         // When you have a high level of vector to reduce, it is normally
@@ -130,7 +146,7 @@ where
                     }
                 }
                 ReduceProps::GreatWithHighReduceCount => {
-                    if key.vector_count > 64 {
+                    if key.reduce.vector_count > 64 {
                         PRIORITY_MAX
                     } else {
                         // Bellow 64 it is normally better to use another routine
@@ -157,7 +173,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
 ) {
     use reduce_ops::*;
 
-    static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
+    static TUNER: LocalTuner<ReduceDimAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
     let tunables = TUNER.init(|| {
         with_routine_tunables(
@@ -194,25 +210,28 @@ pub fn autotune_reduce<R: CubeRuntime>(
 }
 
 pub(crate) fn create_key<Run: CubeRuntime>(
-    (input, output, axis, _config, dtypes): &(
+    (input, output, axis, config, dtypes): &(
         CubeTensor<Run>,
         CubeTensor<Run>,
         usize,
         ReduceOperationConfig,
         ReduceDtypes,
     ),
-) -> ReduceAutotuneKey {
+) -> ReduceDimAutotuneKey {
     let elem_input = dtype_to_elem_type(input.dtype);
     let elem_output = dtype_to_elem_type(output.dtype);
     let elem_acc = dtypes.accumulation.elem_type();
 
-    ReduceAutotuneKey::generate(
-        elem_input,
-        elem_output,
-        elem_acc,
-        input.meta.shape(),
-        input.meta.strides()[*axis] == 1,
-        *axis,
+    ReduceDimAutotuneKey::new(
+        accumulator_len(*config),
+        ReduceAutotuneKey::generate(
+            elem_input,
+            elem_output,
+            elem_acc,
+            input.meta.shape(),
+            input.meta.strides()[*axis] == 1,
+            *axis,
+        ),
     )
 }
 
@@ -236,7 +255,7 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
 ) {
     use reduce_with_indices_ops::*;
 
-    static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> =
+    static TUNER: LocalTuner<ReduceDimAutotuneKey, CubeTuneId> =
         local_tuner!("reduce-dim-with-indices");
 
     let tunables = TUNER.init(|| {
@@ -279,7 +298,7 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
 }
 
 pub(crate) fn create_key_with_indices<Run: CubeRuntime>(
-    (input, values, _indices, axis, _config, dtypes): &(
+    (input, values, _indices, axis, config, dtypes): &(
         CubeTensor<Run>,
         CubeTensor<Run>,
         CubeTensor<Run>,
@@ -287,18 +306,21 @@ pub(crate) fn create_key_with_indices<Run: CubeRuntime>(
         ReduceOperationConfig,
         ReduceWithIndicesDtypes,
     ),
-) -> ReduceAutotuneKey {
+) -> ReduceDimAutotuneKey {
     let elem_input = dtype_to_elem_type(input.dtype);
     let elem_output = dtype_to_elem_type(values.dtype);
     let elem_acc = dtypes.accumulation.elem_type();
 
-    ReduceAutotuneKey::generate(
-        elem_input,
-        elem_output,
-        elem_acc,
-        input.meta.shape(),
-        input.meta.strides()[*axis] == 1,
-        *axis,
+    ReduceDimAutotuneKey::new(
+        accumulator_len(*config),
+        ReduceAutotuneKey::generate(
+            elem_input,
+            elem_output,
+            elem_acc,
+            input.meta.shape(),
+            input.meta.strides()[*axis] == 1,
+            *axis,
+        ),
     )
 }
 
@@ -308,7 +330,7 @@ mod reduce_with_indices_ops {
     use super::*;
 
     pub(crate) fn reduce_with_indices_input_gen<Run: CubeRuntime>(
-        _key: &ReduceAutotuneKey,
+        _key: &ReduceDimAutotuneKey,
         (input, values, indices, dim, config, dtypes): &(
             CubeTensor<Run>,
             CubeTensor<Run>,
@@ -344,7 +366,7 @@ mod reduce_ops {
     use super::*;
 
     pub(crate) fn reduce_input_gen<Run: CubeRuntime>(
-        _key: &ReduceAutotuneKey,
+        _key: &ReduceDimAutotuneKey,
         (input, output, dim, config, dtypes): &(
             CubeTensor<Run>,
             CubeTensor<Run>,
