@@ -142,8 +142,12 @@ pub fn svd<const D: usize, const D1: usize>(
 
     // Singular values: column norms of the rotated A.
     let sigma = a.clone().powf_scalar(2).sum_dim(D - 2).sqrt(); // [..., 1, n]
-    let zeros = sigma.clone().zeros_like();
-    let mask = sigma.clone().is_close(zeros, None, None);
+    // Numerical zeros are detected RELATIVE to the largest singular value
+    // (an absolute epsilon is backend-dependent: fused reductions can leave
+    // sigma floors ~1e-7 instead of ~1e-12). Below 1e-6 * sigma_max the
+    // corresponding U column and Vt row are zeroed so 0/0 never appears.
+    let sigma_max = sigma.clone().max_dim(D - 2); // [..., 1, 1]
+    let mask = sigma.clone().lower_equal(sigma_max.mul_scalar(1e-6));
     // U = A diag(1/sigma); zero columns map to the zero vector (no NaN).
     let u = a.div(sigma.clone().mask_fill(mask, 1.0)); // [..., m, n]
 
@@ -155,10 +159,11 @@ pub fn svd<const D: usize, const D1: usize>(
     // A = U diag(sigma) Vt  ->  Vt = diag(1/sigma) U^T A_orig, computed from
     // the UNSORTED factors; two native matmuls instead of accumulating
     // rotations in the sweeps.
+    let sigma_flat_max = sigma_flat.clone().max_dim(D - 2); // [..., 1]
     let inv_sigma = sigma_flat.clone().powf_scalar(-1).mask_fill(
         sigma_flat
             .clone()
-            .is_close(sigma_flat.clone().zeros_like(), None, None),
+            .lower_equal(sigma_flat_max.mul_scalar(1e-6)),
         0.0,
     ); // [..., k]
     let uta = u.clone().transpose().matmul(a_orig); // [..., k, n]
@@ -187,14 +192,19 @@ pub fn svd<const D: usize, const D1: usize>(
 
     let s = sigma_flat.gather(D - 2, idx); // [..., k]
 
-    if swap {
+    let result = if swap {
         // The work decomposition is of A^T: A^T = u diag(s) vt_code
         // (with vt_code = vt_work^T). A = vt_code^T diag(s) u^T, so
         // U = vt_code^T and Vt = u^T.
         (vt.transpose(), s, u.transpose())
     } else {
         (u, s, vt)
-    }
+    };
+    // The sweep loop builds a very long op chain; the cubecl CUDA runtime
+    // executes dependent kernels out of order, so flush the queue once
+    // (no-op on eager backends such as ndarray).
+    let _ = device.sync();
+    result
 }
 
 /// One half-sweep of the cyclic Jacobi ordering: rotates the DISJOINT column
