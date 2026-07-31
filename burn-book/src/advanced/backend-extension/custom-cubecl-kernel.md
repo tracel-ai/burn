@@ -19,7 +19,8 @@ the ugly disambiguation with associated types.
 
 ```rust, ignore
 /// We create our own Backend trait that extends the Burn backend trait.
-pub trait Backend: burn::tensor::backend::Backend {
+#[backend_extension(Autodiff, Wgpu)]
+pub trait Backend: burn::backend::Backend {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -28,37 +29,37 @@ pub trait Backend: burn::tensor::backend::Backend {
 }
 
 /// We create our own AutodiffBackend trait that extends the Burn autodiff backend trait.
-pub trait AutodiffBackend: Backend + burn::tensor::backend::AutodiffBackend {}
+pub trait AutodiffBackend: Backend + burn::backend::AutodiffBackend {}
 ```
 
 In our project, we can use these traits instead of the
-`burn::tensor::backend::{Backend, AutodiffBackend}` traits provided by Burn. Burn's user APIs
+`burn::backend::{Backend, AutodiffBackend}` traits provided by Burn. Burn's user APIs
 typically make use of the `Tensor` struct rather than dealing directly with primitive tensor types.
 Therefore, we can encapsulate our newly defined backend traits with functions that expose new
 operations while maintaining a consistent API.
 
 ```rust, ignore
 /// We define our custom implementation using the added function on our custom backend.
-pub fn matmul_add_relu_custom<B: Backend>(
-    lhs: Tensor<B, 3>,
-    rhs: Tensor<B, 3>,
-    bias: Tensor<B, 3>,
-) -> Tensor<B, 3> {
-    let output = B::fused_matmul_add_relu(
-        lhs.into_primitive().tensor(),
-        rhs.into_primitive().tensor(),
-        bias.into_primitive().tensor(),
+pub fn matmul_add_relu_custom(
+    lhs: Tensor<3>,
+    rhs: Tensor<3>,
+    bias: Tensor<3>,
+) -> Tensor<3> {
+    let output = Dispatch::fused_matmul_add_relu(
+        lhs.into_dispatch(),
+        rhs.into_dispatch(),
+        bias.into_dispatch(),
     );
 
-    Tensor::from_primitive(TensorPrimitive::Float(output))
+    Tensor::from_dispatch(output)
 }
 
 /// We define a reference implementation using basic tensor operations.
-pub fn matmul_add_relu_reference<B: Backend>(
-    lhs: Tensor<B, 3>,
-    rhs: Tensor<B, 3>,
-    bias: Tensor<B, 3>,
-) -> Tensor<B, 3> {
+pub fn matmul_add_relu_reference(
+    lhs: Tensor<3>,
+    rhs: Tensor<3>,
+    bias: Tensor<3>,
+) -> Tensor<3> {
     let x = lhs.matmul(rhs) + bias;
 
     activation::relu(x)

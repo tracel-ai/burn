@@ -1,17 +1,16 @@
 # Tensor
 
-As previously explained in the [model section](../basic-workflow/model.md), the Tensor struct has 3
-generic arguments: the backend B, the dimensionality D, and the data type.
+As previously explained in the [model section](../basic-workflow/model.md), `Tensor` has a const
+generic for its dimensionality `D` and an optional tensor kind:
 
 ```rust, ignore
-Tensor<B, D>           // Float tensor (default)
-Tensor<B, D, Float>    // Explicit float tensor
-Tensor<B, D, Int>      // Int tensor
-Tensor<B, D, Bool>     // Bool tensor
+Tensor<D>           // Float tensor (default)
+Tensor<D, Float>    // Explicit float tensor
+Tensor<D, Int>      // Int tensor
+Tensor<D, Bool>     // Bool tensor
 ```
 
-Note that the specific element types used for `Float`, `Int`, and `Bool` tensors are defined by
-backend implementations.
+The concrete element dtype is a runtime property configured on the tensor's device.
 
 ### Data types
 
@@ -24,7 +23,7 @@ with [`Device::settings`](https://docs.rs/burn/latest/burn/tensor/struct.Device.
 ```rust, ignore
 use burn::tensor::Device;
 
-let device = Device::default();
+let device = Device::wgpu(Default::default());
 let settings = device.settings();
 // settings.float_dtype, settings.int_dtype, settings.bool_dtype
 ```
@@ -36,11 +35,11 @@ any tensor on it:
 ```rust, ignore
 use burn::tensor::{Device, FloatDType, IntDType};
 
-let mut device = Device::default();
+let mut device = Device::wgpu(Default::default());
 device.configure((FloatDType::F16, IntDType::I32))?;
 
 // Float tensors created after this default to F16
-let floats = Tensor::<Backend, 2>::zeros([2, 3], &device);
+let floats = Tensor::<2>::zeros([2, 3], &device);
 ```
 
 > **Default data types lock on first use.** A device's defaults can only be initialized **once**,
@@ -59,8 +58,8 @@ the creation options (this tuple is just a convenient conversion into
 use burn::tensor::DType;
 
 // device defaults to f32
-let x = Tensor::<Backend, 2>::zeros([2, 3], &device);                   // f32
-let x_f64 = Tensor::<Backend, 2>::zeros([2, 3], (&device, DType::F64)); // explicit f64
+let x = Tensor::<2>::zeros([2, 3], &device);                   // f32
+let x_f64 = Tensor::<2>::zeros([2, 3], (&device, DType::F64)); // explicit f64
 ```
 
 To convert an _existing_ tensor to another element type, use
@@ -81,9 +80,9 @@ let floats = [1.0, 2.0, 3.0, 4.0, 5.0];
 let device = Default::default();
 
 // correct: Tensor is 1-Dimensional with 5 elements
-let tensor_1 = Tensor::<Backend, 1>::from_floats(floats, &device);
+let tensor_1 = Tensor::<1>::from_floats(floats, &device);
 
-// incorrect: let tensor_1 = Tensor::<Backend, 5>::from_floats(floats, &device);
+// incorrect: let tensor_1 = Tensor::<5>::from_floats(floats, &device);
 // this will lead to an error and is for creating a 5-D tensor
 ```
 
@@ -99,19 +98,19 @@ different inputs.
 
 ```rust, ignore
 
-// Initialization from a given Backend (Wgpu)
-let tensor_1 = Tensor::<Wgpu, 1>::from_data([1.0, 2.0, 3.0], &device);
+// Initialization on the selected runtime device
+let tensor_1 = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
 
-// Initialization from a generic Backend
-let tensor_2 = Tensor::<Backend, 1>::from_data(TensorData::from([1.0, 2.0, 3.0]), &device);
+// Initialization from TensorData
+let tensor_2 = Tensor::<1>::from_data(TensorData::from([1.0, 2.0, 3.0]), &device);
 
 // Initialization using from_floats (Recommended for f32 ElementType)
 // Will be converted to TensorData internally.
-let tensor_3 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0], &device);
+let tensor_3 = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
 
 // Initialization of Int Tensor from array slices
 let arr: [i32; 6] = [1, 2, 3, 4, 5, 6];
-let tensor_4 = Tensor::<Backend, 1, Int>::from_data(TensorData::from(&arr[0..3]), &device);
+let tensor_4 = Tensor::<1, Int>::from_data(TensorData::from(&arr[0..3]), &device);
 
 // Initialization from a custom type
 
@@ -127,7 +126,7 @@ let bmi = BodyMetrics{
         weight: 80.0
     };
 let data  = TensorData::from([bmi.age as f32, bmi.height as f32, bmi.weight]);
-let tensor_5 = Tensor::<Backend, 1>::from_data(data, &device);
+let tensor_5 = Tensor::<1>::from_data(data, &device);
 
 ```
 
@@ -138,7 +137,7 @@ times will necessitate cloning it. Let's look at an example to understand the ow
 cloning better. Suppose we want to do a simple min-max normalization of an input tensor.
 
 ```rust, ignore
-let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+let input = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 let min = input.min();
 let max = input.max();
 let input = (input - min).div(max - min);
@@ -152,7 +151,7 @@ available for further operations. Burn Tensors like most complex primitives do n
 doing min-max normalization with cloning.
 
 ```rust, ignore
-let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+let input = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 let min = input.clone().min();
 let max = input.clone().max();
 let input = (input.clone() - min.clone()).div(max - min);
@@ -541,7 +540,7 @@ of detail and formatting to suit your needs.
 To display a detailed view of a tensor, you can simply use Rust's `println!` or `format!` macros:
 
 ```rust, ignore
-let tensor = Tensor::<Backend, 2>::full([2, 3], 0.123456789, &Default::default());
+let tensor = Tensor::<2>::full([2, 3], 0.123456789, &Default::default());
 println!("{}", tensor);
 ```
 
@@ -622,11 +621,11 @@ Options:
   type B = burn::backend::Flex;
 
   let device = Default::default();
-  let tensor1 = Tensor::<B, 1>::from_floats(
+  let tensor1 = Tensor::<1>::from_floats(
       [1.0, 2.0, 3.0, 4.0, 5.0, 6.001, 7.002, 8.003, 9.004, 10.1],
       &device,
   );
-  let tensor2 = Tensor::<B, 1>::from_floats(
+  let tensor2 = Tensor::<1>::from_floats(
       [1.0, 2.0, 3.0, 4.000, 5.0, 6.0, 7.001, 8.002, 9.003, 10.004],
       &device,
   );

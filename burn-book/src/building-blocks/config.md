@@ -46,7 +46,7 @@ be implemented on the config type with the device as argument.
 ```rust, ignore
 impl MyModuleConfig {
     /// Create a module on the given device.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> MyModule {
+    pub fn init(&self, device: &Device) -> MyModule {
         MyModule {
             linear: LinearConfig::new(self.d_model, self.d_ff).init(device),
             dropout: DropoutConfig::new(self.dropout).init(),

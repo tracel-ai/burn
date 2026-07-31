@@ -6,19 +6,18 @@ your type, it makes no assumptions about how the forward pass is declared.
 
 ```rust, ignore
 use burn::module::Module;
-use burn::tensor::backend::Backend;
 
 #[derive(Module, Debug)]
-pub struct PositionWiseFeedForward<B: Backend> {
-    linear_inner: Linear<B>,
-    linear_outer: Linear<B>,
+pub struct PositionWiseFeedForward {
+    linear_inner: Linear,
+    linear_outer: Linear,
     dropout: Dropout,
     gelu: Gelu,
 }
 
-impl<B: Backend> PositionWiseFeedForward<B> {
+impl PositionWiseFeedForward {
     /// Normal method added to a struct.
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let x = self.linear_inner.forward(input);
         let x = self.gelu.forward(x);
         let x = self.dropout.forward(x);
@@ -35,16 +34,16 @@ Note that all fields declared in the struct must also implement the `Module` tra
 If you want to create your own module that contains tensors, and not just other modules defined with
 the `Module` derive, you need to be careful to achieve the behavior you want.
 
-- `Param<Tensor<B, D>>`: If you want the tensor to be included as a parameter of your modules, you
+- `Param<Tensor<D>>`: If you want the tensor to be included as a parameter of your modules, you
   need to wrap the tensor in a `Param` struct. This will create an ID that will be used to identify
   this parameter. This is essential when performing module optimization and when saving states such
   as optimizer and module checkpoints. Note that a module's record only contains parameters.
 
-- `Param<Tensor<B, D>>.set_require_grad(false)`: If you want the tensor to be included as a
+- `Param<Tensor<D>>.set_require_grad(false)`: If you want the tensor to be included as a
   parameter of your modules, and therefore saved with the module's weights, but you don't want it to
   be updated by the optimizer.
 
-- `Tensor<B, D>`: If you want the tensor to act as a constant that can be recreated when
+- `Tensor<D>`: If you want the tensor to act as a constant that can be recreated when
   instantiating a module. This can be useful when generating sinusoidal embeddings, for example.
 
 ## Methods
@@ -65,8 +64,7 @@ These methods are available for all modules.
 | `module.into_record().save(file_path)`  | Similar to `torch.save(state_dict, ...)` |
 | `ModuleRecord::load(file_path)`         | Similar to `torch.load(...)`             |
 
-Similar to the backend trait, there is also the `AutodiffModule` trait to signify a module with
-autodiff support.
+The `AutodiffModule` trait provides training-specific helpers for modules whose parameters are on an autodiff-enabled device.
 
 | Burn API         | PyTorch Equivalent |
 | ---------------- | ------------------ |
@@ -88,23 +86,23 @@ You can implement your own mapper or visitor by implementing these simple traits
 
 ```rust, ignore
 /// Module visitor trait.
-pub trait ModuleVisitor<B: Backend> {
+pub trait ModuleVisitor {
     /// Visit a float tensor in the module.
-    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>);
+    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<D>);
     /// Visit an int tensor in the module.
-    fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>);
+    fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<D, Int>);
     /// Visit a bool tensor in the module.
-    fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>);
+    fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<D, Bool>);
 }
 
 /// Module mapper trait.
-pub trait ModuleMapper<B: Backend> {
+pub trait ModuleMapper {
     /// Map a float tensor in the module.
-    fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D>;
+    fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<D>) -> Tensor<D>;
     /// Map an int tensor in the module.
-    fn map_int<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D, Int>) -> Tensor<B, D, Int>;
+    fn map_int<const D: usize>(&mut self, id: ParamId, tensor: Tensor<D, Int>) -> Tensor<D, Int>;
     /// Map a bool tensor in the module.
-    fn map_bool<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D, Bool>) -> Tensor<B, D, Bool>;
+    fn map_bool<const D: usize>(&mut self, id: ParamId, tensor: Tensor<D, Bool>) -> Tensor<D, Bool>;
 }
 ```
 
@@ -125,12 +123,12 @@ pub struct Clamp {
 }
 
 // Clamp all floating-point parameter tensors between `[min, max]`.
-impl<B: Backend> ModuleMapper<B> for Clamp {
+impl ModuleMapper for Clamp {
     fn map_float<const D: usize>(
         &mut self,
         _id: burn::module::ParamId,
-        tensor: burn::prelude::Tensor<B, D>,
-    ) -> burn::prelude::Tensor<B, D> {
+        tensor: burn::prelude::Tensor<D>,
+    ) -> burn::prelude::Tensor<D> {
         tensor.clamp(self.min, self.max)
     }
 }
@@ -148,15 +146,15 @@ parameter tensors are still tracked for autodiff. This can be done with a simple
 implementation.
 
 ```rust, ignore
-impl<B: AutodiffBackend> ModuleMapper<B> for Clamp {
+impl ModuleMapper for Clamp {
     fn map_float<const D: usize>(
         &mut self,
         _id: burn::module::ParamId,
-        tensor: burn::prelude::Tensor<B, D>,
-    ) -> burn::prelude::Tensor<B, D> {
+        tensor: burn::prelude::Tensor<D>,
+    ) -> burn::prelude::Tensor<D> {
         let is_require_grad = tensor.is_require_grad();
 
-        let mut tensor = Tensor::from_inner(tensor.inner().clamp(self.min, self.max));
+        let mut tensor = tensor.detach().clamp(self.min, self.max);
 
         if is_require_grad {
             tensor = tensor.require_grad();
@@ -182,14 +180,14 @@ the display by annotating the module with `#[module(custom_display)]`.
 ```rust
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct PositionWiseFeedForward<B: Backend> {
-    linear_inner: Linear<B>,
-    linear_outer: Linear<B>,
+pub struct PositionWiseFeedForward {
+    linear_inner: Linear,
+    linear_outer: Linear,
     dropout: Dropout,
     gelu: Gelu,
 }
 
-impl<B: Backend> ModuleDisplay for PositionWiseFeedForward<B> {
+impl ModuleDisplay for PositionWiseFeedForward {
     /// Custom settings for the display of the module.
     /// If `None` is returned, the default settings will be used.
     fn custom_settings(&self) -> Option<burn::module::DisplaySettings> {
