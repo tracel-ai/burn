@@ -1019,7 +1019,10 @@ fn conv_plane_accumulate_oh_outer<T: num_traits::Float + Copy>(
                     let in_slice = &in_row[iw_start..iw_start + run_len];
                     let out_slice = &mut out_row[ow_start..ow_end];
                     for i in 0..run_len {
-                        out_slice[i] = in_slice[i] * w_val + out_slice[i];
+                        unsafe {
+                            *out_slice.get_unchecked_mut(i) =
+                                *in_slice.get_unchecked(i) * w_val + *out_slice.get_unchecked(i);
+                        }
                     }
                 } else {
                     let mut iw = iw_start;
@@ -1077,8 +1080,11 @@ fn conv_plane_accumulate_kh_outer<T: num_traits::Float + Copy>(
                 if stride_w == 1 {
                     let in_slice = &in_row[iw_start..iw_start + run_len];
                     let out_slice = &mut out_row[ow_start..ow_end];
-                    for (o, &xv) in out_slice.iter_mut().zip(in_slice.iter()) {
-                        *o = *o + w_val * xv;
+                    for i in 0..run_len {
+                        unsafe {
+                            *out_slice.get_unchecked_mut(i) =
+                                *in_slice.get_unchecked(i) * w_val + *out_slice.get_unchecked(i);
+                        }
                     }
                 } else {
                     let mut iw = iw_start;
