@@ -91,9 +91,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                     // Fused-reduce selection is cached per anchored key, so
                     // the unchecked comptime fast paths are never stable here.
                     unchecked_fast_paths: false,
-                    // Reads materialize the read-side elementwise output, so
-                    // out-of-range units must branch rather than mask (see the
-                    // reduce optimization for the full rationale).
+                    // Reads materialize the read-side elementwise output.
                     fuse_on_read: true,
                 },
                 BlueprintStrategy::Inferred(UnitStrategy),

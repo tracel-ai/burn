@@ -364,10 +364,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             // unchecked comptime fast paths are never stable here.
             unchecked_fast_paths: false,
             // The fused input read has a write side effect (it materializes the
-            // read-side elementwise output), so out-of-range units must branch,
-            // not mask — masking clamps their index to 0 and still performs the
-            // write, clobbering position 0 (fatal since the output can alias the
-            // input in-place).
+            // read-side elementwise output).
             fuse_on_read: true,
         };
         let problem = ReduceProblem {
