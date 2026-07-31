@@ -1,4 +1,4 @@
-use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
+use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor, tensor::QParams};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
 pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
@@ -153,7 +153,10 @@ fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> Cub
         device: handle.device.clone(),
         meta: Box::new(Metadata::new(shape, handle.strides.clone())),
         dtype: handle.dtype,
-        qparams: handle.qparams.clone(),
+        qparams: handle.qparams.clone().map(|qparams| QParams {
+            scales: qparams.scales,
+            global: qparams.global,
+        }),
     }
 }
 
@@ -165,7 +168,13 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
             device: value.device.clone(),
             strides: value.meta.strides.clone(),
             dtype: value.dtype,
-            qparams: value.qparams.clone(),
+            qparams: value
+                .qparams
+                .clone()
+                .map(|qparams| burn_cubecl_fusion::QParams {
+                    scales: qparams.scales,
+                    global: qparams.global,
+                }),
         }
     }
 }

@@ -342,3 +342,30 @@ fn should_quantize_symmetric_int8_permuted_batch_dims() {
         Tolerance::absolute(1e-1).set_relative(1e-2),
     );
 }
+
+#[test]
+fn should_quantize_symmetric_two_level_f16_block_scales() {
+    let device = Default::default();
+
+    let input: TestTensor<2> = TestTensorInt::arange(0..256, &device)
+        .float()
+        .div_scalar(256.)
+        .reshape([16, 16]);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block_tensor([2, 16], QuantParam::F32))
+        .with_param(QuantParam::F16);
+
+    let quantized = input.clone().quantize_dynamic(&scheme);
+    let direct = quantized.clone().dequantize().into_data();
+
+    let reloaded = TestTensor::<2>::from_data(quantized.into_data(), &device);
+    let round_tripped = reloaded.dequantize().into_data();
+
+    round_tripped.assert_eq(&direct, true);
+    direct.assert_approx_eq(&input.into_data(), Tolerance::<f32>::rel_abs(1e-2, 1e-2));
+}

@@ -217,6 +217,9 @@ impl FuseBlockBuilder {
         }
 
         let (precision, precision_scales) = match tensor.dtype {
+            // No fused kernel applies a per-tensor scale, so declining here leaves the op to the
+            // unfused path rather than reconstructing every value short by that factor.
+            DType::QFloat(scheme) if scheme.level.global_param().is_some() => return None,
             DType::QFloat(scheme) => (
                 FuseType::from_quant_scheme(scheme)?,
                 FuseType::from_quant_param(scheme.param)?,

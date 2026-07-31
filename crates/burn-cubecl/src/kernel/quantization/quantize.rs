@@ -8,12 +8,14 @@ pub fn quantize<R>(
     tensor: CubeTensor<R>,
     scheme: &QuantScheme,
     scale: CubeTensor<R>,
+    global: Option<CubeTensor<R>>,
 ) -> CubeTensor<R>
 where
     R: CubeRuntime,
 {
     let output = empty_qtensor_optimized(tensor.shape(), *scheme, &tensor.device);
     let (out_values, out_params) = output.clone().quantized_handles().unwrap();
+    let out_global = output.global();
     let dtype = tensor.dtype;
 
     cubek::quantization::quantize::launch_ref(
@@ -21,7 +23,9 @@ where
         tensor.binding(),
         out_values.binding(),
         scale.binding(),
+        global.map(|g| g.binding()),
         out_params.binding(),
+        out_global.map(|g| g.binding()),
         scheme,
         dtype_to_elem_type(dtype),
     )
