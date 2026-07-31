@@ -415,7 +415,46 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         // already carries both halves, and these kernels are memory bound. Indices take
         // the input dtype, matching `int_argtopk`.
         let dtype = tensor.dtype;
-        reduce::reduce_dim_with_indices(tensor, dtype, dim, Default::default(), k).unwrap()
+        reduce::reduce_dim_with_indices(
+            tensor,
+            dtype,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::TopK(k),
+        )
+        .unwrap()
+    }
+
+    fn int_max_dim_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Indices take the input dtype, matching `int_argmax`.
+        let dtype = tensor.dtype;
+        reduce::reduce_dim_with_indices(
+            tensor,
+            dtype,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::Max,
+        )
+        .unwrap()
+    }
+
+    fn int_min_dim_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Indices take the input dtype, matching `int_argmin`.
+        let dtype = tensor.dtype;
+        reduce::reduce_dim_with_indices(
+            tensor,
+            dtype,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::Min,
+        )
+        .unwrap()
     }
 
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
