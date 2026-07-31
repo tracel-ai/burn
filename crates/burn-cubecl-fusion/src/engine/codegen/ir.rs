@@ -2,7 +2,7 @@ use super::tensor::GlobalTensor;
 use crate::engine::codegen::{DynElem, DynSize, DynVector};
 use burn_std::{
     BoolStore, DType, Shape, Strides, bf16, f16,
-    quantization::{QuantScheme, QuantStore, QuantValue},
+    quantization::{QuantParam, QuantScheme, QuantStore, QuantValue},
     strides,
 };
 use core::fmt::Display;
@@ -905,6 +905,19 @@ impl From<StorageType> for FuseType {
 }
 
 impl FuseType {
+    /// The type quantization scales are read as, or `None` when fusion can't read that param.
+    ///
+    /// Callers must decline to fuse on `None` rather than fail: an unsupported param is only a
+    /// missing feature here, and the unfused path still handles it.
+    pub fn from_quant_param(param: QuantParam) -> Option<Self> {
+        match param {
+            QuantParam::F32 => Some(Self::F32),
+            QuantParam::F16 => Some(Self::F16),
+            QuantParam::BF16 => Some(Self::BF16),
+            QuantParam::UE8M0 | QuantParam::UE4M3 => None,
+        }
+    }
+
     /// Converts the [fused element type](FuseType) into the [cubecl element type](ElemType).
     pub fn into_elem(self) -> ElemType {
         match self {
