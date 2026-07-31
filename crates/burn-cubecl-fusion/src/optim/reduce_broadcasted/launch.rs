@@ -91,7 +91,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                     // Fused-reduce selection is cached per anchored key, so
                     // the unchecked comptime fast paths are never stable here.
                     unchecked_fast_paths: false,
-                    // Reads materialize the read-side elementwise output.
+                    // The fused read runs the trace, which may write
+                    // materialized intermediates to global outputs.
                     fuse_on_read: true,
                 },
                 BlueprintStrategy::Inferred(UnitStrategy),

@@ -363,8 +363,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             // Fused-reduce selection is cached per anchored key, so the
             // unchecked comptime fast paths are never stable here.
             unchecked_fast_paths: false,
-            // The fused input read has a write side effect (it materializes the
-            // read-side elementwise output).
+            // The fused read runs the trace, which may write materialized
+            // intermediates to global outputs.
             fuse_on_read: true,
         };
         let problem = ReduceProblem {
