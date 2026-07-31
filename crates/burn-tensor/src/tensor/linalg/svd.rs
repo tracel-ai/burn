@@ -118,16 +118,19 @@ pub fn svd<const D: usize, const D1: usize>(
         for t in 0..tour_len {
             let (a_idx, b_idx) = tournament_pairs(n, t);
             let p = a_idx.len();
-            let mut expand_dims = batch_dims;
-            expand_dims[D - 1] = p;
+            let mut tile_dims = batch_dims;
+            tile_dims[D - 1] = 1;
             let mut reshape_dims = [1; D];
             reshape_dims[D - 1] = p;
+            // repeat materializes the index tensor (contiguous [.., m, p]):
+            // the gather/scatter kernels then read plain memory instead of
+            // a broadcasted view. Tile sizes: batch -> 1, m -> m, p -> 1.
             let ia = Tensor::<1, Int>::from_ints(a_idx.as_slice(), &device)
                 .reshape(reshape_dims)
-                .expand(expand_dims);
+                .repeat(&tile_dims);
             let ib = Tensor::<1, Int>::from_ints(b_idx.as_slice(), &device)
                 .reshape(reshape_dims)
-                .expand(expand_dims);
+                .repeat(&tile_dims);
             pairs.push((ia, ib));
         }
         for _ in 0..sweeps {
@@ -231,20 +234,19 @@ fn jacobi_half_sweep<const D: usize>(
             .abs()
             .add(zeta.powf_scalar(2).add_scalar(1).sqrt()),
     );
+    // gamma == 0 makes zeta = 0/0 (NaN) only when BOTH columns are zero; a
+    // no-op rotation (t = 0 -> c = 1, s = 0) is correct there. Masking t
+    // alone fixes both c and s. A cheap abs comparison suffices (f32/f64
+    // dot products are always finite).
+    let no_rotate = gamma.clone().abs().lower_equal_scalar(1e-8);
+    let t = t.mask_fill(no_rotate, 0.0);
     let c = t.clone().powf_scalar(2).add_scalar(1).powf_scalar(-0.5);
     let s = t.clone().mul(c.clone());
-    // gamma == 0 makes zeta = 0/0 (NaN) only when BOTH columns are zero; a
-    // no-op rotation is correct there (and equivalent to the t -> 0 limit
-    // for already-orthogonal columns). A cheap abs comparison suffices
-    // (f32/f64 dot products are always finite).
-    let no_rotate = gamma.clone().abs().lower_equal_scalar(1e-8);
-    let c = c.clone().mask_fill(no_rotate.clone(), 1.0);
-    let s = s.clone().mask_fill(no_rotate, 0.0);
 
     // Rotate every pair at once (A <- A J_pq) and write back: subtract the
     // old columns, add the rotated ones (scatter supports only Add).
     let new_x0 = x0.clone().mul(c.clone()).add(x1.clone().mul(s.clone()));
-    let new_x1 = x1.clone().mul(c.clone()).sub(x0.clone().mul(s.clone()));
+    let new_x1 = x1.clone().mul(c).sub(x0.clone().mul(s.clone()));
     let a = a.scatter(D - 1, idx0.clone(), x0.neg(), IndexingUpdateOp::Add);
     let a = a.scatter(D - 1, idx1.clone(), x1.neg(), IndexingUpdateOp::Add);
     let a = a.scatter(D - 1, idx0, new_x0, IndexingUpdateOp::Add);
