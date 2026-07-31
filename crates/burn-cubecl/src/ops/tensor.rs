@@ -685,8 +685,46 @@ where
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
         // One pass, rather than the default's TopK followed by ArgTopK: the reduction
         // already carries both halves, and these kernels are memory bound.
-        reduce::reduce_dim_with_indices(tensor, out_dtype.into(), dim, Default::default(), k)
-            .unwrap()
+        reduce::reduce_dim_with_indices(
+            tensor,
+            out_dtype.into(),
+            dim,
+            Default::default(),
+            ReduceOperationConfig::TopK(k),
+        )
+        .unwrap()
+    }
+
+    fn float_max_dim_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        // One pass, rather than the default's ArgMax followed by a gather.
+        reduce::reduce_dim_with_indices(
+            tensor,
+            indices_dtype.into(),
+            dim,
+            Default::default(),
+            ReduceOperationConfig::Max,
+        )
+        .unwrap()
+    }
+
+    fn float_min_dim_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        // One pass, rather than the default's ArgMin followed by a gather.
+        reduce::reduce_dim_with_indices(
+            tensor,
+            indices_dtype.into(),
+            dim,
+            Default::default(),
+            ReduceOperationConfig::Min,
+        )
+        .unwrap()
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {

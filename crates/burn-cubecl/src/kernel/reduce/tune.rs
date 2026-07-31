@@ -231,7 +231,7 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
     values: CubeTensor<R>,
     indices: CubeTensor<R>,
     axis: usize,
-    k: usize,
+    config: ReduceOperationConfig,
     dtypes: ReduceWithIndicesDtypes,
 ) {
     use reduce_with_indices_ops::*;
@@ -247,12 +247,12 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
             ),
             "reduce_with_indices",
             |strategy,
-             (input, values, indices, axis, k, dtypes): (
+             (input, values, indices, axis, config, dtypes): (
                 CubeTensor<R>,
                 CubeTensor<R>,
                 CubeTensor<R>,
                 usize,
-                usize,
+                ReduceOperationConfig,
                 ReduceWithIndicesDtypes,
             )| {
                 cubek::reduce::reduce_with_indices::<R>(
@@ -262,7 +262,7 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
                     indices.clone().binding(),
                     axis,
                     strategy,
-                    ReduceOperationConfig::TopK(k),
+                    config,
                     dtypes,
                 )
                 .map_err(|e| format!("{e}"))
@@ -274,17 +274,17 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
         &CubeTuneId::new(&input.client, &input.device),
         client,
         tunables,
-        (input, values, indices, axis, k, dtypes),
+        (input, values, indices, axis, config, dtypes),
     );
 }
 
 pub(crate) fn create_key_with_indices<Run: CubeRuntime>(
-    (input, values, _indices, axis, _k, dtypes): &(
+    (input, values, _indices, axis, _config, dtypes): &(
         CubeTensor<Run>,
         CubeTensor<Run>,
         CubeTensor<Run>,
         usize,
-        usize,
+        ReduceOperationConfig,
         ReduceWithIndicesDtypes,
     ),
 ) -> ReduceAutotuneKey {
@@ -309,12 +309,12 @@ mod reduce_with_indices_ops {
 
     pub(crate) fn reduce_with_indices_input_gen<Run: CubeRuntime>(
         _key: &ReduceAutotuneKey,
-        (input, values, indices, dim, k, dtypes): &(
+        (input, values, indices, dim, config, dtypes): &(
             CubeTensor<Run>,
             CubeTensor<Run>,
             CubeTensor<Run>,
             usize,
-            usize,
+            ReduceOperationConfig,
             ReduceWithIndicesDtypes,
         ),
     ) -> (
@@ -322,7 +322,7 @@ mod reduce_with_indices_ops {
         CubeTensor<Run>,
         CubeTensor<Run>,
         usize,
-        usize,
+        ReduceOperationConfig,
         ReduceWithIndicesDtypes,
     ) {
         (
@@ -330,7 +330,7 @@ mod reduce_with_indices_ops {
             values.copy(),
             indices.copy(),
             *dim,
-            *k,
+            *config,
             *dtypes,
         )
     }
