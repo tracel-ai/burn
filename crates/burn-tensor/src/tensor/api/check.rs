@@ -1352,6 +1352,27 @@ impl TensorCheck {
         Self::lu_input_tensor::<D>(ops, dims, dtype)
     }
 
+    /// Check if input tensor and generic parameters of `linalg::svd()` are valid.
+    pub fn svd_input_tensor<const D: usize, const D1: usize>(
+        ops: &str,
+        dims: &[usize],
+        dtype: DType,
+    ) -> Self {
+        let mut check = Self::lu_input_tensor::<D>(ops, dims, dtype);
+
+        if D1 != D - 1 {
+            check = check.register(
+                ops,
+                TensorError::new(
+                    "D - 1 = D1 must hold for the generic parameters of the linalg::svd function.",
+                )
+                .details(format!("Got generic parameters D = {D} and D1 = {D1}")),
+            );
+        }
+
+        check
+    }
+
     /// Check if input tensor and generic parameters of `linalg::det()` are valid.
     pub fn det<const D: usize, const D1: usize, const D2: usize>(
         dims: [usize; D],
