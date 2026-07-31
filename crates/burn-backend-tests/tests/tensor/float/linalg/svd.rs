@@ -690,3 +690,34 @@ fn test_svd_panics_on_1d_input() {
     let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0], &device);
     let _ = svd::<1, 0>(tensor, 10);
 }
+
+#[test]
+#[ignore = "benchmark"]
+fn bench_svd_vs_torch() {
+    use std::time::Instant;
+    let device = Default::default();
+    let sizes = [
+        (4usize, 4usize),
+        (8, 8),
+        (16, 16),
+        (32, 32),
+        (64, 64),
+        (128, 128),
+    ];
+    let reps = [100usize, 100, 50, 20, 10, 5];
+    println!("size   | burn ndarray us | recon err");
+    for ((m, n), r) in sizes.iter().zip(reps.iter()) {
+        let a = TestTensor::<2>::random([*m, *n], Distribution::Normal(0.0, 1.0), &device);
+        for _ in 0..(r / 5).max(1) {
+            let _ = svd::<2, 1>(a.clone(), 15);
+        }
+        let t0 = Instant::now();
+        for _ in 0..*r {
+            let _ = svd::<2, 1>(a.clone(), 15);
+        }
+        let dt = t0.elapsed().as_secs_f64() / *r as f64;
+        let (u, s, vt) = svd::<2, 1>(a.clone(), 15);
+        let err = recon_err::<2, 1>(a, u, &s, vt);
+        println!("{m}x{n}  | {:.1} | {err:.2e}", dt * 1e6);
+    }
+}

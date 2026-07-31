@@ -229,7 +229,7 @@ fn jacobi_half_sweep<const D: usize>(
             .add(zeta.powf_scalar(2).add_scalar(1).sqrt()),
     );
     let c = t.clone().powf_scalar(2).add_scalar(1).powf_scalar(-0.5);
-    let s = t.mul(c.clone());
+    let s = t.clone().mul(c.clone());
     // gamma == 0 makes zeta = 0/0 (NaN) only when BOTH columns are zero; a
     // no-op rotation is correct there (and equivalent to the t -> 0 limit
     // for already-orthogonal columns).
