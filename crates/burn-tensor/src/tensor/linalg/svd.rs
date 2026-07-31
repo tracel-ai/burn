@@ -106,15 +106,34 @@ pub fn svd<const D: usize, const D1: usize>(
     // the sweeps only rotate the columns of A - no V accumulation.
     let a_orig = a.clone();
 
-    for _ in 0..sweeps {
-        // One sweep = a full round-robin tournament: every column pair is
-        // rotated exactly once (n-1 half-sweeps for even n, n for odd n).
-        let tour_len = if n.is_multiple_of(2) { n - 1 } else { n };
+    // The tournament schedule does not depend on the data: precompute the
+    // expanded pair indices once, so the sweep loop runs pure tensor ops
+    // (no host-side index construction per half-sweep).
+    let tour_len = if n.is_multiple_of(2) { n - 1 } else { n };
+    let mut pairs: Vec<(Tensor<D, Int>, Tensor<D, Int>)> = Vec::with_capacity(tour_len);
+    let mut batch_dims = [1; D];
+    batch_dims[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
+    batch_dims[D - 2] = m;
+    if n > 1 {
         for t in 0..tour_len {
             let (a_idx, b_idx) = tournament_pairs(n, t);
-            let ia = Tensor::from_ints(a_idx.as_slice(), &device);
-            let ib = Tensor::from_ints(b_idx.as_slice(), &device);
-            a = jacobi_half_sweep(a, ia, ib);
+            let p = a_idx.len();
+            let mut expand_dims = batch_dims;
+            expand_dims[D - 1] = p;
+            let mut reshape_dims = [1; D];
+            reshape_dims[D - 1] = p;
+            let ia = Tensor::<1, Int>::from_ints(a_idx.as_slice(), &device)
+                .reshape(reshape_dims)
+                .expand(expand_dims);
+            let ib = Tensor::<1, Int>::from_ints(b_idx.as_slice(), &device)
+                .reshape(reshape_dims)
+                .expand(expand_dims);
+            pairs.push((ia, ib));
+        }
+        for _ in 0..sweeps {
+            for (ia, ib) in &pairs {
+                a = jacobi_half_sweep(a, ia.clone(), ib.clone());
+            }
         }
     }
 
@@ -183,29 +202,13 @@ pub fn svd<const D: usize, const D1: usize>(
 /// launches per half-sweep instead of per pair.
 fn jacobi_half_sweep<const D: usize>(
     a: Tensor<D>,
-    idx0: Tensor<1, Int>,
-    idx1: Tensor<1, Int>,
+    idx0: Tensor<D, Int>,
+    idx1: Tensor<D, Int>,
 ) -> Tensor<D> {
-    let dims = a.dims();
-    let m = dims[D - 2];
-    let p = idx0.dims()[0];
+    let p = idx0.dims()[D - 1];
     if p == 0 {
         return a;
     }
-
-    // Expand the pair indices to [..., m, p].
-    let mut reshape_dims = [1; D];
-    reshape_dims[D - 1] = p;
-    let mut expand_dims = [1; D];
-    expand_dims[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
-    expand_dims[D - 2] = m;
-    expand_dims[D - 1] = p;
-    let idx0 = idx0.reshape(reshape_dims).expand(expand_dims);
-    let mut expand_dims1 = [1; D];
-    expand_dims1[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
-    expand_dims1[D - 2] = m;
-    expand_dims1[D - 1] = p;
-    let idx1 = idx1.reshape(reshape_dims).expand(expand_dims1);
 
     let x0 = a.clone().gather(D - 1, idx0.clone()); // [..., m, p]
     let x1 = a.clone().gather(D - 1, idx1.clone());
@@ -232,8 +235,9 @@ fn jacobi_half_sweep<const D: usize>(
     let s = t.clone().mul(c.clone());
     // gamma == 0 makes zeta = 0/0 (NaN) only when BOTH columns are zero; a
     // no-op rotation is correct there (and equivalent to the t -> 0 limit
-    // for already-orthogonal columns).
-    let no_rotate = gamma.clone().is_close(gamma.zeros_like(), None, None);
+    // for already-orthogonal columns). A cheap abs comparison suffices
+    // (f32/f64 dot products are always finite).
+    let no_rotate = gamma.clone().abs().lower_equal_scalar(1e-8);
     let c = c.clone().mask_fill(no_rotate.clone(), 1.0);
     let s = s.clone().mask_fill(no_rotate, 0.0);
 
