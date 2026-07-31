@@ -10,7 +10,7 @@ use burn_backend::{
     ops::{IntTensorOps, QTensorOps},
     quantization::{
         QuantLevel, QuantParam, QuantScheme, QuantStore, QuantizationParametersPrimitive,
-        QuantizedBytes, round_to_param,
+        QuantizedBytes, scale_to_param,
     },
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -349,11 +349,12 @@ fn block_safe_layout_op(
 /// Round the scale to the scheme's param dtype, then ensure it is finite and nonzero to avoid
 /// division by zero or NaN propagation.
 ///
-/// Rounding comes first: a narrow param can round a small scale down to zero, which the
-/// normality check then has to catch.
+/// Rounding comes first, and only an exactly zero scale is replaced: subnormals of the param are
+/// representable and carry real information for a small tensor, so substituting them would throw
+/// away what rounding up preserved.
 fn validated_scale(scale: f32, param: QuantParam) -> f32 {
-    let scale = round_to_param(scale, param);
-    if scale.is_normal() {
+    let scale = scale_to_param(scale, param);
+    if scale > 0.0 && scale.is_finite() {
         scale
     } else {
         f32::MIN_POSITIVE
@@ -509,7 +510,7 @@ mod tests {
         );
         assert_eq!(
             coarse,
-            round_to_param(exact, QuantParam::UE4M3),
+            scale_to_param(exact, QuantParam::UE4M3),
             "stored scale should be the exact scale rounded to the param"
         );
     }
