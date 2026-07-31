@@ -318,34 +318,7 @@ impl QuantizedBytes {
 /// cover. Rounding down puts that value past the end of the quantized range, where it clips, which
 /// measured several times worse than the coarser step rounding up costs.
 pub fn scale_to_param(scale: f32, param: QuantParam) -> f32 {
-    let nearest = match param {
-        QuantParam::F32 => return scale,
-        QuantParam::F16 => crate::f16::from_f32(scale).to_f32(),
-        QuantParam::BF16 => crate::bf16::from_f32(scale).to_f32(),
-        QuantParam::UE4M3 => e4m3::from_f32(scale).to_f32(),
-        QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
-    };
-
-    if nearest >= scale || scale.is_nan() {
-        return nearest;
-    }
-
-    // Positive floats are ordered by their bit pattern, so the next representable value up is the
-    // next bit pattern.
-    let next = match param {
-        QuantParam::F16 => {
-            crate::f16::from_bits(crate::f16::from_f32(nearest).to_bits() + 1).to_f32()
-        }
-        QuantParam::BF16 => {
-            crate::bf16::from_bits(crate::bf16::from_f32(nearest).to_bits() + 1).to_f32()
-        }
-        QuantParam::UE4M3 => e4m3::from_bits(e4m3::from_f32(nearest).to_bits() + 1).to_f32(),
-        QuantParam::F32 | QuantParam::UE8M0 => unreachable!(),
-    };
-
-    // Stepping off the largest finite value lands on an infinity or a NaN encoding, so the
-    // saturated value is already the best answer.
-    if next.is_finite() { next } else { nearest }
+    param.round_up(scale)
 }
 
 /// Bytes taken by the per-tensor scale, zero for levels that do not carry one.
