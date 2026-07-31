@@ -106,7 +106,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
         let trace = self.fuser.finish();
         let relayout =
             NHWCRelayoutOptimization::new(trace, client, self.device.clone(), self.len());
-        CubeOptimization::NHWCRelayout(relayout)
+        CubeOptimization::new(relayout)
     }
 
     fn reset(&mut self) {

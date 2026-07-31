@@ -31,7 +31,7 @@ impl FloatTensorOps<Flex> for Flex {
         _device: &Device<Flex>,
         dtype: FloatDType,
     ) -> FloatTensor<Flex> {
-        let mut seed = crate::backend::SEED.lock().unwrap();
+        let mut seed = crate::backend::SEED.lock();
         let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
         let data = match dtype {
             FloatDType::F64 => TensorData::random::<f64, _, _>(shape, distribution, &mut rng),

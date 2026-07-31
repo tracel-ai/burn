@@ -214,8 +214,9 @@ where
             self.len,
         );
 
-        // Row ids start with 1 (one) and index starts with 0 (zero)
-        let row_id = index + 1;
+        // Row ids start with 1 (one) and index starts with 0 (zero).
+        // `rusqlite` binds integers as `i64`, so `usize` is not a valid parameter type.
+        let row_id = (index + 1) as i64;
 
         // Get a connection from the pool
         let connection = self.conn_pool.get()?;
@@ -331,8 +332,8 @@ fn fetch_columns_and_len(
         connection.prepare(format!("select coalesce(max(row_id), 0) from {split}").as_str())?;
 
     let len = statement.query_row([], |row| {
-        let len: usize = row.get(0)?;
-        Ok(len)
+        let len: i64 = row.get(0)?;
+        Ok(len as usize)
     })?;
     Ok((columns, len))
 }

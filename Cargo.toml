@@ -79,7 +79,7 @@ pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.106"
 quote = "1.0.45"
 r2d2 = "0.8.10"
-r2d2_sqlite = "0.31.0"
+r2d2_sqlite = "0.35.0"
 rayon = "1.10.0"
 regex = { version = "1.12.3", default-features = false, features = [
     "perf",
@@ -90,12 +90,12 @@ reqwest = { version = "0.12.23", default-features = false, features = [
 ] }
 rmp-serde = { version = "1.3.1", default-features = false }
 rstest = "0.26.1"
-rusqlite = "0.37.0"
+rusqlite = "0.40.1"
 sanitize-filename = "0.6.0"
 serde_bytes = { version = "0.11.18", default-features = false, features = [
     "alloc",
 ] } # alloc for no_std
-serde_rusqlite = "0.40.0"
+serde_rusqlite = "0.43.0"
 serial_test = "3.2.0"
 spin = { version = "0.10.0", features = [
     "mutex",
@@ -223,20 +223,23 @@ burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.1", default-
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.1", default-features = false }
 
 ### For the main burn branch. ###
-# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5dca0868f0187ef00e8229b5e554a8d713f2066f" }
-# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5dca0868f0187ef00e8229b5e554a8d713f2066f" }
-# cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5dca0868f0187ef00e8229b5e554a8d713f2066f" }
-# cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "d564c522836384e86be33075f53b36a751b25a7b" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bda19ec613918634f5424a028dac955897f585a2" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bda19ec613918634f5424a028dac955897f585a2" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bda19ec613918634f5424a028dac955897f585a2" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bda19ec613918634f5424a028dac955897f585a2" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "f392be73b58b1c321ba099a890f633be0fc7a97c" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+# cubecl-environment = { path = "../cubecl/crates/cubecl-environment", default-features = false }
 # cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-cubecl = { version = "=0.11.0-pre.1", default-features = false }
-cubecl-common = { version = "=0.11.0-pre.1", default-features = false }
-cubecl-zspace = { version = "=0.11.0-pre.1", default-features = false }
-cubek = { version = "=0.3.0-pre.1", default-features = false }
+# cubecl = { version = "=0.11.0-pre.1", default-features = false }
+# cubecl-common = { version = "=0.11.0-pre.1", default-features = false }
+# cubecl-environment = { version = "=0.11.0-pre.1", default-features = false }
+# cubecl-zspace = { version = "=0.11.0-pre.1", default-features = false }
+# cubek = { version = "=0.3.0-pre.1", default-features = false }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

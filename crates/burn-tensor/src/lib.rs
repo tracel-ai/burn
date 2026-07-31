@@ -47,7 +47,7 @@ pub use tensor::*;
 pub use burn_std::{
     AllocationProperty, Bytes, bf16, f16,
     reader::{read_sync, try_read_sync},
-    stream_id::StreamId,
+    stream::StreamId,
 };
 
 mod device;

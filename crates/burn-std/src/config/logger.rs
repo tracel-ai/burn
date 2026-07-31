@@ -1,18 +1,18 @@
 use alloc::{string::String, vec::Vec};
 use core::fmt::Display;
-use cubecl_common::{
+use cubecl_environment::{
     config::{
         RuntimeConfig,
         logger::{LogLevel, LoggerConfig, LoggerSinks},
     },
-    stub::Arc,
+    sync::{Arc, Mutex},
 };
 
 use super::{
     autodiff::AutodiffLogLevel, base::BurnConfig, fusion::FusionLogLevel, remote::RemoteLogLevel,
 };
 
-static BURN_LOGGER: spin::Mutex<Option<Logger>> = spin::Mutex::new(None);
+static BURN_LOGGER: Mutex<Option<Logger>> = Mutex::new(None);
 
 #[cfg(feature = "std")]
 std::thread_local! {

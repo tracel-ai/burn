@@ -18,8 +18,26 @@ pub struct SourceKernel<K> {
 }
 
 impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
+    fn define(&self) -> KernelDefinition {
+        // A source kernel has no expanded IR, the source text is the kernel. The definition only
+        // keys the compilation cache, so the source rides along in the kernel name to keep a
+        // cached artifact from outliving an edit to the template.
+        KernelDefinition {
+            buffers: Vec::new(),
+            tensor_maps: Vec::new(),
+            scalars: Vec::new(),
+            cube_dim: self.cube_dim,
+            body: Scope::root(false),
+            options: KernelOptions {
+                kernel_name: self.kernel_source.source().complete(),
+                ..Default::default()
+            },
+        }
+    }
+
     fn compile(
         &self,
+        _definition: KernelDefinition,
         _compiler: &mut C,
         _options: &C::CompilationOptions,
         _mode: ExecutionMode,
