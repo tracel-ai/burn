@@ -29,7 +29,7 @@ Since the MNIST task is a classification problem, we will use the `Classificatio
 #         metric::{AccuracyMetric, LossMetric},
 #     },
 # };
-# 
+#
 impl Model {
     pub fn forward_classification(
         &self,
@@ -74,7 +74,7 @@ for our model.
 #         metric::{AccuracyMetric, LossMetric},
 #     },
 # };
-# 
+#
 # impl Model {
 #     pub fn forward_classification(
 #         &self,
@@ -85,7 +85,7 @@ for our model.
 #         let loss = CrossEntropyLossConfig::new()
 #             .init(&output.device())
 #             .forward(output.clone(), targets.clone());
-# 
+#
 #         ClassificationOutput::new(loss, output, targets)
 #     }
 # }
@@ -110,15 +110,16 @@ impl InferenceStep for Model {
 }
 ```
 
-Here we define the input and output types as generic arguments in the `TrainStep` and `InferenceStep`.
-We will call them `MnistBatch` and `ClassificationOutput`. In the training step, the computation of
-gradients is straightforward, necessitating a simple invocation of `backward()` on the loss. Note
-that contrary to PyTorch, gradients are not stored alongside each tensor parameter, but are rather
-returned by the backward pass, as such: `let gradients = loss.backward();`. The gradient of a
-parameter can be obtained with the grad function: `let grad = tensor.grad(&gradients);`. Although it
-is not necessary when using the learner struct and the optimizers, it can prove to be quite useful
-when debugging or writing custom training loops. One difference between training and validation is the device mode: training uses an autodiff-enabled
-device so `backward` records and traverses the graph, while validation operates on detached tensors.
+Here we define the input and output types as generic arguments in the `TrainStep` and
+`InferenceStep`. We will call them `MnistBatch` and `ClassificationOutput`. In the training step,
+the computation of gradients is straightforward, necessitating a simple invocation of `backward()`
+on the loss. Note that contrary to PyTorch, gradients are not stored alongside each tensor
+parameter, but are rather returned by the backward pass, as such:
+`let gradients = loss.backward();`. The gradient of a parameter can be obtained with the grad
+function: `let grad = tensor.grad(&gradients);`. Although it is not necessary when using the learner
+struct and the optimizers, it can prove to be quite useful when debugging or writing custom training
+loops. One difference between training and validation is the device mode: training uses an
+autodiff-enabled device so `backward` records and traverses the graph.
 
 <details>
 <summary><strong>🦀 Generic Type Constraints in Method Definitions</strong></summary>
@@ -131,9 +132,9 @@ which contains runtime-dispatched tensors as covered before. These traits are pr
 `burn::train` and define a common `step` method that should be implemented for all structs. Since
 the trait is generic over the input and output types, the trait implementation must specify the
 concrete types used. This is where the additional type constraints appear
-`<MnistBatch, ClassificationOutput>`. As we saw previously, the concrete input type for the
-batch is `MnistBatch`, and the output of the forward pass is `ClassificationOutput`. The `step`
-method signature matches the concrete input and output types.
+`<MnistBatch, ClassificationOutput>`. As we saw previously, the concrete input type for the batch is
+`MnistBatch`, and the output of the forward pass is `ClassificationOutput`. The `step` method
+signature matches the concrete input and output types.
 
 For more details specific to constraints on generic types when defining methods, take a look at
 [this section](https://doc.rust-lang.org/book/ch10-01-syntax.html#in-method-definitions) of the Rust
@@ -160,7 +161,7 @@ Let us move on to establishing the practical training configuration.
 #         metric::{AccuracyMetric, LossMetric},
 #     },
 # };
-# 
+#
 # impl Model {
 #     pub fn forward_classification(
 #         &self,
@@ -171,17 +172,17 @@ Let us move on to establishing the practical training configuration.
 #         let loss = CrossEntropyLossConfig::new()
 #             .init(&output.device())
 #             .forward(output.clone(), targets.clone());
-# 
+#
 #         ClassificationOutput::new(loss, output, targets)
 #     }
 # }
 # impl TrainStep for Model {
 #     type Input = MnistBatch;
 #     type Output = ClassificationOutput;
-# 
+#
 #     fn step(&self, batch: MnistBatch) -> TrainOutput<ClassificationOutput> {
 #         let item = self.forward_classification(batch.images, batch.targets);
-# 
+#
 #         TrainOutput::new(self, item.loss.backward(), item)
 #     }
 # }
@@ -189,7 +190,7 @@ Let us move on to establishing the practical training configuration.
 # impl InferenceStep for Model {
 #     type Input = MnistBatch;
 #     type Output = ClassificationOutput;
-# 
+#
 #     fn step(&self, batch: MnistBatch) -> ClassificationOutput {
 #         self.forward_classification(batch.images, batch.targets)
 #     }
@@ -224,7 +225,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 
     let device = device.into();
     device.seed(config.seed);
-    let autodiff_device = device.clone().autodiff();
+    let autodiff_device = device.autodiff();
 
     let batcher = MnistBatcher::default();
 
@@ -264,27 +265,31 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 It is a good practice to use the `Config` derive to create the experiment configuration. In the
 `train` function, the first thing we are doing is making sure the `artifact_dir` exists, using the
 standard rust library for file manipulation. All checkpoints, logging and metrics will be stored
-under this directory. We initialize the dataloaders using the previously created batcher. The selected runtime device is cloned and switched to autodiff mode before the model is initialized.
+under this directory. We initialize the dataloaders using the previously created batcher. The
+selected runtime device is cloned and switched to autodiff mode before the model is initialized.
 
-Next, we create a supervised training runner with the dataloaders for training and validation and
-we register the accuracy and loss metric on both training and validation steps. We also enable
-checkpointing with `with_default_checkpointers()`, which periodically saves the model, optimizer, and learning
-rate scheduler state to burnpack files under the experiment directory so training can be resumed.
+Next, we create a supervised training runner with the dataloaders for training and validation and we
+register the accuracy and loss metric on both training and validation steps. We also enable
+checkpointing with `with_default_checkpointers()`, which periodically saves the model, optimizer,
+and learning rate scheduler state to burnpack files under the experiment directory so training can
+be resumed.
 
-For the sake of simplicity in this example, we employ the test set as the validation
-set; however, we do not recommend this practice for actual usage.
+For the sake of simplicity in this example, we employ the test set as the validation set; however,
+we do not recommend this practice for actual usage.
 
 We create the learner containing the model, the optimizer and the learning rate. Notably, the third
-argument of the learner's `new` function should actually be a learning rate _scheduler_. When provided with a
-float as in our example, it is automatically transformed into a _constant_ learning rate scheduler.
-The learning rate is not part of the optimizer config as it is often done in other frameworks, but
-rather passed as a parameter when executing the optimizer step. This avoids having to mutate the
-state of the optimizer and is therefore more functional. It makes no difference when using the
-learner struct, but it will be an essential nuance to grasp if you implement your own training loop.
+argument of the learner's `new` function should actually be a learning rate _scheduler_. When
+provided with a float as in our example, it is automatically transformed into a _constant_ learning
+rate scheduler. The learning rate is not part of the optimizer config as it is often done in other
+frameworks, but rather passed as a parameter when executing the optimizer step. This avoids having
+to mutate the state of the optimizer and is therefore more functional. It makes no difference when
+using the learner struct, but it will be an essential nuance to grasp if you implement your own
+training loop.
 
-Once the learner and supervised training instance are created, we can call `training.launch` and provide the learner.
+Once the learner and supervised training instance are created, we can call `training.launch` and
+provide the learner.
 
 Finally, the trained model is returned by the `launch` method. The trained weights are then saved by
 taking a record with `into_record()` and calling `save`, which writes a burnpack (`.bpk`) file. A
-record holds plain tensor data, so any backend, regardless of precision, can load recorded weights of
-any kind.
+record holds plain tensor data, so any backend, regardless of precision, can load recorded weights
+of any kind.

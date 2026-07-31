@@ -34,41 +34,49 @@ Note that all fields declared in the struct must also implement the `Module` tra
 If you want to create your own module that contains tensors, and not just other modules defined with
 the `Module` derive, you need to be careful to achieve the behavior you want.
 
-- `Param<Tensor<D>>`: If you want the tensor to be included as a parameter of your modules, you
-  need to wrap the tensor in a `Param` struct. This will create an ID that will be used to identify
-  this parameter. This is essential when performing module optimization and when saving states such
-  as optimizer and module checkpoints. Note that a module's record only contains parameters.
+- `Param<Tensor<D>>`: If you want the tensor to be included as a parameter of your modules, you need
+  to wrap the tensor in a `Param` struct. This will create an ID that will be used to identify this
+  parameter. This is essential when performing module optimization and when saving states such as
+  optimizer and module checkpoints. Note that a module's record only contains parameters.
 
-- `Param<Tensor<D>>.set_require_grad(false)`: If you want the tensor to be included as a
-  parameter of your modules, and therefore saved with the module's weights, but you don't want it to
-  be updated by the optimizer.
+- `Param<Tensor<D>>.set_require_grad(false)`: If you want the tensor to be included as a parameter
+  of your modules, and therefore saved with the module's weights, but you don't want it to be
+  updated by the optimizer.
 
-- `Tensor<D>`: If you want the tensor to act as a constant that can be recreated when
-  instantiating a module. This can be useful when generating sinusoidal embeddings, for example.
+- `Tensor<D>`: If you want the tensor to act as a constant that can be recreated when instantiating
+  a module. This can be useful when generating sinusoidal embeddings, for example.
 
 ## Methods
 
 These methods are available for all modules.
 
-| Burn API                                | PyTorch Equivalent                       |
-| --------------------------------------- | ---------------------------------------- |
-| `module.devices()`                      | N/A                                      |
-| `module.fork(device)`                   | Similar to `module.to(device).detach()`  |
-| `module.to_device(device)`              | `module.to(device)`                      |
-| `module.no_grad()`                      | `module.require_grad_(False)`            |
-| `module.num_params()`                   | N/A                                      |
-| `module.visit(visitor)`                 | N/A                                      |
-| `module.map(mapper)`                    | N/A                                      |
-| `module.into_record()`                  | Similar to `state_dict`                  |
-| `module.load_record(record)`            | Similar to `load_state_dict(state_dict)` |
-| `module.into_record().save(file_path)`  | Similar to `torch.save(state_dict, ...)` |
-| `ModuleRecord::load(file_path)`         | Similar to `torch.load(...)`             |
+| Burn API                             | PyTorch Equivalent                       |
+| ------------------------------------ | ---------------------------------------- |
+| `module.devices()`                   | N/A                                      |
+| `module.fork(device)`                | Similar to `module.to(device).detach()`  |
+| `module.to_device(device)`           | `module.to(device)`                      |
+| `module.no_grad()`                   | `module.require_grad_(False)`            |
+| `module.num_params()`                | N/A                                      |
+| `module.visit(visitor)`              | N/A                                      |
+| `module.map(mapper)`                 | N/A                                      |
+| `module.freeze_group(param_group)`   | N/A                                      |
+| `module.unfreeze_group(param_group)` | N/A                                      |
+| `module.apply_lora(config)`          | N/A                                      |
+| `module.apply_qlora(config)`         | N/A                                      |
+| `module.into_record()`               | Similar to `state_dict`                  |
+| `module.load_record(record)`         | Similar to `load_state_dict(state_dict)` |
+| `module.try_load_record(record)`     | Similar to `load_state_dict(state_dict)` |
+| `module.try_load_file(file_path)`    | Similar to `torch.load(...)`             |
+| `module.load_file(file_path)`        | Similar to `torch.load(...)`             |
+| `module.save_file(file_path)`        | Similar to `torch.save(state_dict, ...)` |
 
-The `AutodiffModule` trait provides training-specific helpers for modules whose parameters are on an autodiff-enabled device.
+The `AutodiffModule` trait provides training-specific helpers for modules whose parameters are on an
+autodiff-enabled device, and vice-versa.
 
 | Burn API         | PyTorch Equivalent |
 | ---------------- | ------------------ |
 | `module.valid()` | `module.eval()`    |
+| `module.train()` | `module.train()`   |
 
 ## Visitor & Mapper
 
@@ -225,44 +233,44 @@ Burn comes with built-in modules that you can use to build your own modules.
 
 ### General
 
-| Burn API          | PyTorch Equivalent                            |
-| ----------------- | --------------------------------------------- |
-| `BatchNorm`       | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
-| `Celu`            | `nn.CELU`                                     |
-| `Dropout`         | `nn.Dropout`                                  |
-| `Elu`             | `nn.ELU`                                      |
-| `Embedding`       | `nn.Embedding`                                |
-| `GaussianNoise`   | _No direct equivalent_                        |
-| `Gelu`            | `nn.Gelu`                                     |
-| `Glu`             | `nn.Glu`                                      |
-| `GroupNorm`       | `nn.GroupNorm`                                |
-| `HardShrink`      | `nn.Hardshrink`                               |
-| `HardSigmoid`     | `nn.Hardsigmoid`                              |
-| `CosineSimilarity` | `nn.CosineSimilarity`                         |
-| `HardSwish`       | `nn.Hardswish`                                |
-| `InstanceNorm`    | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
-| `LayerNorm`       | `nn.LayerNorm`                                |
-| `LocalResponseNorm` | `nn.LocalResponseNorm`                      |
-| `LeakyRelu`       | `nn.LeakyReLU`                                |
-| `LogSigmoid`      | `nn.LogSigmoid`                               |
-| `Mish`            | `nn.Mish`                                     |
-| `Linear`          | `nn.Linear`                                   |
-| `PairwiseDistance` | `nn.PairwiseDistance`                         |
-| `PixelShuffle`    | `nn.PixelShuffle`                             |
-| `PixelUnshuffle`  | `nn.PixelUnshuffle`                           |
-| `Prelu`           | `nn.PReLu`                                    |
-| `Relu`            | `nn.ReLU`                                     |
-| `Selu`            | `nn.SELU`                                     |
-| `Sigmoid`         | `nn.Sigmoid`                                  |
-| `SiLU`            | `nn.SiLU`                                     |
-| `Softplus`        | `nn.Softplus`                                 |
-| `SoftShrink`      | `nn.Softshrink`                               |
-| `Softsign`        | `nn.Softsign`                                 |
-| `Shrink`          | _No direct equivalent_                        |
-| `RmsNorm`         | _No direct equivalent_                        |
-| `SwiGlu`          | _No direct equivalent_                        |
-| `Tanh`            | `nn.Tanh`                                     |
-| `ThresholdedRelu` | _No direct equivalent_                        |
+| Burn API            | PyTorch Equivalent                            |
+| ------------------- | --------------------------------------------- |
+| `BatchNorm`         | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
+| `Celu`              | `nn.CELU`                                     |
+| `Dropout`           | `nn.Dropout`                                  |
+| `Elu`               | `nn.ELU`                                      |
+| `Embedding`         | `nn.Embedding`                                |
+| `GaussianNoise`     | _No direct equivalent_                        |
+| `Gelu`              | `nn.Gelu`                                     |
+| `Glu`               | `nn.Glu`                                      |
+| `GroupNorm`         | `nn.GroupNorm`                                |
+| `HardShrink`        | `nn.Hardshrink`                               |
+| `HardSigmoid`       | `nn.Hardsigmoid`                              |
+| `CosineSimilarity`  | `nn.CosineSimilarity`                         |
+| `HardSwish`         | `nn.Hardswish`                                |
+| `InstanceNorm`      | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
+| `LayerNorm`         | `nn.LayerNorm`                                |
+| `LocalResponseNorm` | `nn.LocalResponseNorm`                        |
+| `LeakyRelu`         | `nn.LeakyReLU`                                |
+| `LogSigmoid`        | `nn.LogSigmoid`                               |
+| `Mish`              | `nn.Mish`                                     |
+| `Linear`            | `nn.Linear`                                   |
+| `PairwiseDistance`  | `nn.PairwiseDistance`                         |
+| `PixelShuffle`      | `nn.PixelShuffle`                             |
+| `PixelUnshuffle`    | `nn.PixelUnshuffle`                           |
+| `Prelu`             | `nn.PReLu`                                    |
+| `Relu`              | `nn.ReLU`                                     |
+| `Selu`              | `nn.SELU`                                     |
+| `Sigmoid`           | `nn.Sigmoid`                                  |
+| `SiLU`              | `nn.SiLU`                                     |
+| `Softplus`          | `nn.Softplus`                                 |
+| `SoftShrink`        | `nn.Softshrink`                               |
+| `Softsign`          | `nn.Softsign`                                 |
+| `Shrink`            | _No direct equivalent_                        |
+| `RmsNorm`           | _No direct equivalent_                        |
+| `SwiGlu`            | _No direct equivalent_                        |
+| `Tanh`              | `nn.Tanh`                                     |
+| `ThresholdedRelu`   | _No direct equivalent_                        |
 
 ### Convolutions
 
@@ -291,26 +299,26 @@ Burn comes with built-in modules that you can use to build your own modules.
 
 | Burn API        | PyTorch Equivalent |
 | --------------- | ------------------ |
-| `Interpolate1d` | `nn.Upsample`     |
-| `Interpolate2d` | `nn.Upsample`     |
+| `Interpolate1d` | `nn.Upsample`      |
+| `Interpolate2d` | `nn.Upsample`      |
 
 Interpolation modules resize tensors using one of the available `InterpolateMode` options:
 
-| Mode      | Description                                              |
-| --------- | -------------------------------------------------------- |
-| `Nearest` | Nearest-neighbor interpolation                           |
-| `Linear`  | Linear interpolation (bilinear for 2D)                   |
-| `Cubic`   | Cubic interpolation (bicubic for 2D)                     |
-| `Lanczos` | Lanczos3 resampling (6-tap sinc-based filter, a=3)       |
+| Mode      | Description                                        |
+| --------- | -------------------------------------------------- |
+| `Nearest` | Nearest-neighbor interpolation                     |
+| `Linear`  | Linear interpolation (bilinear for 2D)             |
+| `Cubic`   | Cubic interpolation (bicubic for 2D)               |
+| `Lanczos` | Lanczos3 resampling (6-tap sinc-based filter, a=3) |
 
 Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with these options:
 
-| Option          | Type                                     | Default   | Description                                              |
-| --------------- |------------------------------------------| --------- | -------------------------------------------------------- |
-| `output_size`   | `Option<usize>` / `Option<[usize; 2]>`   | `None`    | Target output size (takes precedence over scale_factor)  |
-| `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`       | `None`    | Scale factor for resizing                                |
-| `mode`          | `InterpolateMode`                        | `Nearest` | Interpolation algorithm                                  |
-| `align_corners` | `bool`                                   | `true`    | Align input/output corner pixels                         |
+| Option          | Type                                   | Default   | Description                                             |
+| --------------- | -------------------------------------- | --------- | ------------------------------------------------------- |
+| `output_size`   | `Option<usize>` / `Option<[usize; 2]>` | `None`    | Target output size (takes precedence over scale_factor) |
+| `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Scale factor for resizing                               |
+| `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                                 |
+| `align_corners` | `bool`                                 | `true`    | Align input/output corner pixels                        |
 
 ### RNNs
 
@@ -332,22 +340,22 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 
 ### Loss
 
-| Burn API                 | PyTorch Equivalent       |
-| ------------------------ | ------------------------ |
-| `BinaryCrossEntropyLoss` | `nn.BCELoss`             |
-| `CosineEmbeddingLoss`    | `nn.CosineEmbeddingLoss` |
-| `CrossEntropyLoss`       | `nn.CrossEntropyLoss`    |
-| `CTCLoss`                | `nn.CTCLoss`             |
-| `GramMatrixLoss`         | _No direct equivalent_   |
-| `GaussianNLLLoss`        | `nn.GaussianNLLLoss`     |
-| `HingeEmbeddingLoss`     | `nn.HingeEmbeddingLoss`  |
-| `HuberLoss`              | `nn.HuberLoss`           |
-| `KLDivLoss`              | `nn.KLDivLoss`           |
-| `LpLoss`                 | _No direct equivalent_   |
-| `MarginRankingLoss`     | `nn.MarginRankingLoss`   |
-| `MseLoss`                | `nn.MSELoss`             |
-| `MultiMarginLoss`        | `nn.MultiMarginLoss`     |
-| `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
+| Burn API                 | PyTorch Equivalent                |
+| ------------------------ | --------------------------------- |
+| `BinaryCrossEntropyLoss` | `nn.BCELoss`                      |
+| `CosineEmbeddingLoss`    | `nn.CosineEmbeddingLoss`          |
+| `CrossEntropyLoss`       | `nn.CrossEntropyLoss`             |
+| `CTCLoss`                | `nn.CTCLoss`                      |
+| `GramMatrixLoss`         | _No direct equivalent_            |
+| `GaussianNLLLoss`        | `nn.GaussianNLLLoss`              |
+| `HingeEmbeddingLoss`     | `nn.HingeEmbeddingLoss`           |
+| `HuberLoss`              | `nn.HuberLoss`                    |
+| `KLDivLoss`              | `nn.KLDivLoss`                    |
+| `LpLoss`                 | _No direct equivalent_            |
+| `MarginRankingLoss`      | `nn.MarginRankingLoss`            |
+| `MseLoss`                | `nn.MSELoss`                      |
+| `MultiMarginLoss`        | `nn.MultiMarginLoss`              |
+| `PoissonNllLoss`         | `nn.PoissonNLLLoss`               |
 | `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |
-| `SmoothL1Loss`           | `nn.SmoothL1Loss`        |
-| `TripletMarginLoss`      | `nn.TripletMarginLoss`   |
+| `SmoothL1Loss`           | `nn.SmoothL1Loss`                 |
+| `TripletMarginLoss`      | `nn.TripletMarginLoss`            |

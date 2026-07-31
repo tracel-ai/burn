@@ -21,32 +21,60 @@ field on every parameter. Passing that container to `grad` or `grad_remove` make
 between the backward pass and gradient access explicit. `grad_remove` can also enable in-place
 optimizations when a gradient is consumed only once.
 
-The following tensor methods control graph tracking:
+Note that some functions will always be available even if the tensor is not on an autodiff-enabled
+device. In such cases, those functions will do nothing.
 
-| Burn API                                | PyTorch Equivalent            |
-| --------------------------------------- | ----------------------------- |
-| `tensor.detach()`                       | `tensor.detach()`             |
-| `tensor.require_grad()`                 | `tensor.requires_grad_(True)` |
-| `tensor.is_require_grad()`              | `tensor.requires_grad`        |
-| `tensor.set_require_grad(require_grad)` | `tensor.requires_grad_(...)`  |
+| Burn API                                | PyTorch Equivalent           |
+| --------------------------------------- | ---------------------------- |
+| `tensor.detach()`                       | `tensor.detach()`            |
+| `tensor.require_grad()`                 | `tensor.requires_grad_()`    |
+| `tensor.is_require_grad()`              | `tensor.requires_grad`       |
+| `tensor.set_require_grad(require_grad)` | `tensor.requires_grad_(...)` |
 
-For inference, use a regular device. For validation during a training workflow, tensors are detached
-from the graph:
+## Difference with PyTorch
+
+The way Burn handles gradients is different from PyTorch. First, when calling `backward`, each
+parameter doesn't have its `grad` field updated. Instead, the backward pass returns all the
+calculated gradients in a container. This approach offers numerous benefits, such as the ability to
+easily send gradients to other threads.
+
+In PyTorch, when you don't need gradients for inference or validation, you typically need to scope
+your code using a block.
+
+```python
+# Inference mode
+torch.inference_mode():
+   # your code
+   ...
+
+# Or no grad
+torch.no_grad():
+   # your code
+   ...
+```
+
+With Burn, tensors shouldn't be on an autodiff device for inference, and you can call
+`inner()` to obtain the inner tensor, which is useful for validation.
 
 ```rust, ignore
-fn validation(tensor: Tensor<2>) {
-    let tensor = tensor.detach();
-    let _ = tensor + 5;
+fn example_validation(tensor: Tensor<2>) {
+    debug_assert!(tensor.device().is_autodiff());
+    let inner_tensor = tensor.inner();
+    let _ = inner_tensor + 5;
 }
 
-fn inference(tensor: Tensor<2>) {
+fn example_inference(tensor: Tensor<2>) {
+    debug_assert!(!tensor.device().is_autodiff());
     let _ = tensor + 5;
+    ...
 }
 ```
 
 ## Gradients with Optimizers
 
-When using optimizers from `burn-core`, the module translates gradients from the tensor gradient
-container to its parameter records. This supports gradient accumulation and training on multiple
-devices without making the module type depend on a backend. The
-[Module](./module.md) section explores modules and parameter mapping in more detail.
+We've seen how gradients can be used with tensors, but the process is a bit different when working
+with optimizers from `burn-optim`. To work with the `Module` trait, a translation step is required to
+link tensor parameters with their gradients. This step is necessary to easily support gradient
+accumulation and training on multiple devices, where each module can be forked and run on different
+devices in parallel. The [Optimizer](./optimizer.md) section explains how those gradients update
+module parameters.

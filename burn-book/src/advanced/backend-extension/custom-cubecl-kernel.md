@@ -27,9 +27,6 @@ pub trait Backend: burn::backend::Backend {
         bias: FloatTensor<Self>,
     ) -> FloatTensor<Self>;
 }
-
-/// We create our own AutodiffBackend trait that extends the Burn autodiff backend trait.
-pub trait AutodiffBackend: Backend + burn::backend::AutodiffBackend {}
 ```
 
 In our project, we can use these traits instead of the

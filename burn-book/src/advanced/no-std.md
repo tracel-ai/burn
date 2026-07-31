@@ -82,7 +82,7 @@ use your_model::Model;
 let device = Device::flex();
 
 // Create a new model and load the state
-let model: Model = Model::default();
+let model = Model::default();
 ```
 
 ### Running the Model

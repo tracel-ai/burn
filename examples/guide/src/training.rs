@@ -79,7 +79,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 
     let device = device.into();
     device.seed(config.seed);
-    let autodiff_device = device.clone().autodiff();
+    let autodiff_device = device.autodiff();
 
     let batcher = MnistBatcher::default();
 

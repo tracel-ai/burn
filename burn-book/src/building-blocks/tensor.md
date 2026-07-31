@@ -10,8 +10,6 @@ Tensor<D, Int>      // Int tensor
 Tensor<D, Bool>     // Bool tensor
 ```
 
-The concrete element dtype is a runtime property configured on the tensor's device.
-
 ### Data types
 
 A tensor has an element type, but unlike its `Float`/`Int`/`Bool` kind that type is a runtime
@@ -188,7 +186,7 @@ for the sake of simplicity, we ignore type signatures. For more details, refer t
 Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 
 | Burn                                                 | PyTorch Equivalent                                                        |
-|------------------------------------------------------|---------------------------------------------------------------------------|
+| ---------------------------------------------------- | ------------------------------------------------------------------------- |
 | `Tensor::cat(tensors, dim)`                          | `torch.cat(tensors, dim)`                                                 |
 | `Tensor::empty(shape, options)`                      | `torch.empty(shape, device=device, dtype=dtype)`                          |
 | `tensor::empty_like()`                               | `tensor.empty_like(tensor)`                                               |

@@ -11,7 +11,7 @@ But before we proceed, let's establish the fundamental principles that will empo
 your own backend extensions.
 
 Burn's user-facing tensors and modules are runtime-dispatched and don't expose a backend generic.
-Backend traits remain part of the extension layer, where they define primitive operations that can
+Backend traits remain part of the lower layer, where they define primitive operations that can
 be registered with the Tensor → Bridge → Dispatch → Backend stack. To create an extension, define a
 backend trait specifying the new primitive operation, implement it for the backends you support,
 and expose a backend-independent `Tensor` function that calls through `Dispatch`.

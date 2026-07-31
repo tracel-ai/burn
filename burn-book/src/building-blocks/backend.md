@@ -15,30 +15,30 @@ let other_device = Device::cuda(0);
 let tensor = tensor.to_device(&other_device);
 ```
 
-The corresponding Cargo feature must be enabled for each device constructor. For example, the
-`wgpu` and `cuda` features make `Device::wgpu` and `Device::cuda` available.
+The corresponding Cargo feature must be enabled for each device constructor. For example, the `wgpu`
+and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 
 ## Selecting a Device
 
 `Device` provides constructors for the backends enabled in your build. Common choices include:
 
-| Constructor | Target |
-| --- | --- |
-| `Device::wgpu(Default::default())` | Best WGPU adapter available |
-| `Device::wgpu(DeviceKind::DiscreteGpu(0))` | First discrete GPU through WGPU |
-| `Device::vulkan(Default::default())` | Best Vulkan adapter |
-| `Device::metal(Default::default())` | Best Metal adapter |
-| `Device::webgpu(Default::default())` | Browser WebGPU device |
-| `Device::cuda(0)` | CUDA GPU at index 0 |
-| `Device::cuda(DeviceIndex::Default)` | Backend-selected CUDA GPU |
-| `Device::rocm(0)` | ROCm/HIP GPU at index 0 |
-| `Device::cpu()` | CubeCL CPU backend |
-| `Device::flex()` | Flex CPU backend |
-| `Device::ndarray()` | NdArray CPU backend |
-| `Device::libtorch()` | LibTorch CPU backend |
-| `Device::libtorch_cuda(0)` | LibTorch CUDA GPU at index 0 |
-| `Device::libtorch_mps()` | LibTorch Metal Performance Shaders |
-| `Device::libtorch_vulkan()` | LibTorch Vulkan device |
+| Constructor                                | Target                             |
+| ------------------------------------------ | ---------------------------------- |
+| `Device::wgpu(Default::default())`         | Best WGPU adapter available        |
+| `Device::wgpu(DeviceKind::DiscreteGpu(0))` | First discrete GPU through WGPU    |
+| `Device::vulkan(Default::default())`       | Best Vulkan adapter                |
+| `Device::metal(Default::default())`        | Best Metal adapter                 |
+| `Device::webgpu(Default::default())`       | Browser WebGPU device              |
+| `Device::cuda(0)`                          | CUDA GPU at index 0                |
+| `Device::cuda(DeviceIndex::Default)`       | Backend-selected CUDA GPU          |
+| `Device::rocm(0)`                          | ROCm/HIP GPU at index 0            |
+| `Device::cpu()`                            | CubeCL CPU backend                 |
+| `Device::flex()`                           | Flex CPU backend                   |
+| `Device::ndarray()`                        | NdArray CPU backend                |
+| `Device::libtorch()`                       | LibTorch CPU backend               |
+| `Device::libtorch_cuda(0)`                 | LibTorch CUDA GPU at index 0       |
+| `Device::libtorch_mps()`                   | LibTorch Metal Performance Shaders |
+| `Device::libtorch_vulkan()`                | LibTorch Vulkan device             |
 
 Indexed devices accept either an integer or `DeviceIndex`. WGPU-family constructors accept a
 `DeviceKind`, which can select a discrete, integrated, or virtual GPU, a CPU adapter, or the best
@@ -55,7 +55,7 @@ let second_cuda = Device::cuda(1);
 ```
 
 Burn also supports remote devices when the corresponding remote feature is enabled. Constructors
-include `Device::remote_websocket` for legacy WebSocket connections and `Device::remote_iroh` for
+include `Device::remote_websocket` for WebSocket connections and `Device::remote_iroh` for
 peer-to-peer remote execution.
 
 ## Using a Device
@@ -89,7 +89,7 @@ the operations required for backpropagation:
 
 ```rust, ignore
 let device = Device::wgpu(Default::default());
-let training_device = device.clone().autodiff();
+let training_device = device.autodiff();
 
 assert!(training_device.is_autodiff());
 let inference_device = training_device.inner();
@@ -108,8 +108,8 @@ are also useful when coordinating execution:
 
 ## Device Settings
 
-Each device owns runtime settings, including its default float, integer, and boolean dtypes.
-Inspect them with `settings()` and set them with `configure()`:
+Each device has their own runtime settings, including its default float, integer, and boolean
+dtypes. Inspect them with `settings()` and set them with `configure()`:
 
 ```rust, ignore
 use burn::tensor::{Device, DeviceConfig, FloatDType, IntDType};
@@ -156,6 +156,6 @@ Under the hood, an operation flows through the **Tensor → Bridge → Dispatch 
 - The backend executes the primitive operation.
 
 The `Backend` and `AutodiffBackend` traits still define the low-level implementation contract, but
-ordinary application code does not need bounds such as `B: Backend`. You will mainly encounter
-those traits when implementing or extending a backend; see
+ordinary application code does not need bounds such as `B: Backend`. You will mainly encounter those
+traits when implementing or extending a backend; see
 [Backend Extension](../advanced/backend-extension/README.md).

@@ -10,9 +10,9 @@ cargo new guide
 As [mentioned previously](../getting-started.md#creating-a-burn-application), this will initialize
 your `guide` project directory with a `Cargo.toml` and a `src/main.rs` file.
 
-In the `Cargo.toml` file, add the `burn` dependency with `train`, `vision` and `wgpu` features.
-Since we disable the default features, we also want to enable `std`, `tui` (for the dashboard) and
-`fusion` for wgpu. Then run `cargo build` to build the project and import all the dependencies.
+In the `Cargo.toml` file, add the `burn` dependency with `train`, `vision` and `wgpu` features. The
+default features automatically enable `tui` (for the dashboard), `fusion` and `autotune` for wgpu,
+among other defaults. Then run `cargo build` to build the project and import all the dependencies.
 
 ```toml
 [package]
@@ -21,9 +21,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# Disable autotune default for convolutions
-burn = { version = "~0.21", features = ["std", "tui", "train", "vision", "wgpu", "fusion"], default-features = false }
-# burn = { version = "~0.21", features = ["train", "vision", "wgpu"] }
+burn = { version = "~0.22", features = ["train", "vision", "wgpu"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -115,10 +113,10 @@ There are two major things going on in this code sample.
    </details><br>
 
 2. The model and its layers don't have a backend type parameter. Tensors carry a runtime
-   [`Device`](../building-blocks/backend.md), and Burn routes their operations through its
-   Tensor → Bridge → Dispatch → Backend execution stack. This keeps models portable across
-   backends without exposing backend generics in the user API. The device used to initialize the
-   parameters determines where the model starts executing.
+   [`Device`](../building-blocks/backend.md), and Burn routes their operations through its Tensor →
+   Bridge → Dispatch → Backend execution stack. This keeps models portable across backends without
+   exposing backend generics in the user API. The device used to initialize the parameters
+   determines where the model starts executing.
 
 Note that each time you create a new file in the `src` directory you also need to explicitly add
 this module to the `main.rs` file. For instance after creating the `model.rs`, you need to add the
@@ -214,8 +212,8 @@ Model {
 <summary><strong>🦀 References</strong></summary>
 
 In the previous example, the `init()` method signature uses `&` to indicate that the parameter types
-are references: `&self`, a reference to the current receiver (`ModelConfig`), and
-`device: &Device`, a reference to the runtime device.
+are references: `&self`, a reference to the current receiver (`ModelConfig`), and `device: &Device`,
+a reference to the runtime device.
 
 ```rust, ignore
 pub fn init(&self, device: &Device) -> Model {
@@ -264,7 +262,7 @@ are set using the configuration of the corresponding neural network's underlying
 specific case, we have chosen to expand the tensor channels from 1 to 8 with the first layer, then
 from 8 to 16 with the second layer, using a kernel size of 3 on all dimensions. We also use the
 adaptive average pooling module to reduce the dimensionality of the images to an 8 by 8 matrix,
-which we will flatten in the forward pass to have a 1024 (16 * 8 * 8) resulting tensor.
+which we will flatten in the forward pass to have a 1024 (16 _ 8 _ 8) resulting tensor.
 
 Now let's see how the forward pass is defined.
 
@@ -356,4 +354,5 @@ Tensor<3, Int> // Int tensor
 Tensor<3, Bool> // Bool tensor
 ```
 
-The concrete element type, such as `f16` or `f32`, is a runtime property configured on the device.
+The concrete element type, such as `f16` or `f32`, is a runtime property that is specified in tensor
+creation operations. The default delement types can be configured per-device.
