@@ -167,6 +167,18 @@ pub fn reduce_logical<Run: CubeRuntime>(
     out
 }
 
+/// Accumulator slots one reduction needs: `k` for top-k, `1` for every other operation.
+///
+/// Shared memory scales with it, so a routine that fits at one length can overrun the
+/// device limit at another. That makes it part of the fused autotune key as well as the
+/// output length along the reduced axis.
+pub(crate) fn accumulator_len(config: ReduceOperationConfig) -> usize {
+    match config {
+        ReduceOperationConfig::TopK(k) | ReduceOperationConfig::ArgTopK(k) => k,
+        _ => 1,
+    }
+}
+
 fn argsort(shape: &[usize]) -> Vec<usize> {
     let mut indices = (0..shape.len()).collect::<Vec<_>>();
     indices.sort_by_key(|&i| &shape[i]);
@@ -200,11 +212,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
         "
     );
 
-    let accumulator_len = match config {
-        ReduceOperationConfig::ArgTopK(k) => k,
-        ReduceOperationConfig::TopK(k) => k,
-        _ => 1,
-    };
+    let accumulator_len = accumulator_len(config);
     let dtypes = config.precision(
         dtype_to_elem_type(input.dtype),
         output_dtype.map(dtype_to_elem_type),
@@ -251,25 +259,50 @@ pub fn reduce_dim<Run: CubeRuntime>(
     result.map(|_| output)
 }
 
-/// Reduce the given `axis` of `input` with a top-k, returning the values **and** their
-/// indices from a single kernel launch.
+/// Reduce the given `axis` of `input`, returning the values **and** their indices from a
+/// single kernel launch.
 ///
-/// Running `TopK` and `ArgTopK` separately walks the input twice and discards half of each
-/// result, even though one reduction already computes both. The reduce kernels are memory
-/// bound, so folding the two launches into one roughly halves the work.
+/// Running the value reduction and its `Arg*` counterpart separately walks the input twice
+/// and discards half of each result, even though one reduction already computes both. The
+/// reduce kernels are memory bound, so folding the two launches into one roughly halves
+/// the work.
 ///
-/// Both outputs are contiguous with the reduced `dim` set to `k`.
+/// `config` must be an operation with a meaningful index (top-k, max, min); each `Arg*`
+/// config is an alias of its value counterpart here, since both halves are written either
+/// way. Any other operation returns [`ReduceError::IndicesUnsupported`]. Both outputs are
+/// contiguous with the reduced `dim` set to `k` for top-k and `1` otherwise.
 pub fn reduce_dim_with_indices<Run: CubeRuntime>(
     input: CubeTensor<Run>,
     indices_dtype: DType,
     dim: usize,
     strategy: KernelReduceStrategy,
-    k: usize,
+    config: ReduceOperationConfig,
 ) -> Result<(CubeTensor<Run>, CubeTensor<Run>), ReduceError> {
-    // `precision` for TopK keeps input/values/accumulation at the input dtype; the index
-    // dtype is the caller's and is converted for free in the final output write.
-    let value_dtypes =
-        ReduceOperationConfig::TopK(k).precision(dtype_to_elem_type(input.dtype), None);
+    let unsupported = |operation| ReduceError::IndicesUnsupported { operation };
+
+    // Fold each `Arg*` onto its value counterpart: `precision` would otherwise demand an
+    // output dtype, which here only ever applies to the indices.
+    let config = match config {
+        ReduceOperationConfig::ArgMax => ReduceOperationConfig::Max,
+        ReduceOperationConfig::ArgMin => ReduceOperationConfig::Min,
+        ReduceOperationConfig::ArgTopK(k) => ReduceOperationConfig::TopK(k),
+        ReduceOperationConfig::Max
+        | ReduceOperationConfig::Min
+        | ReduceOperationConfig::TopK(_) => config,
+        ReduceOperationConfig::Sum => return Err(unsupported("Sum")),
+        ReduceOperationConfig::Prod => return Err(unsupported("Prod")),
+        ReduceOperationConfig::Mean => return Err(unsupported("Mean")),
+        ReduceOperationConfig::MaxAbs => return Err(unsupported("MaxAbs")),
+        ReduceOperationConfig::Any => return Err(unsupported("Any")),
+        ReduceOperationConfig::All => return Err(unsupported("All")),
+    };
+
+    let out_len = accumulator_len(config);
+
+    // `precision` for these operations keeps input/values/accumulation at the input
+    // dtype; the index dtype is the caller's and is converted for free in the final
+    // output write.
+    let value_dtypes = config.precision(dtype_to_elem_type(input.dtype), None);
     let dtypes = ReduceWithIndicesDtypes {
         input: value_dtypes.input,
         values: value_dtypes.output,
@@ -286,11 +319,11 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
         &input,
         dim,
         elem_type_to_dtype(dtypes.values.elem_type()),
-        k,
+        out_len,
     )
     .ok_or_else(invalid_axis)?;
-    let indices =
-        init_reduce_output_dtype::<Run>(&input, dim, indices_dtype, k).ok_or_else(invalid_axis)?;
+    let indices = init_reduce_output_dtype::<Run>(&input, dim, indices_dtype, out_len)
+        .ok_or_else(invalid_axis)?;
 
     let client = input.client.clone();
 
@@ -308,7 +341,7 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
                 },
                 autotune_level: Default::default(),
             },
-            ReduceOperationConfig::TopK(k),
+            config,
             dtypes,
         ),
         KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce_with_indices::<Run>(
@@ -318,7 +351,7 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
             indices.clone().binding(),
             dim,
             strategy,
-            ReduceOperationConfig::TopK(k),
+            config,
             dtypes,
         ),
         #[cfg(feature = "autotune")]
@@ -329,7 +362,7 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
                 values.clone(),
                 indices.clone(),
                 dim,
-                k,
+                config,
                 dtypes,
             );
             Ok(())

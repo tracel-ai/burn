@@ -5,7 +5,7 @@ use burn_backend::{
     ops::{FloatTensorOps, QTensorOps},
     quantization::{
         QParams, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
-        QuantizationParametersPrimitive, QuantizedBytes, round_to_param,
+        QuantizationParametersPrimitive, QuantizedBytes, scale_to_param,
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -89,7 +89,7 @@ impl QTensorOps<Self> for NdArray {
         // reproduces these values instead of drifting by the param's rounding error.
         let scales: Vec<f32> = scales
             .iter::<f32>()
-            .map(|s| round_to_param(s, scheme.param))
+            .map(|s| scale_to_param(s, scheme.param))
             .collect();
 
         // Implement with ndarray instead of QuantizationStrategy?

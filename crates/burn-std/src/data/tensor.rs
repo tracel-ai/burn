@@ -520,17 +520,32 @@ impl TensorData {
             DType::U32 => self.convert_inplace::<Current, u32>(),
             DType::U16 => self.convert_inplace::<Current, u16>(),
             DType::U8 => self.convert_inplace::<Current, u8>(),
-            DType::Bool(BoolStore::U8) => self.convert_inplace::<Current, u8>().into_bool_u8(),
-            DType::Bool(BoolStore::U32) => self.convert_inplace::<Current, u32>().into_bool_u32(),
+            DType::Bool(BoolStore::U8) => self.convert_inplace_bool::<Current, u8>().into_bool_u8(),
+            DType::Bool(BoolStore::U32) => {
+                self.convert_inplace_bool::<Current, u32>().into_bool_u32()
+            }
             DType::Bool(BoolStore::Native) | DType::QFloat(_) => unreachable!(),
         }
     }
 
     fn convert_inplace<Current: Element + AnyBitPattern, Target: Element + AnyBitPattern>(
+        self,
+    ) -> Self {
+        self.convert_inplace_with::<Current, Target>(|x| x.elem())
+    }
+
+    fn convert_inplace_bool<Current: Element + AnyBitPattern, Target: Element + AnyBitPattern>(
+        self,
+    ) -> Self {
+        self.convert_inplace_with::<Current, Target>(|x| x.to_bool().elem())
+    }
+
+    fn convert_inplace_with<Current: Element + AnyBitPattern, Target: Element + AnyBitPattern>(
         mut self,
+        transform: impl Fn(&Current) -> Target,
     ) -> Self {
         for x in bytemuck::cast_slice_mut::<_, Current>(&mut self.bytes) {
-            let t: Target = x.elem();
+            let t = transform(x);
             let x = cast_mut::<_, Target>(x);
             *x = t;
         }
@@ -555,8 +570,10 @@ impl TensorData {
             DType::U16 => self.convert_clone::<Current, u16>(),
             DType::U8 => self.convert_clone::<Current, u8>(),
             DType::Bool(BoolStore::Native) => self.convert_clone::<Current, bool>(),
-            DType::Bool(BoolStore::U8) => self.convert_clone::<Current, u8>().into_bool_u8(),
-            DType::Bool(BoolStore::U32) => self.convert_clone::<Current, u32>().into_bool_u32(),
+            DType::Bool(BoolStore::U8) => self.convert_clone_bool::<Current, u8>().into_bool_u8(),
+            DType::Bool(BoolStore::U32) => {
+                self.convert_clone_bool::<Current, u32>().into_bool_u32()
+            }
             DType::QFloat(_) => unreachable!(),
         }
     }
@@ -564,11 +581,24 @@ impl TensorData {
     fn convert_clone<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
         self,
     ) -> Self {
+        self.convert_clone_with::<Current, Target>(|x| x.elem())
+    }
+
+    fn convert_clone_bool<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
+        self,
+    ) -> Self {
+        self.convert_clone_with::<Current, Target>(|x| x.to_bool().elem())
+    }
+
+    fn convert_clone_with<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
+        self,
+        transform: impl Fn(&Current) -> Target,
+    ) -> Self {
         let this = bytemuck::checked::cast_slice::<_, Current>(&self.bytes);
         let mut out: Vec<Target> = ::alloc::vec![Zeroable::zeroed(); self.num_elements()];
 
         for (x, out) in this.iter().zip(&mut out) {
-            *out = x.elem();
+            *out = transform(x);
         }
 
         Self::new(out, self.shape)
@@ -858,6 +888,21 @@ mod tests {
         test_precision::<f16>();
         test_precision::<i64>();
         test_precision::<i32>();
+    }
+
+    #[test]
+    fn should_convert_negative_values_to_bool_store() {
+        for store in [BoolStore::U8, BoolStore::U32, BoolStore::Native] {
+            let data = TensorData::from([-1i32, 0, 1, -12]).convert_dtype(DType::Bool(store));
+            assert_eq!(data.dtype, DType::Bool(store));
+            assert_eq!(
+                data.iter::<bool>().collect::<Vec<_>>(),
+                [true, false, true, true]
+            );
+
+            let data = TensorData::from([-1.5f32, 0.0, 0.5]).convert_dtype(DType::Bool(store));
+            assert_eq!(data.iter::<bool>().collect::<Vec<_>>(), [true, false, true]);
+        }
     }
 
     macro_rules! test_dtypes {

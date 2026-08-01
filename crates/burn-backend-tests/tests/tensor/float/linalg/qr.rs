@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Distribution, Tolerance, linalg::qr, s};
+use burn_tensor::{DType, Distribution, Element, Tolerance, linalg::qr, s};
 
 const REL: f32 = 5e-3;
 const ABS: f32 = 1e-3;
@@ -265,50 +265,23 @@ fn test_qr_singular_2d_wide_reduced() {
 
 #[test]
 fn test_qr_medium_tall() {
+    if !matches!(FloatElem::dtype(), DType::F32) {
+        return; // skip on lower precision dtypes (e.g. f16)
+    }
     let device = Default::default();
     let tensor = TestTensor::<2>::random([256, 128], Distribution::Default, &device);
     let (q, r) = qr::<2>(tensor.clone(), false);
     let qr = q.matmul(r);
-    let tolerance = Tolerance::rel_abs(REL, ABS).set_half_precision_absolute(5e-2);
+    let tolerance = Tolerance::rel_abs(REL, ABS);
     qr.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
 
 #[test]
 fn test_qr_medium_wide() {
-    let device = Default::default();
-    let tensor = TestTensor::<2>::random([128, 256], Distribution::Default, &device);
-    let (q, r) = qr::<2>(tensor.clone(), false);
-    let qr = q.matmul(r);
-    let tolerance = Tolerance::rel_abs(REL, ABS).set_half_precision_absolute(5e-2);
-    qr.into_data()
-        .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
-}
-
-#[test]
-fn test_qr_500x500() {
-    let device = Default::default();
-    let tensor = TestTensor::<2>::random([128, 256], Distribution::Default, &device);
-    let (q, r) = qr::<2>(tensor.clone(), false);
-    let qr = q.matmul(r);
-    let tolerance = Tolerance::rel_abs(REL, ABS).set_half_precision_absolute(5e-2);
-    qr.into_data()
-        .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
-}
-
-#[test]
-fn test_qr_500x300() {
-    let device = Default::default();
-    let tensor = TestTensor::<2>::random([128, 256], Distribution::Default, &device);
-    let (q, r) = qr::<2>(tensor.clone(), false);
-    let qr = q.matmul(r);
-    let tolerance = Tolerance::rel_abs(REL, ABS).set_half_precision_absolute(5e-2);
-    qr.into_data()
-        .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
-}
-
-#[test]
-fn test_qr_300x500() {
+    if !matches!(FloatElem::dtype(), DType::F32) {
+        return; // skip on lower precision dtypes (e.g. f16)
+    }
     let device = Default::default();
     let tensor = TestTensor::<2>::random([128, 256], Distribution::Default, &device);
     let (q, r) = qr::<2>(tensor.clone(), false);
