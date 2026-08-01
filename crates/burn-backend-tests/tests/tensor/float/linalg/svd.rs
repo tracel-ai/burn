@@ -706,6 +706,18 @@ fn test_svd_more_sweeps_improve_accuracy() {
 }
 
 #[test]
+fn test_svd_f16_dtype_roundtrip() {
+    // f16/bf16 inputs are upcast to f32 internally (like `det`); the factors
+    // come back in the input dtype.
+    let device = Default::default();
+    let tensor = TestTensor::<3>::random([2, 3, 3], Distribution::Default, &device);
+    let (u, s, vt) = svd::<3, 2>(tensor.clone(), 10);
+    assert_eq!(tensor.dtype(), u.dtype());
+    assert_eq!(tensor.dtype(), s.dtype());
+    assert_eq!(tensor.dtype(), vt.dtype());
+}
+
+#[test]
 #[should_panic]
 fn test_svd_panics_on_bad_generic_rank() {
     let device = Default::default();

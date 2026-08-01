@@ -1,6 +1,7 @@
 use crate::{IndexingUpdateOp, Int, Tensor, check, check::TensorCheck};
 use alloc::vec;
 use alloc::vec::Vec;
+use burn_std::{DType, FloatDType};
 
 /// Computes the singular value decomposition of a square or rectangular matrix using
 /// one-sided (Hestenes) Jacobi rotations.
@@ -77,7 +78,7 @@ use alloc::vec::Vec;
 /// }
 /// ```
 pub fn svd<const D: usize, const D1: usize>(
-    tensor: Tensor<D>,
+    mut tensor: Tensor<D>,
     sweeps: usize,
 ) -> (Tensor<D>, Tensor<D1>, Tensor<D>) {
     let dims = tensor.dims();
@@ -88,6 +89,13 @@ pub fn svd<const D: usize, const D1: usize>(
         &dims,
         original_dtype
     ));
+
+    // Upcast f16 and bf16 to f32: the Jacobi sweeps need the dynamic range of
+    // f32 to converge (same convention as `det`).
+    let needs_upcast = original_dtype == DType::F16 || original_dtype == DType::BF16;
+    if needs_upcast {
+        tensor = tensor.cast(FloatDType::F32);
+    }
 
     let (n_rows, n_cols) = (dims[D - 2], dims[D - 1]);
 
@@ -199,6 +207,16 @@ pub fn svd<const D: usize, const D1: usize>(
         (vt.transpose(), s, u.transpose())
     } else {
         (u, s, vt)
+    };
+    // Downcast back to the input dtype for f16/bf16 inputs.
+    let result = if needs_upcast {
+        (
+            result.0.cast(original_dtype),
+            result.1.cast(original_dtype),
+            result.2.cast(original_dtype),
+        )
+    } else {
+        result
     };
     // The sweep loop builds a very long op chain; the cubecl CUDA runtime
     // can execute dependent kernels out of order (especially under fusion),
