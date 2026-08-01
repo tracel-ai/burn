@@ -314,20 +314,14 @@ fn matrix_layout(
         return None;
     };
 
-    let batch_stride = if batch_shape.is_empty() {
-        0
-    } else if shape[..rank - 2].iter().all(|dim| *dim == 1) {
+    let batch_stride = if batch_shape.is_empty() || shape[..rank - 2].iter().all(|dim| *dim == 1) {
         0
     } else {
         if shape[..rank - 2] != *batch_shape {
             return None;
         }
         for dim in 0..rank.saturating_sub(3) {
-            if strides[dim]
-                != shape[dim + 1]
-                    .checked_mul(strides[dim + 1])
-                    .unwrap_or(usize::MAX)
-            {
+            if strides[dim] != shape[dim + 1].saturating_mul(strides[dim + 1]) {
                 return None;
             }
         }
