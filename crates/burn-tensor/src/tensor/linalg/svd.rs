@@ -219,8 +219,8 @@ pub fn svd<const D: usize, const D1: usize>(
         result
     };
     // The sweep loop builds a very long op chain; the cubecl CUDA runtime
-    // can execute dependent kernels out of order (especially under fusion),
-    // so flush the queue once. No-op on eager backends such as ndarray.
+    // can execute dependent kernels out of order under fusion, so flush the
+    // queue once. No-op on eager backends such as ndarray.
     let _ = device.sync();
     result
 }
