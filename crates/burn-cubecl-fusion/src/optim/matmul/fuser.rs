@@ -4,12 +4,10 @@ use crate::{
     optim::CubeOptimization,
     optim::matmul::args::MatmulArg,
 };
-use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{FloatOperationIr, OperationIr};
 use burn_std::DType;
-use cubecl::{Runtime, ir::ElemType};
-use std::collections::BTreeSet;
+use cubecl::Runtime;
 
 /// Fused element wise operations that are normally memory bound.
 pub struct MatmulFuser<R: Runtime> {
@@ -17,7 +15,6 @@ pub struct MatmulFuser<R: Runtime> {
     fuser_fallback: TraceOperationFuser,
     device: R::Device,
     matmul: Option<FusedMatmul>,
-    accelerated_gemm: BTreeSet<ElemType>,
 }
 
 impl<R: Runtime> Clone for MatmulFuser<R> {
@@ -27,7 +24,6 @@ impl<R: Runtime> Clone for MatmulFuser<R> {
             fuser_fallback: self.fuser_fallback.clone(),
             device: self.device.clone(),
             matmul: self.matmul.clone(),
-            accelerated_gemm: self.accelerated_gemm.clone(),
         }
     }
 }
@@ -48,7 +44,6 @@ impl<R: Runtime> MatmulFuser<R> {
             fuser_fallback: TraceOperationFuser::new(max_bindings, settings_fallback),
             device,
             matmul: None,
-            accelerated_gemm: props.features.matmul.accelerated_gemm.clone(),
         }
     }
 }
@@ -61,19 +56,6 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
 
         if self.matmul.is_none() {
             if let OperationIr::Float(_, FloatOperationIr::Matmul(op)) = operation {
-                let elem = dtype_to_storage_type(op.out.dtype).elem_type();
-                if op.lhs.dtype == op.out.dtype
-                    && op.rhs.dtype == op.out.dtype
-                    && self.accelerated_gemm.contains(&elem)
-                {
-                    // Let the backend execute its native GEMM. Subsequent
-                    // elementwise operations can start a separate fusion
-                    // optimization; folding them into CubeK would bypass the
-                    // faster backend primitive entirely.
-                    self.fuser.close();
-                    self.fuser_fallback.close();
-                    return;
-                }
                 // Precision shouldn't be hardcoded but I don't know how to get float precision of the backend
                 let lhs = match op.lhs.dtype {
                     DType::QFloat(scheme) => {
