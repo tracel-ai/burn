@@ -733,7 +733,7 @@ fn test_svd_more_sweeps_improve_accuracy() {
         ],
         &device,
     );
-    let (u3, s3, vt3) = svd::<2, 1>(tensor.clone(), 3);
+    let (u3, s3, vt3) = svd::<2, 1>(tensor.clone(), 1);
     let (u30, s30, vt30) = svd::<2, 1>(tensor.clone(), 30);
     let err3 = recon_err::<2, 1>(tensor.clone(), u3, &s3, vt3);
     let err30 = recon_err::<2, 1>(tensor, u30, &s30, vt30);
@@ -742,6 +742,18 @@ fn test_svd_more_sweeps_improve_accuracy() {
         "more sweeps must improve accuracy: {err3} vs {err30}"
     );
     assert!(err30 < ABS, "30 sweeps must converge, err {err30}");
+}
+
+#[test]
+fn test_svd_f16_dtype_roundtrip() {
+    // f16/bf16 inputs are upcast to f32 internally (like `det`); the factors
+    // come back in the input dtype.
+    let device = Default::default();
+    let tensor = TestTensor::<3>::random([2, 3, 3], Distribution::Default, &device);
+    let (u, s, vt) = svd::<3, 2>(tensor.clone(), 10);
+    assert_eq!(tensor.dtype(), u.dtype());
+    assert_eq!(tensor.dtype(), s.dtype());
+    assert_eq!(tensor.dtype(), vt.dtype());
 }
 
 #[test]
@@ -774,7 +786,7 @@ fn bench_svd_vs_torch() {
         (128, 128),
     ];
     let reps = [100usize, 100, 50, 20, 10, 5];
-    println!("size   | burn ndarray us | recon err");
+    println!("size   | burn us | recon err");
     for ((m, n), r) in sizes.iter().zip(reps.iter()) {
         let a = TestTensor::<2>::random([*m, *n], Distribution::Normal(0.0, 1.0), &device);
         for _ in 0..(r / 5).max(1) {

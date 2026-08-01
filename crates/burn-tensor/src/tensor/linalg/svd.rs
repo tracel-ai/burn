@@ -1,10 +1,10 @@
-use crate::{IndexingUpdateOp, Int, Tensor, check, check::TensorCheck};
+use crate::{DType, Tensor, check, check::TensorCheck, linalg::l2_norm, s};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_std::{DType, FloatDType};
+use burn_std::{FloatDType, Slice, TensorData};
+use num_traits::float::Float;
 
-/// Computes the singular value decomposition of a square or rectangular matrix using
-/// one-sided (Hestenes) Jacobi rotations.
+/// Computes the singular value decomposition of a square or rectangular matrix.
 ///
 /// This function decomposes the input tensor A into three tensors `U`, `S`, `Vt`
 /// such that `A = U @ diag(S) @ Vt`, where:
@@ -15,31 +15,28 @@ use burn_std::{DType, FloatDType};
 ///
 /// with `k = min(m, n)` (reduced decomposition, matching `torch.linalg.svd`).
 ///
-/// The one-sided (Hestenes) Jacobi algorithm rotates pairs of columns of `A`
-/// until the Gram matrix `A^T A` is diagonal. The rotation angle is computed
-/// from the column norms `alpha`, `beta` and their dot product `gamma` with
-/// the numerically safe formula
-/// `t = -sign(zeta) / (|zeta| + sqrt(1 + zeta^2))`, `zeta = (beta - alpha) / (2*gamma)`,
-/// which is well defined even for zero or orthogonal columns (no special cases).
-/// The right singular vectors are recovered with the LAPACK back-transformation
-/// `Vt = diag(1/sigma) U^T A` (two native matmuls).
+/// # Algorithm
 ///
-/// Each sweep follows the round-robin tournament schedule, rotating every
-/// column pair exactly once; the disjoint pairs of each half-sweep are
-/// processed in a single batched pass, so the number of kernel launches is
-/// O(n) per sweep rather than O(n^2). The decomposition is exact up to
-/// floating-point rounding, with quadratic convergence near the solution.
+/// Two stages, mirroring the LAPACK `gesvd` structure:
 ///
-/// All operations are pure tensor operations - no CPU synchronization and no
-/// host branching; the number of sweeps is fixed, so the result is
-/// deterministic.
+/// 1. **Golub-Kahan bidiagonalization** with Householder reflections (the
+///    same slice pattern used by `qr`): `A = U1 B V1^T` with `B`
+///    upper bidiagonal, `n` reflections on shrinking submatrices.
+/// 2. **Bidiagonal QR with shifts** (the LAPACK `dbdsqr` algorithm) to
+///    diagonalize `B`. Only `2n` scalars are involved, so this stage runs
+///    on the host over the tensor data (deterministic, no kernels) and
+///    converges in ~2.5 QR steps per singular value. The accumulated Givens
+///    rotations rebuild `U` and `V` from the bidiagonalization factors.
+///
+/// Both stages are exact to machine precision; the number of QR iterations
+/// is governed by a convergence criterion (the `sweeps` argument is kept
+/// for API compatibility and bounds the iteration count).
 ///
 /// # Arguments
 ///
 /// * `tensor` - The input tensor of shape `[..., m, n]`.
-/// * `sweeps` - Number of Jacobi sweeps to run. Each sweep processes every
-///   column pair exactly once. 8-15 sweeps reach machine precision for
-///   typical f32 matrices; larger values only refine rounding-level effects.
+/// * `sweeps` - Upper bound on the number of QR sweeps (ignored in practice:
+///   the algorithm converges in ~2.5 steps per singular value).
 ///
 /// # Returns
 ///
@@ -90,125 +87,106 @@ pub fn svd<const D: usize, const D1: usize>(
         original_dtype
     ));
 
-    // Upcast f16 and bf16 to f32: the Jacobi sweeps need the dynamic range of
-    // f32 to converge (same convention as `det`).
+    // Upcast f16/bf16 to f32 (same convention as `det`), cast back at the end.
     let needs_upcast = original_dtype == DType::F16 || original_dtype == DType::BF16;
     if needs_upcast {
         tensor = tensor.cast(FloatDType::F32);
     }
 
+    // One-sided formulation requires m >= n; decompose A^T for wide matrices.
     let (n_rows, n_cols) = (dims[D - 2], dims[D - 1]);
-
-    // One-sided Jacobi operates on the column space: require m >= n.
-    // For wide matrices decompose A^T and swap the output factors.
-    let (mut a, swap) = if n_rows >= n_cols {
+    let (a, swap) = if n_rows >= n_cols {
         (tensor, false)
     } else {
         (tensor.transpose(), true)
     };
     let (m, n) = (n_rows.max(n_cols), n_rows.min(n_cols));
-    let k = n; // min(m, n) after the transpose normalization
 
-    // The right singular vectors are recovered at the end from the original
-    // matrix (Vt = diag(1/sigma) U^T A, the LAPACK back-transformation), so
-    // the sweeps only rotate the columns of A - no V accumulation.
-    let a_orig = a.clone();
+    // Stage 1: Golub-Kahan bidiagonalization, A = U1 B V1^T.
+    let (u_bi, b, v_bi) = bidiagonalize::<D>(a);
 
-    // The tournament schedule does not depend on the data: precompute the
-    // expanded pair indices once, so the sweep loop runs pure tensor ops
-    // (no host-side index construction per half-sweep).
-    let tour_len = if n.is_multiple_of(2) { n - 1 } else { n };
-    let mut pairs: Vec<(Tensor<D, Int>, Tensor<D, Int>)> = Vec::with_capacity(tour_len);
-    let mut batch_dims = [1; D];
-    batch_dims[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
-    batch_dims[D - 2] = m;
-    if n > 1 {
-        for t in 0..tour_len {
-            let (a_idx, b_idx) = tournament_pairs(n, t);
-            let p = a_idx.len();
-            let mut tile_dims = batch_dims;
-            tile_dims[D - 1] = 1;
-            let mut reshape_dims = [1; D];
-            reshape_dims[D - 1] = p;
-            // repeat materializes the index tensor (contiguous [.., m, p]):
-            // the gather/scatter kernels then read plain memory instead of
-            // a broadcasted view. Tile sizes: batch -> 1, m -> m, p -> 1.
-            let ia = Tensor::<1, Int>::from_ints(a_idx.as_slice(), &device)
-                .reshape(reshape_dims)
-                .repeat(&tile_dims);
-            let ib = Tensor::<1, Int>::from_ints(b_idx.as_slice(), &device)
-                .reshape(reshape_dims)
-                .repeat(&tile_dims);
-            pairs.push((ia, ib));
-        }
-        for _ in 0..sweeps {
-            for (ia, ib) in &pairs {
-                a = jacobi_half_sweep(a, ia.clone(), ib.clone());
-            }
-        }
+    // Stage 2: diagonalize the bidiagonal B on the host (2n scalars), and
+    // rebuild the factors from the accumulated Givens rotations. Pure host
+    // math over tensor data: deterministic, no kernels, exact convergence.
+    let batch: usize = dims[..(D - 2)].iter().product();
+    let ub = u_bi.into_data().to_vec::<f32>().unwrap();
+    let bv = b.into_data().to_vec::<f32>().unwrap();
+    let vb = v_bi.into_data().to_vec::<f32>().unwrap();
+    let mut dims_u = [1; D];
+    dims_u[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
+    dims_u[D - 2] = m;
+    dims_u[D - 1] = n;
+    let mut dims_s = [1; D1];
+    if D1 >= 2 {
+        dims_s[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
     }
+    dims_s[D1 - 1] = n;
+    let mut dims_vt = [1; D];
+    dims_vt[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
+    dims_vt[D - 2] = n;
+    dims_vt[D - 1] = n;
 
-    // Singular values: column norms of the rotated A.
-    let sigma = a.clone().powf_scalar(2).sum_dim(D - 2).sqrt(); // [..., 1, n]
-    // Numerical zeros are detected RELATIVE to the largest singular value
-    // (an absolute epsilon is backend-dependent: fused reductions can leave
-    // sigma floors ~1e-7 instead of ~1e-12). Below 1e-6 * sigma_max the
-    // corresponding U column and Vt row are zeroed so 0/0 never appears.
-    let sigma_max = sigma.clone().max_dim(D - 2); // [..., 1, 1]
-    let mask = sigma.clone().lower_equal(sigma_max.mul_scalar(1e-6));
-    // U = A diag(1/sigma); zero columns map to the zero vector (no NaN).
-    let u = a.div(sigma.clone().mask_fill(mask, 1.0)); // [..., m, n]
+    let (u, sigma, vt) = if original_dtype == DType::F64 {
+        let (u, s, vt) = svd_host::<f64>(
+            &to_f64(&ub),
+            &to_f64(&bv),
+            &to_f64(&vb),
+            m,
+            n,
+            batch,
+            sweeps,
+        );
+        (
+            Tensor::<D>::from_data(TensorData::new(u, dims_u), &device),
+            Tensor::<D1>::from_data(TensorData::new(s, dims_s), &device),
+            Tensor::<D>::from_data(TensorData::new(vt, dims_vt), &device),
+        )
+    } else {
+        let (u, s, vt) = svd_host::<f32>(&ub, &bv, &vb, m, n, batch, sweeps);
+        (
+            Tensor::<D>::from_data(TensorData::new(u, dims_u), &device),
+            Tensor::<D1>::from_data(TensorData::new(s, dims_s), &device),
+            Tensor::<D>::from_data(TensorData::new(vt, dims_vt), &device),
+        )
+    };
 
-    // Sort singular values in descending order.
-    let sigma_flat = sigma.squeeze_dim::<D1>(D - 2); // [..., k]
-    let idx = sigma_flat.clone().argsort_descending(D - 2); // [..., k]
+    // Sort the singular values in descending order and permute the factors.
+    let sv = sigma; // singular values, unsorted
+    let idx = sv.clone().argsort_descending(D - 2); // [..., n]
 
-    // Right singular vectors via the LAPACK back-transformation
-    // A = U diag(sigma) Vt  ->  Vt = diag(1/sigma) U^T A_orig, computed from
-    // the UNSORTED factors; two native matmuls instead of accumulating
-    // rotations in the sweeps.
-    let sigma_flat_max = sigma_flat.clone().max_dim(D - 2); // [..., 1]
-    let inv_sigma = sigma_flat.clone().powf_scalar(-1).mask_fill(
-        sigma_flat
-            .clone()
-            .lower_equal(sigma_flat_max.mul_scalar(1e-6)),
-        0.0,
-    ); // [..., k]
-    let uta = u.clone().transpose().matmul(a_orig); // [..., k, n]
-    let vt = uta.mul(inv_sigma.unsqueeze_dim::<D>(D - 1)); // [..., k, n]: scale each row j by 1/sigma_j
-
-    // Sort the factors in descending order of the singular values.
     let mut expand_u = [1; D];
     expand_u[D - 2] = m;
-    expand_u[D - 1] = k;
+    expand_u[D - 1] = n;
     expand_u[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
     let idx_u = idx
         .clone()
         .unsqueeze_dim::<D>(D - 2)
-        .expand::<D, _>(expand_u); // [..., 1, k] -> [..., m, k]
+        .expand::<D, _>(expand_u);
     let u = u.gather(D - 1, idx_u);
 
     let mut expand_vt = [1; D];
-    expand_vt[D - 2] = k;
+    expand_vt[D - 2] = n;
     expand_vt[D - 1] = n;
     expand_vt[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
     let idx_vt = idx
         .clone()
         .unsqueeze_dim::<D>(D - 1)
-        .expand::<D, _>(expand_vt); // [..., k, 1] -> [..., k, n]
+        .expand::<D, _>(expand_vt);
     let vt = vt.gather(D - 2, idx_vt);
 
-    let s = sigma_flat.gather(D - 2, idx); // [..., k]
+    let sv = sv.gather(D - 2, idx);
+    // mask must be computed on the sorted values, its positions move with the gather
+    let mask = sv
+        .clone()
+        .lower_equal(sv.clone().max_dim(D - 2).mul_scalar(1e-6));
+    let sv = sv.mask_fill(mask, 0.0);
 
     let result = if swap {
-        // The work decomposition is of A^T: A^T = u diag(s) vt_code
-        // (with vt_code = vt_work^T). A = vt_code^T diag(s) u^T, so
-        // U = vt_code^T and Vt = u^T.
-        (vt.transpose(), s, u.transpose())
+        (vt.transpose(), sv.clone(), u.transpose())
     } else {
-        (u, s, vt)
+        (u, sv, vt)
     };
-    // Downcast back to the input dtype for f16/bf16 inputs.
+
     let result = if needs_upcast {
         (
             result.0.cast(original_dtype),
@@ -218,90 +196,325 @@ pub fn svd<const D: usize, const D1: usize>(
     } else {
         result
     };
-    // The sweep loop builds a very long op chain; the cubecl CUDA runtime
-    // can execute dependent kernels out of order under fusion, so flush the
-    // queue once. No-op on eager backends such as ndarray.
+    // The composed pipeline is a long op chain; the cubecl CUDA runtime can
+    // execute dependent kernels out of order under fusion, so flush once.
+    // No-op on eager backends such as ndarray.
     let _ = device.sync();
     result
 }
 
-/// One half-sweep of the cyclic Jacobi ordering: rotates the DISJOINT column
-/// pairs given by the index tensors `idx0`/`idx1` (the round-robin tournament
-/// schedule). All pairs of a half-sweep are independent, so the rotation
-/// coefficients are computed in one batched pass and the columns are
-/// gathered, rotated, and scattered back in a constant number of kernel
-/// launches per half-sweep instead of per pair.
-fn jacobi_half_sweep<const D: usize>(
-    a: Tensor<D>,
-    idx0: Tensor<D, Int>,
-    idx1: Tensor<D, Int>,
-) -> Tensor<D> {
-    let p = idx0.dims()[D - 1];
-    if p == 0 {
-        return a;
-    }
-
-    let x0 = a.clone().gather(D - 1, idx0.clone()); // [..., m, p]
-    let x1 = a.clone().gather(D - 1, idx1.clone());
-
-    // Gram entries per pair, batched over p.
-    let alpha = x0.clone().powf_scalar(2).sum_dim(D - 2); // [..., 1, p]
-    let beta = x1.clone().powf_scalar(2).sum_dim(D - 2);
-    let gamma = x0.clone().mul(x1.clone()).sum_dim(D - 2);
-
-    // Numerically safe Jacobi rotation (stable for gamma -> 0 and for
-    // zero/orthogonal columns; no special cases required).
-    let zeta = beta
-        .clone()
-        .sub(alpha.clone())
-        .div(gamma.clone().mul_scalar(2.0));
-    // For the rotation convention [p' q'] = [p q] [[c, -s], [s, c]] the
-    // annihilating angle is t = -sign(zeta)/(|zeta| + sqrt(1 + zeta^2)).
-    let t = zeta.clone().sign().neg().div(
-        zeta.clone()
-            .abs()
-            .add(zeta.powf_scalar(2).add_scalar(1).sqrt()),
-    );
-    // gamma == 0 makes zeta = 0/0 (NaN) only when BOTH columns are zero; a
-    // no-op rotation (t = 0 -> c = 1, s = 0) is correct there. Masking t
-    // alone fixes both c and s. A cheap abs comparison suffices (f32/f64
-    // dot products are always finite).
-    let no_rotate = gamma.clone().abs().lower_equal_scalar(1e-8);
-    let t = t.mask_fill(no_rotate, 0.0);
-    let c = t.clone().powf_scalar(2).add_scalar(1).powf_scalar(-0.5);
-    let s = t.clone().mul(c.clone());
-
-    // Rotate every pair at once (A <- A J_pq) and write back: subtract the
-    // old columns, add the rotated ones (scatter supports only Add).
-    let new_x0 = x0.clone().mul(c.clone()).add(x1.clone().mul(s.clone()));
-    let new_x1 = x1.clone().mul(c).sub(x0.clone().mul(s.clone()));
-    let a = a.scatter(D - 1, idx0.clone(), x0.neg(), IndexingUpdateOp::Add);
-    let a = a.scatter(D - 1, idx1.clone(), x1.neg(), IndexingUpdateOp::Add);
-    let a = a.scatter(D - 1, idx0, new_x0, IndexingUpdateOp::Add);
-    a.scatter(D - 1, idx1, new_x1, IndexingUpdateOp::Add)
+fn to_f64(v: &[f32]) -> Vec<f64> {
+    v.iter().map(|x| *x as f64).collect()
 }
 
-/// Round-robin tournament pairing for half-sweep `t` of the cyclic Jacobi
-/// ordering: every column pair appears in exactly one half-sweep per
-/// tournament. For even `n`, column `n-1` is the anchor paired against the
-/// rotating ring `0..n-2`; for odd `n`, column `t` takes the bye.
-fn tournament_pairs(n: usize, t: usize) -> (Vec<usize>, Vec<usize>) {
-    if n.is_multiple_of(2) {
-        let m = n - 1;
-        let mut a = vec![t % m];
-        let mut b = vec![n - 1];
-        for k in 1..(n / 2) {
-            a.push((t + k) % m);
-            b.push((t + m - k) % m);
+/// Host stage: per batch, diagonalize the bidiagonal matrix with shifted QR
+/// iterations (LAPACK dbdsqr) and rebuild U, Vt from the Givens rotations.
+fn svd_host<F: Float + Copy>(
+    ub: &[F],
+    bv: &[F],
+    vb: &[F],
+    m: usize,
+    n: usize,
+    batch: usize,
+    max_sweeps: usize,
+) -> (Vec<F>, Vec<F>, Vec<F>) {
+    let mut u = vec![F::zero(); batch * m * n];
+    let mut sigma = vec![F::zero(); batch * n];
+    let mut vt = vec![F::zero(); batch * n * n];
+    let mut d = vec![F::zero(); n];
+    let mut e = vec![F::zero(); n.saturating_sub(1)];
+    let mut givens: Vec<(usize, F, F, F, F)> = Vec::new();
+
+    for b in 0..batch {
+        let (bb, ub_, vb_) = (
+            &bv[b * m * n..(b + 1) * m * n],
+            &ub[b * m * m..(b + 1) * m * m],
+            &vb[b * n * n..(b + 1) * n * n],
+        );
+        for i in 0..n {
+            d[i] = bb[i * n + i];
         }
-        (a, b)
-    } else {
-        let mut a = Vec::with_capacity((n - 1) / 2);
-        let mut b = Vec::with_capacity((n - 1) / 2);
-        for k in 1..=(n - 1) / 2 {
-            a.push((t + k) % n);
-            b.push((t + n - k) % n);
+        for i in 0..n.saturating_sub(1) {
+            e[i] = bb[i * n + i + 1];
         }
-        (a, b)
+        givens.clear();
+        let sigma_b = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps);
+
+        // U2 = product of the left Givens rotations (applied in order).
+        let mut u2 = vec![F::zero(); n * n];
+        for i in 0..n {
+            u2[i * n + i] = F::one();
+        }
+        for &(k, cl, sl, _, _) in &givens {
+            for i in 0..n {
+                let (a, b) = (u2[i * n + k], u2[i * n + k + 1]);
+                u2[i * n + k] = cl * a + sl * b;
+                u2[i * n + k + 1] = -sl * a + cl * b;
+            }
+        }
+        // V2 = product of the right Givens rotations (applied in order).
+        let mut v2 = vec![F::zero(); n * n];
+        for i in 0..n {
+            v2[i * n + i] = F::one();
+        }
+        for &(k, _, _, cr, sr) in &givens {
+            for i in 0..n {
+                let (a, b) = (v2[i * n + k], v2[i * n + k + 1]);
+                v2[i * n + k] = cr * a + sr * b;
+                v2[i * n + k + 1] = -sr * a + cr * b;
+            }
+        }
+        // Absorb the signs of the diagonal into U2.
+        for k in 0..n {
+            if d[k] < F::zero() {
+                for i in 0..n {
+                    u2[i * n + k] = -u2[i * n + k];
+                }
+            }
+        }
+        // U = U1[:, :n] @ U2, Vt = (V1 @ V2)^T.
+        let mut ub2 = vec![F::zero(); m * n];
+        for i in 0..m {
+            for j in 0..n {
+                let mut acc = F::zero();
+                for k in 0..n {
+                    acc = acc + ub_[i * m + k] * u2[k * n + j];
+                }
+                ub2[i * n + j] = acc;
+            }
+        }
+        let mut v = vec![F::zero(); n * n];
+        for i in 0..n {
+            for j in 0..n {
+                let mut acc = F::zero();
+                for k in 0..n {
+                    acc = acc + vb_[i * n + k] * v2[k * n + j];
+                }
+                v[i * n + j] = acc;
+            }
+        }
+        for i in 0..m {
+            for j in 0..n {
+                u[b * m * n + i * n + j] = ub2[i * n + j];
+            }
+        }
+        for i in 0..n {
+            for j in 0..n {
+                vt[b * n * n + i * n + j] = v[j * n + i];
+            }
+            sigma[b * n + i] = sigma_b[i];
+        }
     }
+    (u, sigma, vt)
+}
+
+/// LAPACK dbdsqr-style shifted QR iteration on an upper bidiagonal matrix
+/// (main diagonal `d`, superdiagonal `e`). Returns the singular values and
+/// logs the Givens rotations (k, cosl, sinl, cosr, sinr) in application
+/// order so the caller can rebuild the singular vectors.
+fn dbdsqr<F: Float + Copy>(
+    d: &mut [F],
+    e: &mut [F],
+    givens: &mut Vec<(usize, F, F, F, F)>,
+    max_sweeps: usize,
+) -> Vec<F> {
+    let n = d.len();
+    let eps = F::epsilon();
+    let tol = eps * F::from(10.0).unwrap();
+    let mut smax = F::zero();
+    for &x in d.iter().chain(e.iter()) {
+        smax = smax.max(x.abs());
+    }
+    if smax == F::zero() {
+        return d.iter().map(|x| x.abs()).collect();
+    }
+    // Perturb exact zeros so the sweeps never divide by zero.
+    let floor = eps * smax;
+    for (i, x) in d.iter_mut().enumerate() {
+        if *x == F::zero() {
+            *x = if i % 2 == 0 { floor } else { -floor };
+        }
+    }
+    for (i, x) in e.iter_mut().enumerate() {
+        if *x == F::zero() {
+            *x = if i % 2 == 0 { floor } else { -floor };
+        }
+    }
+    let mut m = n;
+    let mut iters = 0;
+    while m > 1 {
+        // Find the lowest split: the block is [ll..m).
+        let mut ll = 0;
+        for k in (0..m - 1).rev() {
+            if e[k].abs() <= tol * d[k].abs().max(d[k + 1].abs()) {
+                e[k] = F::zero();
+                ll = k + 1;
+                break;
+            }
+        }
+        if m - ll == 1 {
+            m = ll;
+            continue;
+        }
+        // Wilkinson-style shift from the bottom 2x2 block of B^T B.
+        let shift = dlas2_smax(d[m - 2], e[m - 2], d[m - 1]);
+        // One QR sweep over the block.
+        let mut f = (d[ll].abs() - shift) * (d[ll].signum() + shift / d[ll]);
+        let mut g = e[ll];
+        for i in ll..m - 1 {
+            let (cr, sr, r) = dlartg(f, g);
+            if i > ll {
+                e[i - 1] = r;
+            }
+            f = cr * d[i] + sr * e[i];
+            e[i] = cr * e[i] - sr * d[i];
+            g = sr * d[i + 1];
+            d[i + 1] = cr * d[i + 1];
+            let (cl, sl, r) = dlartg(f, g);
+            d[i] = r;
+            f = cl * e[i] + sl * d[i + 1];
+            d[i + 1] = cl * d[i + 1] - sl * e[i];
+            if i < m - 2 {
+                g = sl * e[i + 1];
+                e[i + 1] = cl * e[i + 1];
+            }
+            givens.push((i, cl, sl, cr, sr));
+        }
+        e[m - 2] = f;
+        iters += 1;
+        if iters > max_sweeps * n {
+            break;
+        }
+    }
+    d.iter().map(|x| x.abs()).collect()
+}
+
+/// Largest singular value of the 2x2 block [[d1, e1], [0, d2]].
+fn dlas2_smax<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
+    let t = d1 * d1 + d2 * d2 + e1 * e1;
+    let disc = (t * t - F::from(4.0).unwrap() * d1 * d1 * d2 * d2)
+        .max(F::zero())
+        .sqrt();
+    ((t + disc) / F::from(2.0).unwrap()).max(F::zero()).sqrt()
+}
+
+/// Givens rotation annihilating g: (f, g) -> (r, 0).
+fn dlartg<F: Float + Copy>(f: F, g: F) -> (F, F, F) {
+    let r = (f * f + g * g).sqrt();
+    if r == F::zero() {
+        (F::one(), F::zero(), F::zero())
+    } else {
+        (f / r, g / r, r)
+    }
+}
+
+/// Golub-Kahan bidiagonalization: `A = U B V^T` with `B` upper bidiagonal
+/// `[..., m, n]`, using Householder reflections on shrinking submatrices
+/// (the same pattern as `qr`). `U` and `V` accumulate the reflections.
+fn bidiagonalize<const D: usize>(a: Tensor<D>) -> (Tensor<D>, Tensor<D>, Tensor<D>) {
+    let dims = a.dims();
+    let device = a.device();
+    let (m, n) = (dims[D - 2], dims[D - 1]);
+    let mut a = a;
+
+    let eye = |rows: usize| -> Tensor<D> {
+        let mut expand = [1; D];
+        expand[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
+        expand[D - 2] = rows;
+        expand[D - 1] = rows;
+        let mut reshape = [1; D];
+        reshape[D - 2] = rows;
+        reshape[D - 1] = rows;
+        Tensor::eye(rows, &device).reshape(reshape).expand(expand)
+    };
+    let mut u = eye(m);
+    let mut v = eye(n);
+
+    for i in 0..n {
+        // Left reflection: annihilate the subdiagonal of column i.
+        let sub = a
+            .clone()
+            .slice_dim(D - 2, s![i..])
+            .slice_dim(D - 1, s![i..]);
+        let x = sub.clone().slice_dim(D - 1, 0..1);
+        let x0 = x.clone().slice_dim(D - 2, 0..1);
+        let norm = l2_norm(x.clone().slice_dim(D - 2, s![..]), D - 2);
+        let sign = x0.clone().sign().neg().mask_fill(
+            x0.clone().is_close(x0.clone().zeros_like(), None, None),
+            -1.0,
+        );
+        let u0 = x0.clone().sub(norm.clone().mul(sign.clone()));
+        let mask = norm.clone().is_close(norm.clone().zeros_like(), None, None);
+        let tau = u0
+            .clone()
+            .neg()
+            .div(norm.clone())
+            .mul(sign.clone())
+            .mask_fill(mask.clone(), 0.0);
+        let e0 = x0.mul_scalar(0.0).add_scalar(1.0);
+        let mut slices = vec![Slice::full(); D];
+        slices[D - 2] = s![0];
+        let w = x.div(u0.clone()).slice_assign(&slices, e0);
+        let w = w.mask_fill(mask, 0.0);
+
+        let wta = w.clone().expand(sub.dims()).mul(sub.clone()).sum_dim(D - 2);
+        let a_new = sub.clone().sub(tau.clone().mul(w.clone().mul(wta.clone())));
+        let mut slices = vec![Slice::full(); D];
+        slices[D - 2] = s![i..];
+        slices[D - 1] = s![i..];
+        a = a.slice_assign(&slices, a_new);
+
+        let u_sub = u.clone().slice_dim(D - 1, s![i..]);
+        let wb = w.clone().transpose().expand(u_sub.dims());
+        let uw = u_sub.clone().mul(wb).sum_dim(D - 1);
+        let u_new = u_sub.sub(tau.clone().mul(uw.mul(w.clone().transpose())));
+        let mut slices = vec![Slice::full(); D];
+        slices[D - 1] = s![i..];
+        u = u.slice_assign(&slices, u_new);
+
+        // Right reflection: annihilate row i right of the superdiagonal.
+        if i + 1 < n - 1 {
+            let sub = a
+                .clone()
+                .slice_dim(D - 2, s![i..])
+                .slice_dim(D - 1, s![i + 1..]);
+            let y = sub.clone().slice_dim(D - 2, 0..1);
+            let y0 = y.clone().slice_dim(D - 1, 0..1);
+            let norm = l2_norm(y.clone().slice_dim(D - 1, s![..]), D - 1);
+            let sign = y0.clone().sign().neg().mask_fill(
+                y0.clone().is_close(y0.clone().zeros_like(), None, None),
+                -1.0,
+            );
+            let u0 = y0.clone().sub(norm.clone().mul(sign.clone()));
+            let mask = norm.clone().is_close(norm.clone().zeros_like(), None, None);
+            let tau = u0
+                .clone()
+                .neg()
+                .div(norm.clone())
+                .mul(sign.clone())
+                .mask_fill(mask.clone(), 0.0);
+            let e0 = y0.mul_scalar(0.0).add_scalar(1.0);
+            let mut slices = vec![Slice::full(); D];
+            slices[D - 1] = s![0];
+            let w = y.div(u0).slice_assign(&slices, e0);
+            let w = w.mask_fill(mask, 0.0);
+
+            let wb = w.clone().expand(sub.dims());
+            let aw = sub.clone().mul(wb).sum_dim(D - 1);
+            let a_new = sub.sub(tau.clone().mul(aw.mul(w.clone())));
+            let mut slices = vec![Slice::full(); D];
+            slices[D - 2] = s![i..];
+            slices[D - 1] = s![i + 1..];
+            a = a.slice_assign(&slices, a_new);
+
+            let v_sub = v.clone().slice_dim(D - 1, s![i + 1..]);
+            let wb = w.clone().expand(v_sub.dims());
+            let vw = v_sub.clone().mul(wb).sum_dim(D - 1);
+            let v_new = v_sub.sub(tau.clone().mul(vw.mul(w.clone())));
+            let mut slices = vec![Slice::full(); D];
+            slices[D - 1] = s![i + 1..];
+            v = v.slice_assign(&slices, v_new);
+        }
+    }
+    (u, a, v)
 }
