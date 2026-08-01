@@ -971,3 +971,50 @@ fn dbgt_stress() {
     println!("STRESS determinism ok");
     assert_eq!(failures, 0, "{failures} stress failures");
 }
+
+#[test]
+#[ignore = "benchmark"]
+fn bench_svd_realistic() {
+    use std::time::Instant;
+    let device = Default::default();
+    let cases: Vec<(String, Vec<usize>, usize)> = vec![
+        ("tall 512x128".into(), vec![512, 128], 5),
+        ("wide 128x512".into(), vec![128, 512], 5),
+        ("tall 256x64".into(), vec![256, 64], 10),
+        ("batch 8x64x64".into(), vec![8, 64, 64], 5),
+        ("batch 16x128x128".into(), vec![16, 128, 128], 2),
+        ("square 256x256".into(), vec![256, 256], 5),
+    ];
+    for (name, dims, r) in cases {
+        let a = TestTensor::<2>::random(dims.clone(), Distribution::Normal(0.0, 1.0), &device);
+        for _ in 0..(r / 2).max(1) {
+            let _ = svd::<2, 1>(a.clone(), 15);
+        }
+        let t0 = Instant::now();
+        for _ in 0..r {
+            let _ = svd::<2, 1>(a.clone(), 15);
+        }
+        let dt = t0.elapsed().as_secs_f64() / r as f64;
+        let (u, s, vt) = svd::<2, 1>(a.clone(), 15);
+        let err = recon_err::<2, 1>(a, u, &s, vt);
+        println!("BENCHR {name} | {:.1} us | err {err:.2e}", dt * 1e6);
+    }
+}
+
+#[test]
+#[ignore = "stress"]
+fn dbgt_find_bad_tall() {
+    use burn_tensor::Distribution;
+    let device = Default::default();
+    let mut worst = (0.0f32, 0usize);
+    for trial in 0..100 {
+        let a = TestTensor::<2>::random([512, 128], Distribution::Normal(0.0, 1.0), &device);
+        let (u, s, vt) = svd::<2, 1>(a.clone(), 15);
+        let err = recon_err::<2, 1>(a, u, &s, vt);
+        if err > worst.0 {
+            worst = (err, trial);
+        }
+    }
+    println!("DBGT worst tall err {:.3e} trial {}", worst.0, worst.1);
+    assert!(worst.0 < 1e-3, "worst tall err too big: {:.3e}", worst.0);
+}

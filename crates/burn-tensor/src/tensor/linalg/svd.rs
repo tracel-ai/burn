@@ -252,9 +252,9 @@ fn svd_host<F: Float + Copy>(
         // the column pair of U1 directly (same operator as the accumulation).
         for &(k, cl, sl, _, _) in &givens {
             for i in 0..m {
-                let (a0, b0) = (u1[i * m + k], u1[i * m + k + 1]);
-                u1[i * m + k] = cl * a0 + sl * b0;
-                u1[i * m + k + 1] = -sl * a0 + cl * b0;
+                let (a0, b0) = (u1[i * n + k], u1[i * n + k + 1]);
+                u1[i * n + k] = cl * a0 + sl * b0;
+                u1[i * n + k + 1] = -sl * a0 + cl * b0;
             }
         }
         // Vt = (V1 @ (product of right Givens rotations))^T.
@@ -269,13 +269,13 @@ fn svd_host<F: Float + Copy>(
         for k in 0..n {
             if d[k] < F::zero() {
                 for i in 0..m {
-                    u1[i * m + k] = -u1[i * m + k];
+                    u1[i * n + k] = -u1[i * n + k];
                 }
             }
         }
         for i in 0..m {
             for j in 0..n {
-                u[b * m * n + i * n + j] = u1[i * m + j];
+                u[b * m * n + i * n + j] = u1[i * n + j];
             }
         }
         for i in 0..n {
@@ -354,14 +354,16 @@ fn svd_host<F: Float + Copy>(
 /// shrinking submatrices, mirroring the tensor-op version operation for
 /// operation.
 fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>, Vec<F>) {
-    let mut u1 = vec![F::zero(); m * m];
-    for i in 0..m {
-        u1[i * m + i] = F::one();
-    }
     let mut v1 = vec![F::zero(); n * n];
     for i in 0..n {
         v1[i * n + i] = F::one();
     }
+    // Left reflectors (w, tau) are collected and applied to the U1 columns
+    // once at the end: the output only needs the first n columns, which
+    // costs O(m n^2) instead of the O(m^2 n) step-by-step update, a large
+    // win for tall matrices (m >> n).
+    let mut ws: Vec<F> = vec![F::zero(); m * n];
+    let mut taus = vec![F::zero(); n];
     let mut a = a.to_vec();
 
     for i in 0..n {
@@ -403,15 +405,10 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
                     a[k * n + j] = a[k * n + j] - tau * w[k] * wta;
                 }
             }
-            // U1 = U1 (I - tau w w^T): update the columns i..m.
-            for i2 in 0..m {
-                let uw: F = (i..m).fold(F::zero(), |s, k| s + u1[i2 * m + k] * w[k]);
-                if uw != F::zero() {
-                    for k in i..m {
-                        u1[i2 * m + k] = u1[i2 * m + k] - tau * uw * w[k];
-                    }
-                }
+            for (k, &wk) in w.iter().enumerate().take(m) {
+                ws[i * m + k] = wk;
             }
+            taus[i] = tau;
         }
 
         // Right reflection: annihilate row i right of the superdiagonal.
@@ -459,6 +456,26 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
                         for j in (i + 1)..n {
                             v1[i2 * n + j] = v1[i2 * n + j] - tau * vw * w[j];
                         }
+                    }
+                }
+            }
+        }
+    }
+    let mut u1 = vec![F::zero(); m * n];
+    for i in 0..n {
+        u1[i * n + i] = F::one();
+    }
+    for i in (0..n).rev() {
+        let tau = taus[i];
+        if tau != F::zero() {
+            for j in 0..n {
+                let mut uw = F::zero();
+                for k in i..m {
+                    uw = uw + ws[i * m + k] * u1[k * n + j];
+                }
+                if uw != F::zero() {
+                    for k in i..m {
+                        u1[k * n + j] = u1[k * n + j] - tau * ws[i * m + k] * uw;
                     }
                 }
             }
@@ -514,8 +531,20 @@ fn dbdsqr<F: Float + Copy>(
             m = ll;
             continue;
         }
-        // Wilkinson-style shift from the bottom 2x2 block of B^T B.
-        let shift = dlas2_smax(d[m - 2], e[m - 2], d[m - 1]);
+        // Wilkinson-style shift from the bottom 2x2 block of B^T B. For f32
+        // inputs the closed form carries ~1e-5 error, which exceeds the
+        // deflation threshold (10 eps) and stalls 2x2 blocks on rounding
+        // boundaries; computing the shift in f64 keeps it exact.
+        let shift = if core::mem::size_of::<F>() == 4 {
+            let d1 = d[m - 2].to_f64().unwrap();
+            let e1 = e[m - 2].to_f64().unwrap();
+            let d2 = d[m - 1].to_f64().unwrap();
+            let t = d1 * d1 + d2 * d2 + e1 * e1;
+            let disc = (t * t - 4.0 * d1 * d1 * d2 * d2).max(0.0).sqrt();
+            F::from(((t + disc) / 2.0).max(0.0).sqrt()).unwrap()
+        } else {
+            dlas2_smax(d[m - 2], e[m - 2], d[m - 1])
+        };
         // One QR sweep over the block. The starting value is the first column
         // of (B - shift I) scaled for stability; with d[ll] exactly zero the
         // formula diverges, so take its finite proxy (-shift, direction of
@@ -557,26 +586,40 @@ fn dbdsqr<F: Float + Copy>(
 /// Largest singular value of the 2x2 block [[d1, e1], [0, d2]]. Scaled like
 /// LAPACK dlas2: no overflow or underflow on the intermediate squares.
 fn dlas2_smax<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
-    let scale = d1.abs().max(d2.abs()).max(e1.abs());
-    if scale == F::zero() {
-        return F::zero();
+    let t = d1 * d1 + d2 * d2 + e1 * e1;
+    if t.is_finite() {
+        let disc = (t * t - F::from(4.0).unwrap() * d1 * d1 * d2 * d2)
+            .max(F::zero())
+            .sqrt();
+        ((t + disc) / F::from(2.0).unwrap()).max(F::zero()).sqrt()
+    } else {
+        let scale = d1.abs().max(d2.abs()).max(e1.abs());
+        if scale == F::zero() {
+            return F::zero();
+        }
+        let (a, b, c) = (d1 / scale, d2 / scale, e1 / scale);
+        let t = a * a + b * b + c * c;
+        let disc = (t * t - F::from(4.0).unwrap() * a * a * b * b).max(F::zero());
+        scale * ((t + disc.sqrt()) / F::from(2.0).unwrap()).sqrt()
     }
-    let (a, b, c) = (d1 / scale, d2 / scale, e1 / scale);
-    let t = a * a + b * b + c * c;
-    let disc = (t * t - F::from(4.0).unwrap() * a * a * b * b).max(F::zero());
-    scale * ((t + disc.sqrt()) / F::from(2.0).unwrap()).sqrt()
 }
 
 /// Givens rotation annihilating g: (f, g) -> (r, 0). Scaled like LAPACK
 /// dlartg: r = sqrt(f^2 + g^2) computed without overflow or underflow.
 fn dlartg<F: Float + Copy>(f: F, g: F) -> (F, F, F) {
-    let scale = f.abs().max(g.abs());
-    if scale == F::zero() {
-        (F::one(), F::zero(), F::zero())
-    } else {
-        let (sf, sg) = (f / scale, g / scale);
-        let r = scale * (sf * sf + sg * sg).sqrt();
+    let r2 = f * f + g * g;
+    if r2.is_finite() && r2 > F::zero() {
+        let r = r2.sqrt();
         (f / r, g / r, r)
+    } else {
+        let scale = f.abs().max(g.abs());
+        if scale == F::zero() {
+            (F::one(), F::zero(), F::zero())
+        } else {
+            let (sf, sg) = (f / scale, g / scale);
+            let r = scale * (sf * sf + sg * sg).sqrt();
+            (f / r, g / r, r)
+        }
     }
 }
 
@@ -637,7 +680,6 @@ mod tests {
         let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 2, 30, false);
         assert!(recon_err::<f64>(&u[..12], &s[..3], &vt[..9], &a[..12], 4, 3) < 1e-12);
         assert!(recon_err::<f64>(&u[12..], &s[3..], &vt[9..], &a[12..], 4, 3) < 1e-12);
-        println!("DBGT batch2 recon ok");
         // extreme scales stay finite
         let a = [1e200f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         let (u, s, vt) = svd_host::<f64>(&a, 3, 3, 1, 30, false);
@@ -666,4 +708,122 @@ mod tests {
             assert!(err <= a[0].abs().max(1.0) * 1e-4, "recon err {err}");
         }
     }
+}
+
+#[test]
+fn test_svd_host_tall_fixed() {
+    // fixed 512x128: deterministic formula, checks the lazy-U1 path
+    let m = 512usize;
+    let n = 128usize;
+    let mut a = Vec::with_capacity(m * n);
+    for i in 0..m {
+        for j in 0..n {
+            a.push(
+                (((i * 7919 + j * 104729) % 100000) as f64 / 100000.0 - 0.5) * 2.0
+                    + (i as f64 - j as f64) * 0.001,
+            );
+        }
+    }
+    let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
+    let mut err = 0.0f64;
+    for i in 0..m {
+        for j in 0..n {
+            let mut acc = 0.0f64;
+            for k in 0..n {
+                acc += u[i * n + k] * s[k] * vt[k * n + j];
+            }
+            err = err.max((a[i * n + j] - acc).abs());
+        }
+    }
+    assert!(err < 1e-9, "tall recon err {err}");
+
+    // same matrix in f32
+    let af: Vec<f32> = a.iter().map(|x| *x as f32).collect();
+    let (u, s, vt) = svd_host::<f32>(&af, m, n, 1, 30, false);
+    let mut err = 0.0f32;
+    for i in 0..m {
+        for j in 0..n {
+            let mut acc = 0.0f32;
+            for k in 0..n {
+                acc += u[i * n + k] * s[k] * vt[k * n + j];
+            }
+            err = err.max((af[i * n + j] - acc).abs());
+        }
+    }
+    assert!(err < 1e-3, "tall f32 recon err {err}");
+}
+
+#[test]
+fn test_svd_host_tall_seeded() {
+    // deterministic LCG over 60 tall 512x128 matrices in f32, find the
+    // pathological one that the randomized bench hit (~2.5% of matrices)
+    let (m, n) = (512usize, 128usize);
+    let mut state: u64 = 0x1234_5678_9abc_def0;
+    let mut next = move || {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((state >> 33) as f32) / (1u32 << 31) as f32
+    };
+    let mut worst = 0.0f32;
+    for _trial in 0..60 {
+        let mut a = vec![0.0f32; m * n];
+        for x in a.iter_mut() {
+            *x = next() * 2.0 - 1.0;
+        }
+        let (u, s, vt) = svd_host::<f32>(&a, m, n, 1, 15, false);
+        let mut err = 0.0f32;
+        for i in 0..m {
+            for j in 0..n {
+                let mut acc = 0.0f32;
+                for k in 0..n {
+                    acc += u[i * n + k] * s[k] * vt[k * n + j];
+                }
+                err = err.max((a[i * n + j] - acc).abs());
+            }
+        }
+
+        if err > worst {
+            worst = err;
+        }
+    }
+    assert!(worst < 1e-3, "seeded tall worst {worst}");
+}
+
+#[test]
+fn test_svd_host_2x2_direct() {
+    // B = [[2,1],[0,1]]: exact 2x2 closed-form path
+    let a = [2.0f64, 1.0, 0.0, 1.0];
+    let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
+    let mut err = 0.0f64;
+    for i in 0..2 {
+        for j in 0..2 {
+            let mut acc = 0.0f64;
+            for k in 0..2 {
+                acc += u[i * 2 + k] * s[k] * vt[k * 2 + j];
+            }
+            err = err.max((a[i * 2 + j] - acc).abs());
+        }
+    }
+    assert!(err < 1e-12, "2x2 recon {err}");
+}
+
+#[test]
+fn test_svd_host_batch2_matrix() {
+    // the batch-2 matrix from test_svd_host_f64, isolated
+    let a = [
+        1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 1.5, 2.5,
+    ];
+    let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false);
+    let mut err = 0.0f64;
+    for i in 0..4 {
+        for j in 0..3 {
+            let mut acc = 0.0f64;
+            for k in 0..3 {
+                acc += u[i * 3 + k] * s[k] * vt[k * 3 + j];
+            }
+            err = err.max((a[i * 3 + j] - acc).abs());
+        }
+    }
+    assert!(err < 1e-12, "batch2 recon {err}");
 }
