@@ -255,11 +255,94 @@ impl<R: FusionRuntime> MultiStream<R> {
                     ExecutionMode::Sync,
                 );
                 stream.cursor += num_executed as u64;
+                // A drain is an execution boundary even when the queue was
+                // already empty — release what was deferred to it.
+                stream.queue.flush_deferred(handles);
             }
         });
         #[cfg(feature = "test-util")]
         crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
     }
+
+    /// How a cross-thread read of `ir` on `id`'s stream must be served — see
+    /// [`ReadPlan`].
+    pub(crate) fn read_plan(
+        &self,
+        id: StreamId,
+        ir: &burn_ir::TensorIr,
+        handles: &HandleContainer<R::FusionHandle>,
+    ) -> ReadPlan {
+        if handles.get_handle_ref(&ir.id).is_none() {
+            // A pending operation still has to produce the tensor: only the
+            // queue can order the read after it.
+            return ReadPlan::Drain;
+        }
+        if !matches!(ir.status, burn_ir::TensorStatus::ReadWrite) {
+            return ReadPlan::Direct;
+        }
+        // A last-use read frees the handle; if the stream may still reference
+        // the tensor (`variables` is a conservative O(1) check — the accurate
+        // answer is the execution boundary's job), the free must wait for the
+        // pending operations rather than force them to run.
+        match self.streams.get(&id) {
+            Some(stream) if stream.queue.variables.contains_key(&ir.id) => ReadPlan::DeferFree,
+            _ => ReadPlan::Direct,
+        }
+    }
+
+    /// Queue `ir`'s last-use free to run at `id`'s next execution boundary.
+    pub(crate) fn defer_free(&mut self, id: StreamId, ir: burn_ir::TensorIr) {
+        if let Some(stream) = self.streams.get_mut(&id) {
+            stream.queue.deferred_frees.push(ir);
+        }
+    }
+
+    /// A cross-thread `Drop` of a tensor whose handle is already materialized:
+    /// run it without touching the stream's queue — immediately when nothing
+    /// pending references the tensor, at the next execution boundary
+    /// otherwise. Returns `false` when the handle does not exist yet; only
+    /// the queue can order that drop after its producer, so the caller must
+    /// fall back to the drain-then-enqueue path.
+    pub(crate) fn foreign_drop(
+        &mut self,
+        id: StreamId,
+        ir: burn_ir::TensorIr,
+        handles: &mut HandleContainer<R::FusionHandle>,
+    ) -> bool {
+        if handles.get_handle_ref(&ir.id).is_none() {
+            return false;
+        }
+        // Mirrors `register`'s bookkeeping for `Drop` ops: no live tensor
+        // holds this id anymore, so no future share can use it as a source.
+        self.shared_sources.remove(&ir.id);
+        match self.streams.get_mut(&id) {
+            Some(stream) if stream.queue.variables.contains_key(&ir.id) => {
+                stream.queue.deferred_frees.push(ir);
+            }
+            _ => handles.free(&ir),
+        }
+        true
+    }
+}
+
+/// How a cross-thread read of a tensor on another stream must be served.
+///
+/// Draining at read time was the historical behavior for every read, and it
+/// made fused-block composition a function of *when* another thread resolved
+/// a value: the read's message lands at an arbitrary point between the home
+/// thread's own registrations, so the very same op sequence compiled
+/// different fused blocks run to run — observed as autotune-key churn on a
+/// generation loop that reads each sampled token from a reader thread. A
+/// drain is forced only when the tensor's handle does not exist yet.
+pub(crate) enum ReadPlan {
+    /// A pending operation still has to produce the tensor: drain first.
+    Drain,
+    /// Read (and, for a last use, free) directly — nothing pending is
+    /// involved.
+    Direct,
+    /// Read through a `ReadOnly` view now; the last-use free runs at the
+    /// stream's next execution boundary.
+    DeferFree,
 }
 
 pub(crate) struct Stream<R: FusionRuntime> {
