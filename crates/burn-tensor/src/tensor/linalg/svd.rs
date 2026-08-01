@@ -1,7 +1,7 @@
-use crate::{DType, Tensor, check, check::TensorCheck, linalg::l2_norm, s};
+use crate::{DType, Tensor, check, check::TensorCheck};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_std::{FloatDType, Slice, TensorData};
+use burn_std::{FloatDType, TensorData};
 use num_traits::float::Float;
 
 /// Computes the singular value decomposition of a square or rectangular matrix.
@@ -102,16 +102,11 @@ pub fn svd<const D: usize, const D1: usize>(
     };
     let (m, n) = (n_rows.max(n_cols), n_rows.min(n_cols));
 
-    // Stage 1: Golub-Kahan bidiagonalization, A = U1 B V1^T.
-    let (u_bi, b, v_bi) = bidiagonalize::<D>(a);
-
-    // Stage 2: diagonalize the bidiagonal B on the host (2n scalars), and
-    // rebuild the factors from the accumulated Givens rotations. Pure host
-    // math over tensor data: deterministic, no kernels, exact convergence.
+    // Pull the data and run the whole pipeline on the host: bidiagonalization,
+    // dbdsqr diagonalization, Givens accumulation and factor assembly. This is
+    // deterministic and backend-independent, and avoids the fused-CUDA
+    // per-operation dispatch overhead that dominates tensor-op implementations.
     let batch: usize = dims[..(D - 2)].iter().product();
-    let ub = u_bi.into_data().to_vec::<f32>().unwrap();
-    let bv = b.into_data().to_vec::<f32>().unwrap();
-    let vb = v_bi.into_data().to_vec::<f32>().unwrap();
     let mut dims_u = [1; D];
     dims_u[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
     dims_u[D - 2] = m;
@@ -127,22 +122,16 @@ pub fn svd<const D: usize, const D1: usize>(
     dims_vt[D - 1] = n;
 
     let (u, sigma, vt) = if original_dtype == DType::F64 {
-        let (u, s, vt) = svd_host::<f64>(
-            &to_f64(&ub),
-            &to_f64(&bv),
-            &to_f64(&vb),
-            m,
-            n,
-            batch,
-            sweeps,
-        );
+        let a_data = a.into_data().to_vec::<f64>().unwrap();
+        let (u, s, vt) = svd_host::<f64>(&a_data, m, n, batch, sweeps);
         (
             Tensor::<D>::from_data(TensorData::new(u, dims_u), &device),
             Tensor::<D1>::from_data(TensorData::new(s, dims_s), &device),
             Tensor::<D>::from_data(TensorData::new(vt, dims_vt), &device),
         )
     } else {
-        let (u, s, vt) = svd_host::<f32>(&ub, &bv, &vb, m, n, batch, sweeps);
+        let a_data = a.into_data().to_vec::<f32>().unwrap();
+        let (u, s, vt) = svd_host::<f32>(&a_data, m, n, batch, sweeps);
         (
             Tensor::<D>::from_data(TensorData::new(u, dims_u), &device),
             Tensor::<D1>::from_data(TensorData::new(s, dims_s), &device),
@@ -203,16 +192,11 @@ pub fn svd<const D: usize, const D1: usize>(
     result
 }
 
-fn to_f64(v: &[f32]) -> Vec<f64> {
-    v.iter().map(|x| *x as f64).collect()
-}
-
-/// Host stage: per batch, diagonalize the bidiagonal matrix with shifted QR
-/// iterations (LAPACK dbdsqr) and rebuild U, Vt from the Givens rotations.
+/// Host pipeline: Golub-Kahan bidiagonalization + dbdsqr + factor assembly,
+/// per batch element. Pure scalar math over tensor data, deterministic and
+/// identical on every backend.
 fn svd_host<F: Float + Copy>(
-    ub: &[F],
-    bv: &[F],
-    vb: &[F],
+    a: &[F],
     m: usize,
     n: usize,
     batch: usize,
@@ -226,86 +210,146 @@ fn svd_host<F: Float + Copy>(
     let mut givens: Vec<(usize, F, F, F, F)> = Vec::new();
 
     for b in 0..batch {
-        let (bb, ub_, vb_) = (
-            &bv[b * m * n..(b + 1) * m * n],
-            &ub[b * m * m..(b + 1) * m * m],
-            &vb[b * n * n..(b + 1) * n * n],
-        );
+        let (mut u1, bv, mut v1) = bidiag_host(&a[b * m * n..(b + 1) * m * n], m, n);
         for i in 0..n {
-            d[i] = bb[i * n + i];
+            d[i] = bv[i * n + i];
         }
         for i in 0..n.saturating_sub(1) {
-            e[i] = bb[i * n + i + 1];
+            e[i] = bv[i * n + i + 1];
         }
         givens.clear();
         let sigma_b = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps);
 
-        // U2 = product of the left Givens rotations (applied in order).
-        let mut u2 = vec![F::zero(); n * n];
-        for i in 0..n {
-            u2[i * n + i] = F::one();
-        }
+        // U = U1 @ (product of left Givens rotations): apply each rotation to
+        // the column pair of U1 directly (same operator as the accumulation).
         for &(k, cl, sl, _, _) in &givens {
-            for i in 0..n {
-                let (a, b) = (u2[i * n + k], u2[i * n + k + 1]);
-                u2[i * n + k] = cl * a + sl * b;
-                u2[i * n + k + 1] = -sl * a + cl * b;
+            for i in 0..m {
+                let (a0, b0) = (u1[i * m + k], u1[i * m + k + 1]);
+                u1[i * m + k] = cl * a0 + sl * b0;
+                u1[i * m + k + 1] = -sl * a0 + cl * b0;
             }
         }
-        // V2 = product of the right Givens rotations (applied in order).
-        let mut v2 = vec![F::zero(); n * n];
-        for i in 0..n {
-            v2[i * n + i] = F::one();
-        }
+        // Vt = (V1 @ (product of right Givens rotations))^T.
         for &(k, _, _, cr, sr) in &givens {
             for i in 0..n {
-                let (a, b) = (v2[i * n + k], v2[i * n + k + 1]);
-                v2[i * n + k] = cr * a + sr * b;
-                v2[i * n + k + 1] = -sr * a + cr * b;
+                let (a0, b0) = (v1[i * n + k], v1[i * n + k + 1]);
+                v1[i * n + k] = cr * a0 + sr * b0;
+                v1[i * n + k + 1] = -sr * a0 + cr * b0;
             }
         }
-        // Absorb the signs of the diagonal into U2.
+        // Absorb the signs of the diagonal into U.
         for k in 0..n {
             if d[k] < F::zero() {
-                for i in 0..n {
-                    u2[i * n + k] = -u2[i * n + k];
+                for i in 0..m {
+                    u1[i * m + k] = -u1[i * m + k];
                 }
-            }
-        }
-        // U = U1[:, :n] @ U2, Vt = (V1 @ V2)^T.
-        let mut ub2 = vec![F::zero(); m * n];
-        for i in 0..m {
-            for j in 0..n {
-                let mut acc = F::zero();
-                for k in 0..n {
-                    acc = acc + ub_[i * m + k] * u2[k * n + j];
-                }
-                ub2[i * n + j] = acc;
-            }
-        }
-        let mut v = vec![F::zero(); n * n];
-        for i in 0..n {
-            for j in 0..n {
-                let mut acc = F::zero();
-                for k in 0..n {
-                    acc = acc + vb_[i * n + k] * v2[k * n + j];
-                }
-                v[i * n + j] = acc;
             }
         }
         for i in 0..m {
             for j in 0..n {
-                u[b * m * n + i * n + j] = ub2[i * n + j];
+                u[b * m * n + i * n + j] = u1[i * m + j];
             }
         }
         for i in 0..n {
             for j in 0..n {
-                vt[b * n * n + i * n + j] = v[j * n + i];
+                vt[b * n * n + i * n + j] = v1[j * n + i];
             }
             sigma[b * n + i] = sigma_b[i];
         }
     }
     (u, sigma, vt)
+}
+
+/// Golub-Kahan bidiagonalization on the host: `A = U1 B V1^T` with `B` upper
+/// bidiagonal (row-major `[m, n]`), using Householder reflections on
+/// shrinking submatrices, mirroring the tensor-op version operation for
+/// operation.
+fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>, Vec<F>) {
+    let mut u1 = vec![F::zero(); m * m];
+    for i in 0..m {
+        u1[i * m + i] = F::one();
+    }
+    let mut v1 = vec![F::zero(); n * n];
+    for i in 0..n {
+        v1[i * n + i] = F::one();
+    }
+    let mut a = a.to_vec();
+
+    for i in 0..n {
+        // Left reflection: annihilate the subdiagonal of column i.
+        let norm2: F = (i..m).fold(F::zero(), |s, k| s + a[k * n + i] * a[k * n + i]);
+        let norm = norm2.sqrt();
+        let x0 = a[i * n + i];
+        // sign = -(sign(x0)), with zero mapping to -1 (mask_fill in the tensor version).
+        let sign = if x0 >= F::zero() { -F::one() } else { F::one() };
+        let u0 = x0 - norm * sign;
+        let tau = if norm == F::zero() {
+            F::zero()
+        } else {
+            -u0 / (norm * sign)
+        };
+        if norm != F::zero() {
+            let mut w = vec![F::zero(); m];
+            w[i] = F::one();
+            for k in (i + 1)..m {
+                w[k] = a[k * n + i] / u0;
+            }
+            // wta[j] = w^T a[:, j], then a_new = a - tau w wta.
+            for j in i..n {
+                let wta: F = (i..m).fold(F::zero(), |s, k| s + w[k] * a[k * n + j]);
+                for k in i..m {
+                    a[k * n + j] = a[k * n + j] - tau * w[k] * wta;
+                }
+            }
+            // U1 = U1 (I - tau w w^T): update the columns i..m.
+            for i2 in 0..m {
+                let uw: F = (i..m).fold(F::zero(), |s, k| s + u1[i2 * m + k] * w[k]);
+                if uw != F::zero() {
+                    for k in i..m {
+                        u1[i2 * m + k] = u1[i2 * m + k] - tau * uw * w[k];
+                    }
+                }
+            }
+        }
+
+        // Right reflection: annihilate row i right of the superdiagonal.
+        if i + 1 < n - 1 {
+            let norm2: F = ((i + 1)..n).fold(F::zero(), |s, j| s + a[i * n + j] * a[i * n + j]);
+            let norm = norm2.sqrt();
+            let y0 = a[i * n + i + 1];
+            let sign = if y0 >= F::zero() { -F::one() } else { F::one() };
+            let u0 = y0 - norm * sign;
+            let tau = if norm == F::zero() {
+                F::zero()
+            } else {
+                -u0 / (norm * sign)
+            };
+            if norm != F::zero() {
+                let mut w = vec![F::zero(); n];
+                w[i + 1] = F::one();
+                for j in (i + 2)..n {
+                    w[j] = a[i * n + j] / u0;
+                }
+                // aw[k] = a[k, :] w, then a_new = a - tau aw w^T.
+                for k in i..m {
+                    let aw: F = ((i + 1)..n).fold(F::zero(), |s, j| s + a[k * n + j] * w[j]);
+                    for j in (i + 1)..n {
+                        a[k * n + j] = a[k * n + j] - tau * aw * w[j];
+                    }
+                }
+                // V1 = V1 (I - tau w w^T): update the columns i+1..n.
+                for i2 in 0..n {
+                    let vw: F = ((i + 1)..n).fold(F::zero(), |s, j| s + v1[i2 * n + j] * w[j]);
+                    if vw != F::zero() {
+                        for j in (i + 1)..n {
+                            v1[i2 * n + j] = v1[i2 * n + j] - tau * vw * w[j];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (u1, a, v1)
 }
 
 /// LAPACK dbdsqr-style shifted QR iteration on an upper bidiagonal matrix
@@ -406,115 +450,4 @@ fn dlartg<F: Float + Copy>(f: F, g: F) -> (F, F, F) {
     } else {
         (f / r, g / r, r)
     }
-}
-
-/// Golub-Kahan bidiagonalization: `A = U B V^T` with `B` upper bidiagonal
-/// `[..., m, n]`, using Householder reflections on shrinking submatrices
-/// (the same pattern as `qr`). `U` and `V` accumulate the reflections.
-fn bidiagonalize<const D: usize>(a: Tensor<D>) -> (Tensor<D>, Tensor<D>, Tensor<D>) {
-    let dims = a.dims();
-    let device = a.device();
-    let (m, n) = (dims[D - 2], dims[D - 1]);
-    let mut a = a;
-
-    let eye = |rows: usize| -> Tensor<D> {
-        let mut expand = [1; D];
-        expand[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
-        expand[D - 2] = rows;
-        expand[D - 1] = rows;
-        let mut reshape = [1; D];
-        reshape[D - 2] = rows;
-        reshape[D - 1] = rows;
-        Tensor::eye(rows, &device).reshape(reshape).expand(expand)
-    };
-    let mut u = eye(m);
-    let mut v = eye(n);
-
-    for i in 0..n {
-        // Left reflection: annihilate the subdiagonal of column i.
-        let sub = a
-            .clone()
-            .slice_dim(D - 2, s![i..])
-            .slice_dim(D - 1, s![i..]);
-        let x = sub.clone().slice_dim(D - 1, 0..1);
-        let x0 = x.clone().slice_dim(D - 2, 0..1);
-        let norm = l2_norm(x.clone().slice_dim(D - 2, s![..]), D - 2);
-        let sign = x0.clone().sign().neg().mask_fill(
-            x0.clone().is_close(x0.clone().zeros_like(), None, None),
-            -1.0,
-        );
-        let u0 = x0.clone().sub(norm.clone().mul(sign.clone()));
-        let mask = norm.clone().is_close(norm.clone().zeros_like(), None, None);
-        let tau = u0
-            .clone()
-            .neg()
-            .div(norm.clone())
-            .mul(sign.clone())
-            .mask_fill(mask.clone(), 0.0);
-        let e0 = x0.mul_scalar(0.0).add_scalar(1.0);
-        let mut slices = vec![Slice::full(); D];
-        slices[D - 2] = s![0];
-        let w = x.div(u0.clone()).slice_assign(&slices, e0);
-        let w = w.mask_fill(mask, 0.0);
-
-        let wta = w.clone().expand(sub.dims()).mul(sub.clone()).sum_dim(D - 2);
-        let a_new = sub.clone().sub(tau.clone().mul(w.clone().mul(wta.clone())));
-        let mut slices = vec![Slice::full(); D];
-        slices[D - 2] = s![i..];
-        slices[D - 1] = s![i..];
-        a = a.slice_assign(&slices, a_new);
-
-        let u_sub = u.clone().slice_dim(D - 1, s![i..]);
-        let wb = w.clone().transpose().expand(u_sub.dims());
-        let uw = u_sub.clone().mul(wb).sum_dim(D - 1);
-        let u_new = u_sub.sub(tau.clone().mul(uw.mul(w.clone().transpose())));
-        let mut slices = vec![Slice::full(); D];
-        slices[D - 1] = s![i..];
-        u = u.slice_assign(&slices, u_new);
-
-        // Right reflection: annihilate row i right of the superdiagonal.
-        if i + 1 < n - 1 {
-            let sub = a
-                .clone()
-                .slice_dim(D - 2, s![i..])
-                .slice_dim(D - 1, s![i + 1..]);
-            let y = sub.clone().slice_dim(D - 2, 0..1);
-            let y0 = y.clone().slice_dim(D - 1, 0..1);
-            let norm = l2_norm(y.clone().slice_dim(D - 1, s![..]), D - 1);
-            let sign = y0.clone().sign().neg().mask_fill(
-                y0.clone().is_close(y0.clone().zeros_like(), None, None),
-                -1.0,
-            );
-            let u0 = y0.clone().sub(norm.clone().mul(sign.clone()));
-            let mask = norm.clone().is_close(norm.clone().zeros_like(), None, None);
-            let tau = u0
-                .clone()
-                .neg()
-                .div(norm.clone())
-                .mul(sign.clone())
-                .mask_fill(mask.clone(), 0.0);
-            let e0 = y0.mul_scalar(0.0).add_scalar(1.0);
-            let mut slices = vec![Slice::full(); D];
-            slices[D - 1] = s![0];
-            let w = y.div(u0).slice_assign(&slices, e0);
-            let w = w.mask_fill(mask, 0.0);
-
-            let wb = w.clone().expand(sub.dims());
-            let aw = sub.clone().mul(wb).sum_dim(D - 1);
-            let a_new = sub.sub(tau.clone().mul(aw.mul(w.clone())));
-            let mut slices = vec![Slice::full(); D];
-            slices[D - 2] = s![i..];
-            slices[D - 1] = s![i + 1..];
-            a = a.slice_assign(&slices, a_new);
-
-            let v_sub = v.clone().slice_dim(D - 1, s![i + 1..]);
-            let wb = w.clone().expand(v_sub.dims());
-            let vw = v_sub.clone().mul(wb).sum_dim(D - 1);
-            let v_new = v_sub.sub(tau.clone().mul(vw.mul(w.clone())));
-            let mut slices = vec![Slice::full(); D];
-            slices[D - 1] = s![i + 1..];
-            v = v.slice_assign(&slices, v_new);
-        }
-    }
-    (u, a, v)
 }
