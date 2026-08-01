@@ -32,11 +32,9 @@ fn recon_err<const D: usize, const D1: usize>(
             for j in 0..n {
                 let mut acc = 0.0f32;
                 for t in 0..k {
-                    acc += u[(b * m + i) * k + t] as f32
-                        * s[b * k + t] as f32
-                        * vt[(b * k + t) * n + j] as f32;
+                    acc += u[(b * m + i) * k + t] * s[b * k + t] * vt[(b * k + t) * n + j];
                 }
-                err = err.max((a[(b * m + i) * n + j] as f32 - acc).abs());
+                err = err.max((a[(b * m + i) * n + j] - acc).abs());
             }
         }
     }
@@ -50,7 +48,7 @@ fn ortho_err(data: &[FloatElem], rows: usize, cols: usize) -> f32 {
         for j in 0..cols {
             let mut acc = 0.0f32;
             for t in 0..rows {
-                acc += data[t * cols + i] as f32 * data[t * cols + j] as f32;
+                acc += data[t * cols + i] * data[t * cols + j];
             }
             err = err.max((acc - if i == j { 1.0 } else { 0.0 }).abs());
         }
@@ -560,28 +558,29 @@ fn assert_torch_factors<const D: usize>(
 #[test]
 fn test_svd_torch_reference() {
     let device = Default::default();
-    // (matrix, expected singular values, ref u, ref vt)
+    // (matrix, expected singular values, ref u, ref vt, u shape, vt shape).
     // Values from torch.linalg.svd (LAPACK gesdd), signs aligned.
-    let cases: Vec<(
+    type TorchCase = (
         TestTensor<2>,
         Vec<f32>,
-        &[f32],
-        &[f32],
+        &'static [f32],
+        &'static [f32],
         [usize; 2],
         [usize; 2],
-    )> = vec![
+    );
+    let cases: Vec<TorchCase> = vec![
         (
             TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], &device),
-            vec![9.52551937, 0.51430136],
+            vec![9.525_519, 0.51430136],
             &[
                 0.22984788,
-                0.88346142,
-                0.52474481,
+                0.883_461_4,
+                0.524_744_8,
                 0.24078178,
-                0.81964201,
+                0.819_642,
                 -0.40189564,
             ],
-            &[0.61962938, 0.78489453, 0.78489453, -0.61962938],
+            &[0.619_629_4, 0.784_894_5, 0.784_894_5, -0.619_629_4],
             [3, 2],
             [2, 2],
         ),
@@ -590,28 +589,28 @@ fn test_svd_torch_reference() {
                 [[4.0, 7.0, 3.0], [6.0, 1.0, 3.0], [8.0, 3.0, 7.0]],
                 &device,
             ),
-            vec![14.67576408, 4.95769882, 1.42939591],
+            vec![14.675_764, 4.957_699, 1.429_395_9],
             &[
                 0.51108384,
-                0.84870338,
+                0.848_703_4,
                 0.13599968,
                 0.43565938,
-                -0.39217851,
+                -0.392_178_5,
                 0.81018335,
                 0.74094146,
-                -0.35482201,
-                -0.57018161,
+                -0.354_822,
+                -0.570_181_6,
             ],
             &[
                 0.72131324,
                 0.42492306,
-                0.54694390,
-                -0.36243331,
-                0.90450847,
+                0.546_943_9,
+                -0.362_433_3,
+                0.904_508_5,
                 -0.22473705,
-                -0.59021139,
+                -0.590_211_4,
                 -0.03612483,
-                0.80644017,
+                0.806_440_2,
             ],
             [3, 3],
             [3, 3],
@@ -619,12 +618,12 @@ fn test_svd_torch_reference() {
         (
             // wide: m < n transpose path
             TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device),
-            vec![9.50803089, 0.77286965],
-            &[0.38631779, 0.92236584, 0.92236584, -0.38631779],
+            vec![9.508_031, 0.77286965],
+            &[0.386_317_8, 0.92236584, 0.92236584, -0.386_317_8],
             &[
-                0.42866719,
+                0.428_667_2,
                 0.56630695,
-                0.70394671,
+                0.703_946_7,
                 0.80596405,
                 0.11238238,
                 -0.58119905,
