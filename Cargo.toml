@@ -175,8 +175,8 @@ libc = "0.2.186"
 nvml-wrapper = "0.12.0"
 sysinfo = "0.38.0"
 systemstat = "0.2.6"
-tch = "0.22.0"
-torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
+tch = "0.24.0"
+torch-sys = "0.24.0"                                        # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.12", default-features = false }
 aligned-vec = { version = "0.6", default-features = false }
