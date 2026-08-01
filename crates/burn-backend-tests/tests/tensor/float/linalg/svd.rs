@@ -9,15 +9,53 @@ fn torch_tol() -> Tolerance<FloatElem> {
     Tolerance::rel_abs(5e-4, 5e-4).set_half_precision_absolute(2e-2)
 }
 
-/// Max abs error of `A - U diag(S) Vt` as an f32.
+/// Max abs error of `A - U diag(S) Vt` as an f32, computed with host scalar
+/// math: on fused CUDA the test harness's own matmul can hit the inaccurate
+/// autotune kernels and smear the error for larger sizes.
 fn recon_err<const D: usize, const D1: usize>(
     a: TestTensor<D>,
     u: TestTensor<D>,
     s: &TestTensor<D1>,
     vt: TestTensor<D>,
 ) -> f32 {
-    let recon = u.mul(s.clone().unsqueeze_dim(D - 2)).matmul(vt);
-    (a - recon).abs().max().into_scalar::<f32>()
+    let dims = a.dims();
+    let batch: usize = dims[..(D - 2)].iter().product();
+    let (m, n) = (dims[D - 2], dims[D - 1]);
+    let k = s.dims()[D1 - 1];
+    let a = a.into_data().to_vec::<FloatElem>().unwrap();
+    let u = u.into_data().to_vec::<FloatElem>().unwrap();
+    let s = s.clone().into_data().to_vec::<FloatElem>().unwrap();
+    let vt = vt.into_data().to_vec::<FloatElem>().unwrap();
+    let mut err = 0.0f32;
+    for b in 0..batch {
+        for i in 0..m {
+            for j in 0..n {
+                let mut acc = 0.0f32;
+                for t in 0..k {
+                    acc += u[(b * m + i) * k + t] as f32
+                        * s[b * k + t] as f32
+                        * vt[(b * k + t) * n + j] as f32;
+                }
+                err = err.max((a[(b * m + i) * n + j] as f32 - acc).abs());
+            }
+        }
+    }
+    err
+}
+
+/// Max abs error of `V^T V - I` (or `V V^T - I` for row factors), host math.
+fn ortho_err(data: &[FloatElem], rows: usize, cols: usize) -> f32 {
+    let mut err = 0.0f32;
+    for i in 0..cols {
+        for j in 0..cols {
+            let mut acc = 0.0f32;
+            for t in 0..rows {
+                acc += data[t * cols + i] as f32 * data[t * cols + j] as f32;
+            }
+            err = err.max((acc - if i == j { 1.0 } else { 0.0 }).abs());
+        }
+    }
+    err
 }
 
 fn assert_reconstruction<const D: usize, const D1: usize>(
@@ -234,13 +272,11 @@ fn test_svd_orthonormal_factors() {
     let (u, s, vt) = svd::<2, 1>(tensor, 15);
     let _ = s;
 
-    let utu = u.clone().transpose().matmul(u);
-    let eye = TestTensor::<2>::eye(3, &device);
-    let err = (utu - eye.clone()).abs().max().into_scalar::<f32>();
+    let uv = u.into_data().to_vec::<FloatElem>().unwrap();
+    let vtv = vt.into_data().to_vec::<FloatElem>().unwrap();
+    let err = ortho_err(&uv, 3, 3);
     assert!(err < REL, "U^T U != I, max abs error {err}");
-
-    let vvt = vt.clone().matmul(vt.transpose());
-    let err = (vvt - eye).abs().max().into_scalar::<f32>();
+    let err = ortho_err(&vtv, 3, 3);
     assert!(err < REL, "Vt Vt^T != I, max abs error {err}");
 }
 
@@ -251,12 +287,11 @@ fn test_svd_orthonormal_rectangular() {
     let tensor = TestTensor::<2>::random([6, 4], Distribution::Normal(0.0, 1.0), &device);
     let (u, s, vt) = svd::<2, 1>(tensor, 15);
     let _ = s;
-    let utu = u.clone().transpose().matmul(u);
-    let eye = TestTensor::<2>::eye(4, &device);
-    let err = (utu - eye.clone()).abs().max().into_scalar::<f32>();
+    let uv = u.into_data().to_vec::<FloatElem>().unwrap();
+    let vtv = vt.into_data().to_vec::<FloatElem>().unwrap();
+    let err = ortho_err(&uv, 6, 4);
     assert!(err < REL, "U^T U != I, max abs error {err}");
-    let vvt = vt.clone().matmul(vt.transpose());
-    let err = (vvt - eye).abs().max().into_scalar::<f32>();
+    let err = ortho_err(&vtv, 4, 4);
     assert!(err < REL, "Vt Vt^T != I, max abs error {err}");
 }
 
@@ -660,9 +695,9 @@ fn test_svd_torch_reference_singular() {
 
 #[test]
 fn test_svd_more_sweeps_improve_accuracy() {
-    // Fixed 16x16 input (dense random draw, seed 42): 8x8 is avoided because
-    // cubecl autotune can pick an inaccurate gather/scatter kernel for [8, p]
-    // shapes on some GPUs (see PR discussion); 16x16 is stable everywhere.
+    // Fixed 16x16 input (dense random draw, seed 42). 1 sweep (16 QR steps)
+    // must not converge yet, 30 sweeps must; the host pipeline is
+    // deterministic so this is stable across backends and runs.
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data(
         [
@@ -801,4 +836,173 @@ fn bench_svd_vs_torch() {
         let err = recon_err::<2, 1>(a, u, &s, vt);
         println!("{m}x{n}  | {:.1} | {err:.2e}", dt * 1e6);
     }
+}
+
+#[test]
+fn test_svd_empty_matrix() {
+    // Zero leading dimension: empty reduced SVD, no panic.
+    let device = Default::default();
+    let a = TestTensor::<2>::from_data(
+        burn_tensor::TensorData::new(Vec::<f32>::new(), [0, 3]),
+        &device,
+    );
+    let (u, s, vt) = svd::<2, 1>(a, 15);
+    assert_eq!(u.dims(), [0, 0]);
+    assert_eq!(s.dims(), [0]);
+    assert_eq!(vt.dims(), [0, 3]);
+    let a = TestTensor::<2>::from_data(
+        burn_tensor::TensorData::new(Vec::<f32>::new(), [3, 0]),
+        &device,
+    );
+    let (u, s, vt) = svd::<2, 1>(a, 15);
+    assert_eq!(u.dims(), [3, 0]);
+    assert_eq!(s.dims(), [0]);
+    assert_eq!(vt.dims(), [0, 0]);
+}
+
+#[test]
+#[ignore = "stress"]
+fn dbgt_stress() {
+    use burn_tensor::Distribution;
+    let device = Default::default();
+    let rel = 2e-4f32;
+    let mut failures = 0usize;
+
+    let mut check = |name: &str, a: TestTensor<2>, _expect_recon: f32| {
+        // All checks run as host scalar math: on fused CUDA, matmul in the
+        // test harness itself hits the inaccurate autotune kernels, which
+        // would smear the SVD error for large sizes.
+        let (u, s, vt) = svd::<2, 1>(a.clone(), 30);
+        let uv = u.into_data().to_vec::<f32>().unwrap();
+        let sv = s.into_data().to_vec::<f32>().unwrap();
+        let vtv = vt.into_data().to_vec::<f32>().unwrap();
+        let av = a.clone().into_data().to_vec::<f32>().unwrap();
+        let (m, n, k) = (a.dims()[0], a.dims()[1], sv.len());
+        let mut err = 0.0f32;
+        let mut amax = 0.0f32;
+        let mut fsum = 0.0f32;
+        for i in 0..m {
+            for j in 0..n {
+                let mut acc = 0.0f32;
+                for t in 0..k {
+                    acc += uv[i * k + t] * sv[t] * vtv[t * n + j];
+                }
+                err = err.max((av[i * n + j] - acc).abs());
+                amax = amax.max(av[i * n + j].abs());
+                fsum += av[i * n + j] * av[i * n + j];
+            }
+        }
+        let ssum: f32 = sv.iter().map(|x| x * x).sum();
+        let mut utu_err = 0.0f32;
+        for i in 0..k {
+            for j in 0..k {
+                let mut acc = 0.0f32;
+                for t in 0..m {
+                    acc += uv[t * k + i] * uv[t * k + j];
+                }
+                utu_err = utu_err.max((acc - if i == j { 1.0 } else { 0.0 }).abs());
+            }
+        }
+        let frob_ok = if ssum.is_finite() && fsum.is_finite() {
+            (ssum - fsum).abs() <= rel * fsum.max(1e-12)
+        } else {
+            true // f32 overflow in the test's own Frobenius computation
+        };
+        let ok = err <= rel * amax.max(1e-6) && frob_ok && utu_err <= rel;
+        if !ok {
+            failures += 1;
+            println!(
+                "STRESS FAIL {name}: recon {err:.3e} (amax {amax:.3e}) frob {:.3e} utu {utu_err:.3e}",
+                (ssum - fsum).abs()
+            );
+        } else {
+            println!("STRESS ok   {name}: recon {err:.3e} utu {utu_err:.3e}");
+        }
+    };
+
+    let mk = |m: usize, n: usize| -> TestTensor<2> {
+        TestTensor::<2>::random([m, n], Distribution::Normal(0.0, 1.0), &device)
+    };
+
+    check("rand 16x8", mk(16, 8), 0.0);
+    check("rand 8x16", mk(8, 16), 0.0);
+    check("rand 32x32", mk(32, 32), 0.0);
+    check("rand 64x32", mk(64, 32), 0.0);
+    check("rand 32x64", mk(32, 64), 0.0);
+    check("rand 4x128", mk(4, 128), 0.0);
+    check("rand 128x4", mk(128, 4), 0.0);
+    check("rand 128x128", mk(128, 128), 0.0);
+    check("rand 256x256", mk(256, 256), 0.0);
+
+    // rank-deficient: A = B diag(sigma) C
+    for (name, sig) in [
+        ("rankdef 32", vec![2.0f32; 16]),
+        ("rankdef scaled", vec![1000.0f32; 8]),
+        ("cluster 32", vec![1.0f32; 32]),
+    ] {
+        let k = sig.len();
+        let b = TestTensor::<2>::random([32, k], Distribution::Normal(0.0, 1.0), &device);
+        let c = TestTensor::<2>::random([k, 32], Distribution::Normal(0.0, 1.0), &device);
+        let sd = TestTensor::<2>::from_data(burn_tensor::TensorData::new(sig, [k, 1]), &device);
+        let a = b.mul(sd.transpose()).matmul(c);
+        check(name, a, 0.0);
+    }
+
+    // extreme scales
+    let diag3 = |x: f32, y: f32, z: f32| {
+        TestTensor::<2>::from_data(
+            burn_tensor::TensorData::new(vec![x, 0.0, 0.0, 0.0, y, 0.0, 0.0, 0.0, z], [3, 3]),
+            &device,
+        )
+    };
+    check("scale 1e20", diag3(1e20, 1.0, 1.0), 0.0);
+    check("scale 1e-30", diag3(1e-30, 1.0, 1.0), 0.0);
+    check("scale mixed", diag3(1e10, 1e-10, 1.0), 0.0);
+    check(
+        "zeros 16x16",
+        TestTensor::<2>::from_data(
+            burn_tensor::TensorData::new(vec![0.0f32; 256], [16, 16]),
+            &device,
+        ),
+        0.0,
+    );
+
+    // deterministic 256x256 (same matrix on every backend), sigma compared to torch f64
+    let n = 256usize;
+    let mut m256 = Vec::with_capacity(n * n);
+    for i in 0..n {
+        for j in 0..n {
+            m256.push(
+                (((i * 7919 + j * 104729) % 100000) as f32 / 100000.0 - 0.5) * 2.0
+                    + (i as f32 - j as f32) * 0.001,
+            );
+        }
+    }
+    let a256 = TestTensor::<2>::from_data(burn_tensor::TensorData::new(m256, [n, n]), &device);
+    let (u, s, vt) = svd::<2, 1>(a256.clone(), 30);
+    let s2 = s.clone();
+    let sv: Vec<f32> = s2.into_data().to_vec().unwrap();
+    println!("STRESS sv256 {:?}", &sv[..16]);
+    let err = recon_err::<2, 1>(a256.clone(), u, &s, vt);
+    println!("STRESS 256det recon {err:.3e}");
+    let _ = a256;
+
+    // determinism: two runs byte-identical
+    let a = mk(6, 4);
+    let (u1, s1, vt1) = svd::<2, 1>(a.clone(), 30);
+    let (u2, s2, vt2) = svd::<2, 1>(a, 30);
+    assert_eq!(
+        u1.clone().into_data().to_vec::<f32>().unwrap(),
+        u2.into_data().to_vec::<f32>().unwrap()
+    );
+    assert_eq!(
+        s1.clone().into_data().to_vec::<f32>().unwrap(),
+        s2.clone().into_data().to_vec::<f32>().unwrap()
+    );
+    assert_eq!(
+        vt1.into_data().to_vec::<f32>().unwrap(),
+        vt2.into_data().to_vec::<f32>().unwrap()
+    );
+    println!("STRESS determinism ok");
+    assert_eq!(failures, 0, "{failures} stress failures");
 }

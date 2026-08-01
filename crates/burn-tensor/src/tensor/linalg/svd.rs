@@ -102,6 +102,34 @@ pub fn svd<const D: usize, const D1: usize>(
     };
     let (m, n) = (n_rows.max(n_cols), n_rows.min(n_cols));
 
+    // Empty matrix (a zero leading dimension): the reduced SVD is empty too.
+    // Skip the pipeline (bidiagonalization would index out of bounds).
+    if m == 0 || n == 0 {
+        let mut du = [1; D];
+        du[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
+        du[D - 2] = n_rows;
+        du[D - 1] = 0;
+        let mut ds = [1; D1];
+        ds[D1 - 1] = 0;
+        let mut dv = [1; D];
+        dv[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
+        dv[D - 2] = 0;
+        dv[D - 1] = n_cols;
+        let u_t = Tensor::<D>::from_data(TensorData::new(Vec::<f32>::new(), du), &device);
+        let s_t = Tensor::<D1>::from_data(TensorData::new(Vec::<f32>::new(), ds), &device);
+        let vt_t = Tensor::<D>::from_data(TensorData::new(Vec::<f32>::new(), dv), &device);
+        let (u_t, s_t, vt_t) = if needs_upcast || original_dtype == DType::F64 {
+            (
+                u_t.cast(original_dtype),
+                s_t.cast(original_dtype),
+                vt_t.cast(original_dtype),
+            )
+        } else {
+            (u_t, s_t, vt_t)
+        };
+        return (u_t, s_t, vt_t);
+    }
+
     // Pull the data and run the whole pipeline on the host: bidiagonalization,
     // dbdsqr diagonalization, Givens accumulation and factor assembly. This is
     // deterministic and backend-independent, and avoids the fused-CUDA
@@ -121,59 +149,41 @@ pub fn svd<const D: usize, const D1: usize>(
     dims_vt[D - 2] = n;
     dims_vt[D - 1] = n;
 
-    let (u, sigma, vt) = if original_dtype == DType::F64 {
-        let a_data = a.into_data().to_vec::<f64>().unwrap();
-        let (u, s, vt) = svd_host::<f64>(&a_data, m, n, batch, sweeps);
-        (
-            Tensor::<D>::from_data(TensorData::new(u, dims_u), &device),
-            Tensor::<D1>::from_data(TensorData::new(s, dims_s), &device),
-            Tensor::<D>::from_data(TensorData::new(vt, dims_vt), &device),
-        )
+    // Flush any in-flight kernels on the device (e.g. a previous test that
+    // never read its outputs): cubecl host reads can fail with "strides are
+    // not supported" while other kernels are still queued. No-op on eager
+    // backends such as ndarray.
+    let _ = device.sync();
+    // svd_host already sorted, masked, permuted and swapped the factors; the
+    // dims follow the orientation (swap -> u is [..., n, n], vt is [..., m, n]).
+    let (du, dv) = if swap {
+        let mut dv = [1; D];
+        dv[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
+        dv[D - 2] = n;
+        dv[D - 1] = m;
+        (dims_vt, dv)
     } else {
-        let a_data = a.into_data().to_vec::<f32>().unwrap();
-        let (u, s, vt) = svd_host::<f32>(&a_data, m, n, batch, sweeps);
-        (
-            Tensor::<D>::from_data(TensorData::new(u, dims_u), &device),
-            Tensor::<D1>::from_data(TensorData::new(s, dims_s), &device),
-            Tensor::<D>::from_data(TensorData::new(vt, dims_vt), &device),
-        )
+        (dims_u, dims_vt)
     };
-
-    // Sort the singular values in descending order and permute the factors.
-    let sv = sigma; // singular values, unsorted
-    let idx = sv.clone().argsort_descending(D - 2); // [..., n]
-
-    let mut expand_u = [1; D];
-    expand_u[D - 2] = m;
-    expand_u[D - 1] = n;
-    expand_u[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
-    let idx_u = idx
-        .clone()
-        .unsqueeze_dim::<D>(D - 2)
-        .expand::<D, _>(expand_u);
-    let u = u.gather(D - 1, idx_u);
-
-    let mut expand_vt = [1; D];
-    expand_vt[D - 2] = n;
-    expand_vt[D - 1] = n;
-    expand_vt[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
-    let idx_vt = idx
-        .clone()
-        .unsqueeze_dim::<D>(D - 1)
-        .expand::<D, _>(expand_vt);
-    let vt = vt.gather(D - 2, idx_vt);
-
-    let sv = sv.gather(D - 2, idx);
-    // mask must be computed on the sorted values, its positions move with the gather
-    let mask = sv
-        .clone()
-        .lower_equal(sv.clone().max_dim(D - 2).mul_scalar(1e-6));
-    let sv = sv.mask_fill(mask, 0.0);
-
-    let result = if swap {
-        (vt.transpose(), sv.clone(), u.transpose())
+    let result = if original_dtype == DType::F64 {
+        // materialize any view (clone/transpose) into a contiguous buffer
+        let a = a.clone().reshape(a.dims());
+        let a_data = a.into_data().to_vec::<f64>().unwrap();
+        let (u, s, vt) = svd_host::<f64>(&a_data, m, n, batch, sweeps, swap);
+        (
+            Tensor::<D>::from_data(TensorData::new(u, du), &device),
+            Tensor::<D1>::from_data(TensorData::new(s, dims_s), &device),
+            Tensor::<D>::from_data(TensorData::new(vt, dv), &device),
+        )
     } else {
-        (u, sv, vt)
+        let a = a.clone().reshape(a.dims());
+        let a_data = a.into_data().to_vec::<f32>().unwrap();
+        let (u, s, vt) = svd_host::<f32>(&a_data, m, n, batch, sweeps, swap);
+        (
+            Tensor::<D>::from_data(TensorData::new(u, du), &device),
+            Tensor::<D1>::from_data(TensorData::new(s, dims_s), &device),
+            Tensor::<D>::from_data(TensorData::new(vt, dv), &device),
+        )
     };
 
     let result = if needs_upcast {
@@ -185,9 +195,7 @@ pub fn svd<const D: usize, const D1: usize>(
     } else {
         result
     };
-    // The composed pipeline is a long op chain; the cubecl CUDA runtime can
-    // execute dependent kernels out of order under fusion, so flush once.
-    // No-op on eager backends such as ndarray.
+    // Flush the output transfers; no-op on eager backends.
     let _ = device.sync();
     result
 }
@@ -201,6 +209,7 @@ fn svd_host<F: Float + Copy>(
     n: usize,
     batch: usize,
     max_sweeps: usize,
+    swap: bool,
 ) -> (Vec<F>, Vec<F>, Vec<F>) {
     let mut u = vec![F::zero(); batch * m * n];
     let mut sigma = vec![F::zero(); batch * n];
@@ -256,8 +265,69 @@ fn svd_host<F: Float + Copy>(
             }
             sigma[b * n + i] = sigma_b[i];
         }
+        // Sort the singular values descending and permute the factors, on the
+        // host: deterministic (stable sort), independent of backend
+        // gather/argsort kernels (which are view-based or nondeterministic on
+        // fused CUDA). Mask numerical zeros relative to sigma_max.
+        let smax = sigma[b * n..(b + 1) * n]
+            .iter()
+            .fold(F::zero(), |s, &x| s.max(x.abs()));
+        let mut order: Vec<usize> = (0..n).collect();
+        order.sort_by(|&i, &j| {
+            sigma[b * n + j]
+                .partial_cmp(&sigma[b * n + i])
+                .unwrap_or(core::cmp::Ordering::Equal)
+        });
+        let mut pu = vec![F::zero(); m * n];
+        let mut pvt = vec![F::zero(); n * n];
+        let mut sorted = vec![F::zero(); n];
+        for (t, &src) in order.iter().enumerate() {
+            for i in 0..m {
+                pu[i * n + t] = u[b * m * n + i * n + src];
+            }
+            for i in 0..n {
+                pvt[t * n + i] = vt[b * n * n + src * n + i];
+            }
+            // read from the untouched slot: sigma is rewritten in place below
+            let v = sigma[b * n + src];
+            sorted[t] = if v.abs() <= smax * F::from(1e-6).unwrap() {
+                F::zero()
+            } else {
+                v
+            };
+        }
+        for i in 0..m * n {
+            u[b * m * n + i] = pu[i];
+        }
+        for i in 0..n * n {
+            vt[b * n * n + i] = pvt[i];
+        }
+        for i in 0..n {
+            sigma[b * n + i] = sorted[i];
+        }
     }
-    (u, sigma, vt)
+    if swap {
+        // The SVD was computed on A^T ([n, m]); the factors for the original
+        // wide A = Vt^T S U^T, so return u = Vt^T and vt = U^T (already
+        // permuted consistently with the sorted sigma).
+        let mut uf = vec![F::zero(); batch * n * n];
+        let mut vf = vec![F::zero(); batch * n * m];
+        for b in 0..batch {
+            for i in 0..n {
+                for j in 0..n {
+                    uf[(b * n + i) * n + j] = vt[(b * n + j) * n + i];
+                }
+            }
+            for i in 0..n {
+                for j in 0..m {
+                    vf[(b * n + i) * m + j] = u[b * m * n + j * n + i];
+                }
+            }
+        }
+        (uf, sigma, vf)
+    } else {
+        (u, sigma, vt)
+    }
 }
 
 /// Golub-Kahan bidiagonalization on the host: `A = U1 B V1^T` with `B` upper
@@ -277,8 +347,21 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
 
     for i in 0..n {
         // Left reflection: annihilate the subdiagonal of column i.
-        let norm2: F = (i..m).fold(F::zero(), |s, k| s + a[k * n + i] * a[k * n + i]);
-        let norm = norm2.sqrt();
+        // Scaled norm (like LAPACK dlarfg): sqrt(sum x^2) without overflow or
+        // underflow for extreme scales (|x| up to f32::MAX, down to subnormals).
+        let scale = (i..m).map(|k| a[k * n + i].abs()).fold(F::zero(), F::max);
+        let norm = if scale == F::zero() {
+            F::zero()
+        } else {
+            scale
+                * (i..m)
+                    .map(|k| {
+                        let t = a[k * n + i] / scale;
+                        t * t
+                    })
+                    .fold(F::zero(), |s, x| s + x)
+                    .sqrt()
+        };
         let x0 = a[i * n + i];
         // sign = -(sign(x0)), with zero mapping to -1 (mask_fill in the tensor version).
         let sign = if x0 >= F::zero() { -F::one() } else { F::one() };
@@ -314,8 +397,21 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
 
         // Right reflection: annihilate row i right of the superdiagonal.
         if i + 1 < n - 1 {
-            let norm2: F = ((i + 1)..n).fold(F::zero(), |s, j| s + a[i * n + j] * a[i * n + j]);
-            let norm = norm2.sqrt();
+            let scale = ((i + 1)..n)
+                .map(|j| a[i * n + j].abs())
+                .fold(F::zero(), F::max);
+            let norm = if scale == F::zero() {
+                F::zero()
+            } else {
+                scale
+                    * ((i + 1)..n)
+                        .map(|j| {
+                            let t = a[i * n + j] / scale;
+                            t * t
+                        })
+                        .fold(F::zero(), |s, x| s + x)
+                        .sqrt()
+            };
             let y0 = a[i * n + i + 1];
             let sign = if y0 >= F::zero() { -F::one() } else { F::one() };
             let u0 = y0 - norm * sign;
@@ -372,14 +468,13 @@ fn dbdsqr<F: Float + Copy>(
     if smax == F::zero() {
         return d.iter().map(|x| x.abs()).collect();
     }
-    // Perturb exact zeros so the sweeps never divide by zero.
+    // Perturb exact zeros on the DIAGONAL only (never the superdiagonal): a
+    // zero d[i] inside an active block makes the sweep stall (dlartg(0, 0)),
+    // and perturbing e instead would swamp small-but-real singular values on
+    // large-scale inputs (e.g. diag(1e38, 1, 1) in f32 would get e-floors of
+    // 1e31 and diverge to NaN). e zeros deflate naturally via the check below.
     let floor = eps * smax;
     for (i, x) in d.iter_mut().enumerate() {
-        if *x == F::zero() {
-            *x = if i % 2 == 0 { floor } else { -floor };
-        }
-    }
-    for (i, x) in e.iter_mut().enumerate() {
         if *x == F::zero() {
             *x = if i % 2 == 0 { floor } else { -floor };
         }
@@ -402,8 +497,15 @@ fn dbdsqr<F: Float + Copy>(
         }
         // Wilkinson-style shift from the bottom 2x2 block of B^T B.
         let shift = dlas2_smax(d[m - 2], e[m - 2], d[m - 1]);
-        // One QR sweep over the block.
-        let mut f = (d[ll].abs() - shift) * (d[ll].signum() + shift / d[ll]);
+        // One QR sweep over the block. The starting value is the first column
+        // of (B - shift I) scaled for stability; with d[ll] exactly zero the
+        // formula diverges, so take its finite proxy (-shift, direction of
+        // the limit for positive d).
+        let mut f = if d[ll] == F::zero() {
+            -shift
+        } else {
+            (d[ll].abs() - shift) * (d[ll].signum() + shift / d[ll])
+        };
         let mut g = e[ll];
         for i in ll..m - 1 {
             let (cr, sr, r) = dlartg(f, g);
@@ -433,21 +535,116 @@ fn dbdsqr<F: Float + Copy>(
     d.iter().map(|x| x.abs()).collect()
 }
 
-/// Largest singular value of the 2x2 block [[d1, e1], [0, d2]].
+/// Largest singular value of the 2x2 block [[d1, e1], [0, d2]]. Scaled like
+/// LAPACK dlas2: no overflow or underflow on the intermediate squares.
 fn dlas2_smax<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
-    let t = d1 * d1 + d2 * d2 + e1 * e1;
-    let disc = (t * t - F::from(4.0).unwrap() * d1 * d1 * d2 * d2)
-        .max(F::zero())
-        .sqrt();
-    ((t + disc) / F::from(2.0).unwrap()).max(F::zero()).sqrt()
+    let scale = d1.abs().max(d2.abs()).max(e1.abs());
+    if scale == F::zero() {
+        return F::zero();
+    }
+    let (a, b, c) = (d1 / scale, d2 / scale, e1 / scale);
+    let t = a * a + b * b + c * c;
+    let disc = (t * t - F::from(4.0).unwrap() * a * a * b * b).max(F::zero());
+    scale * ((t + disc.sqrt()) / F::from(2.0).unwrap()).sqrt()
 }
 
-/// Givens rotation annihilating g: (f, g) -> (r, 0).
+/// Givens rotation annihilating g: (f, g) -> (r, 0). Scaled like LAPACK
+/// dlartg: r = sqrt(f^2 + g^2) computed without overflow or underflow.
 fn dlartg<F: Float + Copy>(f: F, g: F) -> (F, F, F) {
-    let r = (f * f + g * g).sqrt();
-    if r == F::zero() {
+    let scale = f.abs().max(g.abs());
+    if scale == F::zero() {
         (F::one(), F::zero(), F::zero())
     } else {
+        let (sf, sg) = (f / scale, g / scale);
+        let r = scale * (sf * sf + sg * sg).sqrt();
         (f / r, g / r, r)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn recon_err<F: Float + Copy>(u: &[F], s: &[F], vt: &[F], a: &[F], m: usize, n: usize) -> F {
+        assert!(
+            u.len() == m * n && s.len() == n && vt.len() == n * n && a.len() == m * n,
+            "sizes: u={} s={} vt={} a={} m={m} n={n}",
+            u.len(),
+            s.len(),
+            vt.len(),
+            a.len()
+        );
+        let mut err = F::zero();
+        for i in 0..m {
+            for j in 0..n {
+                let mut acc = F::zero();
+                for k in 0..n {
+                    acc = acc + u[i * n + k] * s[k] * vt[k * n + j];
+                }
+                err = err.max((a[i * n + j] - acc).abs());
+            }
+        }
+        err
+    }
+
+    #[test]
+    fn test_svd_host_f64() {
+        // 4x3 full-rank matrix with known torch f64 values
+        let a = [
+            1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+        ];
+        let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false);
+        // svd_host returns sigma in diagonalization order; sort before comparing.
+        let mut ss = s.clone();
+        ss.sort_by(|x, y| y.partial_cmp(x).unwrap());
+        // Reference from numpy/LAPACK gesdd.
+        assert!((ss[0] - 25.46240743603639).abs() < 1e-12, "s1 {}", ss[0]);
+        assert!((ss[1] - 1.290661675761233).abs() < 1e-12, "s2 {}", ss[1]);
+        assert!(recon_err::<f64>(&u, &s, &vt, &a, 4, 3) < 1e-12);
+        // 1x1 and rank-1 edge cases
+        let (u, s, vt) = svd_host::<f64>(&[-3.0], 1, 1, 1, 30, false);
+        assert!((s[0] - 3.0).abs() < 1e-15);
+        assert!(recon_err::<f64>(&u, &s, &vt, &[-3.0], 1, 1) < 1e-15);
+        // rank-1 3x2 (m >= n as svd_host requires; wide inputs are transposed
+        // in svd() itself)
+        let a = [1.0f64, 2.0, 2.0, 4.0, 3.0, 6.0];
+        let (u, s, vt) = svd_host::<f64>(&a, 3, 2, 1, 30, false);
+        assert!(recon_err::<f64>(&u, &s, &vt, &a, 3, 2) < 1e-12);
+        // batched 4x3
+        let a = [
+            1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 1.0, 0.0, 0.0, 0.0,
+            1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 1.5, 2.5,
+        ];
+        let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 2, 30, false);
+        assert!(recon_err::<f64>(&u[..12], &s[..3], &vt[..9], &a[..12], 4, 3) < 1e-12);
+        assert!(recon_err::<f64>(&u[12..], &s[3..], &vt[9..], &a[12..], 4, 3) < 1e-12);
+        println!("DBGT batch2 recon ok");
+        // extreme scales stay finite
+        let a = [1e200f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let (u, s, vt) = svd_host::<f64>(&a, 3, 3, 1, 30, false);
+        assert!(
+            s[0].is_finite() && (s[0] - 1e200).abs() < 1e200 * 1e-14,
+            "s0 {}",
+            s[0]
+        );
+        assert!(recon_err::<f64>(&u, &s, &vt, &a, 3, 3) < 1e200 * 1e-13);
+    }
+
+    #[test]
+    fn test_svd_host_f32_extremes() {
+        // f32: scaled norm/dlartg/dlas2 must not overflow or produce NaN
+        for a in [
+            [1e38f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            [1e-40f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            [1e20f32, 1e-20, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        ] {
+            let (u, s, vt) = svd_host::<f32>(&a, 3, 3, 1, 30, false);
+            for x in s.iter() {
+                assert!(x.is_finite(), "sigma not finite: {:?}", s);
+            }
+            let err = recon_err::<f32>(&u, &s, &vt, &a, 3, 3);
+            assert!(err.is_finite(), "recon not finite {err}");
+            assert!(err <= a[0].abs().max(1.0) * 1e-4, "recon err {err}");
+        }
     }
 }
