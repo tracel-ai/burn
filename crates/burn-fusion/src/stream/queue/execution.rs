@@ -71,8 +71,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.global.drain(0..num_drained);
 
         self.reset_relative();
-        // An execution boundary: deferred cross-thread frees whose pending
-        // references just ran can be released now.
+        // An execution boundary: release frees whose references just ran.
         self.flush_deferred(handles);
     }
 

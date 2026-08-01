@@ -23,13 +23,9 @@ pub struct OperationQueue<R: FusionRuntime> {
     pub(crate) converter: OperationConverter,
     pub(crate) operations: Vec<UnfusedOp<R>>,
     pub(crate) variables: HashMap<TensorId, TensorStatus>,
-    /// Last-use frees for tensors that were already materialized when the
-    /// free arrived from another thread (a cross-stream read's consume, or a
-    /// foreign `Drop`): they run at the next execution boundary
-    /// ([`flush_deferred`](Self::flush_deferred)) instead of interrupting the
-    /// queue. Draining at the moment such a message lands would cut the
-    /// still-building composition at a point set by cross-thread timing, so
-    /// the same op sequence would compile different fused blocks run to run.
+    /// Last-use frees of materialized tensors received from another thread,
+    /// run at the next execution boundary instead of interrupting the queue
+    /// (see [`ReadPlan`](crate::stream::ReadPlan)).
     pub(crate) deferred_frees: Vec<TensorIr>,
 }
 
@@ -52,25 +48,27 @@ impl<R: FusionRuntime> OperationQueue<R> {
         }
     }
 
-    /// Free every deferred last-use tensor no pending operation still
-    /// references, keeping the rest for the next boundary.
+    /// Whether any pending operation still references `id`. `variables`
+    /// cannot answer this: it keeps entries for tensors whose queued uses
+    /// were all `ReadOnly` after those ops executed.
+    pub(crate) fn references_tensor(&self, id: TensorId) -> bool {
+        self.global
+            .iter()
+            .any(|op| op.nodes().iter().any(|node| node.id == id))
+    }
+
+    /// Free every deferred tensor no pending operation still references,
+    /// keeping the rest for the next boundary.
     ///
-    /// Called at execution boundaries — after a block executes, and on a
-    /// drain — the only points where the answer can change. The reference
-    /// check here is the accurate one (a scan of the pending ops); the O(1)
-    /// `variables` check that *defers* a free is conservative, which only
-    /// delays a free to the next boundary, never leaks it.
+    /// Called at execution boundaries, right after the referencing ops ran —
+    /// the earliest legal point to release the memory.
     pub(crate) fn flush_deferred(&mut self, handles: &mut HandleContainer<R::FusionHandle>) {
         if self.deferred_frees.is_empty() {
             return;
         }
         let deferred = core::mem::take(&mut self.deferred_frees);
         for ir in deferred {
-            let pending = self
-                .global
-                .iter()
-                .any(|op| op.nodes().iter().any(|node| node.id == ir.id));
-            if pending {
+            if self.references_tensor(ir.id) {
                 self.deferred_frees.push(ir);
             } else {
                 self.variables.remove(&ir.id);

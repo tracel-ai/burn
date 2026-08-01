@@ -40,26 +40,21 @@ where
 
     /// Register a `Drop` that originates from a thread other than the tensor's home stream.
     ///
-    /// A same-thread drop is naturally ordered after that thread's last use of the id, so the
-    /// fusion lifetime analysis frees it safely. A *foreign* drop arrives at a nondeterministic
-    /// point relative to the home thread's own registrations, so it must neither enter the
-    /// still-building fused segment (the block DAG (#5135) could reorder the free ahead of a
-    /// pending read and let the buffer be reused while an in-flight kernel still reads it) nor
-    /// cut that segment by draining — the cut point would be set by cross-thread timing, and the
-    /// same op sequence would compile different fused blocks run to run (see
-    /// [`ReadPlan`](crate::stream::ReadPlan)).
-    ///
-    /// A materialized tensor's drop therefore bypasses the queue entirely: freed immediately, or
-    /// at the next execution boundary if pending ops still reference the tensor. Only a tensor
-    /// whose producer is itself still pending falls back to drain-then-enqueue, since only the
-    /// queue can order that drop after the producer.
+    /// A foreign drop must neither enqueue into the pending segment (the block DAG could reorder
+    /// the free ahead of a pending read) nor cut it by draining (see
+    /// [`ReadPlan`](crate::stream::ReadPlan)). A materialized tensor bypasses the queue entirely;
+    /// otherwise only the queue can order the drop after its producer, so fall back to
+    /// drain-then-enqueue.
     pub fn register_foreign_drop(
         &mut self,
         stream: StreamId,
         ir: TensorIr,
         operation: UnfusedOp<R>,
     ) {
-        if self.streams.foreign_drop(stream, ir.clone(), &mut self.handles) {
+        if self
+            .streams
+            .foreign_drop(stream, ir.clone(), &mut self.handles)
+        {
             return;
         }
         self.streams.drain(&mut self.handles, stream);
@@ -79,13 +74,8 @@ where
     /// Ready `id`'s stream for reading `tensor` and return the IR the handle
     /// lookup must use.
     ///
-    /// Pending operations are executed only when the read requires it: the
-    /// tensor's handle does not exist yet. A read of a materialized tensor
-    /// leaves the queue untouched — draining here would cut the
-    /// still-building fused composition at a point set by cross-thread
-    /// timing (see [`ReadPlan`]) — and a materialized *last use* whose
-    /// tensor pending operations still reference reads through a `ReadOnly`
-    /// view, its free deferred to the stream's next execution boundary.
+    /// A `DeferFree` read goes through a `ReadOnly` view; its free runs at
+    /// the stream's next execution boundary. See [`ReadPlan`].
     fn prepare_read(&mut self, tensor: &TensorIr, id: StreamId) -> TensorIr {
         match self.streams.read_plan(id, tensor, &self.handles) {
             ReadPlan::Drain => {
