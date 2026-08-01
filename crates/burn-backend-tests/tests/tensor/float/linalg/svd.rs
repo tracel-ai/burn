@@ -517,50 +517,38 @@ fn test_svd_random_reconstruction() {
 // arbitrary); the singular values are compared exactly.
 // ---------------------------------------------------------------------
 
-#[test]
-fn test_svd_torch_reference_rectangular() {
-    // torch.linalg.svd([[1,2],[3,4],[5,6]]) - 3x2
-    let device = Default::default();
-    let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], &device);
-    let (u, s, vt) = svd::<2, 1>(tensor, 15);
+/// Compare U and Vt against torch references, aligning sign freedom per
+/// column (U) and per row (Vt).
+fn assert_torch_factors<const D: usize>(
+    u: TestTensor<D>,
+    vt: TestTensor<D>,
+    ref_u: &[f32],
+    ref_vt: &[f32],
+    shape_u: [usize; D],
+    shape_vt: [usize; D],
+) {
+    let device = u.device();
     let tol = torch_tol();
-
-    let sv = TestTensor::<1>::from_data([9.52551937, 0.51430136], &device);
-    s.clone()
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&sv.into_data(), tol);
-
-    // torch u (row-major [3,2]) and vt ([2,2]), signs aligned per column.
     let mut uv: Vec<f32> = u
-        .clone()
         .into_data()
         .bytes
         .chunks_exact(4)
         .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
         .collect();
     let mut vv: Vec<f32> = vt
-        .clone()
         .into_data()
         .bytes
         .chunks_exact(4)
         .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
         .collect();
-    align_column_signs(&mut uv, 3, 2);
-    align_row_signs(&mut vv, 2, 2);
-    let ref_u = TestTensor::<2>::from_data(
-        [
-            [0.22984788, 0.88346142],
-            [0.52474481, 0.24078178],
-            [0.81964201, -0.40189564],
-        ],
-        &device,
-    );
-    let ref_vt = TestTensor::<2>::from_data(
-        [[0.61962938, 0.78489453], [0.78489453, -0.61962938]],
-        &device,
-    );
-    let got_u = TestTensor::<2>::from_data(TensorData::new(uv, [3, 2]), &device);
-    let got_vt = TestTensor::<2>::from_data(TensorData::new(vv, [2, 2]), &device);
+    let (ru, cv) = (shape_u[D - 2], shape_u[D - 1]);
+    let (rv, cw) = (shape_vt[D - 2], shape_vt[D - 1]);
+    align_column_signs(&mut uv, ru, cv);
+    align_row_signs(&mut vv, rv, cw);
+    let got_u = TestTensor::<D>::from_data(TensorData::new(uv, shape_u), &device);
+    let got_vt = TestTensor::<D>::from_data(TensorData::new(vv, shape_vt), &device);
+    let ref_u = TestTensor::<D>::from_data(TensorData::new(ref_u.to_vec(), shape_u), &device);
+    let ref_vt = TestTensor::<D>::from_data(TensorData::new(ref_vt.to_vec(), shape_vt), &device);
     got_u
         .into_data()
         .assert_approx_eq::<FloatElem>(&ref_u.into_data(), tol);
@@ -570,116 +558,94 @@ fn test_svd_torch_reference_rectangular() {
 }
 
 #[test]
-fn test_svd_torch_reference_square() {
-    // torch.linalg.svd([[4,7,3],[6,1,3],[8,3,7]]) - 3x3
+fn test_svd_torch_reference() {
     let device = Default::default();
-    let tensor =
-        TestTensor::<2>::from_data([[4.0, 7.0, 3.0], [6.0, 1.0, 3.0], [8.0, 3.0, 7.0]], &device);
-    let (u, s, vt) = svd::<2, 1>(tensor, 15);
-    let tol = torch_tol();
+    // (matrix, expected singular values, ref u, ref vt)
+    // Values from torch.linalg.svd (LAPACK gesdd), signs aligned.
+    let cases: Vec<(
+        TestTensor<2>,
+        Vec<f32>,
+        &[f32],
+        &[f32],
+        [usize; 2],
+        [usize; 2],
+    )> = vec![
+        (
+            TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], &device),
+            vec![9.52551937, 0.51430136],
+            &[
+                0.22984788,
+                0.88346142,
+                0.52474481,
+                0.24078178,
+                0.81964201,
+                -0.40189564,
+            ],
+            &[0.61962938, 0.78489453, 0.78489453, -0.61962938],
+            [3, 2],
+            [2, 2],
+        ),
+        (
+            TestTensor::<2>::from_data(
+                [[4.0, 7.0, 3.0], [6.0, 1.0, 3.0], [8.0, 3.0, 7.0]],
+                &device,
+            ),
+            vec![14.67576408, 4.95769882, 1.42939591],
+            &[
+                0.51108384,
+                0.84870338,
+                0.13599968,
+                0.43565938,
+                -0.39217851,
+                0.81018335,
+                0.74094146,
+                -0.35482201,
+                -0.57018161,
+            ],
+            &[
+                0.72131324,
+                0.42492306,
+                0.54694390,
+                -0.36243331,
+                0.90450847,
+                -0.22473705,
+                -0.59021139,
+                -0.03612483,
+                0.80644017,
+            ],
+            [3, 3],
+            [3, 3],
+        ),
+        (
+            // wide: m < n transpose path
+            TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device),
+            vec![9.50803089, 0.77286965],
+            &[0.38631779, 0.92236584, 0.92236584, -0.38631779],
+            &[
+                0.42866719,
+                0.56630695,
+                0.70394671,
+                0.80596405,
+                0.11238238,
+                -0.58119905,
+            ],
+            [2, 2],
+            [2, 3],
+        ),
+    ];
+    for (tensor, sv_ref, ref_u, ref_vt, shape_u, shape_vt) in cases {
+        let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
+        let n_sv = sv_ref.len();
+        let sv = TestTensor::<1>::from_data(burn_tensor::TensorData::new(sv_ref, [n_sv]), &device);
+        s.clone()
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&sv.into_data(), torch_tol());
+        assert_torch_factors::<2>(u.clone(), vt.clone(), ref_u, ref_vt, shape_u, shape_vt);
+        assert_reconstruction::<2, 1>(tensor, u, &s, vt);
+    }
 
-    let sv = TestTensor::<1>::from_data([14.67576408, 4.95769882, 1.42939591], &device);
-    s.clone()
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&sv.into_data(), tol);
-
-    let mut uv: Vec<f32> = u
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
-    let mut vv: Vec<f32> = vt
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
-    align_column_signs(&mut uv, 3, 3);
-    align_row_signs(&mut vv, 3, 3);
-    let ref_u = TestTensor::<2>::from_data(
-        [
-            [0.51108384, 0.84870338, 0.13599968],
-            [0.43565938, -0.39217851, 0.81018335],
-            [0.74094146, -0.35482201, -0.57018161],
-        ],
-        &device,
-    );
-    let ref_vt = TestTensor::<2>::from_data(
-        [
-            [0.72131324, 0.42492306, 0.54694390],
-            [-0.36243331, 0.90450847, -0.22473705],
-            [-0.59021139, -0.03612483, 0.80644017],
-        ],
-        &device,
-    );
-    let got_u = TestTensor::<2>::from_data(TensorData::new(uv, [3, 3]), &device);
-    let got_vt = TestTensor::<2>::from_data(TensorData::new(vv, [3, 3]), &device);
-    got_u
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&ref_u.into_data(), tol);
-    got_vt
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&ref_vt.into_data(), tol);
-}
-
-#[test]
-fn test_svd_torch_reference_wide() {
-    // torch.linalg.svd([[1,2,3],[4,5,6]]) - 2x3 (m < n transpose path)
-    let device = Default::default();
-    let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-    let (u, s, vt) = svd::<2, 1>(tensor, 15);
-    let tol = torch_tol();
-
-    let sv = TestTensor::<1>::from_data([9.50803089, 0.77286965], &device);
-    s.clone()
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&sv.into_data(), tol);
-
-    let mut uv: Vec<f32> = u
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
-    let mut vv: Vec<f32> = vt
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
-    align_column_signs(&mut uv, 2, 2);
-    align_row_signs(&mut vv, 2, 3);
-    let ref_u = TestTensor::<2>::from_data(
-        [[0.38631779, 0.92236584], [0.92236584, -0.38631779]],
-        &device,
-    );
-    let ref_vt = TestTensor::<2>::from_data(
-        [
-            [0.42866719, 0.56630695, 0.70394671],
-            [0.80596405, 0.11238238, -0.58119905],
-        ],
-        &device,
-    );
-    let got_u = TestTensor::<2>::from_data(TensorData::new(uv, [2, 2]), &device);
-    let got_vt = TestTensor::<2>::from_data(TensorData::new(vv, [2, 3]), &device);
-    got_u
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&ref_u.into_data(), tol);
-    got_vt
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&ref_vt.into_data(), tol);
-}
-
-#[test]
-fn test_svd_torch_reference_singular() {
-    // Rank-1 matrix: singular values match torch; the null-space factor is
-    // arbitrary so only S (and reconstruction) are compared.
-    let device = Default::default();
+    // Rank-1 matrix: the null-space factor is arbitrary, so only S (and
+    // reconstruction) are compared.
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [2.0, 4.0]], &device);
     let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
     let sv = TestTensor::<1>::from_data([4.99999952, 0.00000011], &device);
