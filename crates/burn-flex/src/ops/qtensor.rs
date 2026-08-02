@@ -9,7 +9,8 @@ use burn_backend::{
     DType, ExecutionError, FloatDType, TensorData, TensorMetadata,
     ops::{IntTensorOps, QTensorOps},
     quantization::{
-        QuantLevel, QuantScheme, QuantStore, QuantizationParametersPrimitive, QuantizedBytes,
+        QuantLevel, QuantParam, QuantScheme, QuantStore, QuantizationParametersPrimitive,
+        QuantizedBytes, scale_to_param,
     },
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -61,7 +62,7 @@ impl QTensorOps<Flex> for Flex {
                         alpha = abs;
                     }
                 }
-                let scale = validated_scale(2.0 * alpha / range);
+                let scale = validated_scale(2.0 * alpha / range, scheme.param);
                 let inv_scale = 1.0 / scale;
 
                 // Pass 2: quantize
@@ -93,7 +94,7 @@ impl QTensorOps<Flex> for Flex {
                             alpha = abs;
                         }
                     }
-                    let scale = validated_scale(2.0 * alpha / range);
+                    let scale = validated_scale(2.0 * alpha / range, scheme.param);
                     let inv_scale = 1.0 / scale;
                     scales.push(scale);
 
@@ -129,7 +130,11 @@ impl QTensorOps<Flex> for Flex {
         // assuming f32 storage.
         let scales_tensor = qparams.scales.to_contiguous();
         let scales_data = float_storage_as_f32(&scales_tensor);
-        let scales: Vec<f32> = scales_data.iter().copied().map(validated_scale).collect();
+        let scales: Vec<f32> = scales_data
+            .iter()
+            .copied()
+            .map(|s| validated_scale(s, scheme.param))
+            .collect();
 
         let (a, b) = scheme.value.range();
 
@@ -341,9 +346,15 @@ fn block_safe_layout_op(
     }
 }
 
-/// Ensure scale is finite and nonzero to avoid division by zero or NaN propagation.
-fn validated_scale(scale: f32) -> f32 {
-    if scale.is_normal() {
+/// Round the scale to the scheme's param dtype, then ensure it is finite and nonzero to avoid
+/// division by zero or NaN propagation.
+///
+/// Rounding comes first, and only an exactly zero scale is replaced: subnormals of the param are
+/// representable and carry real information for a small tensor, so substituting them would throw
+/// away what rounding up preserved.
+fn validated_scale(scale: f32, param: QuantParam) -> f32 {
+    let scale = scale_to_param(scale, param);
+    if scale > 0.0 && scale.is_finite() {
         scale
     } else {
         f32::MIN_POSITIVE
@@ -472,6 +483,36 @@ mod tests {
         let qtensor = Flex::quantize(tensor, &scheme, qparams);
         let q_vals: &[i8] = qtensor.tensor.storage();
         assert_eq!(q_vals, &[0, 0, 0, 0]);
+    }
+
+    /// The scale a narrow param can represent is coarser than the exact one, so the stored scale
+    /// must reflect the param rather than staying at full `f32` precision. Before scales were
+    /// rounded, every param produced byte-identical results here.
+    #[test]
+    fn test_quantize_dynamic_honors_param_precision() {
+        // 4.5 / 127 is not representable in e4m3, so rounding is observable.
+        let values = vec![-3.0f32, -1.5, 0.0, 1.5, 3.0, 4.5];
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+
+        let quantize_with = |param| {
+            let tensor = FlexTensor::from_data(TensorData::new(values.clone(), [2, 3]));
+            Flex::quantize_dynamic(tensor, &scheme.with_param(param)).scales[0]
+        };
+
+        let exact = quantize_with(QuantParam::F32);
+        let coarse = quantize_with(QuantParam::UE4M3);
+
+        assert_ne!(
+            exact, coarse,
+            "UE4M3 scale should differ from the exact f32 scale"
+        );
+        assert_eq!(
+            coarse,
+            scale_to_param(exact, QuantParam::UE4M3),
+            "stored scale should be the exact scale rounded to the param"
+        );
     }
 
     #[test]

@@ -156,3 +156,61 @@ fn test_reduce_broadcasted_4_reused_partial() {
     ]);
     actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
+
+// ---------------------------------------------------------------------------
+// Regression test [#5201](https://github.com/tracel-ai/burn/issues/5202):
+// A masked softmax fused by `ReduceBroadcastedFuser` was producing wrong values on wgpu.
+// Identical wrong value every run (e.g. row 0 = 59874.13 instead of 1),
+#[test]
+fn test_reduce_broadcasted_masked_softmax() {
+    let device = Default::default();
+    let [d0, q, k] = [6usize, 96, 96];
+    let n = (d0 * q * k) as i64;
+
+    let x = TestTensorInt::<1>::arange(0..n, &device)
+        .reshape([d0, q, k])
+        .float();
+    let x = (x / (n as f32) - 0.5) * 20.0;
+
+    let q_idx = TestTensorInt::<1>::arange(0..q as i64, &device).reshape([q, 1]);
+    let k_idx = TestTensorInt::<1>::arange(0..k as i64, &device).reshape([1, k]);
+    let mask = k_idx.greater(q_idx).reshape([1, q, k]);
+    device.sync().unwrap();
+
+    // Softmax over the last dim of the masked scores.
+    let scores = x.clone().mask_fill(mask, -10000.0);
+    let max = scores.clone().max_dim(2);
+    let e = (scores - max).exp();
+    let sum = e.clone().sum_dim(2);
+    let actual = (e / sum).into_data();
+
+    // Host reference: the same causal-masked softmax, row by row.
+    let xs = x.into_data();
+    let xs = xs.as_slice::<FloatElem>().unwrap();
+    let mut expected = vec![0f32; d0 * q * k];
+    for o in 0..(d0 * q) {
+        let qi = o % q;
+        let row: Vec<f32> = (0..k)
+            .map(|c| if c > qi { -10000.0 } else { xs[o * k + c] })
+            .collect();
+        let m = row.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        let exps: Vec<f32> = row.iter().map(|v| (v - m).exp()).collect();
+        let s: f32 = exps.iter().sum();
+        for c in 0..k {
+            expected[o * k + c] = exps[c] / s;
+        }
+    }
+
+    assert!(
+        actual
+            .as_slice::<FloatElem>()
+            .unwrap()
+            .iter()
+            .all(|v| v.is_finite()),
+        "fused masked softmax produced non-finite output at [6, 96, 96]",
+    );
+    actual.assert_approx_eq::<FloatElem>(
+        &TensorData::new(expected, [d0, q, k]),
+        Tolerance::permissive(),
+    );
+}

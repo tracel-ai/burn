@@ -6,7 +6,7 @@ use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Dataset, InMemDataset,
+    Dataset, DatasetError, InMemDataset,
     transform::{Mapper, MapperDataset},
 };
 
@@ -72,7 +72,7 @@ pub struct MnistDataset {
 }
 
 impl Dataset<MnistItem> for MnistDataset {
-    fn get(&self, index: usize) -> Option<MnistItem> {
+    fn get(&self, index: usize) -> Result<MnistItem, DatasetError> {
         self.dataset.get(index)
     }
 

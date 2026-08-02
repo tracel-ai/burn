@@ -4,7 +4,7 @@
 //! a unified API. This makes `Param<T>` `Sync` so models can be shared across threads
 //! for parallel inference.
 //!
-//! We define our own wrapper instead of reusing `burn_std::stub::SyncOnceCell` because
+//! We define our own wrapper instead of reusing `burn_std::sync::SyncOnceCell` because
 //! that version requires `T: Debug` on all methods and lacks `get()`.
 
 #[cfg(feature = "std")]

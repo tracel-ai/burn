@@ -79,7 +79,7 @@ fn test_chunk_not_divisible() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn test_invalid_dim() {
     let _tensors = TestTensorInt::arange(0..12, &Default::default()).chunk(6, 1);
 }

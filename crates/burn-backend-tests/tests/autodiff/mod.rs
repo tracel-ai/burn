@@ -48,6 +48,7 @@ mod log;
 mod log1p;
 mod log_sigmoid;
 mod mask;
+mod mask_select;
 mod matmul;
 mod maxmin;
 mod maxpool1d;

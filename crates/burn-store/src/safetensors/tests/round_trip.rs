@@ -101,3 +101,37 @@ fn complex_module_round_trip() {
         .unwrap();
     assert_eq!(encoder_weight.shape, shape![2, 2, 2]);
 }
+
+/// Safetensors stores no parameter identity, so importing from it must leave the target module's
+/// ParamIds untouched. Randomizing them here would orphan optimizer state keyed by ParamId.
+#[test]
+fn round_trip_keeps_target_param_ids() {
+    let device = Default::default();
+    let module1 = ComplexModule::new(&device);
+    let mut module2 = ComplexModule::new_zeros(&device);
+
+    let expected_bias_id = module2.encoder.bias.id;
+    let expected_norm_id = module2.encoder.norm.id;
+
+    let mut save_store = SafetensorsStore::from_bytes(None);
+    module1.save_into(&mut save_store).unwrap();
+
+    let mut load_store = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        let data_arc = p_save.data().unwrap();
+        p.set_data(data_arc.as_ref().clone());
+    }
+    let result = module2.load_from(&mut load_store).unwrap();
+    assert!(result.is_success());
+
+    assert_eq!(
+        module2.encoder.bias.id, expected_bias_id,
+        "encoder.bias should keep its ParamId across a safetensors import"
+    );
+    assert_eq!(
+        module2.encoder.norm.id, expected_norm_id,
+        "encoder.norm should keep its ParamId across a safetensors import"
+    );
+}

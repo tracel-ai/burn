@@ -1,7 +1,7 @@
 use burn::{
     data::{
         dataloader::batcher::Batcher,
-        dataset::{Dataset, InMemDataset},
+        dataset::{Dataset, DatasetError, InMemDataset},
     },
     prelude::*,
 };
@@ -62,7 +62,7 @@ impl SequenceDataset {
 }
 
 impl Dataset<SequenceDatasetItem> for SequenceDataset {
-    fn get(&self, index: usize) -> Option<SequenceDatasetItem> {
+    fn get(&self, index: usize) -> Result<SequenceDatasetItem, DatasetError> {
         self.dataset.get(index)
     }
 

@@ -6,7 +6,6 @@ use crate::metric::{
 use burn_core::{
     prelude::{Device, Int, Tensor},
     tensor::{
-        ElementConversion,
         module::{avg_pool2d, conv2d},
         ops::{ConvOptions, PadMode},
     },
@@ -471,11 +470,14 @@ impl Metric for MsSsimMetric {
         let ms_ssim_per_image = ms_ssim_tensor.mean_dim(1);
         let avg_ms_ssim = ms_ssim_per_image.mean().into_scalar::<f64>();
 
-        self.state.update(
-            avg_ms_ssim,
-            batch_size,
-            FormatOptions::new(self.name()).precision(4),
-        )
+        self.state.update(avg_ms_ssim, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).precision(4))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).precision(4))
     }
 
     /// Clears the metric state.
@@ -487,19 +489,22 @@ impl Metric for MsSsimMetric {
         NumericAttributes {
             unit: None,
             higher_is_better: true,
-            ..Default::default()
         }
         .into()
     }
 }
 
 impl Numeric for MsSsimMetric {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -534,7 +539,7 @@ mod tests {
         let input = MsSsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ms_ssim = metric.value().current();
+        let ms_ssim = metric.value().unwrap().current();
         assert!(
             ms_ssim > 0.99,
             "MS-SSIM for identical images should be 1.0, got {}",
@@ -553,7 +558,7 @@ mod tests {
         let input = MsSsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ms_ssim = metric.value().current();
+        let ms_ssim = metric.value().unwrap().current();
         assert!(
             (ms_ssim - 0.3).abs() < 0.01,
             "MS-SSIM for black vs white should be low (around 0.3), got {}",
@@ -572,7 +577,7 @@ mod tests {
         let input = MsSsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ms_ssim = metric.value().current();
+        let ms_ssim = metric.value().unwrap().current();
         assert!(
             ms_ssim > 0.95,
             "MS-SSIM for very similar images should be close to 1.0, got {}",
@@ -603,7 +608,7 @@ mod tests {
         let input = MsSsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ms_ssim = metric.value().current();
+        let ms_ssim = metric.value().unwrap().current();
         // Average of ~1.0 and ~0.292 should be around 0.64
         assert!(
             (ms_ssim - 0.64).abs() < 0.02,
@@ -628,7 +633,7 @@ mod tests {
         let input = MsSsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ms_ssim = metric.value().current();
+        let ms_ssim = metric.value().unwrap().current();
         assert!(
             ms_ssim > 0.99,
             "MS-SSIM for identical RGB images should be 1.0, got {}",
@@ -647,7 +652,7 @@ mod tests {
         metric.update(&input1, &MetricMetadata::fake());
 
         assert!(
-            metric.value().current() > 0.99,
+            metric.value().unwrap().current() > 0.99,
             "First update should be approximately 1.0"
         );
 
@@ -657,7 +662,7 @@ mod tests {
         let input2 = MsSsimInput::new(black, white);
         metric.update(&input2, &MetricMetadata::fake());
 
-        let running = metric.running_value().current();
+        let running = metric.running_value().unwrap().current();
         assert!(
             (running - 0.64).abs() < 0.02,
             "Running average should be approximately 0.64, got {}",
@@ -687,7 +692,7 @@ mod tests {
         let _ = metric.update(&input, &MetricMetadata::fake());
 
         // Identical images should still yield ~1.0
-        let ms_ssim = metric.value().current();
+        let ms_ssim = metric.value().unwrap().current();
         assert!(
             ms_ssim > 0.99,
             "1-scale MS-SSIM for identical images should be 1.0, got {}",
@@ -711,12 +716,12 @@ mod tests {
         let mut metric1 = MsSsimMetric::new(config.clone(), &device);
         let input1 = MsSsimInput::new(img1.clone(), img2.clone());
         let _entry = metric1.update(&input1, &MetricMetadata::fake());
-        let ms_ssim1 = metric1.value().current();
+        let ms_ssim1 = metric1.value().unwrap().current();
 
         let mut metric2 = MsSsimMetric::new(config, &device);
         let input2 = MsSsimInput::new(img2, img1);
         let _entry = metric2.update(&input2, &MetricMetadata::fake());
-        let ms_ssim2 = metric2.value().current();
+        let ms_ssim2 = metric2.value().unwrap().current();
 
         assert!(
             (ms_ssim1 - ms_ssim2).abs() < 0.001,
@@ -735,10 +740,10 @@ mod tests {
         let input = MsSsimInput::new(img.clone(), img);
         metric.update(&input, &MetricMetadata::fake());
 
-        assert!(metric.value().current() > 0.99);
+        assert!(metric.value().unwrap().current() > 0.99);
 
         metric.clear();
-        assert!(metric.running_value().current().is_nan());
+        assert!(metric.running_value().unwrap().current().is_nan());
     }
 
     #[test]

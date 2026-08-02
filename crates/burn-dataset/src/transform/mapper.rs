@@ -1,4 +1,5 @@
 use crate::Dataset;
+use std::error::Error;
 use std::marker::PhantomData;
 
 /// Basic mapper trait to be used with the [mapper dataset](MapperDataset).
@@ -15,16 +16,17 @@ pub struct MapperDataset<D, M, I> {
     input: PhantomData<I>,
 }
 
-impl<D, M, I, O> Dataset<O> for MapperDataset<D, M, I>
+impl<D, M, I, O, E> Dataset<O, E> for MapperDataset<D, M, I>
 where
-    D: Dataset<I>,
+    D: Dataset<I, E>,
     M: Mapper<I, O> + Send + Sync,
     I: Send + Sync,
     O: Send + Sync,
+    E: Error + Send + Sync + 'static,
 {
-    fn get(&self, index: usize) -> Option<O> {
-        let item = self.dataset.get(index);
-        item.map(|item| self.mapper.map(&item))
+    fn get(&self, index: usize) -> Result<O, E> {
+        let item = self.dataset.get(index)?;
+        Ok(self.mapper.map(&item))
     }
 
     fn len(&self) -> usize {
@@ -53,7 +55,7 @@ mod tests {
         let dataset = InMemDataset::new(items_original);
         let dataset = MapperDataset::new(dataset, StringToFirstChar);
 
-        let items: Vec<String> = dataset.iter().collect();
+        let items: Vec<String> = dataset.iter().map(Result::unwrap).collect();
 
         assert_eq!(vec!["1", "2", "3", "4"], items);
     }

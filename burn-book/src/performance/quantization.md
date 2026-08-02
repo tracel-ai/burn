@@ -126,8 +126,14 @@ Native storage is not supported for sub-byte quantization values.
 
 #### Quantization Parameters Precision
 
-| Param  | Description                    |
-| :----- | :----------------------------- |
-| `F32`  | Full floating-point precision. |
-| `F16`  | Half-precision floating point. |
-| `BF16` | Brain float 16-bit precision.  |
+| Param   | Description                                                                            |
+| :------ | :------------------------------------------------------------------------------------- |
+| `F32`   | Full floating-point precision.                                                         |
+| `F16`   | Half-precision floating point.                                                         |
+| `BF16`  | Brain float 16-bit precision.                                                          |
+| `UE4M3` | 8-bit floating point (4 exponent, 3 mantissa). Currently supported on CPU backends only. |
+
+A narrower parameter type stores less per block, but it also has a much smaller range. `UE4M3`
+cannot represent a value below `2^-9`, so a scale smaller than that rounds to zero and the block
+is lost. Scales stay in range when the quantized values are large enough, which in practice means
+it is not a drop-in replacement for `F32` on small-magnitude weights.

@@ -1,4 +1,4 @@
-use cubecl_common::config::logger::{LogLevel, LoggerConfig};
+use cubecl_environment::config::logger::{LogLevel, LoggerConfig};
 
 /// Configuration for the remote backend.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

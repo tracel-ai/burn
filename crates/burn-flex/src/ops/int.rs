@@ -503,7 +503,7 @@ impl IntTensorOps<Flex> for Flex {
         _device: &Device<Flex>,
         dtype: IntDType,
     ) -> IntTensor<Flex> {
-        let mut seed = crate::backend::SEED.lock().unwrap();
+        let mut seed = crate::backend::SEED.lock();
         let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
         let data = match dtype {
             IntDType::I64 => TensorData::random::<i64, _, _>(shape, distribution, &mut rng),
@@ -605,10 +605,6 @@ impl IntTensorOps<Flex> for Flex {
 
     fn int_argmax(tensor: IntTensor<Flex>, dim: usize) -> IntTensor<Flex> {
         crate::ops::reduce::argmax(tensor, dim)
-    }
-
-    fn int_argtopk(_tensor: IntTensor<Flex>, _dim: usize, _k: usize) -> IntTensor<Flex> {
-        panic!("argtopk not implemented for flex")
     }
 
     fn int_argmin(tensor: IntTensor<Flex>, dim: usize) -> IntTensor<Flex> {

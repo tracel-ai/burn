@@ -1353,6 +1353,31 @@ impl ReduceDimWithIndicesOpIr {
     }
 }
 
+impl TopKWithIndicesOpIr {
+    pub fn create(
+        tensor: TensorIr,
+        dim: usize,
+        k: usize,
+        dtype_indices: DType,
+        mut new_id: impl FnMut() -> TensorId,
+    ) -> Self {
+        // Unlike a plain reduce-with-indices, the reduced axis keeps `k` entries
+        // rather than collapsing to 1.
+        let mut shape = tensor.shape.clone();
+        shape[dim] = k;
+        let out = TensorIr::uninit(new_id(), shape.clone(), tensor.dtype);
+        let out_indices = TensorIr::uninit(new_id(), shape.clone(), dtype_indices);
+
+        TopKWithIndicesOpIr {
+            tensor,
+            dim,
+            k,
+            out,
+            out_indices,
+        }
+    }
+}
+
 impl DeformConv2dBackwardOpIr {
     #[allow(clippy::too_many_arguments)]
     pub fn create(

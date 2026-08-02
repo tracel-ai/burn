@@ -1,5 +1,5 @@
 use super::PlotAxes;
-use crate::renderer::tui::TuiTag;
+use crate::{metric::NumericEntry, renderer::tui::TuiTag};
 use ratatui::{
     style::{Color, Style},
     symbols,
@@ -14,6 +14,7 @@ pub(crate) struct RecentHistoryPlot {
     pub(crate) axes: PlotAxes,
     points: BTreeMap<TuiTag, RecentHistoryPoints>,
     max_samples: usize,
+    next_x_state: usize,
 }
 
 struct RecentHistoryPoints {
@@ -33,20 +34,45 @@ impl RecentHistoryPlot {
             axes: PlotAxes::default(),
             points: BTreeMap::default(),
             max_samples,
+            next_x_state: 0,
         }
     }
 
-    pub(crate) fn push(&mut self, tag: TuiTag, data: f64) {
+    pub(crate) fn push(&mut self, tag: TuiTag, data: Option<NumericEntry>) {
         if !self.points.contains_key(&tag) {
             self.points
                 .insert(tag.clone(), RecentHistoryPoints::new(self.max_samples));
         }
 
-        let (x_min, x_current) = self.point_x();
+        // Convert the NumericEntry into a plottable f64.
+        // We filter out `Final` if we already have batch points for this tag.
+        let plot_value = match data {
+            Some(NumericEntry::Final(val)) => {
+                let has_points = !self.points.get(&tag).unwrap().points.is_empty();
+                if has_points {
+                    return; // Ignore the N+1 artifact
+                } else {
+                    Some(val) // Fallback for global-only metrics
+                }
+            }
+            Some(entry) => Some(entry.current()),
+            None => None,
+        };
+
+        let x_current = self.next_x_state as f64;
+        self.next_x_state += 1;
+
+        let x_min = if self.next_x_state > self.max_samples {
+            (self.next_x_state - self.max_samples) as f64
+        } else {
+            0.0
+        };
 
         for (s, entry) in self.points.iter_mut() {
-            if s == &tag {
-                entry.push((x_current, data));
+            if let Some(y) = plot_value
+                && s == &tag
+            {
+                entry.push((x_current, y));
             }
             entry.update_cursor(x_min);
         }
@@ -62,22 +88,6 @@ impl RecentHistoryPlot {
         }
 
         datasets
-    }
-
-    fn point_x(&mut self) -> (f64, f64) {
-        let mut x_current = f64::MIN;
-        let mut x_min = f64::MAX;
-
-        for point in self.points.values() {
-            x_current = f64::max(x_current, point.max_x);
-            x_min = f64::min(x_min, point.min_x);
-        }
-
-        if x_current - x_min >= self.max_samples as f64 {
-            x_min += 1.0;
-        }
-
-        (x_min, x_current + 1.0)
     }
 
     fn update_bounds(&mut self) {
@@ -221,29 +231,53 @@ mod tests {
 
     #[test]
     fn test_push_update_bounds_max_y() {
-        let mut chart = RecentHistoryPlot::new(2);
+        let mut chart = RecentHistoryPlot::new(3);
         let tag = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
 
-        chart.push(tag.clone(), 15.0);
-        chart.push(tag.clone(), 10.0);
-        chart.push(tag.clone(), 14.0);
+        chart.push(tag.clone(), Some(NumericEntry::Value(15.0)));
+        chart.push(tag.clone(), Some(NumericEntry::Value(10.0)));
+        chart.push(tag.clone(), Some(NumericEntry::Value(14.0)));
 
         assert_eq!(chart.axes.bounds_y[1], 15.);
-        chart.push(tag, 10.0);
+        chart.push(tag, Some(NumericEntry::Value(10.0)));
         assert_eq!(chart.axes.bounds_y[1], 14.);
     }
 
     #[test]
     fn test_push_update_bounds_min_y() {
+        let mut chart = RecentHistoryPlot::new(3);
+        let tag = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+
+        chart.push(tag.clone(), Some(NumericEntry::Value(5.0)));
+        chart.push(tag.clone(), Some(NumericEntry::Value(10.0)));
+        chart.push(tag.clone(), Some(NumericEntry::Value(14.0)));
+
+        assert_eq!(chart.axes.bounds_y[0], 5.);
+        chart.push(tag, Some(NumericEntry::Value(10.0)));
+        assert_eq!(chart.axes.bounds_y[0], 10.);
+    }
+
+    #[test]
+    fn test_push_update_no_value_bounds_min_x() {
         let mut chart = RecentHistoryPlot::new(2);
         let tag = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
 
-        chart.push(tag.clone(), 5.0);
-        chart.push(tag.clone(), 10.0);
-        chart.push(tag.clone(), 14.0);
+        // Push 1: None -> tick 0. bounds_x = (0, 0)
+        chart.push(tag.clone(), None);
+        assert_eq!(chart.axes.bounds_x, [0.0, 0.0]);
 
-        assert_eq!(chart.axes.bounds_y[0], 5.);
-        chart.push(tag, 10.0);
-        assert_eq!(chart.axes.bounds_y[0], 10.);
+        // Push 2: None -> tick 1. bounds_x unchanged because no point was actually added
+        chart.push(tag.clone(), None);
+        assert_eq!(chart.axes.bounds_x, [0.0, 0.0]);
+
+        // Push 3: Some(5.0) -> tick 2. Sliding window max_samples=2 -> bounds_x = (1, 2)
+        chart.push(tag.clone(), Some(NumericEntry::Value(5.0)));
+        assert_eq!(chart.axes.bounds_x, [1.0, 2.0]);
+        assert_eq!(chart.axes.bounds_y, [5.0, 5.0]);
+
+        // Push 4: Some(10.0) -> tick 3. bounds_x = (2, 3)
+        chart.push(tag, Some(NumericEntry::Value(10.0)));
+        assert_eq!(chart.axes.bounds_x, [2.0, 3.0]);
+        assert_eq!(chart.axes.bounds_y, [5.0, 10.0]);
     }
 }

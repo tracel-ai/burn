@@ -958,7 +958,7 @@ fn safetensors_to_snapshots_lazy(
             })
         });
 
-        let snapshot = TensorSnapshot::from_closure(
+        let mut snapshot = TensorSnapshot::from_closure(
             data_fn,
             dtype,
             shape.into(),
@@ -966,6 +966,10 @@ fn safetensors_to_snapshots_lazy(
             vec![], // Empty container_stack - will be filled during module traversal
             ParamId::new(),
         );
+        // Safetensors carries no parameter identity, so the id above is a placeholder rather than
+        // a persisted one. Clear it so loading keeps the target module's ids instead of randomizing
+        // them (the PyTorch store does the same).
+        snapshot.tensor_id = None;
         snapshots.push(snapshot);
     }
 
@@ -1020,7 +1024,7 @@ fn safetensors_to_snapshots_lazy_file(
             })
         });
 
-        let snapshot = TensorSnapshot::from_closure(
+        let mut snapshot = TensorSnapshot::from_closure(
             data_fn,
             dtype,
             shape.into(),
@@ -1028,6 +1032,10 @@ fn safetensors_to_snapshots_lazy_file(
             vec![], // Empty container_stack - will be filled during module traversal
             ParamId::new(),
         );
+        // Safetensors carries no parameter identity, so the id above is a placeholder rather than
+        // a persisted one. Clear it so loading keeps the target module's ids instead of randomizing
+        // them (the PyTorch store does the same).
+        snapshot.tensor_id = None;
         snapshots.push(snapshot);
     }
 

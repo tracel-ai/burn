@@ -1,6 +1,7 @@
+use crate::check::unwrap_dim_index;
 use crate::tensor::Tensor;
 use crate::{
-    ElementConversion,
+    AsIndex, ElementConversion,
     kind::{Numeric, Ordered},
 };
 #[allow(unused_imports)]
@@ -110,12 +111,18 @@ impl From<f64> for Norm {
 /// * `x` - The input tensor.
 /// * `norm` - The selected norm.
 /// * `dim` - The dimension to compute the norm over.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Returns
 ///
 /// The vector norm of the input tensor.
-pub fn vector_norm<const D: usize>(x: Tensor<D>, norm: impl Into<Norm>, dim: usize) -> Tensor<D> {
-    lp_norm(x, norm.into().to_exponent(), dim)
+pub fn vector_norm<const D: usize>(
+    x: Tensor<D>,
+    norm: impl Into<Norm>,
+    dim: impl AsIndex,
+) -> Tensor<D> {
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Vector Norm");
+    lp_norm_impl(x, norm.into().to_exponent(), dim)
 }
 
 /// Computes the general ``L(p)`` norm of a tensor along a specified dimension.
@@ -133,18 +140,24 @@ pub fn vector_norm<const D: usize>(x: Tensor<D>, norm: impl Into<Norm>, dim: usi
 /// * `x` - The input tensor.
 /// * `p` - The exponent of the Lp norm.
 /// * `dim` - The dimension to compute the norm over.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Returns
 ///
 /// The ``L(p)`` norm of the input tensor.
-pub fn lp_norm<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
+pub fn lp_norm<const D: usize>(x: Tensor<D>, p: f64, dim: impl AsIndex) -> Tensor<D> {
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Lp Norm");
+    lp_norm_impl(x, p, dim)
+}
+
+fn lp_norm_impl<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
     match p {
-        0.0 => l0_norm(x, dim),
-        1.0 => l1_norm(x, dim),
-        2.0 => l2_norm(x, dim),
+        0.0 => l0_norm_impl(x, dim),
+        1.0 => l1_norm_impl(x, dim),
+        2.0 => l2_norm_impl(x, dim),
         p if is_even_integer(p) => lp_signed_norm(x, p as u32, dim),
-        f64::INFINITY => max_abs_norm(x, dim),
-        f64::NEG_INFINITY => min_abs_norm(x, dim),
+        f64::INFINITY => max_abs_norm_impl(x, dim),
+        f64::NEG_INFINITY => min_abs_norm_impl(x, dim),
         _ => lp_norm_base(x, p, dim),
     }
 }
@@ -158,6 +171,7 @@ pub fn lp_norm<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
 /// * `x` - The input tensor.
 /// * `norm` - The selected norm.
 /// * `dim` - The dimension to compute the norm over.
+///   Negative dimensions are supported and count from the end.
 /// * `eps` - The epsilon for the norm.
 ///
 /// # Returns
@@ -166,10 +180,11 @@ pub fn lp_norm<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
 pub fn vector_normalize<const D: usize, E: ElementConversion>(
     x: Tensor<D>,
     norm: impl Into<Norm>,
-    dim: usize,
+    dim: impl AsIndex,
     eps: E,
 ) -> Tensor<D> {
-    let norm = vector_norm(x.clone(), norm, dim).clamp_min(eps);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Vector Normalize");
+    let norm = lp_norm_impl(x.clone(), norm.into().to_exponent(), dim).clamp_min(eps);
     x / norm
 }
 
@@ -179,16 +194,25 @@ pub fn vector_normalize<const D: usize, E: ElementConversion>(
 ///
 /// * `x` - The input tensor.
 /// * `dim` - The dimension to compute the norm over.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Returns
 ///
 /// The L0 norm of the input tensor.
-pub fn l0_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
+pub fn l0_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<D, K>
+where
+    K: Numeric,
+{
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L0 Norm");
+    l0_norm_impl(x, dim)
+}
+
+fn l0_norm_impl<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
     K: Numeric,
 {
     x.zeros_like()
-        .mask_fill(x.not_equal_elem(0), 1)
+        .mask_fill(x.not_equal_scalar(0), 1)
         .sum_dim(dim)
 }
 
@@ -200,11 +224,20 @@ where
 ///
 /// * `x` - The input tensor.
 /// * `dim` - The dimension to compute the norm over.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Returns
 ///
 /// The L1 norm of the input tensor.
-pub fn l1_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
+pub fn l1_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<D, K>
+where
+    K: Numeric,
+{
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L1 Norm");
+    l1_norm_impl(x, dim)
+}
+
+fn l1_norm_impl<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
     K: Numeric,
 {
@@ -217,11 +250,17 @@ where
 ///
 /// * `x` - The input tensor.
 /// * `dim` - The dimension to compute the norm over.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Returns
 ///
 /// The L2 norm of the input tensor.
-pub fn l2_norm<const D: usize>(x: Tensor<D>, dim: usize) -> Tensor<D> {
+pub fn l2_norm<const D: usize>(x: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L2 Norm");
+    l2_norm_impl(x, dim)
+}
+
+pub(super) fn l2_norm_impl<const D: usize>(x: Tensor<D>, dim: usize) -> Tensor<D> {
     x.square().sum_dim(dim).sqrt()
 }
 
@@ -252,11 +291,20 @@ fn lp_norm_base<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
 ///
 /// * `x` - The input tensor.
 /// * `dim` - The dimension to compute the norm over.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Returns
 ///
 /// The L:INFINITY norm of the input tensor.
-pub fn max_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
+pub fn max_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<D, K>
+where
+    K: Ordered,
+{
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Abs Norm");
+    max_abs_norm_impl(x, dim)
+}
+
+fn max_abs_norm_impl<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
     K: Ordered,
 {
@@ -269,11 +317,20 @@ where
 ///
 /// * `x` - The input tensor.
 /// * `dim` - The dimension to compute the norm over.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Returns
 ///
 /// The L:NEG_INFINITY norm of the input tensor.
-pub fn min_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
+pub fn min_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<D, K>
+where
+    K: Ordered,
+{
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Min Abs Norm");
+    min_abs_norm_impl(x, dim)
+}
+
+fn min_abs_norm_impl<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
     K: Ordered,
 {

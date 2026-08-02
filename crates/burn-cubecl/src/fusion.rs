@@ -1,18 +1,7 @@
 use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
-use burn_cubecl_fusion::optim::reduce::ReduceSettings;
-use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
-use burn_cubecl_fusion::{
-    CubeFusionHandle, FallbackOperation,
-    optim::{
-        CubeOptimization, CubeOptimizationState,
-        elemwise::{ElementWiseFuser, ElemwiseOptimization},
-        matmul::{MatmulFuser, MatmulOptimization},
-        reduce::{ReduceFuser, ReduceOptimization},
-        reduce_broadcasted::ReduceBroadcastedOptimization,
-    },
-};
+pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
 use burn_fusion::UnfusedOp;
 use burn_fusion::{
     FusionBackend, FusionRuntime,
@@ -22,6 +11,12 @@ use burn_ir::{BackendIr, TensorHandle};
 use burn_std::Metadata;
 use core::marker::PhantomData;
 use std::sync::Arc;
+
+mod registry;
+pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
+pub use registry::{
+    BUILTIN_NAMES, CubeFuser, OptimizationProvider, RegistryError, register, remove,
+};
 
 impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for CubeOptimization<R>
 where
@@ -34,42 +29,18 @@ where
         >,
         execution: &OrderedExecution<FusionCubeRuntime<R>>,
     ) {
-        match self {
-            Self::ElementWise(op) => op.execute(context),
-            Self::Matmul(op) => op.execute(context, |index| {
-                let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationWrapper::new(operation))
-            }),
-            Self::Reduce(op) => op.execute(context, |index| {
-                let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationWrapper::new(operation))
-            }),
-            Self::ReduceBroadcasted(op) => op.execute(context, |index| {
-                let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationWrapper::new(operation))
-            }),
-        }
+        self.run(context, &|index| {
+            let operation = execution.operation_within_optimization(index);
+            Box::new(FallbackOperationWrapper::new(operation))
+        })
     }
 
     fn to_state(&self) -> CubeOptimizationState {
-        self.to_opt_state()
+        Self::to_state(self)
     }
 
     fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {
-        match state {
-            CubeOptimizationState::ElementWise(state) => {
-                Self::ElementWise(ElemwiseOptimization::from_state(device, state))
-            }
-            CubeOptimizationState::Matmul(state) => {
-                Self::Matmul(MatmulOptimization::from_state(device, state))
-            }
-            CubeOptimizationState::Reduce(state) => {
-                Self::Reduce(ReduceOptimization::from_state(device, state))
-            }
-            CubeOptimizationState::ReduceBroadcasted(state) => {
-                Self::ReduceBroadcasted(ReduceBroadcastedOptimization::from_state(device, state))
-            }
-        }
+        registry::restore::<R>(device, state)
     }
 }
 
@@ -142,12 +113,7 @@ impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
     type FusionDevice = R::CubeDevice;
 
     fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
-        vec![
-            Box::new(ElementWiseFuser::new(device.clone())),
-            Box::new(MatmulFuser::new(device.clone())),
-            Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always)),
-            Box::new(ReduceBroadcastedFuser::new(device.clone())),
-        ]
+        registry::fusers::<R>(&device)
     }
 }
 
