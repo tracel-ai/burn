@@ -296,14 +296,14 @@ where
     }
 
     fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
-        kernel::pool::adaptive_avg_pool3d(x, output_size)
+        todo!("CubeCL backend does not yet support adaptive_avg_pool3d. Track progress in https://github.com/tracel-ai/cubek/issues")
     }
 
     fn adaptive_avg_pool3d_backward(
         x: FloatTensor<Self>,
         grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        kernel::pool::adaptive_avg_pool3d_backward(x, grad)
+        todo!("CubeCL backend does not yet support adaptive_avg_pool3d_backward. Track progress in https://github.com/tracel-ai/cubek/issues")
     }
 
     fn interpolate(
