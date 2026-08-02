@@ -24,7 +24,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
             type State = NodeId;
 
             fn backward(
-                self,
+                &self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
                 checkpointer: &mut Checkpointer,
@@ -62,7 +62,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
             type State = NodeId;
 
             fn backward(
-                self,
+                &self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
                 checkpointer: &mut Checkpointer,
@@ -99,7 +99,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
             type State = NodeId;
 
             fn backward(
-                self,
+                &self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
                 checkpointer: &mut Checkpointer,
@@ -137,7 +137,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
             type State = NodeId;
 
             fn backward(
-                self,
+                &self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
                 checkpointer: &mut Checkpointer,

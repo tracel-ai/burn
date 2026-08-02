@@ -3,7 +3,7 @@ use crate::{
     graph::{ComputingProperty, NodeId},
     tensor::AutodiffTensor,
 };
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
@@ -29,7 +29,7 @@ pub enum CheckpointingAction {
         /// The node
         node_id: NodeId,
         /// The node's output
-        state_content: Box<dyn Any + Send>,
+        state_content: Arc<dyn Any + Send>,
     },
     /// The node should recompute itself when asked
     Recompute {
@@ -38,6 +38,27 @@ pub enum CheckpointingAction {
         /// How the node should recompute itself
         retro_forward: Arc<dyn RetroForward>,
     },
+}
+
+impl Clone for CheckpointingAction {
+    fn clone(&self) -> Self {
+        match self {
+            CheckpointingAction::Computed {
+                node_id,
+                state_content,
+            } => CheckpointingAction::Computed {
+                node_id: *node_id,
+                state_content: state_content.clone(),
+            },
+            CheckpointingAction::Recompute {
+                node_id,
+                retro_forward,
+            } => CheckpointingAction::Recompute {
+                node_id: *node_id,
+                retro_forward: retro_forward.clone(),
+            },
+        }
+    }
 }
 
 // TODO: Remove that when proper client server.
@@ -59,7 +80,7 @@ impl CheckpointingAction {
     }
 }
 
-#[derive(new, Debug, Default)]
+#[derive(new, Debug, Default, Clone)]
 /// Accumulates checkpoints as checkpointing actions during the forward pass,
 /// and builds a checkpointer right before the backward pass
 pub struct CheckpointerBuilder {
@@ -94,7 +115,7 @@ impl CheckpointerBuilder {
             ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => {
                 action_list.push(CheckpointingAction::Computed {
                     node_id: tensor.node.id,
-                    state_content: Box::new(tensor.primitive.clone()),
+                    state_content: Arc::new(tensor.primitive.clone()),
                 })
             }
             ComputingProperty::MemoryBound { retro_forward } => {
@@ -112,6 +133,16 @@ impl CheckpointerBuilder {
         }
         for other_unsure in other.backup_actions {
             self.backup_actions.push(other_unsure)
+        }
+    }
+
+    /// Extends this builder with a borrowed builder, cloning its actions.
+    pub(crate) fn extend_ref(&mut self, other: &CheckpointerBuilder) {
+        for other_action in other.explicit_actions.iter() {
+            self.explicit_actions.push(other_action.clone())
+        }
+        for other_unsure in other.backup_actions.iter() {
+            self.backup_actions.push(other_unsure.clone())
         }
     }
 
@@ -285,7 +316,7 @@ impl CheckpointerBuilder {
         &self,
         backward_states_map: &mut HashMap<NodeId, State>,
         node_id: NodeId,
-        state_content: Box<dyn Any + Send>,
+        state_content: Arc<dyn Any + Send>,
         n_required: usize,
     ) {
         backward_states_map.insert(

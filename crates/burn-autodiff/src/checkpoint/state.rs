@@ -2,10 +2,10 @@ use core::any::Any;
 
 use crate::collections::HashMap;
 use crate::graph::NodeId;
-use alloc::boxed::Box;
+use alloc::sync::Arc;
 
 /// In order to accept arbitrary node output in the same hashmap, we need to upcast them to any.
-pub(crate) type StateContent = Box<dyn Any + Send>;
+pub(crate) type StateContent = Arc<dyn Any + Send>;
 
 #[derive(Debug)]
 /// The state contained at one node. Encapsulates the node output if precomputed,
@@ -23,36 +23,6 @@ pub(crate) enum State {
 }
 
 impl State {
-    /// Returns a reference to the (not yet) downcasted node output, if checkpointed
-    pub(crate) fn to_state_content(&self) -> &StateContent {
-        match self {
-            State::Recompute { n_required: _ } => {
-                unreachable!(
-                    "Can't get state content of recompute state. A child has likely been accessed before its parents."
-                )
-            }
-            State::Computed {
-                state_content,
-                n_required: _,
-            } => state_content,
-        }
-    }
-
-    /// Returns a (not yet) downcasted node output, if checkpointed
-    pub(crate) fn into_state_content(self) -> StateContent {
-        match self {
-            State::Recompute { n_required: _ } => {
-                unreachable!(
-                    "Can't get state content of recompute state. A child has likely been accessed before its parents."
-                )
-            }
-            State::Computed {
-                state_content,
-                n_required: _,
-            } => state_content,
-        }
-    }
-
     /// Returns the number of time the state is required
     pub(crate) fn n_required(&self) -> usize {
         match self {
@@ -79,36 +49,29 @@ impl BackwardStates {
     where
         T: Clone + Send + 'static,
     {
-        // Fetch the state and decrement its number of required
         let state = self.map.remove(node_id).unwrap();
         let remaining_n_required = state.n_required() - 1;
 
-        // Downcast the state to whatever it is supposed to be
-        // If still needed after giving ownership, we copy it back to the hashmap
-        if remaining_n_required > 0 {
-            let new_stored_state = match state {
-                State::Recompute { n_required: _ } => unreachable!(),
-                State::Computed {
-                    state_content,
-                    n_required: _,
-                } => State::Computed {
-                    state_content,
-                    n_required: remaining_n_required,
-                },
-            };
+        match state {
+            State::Recompute { .. } => unreachable!(),
+            State::Computed { state_content, .. } => {
+                let value = (*state_content)
+                    .downcast_ref::<T>()
+                    .expect("State content type mismatch")
+                    .clone();
 
-            let downcasted = new_stored_state
-                .to_state_content()
-                .downcast_ref::<T>()
-                .unwrap()
-                .clone();
+                if remaining_n_required > 0 {
+                    self.insert_state(
+                        *node_id,
+                        State::Computed {
+                            state_content,
+                            n_required: remaining_n_required,
+                        },
+                    );
+                }
 
-            self.insert_state(*node_id, new_stored_state);
-
-            downcasted
-        } else {
-            let downcasted = state.into_state_content().downcast::<T>().unwrap();
-            *downcasted
+                value
+            }
         }
     }
 
@@ -132,7 +95,7 @@ impl BackwardStates {
         self.insert_state(
             node_id,
             State::Computed {
-                state_content: Box::new(saved_output),
+                state_content: Arc::new(saved_output),
                 n_required,
             },
         );
