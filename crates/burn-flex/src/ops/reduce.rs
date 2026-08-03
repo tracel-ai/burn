@@ -8,12 +8,13 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
-use burn_std::{Bytes, Shape, bf16, f16};
+use burn_std::{bf16, f16, Bytes, Shape};
+use num_traits::Float;
 
 use crate::strided_index::StridedIter;
 use crate::{FlexTensor, Layout};
 
-use super::{INDEX_DTYPE, float_storage_as_f32};
+use super::{float_storage_as_f32, INDEX_DTYPE};
 
 /// Assert that a dimension size fits in `isize`, which is required for index-producing
 /// operations (argmax, argmin, *_with_indices) that store dimension indices as `isize`.
@@ -425,17 +426,17 @@ pub fn prod_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
 pub fn max(tensor: FlexTensor) -> FlexTensor {
     match tensor.dtype() {
         DType::F32 => max_f32_reduce(&tensor),
-        DType::F64 => max_impl::<f64>(&tensor),
+        DType::F64 => float_extremum_f64_reduce::<true>(&tensor),
         DType::F16 => reduce_scalar_half(
             &tensor,
-            f32::max,
+            select_float_extremum::<f32, true>,
             f32::NEG_INFINITY,
             f16::to_f32,
             f16::from_f32,
         ),
         DType::BF16 => reduce_scalar_half(
             &tensor,
-            f32::max,
+            select_float_extremum::<f32, true>,
             f32::NEG_INFINITY,
             bf16::to_f32,
             bf16::from_f32,
@@ -456,13 +457,17 @@ pub fn max(tensor: FlexTensor) -> FlexTensor {
 pub fn min(tensor: FlexTensor) -> FlexTensor {
     match tensor.dtype() {
         DType::F32 => min_f32_reduce(&tensor),
-        DType::F64 => min_impl::<f64>(&tensor),
-        DType::F16 => {
-            reduce_scalar_half(&tensor, f32::min, f32::INFINITY, f16::to_f32, f16::from_f32)
-        }
+        DType::F64 => float_extremum_f64_reduce::<false>(&tensor),
+        DType::F16 => reduce_scalar_half(
+            &tensor,
+            select_float_extremum::<f32, false>,
+            f32::INFINITY,
+            f16::to_f32,
+            f16::from_f32,
+        ),
         DType::BF16 => reduce_scalar_half(
             &tensor,
-            f32::min,
+            select_float_extremum::<f32, false>,
             f32::INFINITY,
             bf16::to_f32,
             bf16::from_f32,
@@ -479,6 +484,33 @@ pub fn min(tensor: FlexTensor) -> FlexTensor {
     }
 }
 
+#[inline(always)]
+fn select_float_extremum<E: Float, const MAX: bool>(current: E, candidate: E) -> E {
+    let keep_current = if MAX {
+        current >= candidate
+    } else {
+        current <= candidate
+    };
+    if current.is_nan() || keep_current {
+        current
+    } else {
+        candidate
+    }
+}
+
+#[inline(always)]
+fn float_extremum_contiguous<E: Float, const MAX: bool>(data: &[E]) -> E {
+    let empty_message = if MAX {
+        "max: tensor must not be empty"
+    } else {
+        "min: tensor must not be empty"
+    };
+    let (&first, rest) = data.split_first().expect(empty_message);
+    rest.iter()
+        .copied()
+        .fold(first, select_float_extremum::<E, MAX>)
+}
+
 fn max_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
     let result = match tensor.layout().contiguous_offsets() {
         Some((start, end)) => {
@@ -487,16 +519,10 @@ fn max_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
         }
         None => {
             let data: &[f32] = tensor.storage();
-            let elem_count = tensor.layout().num_elements();
-            if data.len() == elem_count {
-                // Non-contiguous but uses all elements (e.g., transposed)
-                max_f32_contiguous(data)
-            } else {
-                StridedIter::new(tensor.layout())
-                    .map(|idx| data[idx])
-                    .reduce(|a, b| if a >= b { a } else { b })
-                    .expect("max: tensor must not be empty")
-            }
+            StridedIter::new(tensor.layout())
+                .map(|idx| data[idx])
+                .reduce(select_float_extremum::<f32, true>)
+                .expect("max: tensor must not be empty")
         }
     };
 
@@ -513,10 +539,7 @@ fn max_f32_contiguous(data: &[f32]) -> f32 {
 
     #[cfg(not(feature = "simd"))]
     {
-        data.iter()
-            .copied()
-            .reduce(|a, b| if a >= b { a } else { b })
-            .expect("max: tensor must not be empty")
+        float_extremum_contiguous::<f32, true>(data)
     }
 }
 
@@ -528,15 +551,10 @@ fn min_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
         }
         None => {
             let data: &[f32] = tensor.storage();
-            let elem_count = tensor.layout().num_elements();
-            if data.len() == elem_count {
-                min_f32_contiguous(data)
-            } else {
-                StridedIter::new(tensor.layout())
-                    .map(|idx| data[idx])
-                    .reduce(|a, b| if a <= b { a } else { b })
-                    .expect("min: tensor must not be empty")
-            }
+            StridedIter::new(tensor.layout())
+                .map(|idx| data[idx])
+                .reduce(select_float_extremum::<f32, false>)
+                .expect("min: tensor must not be empty")
         }
     };
 
@@ -553,11 +571,32 @@ fn min_f32_contiguous(data: &[f32]) -> f32 {
 
     #[cfg(not(feature = "simd"))]
     {
-        data.iter()
-            .copied()
-            .reduce(|a, b| if a <= b { a } else { b })
-            .expect("min: tensor must not be empty")
+        float_extremum_contiguous::<f32, false>(data)
     }
+}
+
+fn float_extremum_f64_reduce<const MAX: bool>(tensor: &FlexTensor) -> FlexTensor {
+    let empty_message = if MAX {
+        "max: tensor must not be empty"
+    } else {
+        "min: tensor must not be empty"
+    };
+    let result = match tensor.layout().contiguous_offsets() {
+        Some((start, end)) => {
+            let data: &[f64] = tensor.storage();
+            float_extremum_contiguous::<f64, MAX>(&data[start..end])
+        }
+        None => {
+            let data: &[f64] = tensor.storage();
+            StridedIter::new(tensor.layout())
+                .map(|idx| data[idx])
+                .reduce(select_float_extremum::<f64, MAX>)
+                .expect(empty_message)
+        }
+    };
+
+    let bytes = Bytes::from_elems(vec![result]);
+    FlexTensor::new(bytes, Layout::contiguous(Shape::from(vec![1])), DType::F64)
 }
 
 fn max_impl<E: Element + bytemuck::Pod + PartialOrd>(tensor: &FlexTensor) -> FlexTensor {
@@ -1849,22 +1888,10 @@ fn extremum_dim_f32_last_simd(
     let mut out_shape: Vec<usize> = shape.to_vec();
     out_shape[dim] = 1;
 
-    let reduce_row = |outer: usize| -> f32 {
+    let reduce_row = |outer: usize| {
         let row_start = start + outer * dim_size;
         let row = &data[row_start..row_start + dim_size];
-        let ext = simd_reduce(row);
-        // SIMD max/min may silently drop NaN (architecture-dependent).
-        // If the result is already NaN, we're done. Otherwise, scan to
-        // check for any NaN the SIMD op missed.
-        if ext.is_nan() {
-            return f32::NAN;
-        }
-        for &v in row {
-            if v.is_nan() {
-                return f32::NAN;
-            }
-        }
-        ext
+        simd_reduce(row)
     };
 
     #[cfg(feature = "rayon")]
@@ -2260,8 +2287,8 @@ fn scalar_div<E: Element + bytemuck::Pod + core::ops::Div<Output = E> + Copy>(
 #[cfg(test)]
 mod tests {
     use alloc::vec;
-    use burn_backend::TensorData;
     use burn_backend::ops::{FloatTensorOps, IntTensorOps};
+    use burn_backend::TensorData;
     use burn_std::{bf16, f16};
 
     use crate::{Flex, FlexTensor};

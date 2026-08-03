@@ -1176,7 +1176,13 @@ where
         let max = view
             .iter()
             .copied()
-            .reduce(|a, b| if a > b { a } else { b })
+            .reduce(|a, b| {
+                if a.partial_cmp(&a).is_none() || a > b {
+                    a
+                } else {
+                    b
+                }
+            })
             .expect("Cannot compute max of empty tensor");
         ArrayD::from_elem(IxDyn(&[1]), max).into_shared()
     }
@@ -1186,7 +1192,13 @@ where
         let min = view
             .iter()
             .copied()
-            .reduce(|a, b| if a < b { a } else { b })
+            .reduce(|a, b| {
+                if a.partial_cmp(&a).is_none() || a < b {
+                    a
+                } else {
+                    b
+                }
+            })
             .expect("Cannot compute min of empty tensor");
         ArrayD::from_elem(IxDyn(&[1]), min).into_shared()
     }
