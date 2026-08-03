@@ -1,3 +1,5 @@
+#![cfg(any(feature = "flex", feature = "ndarray", feature = "tch"))]
+
 use super::*;
 use burn_tensor::module::adaptive_avg_pool3d;
 use burn_tensor::{Shape, Tolerance};
