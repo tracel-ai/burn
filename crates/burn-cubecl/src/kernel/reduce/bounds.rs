@@ -37,7 +37,6 @@ pub(super) fn with_reduce_bounds<R: CubeRuntime, Out: 'static>(
                 reduce_count: folds(input, input.meta.shape[*axis]),
                 instruction: *instruction,
                 dtypes: *dtypes,
-                indices: None,
             };
 
             roofline_bounds(&input.client, cost.compute_key(), cost.work(), thresholds)
@@ -52,7 +51,7 @@ pub(super) fn with_reduce_with_indices_bounds<R: CubeRuntime, Out: 'static>(
     autotune_bounds::with_bounds(
         set,
         |_key,
-         (input, _values, indices, axis, config, dtypes): &InputsWithIndices<R>,
+         (input, _values, _indices, axis, config, dtypes): &InputsWithIndices<R>,
          thresholds| {
             let cost = ReduceCost {
                 reduce_len: input.meta.shape[*axis],
@@ -63,7 +62,6 @@ pub(super) fn with_reduce_with_indices_bounds<R: CubeRuntime, Out: 'static>(
                     output: dtypes.values,
                     accumulation: dtypes.accumulation,
                 },
-                indices: Some(dtype_to_storage_type(indices.dtype)),
             };
 
             roofline_bounds(&input.client, cost.compute_key(), cost.work(), thresholds)
@@ -90,7 +88,6 @@ pub(super) fn with_sum_bounds<R: CubeRuntime, Out: 'static>(
                     output: elem,
                     accumulation: elem,
                 },
-                indices: None,
             };
 
             roofline_bounds(&input.client, cost.compute_key(), cost.work(), thresholds)
