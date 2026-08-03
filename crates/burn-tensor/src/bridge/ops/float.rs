@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::{
     AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata, TensorPrimitive,
-    ops::{FloatTensorOps, QTensorOps, TransactionPrimitive},
+    ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
@@ -171,6 +171,29 @@ impl BasicOps for Float {
             mask.into(),
             value,
         ))
+    }
+
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                BridgeTensor::float(Dispatch::float_mask_select(tensor, mask.into()).await)
+            }
+            BridgeKind::QFloat => {
+                // Preserve the quantized kind by composing `argwhere` + `q_select` on the
+                // quantized primitive, mirroring the default backend op (there is no
+                // `q_mask_select`). Using `into_float` here would silently drop quantization.
+                let out_dtype = mask.device_settings().int_dtype;
+                let n = mask.shape().num_elements();
+                let mask = Dispatch::bool_reshape(mask.into(), Shape::new([n]));
+                let indices = Dispatch::bool_argwhere(mask, out_dtype).await; // [count, 1]
+                let count = indices.shape()[0];
+                let indices = Dispatch::int_reshape(indices, Shape::new([count])); // squeeze
+                let tensor = Dispatch::q_reshape(tensor, Shape::new([n]));
+                BridgeTensor::qfloat(Dispatch::q_select(tensor, 0, indices))
+            }
+            _ => panic!("Should be Float primitive kind"),
+        }
     }
 
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {

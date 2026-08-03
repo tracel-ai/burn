@@ -336,6 +336,10 @@ impl IntTensorOps<Self> for LibTorch {
         )
     }
 
+    async fn int_mask_select(tensor: TchTensor, mask: TchTensor) -> TchTensor {
+        TchTensor::new(tensor.tensor.masked_select(&mask.tensor))
+    }
+
     fn int_argmax(tensor: TchTensor, dim: usize) -> TchTensor {
         TchOps::argmax(tensor, dim)
     }
