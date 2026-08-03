@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{TensorData, Tolerance};
+use burn_tensor::{ElementConversion, TensorData, Tolerance};
 
 #[test]
 fn test_reduce_broadcasted_1() {
@@ -191,7 +191,13 @@ fn test_reduce_broadcasted_masked_softmax() {
     for o in 0..(d0 * q) {
         let qi = o % q;
         let row: Vec<f32> = (0..k)
-            .map(|c| if c > qi { -10000.0 } else { xs[o * k + c] })
+            .map(|c| {
+                if c > qi {
+                    -10000.0
+                } else {
+                    xs[o * k + c].elem()
+                }
+            })
             .collect();
         let m = row.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         let exps: Vec<f32> = row.iter().map(|v| (v - m).exp()).collect();
