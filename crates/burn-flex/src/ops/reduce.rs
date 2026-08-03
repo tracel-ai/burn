@@ -8,13 +8,13 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
-use burn_std::{bf16, f16, Bytes, Shape};
+use burn_std::{Bytes, Shape, bf16, f16};
 use num_traits::Float;
 
 use crate::strided_index::StridedIter;
 use crate::{FlexTensor, Layout};
 
-use super::{float_storage_as_f32, INDEX_DTYPE};
+use super::{INDEX_DTYPE, float_storage_as_f32};
 
 /// Assert that a dimension size fits in `isize`, which is required for index-producing
 /// operations (argmax, argmin, *_with_indices) that store dimension indices as `isize`.
@@ -2287,8 +2287,8 @@ fn scalar_div<E: Element + bytemuck::Pod + core::ops::Div<Output = E> + Copy>(
 #[cfg(test)]
 mod tests {
     use alloc::vec;
-    use burn_backend::ops::{FloatTensorOps, IntTensorOps};
     use burn_backend::TensorData;
+    use burn_backend::ops::{FloatTensorOps, IntTensorOps};
     use burn_std::{bf16, f16};
 
     use crate::{Flex, FlexTensor};

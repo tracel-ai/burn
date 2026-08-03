@@ -401,8 +401,7 @@ fn test_whole_max_min_nan_flex_half_dtypes() {
     }
 }
 
-// NaN-propagation tests. All burn backends should propagate NaN from
-// min/max (matching PyTorch/NumPy/JAX/TF semantics). See issue #4814.
+// All burn backends should propagate NaN from min/max. See issue #4814.
 #[test]
 fn test_max_min_dim_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);

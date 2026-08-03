@@ -1,12 +1,12 @@
+use crate::{
+    CubeRuntime,
+    kernel::utils::{address_type, shape_divmod},
+};
 use crate::{element::CubeElement, tensor::CubeTensor};
 use crate::{
-    kernel::utils::{address_type, shape_divmod},
-    CubeRuntime,
-};
-use crate::{
     kernel::{
-        launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int, AddOp,
-        BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+        AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+        launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
     },
     ops::max_vector_size,
 };

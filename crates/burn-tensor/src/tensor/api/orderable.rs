@@ -3,8 +3,8 @@ use burn_std::{AsIndex, IndexingUpdateOp};
 
 use crate::check::unwrap_dim_index;
 use crate::kind::Ordered;
-use crate::{check, Bool, Int};
-use crate::{check::TensorCheck, Tensor};
+use crate::{Bool, Int, check};
+use crate::{Tensor, check::TensorCheck};
 
 impl<const D: usize, K> Tensor<D, K>
 where

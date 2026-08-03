@@ -10,7 +10,7 @@ use core::iter::Sum;
 use core::ops::AddAssign;
 
 use macerator::{
-    vload_unaligned, vstore_unaligned, ReduceAdd, ReduceMax, ReduceMin, Simd, VAdd, VOrd,
+    ReduceAdd, ReduceMax, ReduceMin, Simd, VAdd, VOrd, vload_unaligned, vstore_unaligned,
 };
 use num_traits::Float;
 
@@ -221,11 +221,7 @@ fn macerator_max<S: Simd, F: VOrd + ReduceMax + Float>(mut xs: &[F], init: F) ->
     unsafe { nan_mask.store_as_bool(nan_lanes.as_mut_ptr()) };
     has_nan |= nan_lanes[..lanes].iter().any(|value| *value);
 
-    if has_nan {
-        F::nan()
-    } else {
-        result
-    }
+    if has_nan { F::nan() } else { result }
 }
 
 #[macerator::with_simd]
@@ -263,11 +259,7 @@ fn macerator_min<S: Simd, F: VOrd + ReduceMin + Float>(mut xs: &[F], init: F) ->
     unsafe { nan_mask.store_as_bool(nan_lanes.as_mut_ptr()) };
     has_nan |= nan_lanes[..lanes].iter().any(|value| *value);
 
-    if has_nan {
-        F::nan()
-    } else {
-        result
-    }
+    if has_nan { F::nan() } else { result }
 }
 
 #[cfg(test)]

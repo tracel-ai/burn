@@ -177,8 +177,7 @@ fn test_arg_extrema_ties_use_lowest_index() {
         .assert_eq(&TensorData::from([[2]]), false);
 }
 
-// NaN-propagation tests. All burn backends should propagate NaN from
-// argmax/argmin (matching PyTorch/NumPy/JAX/TF semantics). See issue #4814.
+// All burn backends should propagate NaN from argmax/argmin. See issue #4814.
 #[test]
 fn test_argmax_and_argmin_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, -3.0]]);

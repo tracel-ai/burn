@@ -199,8 +199,7 @@ fn test_cummax_float_3d() {
     );
 }
 
-// NaN-propagation tests. All burn backends should propagate NaN from
-// cummin/cummax (matching PyTorch/NumPy/JAX/TF semantics). See issue #4814.
+// All burn backends should propagate NaN from cummin/cummax. See issue #4814.
 #[test]
 fn test_cummin_nan_propagation() {
     // Once NaN appears, cummin propagates it forward.
