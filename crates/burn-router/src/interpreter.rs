@@ -283,12 +283,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::float_scatter_add(desc.dim, tensor, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output = B::float_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::ScatterNd(desc) => {
@@ -318,12 +313,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::float_select_add(tensor, desc.dim, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output =
+                        B::float_select_assign(tensor, desc.dim, indices, value, desc.update);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::MaskWhere(desc) => {
@@ -472,12 +463,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::int_scatter_add(desc.dim, tensor, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output = B::int_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::ScatterNd(desc) => {
@@ -507,12 +493,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::int_select_add(tensor, desc.dim, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output =
+                        B::int_select_assign(tensor, desc.dim, indices, value, desc.update);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::MaskWhere(desc) => {

@@ -405,8 +405,8 @@ pub enum BaseOperationIr {
     Select(SelectOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [select assign](burn_backend::ops::FloatTensorOps::float_select_add).
-    /// Int => [select assign](burn_backend::ops::IntTensorOps::int_select_add).
+    /// Float => [select assign](burn_backend::ops::FloatTensorOps::float_select_assign).
+    /// Int => [select assign](burn_backend::ops::IntTensorOps::int_select_assign).
     /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_or).
     SelectAssign(SelectAssignOpIr),
     /// Operation corresponding to:

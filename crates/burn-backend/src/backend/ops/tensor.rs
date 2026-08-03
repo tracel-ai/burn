@@ -8,7 +8,7 @@ use crate::{Backend, Distribution, TensorData, get_device_settings};
 use crate::{ExecutionError, Scalar, TensorMetadata};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
@@ -453,6 +453,22 @@ pub trait FloatTensorOps<B: Backend> {
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
+    /// Scatter elements into a tensor using the specified update operation.
+    ///
+    /// Backend implementations may override this to support operations beyond add.
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<B>,
+        indices: IntTensor<B>,
+        value: FloatTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<B> {
+        match update {
+            IndexingUpdateOp::Add => Self::float_scatter_add(dim, tensor, indices, value),
+            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     /// Multi-dimensional scatter: update `data` at locations specified by `indices` with `values`.
     ///
     /// # Arguments
@@ -520,6 +536,24 @@ pub trait FloatTensorOps<B: Backend> {
         indices: IntTensor<B>,
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
+
+    /// Assign selected elements along a dimension using the specified update operation.
+    ///
+    /// Backend implementations may override this to support operations beyond add.
+    fn float_select_assign(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: FloatTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<B> {
+        match update {
+            IndexingUpdateOp::Add => Self::float_select_add(tensor, dim, indices, value),
+            other => {
+                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            }
+        }
+    }
 
     /// Select tensor elements corresponding to the given slices.
     ///

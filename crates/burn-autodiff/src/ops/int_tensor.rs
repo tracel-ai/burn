@@ -223,6 +223,16 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_scatter_add(dim, tensor, indices, value)
     }
 
+    fn int_scatter(
+        dim: usize,
+        tensor: IntTensor<B>,
+        indices: IntTensor<B>,
+        value: IntTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        B::int_scatter(dim, tensor, indices, value, update)
+    }
+
     fn int_scatter_nd(
         data: IntTensor<B>,
         indices: IntTensor<B>,
@@ -243,6 +253,16 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         value: IntTensor<B>,
     ) -> IntTensor<B> {
         B::int_select_add(tensor, dim, indices, value)
+    }
+
+    fn int_select_assign(
+        tensor: IntTensor<B>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: IntTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        B::int_select_assign(tensor, dim, indices, value, update)
     }
 
     fn int_mask_where(

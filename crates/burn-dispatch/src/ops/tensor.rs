@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::FloatTensorOps,
-    tensor::{BoolTensor, FloatTensor, IntTensor},
+    tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 
 use crate::{Dispatch, DispatchDevice};
@@ -157,6 +157,19 @@ impl FloatTensorOps<Self> for Dispatch {
         )
     }
 
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(tensor, float), (indices, int), (value, float)], => Float,
+            B::float_scatter(dim, tensor, indices, value, update)
+        )
+    }
+
     fn float_scatter_nd(
         data: FloatTensor<Self>,
         indices: IntTensor<Self>,
@@ -190,6 +203,19 @@ impl FloatTensorOps<Self> for Dispatch {
         multi_op!(
             inputs[(tensor, float), (indices, int), (value, float)], => Float,
             B::float_select_add(tensor, dim, indices, value)
+        )
+    }
+
+    fn float_select_assign(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(tensor, float), (indices, int), (value, float)], => Float,
+            B::float_select_assign(tensor, dim, indices, value, update)
         )
     }
 
