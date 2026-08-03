@@ -189,9 +189,11 @@ impl TraceFuser {
             panic!("Can't add a new input that is already used in an index operation");
         }
 
-        let precision = tensor.dtype.into();
-        let precision_scales = match tensor.dtype {
-            DType::QFloat(scheme) => FuseType::from_quant_param(scheme.param)?,
+        let (precision, precision_scales) = match tensor.dtype {
+            DType::QFloat(scheme) => (
+                FuseType::from_quant_scheme(scheme)?,
+                FuseType::from_quant_param(scheme.param)?,
+            ),
             _ => return None,
         };
 

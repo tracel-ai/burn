@@ -216,9 +216,11 @@ impl FuseBlockBuilder {
             return None;
         }
 
-        let precision = tensor.dtype.into();
-        let precision_scales = match tensor.dtype {
-            DType::QFloat(scheme) => FuseType::from_quant_param(scheme.param)?,
+        let (precision, precision_scales) = match tensor.dtype {
+            DType::QFloat(scheme) => (
+                FuseType::from_quant_scheme(scheme)?,
+                FuseType::from_quant_param(scheme.param)?,
+            ),
             _ => return None,
         };
 
