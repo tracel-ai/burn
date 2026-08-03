@@ -66,6 +66,10 @@ impl IntTensorOps<Self> for Dispatch {
         binary_op!((tensor, int), (mask, bool), |tensor, mask| B::int_mask_fill(tensor, mask, value) => Int)
     }
 
+    async fn int_mask_select(tensor: IntTensor<Self>, mask: BoolTensor<Self>) -> IntTensor<Self> {
+        binary_op!((tensor, int), (mask, bool), |tensor, mask| B::int_mask_select(tensor, mask).await => Int)
+    }
+
     fn int_gather(
         dim: usize,
         tensor: IntTensor<Self>,

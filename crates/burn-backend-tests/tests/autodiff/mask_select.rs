@@ -48,3 +48,36 @@ fn test_mask_select_grad_empty_mask() {
         .into_data()
         .assert_eq(&TensorData::from([0.0, 0.0, 0.0]), false);
 }
+
+#[test]
+fn test_mask_select_int() {
+    // Int tensors are not differentiable; this covers the autodiff `int_mask_select`
+    // pass-through to the inner backend (only reachable on an autodiff device).
+    let device = AutodiffDevice::new();
+    let tensor = TestTensorInt::<2>::from_data(TensorData::from([[1, 2, 3], [4, 5, 6]]), &device);
+    let mask = TestTensorBool::<2>::from_data(
+        TensorData::from([[false, true, false], [true, false, true]]),
+        &device,
+    );
+
+    let output = tensor.mask_select(mask);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([2, 4, 6]), false);
+}
+
+#[test]
+fn test_mask_select_bool() {
+    // Bool tensors are not differentiable; this covers the autodiff `bool_mask_select`
+    // pass-through to the inner backend (only reachable on an autodiff device).
+    let device = AutodiffDevice::new();
+    let tensor = TestTensorBool::<1>::from_data(TensorData::from([true, false, true]), &device);
+    let mask = TestTensorBool::<1>::from_data(TensorData::from([true, true, false]), &device);
+
+    let output = tensor.mask_select(mask);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([true, false]), false);
+}

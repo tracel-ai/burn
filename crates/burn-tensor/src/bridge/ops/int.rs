@@ -106,6 +106,10 @@ impl BasicOps for Int {
         BridgeTensor::int(Dispatch::int_mask_fill(tensor.into(), mask.into(), value))
     }
 
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::int(Dispatch::int_mask_select(tensor.into(), mask.into()).await)
+    }
+
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_gather(dim, tensor.into(), indices.into()))
     }

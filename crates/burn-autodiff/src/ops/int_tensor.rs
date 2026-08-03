@@ -277,6 +277,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_mask_fill(tensor, mask, value)
     }
 
+    async fn int_mask_select(tensor: IntTensor<B>, mask: BoolTensor<B>) -> IntTensor<B> {
+        B::int_mask_select(tensor, mask).await
+    }
+
     fn int_argmax(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_argmax(tensor, dim)
     }

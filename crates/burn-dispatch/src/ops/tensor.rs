@@ -250,6 +250,13 @@ impl FloatTensorOps<Self> for Dispatch {
         binary_float!((tensor, float), (mask, bool), |tensor, mask| B::float_mask_fill(tensor, mask, value) => Float)
     }
 
+    async fn float_mask_select(
+        tensor: FloatTensor<Self>,
+        mask: BoolTensor<Self>,
+    ) -> FloatTensor<Self> {
+        binary_float!((tensor, float), (mask, bool), |tensor, mask| B::float_mask_select(tensor, mask).await => Float)
+    }
+
     fn float_equal(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,

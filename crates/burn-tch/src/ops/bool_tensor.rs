@@ -198,6 +198,13 @@ impl BoolTensorOps<Self> for LibTorch {
         )
     }
 
+    async fn bool_mask_select(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        TchTensor::new(tensor.tensor.masked_select(&mask.tensor))
+    }
+
     fn bool_gather(
         dim: usize,
         tensor: BoolTensor<Self>,

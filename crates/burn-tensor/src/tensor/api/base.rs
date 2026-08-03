@@ -1810,11 +1810,11 @@ where
     ///
     /// # Notes
     ///
-    /// The number of selected elements is data-dependent, so this performs a synchronous read of
-    /// the mask, consistent with [`argwhere`](Tensor::argwhere) and [`nonzero`](Tensor::nonzero).
-    /// On backends without a native `argwhere` implementation, this reads the entire mask back to
-    /// the host and computes the indices on the CPU; on lazy backends, it also forces the
-    /// execution of pending operations.
+    /// The number of selected elements is data-dependent, so this synchronizes with the device,
+    /// consistent with [`argwhere`](Tensor::argwhere) and [`nonzero`](Tensor::nonzero). On backends
+    /// without a native implementation, this reads the entire mask back to the host and computes
+    /// the indices on the CPU; on lazy backends, it also forces the execution of pending
+    /// operations.
     ///
     /// This makes each call a synchronization point between the host and the device: prefer
     /// calling it once on final results (e.g. filtering predictions) rather than inside
@@ -1853,25 +1853,15 @@ where
     /// order of the flattened input tensor.
     ///
     /// Asynchronous version of [`mask_select`](Tensor::mask_select), for backends where the
-    /// mask cannot be read synchronously (e.g. wasm). The mask read and its synchronization cost
-    /// remain; only the waiting is non-blocking.
+    /// mask cannot be read synchronously (e.g. wasm). The synchronization cost remains; only the
+    /// waiting is non-blocking.
     ///
     /// # Panics
     ///
     /// If `mask` does not have the same shape as the tensor.
     pub async fn mask_select_async(self, mask: Tensor<D, Bool>) -> Tensor<1, K> {
         check!(TensorCheck::mask_select(&self.shape(), &mask.shape()));
-
-        // Flatten the mask to 1D and collect the flat indices of its `true` values. `argwhere`
-        // returns a `[count, 1]` tensor, which we squeeze to a 1D `[count]` index tensor.
-        let indices = mask
-            .flatten::<1>(0, D - 1)
-            .argwhere_async()
-            .await
-            .squeeze_dim::<1>(1);
-
-        // Flatten the tensor to 1D and gather the selected elements.
-        self.flatten::<1>(0, D - 1).select(0, indices)
+        Tensor::new(K::mask_select(self.primitive, mask.primitive).await)
     }
 
     /// Gather tensor elements corresponding to the given indices from the specified dim.
