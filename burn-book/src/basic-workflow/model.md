@@ -10,9 +10,9 @@ cargo new guide
 As [mentioned previously](../getting-started.md#creating-a-burn-application), this will initialize
 your `guide` project directory with a `Cargo.toml` and a `src/main.rs` file.
 
-In the `Cargo.toml` file, add the `burn` dependency with `train`, `vision` and `wgpu` features.
-Since we disable the default features, we also want to enable `std`, `tui` (for the dashboard) and
-`fusion` for wgpu. Then run `cargo build` to build the project and import all the dependencies.
+In the `Cargo.toml` file, add the `burn` dependency with `train`, `vision` and `wgpu` features. The
+default features automatically enable `tui` (for the dashboard), `fusion` and `autotune` for wgpu,
+among other defaults. Then run `cargo build` to build the project and import all the dependencies.
 
 ```toml
 [package]
@@ -21,9 +21,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# Disable autotune default for convolutions
-burn = { version = "~0.21", features = ["std", "tui", "train", "vision", "wgpu", "fusion"], default-features = false }
-# burn = { version = "~0.21", features = ["train", "vision", "wgpu"] }
+burn = { version = "~0.22", features = ["train", "vision", "wgpu"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -43,13 +41,13 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Model<B: Backend> {
-    conv1: Conv2d<B>,
-    conv2: Conv2d<B>,
+pub struct Model {
+    conv1: Conv2d,
+    conv2: Conv2d,
     pool: AdaptiveAvgPool2d,
     dropout: Dropout,
-    linear1: Linear<B>,
-    linear2: Linear<B>,
+    linear1: Linear,
+    linear2: Linear,
     activation: Relu,
 }
 ```
@@ -97,9 +95,9 @@ There are two major things going on in this code sample.
 
    ```rust, ignore
    #[derive(Module, Debug)]
-   pub struct MyCustomModule<B: Backend> {
-       linear1: Linear<B>,
-       linear2: Linear<B>,
+   pub struct MyCustomModule {
+       linear1: Linear,
+       linear2: Linear,
        activation: Relu,
    }
    ```
@@ -114,52 +112,11 @@ There are two major things going on in this code sample.
    [example](https://doc.rust-lang.org/rust-by-example/trait/derive.html).
    </details><br>
 
-2. Note that the struct is generic over the [`Backend`](../building-blocks/backend.md) trait. The
-   backend trait abstracts the underlying low level implementations of tensor operations, allowing
-   your new model to run on any backend. Contrary to other frameworks, the backend abstraction isn't
-   determined by a compilation flag or a device type. This is important because you can extend the
-   functionalities of a specific backend (see
-   [backend extension section](../advanced/backend-extension)), and it allows for an innovative
-   [autodiff system](../building-blocks/autodiff.md). You can also change backend during runtime,
-   for instance to compute training metrics on a cpu backend while using a gpu one only to train the
-   model. In our example, the backend in use will be determined later on.
-
-   <details>
-   <summary><strong>🦀 Trait Bounds</strong></summary>
-
-   Trait bounds provide a way for generic items to restrict which types are used as their
-   parameters. The trait bounds stipulate what functionality a type implements. Therefore, bounding
-   restricts the generic to types that conform to the bounds. It also allows generic instances to
-   access the methods of traits specified in the bounds.
-
-   For a simple but concrete example, check out the
-   [Rust By Example on bounds](https://doc.rust-lang.org/rust-by-example/generics/bounds.html).
-
-   In Burn, the `Backend` trait enables you to run tensor operations using different implementations
-   as it abstracts tensor, device and element types. The
-   [getting started example](../getting-started.md#writing-a-code-snippet) illustrates the advantage
-   of having a simple API that works for different backend implementations. While it used the WGPU
-   backend, you could easily swap it with any other supported backend.
-
-   ```rust, ignore
-   // Choose from any of the supported backends.
-   // type Backend = Cuda;
-   // type Backend = Flex;
-   type Backend = Wgpu;
-
-   // Creation of two tensors.
-   let tensor_1 = Tensor::<Backend, 2>::from_data([[2., 3.], [4., 5.]], &device);
-   let tensor_2 = Tensor::<Backend, 2>::ones_like(&tensor_1);
-
-   // Print the element-wise addition (done with the selected backend) of the two tensors.
-   println!("{}", tensor_1 + tensor_2);
-   ```
-
-   For more details on trait bounds, check out the Rust
-   [trait bound section](https://doc.rust-lang.org/book/ch10-02-traits.html#trait-bound-syntax) or
-   [reference](https://doc.rust-lang.org/reference/items/traits.html#trait-bounds).
-
-   </details><br>
+2. The model and its layers don't have a backend type parameter. Tensors carry a runtime
+   [`Device`](../building-blocks/backend.md), and Burn routes their operations through its Tensor →
+   Bridge → Dispatch → Backend execution stack. This keeps models portable across backends without
+   exposing backend generics in the user API. The device used to initialize the parameters
+   determines where the model starts executing.
 
 Note that each time you create a new file in the `src` directory you also need to explicitly add
 this module to the `main.rs` file. For instance after creating the `model.rs`, you need to add the
@@ -185,13 +142,13 @@ Next, we need to instantiate the model for training.
 # };
 #
 # #[derive(Module, Debug)]
-# pub struct Model<B: Backend> {
-#     conv1: Conv2d<B>,
-#     conv2: Conv2d<B>,
+# pub struct Model {
+#     conv1: Conv2d,
+#     conv2: Conv2d,
 #     pool: AdaptiveAvgPool2d,
 #     dropout: Dropout,
-#     linear1: Linear<B>,
-#     linear2: Linear<B>,
+#     linear1: Linear,
+#     linear2: Linear,
 #     activation: Relu,
 # }
 #
@@ -205,7 +162,7 @@ pub struct ModelConfig {
 
 impl ModelConfig {
     /// Returns the initialized model.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Model<B> {
+    pub fn init(&self, device: &Device) -> Model {
         Model {
             conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
             conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
@@ -226,13 +183,11 @@ At a glance, you can view the model configuration by printing the model instance
 mod model;
 
 use crate::model::ModelConfig;
-use burn::backend::Wgpu;
+use burn::tensor::Device;
 
 fn main() {
-    type MyBackend = Wgpu<f32, i32>;
-
-    let device = Default::default();
-    let model = ModelConfig::new(10, 512).init::<MyBackend>(&device);
+    let device = Device::wgpu(Default::default());
+    let model = ModelConfig::new(10, 512).init(&device);
 
     println!("{model}");
 }
@@ -257,11 +212,11 @@ Model {
 <summary><strong>🦀 References</strong></summary>
 
 In the previous example, the `init()` method signature uses `&` to indicate that the parameter types
-are references: `&self`, a reference to the current receiver (`ModelConfig`), and
-`device: &B::Device`, a reference to the backend device.
+are references: `&self`, a reference to the current receiver (`ModelConfig`), and `device: &Device`,
+a reference to the runtime device.
 
 ```rust, ignore
-pub fn init<B: Backend>(&self, device: &B::Device) -> Model<B> {
+pub fn init(&self, device: &Device) -> Model {
     Model {
         // ...
     }
@@ -307,7 +262,7 @@ are set using the configuration of the corresponding neural network's underlying
 specific case, we have chosen to expand the tensor channels from 1 to 8 with the first layer, then
 from 8 to 16 with the second layer, using a kernel size of 3 on all dimensions. We also use the
 adaptive average pooling module to reduce the dimensionality of the images to an 8 by 8 matrix,
-which we will flatten in the forward pass to have a 1024 (16 * 8 * 8) resulting tensor.
+which we will flatten in the forward pass to have a 1024 (16 _ 8 _ 8) resulting tensor.
 
 Now let's see how the forward pass is defined.
 
@@ -322,13 +277,13 @@ Now let's see how the forward pass is defined.
 # };
 #
 # #[derive(Module, Debug)]
-# pub struct Model<B: Backend> {
-#     conv1: Conv2d<B>,
-#     conv2: Conv2d<B>,
+# pub struct Model {
+#     conv1: Conv2d,
+#     conv2: Conv2d,
 #     pool: AdaptiveAvgPool2d,
 #     dropout: Dropout,
-#     linear1: Linear<B>,
-#     linear2: Linear<B>,
+#     linear1: Linear,
+#     linear2: Linear,
 #     activation: Relu,
 # }
 #
@@ -342,7 +297,7 @@ Now let's see how the forward pass is defined.
 #
 # impl ModelConfig {
 #     /// Returns the initialized model.
-#     pub fn init<B: Backend>(&self, device: &B::Device) -> Model<B> {
+#     pub fn init(&self, device: &Device) -> Model {
 #         Model {
 #             conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
 #             conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
@@ -355,11 +310,11 @@ Now let's see how the forward pass is defined.
 #     }
 # }
 #
-impl<B: Backend> Model<B> {
+impl Model {
     /// # Shapes
     ///   - Images [batch_size, height, width]
     ///   - Output [batch_size, num_classes]
-    pub fn forward(&self, images: Tensor<B, 3>) -> Tensor<B, 2> {
+    pub fn forward(&self, images: Tensor<3>) -> Tensor<2> {
         let [batch_size, height, width] = images.dims();
 
         // Create a channel at the second dimension.
@@ -389,18 +344,15 @@ are free to define multiple forward functions with the names of your liking. Mos
 network modules already built with Burn use the `forward` nomenclature, simply because it is
 standard in the field.
 
-Similar to neural network modules, the [`Tensor`](../building-blocks/tensor.md) struct given as a
-parameter also takes the Backend trait as a generic argument, alongside its dimensionality. Even if
-it is not used in this specific example, it is possible to add the kind of the tensor as a third
-generic argument. For example, a 3-dimensional Tensor of different data types(float, int, bool)
-would be defined as following:
+The [`Tensor`](../building-blocks/tensor.md) struct takes its dimensionality and, optionally, its
+kind as generic arguments:
 
 ```rust , ignore
-Tensor<B, 3> // Float tensor (default)
-Tensor<B, 3, Float> // Float tensor (explicit)
-Tensor<B, 3, Int> // Int tensor
-Tensor<B, 3, Bool> // Bool tensor
+Tensor<3> // Float tensor (default)
+Tensor<3, Float> // Float tensor (explicit)
+Tensor<3, Int> // Int tensor
+Tensor<3, Bool> // Bool tensor
 ```
 
-Note that the specific element type, such as `f16`, `f32` and the likes, will be defined later with
-the backend.
+The concrete element type, such as `f16` or `f32`, is a runtime property that is specified in tensor
+creation operations. The default delement types can be configured per-device.
