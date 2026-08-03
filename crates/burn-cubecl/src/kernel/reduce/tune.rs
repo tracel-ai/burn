@@ -4,7 +4,7 @@ use super::{SumAutotuneKey, accumulator_len};
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,
     kernel::reduce::bounds::{
-        create_reduce_bounds, create_reduce_with_indices_bounds, create_sum_bounds,
+        with_reduce_bounds, with_reduce_with_indices_bounds, with_sum_bounds,
     },
     tensor::CubeTensor,
 };
@@ -183,8 +183,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
 
     let tunables = TUNER.init(|| {
         with_routine_tunables(
-            TunableSet::new(create_key::<R>, reduce_input_gen::<R>)
-                .with_bounds(create_reduce_bounds::<R>()),
+            with_reduce_bounds(TunableSet::new(create_key::<R>, reduce_input_gen::<R>)),
             "reduce",
             |strategy,
              (input, output, axis, config, dtypes): (
@@ -267,11 +266,10 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
 
     let tunables = TUNER.init(|| {
         with_routine_tunables(
-            TunableSet::new(
+            with_reduce_with_indices_bounds(TunableSet::new(
                 create_key_with_indices::<R>,
                 reduce_with_indices_input_gen::<R>,
-            )
-            .with_bounds(create_reduce_with_indices_bounds::<R>()),
+            )),
             "reduce_with_indices",
             |strategy,
              (input, values, indices, axis, config, dtypes): (
@@ -404,8 +402,7 @@ pub fn autotune_sum<R: CubeRuntime>(
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!("autotune-sum");
 
     let tunables = TUNER.init(|| {
-        TunableSet::new(create_key_sum::<R>, sum_input_gen::<R>)
-            .with_bounds(create_sum_bounds::<R>())
+        with_sum_bounds(TunableSet::new(create_key_sum::<R>, sum_input_gen::<R>))
             .with(Tunable::new("sum_chained", sum_chained::<R>))
             .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 1>))
             .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 2>))

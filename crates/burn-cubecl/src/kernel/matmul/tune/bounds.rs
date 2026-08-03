@@ -1,29 +1,23 @@
-use alloc::sync::Arc;
-
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::{
-    std::throughput::roofline_bounds,
-    tune::{BoundsGenerator, Thresholds},
-};
+use cubecl::{std::throughput::roofline_bounds, tune::TunableSet};
 use cubek::matmul::{
     definition::{MatmulCost, MatmulGlobalElems},
     strategy::MatmulAutotuneKey,
 };
 
-use crate::{CubeRuntime, kernel::matmul::tune::base::Inputs};
+use crate::{CubeRuntime, kernel::autotune_bounds, kernel::matmul::tune::base::Inputs};
 
-type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>> + Send + Sync;
+type MatmulTunables<R, Out> = TunableSet<MatmulAutotuneKey, Inputs<R>, Out>;
 
-/// Fraction of the modeled roofline a matmul candidate is expected to reach.
-const THRESHOLDS: Thresholds = Thresholds::uniform(1.0);
-
-/// Creates a closure that calculates performance bounds for matrix multiplication autotuning.
-pub(super) fn create_matmul_bounds<R: CubeRuntime>() -> Arc<BoundsGen<R>> {
-    Arc::new(|_key: &MatmulAutotuneKey, tensors: &Inputs<R>| {
+/// Registers the performance bounds used for matrix multiplication autotuning.
+pub(super) fn with_matmul_bounds<R: CubeRuntime, Out: 'static>(
+    set: MatmulTunables<R, Out>,
+) -> MatmulTunables<R, Out> {
+    autotune_bounds::with_bounds(set, |_key, tensors: &Inputs<R>, thresholds| {
         let client = &tensors.0.client;
         let cost = cost(tensors);
 
-        roofline_bounds(client, cost.compute_key(client), cost.work(), THRESHOLDS)
+        roofline_bounds(client, cost.compute_key(client), cost.work(), thresholds)
     })
 }
 

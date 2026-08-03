@@ -1,16 +1,11 @@
-use alloc::sync::Arc;
-
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::{
-    std::throughput::roofline_bounds,
-    tune::{BoundsGenerator, Thresholds},
-};
+use cubecl::{std::throughput::roofline_bounds, tune::TunableSet};
 use cubek::attention::forward::{
     definition::{AttentionCost, AttentionDims, AttentionGlobalTypes},
     launch::AttentionAutotuneKey,
 };
 
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::{CubeRuntime, kernel::autotune_bounds, tensor::CubeTensor};
 
 type Inputs<R> = (
     CubeTensor<R>,
@@ -21,18 +16,17 @@ type Inputs<R> = (
     burn_backend::ops::AttentionModuleOptions,
 );
 
-type BoundsGen<R> = dyn BoundsGenerator<AttentionAutotuneKey, Inputs<R>> + Send + Sync;
+type AttentionTunables<R, Out> = TunableSet<AttentionAutotuneKey, Inputs<R>, Out>;
 
-/// Fraction of the modeled roofline a attention candidate is expected to reach.
-const THRESHOLDS: Thresholds = Thresholds::uniform(1.0);
-
-/// Creates a closure that calculates performance bounds for attention autotuning.
-pub(super) fn create_attention_bounds<R: CubeRuntime>() -> Arc<BoundsGen<R>> {
-    Arc::new(|_key: &AttentionAutotuneKey, inputs: &Inputs<R>| {
+/// Registers the performance bounds used for attention autotuning.
+pub(super) fn with_attention_bounds<R: CubeRuntime, Out: 'static>(
+    set: AttentionTunables<R, Out>,
+) -> AttentionTunables<R, Out> {
+    autotune_bounds::with_bounds(set, |_key, inputs: &Inputs<R>, thresholds| {
         let client = &inputs.0.client;
         let cost = cost(inputs);
 
-        roofline_bounds(client, cost.compute_key(client), cost.work(), THRESHOLDS)
+        roofline_bounds(client, cost.compute_key(client), cost.work(), thresholds)
     })
 }
 

@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime, CubeTuneId,
     kernel::matmul::{
-        launch_matmul, launch_matmul_naive, tune::bounds::create_matmul_bounds,
+        launch_matmul, launch_matmul_naive, tune::bounds::with_matmul_bounds,
         utils::init_matmul_output,
     },
     tensor::CubeTensor,
@@ -220,7 +220,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
         let mut set = TunableSet::new(create_key::<R>, matmul_input_gen::<R>);
 
-        set = set.with_bounds(create_matmul_bounds::<R>());
+        set = with_matmul_bounds(set);
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
