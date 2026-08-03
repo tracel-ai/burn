@@ -916,7 +916,7 @@ const CONV_PLANE_OH_OUTER_THRESHOLD: usize = 8192;
 /// themselves stay `inline(always)` so LLVM sees the concrete inner loop
 /// pattern and emits SIMD fmuladd. Using `num_traits::Float` bounds (rather
 /// than fn-pointer arithmetic) is load-bearing for vectorization.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::extra_unused_type_parameters)]
 #[cfg_attr(feature = "simd", macerator::with_simd)]
 fn conv_plane_accumulate<
     #[cfg(feature = "simd")] S: macerator::Simd,
