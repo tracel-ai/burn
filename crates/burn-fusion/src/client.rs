@@ -137,9 +137,8 @@ where
 
     /// Register a `Drop` issued from a thread other than the tensor's home `stream`.
     ///
-    /// Routes to [`FusionServer::register_foreign_drop`], which drains the home stream to a clean
-    /// segment boundary before enqueuing the drop so the free cannot reorder into an in-flight
-    /// fused segment. Same-stream drops must keep using [`Self::register`].
+    /// Routes to [`FusionServer::register_foreign_drop`]. Same-stream drops must keep using
+    /// [`Self::register`].
     pub(crate) fn register_foreign_drop<O>(&self, stream: StreamId, ir: TensorIr, operation: O)
     where
         O: Operation<R> + 'static,
