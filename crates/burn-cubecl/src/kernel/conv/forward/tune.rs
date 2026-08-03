@@ -4,11 +4,16 @@ use cubecl::{
     ir::StorageType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::convolution::AcceleratedTileKind;
+use cubek::convolution::{AcceleratedTileKind, components::ConvolutionOperation};
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,
-    kernel::conv::{ConvAutotuneKey, conv_direct, conv_im2col_1x1, forward::implicit_gemm::*},
+    kernel::conv::{
+        ConvAutotuneKey,
+        bounds::{ConvDims, with_conv_bounds},
+        conv_direct, conv_im2col_1x1,
+        forward::implicit_gemm::*,
+    },
     tensor::CubeTensor,
 };
 
@@ -24,53 +29,69 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TUNER.init(|| {
-        TunableSet::new(create_key::<R, N>, create_conv_input::<R, N>)
-            .with(Tunable::new(
-                "conv_direct",
-                |(input, weight, bias, options)| conv_direct::<R, N>(input, weight, bias, options),
-            ))
-            .with(Tunable::new(
-                "conv_im2col_1x1",
-                |(input, weight, bias, options)| {
-                    conv_im2col_1x1::<R, N>(input, weight, bias, options)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_sync_cmma",
-                |(input, weight, bias, options)| {
-                    conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_sync_mma",
-                |(input, weight, bias, options)| {
-                    conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Mma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_async_cmma",
-                |(input, weight, bias, options)| {
-                    conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_async_mma",
-                |(input, weight, bias, options)| {
-                    conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Mma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_cmma",
-                |(input, weight, bias, options)| {
-                    conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_mma",
-                |(input, weight, bias, options)| {
-                    conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Mma)
-                },
-            ))
+        let set = TunableSet::new(create_key::<R, N>, create_conv_input::<R, N>);
+        let set = with_conv_bounds(
+            set,
+            ConvolutionOperation::Forward,
+            |(input, weight, _bias, _options)| {
+                let dim_c = input.meta.num_dims() - 1;
+
+                (
+                    &input.client,
+                    ConvDims {
+                        batch_size: input.meta.shape()[0],
+                        in_channels: input.meta.shape()[dim_c],
+                        out_channels: weight.meta.shape()[0],
+                        in_shape: &input.meta.shape()[1..dim_c],
+                    },
+                )
+            },
+        );
+
+        set.with(Tunable::new(
+            "conv_direct",
+            |(input, weight, bias, options)| conv_direct::<R, N>(input, weight, bias, options),
+        ))
+        .with(Tunable::new(
+            "conv_im2col_1x1",
+            |(input, weight, bias, options)| conv_im2col_1x1::<R, N>(input, weight, bias, options),
+        ))
+        .with(Tunable::new(
+            "simple_sync_cmma",
+            |(input, weight, bias, options)| {
+                conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Cmma)
+            },
+        ))
+        .with(Tunable::new(
+            "simple_sync_mma",
+            |(input, weight, bias, options)| {
+                conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Mma)
+            },
+        ))
+        .with(Tunable::new(
+            "simple_async_cmma",
+            |(input, weight, bias, options)| {
+                conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Cmma)
+            },
+        ))
+        .with(Tunable::new(
+            "simple_async_mma",
+            |(input, weight, bias, options)| {
+                conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Mma)
+            },
+        ))
+        .with(Tunable::new(
+            "simple_tma_cmma",
+            |(input, weight, bias, options)| {
+                conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Cmma)
+            },
+        ))
+        .with(Tunable::new(
+            "simple_tma_mma",
+            |(input, weight, bias, options)| {
+                conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Mma)
+            },
+        ))
     });
 
     TUNER.execute(

@@ -3,7 +3,11 @@ use cubecl::tune::{LocalTuner, Tunable, TunableSet, local_tuner};
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,
-    kernel::conv::{ConvTranspose2dAutotuneKey, conv_transpose2d_col2im, conv_transpose2d_direct},
+    kernel::conv::{
+        ConvTranspose2dAutotuneKey,
+        bounds::{ConvDims, with_conv_transpose2d_bounds},
+        conv_transpose2d_col2im, conv_transpose2d_direct,
+    },
     tensor::CubeTensor,
 };
 
@@ -19,19 +23,32 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime>(
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tune_set = TUNER.init(|| {
-        TunableSet::new(create_key::<R>, create_transpose2d_input::<R>)
-            .with(Tunable::new(
-                "conv_transpose2d_direct",
-                |(input, weights, bias, options)| {
-                    conv_transpose2d_direct::<R>(input, weights, bias, options)
+        let set = TunableSet::new(create_key::<R>, create_transpose2d_input::<R>);
+        let set = with_conv_transpose2d_bounds(set, |(input, weights, _bias, options)| {
+            (
+                &input.client,
+                ConvDims {
+                    batch_size: input.meta.shape()[0],
+                    in_channels: input.meta.shape()[1],
+                    // The weight is laid out as `[in_channels, out_channels / groups, kh, kw]`.
+                    out_channels: weights.meta.shape()[1] * options.groups,
+                    in_shape: &input.meta.shape()[2..],
                 },
-            ))
-            .with(Tunable::new(
-                "conv_transpose2d_col2im",
-                |(input, weights, bias, options)| {
-                    conv_transpose2d_col2im::<R>(input, weights, bias, options)
-                },
-            ))
+            )
+        });
+
+        set.with(Tunable::new(
+            "conv_transpose2d_direct",
+            |(input, weights, bias, options)| {
+                conv_transpose2d_direct::<R>(input, weights, bias, options)
+            },
+        ))
+        .with(Tunable::new(
+            "conv_transpose2d_col2im",
+            |(input, weights, bias, options)| {
+                conv_transpose2d_col2im::<R>(input, weights, bias, options)
+            },
+        ))
     });
 
     TUNER.execute(

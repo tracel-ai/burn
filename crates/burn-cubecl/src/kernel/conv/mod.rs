@@ -1,6 +1,8 @@
 mod backward_data;
 mod backward_weight;
 mod base;
+#[cfg(feature = "autotune")]
+mod bounds;
 mod conv_transpose2d;
 mod conv_transpose3d;
 mod deform_conv2d;

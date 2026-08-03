@@ -38,7 +38,7 @@ fn configured_thresholds() -> Option<Thresholds> {
 }
 
 /// A [`Bounds`] with nothing in it, which yields no time limit and short-circuits nothing.
-fn no_bounds() -> Bounds {
+pub(crate) fn no_bounds() -> Bounds {
     Bounds {
         bounds: alloc::vec::Vec::new(),
         launch_overhead: Duration::ZERO,
