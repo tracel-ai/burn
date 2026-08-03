@@ -2,7 +2,7 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo bench --bench interpolate_ops --features simd,rayon
+//! cargo bench -p burn-backend-tests --bench interpolate_ops --features flex
 //! ```
 //!
 //! Memory allocation tracking is enabled via divan's AllocProfiler.
@@ -177,6 +177,13 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
+                fn small_upsample_2x_4x4_to_8x8(bencher: Bencher) {
+                    let x = make_input(1, 3, 4, 4);
+                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), [8, 8], opts.clone()));
+                }
+
+                #[divan::bench]
                 fn upsample_2x_64x64_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 64, 64);
                     let opts = InterpolateOptions::new(InterpolateMode::Bicubic);
@@ -212,6 +219,49 @@ macro_rules! bench_backend {
                 fn channels64_upsample_2x_32x32_to_64x64(bencher: Bencher) {
                     let x = make_input(1, 64, 32, 32);
                     let opts = InterpolateOptions::new(InterpolateMode::Bicubic);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), [64, 64], opts.clone()));
+                }
+            }
+
+            #[divan::bench_group(name = "lanczos3")]
+            mod lanczos3 {
+                use super::*;
+
+                #[divan::bench]
+                fn small_upsample_2x_4x4_to_8x8(bencher: Bencher) {
+                    let x = make_input(1, 3, 4, 4);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), [8, 8], opts.clone()));
+                }
+
+                #[divan::bench]
+                fn upsample_2x_64x64_to_128x128(bencher: Bencher) {
+                    let x = make_input(1, 3, 64, 64);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3);
+                    bencher
+                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                }
+
+                #[divan::bench]
+                fn downsample_2x_256x256_to_128x128(bencher: Bencher) {
+                    let x = make_input(1, 3, 256, 256);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3);
+                    bencher
+                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                }
+
+                #[divan::bench]
+                fn batch8_upsample_2x_64x64_to_128x128(bencher: Bencher) {
+                    let x = make_input(8, 3, 64, 64);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3);
+                    bencher
+                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                }
+
+                #[divan::bench]
+                fn channels64_upsample_2x_32x32_to_64x64(bencher: Bencher) {
+                    let x = make_input(1, 64, 32, 32);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3);
                     bencher.bench_synced(|| module::interpolate(x.clone(), [64, 64], opts.clone()));
                 }
             }
