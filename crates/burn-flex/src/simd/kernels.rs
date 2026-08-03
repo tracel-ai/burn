@@ -191,13 +191,15 @@ fn macerator_max<S: Simd, F: VOrd + ReduceMax + Float>(mut xs: &[F], init: F) ->
     let lanes = F::lanes::<S>();
     let initial = init.splat::<S>();
     let mut acc = initial;
-    let mut nan_mask = initial.ne(initial);
+    // Ordered self-comparison is false only for NaN. Vector equality has
+    // backend-specific unordered behavior, so it can't be used here.
+    let mut nan_mask = initial.lt(initial);
 
     while xs.len() >= lanes {
         // SAFETY: The loop condition proves that one vector-width load stays
         // within `xs`.
         let v = unsafe { vload_unaligned::<S, F>(xs.as_ptr()) };
-        nan_mask = nan_mask | v.ne(v);
+        nan_mask = nan_mask | !v.le(v);
         acc = acc.max(v);
         xs = &xs[lanes..];
     }
@@ -229,13 +231,15 @@ fn macerator_min<S: Simd, F: VOrd + ReduceMin + Float>(mut xs: &[F], init: F) ->
     let lanes = F::lanes::<S>();
     let initial = init.splat::<S>();
     let mut acc = initial;
-    let mut nan_mask = initial.ne(initial);
+    // Ordered self-comparison is false only for NaN. Vector equality has
+    // backend-specific unordered behavior, so it can't be used here.
+    let mut nan_mask = initial.lt(initial);
 
     while xs.len() >= lanes {
         // SAFETY: The loop condition proves that one vector-width load stays
         // within `xs`.
         let v = unsafe { vload_unaligned::<S, F>(xs.as_ptr()) };
-        nan_mask = nan_mask | v.ne(v);
+        nan_mask = nan_mask | !v.le(v);
         acc = acc.min(v);
         xs = &xs[lanes..];
     }
