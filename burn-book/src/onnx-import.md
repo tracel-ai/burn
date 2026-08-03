@@ -201,7 +201,7 @@ ModelGen::new()
 Then load weights at runtime from any byte source (e.g., a network fetch):
 
 ```rust, ignore
-let model = Model::<Backend>::from_bytes(weight_bytes, &device);
+let model = Model::from_bytes(weight_bytes, &device);
 ```
 
 ## Loading and Using Models
@@ -212,20 +212,20 @@ You can load models in several ways, depending on the `LoadStrategy` used during
 // Load from the output directory with default device (recommended for most use cases)
 // This automatically loads weights from the .bpk file
 // Available with LoadStrategy::File or LoadStrategy::Embedded
-let model = Model::<Backend>::default();
+let model = Model::default();
 
 // Create a new model instance with a specific device
 // (initializes weights randomly; load weights via `load_from` afterward)
-let model = Model::<Backend>::new(&device);
+let model = Model::new(&device);
 
 // Load from a specific .bpk file (LoadStrategy::File)
-let model = Model::<Backend>::from_file("path/to/weights.bpk", &device);
+let model = Model::from_file("path/to/weights.bpk", &device);
 
 // Load from in-memory bytes (LoadStrategy::File, Embedded, or Bytes)
-let model = Model::<Backend>::from_bytes(weight_bytes, &device);
+let model = Model::from_bytes(weight_bytes, &device);
 
 // Load from embedded weights (LoadStrategy::Embedded)
-let model = Model::<Backend>::from_embedded(&device);
+let model = Model::from_embedded(&device);
 ```
 
 ## Troubleshooting
