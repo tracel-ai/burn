@@ -916,9 +916,12 @@ const CONV_PLANE_OH_OUTER_THRESHOLD: usize = 8192;
 /// themselves stay `inline(always)` so LLVM sees the concrete inner loop
 /// pattern and emits SIMD fmuladd. Using `num_traits::Float` bounds (rather
 /// than fn-pointer arithmetic) is load-bearing for vectorization.
-#[inline]
 #[allow(clippy::too_many_arguments)]
-fn conv_plane_accumulate<T: num_traits::Float + Copy>(
+#[cfg_attr(feature = "simd", macerator::with_simd)]
+fn conv_plane_accumulate<
+    #[cfg(feature = "simd")] S: macerator::Simd,
+    T: num_traits::Float + Copy,
+>(
     out_plane: &mut [T],
     in_plane: &[T],
     w_plane: &[T],
@@ -1027,7 +1030,7 @@ fn conv_plane_accumulate_oh_outer<T: num_traits::Float + Copy>(
                 } else {
                     let mut iw = iw_start;
                     for o in &mut out_row[ow_start..ow_end] {
-                        *o = *o + w_val * in_row[iw];
+                        *o = *o + w_val * unsafe { *in_row.get_unchecked(iw) };
                         iw += stride_w;
                     }
                 }
@@ -1089,7 +1092,7 @@ fn conv_plane_accumulate_kh_outer<T: num_traits::Float + Copy>(
                 } else {
                     let mut iw = iw_start;
                     for o in &mut out_row[ow_start..ow_end] {
-                        *o = *o + w_val * in_row[iw];
+                        *o = *o + w_val * unsafe { *in_row.get_unchecked(iw) };
                         iw += stride_w;
                     }
                 }

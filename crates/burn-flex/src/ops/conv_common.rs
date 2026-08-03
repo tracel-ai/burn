@@ -89,7 +89,8 @@ pub(crate) fn convert_f32_to_bf16(tensor: &FlexTensor) -> FlexTensor {
 // ============================================================================
 
 #[allow(clippy::needless_range_loop)]
-pub(crate) fn add_bias<T: Element + ElementAdd>(
+#[cfg_attr(feature = "simd", macerator::with_simd)]
+pub(crate) fn add_bias<#[cfg(feature = "simd")] S: macerator::Simd, T: Element + ElementAdd>(
     output: &mut [T],
     bias: &[T],
     batch: usize,
