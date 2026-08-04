@@ -1,3 +1,5 @@
+#[cfg(feature = "autotune")]
+mod autotune_bounds;
 mod binary;
 mod binary_float;
 mod binary_int;
