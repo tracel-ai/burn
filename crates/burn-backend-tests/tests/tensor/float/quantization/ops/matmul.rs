@@ -2,6 +2,7 @@ use super::qtensor::*;
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
+use burn_tensor::quantization::{QuantLevel, QuantParam, QuantValue};
 
 #[test]
 #[ignore]
@@ -245,4 +246,38 @@ fn test_matmul_mixed_block_scale() {
 
     // Default quantization scheme does not propagate quantization with matmul
     assert!(output.dtype.is_float());
+}
+
+/// No matmul kernel applies a per-tensor scale, so a two-level input has to reach a float matmul.
+/// Every autotune candidate that binds the quantized handles panics on the level instead of
+/// declining it, so failing to fall back takes down the whole tuning run rather than one kernel.
+#[test]
+fn should_matmul_two_level_rhs() {
+    let device = Default::default();
+
+    let lhs: TestTensor<2> = TestTensorInt::arange(0..256, &device)
+        .float()
+        .div_scalar(256.)
+        .reshape([16, 16]);
+    let rhs: TestTensor<2> = TestTensorInt::arange(0..256, &device)
+        .float()
+        .div_scalar(256.)
+        .reshape([16, 16]);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block_tensor([2, 16], QuantParam::F32))
+        .with_param(QuantParam::F16);
+
+    let quantized = rhs.quantize_dynamic(&scheme);
+    let expected = lhs
+        .clone()
+        .matmul(quantized.clone().dequantize())
+        .into_data();
+    let actual = lhs.matmul(quantized).into_data();
+
+    actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(1e-2));
 }

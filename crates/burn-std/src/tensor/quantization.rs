@@ -318,7 +318,9 @@ impl QuantizedBytes {
 /// cover. Rounding down puts that value past the end of the quantized range, where it clips, which
 /// measured several times worse than the coarser step rounding up costs.
 pub fn scale_to_param(scale: f32, param: QuantParam) -> f32 {
-    param.round_up(scale)
+    param
+        .round_up(scale)
+        .expect("UE8M0 scales are not yet supported")
 }
 
 /// Bytes taken by the per-tensor scale, zero for levels that do not carry one.
