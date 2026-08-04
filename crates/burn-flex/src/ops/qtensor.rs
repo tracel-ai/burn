@@ -53,6 +53,9 @@ impl QTensorOps<Flex> for Flex {
         let range = b - a;
 
         let (quantized, scales) = match scheme.level {
+            QuantLevel::BlockTensor { .. } => {
+                unimplemented!("two-level quantization is not supported yet")
+            }
             QuantLevel::Tensor => {
                 // Pass 1: find alpha = max(|min|, |max|)
                 let mut alpha: f32 = 0.0;
@@ -139,6 +142,9 @@ impl QTensorOps<Flex> for Flex {
         let (a, b) = scheme.value.range();
 
         let quantized = match scheme.level {
+            QuantLevel::BlockTensor { .. } => {
+                unimplemented!("two-level quantization is not supported yet")
+            }
             QuantLevel::Tensor => {
                 let inv_scale = 1.0 / scales[0];
                 float_data
@@ -178,6 +184,9 @@ impl QTensorOps<Flex> for Flex {
         let q_data: &[i8] = qt.storage();
 
         let dequantized = match tensor.scheme.level {
+            QuantLevel::BlockTensor { .. } => {
+                unimplemented!("two-level quantization is not supported yet")
+            }
             QuantLevel::Tensor => {
                 let scale = tensor.scales[0];
                 q_data
@@ -263,6 +272,9 @@ impl QTensorOps<Flex> for Flex {
         indices: IntTensor<Flex>,
     ) -> QuantizedTensor<Flex> {
         match tensor.scheme.level {
+            QuantLevel::BlockTensor { .. } => {
+                unimplemented!("two-level quantization is not supported yet")
+            }
             QuantLevel::Tensor => FlexQTensor::new(
                 crate::ops::gather_scatter::select::<i8>(tensor.tensor, dim, indices),
                 tensor.scheme,
@@ -313,6 +325,9 @@ impl QTensorOps<Flex> for Flex {
         indices: IntTensor<Flex>,
     ) -> QuantizedTensor<Flex> {
         match tensor.scheme.level {
+            QuantLevel::BlockTensor { .. } => {
+                unimplemented!("two-level quantization is not supported yet")
+            }
             QuantLevel::Tensor => FlexQTensor::new(
                 crate::ops::gather_scatter::gather::<i8>(tensor.tensor, dim, indices),
                 tensor.scheme,
@@ -336,6 +351,9 @@ fn block_safe_layout_op(
     op: impl FnOnce(FlexTensor) -> FlexTensor,
 ) -> FlexQTensor {
     match qtensor.scheme.level {
+        QuantLevel::BlockTensor { .. } => {
+            unimplemented!("two-level quantization is not supported yet")
+        }
         QuantLevel::Tensor => FlexQTensor::new(op(qtensor.tensor), qtensor.scheme, qtensor.scales),
         QuantLevel::Block(_) => {
             let scheme = qtensor.scheme;

@@ -108,6 +108,9 @@ pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
 
             params_shape
         }
+        QuantLevel::BlockTensor { .. } => {
+            unimplemented!("two-level quantization is not supported yet, got {level:?}")
+        }
     }
 }
 
@@ -149,6 +152,10 @@ impl QuantizedBytes {
         let scales = match scheme.level {
             QuantLevel::Tensor => &scales[..1],
             QuantLevel::Block(_block_size) => scales,
+            QuantLevel::BlockTensor { .. } => unimplemented!(
+                "two-level quantization is not supported yet, got {:?}",
+                scheme.level
+            ),
         };
         let scale_bytes = encode_scales(scales, scheme.param);
         bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
@@ -193,6 +200,10 @@ impl QuantizedBytes {
         let num_params = match self.scheme.level {
             QuantLevel::Tensor => 1,
             QuantLevel::Block(block_size) => self.num_elements / block_size.num_elements(),
+            QuantLevel::BlockTensor { .. } => unimplemented!(
+                "two-level quantization is not supported yet, got {:?}",
+                self.scheme.level
+            ),
         };
         let scale_bytes = scale_size(self.scheme.param) * num_params;
 
