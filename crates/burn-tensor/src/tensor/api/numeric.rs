@@ -362,11 +362,11 @@ where
     /// fn example() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.clone().mean_dim(0);
-    ///   println!("{tensor}");
+    ///   let mean = tensor.clone().mean_dim(0);
+    ///   println!("{mean}");
     ///   // [[3.0, 3.5, 4.5]]
-    ///   let tensor = tensor.clone().mean_dim(1);
-    ///   println!("{tensor}");
+    ///   let mean = tensor.mean_dim(1);
+    ///   println!("{mean}");
     ///   // [[0.6666667], [6.6666665]]
     /// }
     /// ```
@@ -420,11 +420,11 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.clone().sum_dim(0);
-    ///    println!("{tensor}");
+    ///    let sum = tensor.clone().sum_dim(0);
+    ///    println!("{sum}");
     ///    // [[6.0, 7.0, 9.0]]
-    ///    let tensor = tensor.clone().sum_dim(1);
-    ///    println!("{tensor}");
+    ///    let sum = tensor.sum_dim(1);
+    ///    println!("{sum}");
     ///    // [[2.0], [20.0]]
     /// }
     /// ```
@@ -535,11 +535,11 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.clone().prod_dim(0);
-    ///    println!("{tensor}");
+    ///    let prod = tensor.clone().prod_dim(0);
+    ///    println!("{prod}");
     ///    // [[5.0, -18.0, 18.0]]
-    ///    let tensor = tensor.clone().prod_dim(1);
-    ///    println!("{tensor}");
+    ///    let prod = tensor.prod_dim(1);
+    ///    println!("{prod}");
     ///    // [[-6.0], [270.0]]
     /// }
     /// ```
