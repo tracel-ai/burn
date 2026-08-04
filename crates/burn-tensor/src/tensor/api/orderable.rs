@@ -36,7 +36,7 @@ where
     ///   // [[5.0, -2.0, 3.0], [12.0, 3.0, 6.0]]
     ///   let tensor = tensor.sort(1);
     ///   println!("{tensor}");
-    ///   // [[-2.0, 3.0, 12.0], [3.0, 5.0, 6.0]]
+    ///   // [[-2.0, 3.0, 5.0], [3.0, 6.0, 12.0]]
     /// }
     /// ```
     pub fn sort<I: AsIndex>(self, dim: I) -> Self {
@@ -70,7 +70,7 @@ where
     ///    // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
     ///    let tensor = tensor.sort_descending(1);
     ///    println!("{tensor}");
-    ///    // [[12.0, 3.0, -2.0], [6.0, 5.0, 3.0]]
+    ///    // [[12.0, 6.0, 3.0], [5.0, 3.0, -2.0]]
     /// }
     /// ```
     pub fn sort_descending<I: AsIndex>(self, dim: I) -> Self {
@@ -194,7 +194,7 @@ where
     ///    // [[0, 1, 1], [1, 0, 0]]
     ///    let tensor = tensor.argsort_descending(1);
     ///    println!("{tensor}");
-    ///    // [[0, 2, 1], [2, 0, 1]]
+    ///    // [[1, 2, 0], [0, 1, 2]]
     /// }
     /// ```
     pub fn argsort_descending<I: AsIndex>(self, dim: I) -> Tensor<D, Int> {
