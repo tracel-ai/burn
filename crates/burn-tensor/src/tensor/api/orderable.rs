@@ -31,11 +31,11 @@ where
     /// fn example() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
-    ///   let tensor = tensor.sort(0);
-    ///   println!("{tensor}");
+    ///   let sorted = tensor.clone().sort(0);
+    ///   println!("{sorted}");
     ///   // [[5.0, -2.0, 3.0], [12.0, 3.0, 6.0]]
-    ///   let tensor = tensor.sort(1);
-    ///   println!("{tensor}");
+    ///   let sorted = tensor.sort(1);
+    ///   println!("{sorted}");
     ///   // [[-2.0, 3.0, 12.0], [3.0, 5.0, 6.0]]
     /// }
     /// ```
@@ -65,11 +65,11 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
-    ///    let tensor = tensor.sort_descending(0);
-    ///    println!("{tensor}");
+    ///    let sorted = tensor.clone().sort_descending(0);
+    ///    println!("{sorted}");
     ///    // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
-    ///    let tensor = tensor.sort_descending(1);
-    ///    println!("{tensor}");
+    ///    let sorted = tensor.sort_descending(1);
+    ///    println!("{sorted}");
     ///    // [[12.0, 3.0, -2.0], [6.0, 5.0, 3.0]]
     /// }
     /// ```
@@ -189,11 +189,11 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
-    ///    let tensor = tensor.argsort_descending(0);
-    ///    println!("{tensor}");
+    ///    let indices = tensor.clone().argsort_descending(0);
+    ///    println!("{indices}");
     ///    // [[0, 1, 1], [1, 0, 0]]
-    ///    let tensor = tensor.argsort_descending(1);
-    ///    println!("{tensor}");
+    ///    let indices = tensor.argsort_descending(1);
+    ///    println!("{indices}");
     ///    // [[0, 2, 1], [2, 0, 1]]
     /// }
     /// ```
