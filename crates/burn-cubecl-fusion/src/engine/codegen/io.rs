@@ -3,7 +3,7 @@ use crate::engine::codegen::{DynElem, DynSize};
 
 use super::{ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
-use cubecl::quant::scheme::QuantLevel;
+use cubecl::quant::scheme::{QuantLevel, QuantStore};
 use cubecl::{
     intrinsic,
     ir::Value,
@@ -163,29 +163,53 @@ pub fn read<C: Scalar, N: Size>(
 fn index_offset_with_quant_layout(
     tensor: &GlobalTensor,
     locals: &LocalArgs,
-    index: usize,
+    offset_ref: usize,
     #[comptime] rank: usize,
     #[comptime] scheme: QuantScheme,
 ) -> usize {
-    let (start, end) = (0, rank - 1);
     let num_quants = scheme.num_quants();
+    let packed_axis = comptime![match scheme.store {
+        QuantStore::Native => rank - 1,
+        QuantStore::PackedU32(dim) | QuantStore::PackedNative(dim) => rank - dim - 1,
+    }];
 
-    let offset_ref = index * locals.ref_vector_size;
     let mut offset = 0;
+    let mut stride_ref = 1;
 
     #[unroll]
-    for i in start..end {
-        let ogwl = offset_ref / locals.ref_strides[i];
-        offset += ogwl % tensor.tensor.shape(i) * tensor.tensor.stride(i);
+    for r in 0..rank {
+        let i = reverse_index(rank, r).comptime();
+        let coord = offset_ref / stride_ref % locals.ref_shape[i];
+        if comptime![i == packed_axis] {
+            offset += coord / num_quants * tensor.tensor.stride(i);
+        } else {
+            offset += coord * tensor.tensor.stride(i);
+        }
+        stride_ref *= locals.ref_shape[i];
     }
 
-    // Handle packed representation in last dim
-    let ogwl = offset_ref / locals.ref_strides[end];
-    let shape_last = tensor.tensor.shape(end).div_ceil(num_quants);
-    let stride_last = tensor.tensor.stride(end);
-    offset += (ogwl.div_ceil(num_quants)) % shape_last * stride_last;
-
     offset / tensor.tensor.vector_size()
+}
+
+#[cube]
+fn read_quantized_at<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    offset_ref: usize,
+    #[comptime] arg: FuseArg,
+    #[comptime] config: &FuseBlockConfig,
+    #[comptime] scheme: QuantScheme,
+) -> Vector<C, N> {
+    match arg {
+        FuseArg::Input(pos, _precision, _layout) => {
+            let global = inputs.tensors.index(pos);
+            let offset =
+                index_offset_with_quant_layout(global, locals, offset_ref, config.rank, scheme);
+            let val = global.tensor[offset];
+            Vector::cast_from(val)
+        }
+        _ => panic!("Not supported"),
+    }
 }
 
 /// Reads a global quantized tensor at the given position.
@@ -202,17 +226,28 @@ pub fn read_quantized<C: Scalar, N: Size>(
     #[comptime] config: &FuseBlockConfig,
     #[comptime] scheme: QuantScheme,
 ) -> Vector<C, N> {
-    match arg {
-        FuseArg::Input(pos, _precision, _layout) => {
-            let global = inputs.tensors.index(pos);
+    read_quantized_at::<C, N>(
+        inputs,
+        locals,
+        ref_pos * locals.ref_vector_size,
+        arg,
+        config,
+        scheme,
+    )
+}
 
-            let offset =
-                index_offset_with_quant_layout(global, locals, ref_pos, config.rank, scheme);
-            let val = global.tensor[offset];
-            Vector::cast_from(val)
-        }
-        _ => panic!("Not supported"),
-    }
+/// Reads a single packed quantized value for the logical tensor position.
+#[cube]
+pub fn read_quantized_scalar<C: Scalar>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    position: usize,
+    #[comptime] arg: FuseArg,
+    #[comptime] config: &FuseBlockConfig,
+    #[comptime] scheme: QuantScheme,
+) -> C {
+    let value = read_quantized_at::<C, Const<1>>(inputs, locals, position, arg, config, scheme);
+    value.extract(0)
 }
 
 /// Reads a global scalar.

@@ -1014,10 +1014,7 @@ fn dequantize<C: Float, N: Size>(
         cubecl::quant::scheme::QuantParam::UE4M3 =>
             StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
     }];
-    let q_vector_size = N::value().comptime() / scheme.num_quants();
-
     let define!(QStoreType) = quant_ty;
-    let size!(QStoreSize) = q_vector_size;
     let define!(QParamType) = param_ty;
     let size!(NumQuant) = scheme.num_quants();
 
@@ -1033,31 +1030,68 @@ fn dequantize<C: Float, N: Size>(
     let num_quants = scheme.num_quants();
 
     set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
-    let input = read_quantized::<QStoreType, QStoreSize>(
-        inputs, &*locals, write_pos, input, config, scheme,
-    );
-
     let scales =
         input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
 
-    let result = dequantize_symmetric_packed_value_at::<
-        C,
-        NumQuant,
-        QParamType,
-        QStoreType,
-        QStoreSize,
-    >(write_pos * num_quants, input, &scales, scheme);
-
     let mut vector = Vector::empty();
+    let packed_dim = comptime![match scheme.store {
+        QuantStore::Native => 0,
+        QuantStore::PackedU32(dim) | QuantStore::PackedNative(dim) => dim,
+    }];
 
-    #[unroll]
-    for i in 0..q_vector_size {
-        let value = result[i];
+    if comptime![packed_dim == 0] {
+        let q_vector_size = N::value().comptime() / scheme.num_quants();
+        let size!(QStoreSize) = q_vector_size;
+        let input = read_quantized::<QStoreType, QStoreSize>(
+            inputs, &*locals, write_pos, input, config, scheme,
+        );
+        let result = dequantize_symmetric_packed_value_at::<
+            C,
+            NumQuant,
+            QParamType,
+            QStoreType,
+            QStoreSize,
+        >(write_pos * num_quants, input, &scales, scheme);
 
         #[unroll]
-        for j in 0..num_quants {
-            let index = i * num_quants + j;
-            vector.insert(index, value.extract(j));
+        for i in 0..q_vector_size {
+            let value = result[i];
+
+            #[unroll]
+            for j in 0..num_quants {
+                let index = i * num_quants + j;
+                vector.insert(index, value.extract(j));
+            }
+        }
+    } else {
+        let packed_axis = comptime![config.rank - packed_dim - 1];
+        let mut packed_stride = 1;
+        #[unroll]
+        for i in packed_axis + 1..config.rank {
+            packed_stride *= locals.ref_shape[i];
+        }
+
+        #[unroll]
+        for i in 0..N::value() {
+            let position = write_pos * N::value() + i;
+            let input = read_quantized_scalar::<QStoreType>(
+                inputs,
+                &*locals,
+                position,
+                input.clone(),
+                config,
+                scheme,
+            );
+            let input = Vector::<QStoreType, Const<1>>::new(input);
+            let result = dequantize_symmetric_packed_value_at::<
+                C,
+                NumQuant,
+                QParamType,
+                QStoreType,
+                Const<1>,
+            >(position, input, &scales, scheme);
+            let packed_index = (position / packed_stride) % scheme.num_quants();
+            vector.insert(i, result[0].extract(packed_index));
         }
     }
 
