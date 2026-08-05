@@ -760,6 +760,7 @@ where
     /// //   [true, true, true],
     /// //   [false, true, true]
     /// // ]
+    /// ```
     pub fn bool(self) -> Tensor<D, Bool> {
         self.not_equal_scalar(0)
     }

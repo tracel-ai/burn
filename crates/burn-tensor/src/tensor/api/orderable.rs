@@ -889,6 +889,7 @@ where
     /// let tensor = tensor1.min_pair(tensor2);
     /// println!("{tensor}");
     /// // [[1.0, -2.0, 3.0], [1.0, 2.0, 3.0]]
+    /// ```
     pub fn min_pair(self, other: Self) -> Self {
         let mask = other.clone().lower(self.clone());
         self.mask_where(mask, other)
