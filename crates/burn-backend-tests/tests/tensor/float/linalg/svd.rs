@@ -1,12 +1,27 @@
 use super::*;
-use burn_tensor::{Distribution, TensorData, Tolerance, linalg::svd};
+use burn_tensor::{DType, Distribution, Element, TensorData, Tolerance, linalg::svd};
 
 const REL: f32 = 5e-3;
 const ABS: f32 = 1e-3;
+/// Absolute tolerance, with a looser bound for half precision (f16/bf16),
+/// which only keeps ~3 significant digits.
+fn abs_tol() -> f32 {
+    if matches!(FloatElem::dtype(), DType::F16 | DType::BF16) {
+        2e-2
+    } else {
+        ABS
+    }
+}
 /// Tolerance for torch-reference values (LAPACK and Jacobi differ only in
 /// floating-point rounding order; half precision gets a looser bound).
 fn torch_tol() -> Tolerance<FloatElem> {
     Tolerance::rel_abs(5e-4, 5e-4).set_half_precision_absolute(2e-2)
+}
+
+/// Read tensor data as f32 scalars regardless of the float dtype (convert
+/// casts; `to_vec::<f32>` would fail on non-f32 data).
+fn to_f32_vec<const D: usize>(t: TestTensor<D>) -> Vec<f32> {
+    t.into_data().convert::<f32>().to_vec::<f32>().unwrap()
 }
 
 /// Max abs error of `A - U diag(S) Vt` as an f32, computed with host scalar
@@ -22,10 +37,10 @@ fn recon_err<const D: usize, const D1: usize>(
     let batch: usize = dims[..(D - 2)].iter().product();
     let (m, n) = (dims[D - 2], dims[D - 1]);
     let k = s.dims()[D1 - 1];
-    let a = a.into_data().to_vec::<FloatElem>().unwrap();
-    let u = u.into_data().to_vec::<FloatElem>().unwrap();
-    let s = s.clone().into_data().to_vec::<FloatElem>().unwrap();
-    let vt = vt.into_data().to_vec::<FloatElem>().unwrap();
+    let a = to_f32_vec(a);
+    let u = to_f32_vec(u);
+    let s = to_f32_vec(s.clone());
+    let vt = to_f32_vec(vt);
     let mut err = 0.0f32;
     for b in 0..batch {
         for i in 0..m {
@@ -42,7 +57,7 @@ fn recon_err<const D: usize, const D1: usize>(
 }
 
 /// Max abs error of `V^T V - I` (or `V V^T - I` for row factors), host math.
-fn ortho_err(data: &[FloatElem], rows: usize, cols: usize) -> f32 {
+fn ortho_err(data: &[f32], rows: usize, cols: usize) -> f32 {
     let mut err = 0.0f32;
     for i in 0..cols {
         for j in 0..cols {
@@ -63,7 +78,7 @@ fn assert_reconstruction<const D: usize, const D1: usize>(
     vt: TestTensor<D>,
 ) {
     let err = recon_err::<D, D1>(a, u, s, vt);
-    assert!(err < ABS, "A != U S Vt, max abs error {err}");
+    assert!(err < abs_tol(), "A != U S Vt, max abs error {err}");
 }
 
 /// Flip the sign of each row so its largest-magnitude entry is positive
@@ -150,12 +165,7 @@ fn test_svd_single_row() {
     assert_eq!(s.dims(), [1]);
     assert_eq!(vt.dims(), [1, 2]);
     assert_reconstruction::<2, 1>(tensor, u, &s, vt);
-    let sv: Vec<f32> = s
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let sv: Vec<f32> = to_f32_vec(s);
     assert!((sv[0] - 5.0).abs() < REL, "sigma ~ 5.0, got {}", sv[0]);
 }
 
@@ -177,12 +187,7 @@ fn test_svd_1x1() {
     let tensor = TestTensor::<2>::from_data([[-7.0]], &device);
     let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
     assert_reconstruction::<2, 1>(tensor, u, &s, vt);
-    let sv: Vec<f32> = s
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let sv: Vec<f32> = to_f32_vec(s);
     assert!((sv[0] - 7.0).abs() < REL, "sigma ~ 7.0, got {}", sv[0]);
 }
 
@@ -207,7 +212,7 @@ fn test_svd_batched_reconstruction() {
 fn test_svd_batched_mixed_matrices() {
     // Distinct matrices per batch element, including a rank-deficient one
     // (the null-space singular vectors differ arbitrarily; reconstruction
-    // and singular values must still be exact).
+    // and singular values must still be correct).
     let device = Default::default();
     let tensor = TestTensor::<3>::from_data(
         [[[1.0, 2.0], [2.0, 4.0]], [[1.0, 0.0], [0.0, 3.0]]],
@@ -215,12 +220,7 @@ fn test_svd_batched_mixed_matrices() {
     );
     let (u, s, vt) = svd::<3, 2>(tensor.clone(), 15);
     assert_reconstruction::<3, 2>(tensor, u, &s, vt);
-    let vals: Vec<f32> = s
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let vals: Vec<f32> = to_f32_vec(s);
     // batch element 0: rank-1 [[1,2],[2,4]] -> sigma ~ [5, 0]
     assert!(
         (vals[0] - 5.0).abs() < REL,
@@ -270,8 +270,8 @@ fn test_svd_orthonormal_factors() {
     let (u, s, vt) = svd::<2, 1>(tensor, 15);
     let _ = s;
 
-    let uv = u.into_data().to_vec::<FloatElem>().unwrap();
-    let vtv = vt.into_data().to_vec::<FloatElem>().unwrap();
+    let uv = to_f32_vec(u);
+    let vtv = to_f32_vec(vt);
     let err = ortho_err(&uv, 3, 3);
     assert!(err < REL, "U^T U != I, max abs error {err}");
     let err = ortho_err(&vtv, 3, 3);
@@ -285,8 +285,8 @@ fn test_svd_orthonormal_rectangular() {
     let tensor = TestTensor::<2>::random([6, 4], Distribution::Normal(0.0, 1.0), &device);
     let (u, s, vt) = svd::<2, 1>(tensor, 15);
     let _ = s;
-    let uv = u.into_data().to_vec::<FloatElem>().unwrap();
-    let vtv = vt.into_data().to_vec::<FloatElem>().unwrap();
+    let uv = to_f32_vec(u);
+    let vtv = to_f32_vec(vt);
     let err = ortho_err(&uv, 6, 4);
     assert!(err < REL, "U^T U != I, max abs error {err}");
     let err = ortho_err(&vtv, 4, 4);
@@ -302,13 +302,7 @@ fn test_svd_diagonal_values() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[3.0, 0.0], [0.0, 1.0]], &device);
     let (_u, s, _vt) = svd::<2, 1>(tensor, 15);
-    let vals: Vec<f32> = s
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let vals: Vec<f32> = to_f32_vec(s.clone());
     assert!(
         (vals[0] - 3.0).abs() < REL,
         "first SV ~ 3.0, got {}",
@@ -326,13 +320,7 @@ fn test_svd_identity_matrix() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[1.0, 0.0], [0.0, 1.0]], &device);
     let (_u, s, _vt) = svd::<2, 1>(tensor.clone(), 15);
-    let vals: Vec<f32> = s
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let vals: Vec<f32> = to_f32_vec(s.clone());
     assert!((vals[0] - 1.0).abs() < REL, "sigma1 ~ 1, got {}", vals[0]);
     assert!((vals[1] - 1.0).abs() < REL, "sigma2 ~ 1, got {}", vals[1]);
 }
@@ -342,16 +330,10 @@ fn test_svd_singular_values_descending() {
     let device = Default::default();
     let tensor = TestTensor::<2>::random([5, 3], Distribution::Normal(0.0, 1.0), &device);
     let (_u, s, _vt) = svd::<2, 1>(tensor, 15);
-    let vals: Vec<f32> = s
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let vals: Vec<f32> = to_f32_vec(s.clone());
     for w in vals.windows(2) {
         assert!(
-            w[0] >= w[1] - 1e-5,
+            w[0] >= w[1] - abs_tol(),
             "singular values must be descending: {vals:?}"
         );
     }
@@ -367,13 +349,7 @@ fn test_svd_singular_matrix() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [2.0, 4.0]], &device);
     let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
-    let vals: Vec<f32> = s
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let vals: Vec<f32> = to_f32_vec(s.clone());
     assert!((vals[0] - 5.0).abs() < REL, "sigma1 ~ 5.0, got {}", vals[0]);
     assert!(vals[1].abs() < ABS, "sigma2 ~ 0, got {}", vals[1]);
     assert_reconstruction::<2, 1>(tensor, u, &s, vt);
@@ -385,13 +361,7 @@ fn test_svd_zero_matrix() {
     let tensor = TestTensor::<2>::from_data([[0.0, 0.0], [0.0, 0.0]], &device);
     let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
     // No NaNs anywhere; singular values are zero; reconstruction is exact.
-    let vals: Vec<f32> = s
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let vals: Vec<f32> = to_f32_vec(s.clone());
     assert!(
         vals.iter().all(|v| v.is_finite() && v.abs() < ABS),
         "S must be ~0: {vals:?}"
@@ -406,13 +376,7 @@ fn test_svd_clustered_singular_values() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[2.0, 0.05], [0.05, 1.95]], &device);
     let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
-    let vals: Vec<f32> = s
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let vals: Vec<f32> = to_f32_vec(s.clone());
     // sigma = eigenvalues of A (A is symmetric PSD) = (3.95 +- sqrt(0.0125)) / 2
     assert!(
         (vals[0] - 2.0309017).abs() < REL && (vals[1] - 1.9190983).abs() < REL,
@@ -431,13 +395,7 @@ fn test_svd_ill_conditioned() {
     let tensor = TestTensor::<2>::from_data(TensorData::new(flat, [5, 5]), &device);
     let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
     let rel_err = recon_err::<2, 1>(tensor, u, &s, vt);
-    let sv: Vec<f32> = s
-        .clone()
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let sv: Vec<f32> = to_f32_vec(s.clone());
     let scale = sv[0];
     assert!(
         rel_err < REL * scale + ABS,
@@ -453,18 +411,8 @@ fn test_svd_scaling_invariance() {
     let a = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
     let (_u1, s1, _vt1) = svd::<2, 1>(a.clone(), 15);
     let (_u2, s2, _vt2) = svd::<2, 1>(a.mul_scalar(2.0), 15);
-    let v1: Vec<f32> = s1
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
-    let v2: Vec<f32> = s2
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let v1: Vec<f32> = to_f32_vec(s1);
+    let v2: Vec<f32> = to_f32_vec(s2);
     assert!(
         (v2[0] - 2.0 * v1[0]).abs() < REL && (v2[1] - 2.0 * v1[1]).abs() < REL,
         "sigma(2A) != 2 sigma(A): {v1:?} vs {v2:?}"
@@ -478,18 +426,8 @@ fn test_svd_transpose_equivalence() {
     let a = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
     let (_u1, s1, _vt1) = svd::<2, 1>(a.clone(), 15);
     let (_u2, s2, _vt2) = svd::<2, 1>(a.transpose(), 15);
-    let v1: Vec<f32> = s1
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
-    let v2: Vec<f32> = s2
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let v1: Vec<f32> = to_f32_vec(s1);
+    let v2: Vec<f32> = to_f32_vec(s2);
     for (a, b) in v1.iter().zip(v2.iter()) {
         assert!(
             (a - b).abs() < REL,
@@ -512,7 +450,7 @@ fn test_svd_random_reconstruction() {
 // ---------------------------------------------------------------------
 // Torch reference values (torch.linalg.svd, LAPACK gesdd).
 // Factor signs are aligned column-wise before comparison (SVD signs are
-// arbitrary); the singular values are compared exactly.
+// arbitrary); the singular values are compared with a tight tolerance.
 // ---------------------------------------------------------------------
 
 /// Compare U and Vt against torch references, aligning sign freedom per
@@ -527,18 +465,8 @@ fn assert_torch_factors<const D: usize>(
 ) {
     let device = u.device();
     let tol = torch_tol();
-    let mut uv: Vec<f32> = u
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
-    let mut vv: Vec<f32> = vt
-        .into_data()
-        .bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
+    let mut uv: Vec<f32> = to_f32_vec(u);
+    let mut vv: Vec<f32> = to_f32_vec(vt);
     let (ru, cv) = (shape_u[D - 2], shape_u[D - 1]);
     let (rv, cw) = (shape_vt[D - 2], shape_vt[D - 1]);
     align_column_signs(&mut uv, ru, cv);
@@ -741,7 +669,7 @@ fn test_svd_more_sweeps_improve_accuracy() {
         err3 > err30,
         "more sweeps must improve accuracy: {err3} vs {err30}"
     );
-    assert!(err30 < ABS, "30 sweeps must converge, err {err30}");
+    assert!(err30 < abs_tol(), "30 sweeps must converge, err {err30}");
 }
 
 #[test]
@@ -838,10 +766,15 @@ fn dbgt_stress() {
         // test harness itself hits the inaccurate autotune kernels, which
         // would smear the SVD error for large sizes.
         let (u, s, vt) = svd::<2, 1>(a.clone(), 30);
-        let uv = u.into_data().to_vec::<f32>().unwrap();
-        let sv = s.into_data().to_vec::<f32>().unwrap();
-        let vtv = vt.into_data().to_vec::<f32>().unwrap();
-        let av = a.clone().into_data().to_vec::<f32>().unwrap();
+        let uv = u.into_data().convert::<f32>().to_vec::<f32>().unwrap();
+        let sv = s.into_data().convert::<f32>().to_vec::<f32>().unwrap();
+        let vtv = vt.into_data().convert::<f32>().to_vec::<f32>().unwrap();
+        let av = a
+            .clone()
+            .into_data()
+            .convert::<f32>()
+            .to_vec::<f32>()
+            .unwrap();
         let (m, n, k) = (a.dims()[0], a.dims()[1], sv.len());
         let mut err = 0.0f32;
         let mut amax = 0.0f32;
@@ -946,7 +879,7 @@ fn dbgt_stress() {
     let a256 = TestTensor::<2>::from_data(burn_tensor::TensorData::new(m256, [n, n]), &device);
     let (u, s, vt) = svd::<2, 1>(a256.clone(), 30);
     let s2 = s.clone();
-    let sv: Vec<f32> = s2.into_data().to_vec().unwrap();
+    let sv: Vec<f32> = s2.into_data().convert::<f32>().to_vec::<f32>().unwrap();
     println!("STRESS sv256 {:?}", &sv[..16]);
     let err = recon_err::<2, 1>(a256.clone(), u, &s, vt);
     println!("STRESS 256det recon {err:.3e}");
@@ -957,16 +890,28 @@ fn dbgt_stress() {
     let (u1, s1, vt1) = svd::<2, 1>(a.clone(), 30);
     let (u2, s2, vt2) = svd::<2, 1>(a, 30);
     assert_eq!(
-        u1.clone().into_data().to_vec::<f32>().unwrap(),
-        u2.into_data().to_vec::<f32>().unwrap()
+        u1.clone()
+            .into_data()
+            .convert::<f32>()
+            .to_vec::<f32>()
+            .unwrap(),
+        u2.into_data().convert::<f32>().to_vec::<f32>().unwrap()
     );
     assert_eq!(
-        s1.clone().into_data().to_vec::<f32>().unwrap(),
-        s2.clone().into_data().to_vec::<f32>().unwrap()
+        s1.clone()
+            .into_data()
+            .convert::<f32>()
+            .to_vec::<f32>()
+            .unwrap(),
+        s2.clone()
+            .into_data()
+            .convert::<f32>()
+            .to_vec::<f32>()
+            .unwrap()
     );
     assert_eq!(
-        vt1.into_data().to_vec::<f32>().unwrap(),
-        vt2.into_data().to_vec::<f32>().unwrap()
+        vt1.into_data().convert::<f32>().to_vec::<f32>().unwrap(),
+        vt2.into_data().convert::<f32>().to_vec::<f32>().unwrap()
     );
     println!("STRESS determinism ok");
     assert_eq!(failures, 0, "{failures} stress failures");

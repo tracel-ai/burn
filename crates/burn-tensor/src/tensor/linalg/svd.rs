@@ -17,26 +17,20 @@ use num_traits::float::Float;
 ///
 /// # Algorithm
 ///
-/// Two stages, mirroring the LAPACK `gesvd` structure:
+/// Two stages, mirroring the LAPACK `gesvd` / `dbdsqr` structure:
 ///
-/// 1. **Golub-Kahan bidiagonalization** with Householder reflections:
-///    `A = U1 B V1^T` with `B` upper bidiagonal, `n` reflections on
-///    shrinking submatrices.
-/// 2. **Bidiagonal QR with shifts** (the LAPACK `dbdsqr` algorithm) to
-///    diagonalize `B`. Only `2n` scalars are involved, so this stage runs
-///    on the host over the tensor data (deterministic, no kernels) and
-///    converges in ~2.5 QR steps per singular value. The accumulated Givens
-///    rotations rebuild `U` and `V` from the bidiagonalization factors.
+/// 1. **Golub-Kahan bidiagonalization** using Householder reflections (`A = U1 B V1^T`).
+/// 2. **Implicitly shifted bidiagonal QR iteration** (LAPACK `dbdsqr`) to diagonalize `B`.
 ///
-/// Both stages are exact to machine precision; the number of QR iterations
-/// is governed by a convergence criterion (the `sweeps` argument is kept
-/// for API compatibility and bounds the iteration count).
+/// The algorithm is backward stable to within a small multiple of machine precision.
+/// Convergence typically requires ~2.5 QR sweeps per singular value on average, bounded
+/// by the `sweeps` argument.
 ///
 /// # Arguments
 ///
 /// * `tensor` - The input tensor of shape `[..., m, n]`.
-/// * `sweeps` - Upper bound on the number of QR sweeps (ignored in practice:
-///   the algorithm converges in ~2.5 steps per singular value).
+/// * `sweeps` - Upper bound on the number of QR sweeps (the algorithm
+///   typically converges in ~2.5 sweeps per singular value on average).
 ///
 /// # Returns
 ///
@@ -71,10 +65,11 @@ use num_traits::float::Float;
 ///   F32 for the computation and cast back to the original dtype before
 ///   returning, like `det` and `lu`.
 /// - Singular values are sorted in descending order; values at or below
-///   `1e-6 * sigma_max` are treated as numerical zeros and returned as 0.
+///   `10 * eps * sigma_max` (machine epsilon of the dtype) are treated as
+///   numerical zeros and returned as 0.
 /// - All internal norms, rotations and shifts are scale-invariant
 ///   (LAPACK-style), so inputs with entries up to `f32::MAX` and down to
-///   subnormals stay finite and exact.
+///   subnormals stay finite and accurate.
 ///
 /// # Example
 /// ```rust,ignore
@@ -287,10 +282,13 @@ fn svd_host<F: Float + Copy>(
         // Sort the singular values descending and permute the factors, on the
         // host: deterministic (stable sort), independent of backend
         // gather/argsort kernels (which are view-based or nondeterministic on
-        // fused CUDA). Mask numerical zeros relative to sigma_max.
+        // fused CUDA). Mask numerical zeros relative to sigma_max, with a
+        // dtype-derived threshold (10 * machine epsilon, same relative
+        // tolerance as the dbdsqr deflation test) instead of a fixed 1e-6.
         let smax = sigma[b * n..(b + 1) * n]
             .iter()
             .fold(F::zero(), |s, &x| s.max(x.abs()));
+        let zero_tol = smax * (F::epsilon() * F::from(10.0).unwrap());
         let mut order: Vec<usize> = (0..n).collect();
         order.sort_by(|&i, &j| {
             sigma[b * n + j]
@@ -309,11 +307,7 @@ fn svd_host<F: Float + Copy>(
             }
             // read from the untouched slot: sigma is rewritten in place below
             let v = sigma[b * n + src];
-            sorted[t] = if v.abs() <= smax * F::from(1e-6).unwrap() {
-                F::zero()
-            } else {
-                v
-            };
+            sorted[t] = if v.abs() <= zero_tol { F::zero() } else { v };
         }
         for i in 0..m * n {
             u[b * m * n + i] = pu[i];
@@ -656,12 +650,9 @@ mod tests {
             1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
         let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false);
-        // svd_host returns sigma in diagonalization order; sort before comparing.
-        let mut ss = s.clone();
-        ss.sort_by(|x, y| y.partial_cmp(x).unwrap());
-        // Reference from numpy/LAPACK gesdd.
-        assert!((ss[0] - 25.46240743603639).abs() < 1e-12, "s1 {}", ss[0]);
-        assert!((ss[1] - 1.290661675761233).abs() < 1e-12, "s2 {}", ss[1]);
+        // Reference from numpy/LAPACK gesdd (svd_host already sorts descending).
+        assert!((s[0] - 25.46240743603639).abs() < 1e-12, "s1 {}", s[0]);
+        assert!((s[1] - 1.290661675761233).abs() < 1e-12, "s2 {}", s[1]);
         assert!(recon_err::<f64>(&u, &s, &vt, &a, 4, 3) < 1e-12);
         // 1x1 and rank-1 edge cases
         let (u, s, vt) = svd_host::<f64>(&[-3.0], 1, 1, 1, 30, false);
@@ -708,70 +699,37 @@ mod tests {
             assert!(err <= a[0].abs().max(1.0) * 1e-4, "recon err {err}");
         }
     }
-}
 
-#[test]
-fn test_svd_host_tall_fixed() {
-    // fixed 512x128: deterministic formula, checks the lazy-U1 path
-    let m = 512usize;
-    let n = 128usize;
-    let mut a = Vec::with_capacity(m * n);
-    for i in 0..m {
-        for j in 0..n {
-            a.push(
-                (((i * 7919 + j * 104729) % 100000) as f64 / 100000.0 - 0.5) * 2.0
-                    + (i as f64 - j as f64) * 0.001,
-            );
-        }
-    }
-    let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
-    let mut err = 0.0f64;
-    for i in 0..m {
-        for j in 0..n {
-            let mut acc = 0.0f64;
-            for k in 0..n {
-                acc += u[i * n + k] * s[k] * vt[k * n + j];
+    #[test]
+    fn test_svd_host_tall_fixed() {
+        // fixed 512x128: deterministic formula, checks the lazy-U1 path
+        let m = 512usize;
+        let n = 128usize;
+        let mut a = Vec::with_capacity(m * n);
+        for i in 0..m {
+            for j in 0..n {
+                a.push(
+                    (((i * 7919 + j * 104729) % 100000) as f64 / 100000.0 - 0.5) * 2.0
+                        + (i as f64 - j as f64) * 0.001,
+                );
             }
-            err = err.max((a[i * n + j] - acc).abs());
         }
-    }
-    assert!(err < 1e-9, "tall recon err {err}");
-
-    // same matrix in f32
-    let af: Vec<f32> = a.iter().map(|x| *x as f32).collect();
-    let (u, s, vt) = svd_host::<f32>(&af, m, n, 1, 30, false);
-    let mut err = 0.0f32;
-    for i in 0..m {
-        for j in 0..n {
-            let mut acc = 0.0f32;
-            for k in 0..n {
-                acc += u[i * n + k] * s[k] * vt[k * n + j];
+        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
+        let mut err = 0.0f64;
+        for i in 0..m {
+            for j in 0..n {
+                let mut acc = 0.0f64;
+                for k in 0..n {
+                    acc += u[i * n + k] * s[k] * vt[k * n + j];
+                }
+                err = err.max((a[i * n + j] - acc).abs());
             }
-            err = err.max((af[i * n + j] - acc).abs());
         }
-    }
-    assert!(err < 1e-3, "tall f32 recon err {err}");
-}
+        assert!(err < 1e-9, "tall recon err {err}");
 
-#[test]
-fn test_svd_host_tall_seeded() {
-    // deterministic LCG over 60 tall 512x128 matrices in f32, find the
-    // pathological one that the randomized bench hit (~2.5% of matrices)
-    let (m, n) = (512usize, 128usize);
-    let mut state: u64 = 0x1234_5678_9abc_def0;
-    let mut next = move || {
-        state = state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        ((state >> 33) as f32) / (1u32 << 31) as f32
-    };
-    let mut worst = 0.0f32;
-    for _trial in 0..60 {
-        let mut a = vec![0.0f32; m * n];
-        for x in a.iter_mut() {
-            *x = next() * 2.0 - 1.0;
-        }
-        let (u, s, vt) = svd_host::<f32>(&a, m, n, 1, 15, false);
+        // same matrix in f32
+        let af: Vec<f32> = a.iter().map(|x| *x as f32).collect();
+        let (u, s, vt) = svd_host::<f32>(&af, m, n, 1, 30, false);
         let mut err = 0.0f32;
         for i in 0..m {
             for j in 0..n {
@@ -779,51 +737,84 @@ fn test_svd_host_tall_seeded() {
                 for k in 0..n {
                     acc += u[i * n + k] * s[k] * vt[k * n + j];
                 }
-                err = err.max((a[i * n + j] - acc).abs());
+                err = err.max((af[i * n + j] - acc).abs());
             }
         }
-
-        if err > worst {
-            worst = err;
-        }
+        assert!(err < 1e-3, "tall f32 recon err {err}");
     }
-    assert!(worst < 1e-3, "seeded tall worst {worst}");
-}
 
-#[test]
-fn test_svd_host_2x2_direct() {
-    // B = [[2,1],[0,1]]: exact 2x2 closed-form path
-    let a = [2.0f64, 1.0, 0.0, 1.0];
-    let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
-    let mut err = 0.0f64;
-    for i in 0..2 {
-        for j in 0..2 {
-            let mut acc = 0.0f64;
-            for k in 0..2 {
-                acc += u[i * 2 + k] * s[k] * vt[k * 2 + j];
+    #[test]
+    fn test_svd_host_tall_seeded() {
+        // deterministic LCG over 60 tall 512x128 matrices in f32, find the
+        // pathological one that the randomized bench hit (~2.5% of matrices)
+        let (m, n) = (512usize, 128usize);
+        let mut state: u64 = 0x1234_5678_9abc_def0;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 33) as f32) / (1u32 << 31) as f32
+        };
+        let mut worst = 0.0f32;
+        for _trial in 0..60 {
+            let mut a = vec![0.0f32; m * n];
+            for x in a.iter_mut() {
+                *x = next() * 2.0 - 1.0;
             }
-            err = err.max((a[i * 2 + j] - acc).abs());
-        }
-    }
-    assert!(err < 1e-12, "2x2 recon {err}");
-}
-
-#[test]
-fn test_svd_host_batch2_matrix() {
-    // the batch-2 matrix from test_svd_host_f64, isolated
-    let a = [
-        1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 1.5, 2.5,
-    ];
-    let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false);
-    let mut err = 0.0f64;
-    for i in 0..4 {
-        for j in 0..3 {
-            let mut acc = 0.0f64;
-            for k in 0..3 {
-                acc += u[i * 3 + k] * s[k] * vt[k * 3 + j];
+            let (u, s, vt) = svd_host::<f32>(&a, m, n, 1, 15, false);
+            let mut err = 0.0f32;
+            for i in 0..m {
+                for j in 0..n {
+                    let mut acc = 0.0f32;
+                    for k in 0..n {
+                        acc += u[i * n + k] * s[k] * vt[k * n + j];
+                    }
+                    err = err.max((a[i * n + j] - acc).abs());
+                }
             }
-            err = err.max((a[i * 3 + j] - acc).abs());
+
+            if err > worst {
+                worst = err;
+            }
         }
+        assert!(worst < 1e-3, "seeded tall worst {worst}");
     }
-    assert!(err < 1e-12, "batch2 recon {err}");
+
+    #[test]
+    fn test_svd_host_2x2_direct() {
+        // B = [[2,1],[0,1]]: exact 2x2 closed-form path
+        let a = [2.0f64, 1.0, 0.0, 1.0];
+        let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
+        let mut err = 0.0f64;
+        for i in 0..2 {
+            for j in 0..2 {
+                let mut acc = 0.0f64;
+                for k in 0..2 {
+                    acc += u[i * 2 + k] * s[k] * vt[k * 2 + j];
+                }
+                err = err.max((a[i * 2 + j] - acc).abs());
+            }
+        }
+        assert!(err < 1e-12, "2x2 recon {err}");
+    }
+
+    #[test]
+    fn test_svd_host_batch2_matrix() {
+        // the batch-2 matrix from test_svd_host_f64, isolated
+        let a = [
+            1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 1.5, 2.5,
+        ];
+        let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false);
+        let mut err = 0.0f64;
+        for i in 0..4 {
+            for j in 0..3 {
+                let mut acc = 0.0f64;
+                for k in 0..3 {
+                    acc += u[i * 3 + k] * s[k] * vt[k * 3 + j];
+                }
+                err = err.max((a[i * 3 + j] - acc).abs());
+            }
+        }
+        assert!(err < 1e-12, "batch2 recon {err}");
+    }
 }
