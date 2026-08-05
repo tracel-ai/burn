@@ -159,6 +159,10 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
+                    level: QuantLevel::BlockTensor { .. },
+                    ..
+                } => unimplemented!("two-level quantization is not supported yet"),
+                QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     value:

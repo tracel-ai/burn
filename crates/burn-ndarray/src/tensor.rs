@@ -751,6 +751,10 @@ impl NdArrayQTensor {
                     .collect(),
                 block_size,
             ),
+            QuantScheme {
+                level: QuantLevel::BlockTensor { .. },
+                ..
+            } => unimplemented!("two-level quantization is not supported yet"),
         }
     }
 }
