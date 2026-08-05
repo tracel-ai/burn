@@ -1308,6 +1308,7 @@ dependencies = [
  "burn-cubecl",
  "burn-fusion",
  "burn-ir",
+ "burn-std",
  "burn-store",
  "bytemuck",
  "cubecl",

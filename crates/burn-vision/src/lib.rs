@@ -7,6 +7,7 @@
 //! - `connected_components`
 //! - `connected_components_with_stats`
 //! - `nms` (Non-Maximum Suppression)
+//! - `filter2d` (depthwise 2D correlation)
 //!
 
 #![warn(missing_docs)]
@@ -33,6 +34,9 @@ cfg_backend! {
     pub use tensor::*;
     pub use backends::{KernelShape, create_structuring_element};
 }
+
+mod filter;
+pub use filter::*;
 
 mod transform;
 pub use transform::*;
