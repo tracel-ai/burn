@@ -1406,6 +1406,22 @@ impl TensorCheck {
 
         check
     }
+
+    pub(crate) fn topk(op: &str, k: usize, dim: usize, shape: &Shape) -> Self {
+        let mut check = Self::Ok;
+
+        if k > shape[dim] {
+            check = check.register(
+                op,
+                TensorError::new("The selected index k is out of range.").details(format!(
+                    "Got k={k} for dimension {dim} with input shape {:?}.",
+                    shape.as_slice(),
+                )),
+            );
+        }
+
+        check
+    }
 }
 
 pub(crate) struct FailedTensorCheck {

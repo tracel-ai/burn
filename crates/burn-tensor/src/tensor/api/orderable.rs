@@ -232,7 +232,7 @@ where
     /// ```
     pub fn topk<I: AsIndex>(self, k: usize, dim: I) -> Self {
         let dim = unwrap_dim_index(dim.try_dim_index(D), "Top K");
-        assert!(self.shape()[dim] > k);
+        check!(TensorCheck::topk("Top K", k, dim, &self.shape()));
         Tensor::new(K::topk(self.primitive, dim, k))
     }
 
@@ -267,6 +267,12 @@ where
     /// ```
     pub fn topk_with_indices<I: AsIndex>(self, k: usize, dim: I) -> (Self, Tensor<D, Int>) {
         let dim = unwrap_dim_index(dim.try_dim_index(D), "Top K With Indices");
+        check!(TensorCheck::topk(
+            "Top K With Indices",
+            k,
+            dim,
+            &self.shape()
+        ));
         let (values, indices) = K::topk_with_indices(self.primitive, dim, k);
         (Tensor::new(values), Tensor::new(indices))
     }
