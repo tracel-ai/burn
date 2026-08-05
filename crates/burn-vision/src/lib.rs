@@ -8,6 +8,7 @@
 //! - `connected_components_with_stats`
 //! - `nms` (Non-Maximum Suppression)
 //! - `filter2d` (depthwise 2D correlation)
+//! - color conversion (`rgb2gray` / `gray2rgb` / `rgb2hsv` / `hsv2rgb`)
 //!
 
 #![warn(missing_docs)]
@@ -34,6 +35,9 @@ cfg_backend! {
     pub use tensor::*;
     pub use backends::{KernelShape, create_structuring_element};
 }
+
+mod color;
+pub use color::*;
 
 mod filter;
 pub use filter::*;
