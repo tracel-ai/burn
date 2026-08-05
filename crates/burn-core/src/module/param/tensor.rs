@@ -1,4 +1,6 @@
-use super::{LoraAdapter, Param, ParamId, Parameter};
+#[cfg(test)]
+use super::LoraAdapter;
+use super::{DynMapper, DynVisitor, Param, ParamId, Parameter, Reparameterization};
 use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
     ModuleVisitor,
@@ -35,11 +37,11 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
         }
     }
 
-    fn compose_lora(self, adapter: &LoraAdapter) -> Self {
-        // `delta` has shape `[d_in, d_out]` (rank 2); the base weight is rank `D == 2` when an
-        // adapter is attached, so the reshape is an identity that only adjusts the static rank.
-        let delta = adapter.delta().reshape(Tensor::shape(&self));
-        self.add(delta)
+    fn materialize(self, reparameterization: &dyn super::DynReparameterization) -> Self {
+        *reparameterization
+            .materialize_dyn(Box::new(self))
+            .downcast::<Tensor<D>>()
+            .expect("Reparameterization should preserve tensor rank")
     }
 }
 
@@ -122,75 +124,62 @@ impl<const D: usize> Param<Tensor<D>> {
             Param::initialized(ParamId::new(), value.require_grad())
         })
     }
-}
 
-/// Visit the trainable factors of a LoRA [adapter](LoraAdapter) as nested parameters, so the
-/// record/optimizer traversal sees them at stable paths (e.g. `weight.lora.a`, `weight.lora.b`).
-fn visit_adapter<V: ModuleVisitor>(adapter: &LoraAdapter, visitor: &mut V) {
-    visitor.enter_module("lora", "Struct:LoraAdapter");
-    visitor.enter_module("a", "Struct:LoraAdapter");
-    Module::visit(&adapter.a, visitor);
-    visitor.exit_module("a", "Struct:LoraAdapter");
-    visitor.enter_module("b", "Struct:LoraAdapter");
-    Module::visit(&adapter.b, visitor);
-    visitor.exit_module("b", "Struct:LoraAdapter");
-    visitor.exit_module("lora", "Struct:LoraAdapter");
-}
+    /// Attach a custom or built-in reparameterization, replacing any existing one.
+    pub(crate) fn with_reparameterization<R>(mut self, reparameterization: R) -> Self
+    where
+        R: Reparameterization,
+    {
+        self.reparameterization =
+            Some(super::reparameterization::boxed::<R, D>(reparameterization));
+        self
+    }
 
-/// Map the trainable factors of a LoRA [adapter](LoraAdapter), mirroring [`visit_adapter`] so the
-/// optimizer/record mapper resolves the same paths.
-fn map_adapter<M: ModuleMapper>(adapter: LoraAdapter, mapper: &mut M) -> LoraAdapter {
-    let LoraAdapter { a, b, scale } = adapter;
-    mapper.enter_module("lora", "Struct:LoraAdapter");
-    mapper.enter_module("a", "Struct:LoraAdapter");
-    let a = Module::map(a, mapper);
-    mapper.exit_module("a", "Struct:LoraAdapter");
-    mapper.enter_module("b", "Struct:LoraAdapter");
-    let b = Module::map(b, mapper);
-    mapper.exit_module("b", "Struct:LoraAdapter");
-    mapper.exit_module("lora", "Struct:LoraAdapter");
-    LoraAdapter { a, b, scale }
+    #[cfg(test)]
+    pub(crate) fn adapter(&self) -> Option<&LoraAdapter> {
+        self.reparameterization_as()
+    }
 }
 
 impl<const D: usize> Module for Param<Tensor<D>> {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
-        match self.adapter() {
+        match self.reparameterization() {
             None => visitor.visit_float(self),
-            Some(adapter) => {
-                // Visit the frozen base, then the trainable adapter factors as separate leaves.
-                visitor.visit_float(&self.without_adapter());
-                visit_adapter(adapter, visitor);
+            Some(reparameterization) => {
+                visitor.visit_float(&self.without_reparameterization());
+                visitor.enter_module(reparameterization.name(), "Reparameterization");
+                reparameterization.visit_dyn(&mut DynVisitor { visitor });
+                visitor.exit_module(reparameterization.name(), "Reparameterization");
             }
         }
     }
 
     fn map<M: ModuleMapper>(mut self, mapper: &mut M) -> Self {
-        match self.adapter.take() {
+        match self.reparameterization.take() {
             None => mapper.map_float(self),
-            Some(adapter) => {
-                // `self` no longer carries the adapter, so the mapper operates on the raw base.
+            Some(reparameterization) => {
                 let base = mapper.map_float(self);
-                let adapter = map_adapter(*adapter, mapper);
-                base.with_adapter(Some(Box::new(adapter)))
+                mapper.enter_module(reparameterization.name(), "Reparameterization");
+                let reparameterization = reparameterization.map_dyn(&mut DynMapper { mapper });
+                mapper.exit_module(reparameterization.name(), "Reparameterization");
+                base.with_dyn_reparameterization(Some(reparameterization))
             }
         }
     }
 
     fn to_device(mut self, device: &Device) -> Self {
-        let adapter = self.adapter.take();
+        let reparameterization = self.reparameterization.take();
         let base = self.map(|tensor| tensor.to_device(device));
-        match adapter {
+        match reparameterization {
             None => base,
-            Some(adapter) => base.with_adapter(Some(Box::new(LoraAdapter {
-                a: Module::to_device(adapter.a, device),
-                b: Module::to_device(adapter.b, device),
-                scale: adapter.scale,
-            }))),
+            Some(reparameterization) => {
+                base.with_dyn_reparameterization(Some(reparameterization.to_device_dyn(device)))
+            }
         }
     }
 
     fn fork(mut self, device: &Device) -> Self {
-        let adapter = self.adapter.take();
+        let reparameterization = self.reparameterization.take();
         let base = self.map(|tensor| {
             let is_require_grad = tensor.is_require_grad();
             let mut tensor = tensor.to_device(device).detach();
@@ -201,13 +190,11 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
             tensor
         });
-        match adapter {
+        match reparameterization {
             None => base,
-            Some(adapter) => base.with_adapter(Some(Box::new(LoraAdapter {
-                a: Module::fork(adapter.a, device),
-                b: Module::fork(adapter.b, device),
-                scale: adapter.scale,
-            }))),
+            Some(reparameterization) => {
+                base.with_dyn_reparameterization(Some(reparameterization.fork_dyn(device)))
+            }
         }
     }
 
@@ -218,9 +205,8 @@ impl<const D: usize> Module for Param<Tensor<D>> {
             devices.push(device)
         }
 
-        if let Some(adapter) = self.adapter() {
-            devices = Module::collect_devices(&adapter.a, devices);
-            devices = Module::collect_devices(&adapter.b, devices);
+        if let Some(reparameterization) = self.reparameterization() {
+            devices = reparameterization.collect_devices_dyn(devices);
         }
 
         devices
@@ -336,8 +322,7 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
     fn valid(&self) -> Self {
         // Preserve initialized param `require_grad` state, but reset the inner value's.
-        // When a LoRA adapter is attached, `val()` folds it into the base for inference, so the
-        // resulting inference parameter is a plain (adapter-free) composed weight.
+        // `val()` folds any reparameterization into the base for inference.
         let require_grad = self.require_grad;
         let mut param = Param::initialized(self.id, self.val().inner().set_require_grad(false));
         param.require_grad = require_grad;
@@ -345,28 +330,19 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
     }
 
     fn from_inner(mut module: Self) -> Self {
-        // Keep the adapter structure (and its trainable factors) when moving onto the autodiff
-        // backend, so the adapter remains trainable after `train()`.
-        let adapter = module.adapter.take();
+        // Keep the reparameterization structure and its parameters on the autodiff backend.
+        let reparameterization = module.reparameterization.take();
         // Reinstate the param's `require_grad` state
         let tensor = Tensor::from_inner(module.val()).set_require_grad(module.require_grad);
         let base = Param::initialized(module.id, tensor);
-        match adapter {
+        match reparameterization {
             None => base,
-            Some(adapter) => base.with_adapter(Some(Box::new(LoraAdapter {
-                a: AutodiffModule::from_inner(adapter.a),
-                b: AutodiffModule::from_inner(adapter.b),
-                scale: adapter.scale,
-            }))),
+            Some(reparameterization) => {
+                base.with_dyn_reparameterization(Some(reparameterization.from_inner_dyn()))
+            }
         }
     }
 }
-
-// impl<const D: usize, B: AutodiffBackend> HasAutodiffModule
-//     for Param<Tensor<B::InnerBackend, D>>
-// {
-//     type TrainModule = Param<Tensor<D>>;
-// }
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
     fn valid(&self) -> Self {
