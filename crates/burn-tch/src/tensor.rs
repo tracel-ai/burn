@@ -277,7 +277,14 @@ impl TchTensor {
         let mut out_shape = Shape::from(vec![1usize; d_out]);
 
         for i in 0..d_out {
-            out_shape[i] = usize::max(lhs_shape[i], rhs_shape[i]);
+            // A zero-sized dim broadcasts to zero, not `max`: `[0]` vs `[1]` is
+            // `[0]`. `max` overstated the length and took the in-place fast path
+            // below, panicking in LibTorch on the shape mismatch (#5287).
+            out_shape[i] = if lhs_shape[i] == 0 || rhs_shape[i] == 0 {
+                0
+            } else {
+                usize::max(lhs_shape[i], rhs_shape[i])
+            };
         }
 
         let num_elements_out = out_shape.num_elements();
@@ -483,6 +490,24 @@ mod tests {
             &device,
             DType::QFloat(QuantScheme::default())
         ));
+    }
+
+    #[test]
+    fn mul_broadcasts_zero_sized_dim_without_panic() {
+        // Regression for #5287: broadcasting against a zero-sized dim yields 0.
+        let device = Default::default();
+        let one: TchTensor = B::float_from_data(TensorData::from([1.0]), &device);
+        let empty: TchTensor = B::float_from_data(TensorData::new(Vec::<f32>::new(), [0]), &device);
+
+        // Both operand orders (each exercises a different in-place fast path).
+        assert_eq!(B::float_mul(one.clone(), empty.clone()).shape().dims(), [0]);
+        assert_eq!(B::float_mul(empty, one).shape().dims(), [0]);
+
+        // Multi-dim: only the zero-sized dimension collapses.
+        let m: TchTensor = B::float_from_data(TensorData::new(vec![1.0f32, 2.0], [2, 1]), &device);
+        let m_empty: TchTensor =
+            B::float_from_data(TensorData::new(Vec::<f32>::new(), [2, 0]), &device);
+        assert_eq!(B::float_mul(m, m_empty).shape().dims(), [2, 0]);
     }
 
     #[test]
