@@ -136,19 +136,17 @@ where
     /// use burn_tensor::{Tensor, Shape};
     /// use burn_tensor::ops::PadMode;
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///
-    ///    // Constant padding with value 0.0 (backward-compatible tuple)
-    ///    let padded = tensor.clone().pad((1, 1, 1, 1), PadMode::Constant(0.0));
+    /// // Constant padding with value 0.0 (backward-compatible tuple)
+    /// let padded = tensor.clone().pad((1, 1, 1, 1), PadMode::Constant(0.0));
     ///
-    ///    // Pad arbitrary dimensions with slice of (before, after) pairs
-    ///    let padded = tensor.clone().pad([(1, 1), (2, 2)], PadMode::Constant(0.0));
+    /// // Pad arbitrary dimensions with slice of (before, after) pairs
+    /// let padded = tensor.clone().pad([(1, 1), (2, 2)], PadMode::Constant(0.0));
     ///
-    ///    // Pad only the last dimension
-    ///    let padded = tensor.pad([(1, 1)], PadMode::Reflect);
-    /// }
+    /// // Pad only the last dimension
+    /// let padded = tensor.pad([(1, 1)], PadMode::Reflect);
     /// ```
     pub fn pad(self, padding: impl IntoPadding<D>, mode: impl Into<PadMode>) -> Self {
         let pairs = padding.into_padding();
