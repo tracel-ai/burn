@@ -48,11 +48,9 @@ where $N$ is the size of the signal along the specified dimension.
 /// ```rust
 /// use burn_tensor::Tensor;
 ///
-/// fn example() {
-///     let device = Default::default();
-///     let signal = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
-///     let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
-/// }
+/// let device = Default::default();
+/// let signal = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+/// let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
 /// ```
 pub fn rfft<const D: usize>(
     signal: Tensor<D>,
@@ -122,12 +120,10 @@ where $N$ is the size of the reconstructed signal.
 /// ```rust
 /// use burn_tensor::Tensor;
 ///
-/// fn example() {
-///     let device = Default::default();
-///     let real = Tensor::<1>::from_floats([10.0, -2.0, 2.0], &device);
-///     let imag = Tensor::<1>::from_floats([0.0, 2.0, 0.0], &device);
-///     let signal = burn_tensor::signal::irfft(real, imag, 0, None);
-/// }
+/// let device = Default::default();
+/// let real = Tensor::<1>::from_floats([10.0, -2.0, 2.0], &device);
+/// let imag = Tensor::<1>::from_floats([0.0, 2.0, 0.0], &device);
+/// let signal = burn_tensor::signal::irfft(real, imag, 0, None);
 /// ```
 pub fn irfft<const D: usize>(
     spectrum_re: Tensor<D>,
@@ -210,12 +206,10 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 /// ```rust
 /// use burn_tensor::Tensor;
 ///
-/// fn example() {
-///     let device = Default::default();
-///     let re = Tensor::<1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
-///     let im = Tensor::<1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
-///     let (spec_re, spec_im) = burn_tensor::signal::cfft(re, im, 0, None);
-/// }
+/// let device = Default::default();
+/// let re = Tensor::<1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
+/// let im = Tensor::<1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
+/// let (spec_re, spec_im) = burn_tensor::signal::cfft(re, im, 0, None);
 /// ```
 pub fn cfft<const D: usize>(
     signal_re: Tensor<D>,

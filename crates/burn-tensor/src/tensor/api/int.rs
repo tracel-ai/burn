@@ -46,11 +46,9 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```rust
     /// use burn_tensor::{Tensor, Int};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let _x: Tensor<1, Int> = Tensor::from_ints([1, 2], &device);
-    ///     let _y: Tensor<2, Int> = Tensor::from_ints([[1, 2], [3, 4]], &device);
-    /// }
+    /// let device = Default::default();
+    /// let _x: Tensor<1, Int> = Tensor::from_ints([1, 2], &device);
+    /// let _y: Tensor<2, Int> = Tensor::from_ints([[1, 2], [3, 4]], &device);
     /// ```
     pub fn from_ints<A: Into<TensorData>>(ints: A, device: &Device) -> Self {
         Self::from_data(ints.into().convert::<i32>(), device)
@@ -64,11 +62,9 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```rust
     /// use burn_tensor::{Int, Tensor};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
-    ///     let float_tensor = int_tensor.float();
-    /// }
+    /// let device = Default::default();
+    /// let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
+    /// let float_tensor = int_tensor.float();
     /// ```
     pub fn float(self) -> Tensor<D, Float> {
         let device = self.device();
@@ -92,11 +88,9 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```rust
     ///    use burn_tensor::Int;
     ///    use burn_tensor::{Shape, Tensor};
-    ///    fn example() {
-    ///        let device = Default::default();
-    ///        let result: Tensor<3, _> = Tensor::<2, Int>::cartesian_grid([2, 3], &device);
-    ///        println!("{}", result);
-    ///    }
+    /// let device = Default::default();
+    /// let result: Tensor<3, _> = Tensor::<2, Int>::cartesian_grid([2, 3], &device);
+    /// println!("{}", result);
     /// ```
     pub fn cartesian_grid<S: Into<Shape>, const D2: usize>(
         shape: S,
@@ -185,16 +179,14 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```rust
     /// use burn_tensor::{Tensor, Int, IntDType, FloatDType};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
+    /// let device = Default::default();
+    /// let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
     ///
-    ///     // Within-kind cast (int to int)
-    ///     let i64_tensor = int_tensor.clone().cast(IntDType::I64);
+    /// // Within-kind cast (int to int)
+    /// let i64_tensor = int_tensor.clone().cast(IntDType::I64);
     ///
-    ///     // Cross-kind cast (int to float)
-    ///     let float_tensor = int_tensor.cast(FloatDType::F32);
-    /// }
+    /// // Cross-kind cast (int to float)
+    /// let float_tensor = int_tensor.cast(FloatDType::F32);
     /// ```
     #[must_use]
     pub fn cast<T: Cast<D, Int>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
