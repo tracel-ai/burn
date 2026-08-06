@@ -62,6 +62,8 @@ mod neg;
 mod nonzero;
 mod permute;
 mod pow;
+#[cfg(feature = "quantization")]
+mod quantization;
 mod recip;
 mod relu;
 mod remainder;

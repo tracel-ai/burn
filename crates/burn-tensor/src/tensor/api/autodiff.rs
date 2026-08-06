@@ -80,12 +80,14 @@ fn backward_impl(p: &BridgeTensor) -> Gradients {
 
 #[cfg(feature = "autodiff")]
 fn grad_impl(p: &BridgeTensor, grads: &Gradients) -> Option<BridgeTensor> {
-    Dispatch::grad(p.as_float(), grads.as_inner()).map(BridgeTensor::float)
+    // A non-float tensor — a packed base included — records no tape, so there
+    // is no gradient to look up.
+    Dispatch::grad(p.try_as_float()?, grads.as_inner()).map(BridgeTensor::float)
 }
 
 #[cfg(feature = "autodiff")]
 fn grad_remove_impl(p: &BridgeTensor, grads: &mut Gradients) -> Option<BridgeTensor> {
-    Dispatch::grad_remove(p.as_float(), grads.as_inner_mut()).map(BridgeTensor::float)
+    Dispatch::grad_remove(p.try_as_float()?, grads.as_inner_mut()).map(BridgeTensor::float)
 }
 
 #[cfg(feature = "autodiff")]
