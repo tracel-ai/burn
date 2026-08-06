@@ -1,4 +1,4 @@
-use crate::module::ParamGroup;
+use crate::module::{LoraConfig, LoraMapper, ParamGroup, QLoraMapper};
 
 use super::{ApplyReparameterization, Param, ParamId, Quantizer, Reparameterizer};
 use alloc::{
@@ -233,6 +233,26 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         R: Reparameterizer,
     {
         self.map(&mut ApplyReparameterization::new(reparameterizer))
+    }
+
+    /// Attach LoRA adapters to the module's 2-D weights, freezing the base weights.
+    ///
+    /// The same module keeps working without any code changes; adapted weights now produce
+    /// `base + scale * (a @ b)`, and only the adapter factors are trainable.
+    fn apply_lora(self, config: LoraConfig) -> Self
+    where
+        Self: Sized,
+    {
+        self.apply_reparameterization(LoraMapper::new(config))
+    }
+
+    /// Apply QLoRA to the module: quantize the (frozen) base weights and attach trainable LoRA
+    /// adapters to 2-D weights.
+    fn apply_qlora(self, config: LoraConfig, quantizer: Quantizer) -> Self
+    where
+        Self: Sized,
+    {
+        self.apply_reparameterization(QLoraMapper::new(config, quantizer))
     }
 
     /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).

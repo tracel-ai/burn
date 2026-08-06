@@ -1,5 +1,3 @@
-#[cfg(test)]
-use super::LoraAdapter;
 use super::{DynMapper, DynVisitor, Param, ParamId, Parameter, Reparameterization};
 use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
@@ -134,16 +132,11 @@ impl<const D: usize> Param<Tensor<D>> {
             Some(super::reparameterization::boxed::<R, D>(reparameterization));
         self
     }
-
-    #[cfg(test)]
-    pub(crate) fn adapter(&self) -> Option<&LoraAdapter> {
-        self.reparameterization_as()
-    }
 }
 
 impl<const D: usize> Module for Param<Tensor<D>> {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
-        match self.reparameterization() {
+        match self.reparameterization_dyn() {
             None => visitor.visit_float(self),
             Some(reparameterization) => {
                 visitor.visit_float(&self.without_reparameterization());
@@ -205,7 +198,7 @@ impl<const D: usize> Module for Param<Tensor<D>> {
             devices.push(device)
         }
 
-        if let Some(reparameterization) = self.reparameterization() {
+        if let Some(reparameterization) = self.reparameterization_dyn() {
             devices = reparameterization.collect_devices_dyn(devices);
         }
 

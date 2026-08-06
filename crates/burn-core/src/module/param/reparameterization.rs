@@ -105,7 +105,6 @@ pub trait DynReparameterization: Debug + Send + Sync {
     #[doc(hidden)]
     fn collect_devices_dyn(&self, devices: Vec<Device>) -> Vec<Device>;
     /// Access the concrete reparameterization for internal downcasting.
-    #[cfg(test)]
     #[doc(hidden)]
     fn as_any(&self) -> &dyn Any;
     /// Clone the dynamic value.
@@ -177,7 +176,6 @@ where
         self.inner.collect_devices(devices)
     }
 
-    #[cfg(test)]
     fn as_any(&self) -> &dyn Any {
         &self.inner
     }
@@ -461,7 +459,7 @@ mod tests {
         let model = SimpleLinear::new(4, 6, &device).apply_reparameterization(CustomScaleMapper);
         let custom = model
             .weight
-            .reparameterization_as::<CustomScale>()
+            .reparameterization::<CustomScale>()
             .expect("custom reparameterization should be attached");
 
         model
@@ -484,6 +482,6 @@ mod tests {
             .assert_approx_eq::<f32>(&model.weight.val().into_data(), Tolerance::default());
 
         let inference = model.valid();
-        assert!(inference.weight.reparameterization().is_none());
+        assert!(inference.weight.reparameterization_dyn().is_none());
     }
 }

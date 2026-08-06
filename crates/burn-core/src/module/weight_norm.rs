@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn exposes_magnitude_as_parameter() {
         let model = simple_model();
-        let weight_norm = model.weight.reparameterization_as::<WeightNorm>().unwrap();
+        let weight_norm = model.weight.reparameterization::<WeightNorm>().unwrap();
 
         assert_eq!(weight_norm.g.val().dims(), [model.weight.base().dims()[0]]);
         assert_ne!(weight_norm.g.id, model.weight.id);
@@ -189,7 +189,7 @@ mod tests {
         let model = SimpleLinear::new(4, 6, &device)
             .apply_reparameterization(WeightNormMapper::new(WeightNormConfig::new()));
         let grads = model.weight.val().sum().backward();
-        let weight_norm = model.weight.reparameterization_as::<WeightNorm>().unwrap();
+        let weight_norm = model.weight.reparameterization::<WeightNorm>().unwrap();
 
         assert!(model.weight.base().grad(&grads).is_some());
         assert!(weight_norm.g.val().grad(&grads).is_some());
@@ -203,7 +203,7 @@ mod tests {
             .apply_reparameterization(WeightNormMapper::new(WeightNormConfig::new()));
         let inference = model.valid();
 
-        assert!(inference.weight.reparameterization().is_none());
+        assert!(inference.weight.reparameterization_dyn().is_none());
         inference.weight.val().into_data().assert_approx_eq::<f32>(
             &model.weight.val().inner().into_data(),
             Tolerance::default(),

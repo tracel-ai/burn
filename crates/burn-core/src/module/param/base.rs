@@ -1,3 +1,6 @@
+use crate::module::LoraAdapter;
+use crate::module::Reparameterization;
+
 use super::DynReparameterization;
 use super::ParamId;
 use super::sync_once_cell::SyncOnceCell;
@@ -315,13 +318,18 @@ impl<T: Parameter> Param<T> {
         self.deref().clone()
     }
 
-    pub(crate) fn reparameterization(&self) -> Option<&dyn DynReparameterization> {
+    pub(crate) fn reparameterization_dyn(&self) -> Option<&dyn DynReparameterization> {
         self.reparameterization.as_deref()
     }
 
-    #[cfg(test)]
-    pub(crate) fn reparameterization_as<R: 'static>(&self) -> Option<&R> {
-        self.reparameterization()?.as_any().downcast_ref()
+    /// The concrete [reparametrization](Reparameterization) attached to this parameter, if any.
+    pub fn reparameterization<R: Reparameterization>(&self) -> Option<&R> {
+        self.reparameterization_dyn()?.as_any().downcast_ref()
+    }
+
+    /// The LoRA [adapter](LoraAdapter) attached to this parameter, if any.
+    pub fn adapter(&self) -> Option<&LoraAdapter> {
+        self.reparameterization()
     }
 
     /// Returns a cheap clone of this parameter with its reparameterization detached.

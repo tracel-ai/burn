@@ -35,11 +35,7 @@ impl LoraConfig {
 
 /// A [`Reparameterizer`] that attaches LoRA adapters to 2-D weight parameters.
 ///
-/// Apply it through [`Module::apply_reparameterization`](crate::module::Module::apply_reparameterization):
-///
-/// ```rust,ignore
-/// let model = model.apply_reparameterization(LoraMapper::new(LoraConfig::new(8, 16.0)));
-/// ```
+/// It is applied via [`Module::apply_lora`](crate::module::Module::apply_lora).
 ///
 /// All existing floating-point parameters are frozen. Matching rank-2 receive trainable LoRA
 /// [adapter](LoraAdapter)s; other parameters remain frozen without adapters. No model or layer
@@ -113,6 +109,8 @@ impl Reparameterizer for LoraMapper {
 /// A [`Reparameterizer`] implementing QLoRA: it quantizes the (frozen) base weights and
 /// attaches full-precision trainable LoRA adapters to 2-D weights.
 ///
+/// It is applied via [`Module::apply_qlora`](crate::module::Module::apply_qlora).
+///
 /// The quantized base is kept at rest in its low-bit representation; the adapter contribution is
 /// added on top during the forward pass (the base is dequantized on the fly when composed).
 pub struct QLoraMapper {
@@ -157,8 +155,8 @@ mod tests {
     fn lora_model(in_features: usize, out_features: usize) -> (SimpleLinear, super::LoraConfig) {
         let device = test_device();
         let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(in_features, out_features, &device)
-            .apply_reparameterization(LoraMapper::new(config.clone()));
+        let model =
+            SimpleLinear::new(in_features, out_features, &device).apply_lora(config.clone());
         (model, config)
     }
 
@@ -219,8 +217,7 @@ mod tests {
 
         // A freshly-prepared model has different random base/A and zero B.
         let device = test_device();
-        let target =
-            SimpleLinear::new(4, 6, &device).apply_reparameterization(LoraMapper::new(config));
+        let target = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         let record = model.clone().into_record();
         let loaded = target.load_record(record);
@@ -251,8 +248,7 @@ mod tests {
     fn lora_backward_grads_adapter_only() {
         let device = test_device().autodiff();
         let config = LoraConfig::new(2, 4.0);
-        let model =
-            SimpleLinear::new(4, 6, &device).apply_reparameterization(LoraMapper::new(config));
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         // Forward through the composed weight and backpropagate.
         let loss = model.weight.val().sum();
@@ -282,8 +278,8 @@ mod tests {
 
         let original = SimpleLinear::new(8, 8, &device).weight.val();
 
-        let model = SimpleLinear::new(8, 8, &device)
-            .apply_reparameterization(QLoraMapper::new(LoraConfig::new(2, 4.0), quantizer));
+        let model =
+            SimpleLinear::new(8, 8, &device).apply_qlora(LoraConfig::new(2, 4.0), quantizer);
 
         let weight = &model.weight;
         assert!(weight.adapter().is_some());
@@ -321,7 +317,7 @@ mod tests {
 
         let group = ParamGroup::from_predicate("a");
         let config = LoraConfig::new(2, 4.0).set_param_group(group);
-        let model = model.apply_reparameterization(LoraMapper::new(config));
+        let model = model.apply_lora(config);
 
         // Only the parameter whose path matches the group gets an adapter attached.
         assert!(
@@ -343,8 +339,7 @@ mod tests {
     fn lora_valid_folds_adapter_for_inference() {
         let device = test_device().autodiff();
         let config = LoraConfig::new(2, 4.0);
-        let model =
-            SimpleLinear::new(4, 6, &device).apply_reparameterization(LoraMapper::new(config));
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         let inference = model.valid();
         // The inference parameter has no adapter (folded) and equals the composed training weight.
