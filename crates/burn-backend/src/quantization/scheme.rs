@@ -37,9 +37,6 @@ pub fn compute_range<B: Backend>(
                 let blocks_max = B::float_reshape(B::float_max_dim(blocks, 1), params_shape);
                 (blocks_min, blocks_max)
             }
-            QuantLevel::BlockTensor { .. } => {
-                unimplemented!("two-level quantization is not supported yet")
-            }
         },
         Calibration::AbsMean => {
             // gamma = mean(|W|) per tensor or block — symmetric range [-gamma, +gamma]
@@ -67,9 +64,6 @@ pub fn compute_range<B: Backend>(
                         Shape::new([num_blocks, block_elems]),
                     );
                     B::float_reshape(B::float_mean_dim(blocks, 1), params_shape)
-                }
-                QuantLevel::BlockTensor { .. } => {
-                    unimplemented!("two-level quantization is not supported yet")
                 }
             };
             let neg_gamma = B::float_neg(gamma.clone());
@@ -118,10 +112,6 @@ pub fn compute_q_params<B: Backend>(
                 }
             }
         }
-        QuantScheme {
-            level: QuantLevel::BlockTensor { .. },
-            ..
-        } => unimplemented!("two-level quantization is not supported yet"),
     }
 }
 

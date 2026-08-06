@@ -335,12 +335,6 @@ impl TensorData {
                     } => {
                         unimplemented!("Not yet implemented for iteration");
                     }
-                    QuantScheme {
-                        level: QuantLevel::BlockTensor { .. },
-                        ..
-                    } => {
-                        unimplemented!("two-level quantization is not supported yet")
-                    }
                 },
             }
         }
@@ -771,12 +765,6 @@ impl core::fmt::Display for TensorData {
                     } => {
                         unimplemented!("Can't format yet");
                     }
-                QuantScheme {
-                    level: QuantLevel::BlockTensor { .. },
-                    ..
-                } => {
-                    unimplemented!("two-level quantization is not supported yet")
-                }
             },
         };
         f.write_str(fmt.as_str())

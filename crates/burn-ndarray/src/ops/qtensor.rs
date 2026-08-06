@@ -72,10 +72,6 @@ impl QTensorOps<Self> for NdArray {
                             | QuantValue::E5M2,
                         ..
                     } => unimplemented!("from_data not supported for scheme {scheme:?}"),
-                    QuantScheme {
-                        level: QuantLevel::BlockTensor { .. },
-                        ..
-                    } => unimplemented!("two-level quantization is not supported yet"),
                 }
             }
             _ => panic!(

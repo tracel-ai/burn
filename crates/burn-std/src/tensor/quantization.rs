@@ -162,9 +162,6 @@ pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
 
             params_shape
         }
-        QuantLevel::BlockTensor { .. } => {
-            unimplemented!("two-level quantization is not supported yet, got {level:?}")
-        }
     }
 }
 

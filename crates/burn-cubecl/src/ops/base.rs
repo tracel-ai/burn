@@ -288,7 +288,6 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     // Extra check to ensure block scales must be properly handled once they're added
     if tensor.qparams.is_some() {
         match tensor.scheme().level {
-            QuantLevel::BlockTensor { .. } => todo!(),
             QuantLevel::Tensor => {}
             QuantLevel::Block(_) | QuantLevel::BlockTensor { .. } => todo!(),
         }
