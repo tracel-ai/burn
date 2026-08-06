@@ -26,24 +26,25 @@ impl Reparameterization for WeightNorm {
         let mut magnitude_shape = vec![1; D];
         magnitude_shape[self.dim] = base.dims()[self.dim];
         let magnitude = self.g.val().reshape(Shape::from(magnitude_shape));
-        base.div(norm).mul(magnitude)
+        base.mul(magnitude.div(norm))
     }
 }
 
 /// Configuration for weight normalization.
 #[derive(Debug, Clone)]
 struct WeightNormConfig {
-    /// Dimension indexing the independently normalized weight vectors. Defaults to `0`.
+    /// Dimension indexing the independently normalized weight vectors. Defaults to `1` for
+    /// `[d_input, d_output]` linear weights.
     dim: usize,
     /// Parameter group on which to apply weight normalization.
     param_group: ParamGroup,
 }
 
 impl WeightNormConfig {
-    /// Create a weight normalization configuration using dimension `0`.
+    /// Create a weight normalization configuration using dimension `1`.
     fn new() -> Self {
         Self {
-            dim: 0,
+            dim: 1,
             param_group: ParamGroup::all(),
         }
     }
@@ -163,7 +164,7 @@ mod tests {
         let model = simple_model();
         let weight_norm = model.weight.reparameterization::<WeightNorm>().unwrap();
 
-        assert_eq!(weight_norm.g.val().dims(), [model.weight.base().dims()[0]]);
+        assert_eq!(weight_norm.g.val().dims(), [model.weight.base().dims()[1]]);
         assert_ne!(weight_norm.g.id, model.weight.id);
         assert_eq!(
             model.num_params(),
