@@ -58,6 +58,10 @@ impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
         kernel::bool_cast(tensor, out_dtype.into())
     }
 
+    async fn bool_argwhere(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {
+        kernel::argwhere(tensor, out_dtype).await
+    }
+
     fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
         super::to_device(tensor, device)
     }
