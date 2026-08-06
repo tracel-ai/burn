@@ -144,7 +144,7 @@ impl ModuleMapper for Clamp {
 
 // Clamp module mapper into the range `[-0.5, 0.5]`
 let mut clamp = Clamp {
-    min: -0.5,.apply_lora
+    min: -0.5,
     max: 0.5,
 };
 let model = model.map(&mut clamp);
