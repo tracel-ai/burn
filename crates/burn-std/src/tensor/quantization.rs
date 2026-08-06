@@ -81,6 +81,18 @@ pub struct QParams<S> {
     pub scales: S,
 }
 
+/// Scales recovered from a quantized byte buffer.
+///
+/// Kept separate from [`QParams`], which is also used to hold a *single* block's scale, so a
+/// per-tensor value has no place on it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecodedScales {
+    /// One scale per block, or a single entry for a per-tensor level.
+    pub block: Vec<f32>,
+    /// The per-tensor scale, for a level that carries one.
+    pub global: Option<f32>,
+}
+
 /// A quantization parameter tensor descriptor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QParamTensor {
@@ -94,11 +106,53 @@ pub struct QParamTensor {
     pub dtype: DType,
 }
 
-/// Calculate the shape of the quantization parameters for a given tensor and level
+/// Panic unless a two-level scheme keeps its per-tensor scale in `f32`. A no-op for levels that
+/// carry only one scale.
+///
+/// Calibration returns both levels unrounded and each backend rounds them to what it stores. A
+/// block scale absorbs that rounding, because the values are quantized against the rounded scale.
+/// The per-tensor scale does not: the block scales were divided by the unrounded one, so whatever
+/// precision the per-tensor param loses becomes a mismatch applied to every block. `f32` is the
+/// only param that loses none.
+///
+/// The width saved by anything narrower is one value per tensor, which no tensor large enough to
+/// want block quantization will notice. Measured with an `f16` per-tensor scale, the error stops
+/// being flat across weight magnitudes, which is the one property the second level exists for.
+///
+/// The field stays in [`QuantLevel::BlockTensor`] rather than being dropped, so that widening this
+/// later does not change the serialized shape.
+pub fn validate_levels(scheme: &QuantScheme) {
+    if let Some(global) = scheme.level.global_param() {
+        assert_eq!(
+            global,
+            QuantParam::F32,
+            "a two-level scheme currently requires an f32 per-tensor scale"
+        );
+        // Backends divide the largest block scale by the block param's maximum to get the
+        // per-tensor scale. A param reaching f32's exponent range, which f32, bf16 and ue8m0 all
+        // do, drives that quotient subnormal for any realistic tensor and the renormalized block
+        // scales to infinity, reconstructing the largest block as zeros. Such a param has nothing
+        // to gain from a second level anyway, since it already spans the range the second level
+        // exists to absorb.
+        assert!(
+            scheme.param.max_representable() <= crate::f16::MAX.to_f32(),
+            "a two-level scheme needs block scales narrower than f32, got {:?}",
+            scheme.param
+        );
+    }
+}
+
+/// Calculate the shape of the block scale grid for a given tensor and level.
+///
+/// This covers the block scales only. A [`QuantLevel::BlockTensor`] additionally carries a single
+/// per-tensor scale, which is not part of this grid.
 pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
     match level {
         QuantLevel::Tensor => Shape::new([1]),
-        QuantLevel::Block(block_size) => {
+        QuantLevel::Block(block_size)
+        | QuantLevel::BlockTensor {
+            block: block_size, ..
+        } => {
             let mut params_shape = data_shape.clone();
             let block_size = block_size.to_dim_vec(data_shape.num_dims());
 
@@ -107,9 +161,6 @@ pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
             }
 
             params_shape
-        }
-        QuantLevel::BlockTensor { .. } => {
-            unimplemented!("two-level quantization is not supported yet, got {level:?}")
         }
     }
 }
@@ -134,10 +185,14 @@ pub struct QuantizedBytes {
 
 impl QuantizedBytes {
     /// Creates a new quantized bytes representation.
+    ///
+    /// `global` is the per-tensor scale, required by [`QuantLevel::BlockTensor`] and rejected by
+    /// every other level.
     pub fn new<E: bytemuck::CheckedBitPattern + bytemuck::NoUninit>(
         value: Vec<E>,
         scheme: QuantScheme,
         scales: &[f32],
+        global: Option<f32>,
     ) -> Self {
         let num_elements = value.len();
         // Only used for 8-bit quantization data comparison in tests
@@ -151,14 +206,23 @@ impl QuantizedBytes {
 
         let scales = match scheme.level {
             QuantLevel::Tensor => &scales[..1],
-            QuantLevel::Block(_block_size) => scales,
-            QuantLevel::BlockTensor { .. } => unimplemented!(
-                "two-level quantization is not supported yet, got {:?}",
-                scheme.level
-            ),
+            QuantLevel::Block(_) | QuantLevel::BlockTensor { .. } => scales,
         };
         let scale_bytes = encode_scales(scales, scheme.param);
         bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
+
+        // The per-tensor scale goes last, so a reader can peel it off the end before the block
+        // scales it normalizes.
+        match (scheme.level.global_param(), global) {
+            (Some(param), Some(global)) => {
+                validate_levels(&scheme);
+                let global_bytes = encode_scales(&[global], param);
+                bytes.extend_from_byte_slice_aligned(global_bytes.as_slice(), QPARAM_ALIGN);
+            }
+            (Some(_), None) => panic!("{:?} requires a per-tensor scale", scheme.level),
+            (None, Some(_)) => panic!("{:?} does not take a per-tensor scale", scheme.level),
+            (None, None) => {}
+        }
 
         Self {
             bytes,
@@ -168,19 +232,23 @@ impl QuantizedBytes {
     }
 
     /// Returns the int8 quantized values with the quantization parameters.
-    pub fn into_vec_i8(self) -> (Vec<i8>, QParams<Vec<f32>>) {
-        let param = self.scheme.param;
+    pub fn into_vec_i8(self) -> (Vec<i8>, DecodedScales) {
+        let scheme = self.scheme;
         let (values, (qparams, num_params)) = self.split_values_off();
 
-        // Quantization parameters are added at the end of the tensor data.
-        // As such, the last bytes always correspond to the scale parameter(s),
-        // stored at the scheme's param dtype. For example, per-block
-        // quantization can have multiple parameters for a single tensor:
-        // [scale, scale, scale, ...]
-        let scales_size = scale_size(param) * num_params;
-        let scales = decode_scales(&qparams[qparams.len() - scales_size..], param);
+        // Quantization parameters are appended to the tensor data as
+        // `[block scale, block scale, ...]` optionally followed by the per-tensor scale.
+        let global_bytes = global_scale_size(&scheme);
+        let block_end = qparams.len() - global_bytes;
+        let block_start = block_end - scale_size(scheme.param) * num_params;
 
-        (values, QParams { scales })
+        let block = decode_scales(&qparams[block_start..block_end], scheme.param);
+        let global = scheme
+            .level
+            .global_param()
+            .map(|param| decode_scales(&qparams[block_end..], param)[0]);
+
+        (values, DecodedScales { block, global })
     }
 
     fn split_i8_values(self, scale_bytes: usize) -> (Vec<i8>, Vec<u8>) {
@@ -199,13 +267,13 @@ impl QuantizedBytes {
     fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
         let num_params = match self.scheme.level {
             QuantLevel::Tensor => 1,
-            QuantLevel::Block(block_size) => self.num_elements / block_size.num_elements(),
-            QuantLevel::BlockTensor { .. } => unimplemented!(
-                "two-level quantization is not supported yet, got {:?}",
-                self.scheme.level
-            ),
+            QuantLevel::Block(block_size)
+            | QuantLevel::BlockTensor {
+                block: block_size, ..
+            } => self.num_elements / block_size.num_elements(),
         };
-        let scale_bytes = scale_size(self.scheme.param) * num_params;
+        let scale_bytes =
+            scale_size(self.scheme.param) * num_params + global_scale_size(&self.scheme);
 
         if let QuantStore::PackedU32(packed_dim) = self.scheme.store {
             assert_eq!(
@@ -247,34 +315,14 @@ impl QuantizedBytes {
 /// cover. Rounding down puts that value past the end of the quantized range, where it clips, which
 /// measured several times worse than the coarser step rounding up costs.
 pub fn scale_to_param(scale: f32, param: QuantParam) -> f32 {
-    let nearest = match param {
-        QuantParam::F32 => return scale,
-        QuantParam::F16 => crate::f16::from_f32(scale).to_f32(),
-        QuantParam::BF16 => crate::bf16::from_f32(scale).to_f32(),
-        QuantParam::UE4M3 => e4m3::from_f32(scale).to_f32(),
-        QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
-    };
+    param
+        .round_up(scale)
+        .expect("UE8M0 scales are not yet supported")
+}
 
-    if nearest >= scale || scale.is_nan() {
-        return nearest;
-    }
-
-    // Positive floats are ordered by their bit pattern, so the next representable value up is the
-    // next bit pattern.
-    let next = match param {
-        QuantParam::F16 => {
-            crate::f16::from_bits(crate::f16::from_f32(nearest).to_bits() + 1).to_f32()
-        }
-        QuantParam::BF16 => {
-            crate::bf16::from_bits(crate::bf16::from_f32(nearest).to_bits() + 1).to_f32()
-        }
-        QuantParam::UE4M3 => e4m3::from_bits(e4m3::from_f32(nearest).to_bits() + 1).to_f32(),
-        QuantParam::F32 | QuantParam::UE8M0 => unreachable!(),
-    };
-
-    // Stepping off the largest finite value lands on an infinity or a NaN encoding, so the
-    // saturated value is already the best answer.
-    if next.is_finite() { next } else { nearest }
+/// Bytes taken by the per-tensor scale, zero for levels that do not carry one.
+fn global_scale_size(scheme: &QuantScheme) -> usize {
+    scheme.level.global_param().map_or(0, scale_size)
 }
 
 /// Bytes per stored scale entry for the given param dtype.
@@ -478,11 +526,12 @@ mod tests {
                 .with_value(QuantValue::Q8S)
                 .with_store(QuantStore::Native),
             &[scale],
+            None,
         );
 
         let (q_values, qparams) = q_bytes.into_vec_i8();
 
-        assert_eq!(qparams.scales, vec![scale]);
+        assert_eq!(qparams.block, vec![scale]);
 
         assert_eq!(q_values, values);
     }
@@ -517,6 +566,59 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A two-level scheme stores narrow block scales followed by one wider per-tensor scale, so
+    /// the two regions have different widths and a reader has to split them at the right byte.
+    /// The length assertion pins the layout as dense: nothing is padded between the regions.
+    #[test]
+    fn should_pack_unpack_two_level_scales() {
+        // All exactly representable, so this pins the layout rather than the formats' rounding.
+        let block_scales = [0.5f32, 0.125];
+        let global = 3.0f32;
+        let values = vec![0i8, 25, 51, 76, 102, 127, -128, -1];
+
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .with_level(QuantLevel::block_tensor([4], QuantParam::F32))
+            .with_param(QuantParam::UE4M3);
+
+        let q_bytes = QuantizedBytes::new(values.clone(), scheme, &block_scales, Some(global));
+
+        // 8 values, then one byte per UE4M3 block scale, then a 4 byte f32 per-tensor scale.
+        assert_eq!(q_bytes.bytes.len(), 8 + 2 + 4);
+
+        let (q_values, scales) = q_bytes.into_vec_i8();
+
+        assert_eq!(q_values, values);
+        assert_eq!(scales.block, block_scales);
+        assert_eq!(scales.global, Some(global));
+    }
+
+    #[test]
+    #[should_panic(expected = "requires a per-tensor scale")]
+    fn two_level_scheme_without_a_global_scale_is_rejected() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .with_level(QuantLevel::block_tensor([4], QuantParam::F32));
+
+        QuantizedBytes::new(vec![0i8; 8], scheme, &[0.5, 0.125], None);
+    }
+
+    /// Block scales spanning f32's range leave the per-tensor scale nothing to absorb, and the
+    /// division that produces it underflows, so the largest block reconstructs as zeros.
+    #[test]
+    #[should_panic(expected = "needs block scales narrower than f32")]
+    fn two_level_scheme_with_f32_block_scales_is_rejected() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .with_param(QuantParam::F32)
+            .with_level(QuantLevel::block_tensor([4], QuantParam::F32));
+
+        QuantizedBytes::new(vec![0i8; 8], scheme, &[0.5, 0.125], Some(3.0));
     }
 
     /// `scale_size` is what the readers use to locate the scales in the buffer, so an encoding
@@ -554,11 +656,12 @@ mod tests {
                 .with_level(QuantLevel::block([4]))
                 .with_param(QuantParam::UE4M3),
             &scales,
+            None,
         );
 
         let (q_values, qparams) = q_bytes.into_vec_i8();
 
-        assert_eq!(qparams.scales, scales);
+        assert_eq!(qparams.block, scales);
         assert_eq!(q_values, values);
     }
 }

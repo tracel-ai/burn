@@ -223,11 +223,13 @@ burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.1", default-
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.1", default-features = false }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "28c69a98c3dde15012a5192c0e22b56dbd447a66" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "28c69a98c3dde15012a5192c0e22b56dbd447a66" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "28c69a98c3dde15012a5192c0e22b56dbd447a66" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "28c69a98c3dde15012a5192c0e22b56dbd447a66" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "7c0ab7fa25736f59cbd1c366fc4decd0b3098029" }
+# cubek's two-level branch is not merged yet, and it pins this cubecl. Both sides have to agree on
+# one cubecl revision, so this stays behind main's pins until that merge lands.
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8bf94c00903c0009981aadf83ca4f664ca968256" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8bf94c00903c0009981aadf83ca4f664ca968256" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8bf94c00903c0009981aadf83ca4f664ca968256" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8bf94c00903c0009981aadf83ca4f664ca968256" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "d82a73f2ea3f663940f9829f766056fca885aa7b" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

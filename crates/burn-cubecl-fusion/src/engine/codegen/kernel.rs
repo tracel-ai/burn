@@ -1044,9 +1044,17 @@ fn dequantize<C: Float, N: Size>(
         C,
         NumQuant,
         QParamType,
+        f32,
         QStoreType,
         QStoreSize,
-    >(write_pos * num_quants, input, &scales, scheme);
+    >(
+        write_pos * num_quants,
+        input,
+        &scales,
+        // `input_as_scales_view` above rejects two-level schemes, so there is none to apply here.
+        ComptimeOption::new_None(),
+        scheme,
+    );
 
     let mut vector = Vector::empty();
 

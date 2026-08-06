@@ -4,7 +4,7 @@ use burn_backend::{
     ops::QTensorOps,
     quantization::{
         QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
-        QuantizationParametersPrimitive, params_shape,
+        QuantizationParametersPrimitive, params_shape, validate_levels,
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
@@ -67,6 +67,8 @@ fn new_quantized<R: CubeRuntime>(
     data: Option<Bytes>,
     alloc_kind: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
+    validate_levels(&scheme);
+
     let client = R::client(device);
     let shape: Shape = shape.into();
     let mut shape_value: Shape = shape.clone();
@@ -114,21 +116,70 @@ fn new_quantized<R: CubeRuntime>(
     let scales_desc =
         MemoryLayoutDescriptor::new(alloc_kind, scales_shape.clone(), scales_dtype.size());
 
+    let global_shape = Shape::new([1]);
+    let global_dtype = scheme.level.global_param().map(|param| match param {
+        QuantParam::F32 => DType::F32,
+        other => panic!("a two-level scheme requires an f32 per-tensor scale, got {other:?}"),
+    });
+    let global_desc = global_dtype
+        .map(|dtype| MemoryLayoutDescriptor::new(alloc_kind, global_shape.clone(), dtype.size()));
+
+    let mut descs = vec![data_desc.clone(), scales_desc.clone()];
+    descs.extend(global_desc.clone());
+
     let mut tensors = match data {
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
+            let split = data.split(num_bytes, SplitPolicy::Shared);
 
-            match data.split(num_bytes, SplitPolicy::Shared) {
-                Ok((bytes_data, bytes_scales)) => client
-                    .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_scales)]),
-                Err((data, _)) => client.create_tensors_from_slices(vec![
-                    (data_desc, &data[..num_bytes]),
-                    (scales_desc, &data[num_bytes..]),
-                ]),
+            match (split, global_desc.clone()) {
+                (Ok((bytes_data, bytes_params)), None) => client
+                    .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_params)]),
+                (Ok((bytes_data, bytes_params)), Some(global_desc)) => {
+                    let scales_bytes = bytes_params.len() - global_desc.elem_size;
+                    match bytes_params.split(scales_bytes, SplitPolicy::Shared) {
+                        Ok((block, global)) => client.create_tensors(vec![
+                            (data_desc, bytes_data),
+                            (scales_desc, block),
+                            (global_desc, global),
+                        ]),
+                        Err((params, _)) => client.create_tensors_from_slices(vec![
+                            (data_desc, &bytes_data[..]),
+                            (scales_desc, &params[..scales_bytes]),
+                            (global_desc, &params[scales_bytes..]),
+                        ]),
+                    }
+                }
+                (Err((data, _)), global_desc) => {
+                    let params = &data[num_bytes..];
+                    let scales_bytes =
+                        params.len() - global_desc.as_ref().map_or(0, |d| d.elem_size);
+                    let mut entries = vec![
+                        (data_desc, &data[..num_bytes]),
+                        (scales_desc, &params[..scales_bytes]),
+                    ];
+                    if let Some(global_desc) = global_desc {
+                        entries.push((global_desc, &params[scales_bytes..]));
+                    }
+                    client.create_tensors_from_slices(entries)
+                }
             }
         }
-        None => client.empty_tensors(vec![data_desc, scales_desc]),
+        None => client.empty_tensors(descs),
     };
+
+    let global = global_dtype.map(|dtype| {
+        let MemoryLayout {
+            memory: handle,
+            strides,
+        } = tensors.remove(2);
+        QParamTensor {
+            offset_start: handle.offset_start.unwrap_or(0) as usize,
+            offset_end: handle.offset_end.unwrap_or(0) as usize,
+            metadata: Metadata::new(global_shape, strides),
+            dtype,
+        }
+    });
     let MemoryLayout {
         memory: scales_handle,
         strides: scales_strides,
@@ -141,7 +192,7 @@ fn new_quantized<R: CubeRuntime>(
         metadata: Metadata::new(scales_shape, scales_strides),
         dtype: scales_dtype,
     };
-    let qparams = QParams { scales };
+    let qparams = QParams { scales, global };
 
     CubeTensor::new_quantized(
         client,
@@ -159,11 +210,8 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::BlockTensor { .. },
-                    ..
-                } => unimplemented!("two-level quantization is not supported yet"),
-                QuantScheme {
-                    level: QuantLevel::Tensor | QuantLevel::Block(_),
+                    level:
+                        QuantLevel::Tensor | QuantLevel::Block(_) | QuantLevel::BlockTensor { .. },
                     mode: QuantMode::Symmetric,
                     value:
                         QuantValue::Q8F
@@ -196,7 +244,7 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        kernel::quantization::quantize(tensor, scheme, qparams.scales)
+        kernel::quantization::quantize(tensor, scheme, qparams.scales, qparams.global)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
@@ -217,12 +265,18 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         }
 
         let (shape, dtype) = (tensor.shape(), tensor.dtype);
+        let global = tensor.global();
         let (values, params) = tensor.quantized_handles().unwrap();
 
         let mut data_values = into_data(values).await?;
         let data_params = into_data(params).await?;
 
         data_values.bytes.extend_from_byte_slice(&data_params.bytes);
+
+        if let Some(global) = global {
+            let data_global = into_data(global).await?;
+            data_values.bytes.extend_from_byte_slice(&data_global.bytes);
+        }
 
         Ok(TensorData {
             bytes: data_values.bytes,

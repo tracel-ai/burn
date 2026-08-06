@@ -3,7 +3,7 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_core::tensor::quantization::{QPARAM_ALIGN, QuantParam, params_shape};
+use burn_core::tensor::quantization::{QuantParam, params_shape};
 use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
 use half::f16;
 
@@ -244,8 +244,10 @@ impl TensorSnapshot {
     ///
     /// For quantized types (`QFloat`), this accounts for:
     /// - The quantized values (packed according to the quantization scheme)
-    /// - Alignment padding (values are aligned to 4-byte boundary)
-    /// - Quantization parameters (scale values appended to the data)
+    /// - Quantization parameters (scale values appended to the data), including the per-tensor
+    ///   scale of a two-level scheme
+    ///
+    /// The regions are dense. See the body for why no alignment padding sits between them.
     pub fn data_len(&self) -> usize {
         const BITS_PER_BYTE: usize = 8;
 
@@ -261,10 +263,14 @@ impl TensorSnapshot {
                 // Calculate number of quantization parameters (scales)
                 let num_params = params_shape(&self.shape, scheme.level).num_elements();
 
-                let aligned_value_bytes = value_bytes.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
                 let scale_bytes = num_params * quant_param_size(scheme.param);
+                // A two-level scheme appends one more scale, at its own precision, after the
+                // block scales.
+                let global_bytes = scheme.level.global_param().map_or(0, quant_param_size);
 
-                aligned_value_bytes + scale_bytes
+                // No padding between the regions. The alignment `QuantizedBytes` passes when it
+                // appends the scales only sizes the allocation, it does not move the write offset.
+                value_bytes + scale_bytes + global_bytes
             }
             _ => num_elements * self.dtype.size(),
         }
@@ -373,6 +379,49 @@ mod tests {
         let data = snapshot.to_data().unwrap();
         assert_eq!(data.shape, shape![2, 2]);
         assert_eq!(data.dtype, DType::Bool(BoolStore::Native));
+    }
+
+    /// `data_len` predicts the serialized size without materializing the tensor, so it has to
+    /// agree with what `TensorData::quantized` actually writes. A mismatch silently truncates or
+    /// over-reserves on save.
+    ///
+    /// The block sizes matter here. A value count that is a multiple of `QPARAM_ALIGN` hides the
+    /// interesting case, because the two regions happen to line up whether or not the prediction
+    /// assumes padding between them.
+    #[test]
+    fn data_len_matches_quantized_bytes() {
+        use burn_core::tensor::quantization::{
+            QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue,
+        };
+
+        let base = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .with_param(QuantParam::UE4M3);
+
+        // 8 values in blocks of 4 lands on the alignment; 6 in blocks of 3 and 10 in blocks of 5
+        // do not, and 10 leaves an odd number of one-byte block scales as well.
+        for (values, block) in [(8usize, 4usize), (6, 3), (10, 5)] {
+            let scales = vec![0.5f32; values / block];
+            let one_level = base.with_level(QuantLevel::block([block as u8]));
+            let two_level =
+                base.with_level(QuantLevel::block_tensor([block as u8], QuantParam::F32));
+
+            for (scheme, global) in [(one_level, None), (two_level, Some(3.0f32))] {
+                let data =
+                    TensorData::quantized(vec![0i8; values], [values], scheme, &scales, global);
+                let snapshot =
+                    TensorSnapshot::from_data(data.clone(), vec![], vec![], ParamId::new());
+
+                assert_eq!(
+                    snapshot.data_len(),
+                    data.bytes.len(),
+                    "predicted size disagrees with the written bytes for {values} values \
+                     in blocks of {block}, {:?}",
+                    scheme.level
+                );
+            }
+        }
     }
 
     #[test]

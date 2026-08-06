@@ -1,5 +1,5 @@
+use burn_std::{FloatDType, QuantLevel, QuantMode, QuantParam, QuantScheme, Shape};
 pub use burn_std::{QPARAM_ALIGN, params_shape};
-use burn_std::{QuantLevel, QuantMode, QuantScheme, Shape};
 
 use super::{Calibration, QuantizationParametersPrimitive};
 use crate::{Backend, TensorMetadata, get_device_settings};
@@ -13,7 +13,10 @@ pub fn compute_range<B: Backend>(
     match calibration {
         Calibration::MinMax => match scheme.level {
             QuantLevel::Tensor => (B::float_min(tensor.clone()), B::float_max(tensor)),
-            QuantLevel::Block(block_size) => {
+            QuantLevel::Block(block_size)
+            | QuantLevel::BlockTensor {
+                block: block_size, ..
+            } => {
                 let block_elems = block_size.num_elements();
                 let shape = tensor.shape();
                 let numel = shape.num_elements();
@@ -34,13 +37,14 @@ pub fn compute_range<B: Backend>(
                 let blocks_max = B::float_reshape(B::float_max_dim(blocks, 1), params_shape);
                 (blocks_min, blocks_max)
             }
-            QuantLevel::BlockTensor { .. } => {
-                unimplemented!("two-level quantization is not supported yet")
-            }
         },
         Calibration::AbsMean => {
             // gamma = mean(|W|) per tensor or block — symmetric range [-gamma, +gamma]
             let gamma = match scheme.level {
+                QuantLevel::BlockTensor { .. } => panic!(
+                    "AbsMean calibration has no two-level form: BitNet's gamma is a mean over \
+                     the whole tensor or block, which a per-tensor scale cannot decompose"
+                ),
                 QuantLevel::Tensor => B::float_mean(B::float_abs(tensor)),
                 QuantLevel::Block(block_size) => {
                     let block_elems = block_size.num_elements();
@@ -61,9 +65,6 @@ pub fn compute_range<B: Backend>(
                     );
                     B::float_reshape(B::float_mean_dim(blocks, 1), params_shape)
                 }
-                QuantLevel::BlockTensor { .. } => {
-                    unimplemented!("two-level quantization is not supported yet")
-                }
             };
             let neg_gamma = B::float_neg(gamma.clone());
             (neg_gamma, gamma)
@@ -79,7 +80,6 @@ pub fn compute_q_params<B: Backend>(
 ) -> QuantizationParametersPrimitive<B> {
     match scheme {
         QuantScheme {
-            level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             ..
         } => {
@@ -96,13 +96,60 @@ pub fn compute_q_params<B: Backend>(
             let values_range =
                 B::float_mul_scalar(B::float_mask_where(min_abs, mask, max_abs), 2f32.into());
 
-            QuantizationParametersPrimitive {
-                scales: B::float_div_scalar(values_range, (b - a).into()),
+            let scales = B::float_div_scalar(values_range, (b - a).into());
+
+            match scheme.level.global_param() {
+                None => QuantizationParametersPrimitive {
+                    scales,
+                    global: None,
+                },
+                Some(_) => {
+                    let (scales, global) = normalize_scales::<B>(scales, scheme.param);
+                    QuantizationParametersPrimitive {
+                        scales,
+                        global: Some(global),
+                    }
+                }
             }
         }
-        QuantScheme {
-            level: QuantLevel::BlockTensor { .. },
-            ..
-        } => unimplemented!("two-level quantization is not supported yet"),
     }
+}
+
+/// Split block scales into a per-tensor scale and block scales relative to it.
+///
+/// The global is picked so the largest block scale lands at the top of `block_param`'s range, which
+/// is what lets a narrow type cover a tensor whose raw scales would otherwise overflow or underflow
+/// it.
+///
+/// Both levels come back unrounded, as the one-level scales do. Backends round each to the
+/// precision it is stored in and quantize against that product, so the values they write already
+/// account for it.
+///
+/// The per-tensor scale is computed and returned in `f32`, whatever the tensor's float dtype is,
+/// because it is a whole block param's range below the block scales by construction. In `f16` that
+/// puts it among the subnormals, where the value the largest block scale is divided by keeps only a
+/// handful of bits: weights near 1.0 leave it around 295 subnormal steps, weights 64x smaller leave
+/// it 5, and the block scales that come back carry the difference. That is the magnitude-dependent
+/// error the second level exists to remove, so computing it at the tensor's precision would defeat
+/// the scheme on exactly the backends that most want it. The block scales stay in the tensor's
+/// dtype: they are stored at [`QuantScheme::param`] and absorb their own rounding.
+fn normalize_scales<B: Backend>(
+    scales: B::FloatTensorPrimitive,
+    block_param: QuantParam,
+) -> (B::FloatTensorPrimitive, B::FloatTensorPrimitive) {
+    let dtype = scales.dtype().into();
+    let scales_f32 = B::float_cast(scales, FloatDType::F32);
+
+    let global = B::float_div_scalar(
+        B::float_max(scales_f32.clone()),
+        block_param.max_representable().into(),
+    );
+    // Guards `0 / 0` for an all-zero tensor, and the flush to zero when the largest block scale is
+    // small enough that dividing it by the block param's maximum underflows.
+    let global = B::float_clamp_min(global, f32::MIN_POSITIVE.into());
+
+    let broadcast = Shape::from(vec![1usize; scales_f32.shape().num_dims()]);
+    let scales = B::float_div(scales_f32, B::float_reshape(global.clone(), broadcast));
+
+    (B::float_cast(scales, dtype), global)
 }

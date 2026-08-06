@@ -2,7 +2,7 @@ use crate::{CubeRuntime, kernel, ops::numeric::empty_device_dtype, tensor::CubeT
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType, ExecutionError, Shape, TensorData,
-    quantization::{QuantLevel, QuantStore, params_shape},
+    quantization::{QuantLevel, QuantParam, QuantStore, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use burn_std::{
@@ -100,6 +100,18 @@ pub(crate) fn empty<R: CubeRuntime>(
     )
 }
 
+/// Rebuilds the level a permutation started from.
+///
+/// A permutation moves the block's dimensions around. The per-tensor scale is a scalar and is
+/// unaffected by that, but it has to survive the rebuild, or a two-level tensor quietly comes back
+/// as a single-level one and every value reconstructs short by that factor.
+fn rebuild_level(block: BlockSize, global: Option<QuantParam>) -> QuantLevel {
+    match global {
+        Some(global) => QuantLevel::BlockTensor { block, global },
+        None => QuantLevel::Block(block),
+    }
+}
+
 pub(crate) fn swap_dims<R: CubeRuntime>(
     mut tensor: CubeTensor<R>,
     dim1: usize,
@@ -108,8 +120,9 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
     tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = tensor.dtype
-        && let QuantLevel::Block(block_size) = scheme.level
+        && let Some(block_size) = scheme.level.block_size()
     {
+        let global = scheme.level.global_param();
         let rank = tensor.rank();
         let qparams = tensor.qparams.as_mut().unwrap();
         let mut block_size = block_size.to_dim_vec(rank);
@@ -123,7 +136,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
 
         qparams.scales.metadata.swap(dim1, dim2);
 
-        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::Block(block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(rebuild_level(block_size, global)))
     }
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -147,8 +160,9 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
     tensor.meta.permute(axes).unwrap();
 
     if let DType::QFloat(scheme) = tensor.dtype
-        && let QuantLevel::Block(block_size) = scheme.level
+        && let Some(block_size) = scheme.level.block_size()
     {
+        let global = scheme.level.global_param();
         let rank = tensor.rank();
         let qparams = tensor.qparams.as_mut().unwrap();
 
@@ -166,7 +180,8 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
 
         qparams.scales.metadata.permute(axes).unwrap();
 
-        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype =
+            DType::QFloat(scheme.with_level(rebuild_level(BlockSize::new(&block_size), global)))
     }
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -273,9 +288,8 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     // Extra check to ensure block scales must be properly handled once they're added
     if tensor.qparams.is_some() {
         match tensor.scheme().level {
-            QuantLevel::BlockTensor { .. } => todo!(),
             QuantLevel::Tensor => {}
-            QuantLevel::Block(_) => todo!(),
+            QuantLevel::Block(_) | QuantLevel::BlockTensor { .. } => todo!(),
         }
     }
 
@@ -399,7 +413,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
 
     let shape_scales = match scheme.level {
         QuantLevel::BlockTensor { .. } => {
-            unimplemented!("two-level quantization is not supported yet")
+            unimplemented!("two-level quantization is not supported on cubecl backends yet")
         }
         QuantLevel::Tensor => scales.meta.shape().clone(), // always [1], invariant under reshape
         QuantLevel::Block(block_size)

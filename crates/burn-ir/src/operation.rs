@@ -1506,8 +1506,11 @@ pub struct ConvTranspose3dOptionsIr {
 /// Quantization parameters intermediate representation.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QuantizationParametersIr {
-    /// The scaling factor.
+    /// The scaling factor, one per block or a single one for a per-tensor level.
     pub scales: TensorIr,
+    /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
+    /// two-level scheme.
+    pub global: Option<TensorIr>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -3160,9 +3163,11 @@ impl FloatOperationIr {
             FloatOperationIr::Ceil(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::Trunc(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IntoInt(repr) => Box::new([&repr.input].into_iter()),
-            FloatOperationIr::Quantize(repr) => {
-                Box::new([&repr.tensor, &repr.qparams.scales].into_iter())
-            }
+            FloatOperationIr::Quantize(repr) => Box::new(
+                [&repr.tensor, &repr.qparams.scales]
+                    .into_iter()
+                    .chain(repr.qparams.global.iter()),
+            ),
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.input].into_iter()),
@@ -3281,6 +3286,9 @@ impl FloatOperationIr {
             FloatOperationIr::Quantize(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
                 repr.qparams.scales.mark_read_only(nodes, &mut output);
+                if let Some(global) = &mut repr.qparams.global {
+                    global.mark_read_only(nodes, &mut output);
+                }
             }
             FloatOperationIr::Dequantize(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
@@ -3403,6 +3411,9 @@ impl FloatOperationIr {
             FloatOperationIr::Quantize(repr) => {
                 v.visit_tensor_mut(&mut repr.tensor);
                 v.visit_tensor_mut(&mut repr.qparams.scales);
+                if let Some(global) = &mut repr.qparams.global {
+                    v.visit_tensor_mut(global);
+                }
                 v.visit_tensor_mut(&mut repr.out);
             }
             FloatOperationIr::Dequantize(repr) => {

@@ -19,6 +19,7 @@ where
         tensor.shape(),
         dtype,
     );
+    let global = tensor.global();
     let (values, params) = tensor.quantized_handles().unwrap();
 
     cubek::quantization::dequantize::launch_ref(
@@ -26,6 +27,7 @@ where
         values.binding(),
         output.clone().binding(),
         params.binding(),
+        global.map(|g| g.binding()),
         &scheme,
         dtype_to_storage_type(dtype),
     )
