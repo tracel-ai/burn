@@ -122,24 +122,37 @@ pub struct QParamTensor {
 /// The field stays in [`QuantLevel::BlockTensor`] rather than being dropped, so that widening this
 /// later does not change the serialized shape.
 pub fn validate_levels(scheme: &QuantScheme) {
-    if let Some(global) = scheme.level.global_param() {
-        assert_eq!(
-            global,
-            QuantParam::F32,
-            "a two-level scheme currently requires an f32 per-tensor scale"
-        );
-        // Backends divide the largest block scale by the block param's maximum to get the
-        // per-tensor scale. A param reaching f32's exponent range, which f32, bf16 and ue8m0 all
-        // do, drives that quotient subnormal for any realistic tensor and the renormalized block
-        // scales to infinity, reconstructing the largest block as zeros. Such a param has nothing
-        // to gain from a second level anyway, since it already spans the range the second level
-        // exists to absorb.
-        assert!(
-            scheme.param.max_representable() <= crate::f16::MAX.to_f32(),
-            "a two-level scheme needs block scales narrower than f32, got {:?}",
-            scheme.param
-        );
+    if let Some(problem) = level_problem(scheme) {
+        panic!("{problem}, got {scheme:?}");
     }
+}
+
+/// Whether the levels are ones a backend can quantize against. [`validate_levels`] is the
+/// panicking form, and carries the reasoning.
+///
+/// A backend reporting what it supports wants this rather than the assertion, so that an
+/// unsupported scheme is declined where it is chosen instead of panicking at the first quantize.
+pub fn levels_supported(scheme: &QuantScheme) -> bool {
+    level_problem(scheme).is_none()
+}
+
+fn level_problem(scheme: &QuantScheme) -> Option<&'static str> {
+    let global = scheme.level.global_param()?;
+
+    if global != QuantParam::F32 {
+        return Some("a two-level scheme currently requires an f32 per-tensor scale");
+    }
+
+    // Backends divide the largest block scale by the block param's maximum to get the per-tensor
+    // scale. A param reaching f32's exponent range, which f32, bf16 and ue8m0 all do, drives that
+    // quotient subnormal for any realistic tensor and the renormalized block scales to infinity,
+    // reconstructing the largest block as zeros. Such a param has nothing to gain from a second
+    // level anyway, since it already spans the range the second level exists to absorb.
+    if scheme.param.max_representable() > crate::f16::MAX.to_f32() {
+        return Some("a two-level scheme needs block scales narrower than f32");
+    }
+
+    None
 }
 
 /// Calculate the shape of the block scale grid for a given tensor and level.
