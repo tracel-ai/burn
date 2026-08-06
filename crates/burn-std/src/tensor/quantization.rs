@@ -147,12 +147,9 @@ pub fn validate_levels(scheme: &QuantScheme) {
 /// This covers the block scales only. A [`QuantLevel::BlockTensor`] additionally carries a single
 /// per-tensor scale, which is not part of this grid.
 pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
-    match level {
-        QuantLevel::Tensor => Shape::new([1]),
-        QuantLevel::Block(block_size)
-        | QuantLevel::BlockTensor {
-            block: block_size, ..
-        } => {
+    match level.block_size() {
+        None => Shape::new([1]),
+        Some(block_size) => {
             let mut params_shape = data_shape.clone();
             let block_size = block_size.to_dim_vec(data_shape.num_dims());
 

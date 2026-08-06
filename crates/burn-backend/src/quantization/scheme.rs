@@ -11,12 +11,9 @@ pub fn compute_range<B: Backend>(
     calibration: &Calibration,
 ) -> (B::FloatTensorPrimitive, B::FloatTensorPrimitive) {
     match calibration {
-        Calibration::MinMax => match scheme.level {
-            QuantLevel::Tensor => (B::float_min(tensor.clone()), B::float_max(tensor)),
-            QuantLevel::Block(block_size)
-            | QuantLevel::BlockTensor {
-                block: block_size, ..
-            } => {
+        Calibration::MinMax => match scheme.level.block_size() {
+            None => (B::float_min(tensor.clone()), B::float_max(tensor)),
+            Some(block_size) => {
                 let block_elems = block_size.num_elements();
                 let shape = tensor.shape();
                 let numel = shape.num_elements();
