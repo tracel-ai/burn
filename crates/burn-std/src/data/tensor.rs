@@ -623,7 +623,7 @@ impl TensorData {
     /// # Returns
     /// `Ok(vec)` on success, or an error if the conversion fails.
     pub fn into_vec_as<E: Element>(self) -> Result<Vec<E>, DataError> {
-        self.try_convert::<E>()?.to_vec_as::<E>()
+        self.try_convert::<E>()?.to_vec::<E>()
     }
 
     /// Converts the data to a different element type.
