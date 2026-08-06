@@ -63,6 +63,13 @@ pub fn sum<Run: CubeRuntime>(
     let client = tensor.client.clone();
     let device = tensor.device.clone();
 
+    // A sum over an empty tensor folds no elements, so the result is the additive identity 0.
+    // The reduce kernels reject a zero-length axis (they require at least one element), so
+    // return the identity directly instead of dispatching to them.
+    if tensor.shape().num_elements() == 0 {
+        return Ok(zeros_client(client, device, [1].into(), tensor.dtype));
+    }
+
     match strategy {
         SumStrategy::OneShot(cube_count) => {
             let output = zeros_client(client.clone(), device, [1].into(), tensor.dtype);
@@ -225,6 +232,12 @@ pub fn reduce_dim<Run: CubeRuntime>(
         },
     )?;
 
+    // Reducing over a zero-length axis folds no elements, so every output position is the
+    // reduction identity. The kernels reject a zero-length axis, so fill the identity directly.
+    if input.shape()[dim] == 0 {
+        return super::empty::reduce_empty_axis(output, config);
+    }
+
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce::<Run>(
             &client,
@@ -296,6 +309,14 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
         ReduceOperationConfig::Any => return Err(unsupported("Any")),
         ReduceOperationConfig::All => return Err(unsupported("All")),
     };
+
+    // Index-producing reductions have no result over a zero-length axis: there is no element
+    // to point at. Return an error rather than dispatching to a kernel that rejects length 0.
+    if dim < input.meta.num_dims() && input.shape()[dim] == 0 {
+        return Err(ReduceError::Validation {
+            details: "reducing over a zero-length axis has no result index",
+        });
+    }
 
     let out_len = accumulator_len(config);
 

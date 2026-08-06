@@ -350,6 +350,65 @@ fn reduction_sum_should_match_reference_backend() {
         .assert_approx_eq::<FloatElem>(&tensor_ref.clone().sum().into_data(), Tolerance::default());
 }
 
+// Reducing over a zero-length axis folds no elements, so the result is the reduction identity.
+// The reduce kernels reject a zero-length axis, so these exercise the host-side identity fill.
+
+#[test]
+fn reduction_sum_dim_empty_axis() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::zeros([2, 0], &device);
+    let expected = TestTensor::<2>::from_data([[0.0], [0.0]], &device);
+    tensor
+        .sum_dim(1)
+        .into_data()
+        .assert_eq(&expected.into_data(), false);
+}
+
+#[test]
+fn reduction_prod_dim_empty_axis() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::zeros([2, 0], &device);
+    let expected = TestTensor::<2>::from_data([[1.0], [1.0]], &device);
+    tensor
+        .prod_dim(1)
+        .into_data()
+        .assert_eq(&expected.into_data(), false);
+}
+
+#[test]
+fn reduction_max_dim_empty_axis() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::zeros([2, 0], &device);
+    let expected = TestTensor::<2>::from_data([[f32::NEG_INFINITY], [f32::NEG_INFINITY]], &device);
+    tensor
+        .max_dim(1)
+        .into_data()
+        .assert_eq(&expected.into_data(), false);
+}
+
+#[test]
+fn reduction_min_dim_empty_axis() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::zeros([2, 0], &device);
+    let expected = TestTensor::<2>::from_data([[f32::INFINITY], [f32::INFINITY]], &device);
+    tensor
+        .min_dim(1)
+        .into_data()
+        .assert_eq(&expected.into_data(), false);
+}
+
+#[test]
+fn reduction_mean_dim_empty_axis() {
+    // Mean over an empty axis is 0 / 0 = NaN, which cannot be compared with equality.
+    let device = Default::default();
+    let tensor = TestTensor::<2>::zeros([2, 0], &device);
+    let data = tensor.mean_dim(1).into_data();
+    assert!(
+        data.iter::<f32>().all(|x| x.is_nan()),
+        "mean over an empty axis should be NaN, got {data:?}"
+    );
+}
+
 #[test]
 #[ignore = "Impossible to run unless you have tons of VRAM. Also reference backend is broken."]
 fn reduction_sum_should_match_reference_backend_64bit() {
