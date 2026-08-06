@@ -91,6 +91,12 @@ pub trait ElementLimits {
     const MAX: Self;
 }
 
+/// Element addition trait.
+pub trait ElementAdd {
+    /// Addition between `self` and `other`.
+    fn add(self, other: Self) -> Self;
+}
+
 /// Macro to implement the element trait for a type.
 #[macro_export]
 macro_rules! make_element {
@@ -99,9 +105,29 @@ macro_rules! make_element {
         convert $convert:expr,
         random $random:expr,
         cmp $cmp:expr,
+        add $add:expr,
         dtype $dtype:expr
     ) => {
-        make_element!(ty $type, convert $convert, random $random, cmp $cmp, dtype $dtype, min $type::MIN, max $type::MAX);
+        make_element!(ty $type, convert $convert, random $random, cmp $cmp, add $add, dtype $dtype, min $type::MIN, max $type::MAX);
+    };
+        (
+        ty $type:ident,
+        convert $convert:expr,
+        random $random:expr,
+        cmp $cmp:expr,
+        add $add:expr,
+        dtype $dtype:expr,
+        min $min:expr,
+        max $max:expr
+    ) => {
+        make_element!(ty $type, convert $convert, random $random, cmp $cmp, dtype $dtype, min $min, max $max);
+
+        impl ElementAdd for $type {
+            #[inline(always)]
+            fn add(self, other: Self) -> Self {
+                $add(self, other)
+            }
+        }
     };
     (
         ty $type:ident,
@@ -167,6 +193,7 @@ make_element!(
     convert ToElement::to_f64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f64, b: &f64| a.total_cmp(b),
+    add |a, b| a + b,
     dtype DType::F64
 );
 
@@ -175,6 +202,7 @@ make_element!(
     convert ToElement::to_f32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f32, b: &f32| a.total_cmp(b),
+    add |a, b| a + b,
     dtype DType::F32
 );
 
@@ -183,6 +211,7 @@ make_element!(
     convert ToElement::to_i64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i64, b: &i64| Ord::cmp(a, b),
+    add |a, b| a + b,
     dtype DType::I64
 );
 
@@ -191,6 +220,7 @@ make_element!(
     convert ToElement::to_u64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u64, b: &u64| Ord::cmp(a, b),
+    add |a, b| a + b,
     dtype DType::U64
 );
 
@@ -199,6 +229,7 @@ make_element!(
     convert ToElement::to_i32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i32, b: &i32| Ord::cmp(a, b),
+    add |a, b| a + b,
     dtype DType::I32
 );
 
@@ -207,6 +238,7 @@ make_element!(
     convert ToElement::to_u32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u32, b: &u32| Ord::cmp(a, b),
+    add |a, b| a + b,
     dtype DType::U32
 );
 
@@ -215,6 +247,7 @@ make_element!(
     convert ToElement::to_i16,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i16, b: &i16| Ord::cmp(a, b),
+    add |a, b| a + b,
     dtype DType::I16
 );
 
@@ -223,6 +256,7 @@ make_element!(
     convert ToElement::to_u16,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u16, b: &u16| Ord::cmp(a, b),
+    add |a, b| a + b,
     dtype DType::U16
 );
 
@@ -231,6 +265,7 @@ make_element!(
     convert ToElement::to_i8,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i8, b: &i8| Ord::cmp(a, b),
+    add |a, b| a + b,
     dtype DType::I8
 );
 
@@ -239,6 +274,7 @@ make_element!(
     convert ToElement::to_u8,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u8, b: &u8| Ord::cmp(a, b),
+    add |a, b| a + b,
     dtype DType::U8
 );
 
@@ -250,6 +286,7 @@ make_element!(
         f16::from_elem(sample)
     },
     cmp |a: &f16, b: &f16| a.total_cmp(b),
+    add |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     dtype DType::F16
 );
 make_element!(
@@ -260,6 +297,7 @@ make_element!(
         bf16::from_elem(sample)
     },
     cmp |a: &bf16, b: &bf16| a.total_cmp(b),
+    add |a, b| a + b,
     dtype DType::BF16
 );
 
@@ -271,6 +309,7 @@ make_element!(
         flex32::from_elem(sample)
     },
     cmp |a: &flex32, b: &flex32| a.total_cmp(b),
+    add |a: flex32, b: flex32| flex32::from_f32(a.to_f32() + b.to_f32()),
     dtype DType::Flex32,
     min flex32::from_f32(f16::MIN.to_f32_const()),
     max flex32::from_f32(f16::MAX.to_f32_const())

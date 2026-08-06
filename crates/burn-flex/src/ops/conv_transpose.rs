@@ -197,7 +197,9 @@ type ConvTransposeGemmFn<T> = fn(&mut [T], &[T], &[T], usize, usize, usize);
 
 /// 3D transposed convolution via GEMM + col2im.
 #[allow(clippy::too_many_arguments)]
-fn conv_transpose3d_impl<T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_backend::Element>(
+fn conv_transpose3d_impl<
+    T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_backend::Element + burn_backend::ElementAdd,
+>(
     x: FlexTensor,
     weight: FlexTensor,
     bias: Option<FlexTensor>,
@@ -359,7 +361,6 @@ fn conv_transpose3d_impl<T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_ba
             batch_size,
             out_channels,
             out_spatial,
-            add_fn,
         );
     }
 
