@@ -287,17 +287,21 @@ impl TchTensor {
             };
         }
 
-        let num_elements_out = out_shape.num_elements();
+        // Gate the in-place fast path on shape equality, not element count: at a
+        // zero-sized output every operand with a zero dim has 0 elements and would
+        // wrongly match, taking the in-place path for a broadcast it can't do
+        // (e.g. `[1, 0] * [2, 0]`). For non-empty operands `numel == out numel`
+        // already implies equal shapes, so routing is otherwise unchanged (#5287).
 
         // Attempt to mutate lhs tensor
-        if lhs_shape.num_elements() == num_elements_out
+        if lhs_shape == out_shape
             && let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor))
         {
             return output;
         }
 
         // Attempt to mutate rhs tensor
-        if rhs_shape.num_elements() == num_elements_out
+        if rhs_shape == out_shape
             && let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs))
         {
             return output;
@@ -508,6 +512,31 @@ mod tests {
         let m_empty: TchTensor =
             B::float_from_data(TensorData::new(Vec::<f32>::new(), [2, 0]), &device);
         assert_eq!(B::float_mul(m, m_empty).shape().dims(), [2, 0]);
+
+        // Two empty operands with *different* shapes still broadcast: `[1, 0]`
+        // vs `[2, 0]` -> `[2, 0]`. Both have 0 elements, so an element-count
+        // guard wrongly takes the in-place path and panics. Operands must be
+        // freshly owned (no shared storage) or `mut_ops` bails and never
+        // exercises that fast path.
+        let mk = |dims: [usize; 2]| -> TchTensor {
+            B::float_from_data(TensorData::new(Vec::<f32>::new(), dims), &device)
+        };
+        // lhs `[1, 0]` must not be mutated in place toward `[2, 0]`.
+        assert_eq!(B::float_mul(mk([1, 0]), mk([2, 0])).shape().dims(), [2, 0]);
+    }
+
+    #[test]
+    fn mul_empty_broadcast_does_not_mutate_smaller_rhs_in_place() {
+        // Companion to the lhs case above, isolating the rhs in-place guard.
+        // Sharing `lhs` makes its own in-place attempt bail, so the smaller rhs
+        // `[1, 0]` is the operand an element-count guard would grab and panic on
+        // when broadcasting to `[2, 0]`.
+        let device = Default::default();
+        let mk = |dims: [usize; 2]| -> TchTensor {
+            B::float_from_data(TensorData::new(Vec::<f32>::new(), dims), &device)
+        };
+        let lhs = mk([2, 0]);
+        assert_eq!(B::float_mul(lhs.clone(), mk([1, 0])).shape().dims(), [2, 0]);
     }
 
     #[test]
