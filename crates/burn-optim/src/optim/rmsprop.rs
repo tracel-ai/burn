@@ -35,7 +35,12 @@ pub struct RmsPropConfig {
 
 impl RmsPropConfig {
     /// Build a [`RmsProp`] from the config.
-    pub(crate) fn build(&self) -> RmsProp {
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
+    pub fn build(&self) -> RmsProp {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
         RmsProp {
             alpha: self.alpha,

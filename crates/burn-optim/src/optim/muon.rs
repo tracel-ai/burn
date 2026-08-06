@@ -161,7 +161,12 @@ pub struct MuonConfig {
 
 impl MuonConfig {
     /// Build a [`Muon`] from the config.
-    pub(crate) fn build(&self) -> Muon {
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart.
+    pub fn build(&self) -> Muon {
         let momentum = Momentum::new(&self.momentum);
         let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
 
