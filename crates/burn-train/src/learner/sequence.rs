@@ -1,6 +1,9 @@
 use crate::metric::{AccuracyInput, PerplexityInput, TopKAccuracyInput};
-use crate::metric::{Adaptor, CerInput, LossInput, WerInput, processor::ItemLazy};
-use burn_core::tensor::{Device, Int, Tensor, Transaction};
+use crate::metric::{
+    Adaptor, CerInput, LossInput, WerInput,
+    processor::ItemLazy,
+};
+use burn_core::tensor::{Int, Tensor};
 
 /// Sequence prediction output adapted for multiple metrics.
 ///
@@ -50,42 +53,20 @@ impl SequenceOutput {
 
 impl ItemLazy for SequenceOutput {
     fn sync(self) -> Self {
-        let device: Device = Device::flex();
+        // No readback: the metrics compute on the device the tensors live on
+        // and read back only their final scalars, which matters here because
+        // the logits carry the full vocabulary dimension. Flushing dispatches
+        // the producing stream's buffered work so the metric thread doesn't
+        // wait on an idle queue; a training item's float tensors come off the
+        // autodiff backend entirely, so the metric thread neither retains the
+        // tape nor pays its dispatch.
+        self.loss.device().flush();
 
-        match self.predictions {
-            Some(preds) => {
-                let [logits, loss, targets, predictions] = Transaction::default()
-                    .register(self.logits)
-                    .register(self.loss)
-                    .register(self.targets)
-                    .register(preds)
-                    .execute()
-                    .try_into()
-                    .expect("Correct amount of tensor data");
-
-                SequenceOutput {
-                    logits: Tensor::from_data(logits, &device),
-                    loss: Tensor::from_data(loss, &device),
-                    targets: Tensor::from_data(targets, &device),
-                    predictions: Some(Tensor::from_data(predictions, &device)),
-                }
-            }
-            None => {
-                let [logits, loss, targets] = Transaction::default()
-                    .register(self.logits)
-                    .register(self.loss)
-                    .register(self.targets)
-                    .execute()
-                    .try_into()
-                    .expect("Correct amount of tensor data");
-
-                SequenceOutput {
-                    logits: Tensor::from_data(logits, &device),
-                    loss: Tensor::from_data(loss, &device),
-                    targets: Tensor::from_data(targets, &device),
-                    predictions: None,
-                }
-            }
+        SequenceOutput {
+            logits: self.logits.no_grad(),
+            loss: self.loss.no_grad(),
+            targets: self.targets,
+            predictions: self.predictions,
         }
     }
 }
