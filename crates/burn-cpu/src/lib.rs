@@ -4,13 +4,24 @@ extern crate alloc;
 
 use burn_cubecl::CubeBackend;
 pub use cubecl::cpu::CpuDevice;
-use cubecl::cpu::CpuRuntime;
+use cubecl::{
+    cpu::CpuRuntime,
+    throughput::{ThroughputKey, ThroughputValue},
+};
 
 #[cfg(not(feature = "fusion"))]
 pub type Cpu = CubeBackend<CpuRuntime>;
 
 #[cfg(feature = "fusion")]
 pub type Cpu = burn_fusion::Fusion<CubeBackend<CpuRuntime>>;
+
+/// Measure peak throughput on a CPU `device` for each of the given `keys`.
+pub fn device_throughput(
+    device: &CpuDevice,
+    keys: &[ThroughputKey],
+) -> alloc::vec::Vec<ThroughputValue> {
+    cubecl::std::throughput::device_throughput::<CpuRuntime>(device, keys)
+}
 
 #[cfg(test)]
 mod tests {

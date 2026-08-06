@@ -83,13 +83,18 @@ impl DispatchDevice {
     /// Measure peak throughput for this device against the given `keys`.
     ///
     /// Only cubecl-backed devices can measure throughput; other backends
-    /// (ndarray, libtorch, remote, ...) return an empty vector. Each returned
+    /// (ndarray, libtorch, remote, ...) return an empty vector. An autodiff
+    /// device reports the peaks of the device it wraps. Each returned
     /// [`ThroughputValue`](burn_backend::cubecl::ThroughputValue) corresponds
     /// positionally to the key at the same index.
     pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputValue> {
         match self {
+            #[cfg(feature = "cpu")]
+            DispatchDevice::Cpu(device) => burn_cpu::device_throughput(device, keys),
             #[cfg(feature = "cuda")]
             DispatchDevice::Cuda(device) => burn_cuda::device_throughput(device, keys),
+            #[cfg(feature = "rocm")]
+            DispatchDevice::Rocm(device) => burn_rocm::device_throughput(device, keys),
             #[cfg(feature = "wgpu")]
             DispatchDevice::Wgpu(device) => burn_wgpu::device_throughput(device, keys),
             #[cfg(feature = "vulkan")]
@@ -98,6 +103,9 @@ impl DispatchDevice {
             DispatchDevice::Metal(device) => burn_wgpu::device_throughput(device, keys),
             #[cfg(feature = "webgpu")]
             DispatchDevice::WebGpu(device) => burn_wgpu::device_throughput(device, keys),
+            // Autodiff changes nothing about the hardware, so measure the device it wraps.
+            #[cfg(feature = "autodiff")]
+            DispatchDevice::Autodiff(device) => device.performance_stats(keys),
             #[allow(unreachable_patterns)]
             _ => Vec::new(),
         }
