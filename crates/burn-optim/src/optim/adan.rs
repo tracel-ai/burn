@@ -101,7 +101,12 @@ impl Optimizer for Adan {
 
 impl AdanConfig {
     /// Build an [`Adan`] from the config.
-    pub(crate) fn build(&self) -> Adan {
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
+    pub fn build(&self) -> Adan {
         Adan {
             momentum: AdaptiveNesterovMomentum {
                 beta_1: self.beta_1,

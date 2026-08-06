@@ -40,7 +40,12 @@ pub struct SgdState<const D: usize> {
 
 impl SgdConfig {
     /// Build a [`Sgd`] from the config.
-    pub(crate) fn build(&self) -> Sgd {
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
+    pub fn build(&self) -> Sgd {
         Sgd {
             momentum: self.momentum.as_ref().map(Momentum::new),
             weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
