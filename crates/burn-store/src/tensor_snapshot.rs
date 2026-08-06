@@ -257,8 +257,10 @@ impl TensorSnapshot {
             DType::QFloat(scheme) => {
                 // Calculate value bytes using scheme's packing information
                 let num_storage_elements = num_elements.div_ceil(scheme.num_quants());
+                // Rounded up per element: a sub-byte value stored natively still occupies a whole
+                // byte each, and truncating here would report no value bytes at all.
                 let value_bytes =
-                    num_storage_elements * (scheme.size_bits_stored() / BITS_PER_BYTE);
+                    num_storage_elements * scheme.size_bits_stored().div_ceil(BITS_PER_BYTE);
 
                 // Calculate number of quantization parameters (scales)
                 let num_params = params_shape(&self.shape, scheme.level).num_elements();
