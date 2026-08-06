@@ -178,28 +178,28 @@ impl ModuleMapper for Clamp {
 
 A reparameterization changes how a parameter's effective value is computed without changing the
 module's type or forward pass. The original parameter remains its structural base, while an attached
-state materializes the value returned by `Param::val()`. For example, weight normalization stores
-the weight direction as the base and a trainable magnitude in its reparameterization state:
+state materializes the value returned by `Param::val()`. LoRA uses this mechanism to keep a frozen
+structural base and attach trainable low-rank factors:
 
 ```rust, ignore
-use burn::module::{Module, WeightNormConfig, WeightNormMapper};
+use burn::module::{LoraConfig, Module};
 
-let model = model.apply_reparameterization(
-    WeightNormMapper::new(WeightNormConfig::new()),
-);
+let model = model.apply_lora(LoraConfig::new(8, 16.0));
 ```
 
 The `Reparameterizer` receives every floating-point parameter and its module path. It decides which
 parameters to transform, prepares their structural bases, and optionally attaches a
 `Reparameterization`. A reparameterization is itself a regular module, so its parameters
 automatically participate in visitors, mappers, optimization, records, device transfers, and
-autodiff. This makes custom implementations possible without modifying the original model or layer.
+autodiff. Custom techniques implement these traits and are applied through
+`apply_reparameterization`, making custom parameter-level PEFT methods possible without modifying
+the original model or layer.
 
-LoRA and QLoRA are built on the same mechanism and provide the convenience methods `apply_lora` and
-`apply_qlora`. Reparameterizations cannot currently be nested, so `apply_reparameterization` should
-only be called on a module that does not already contain reparameterized parameters. Use
-`Param::base()` to access the stored base directly and `Param::val()` to obtain the materialized
-value.
+LoRA and QLoRA are built on the same mechanism but provide the convenience methods `apply_lora` and
+`apply_qlora` for normal use. Reparameterizations cannot currently be nested, so
+`apply_reparameterization` should only be called on a module that does not already contain
+reparameterized parameters. Use `Param::base()` to access the stored base directly and
+`Param::val()` to obtain the materialized value.
 
 ## Module Display
 

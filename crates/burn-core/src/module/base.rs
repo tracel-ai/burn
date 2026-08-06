@@ -220,8 +220,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// Every floating-point parameter is passed to the reparameterizer along with its module path.
     /// The reparameterizer prepares its structural base and optionally creates the state used by
-    /// [`Param::val`]. Built-in examples include
-    /// [`LoraMapper`](crate::module::LoraMapper) and [`WeightNormMapper`](crate::module::WeightNormMapper).
+    /// [`Param::val`]. [`LoraMapper`](crate::module::LoraMapper) is a built-in example.
     ///
     /// # Limitations
     ///

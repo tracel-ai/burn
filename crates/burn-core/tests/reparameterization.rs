@@ -1,18 +1,19 @@
-use alloc::vec::Vec;
 use burn_tensor::{Shape, Tensor};
+use std::vec::Vec;
 
-use crate as burn;
-use crate::module::{Module, Param, ParamGroup, Reparameterization, Reparameterizer};
+use burn_core as burn;
+use burn_core::module::{Module, Param, ParamGroup, Reparameterization, Reparameterizer};
+use burn_tensor::Device;
 
 /// Trainable state for weight normalization.
 ///
 /// The direction `v` is stored as the base value of the containing [`Param`].
 #[derive(Debug, Module)]
-pub struct WeightNorm {
+struct WeightNorm {
     /// Trainable magnitude, with shape `[weight.shape[dim]]`.
-    pub g: Param<Tensor<1>>,
+    g: Param<Tensor<1>>,
     /// Dimension indexing the independently normalized weight vectors.
-    pub dim: usize,
+    dim: usize,
 }
 
 impl Reparameterization for WeightNorm {
@@ -22,7 +23,7 @@ impl Reparameterization for WeightNorm {
         assert!(self.dim < D, "Weight normalization dimension is invalid");
         let reduce_dims: Vec<_> = (0..D).filter(|dim| *dim != self.dim).collect();
         let norm = base.clone().powf_scalar(2.0).sum_dims(&reduce_dims).sqrt();
-        let mut magnitude_shape = alloc::vec![1; D];
+        let mut magnitude_shape = vec![1; D];
         magnitude_shape[self.dim] = base.dims()[self.dim];
         let magnitude = self.g.val().reshape(Shape::from(magnitude_shape));
         base.div(norm).mul(magnitude)
@@ -31,32 +32,20 @@ impl Reparameterization for WeightNorm {
 
 /// Configuration for weight normalization.
 #[derive(Debug, Clone)]
-pub struct WeightNormConfig {
+struct WeightNormConfig {
     /// Dimension indexing the independently normalized weight vectors. Defaults to `0`.
-    pub dim: usize,
+    dim: usize,
     /// Parameter group on which to apply weight normalization.
-    pub param_group: ParamGroup,
+    param_group: ParamGroup,
 }
 
 impl WeightNormConfig {
     /// Create a weight normalization configuration using dimension `0`.
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             dim: 0,
             param_group: ParamGroup::all(),
         }
-    }
-
-    /// Set the dimension indexing the independently normalized weight vectors.
-    pub fn with_dim(mut self, dim: usize) -> Self {
-        self.dim = dim;
-        self
-    }
-
-    /// Restrict weight normalization to a parameter group.
-    pub fn set_param_group(mut self, group: ParamGroup) -> Self {
-        self.param_group = group;
-        self
     }
 }
 
@@ -69,20 +58,14 @@ impl Default for WeightNormConfig {
 /// Reparameterizer that replaces matching rank-2 or higher floating-point weights by
 /// weight-normalized ones. Rank-1 parameters such as biases are left unchanged.
 #[derive(Debug, Clone)]
-pub struct WeightNormMapper {
+struct WeightNormMapper {
     config: WeightNormConfig,
 }
 
 impl WeightNormMapper {
     /// Create a mapper from the given configuration.
-    pub fn new(config: WeightNormConfig) -> Self {
+    fn new(config: WeightNormConfig) -> Self {
         Self { config }
-    }
-
-    /// Restrict weight normalization to a parameter group.
-    pub fn for_group(mut self, group: ParamGroup) -> Self {
-        self.config.param_group = group;
-        self
     }
 }
 
@@ -125,13 +108,34 @@ impl Reparameterizer for WeightNormMapper {
     }
 }
 
-#[cfg(test)]
 mod tests {
     use super::*;
     #[cfg(feature = "autodiff")]
-    use crate::module::AutodiffModule;
-    use crate::{module::Module, test_device, test_utils::SimpleLinear};
+    use burn_core::module::AutodiffModule;
     use burn_tensor::Tolerance;
+
+    #[derive(Debug, Module)]
+    struct SimpleLinear {
+        weight: Param<Tensor<2>>,
+        bias: Param<Tensor<1>>,
+    }
+
+    impl SimpleLinear {
+        fn new(in_features: usize, out_features: usize, device: &Device) -> Self {
+            Self {
+                weight: Param::from_tensor(Tensor::random(
+                    [in_features, out_features],
+                    burn_tensor::Distribution::Default,
+                    device,
+                )),
+                bias: Param::from_tensor(Tensor::zeros([out_features], device)),
+            }
+        }
+    }
+
+    fn test_device() -> Device {
+        Device::flex()
+    }
 
     fn simple_model() -> SimpleLinear {
         let device = test_device();
@@ -161,7 +165,12 @@ mod tests {
 
         assert_eq!(weight_norm.g.val().dims(), [model.weight.base().dims()[0]]);
         assert_ne!(weight_norm.g.id, model.weight.id);
-        assert_eq!(model.num_params(), 24 + 6 + 6);
+        assert_eq!(
+            model.num_params(),
+            model.weight.base().shape().num_elements()
+                + model.bias.base().shape().num_elements()
+                + weight_norm.g.val().shape().num_elements()
+        );
     }
 
     #[test]
@@ -203,7 +212,12 @@ mod tests {
             .apply_reparameterization(WeightNormMapper::new(WeightNormConfig::new()));
         let inference = model.valid();
 
-        assert!(inference.weight.reparameterization_dyn().is_none());
+        assert!(
+            inference
+                .weight
+                .reparameterization::<WeightNorm>()
+                .is_none()
+        );
         inference.weight.val().into_data().assert_approx_eq::<f32>(
             &model.weight.val().inner().into_data(),
             Tolerance::default(),
