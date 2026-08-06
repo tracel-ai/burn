@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
-    Device, Element, TensorData,
+    Device, Element, FloatDType, TensorData,
     quantization::{CalibrationRange, QuantLevel, QuantParam, QuantValue, compute_q_params},
 };
 
@@ -83,12 +83,52 @@ fn block_tensor_symmetric_int8() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([448.0]), Tolerance::default());
 
-    // The two levels multiply back to the scales a one-level scheme would have used.
+    // The two levels multiply back to the scales a one-level scheme would have used. The
+    // per-tensor scale comes back in f32 whatever the element type is, so it has to come down to
+    // the block scales' precision before the two fold together.
     qparams
         .scales
-        .mul(global)
+        .mul(global.cast(FloatDType::from(FloatElem::dtype())))
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+/// The per-tensor scale is the largest block scale divided by the block param's maximum, so a
+/// tensor with nothing in it divides `0` by `448`. Dividing the block scales by that quotient is
+/// where a zero becomes a NaN, and the floor that prevents it has to be a value the element type
+/// can actually hold: at f16 the whole quotient underflows for weights far larger than this.
+#[test]
+fn block_tensor_symmetric_int8_all_zero() {
+    let device = Device::default();
+    let zeros = TestTensor::<1>::zeros([4], &device);
+    let range = CalibrationRange {
+        min: zeros.clone(),
+        max: zeros,
+    };
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block_tensor([4], QuantParam::F32))
+        .with_param(QuantParam::UE4M3);
+
+    let qparams = compute_q_params(&scheme, range);
+    let global: f32 = qparams
+        .global
+        .expect("a two-level scheme should produce a per-tensor scale")
+        .into_scalar();
+    let scales: Vec<f32> = qparams.scales.into_data().iter::<f32>().collect();
+
+    assert!(
+        global > 0.0,
+        "a per-tensor scale of {global} leaves nothing to divide the block scales by"
+    );
+    assert!(
+        scales.iter().all(|scale| scale.is_finite()),
+        "block scales should stay finite for an empty tensor, got {scales:?}"
+    );
 }
 
 #[test]
