@@ -88,6 +88,9 @@ impl DispatchDevice {
     /// [`ThroughputValue`](burn_backend::cubecl::ThroughputValue) corresponds
     /// positionally to the key at the same index.
     pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputValue> {
+        // Deliberately exhaustive, with no catch-all: a backend that cannot
+        // measure has to say so by name. A `_` arm here is what let ROCm report
+        // no peaks at all rather than fail to compile when the variant landed.
         match self {
             #[cfg(feature = "cpu")]
             DispatchDevice::Cpu(device) => burn_cpu::device_throughput(device, keys),
@@ -106,8 +109,16 @@ impl DispatchDevice {
             // Autodiff changes nothing about the hardware, so measure the device it wraps.
             #[cfg(feature = "autodiff")]
             DispatchDevice::Autodiff(device) => device.performance_stats(keys),
-            #[allow(unreachable_patterns)]
-            _ => Vec::new(),
+            // Not cubecl-backed, so there are no kernels to measure.
+            #[cfg(any(feature = "flex", default_backend))]
+            DispatchDevice::Flex(_) => Vec::new(),
+            #[cfg(feature = "ndarray")]
+            DispatchDevice::NdArray(_) => Vec::new(),
+            #[cfg(feature = "tch")]
+            DispatchDevice::LibTorch(_) => Vec::new(),
+            // The kernels run on the server, which this local API cannot reach.
+            #[cfg(feature = "remote")]
+            DispatchDevice::Remote(_) => Vec::new(),
         }
     }
 }
