@@ -244,8 +244,10 @@ impl TensorSnapshot {
     ///
     /// For quantized types (`QFloat`), this accounts for:
     /// - The quantized values (packed according to the quantization scheme)
-    /// - Alignment padding (values are aligned to 4-byte boundary)
-    /// - Quantization parameters (scale values appended to the data)
+    /// - Quantization parameters (scale values appended to the data), including the per-tensor
+    ///   scale of a two-level scheme
+    ///
+    /// The regions are dense. See the body for why no alignment padding sits between them.
     pub fn data_len(&self) -> usize {
         const BITS_PER_BYTE: usize = 8;
 

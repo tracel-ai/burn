@@ -5,7 +5,7 @@ use burn_tensor::quantization::{
     QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue, QuantizationParameters,
     QuantizedBytes,
 };
-use burn_tensor::{DType, Element, ElementConversion, TensorData};
+use burn_tensor::{DType, Element, TensorData};
 
 fn get_q_params(data: TensorData) -> Vec<f32> {
     let num_elements = data.num_elements();
@@ -174,6 +174,10 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
 ///
 /// What this can still catch is the block scales, which are ue4m3 and so genuinely rounded, and
 /// the byte layout: two scale regions of different widths, sliced apart on the way back in.
+///
+/// WGSL has no e4m3, so a ue4m3 scale reconstructs as NaN there. The f16 sibling below covers the
+/// byte layout on those backends.
+#[cfg(not(feature = "wgpu"))]
 #[test]
 fn should_round_trip_two_level_through_bytes() {
     let device = Default::default();
@@ -204,8 +208,13 @@ fn should_round_trip_two_level_through_bytes() {
 /// be. That is the claim the whole feature rests on, and unlike the calibration test it cannot pass
 /// by restating the formula: it fails if any backend drops the global, folds it twice, or
 /// reconstructs with a copy that was not rounded to what it stores.
+///
+/// WGSL has no e4m3, so a ue4m3 scale reconstructs as NaN there.
+#[cfg(not(feature = "wgpu"))]
 #[test]
 fn two_level_error_should_not_track_weight_magnitude() {
+    use burn_tensor::ElementConversion;
+
     let device = Default::default();
 
     let big: TestTensor<2> = TestTensorInt::arange(-128..128, &device)

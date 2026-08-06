@@ -14,10 +14,14 @@ pub use burn_std::quantization::*;
 /// per-tensor value has no place on it.
 #[derive(Clone, Debug)]
 pub struct QuantizationParameters {
-    /// The scaling factor, one per block or a single one for a per-tensor level.
+    /// The scaling factor, one per block or a single one for a per-tensor level, in the quantized
+    /// tensor's float dtype.
     pub scales: Tensor<1>,
     /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
     /// two-level scheme. A value is reconstructed as `q * global * scale`.
+    ///
+    /// Always `f32`, whatever the tensor's float dtype is, so it does not match
+    /// [`scales`](Self::scales) and the two cannot go into a binary op without a cast.
     pub global: Option<Tensor<1>>,
 }
 
