@@ -11,7 +11,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_std::ExecutionError;
+use burn_std::{DataError, ExecutionError};
 use burn_std::{SliceOps, sync::RwLock};
 use core::iter::ExactSizeIterator;
 use core::iter::repeat;
@@ -2008,6 +2008,121 @@ where
         &self,
     ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
         into_data_async_impl(self.primitive.clone(), K::KIND)
+    }
+
+    /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`try_to_data_as`].
+    ///
+    /// # Returns
+    /// The new data.
+    ///
+    /// # Panics
+    /// On data conversion error.
+    pub fn to_data_as<E: Element>(&self) -> TensorData {
+        self.to_data().convert::<E>()
+    }
+
+    /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.to_data().try_convert::<E>()`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Returns
+    /// `Ok(data)`, or an error on data conversion errors.
+    pub fn try_to_data_as<E: Element>(&self) -> Result<TensorData, DataError> {
+        self.to_data().try_convert::<E>()
+    }
+
+    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`try_to_data_cast`].
+    ///
+    /// # Returns
+    /// The new data.
+    ///
+    /// # Panics
+    /// On data conversion error.
+    pub fn to_data_cast(&self, dtype: DType) -> TensorData {
+        self.try_to_data_cast(dtype).unwrap()
+    }
+
+    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.to_data().try_cast(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Returns
+    /// `Ok(data)`, or an error on data conversion errors.
+    pub fn try_to_data_cast(&self, dtype: DType) -> Result<TensorData, DataError> {
+        self.to_data().try_cast(dtype)
+    }
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`try_into_data_as`].
+    ///
+    /// # Returns
+    /// The new data.
+    ///
+    /// # Panics
+    /// On data conversion error.
+    pub fn into_data_as<E: Element>(self) -> TensorData {
+        self.try_into_data_as::<E>().unwrap()
+    }
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.into_data().convert::<E>(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Returns
+    /// `Ok(data)`, or an error on data conversion errors.
+    pub fn try_into_data_as<E: Element>(self) -> Result<TensorData, DataError> {
+        self.into_data().try_convert::<E>()
+    }
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.into_data().convert_dtype(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`try_into_data_cast`].
+    ///
+    /// # Returns
+    /// The new data.
+    ///
+    /// # Panics
+    /// On data conversion error.
+    pub fn into_data_cast(self, dtype: DType) -> TensorData {
+        self.try_into_data_cast(dtype).unwrap()
+    }
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.into_data().convert_dtype(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Returns
+    /// `Ok(data)`, or an error on data conversion errors.
+    pub fn try_into_data_cast(self, dtype: DType) -> Result<TensorData, DataError> {
+        self.into_data().try_cast(dtype)
     }
 
     /// Create a tensor from the given data on the given device.
