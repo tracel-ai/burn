@@ -16,10 +16,7 @@ pub struct QuantizationParametersPrimitive<B: Backend> {
     /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
     /// two-level scheme. A value is reconstructed as `q * global * scale`.
     ///
-    /// Always `f32`, whatever the tensor's float dtype is, so it does not match
-    /// [`scales`](Self::scales) and the two cannot go into a binary op without a cast. It sits a
-    /// whole block param's range below the block scales by construction, which at `f16` would put
-    /// it among the subnormals. That guarantee is what lets `validate_levels` require an `f32`
-    /// stored param.
+    /// Always `f32`, unlike [`scales`](Self::scales), so the two cannot go into a binary op
+    /// without a cast.
     pub global: Option<B::FloatTensorPrimitive>,
 }

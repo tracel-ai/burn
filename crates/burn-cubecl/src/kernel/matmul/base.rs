@@ -59,9 +59,8 @@ pub fn matmul<R: CubeRuntime>(
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
-    // No quantized matmul kernel applies a per-tensor scale, and the autotune candidates that bind
-    // the quantized handles panic on the level rather than decline it, which takes the whole tuning
-    // run down with them.
+    // No quantized matmul kernel applies a per-tensor scale, and the autotune candidates panic on
+    // the level rather than decline it, taking the whole tuning run down with them.
     if is_two_level(&lhs) || is_two_level(&rhs) {
         let lhs = maybe_dequantize(lhs, out_dtype);
         let rhs = maybe_dequantize(rhs, out_dtype);

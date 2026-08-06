@@ -100,11 +100,9 @@ pub(crate) fn empty<R: CubeRuntime>(
     )
 }
 
-/// Rebuilds the level a permutation started from.
+/// Rebuilds the level a layout op started from, after moving the block's dimensions around.
 ///
-/// A permutation moves the block's dimensions around. The per-tensor scale is a scalar and is
-/// unaffected by that, but it has to survive the rebuild, or a two-level tensor quietly comes back
-/// as a single-level one and every value reconstructs short by that factor.
+/// Dropping the per-tensor scale here would quietly make it a single-level tensor.
 fn rebuild_level(block: BlockSize, global: Option<QuantParam>) -> QuantLevel {
     match global {
         Some(global) => QuantLevel::BlockTensor { block, global },
@@ -411,8 +409,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
 
     let shape_last = *shape.last().unwrap();
 
-    // The per-tensor scale of a two-level scheme is a scalar in its own region, so only the block
-    // grid moves with the reshape.
+    // The per-tensor scale is a scalar in its own region, so only the block grid moves.
     let shape_scales = match scheme.level.block_size() {
         None => scales.meta.shape().clone(), // always [1], invariant under reshape
         Some(block_size) if block_size.len() == 1 && shape_last < (block_size[0] as usize) => {

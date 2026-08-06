@@ -18,10 +18,8 @@ where
     let out_global = output.global();
     let dtype = tensor.dtype;
 
-    // The kernel reads the incoming per-tensor scale at the precision the scheme stores one in, the
-    // same as the buffer it writes back, while calibration hands it over in the tensor's float
-    // dtype. The two only coincide on an f32 backend; anywhere else the kernel would rebuild the
-    // scale out of the wrong bytes.
+    // The kernel reads the incoming per-tensor scale at the precision the scheme stores one in,
+    // unlike the block scales, which it reads at the tensor's float dtype.
     let global = match (global, out_global.as_ref()) {
         (Some(global), Some(out_global)) => Some(cast(global, out_global.dtype)),
         (global, _) => global,

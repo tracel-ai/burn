@@ -74,8 +74,8 @@ fn block_tensor_symmetric_int8() {
         .global
         .expect("a two-level scheme should produce a per-tensor scale");
 
-    // The largest block scale is pushed to the top of what ue4m3 can hold, which is the whole
-    // point of splitting the scale in two.
+    // The largest block scale is pushed to the top of what ue4m3 can hold, which is the point of
+    // splitting the scale in two.
     qparams
         .scales
         .clone()
@@ -83,9 +83,7 @@ fn block_tensor_symmetric_int8() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([448.0]), Tolerance::default());
 
-    // The two levels multiply back to the scales a one-level scheme would have used. The
-    // per-tensor scale comes back in f32 whatever the element type is, so it has to come down to
-    // the block scales' precision before the two fold together.
+    // The global is f32 whatever the element type is, hence the cast.
     qparams
         .scales
         .mul(global.cast(FloatDType::from(FloatElem::dtype())))
@@ -93,10 +91,8 @@ fn block_tensor_symmetric_int8() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
-/// The per-tensor scale is the largest block scale divided by the block param's maximum, so a
-/// tensor with nothing in it divides `0` by `448`. Dividing the block scales by that quotient is
-/// where a zero becomes a NaN, and the floor that prevents it has to be a value the element type
-/// can actually hold: at f16 the whole quotient underflows for weights far larger than this.
+/// A tensor with nothing in it divides `0` by `448`, and dividing the block scales by that
+/// quotient is where a zero becomes a NaN.
 #[test]
 fn block_tensor_symmetric_int8_all_zero() {
     let device = Device::default();

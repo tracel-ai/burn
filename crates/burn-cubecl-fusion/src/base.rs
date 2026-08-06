@@ -18,8 +18,8 @@ pub trait FallbackOperation<R: Runtime>: Send + Sync {
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
 ///
-/// Carries the per-tensor scale even though no fused kernel applies one, because every quantized
-/// tensor on a fused backend round trips through this handle whether or not anything fuses.
+/// Carries the per-tensor scale even though no fused kernel applies one: every quantized tensor on
+/// a fused backend round trips through this handle whether or not anything fuses.
 #[derive(Clone, Debug)]
 pub struct QParams {
     /// The block scales.

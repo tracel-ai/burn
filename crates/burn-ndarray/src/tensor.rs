@@ -721,8 +721,7 @@ impl NdArrayQTensor {
                 ..
             } => {
                 // Kept apart on the tensor so a round trip through bytes preserves each level at
-                // the precision it is stored in, folded here because that is what dequantization
-                // reconstructs.
+                // the precision it is stored in.
                 let global = self
                     .global
                     .expect("a two-level tensor should carry a per-tensor scale");

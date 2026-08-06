@@ -246,8 +246,6 @@ impl TensorSnapshot {
     /// - The quantized values (packed according to the quantization scheme)
     /// - Quantization parameters (scale values appended to the data), including the per-tensor
     ///   scale of a two-level scheme
-    ///
-    /// The regions are dense. See the body for why no alignment padding sits between them.
     pub fn data_len(&self) -> usize {
         const BITS_PER_BYTE: usize = 8;
 
@@ -257,8 +255,7 @@ impl TensorSnapshot {
             DType::QFloat(scheme) => {
                 // Calculate value bytes using scheme's packing information
                 let num_storage_elements = num_elements.div_ceil(scheme.num_quants());
-                // Rounded up per element: a sub-byte value stored natively still occupies a whole
-                // byte each, and truncating here would report no value bytes at all.
+                // Rounded up per element: a sub-byte value stored natively still takes a byte.
                 let value_bytes =
                     num_storage_elements * scheme.size_bits_stored().div_ceil(BITS_PER_BYTE);
 
@@ -266,12 +263,10 @@ impl TensorSnapshot {
                 let num_params = params_shape(&self.shape, scheme.level).num_elements();
 
                 let scale_bytes = num_params * quant_param_size(scheme.param);
-                // A two-level scheme appends one more scale, at its own precision, after the
-                // block scales.
                 let global_bytes = scheme.level.global_param().map_or(0, quant_param_size);
 
-                // No padding between the regions. The alignment `QuantizedBytes` passes when it
-                // appends the scales only sizes the allocation, it does not move the write offset.
+                // Dense: the alignment `QuantizedBytes` passes when it appends the scales only
+                // sizes the allocation, it does not move the write offset.
                 value_bytes + scale_bytes + global_bytes
             }
             _ => num_elements * self.dtype.size(),
@@ -383,13 +378,8 @@ mod tests {
         assert_eq!(data.dtype, DType::Bool(BoolStore::Native));
     }
 
-    /// `data_len` predicts the serialized size without materializing the tensor, so it has to
-    /// agree with what `TensorData::quantized` actually writes. A mismatch silently truncates or
-    /// over-reserves on save.
-    ///
-    /// The block sizes matter here. A value count that is a multiple of `QPARAM_ALIGN` hides the
-    /// interesting case, because the two regions happen to line up whether or not the prediction
-    /// assumes padding between them.
+    /// `data_len` predicts the serialized size without materializing the tensor, and a mismatch
+    /// with what `TensorData::quantized` writes silently truncates or over-reserves on save.
     #[test]
     fn data_len_matches_quantized_bytes() {
         use burn_core::tensor::quantization::{
@@ -401,8 +391,8 @@ mod tests {
             .with_store(QuantStore::Native)
             .with_param(QuantParam::UE4M3);
 
-        // 8 values in blocks of 4 lands on the alignment; 6 in blocks of 3 and 10 in blocks of 5
-        // do not, and 10 leaves an odd number of one-byte block scales as well.
+        // 8 values in blocks of 4 lands on `QPARAM_ALIGN`, which would hide a padding assumption;
+        // 6 in blocks of 3 and 10 in blocks of 5 do not.
         for (values, block) in [(8usize, 4usize), (6, 3), (10, 5)] {
             let scales = vec![0.5f32; values / block];
             let one_level = base.with_level(QuantLevel::block([block as u8]));

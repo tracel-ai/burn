@@ -83,8 +83,6 @@ impl QTensorOps<Flex> for Flex {
                     raw.push(scale);
                 }
 
-                // The global carries the tensor's dynamic range, leaving the block param to cover
-                // only the spread between blocks.
                 let global = validated_scale(peak / scheme.param.max_representable(), global_param);
 
                 let mut scales = Vec::with_capacity(num_blocks);
@@ -444,9 +442,8 @@ fn block_safe_layout_op(
 /// representable and carry real information for a small tensor, so substituting them would throw
 /// away what rounding up preserved.
 ///
-/// The replacement goes back through the param so that the scale held in memory is the one that
-/// gets stored. `f32::MIN_POSITIVE` on its own is not representable in a narrow param and would
-/// encode to zero, leaving a reloaded tensor dequantizing differently from the one in hand.
+/// The replacement goes back through the param because `f32::MIN_POSITIVE` is not representable in
+/// a narrow one and would encode to zero.
 fn validated_scale(scale: f32, param: QuantParam) -> f32 {
     let scale = scale_to_param(scale, param);
     if scale > 0.0 && scale.is_finite() {

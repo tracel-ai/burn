@@ -9,9 +9,6 @@ use super::CubeTensor;
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
-///
-/// Not [`burn_backend::quantization::QParams`], which also stands in for a *single* block's scale
-/// and so has no place for a per-tensor one.
 #[derive(Clone, Debug)]
 pub struct QParams {
     /// The block scales.

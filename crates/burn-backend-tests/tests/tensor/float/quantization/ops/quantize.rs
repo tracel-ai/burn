@@ -164,16 +164,8 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
     );
 }
 
-/// A two-level tensor keeps its two scale levels apart in memory and folds them only where
-/// dequantization reconstructs the product. Writing it to bytes and reading it back has to land on
-/// exactly the same values, which is what makes a saved model reproduce the accuracy it was
-/// measured at.
-///
 /// Bit equality rather than a tolerance: both paths reconstruct from the same stored scales, so
 /// any difference means a level was rounded, folded or sliced differently on one of them.
-///
-/// What this can still catch is the block scales, which are ue4m3 and so genuinely rounded, and
-/// the byte layout: two scale regions of different widths, sliced apart on the way back in.
 ///
 /// WGSL has no e4m3, so a ue4m3 scale reconstructs as NaN there. The f16 sibling below covers the
 /// byte layout on those backends.
@@ -204,10 +196,7 @@ fn should_round_trip_two_level_through_bytes() {
     round_tripped.assert_eq(&direct, true);
 }
 
-/// The per-tensor scale exists so that accuracy stops depending on how large the weights happen to
-/// be. That is the claim the whole feature rests on, and unlike the calibration test it cannot pass
-/// by restating the formula: it fails if any backend drops the global, folds it twice, or
-/// reconstructs with a copy that was not rounded to what it stores.
+/// The per-tensor scale exists so that accuracy stops depending on how large the weights are.
 ///
 /// WGSL has no e4m3, so a ue4m3 scale reconstructs as NaN there.
 #[cfg(not(feature = "wgpu"))]
@@ -249,8 +238,7 @@ fn two_level_error_should_not_track_weight_magnitude() {
          got {big_error} and {small_error}"
     );
 
-    // The same weights under a one-level scheme with the same 8-bit block param: its scales have
-    // to cover the magnitude themselves, and at this size they underflow.
+    // A one-level scheme's scales have to cover the magnitude themselves, and underflow here.
     let small_one_level = error(small, &one_level);
     assert!(
         small_one_level > small_error * 2.0,

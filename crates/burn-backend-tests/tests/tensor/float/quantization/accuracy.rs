@@ -207,8 +207,7 @@ fn report_quantization_accuracy() {
 
         for (level_name, level) in levels {
             for (param_name, param) in params {
-                // A per-tensor scale has nothing to absorb when the block scales already reach
-                // f32's range.
+                // A per-tensor scale has nothing to absorb at f32 block scales.
                 if level.global_param().is_some() && param == QuantParam::F32 {
                     continue;
                 }

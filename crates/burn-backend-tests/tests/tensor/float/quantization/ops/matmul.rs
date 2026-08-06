@@ -248,9 +248,8 @@ fn test_matmul_mixed_block_scale() {
     assert!(output.dtype.is_float());
 }
 
-/// No matmul kernel applies a per-tensor scale, so a two-level input has to reach a float matmul.
-/// Every autotune candidate that binds the quantized handles panics on the level instead of
-/// declining it, so failing to fall back takes down the whole tuning run rather than one kernel.
+/// No matmul kernel applies a per-tensor scale, and the autotune candidates panic on the level
+/// instead of declining it, so failing to fall back takes down the whole tuning run.
 #[test]
 fn should_matmul_two_level_rhs() {
     let device = Default::default();

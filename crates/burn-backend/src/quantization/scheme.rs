@@ -116,20 +116,13 @@ pub fn compute_q_params<B: Backend>(
 ///
 /// The global is picked so the largest block scale lands at the top of `block_param`'s range, which
 /// is what lets a narrow type cover a tensor whose raw scales would otherwise overflow or underflow
-/// it.
+/// it. Both levels come back unrounded, as the one-level scales do; backends round each to the
+/// precision it is stored in and quantize against that product.
 ///
-/// Both levels come back unrounded, as the one-level scales do. Backends round each to the
-/// precision it is stored in and quantize against that product, so the values they write already
-/// account for it.
-///
-/// The per-tensor scale is computed and returned in `f32`, whatever the tensor's float dtype is,
-/// because it is a whole block param's range below the block scales by construction. In `f16` that
-/// puts it among the subnormals, where the value the largest block scale is divided by keeps only a
-/// handful of bits: weights near 1.0 leave it around 295 subnormal steps, weights 64x smaller leave
-/// it 5, and the block scales that come back carry the difference. That is the magnitude-dependent
-/// error the second level exists to remove, so computing it at the tensor's precision would defeat
-/// the scheme on exactly the backends that most want it. The block scales stay in the tensor's
-/// dtype: they are stored at [`QuantScheme::param`] and absorb their own rounding.
+/// The per-tensor scale is returned in `f32` whatever the tensor's dtype is. It sits a whole block
+/// param's range below the block scales, so at `f16` it would land among the subnormals and keep a
+/// number of bits that depends on the weights' magnitude, which is what the second level exists to
+/// remove.
 fn normalize_scales<B: Backend>(
     scales: B::FloatTensorPrimitive,
     block_param: QuantParam,
@@ -141,8 +134,7 @@ fn normalize_scales<B: Backend>(
         B::float_max(scales_f32.clone()),
         block_param.max_representable().into(),
     );
-    // Guards `0 / 0` for an all-zero tensor, and the flush to zero when the largest block scale is
-    // small enough that dividing it by the block param's maximum underflows.
+    // Guards `0 / 0` for an all-zero tensor, and an underflow to zero for a very small one.
     let global = B::float_clamp_min(global, f32::MIN_POSITIVE.into());
 
     let broadcast = Shape::from(vec![1usize; scales_f32.shape().num_dims()]);

@@ -117,8 +117,7 @@ impl Backend for NdArray {
                             | QuantValue::Q2S,
                         store: QuantStore::Native,
                         ..
-                    // A two-level scheme is only usable at the params `quantize` will accept, and
-                    // the level alone does not say which those are.
+                    // The level alone does not say which params `quantize` will accept.
                     } if levels_supported(&scheme) => burn_backend::DTypeUsage::general(),
                     _scheme => burn_backend::DTypeUsageSet::empty(),
                 }
@@ -214,9 +213,8 @@ mod tests {
         ));
     }
 
-    /// What the check reports has to be what `quantize` accepts. A scheme it claims and then
-    /// panics on is worse than one it declines, because the panic lands on the first tensor
-    /// rather than where the scheme was chosen.
+    /// A scheme this claims and then panics on is worse than one it declines, because the panic
+    /// lands on the first tensor rather than where the scheme was chosen.
     #[test]
     fn should_support_the_two_level_schemes_it_can_quantize() {
         use burn_backend::ops::{FloatTensorOps, QTensorOps};
@@ -244,8 +242,7 @@ mod tests {
             QuantLevel::BlockTensor { .. }
         ));
 
-        // Block scales already spanning f32's range leave the per-tensor scale nothing to absorb,
-        // and `quantize` rejects them.
+        // Block scales already spanning f32's range are rejected by `quantize`.
         assert!(!B::supports_dtype(
             &device,
             DType::QFloat(scheme.with_param(QuantParam::F32))
