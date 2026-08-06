@@ -384,7 +384,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     if let ReshapeAction::UpdateStrides { .. } = &action_values {
         match analysis_values {
             ReshapeAnalysis::IsContiguous => {
-                if let QuantLevel::Block(block_size) = scheme.level
+                if let Some(block_size) = scheme.level.block_size()
                     && block_size.len() > 1
                     && !is_unsqueeze
                 {
@@ -395,7 +395,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
             }
             ReshapeAnalysis::Broadcasted => {} // only preprends unit dims
             ReshapeAnalysis::Split => {
-                if let QuantLevel::Block(block_size) = scheme.level
+                if let Some(block_size) = scheme.level.block_size()
                     && block_size.len() > 1
                 {
                     // Split reshape (e.g. [32, 4] -> [32, 2, 2]): only valid if
@@ -411,14 +411,11 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
 
     let shape_last = *shape.last().unwrap();
 
-    let shape_scales = match scheme.level {
-        QuantLevel::BlockTensor { .. } => {
-            unimplemented!("two-level quantization is not supported on cubecl backends yet")
-        }
-        QuantLevel::Tensor => scales.meta.shape().clone(), // always [1], invariant under reshape
-        QuantLevel::Block(block_size)
-            if block_size.len() == 1 && shape_last < (block_size[0] as usize) =>
-        {
+    // The per-tensor scale of a two-level scheme is a scalar in its own region, so only the block
+    // grid moves with the reshape.
+    let shape_scales = match scheme.level.block_size() {
+        None => scales.meta.shape().clone(), // always [1], invariant under reshape
+        Some(block_size) if block_size.len() == 1 && shape_last < (block_size[0] as usize) => {
             // If the new last dimension is smaller than the block size,
             // it means a single block now spans across multiple rows.
             if scales.meta.shape().num_elements() > 1 {
@@ -427,7 +424,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
             // Exception: allow if there is exactly 1 block total (essentially per-tensor quantization)
             scales.meta.shape().clone()
         }
-        QuantLevel::Block(_) => {
+        Some(_) => {
             // ND blocks: derive scales shape from the new tensor shape
             params_shape(&shape, scheme.level)
         }
@@ -462,9 +459,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
         }
         // Any action to recompute
         (ReshapeAction::Recompute, _) | (_, ReshapeAction::Recompute) => {
-            if let QuantLevel::Block(_) = scheme.level
-                && shape_scales.num_elements() > 1
-            {
+            if scheme.level.block_size().is_some() && shape_scales.num_elements() > 1 {
                 // Original block boundaries no longer align with the layout, would have to be recomputed
                 unimplemented!(
                     "Cannot reshape a block-quantized tensor when the reshape requires recomputing the buffer."

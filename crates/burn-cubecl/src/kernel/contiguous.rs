@@ -121,5 +121,17 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         dtype_to_storage_type(dtype_scales),
     );
 
+    // The per-tensor scale of a two-level scheme sits in its own region, which `empty_qtensor`
+    // allocates but nothing else writes.
+    if let (Some(global), Some(out_global)) = (tensor.global(), output.global()) {
+        let dtype_global = global.dtype;
+        cubecl::std::tensor::copy_into(
+            &client,
+            global.binding(),
+            out_global.binding(),
+            dtype_to_storage_type(dtype_global),
+        );
+    }
+
     output
 }
