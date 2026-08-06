@@ -267,13 +267,11 @@ impl QuantizedBytes {
     fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
         // Rounded up to match `params_shape`, which is what the writer sized the scale region from.
         // Truncating here reads one block scale short and eats into the values.
-        let num_params = match self.scheme.level {
-            QuantLevel::Tensor => 1,
-            QuantLevel::Block(block_size)
-            | QuantLevel::BlockTensor {
-                block: block_size, ..
-            } => self.num_elements.div_ceil(block_size.num_elements()),
-        };
+        let num_params = self
+            .scheme
+            .level
+            .block_size()
+            .map_or(1, |block| self.num_elements.div_ceil(block.num_elements()));
         let scale_bytes =
             scale_size(self.scheme.param) * num_params + global_scale_size(&self.scheme);
 
