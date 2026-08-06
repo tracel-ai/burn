@@ -1,8 +1,8 @@
 use crate::module::LoraAdapter;
 use crate::module::Reparameterization;
 
-use super::DynReparameterization;
 use super::ParamId;
+use super::reparameterization_dyn::DynReparameterization;
 use super::sync_once_cell::SyncOnceCell;
 use alloc::format;
 
@@ -197,7 +197,19 @@ impl<T: Parameter> core::fmt::Debug for Param<T> {
 }
 
 pub(crate) mod sealed {
-    pub trait Sealed {}
+    use super::DynReparameterization;
+
+    pub trait Sealed: Sized {
+        /// Materialize a parameter with an attached reparameterization.
+        ///
+        /// # Notes
+        /// This is part of the sealed trait to avoid [`DynReparameterization`] from showing up in the
+        /// public `Parameter` trait.
+        fn materialize(self, reparameterization: &dyn DynReparameterization) -> Self {
+            let _ = reparameterization;
+            self
+        }
+    }
 }
 
 /// Trait that defines what is necessary for a type to be a parameter.
@@ -224,13 +236,6 @@ pub trait Parameter: sealed::Sealed + Clone + core::fmt::Debug + Send {
     /// Moves the parameter to the target device if it is not already on it,
     /// applying any kind-specific preparation required for the loading lifecycle (e.g. detach).
     fn load_to_device(self, device: &Device) -> Self;
-
-    /// Materialize a parameter with an attached reparameterization.
-    #[doc(hidden)]
-    fn materialize(self, reparameterization: &dyn DynReparameterization) -> Self {
-        let _ = reparameterization;
-        self
-    }
 }
 
 /// The deferred initialization state for lazy parameters.

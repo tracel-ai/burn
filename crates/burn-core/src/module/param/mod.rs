@@ -5,6 +5,7 @@ mod id;
 mod lora;
 mod primitive;
 mod reparameterization;
+mod reparameterization_dyn;
 mod running;
 mod sync_once_cell;
 mod tensor;

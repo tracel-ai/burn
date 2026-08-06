@@ -1,4 +1,5 @@
-use super::{DynMapper, DynVisitor, Param, ParamId, Parameter, Reparameterization};
+use super::reparameterization_dyn::{self, DynReparameterization};
+use super::{Param, ParamId, Parameter, Reparameterization};
 use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
     ModuleVisitor,
@@ -6,7 +7,14 @@ use crate::module::{
 use alloc::{boxed::Box, format, string::ToString, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
 
-impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {}
+impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
+    fn materialize(self, reparameterization: &dyn DynReparameterization) -> Self {
+        *reparameterization
+            .materialize_dyn(Box::new(self))
+            .downcast::<Tensor<D>>()
+            .expect("Reparameterization should preserve tensor rank")
+    }
+}
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Int> {}
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Bool> {}
 
@@ -33,13 +41,6 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
         } else {
             self
         }
-    }
-
-    fn materialize(self, reparameterization: &dyn super::DynReparameterization) -> Self {
-        *reparameterization
-            .materialize_dyn(Box::new(self))
-            .downcast::<Tensor<D>>()
-            .expect("Reparameterization should preserve tensor rank")
     }
 }
 
@@ -128,8 +129,7 @@ impl<const D: usize> Param<Tensor<D>> {
     where
         R: Reparameterization,
     {
-        self.reparameterization =
-            Some(super::reparameterization::boxed::<R, D>(reparameterization));
+        self.reparameterization = Some(reparameterization_dyn::boxed::<R, D>(reparameterization));
         self
     }
 }
@@ -141,7 +141,7 @@ impl<const D: usize> Module for Param<Tensor<D>> {
             Some(reparameterization) => {
                 visitor.visit_float(&self.without_reparameterization());
                 visitor.enter_module(reparameterization.name(), "Reparameterization");
-                reparameterization.visit_dyn(&mut DynVisitor { visitor });
+                reparameterization_dyn::visit(reparameterization, visitor);
                 visitor.exit_module(reparameterization.name(), "Reparameterization");
             }
         }
@@ -153,7 +153,7 @@ impl<const D: usize> Module for Param<Tensor<D>> {
             Some(reparameterization) => {
                 let base = mapper.map_float(self);
                 mapper.enter_module(reparameterization.name(), "Reparameterization");
-                let reparameterization = reparameterization.map_dyn(&mut DynMapper { mapper });
+                let reparameterization = reparameterization_dyn::map(reparameterization, mapper);
                 mapper.exit_module(reparameterization.name(), "Reparameterization");
                 base.with_dyn_reparameterization(Some(reparameterization))
             }
