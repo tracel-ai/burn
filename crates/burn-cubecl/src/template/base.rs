@@ -1,6 +1,10 @@
 use super::SourceTemplate;
 use crate::{CubeRuntime, tensor::CubeTensor};
-use cubecl::{CompilationError, Compiler, CubeTask, prelude::*};
+use cubecl::{
+    CompilationError, Compiler, CubeTask,
+    ir::{UIntKind, metadata::Info},
+    prelude::*,
+};
 
 /// Kernel source to create a [source](SourceTemplate)
 pub trait KernelSource: Send + 'static + Sync {
@@ -22,16 +26,12 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
         // A source kernel has no expanded IR, the source text is the kernel. The definition only
         // keys the compilation cache, so the source rides along in the kernel name to keep a
         // cached artifact from outliving an edit to the template.
+        let settings =
+            KernelSettings::new(self.cube_dim.0, ExecutionMode::Checked, AddressType::U32);
         KernelDefinition {
-            buffers: Vec::new(),
-            tensor_maps: Vec::new(),
-            scalars: Vec::new(),
-            cube_dim: self.cube_dim,
-            body: Scope::root(false),
-            options: KernelOptions {
-                kernel_name: self.kernel_source.source().complete(),
-                ..Default::default()
-            },
+            body: Scope::root(settings.clone()),
+            settings,
+            info: Info::default(),
         }
     }
 
@@ -40,8 +40,6 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
         _definition: KernelDefinition,
         _compiler: &mut C,
         _options: &C::CompilationOptions,
-        _mode: ExecutionMode,
-        _address_type: StorageType,
     ) -> Result<CompiledKernel<C>, CompilationError> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
@@ -62,8 +60,8 @@ impl<K: KernelSource> KernelMetadata for SourceKernel<K> {
         self.kernel_source.id()
     }
 
-    fn address_type(&self) -> StorageType {
-        u32::as_type_native_unchecked().storage_type()
+    fn address_type(&self) -> ElemType {
+        UIntKind::U32.into()
     }
 }
 

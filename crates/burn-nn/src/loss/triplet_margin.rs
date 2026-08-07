@@ -1,3 +1,5 @@
+#![allow(clippy::approx_constant)]
+
 use burn_core as burn;
 
 use burn::config::Config;

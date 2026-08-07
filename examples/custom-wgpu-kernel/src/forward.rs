@@ -48,7 +48,7 @@ impl Backend for CubeBackend<WgpuRuntime> {
     ) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
         // Define cube dim, hardcoded for simplicity.
-        let cube_dim = CubeDim { x: 16, y: 16, z: 1 };
+        let cube_dim = CubeDim::new_3d(16, 16, 1);
 
         lhs.assert_is_on_same_device(&rhs);
         lhs.assert_is_on_same_device(&bias);

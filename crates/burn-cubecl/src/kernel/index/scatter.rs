@@ -17,7 +17,7 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     value: &Tensor<T>,
     in_shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
-    #[define(T, I)] _dtypes: [StorageType; 2],
+    #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
     let rank = in_shape.len().comptime();
     let stride_input = input.stride(dim);
@@ -66,7 +66,7 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
             Vector::cast_from(input[input_idx]),
             Vector::cast_from(value),
         );
-        input[input_idx] = value.extract(0);
+        input[input_idx] = value.extract(0usize);
     }
 }
 

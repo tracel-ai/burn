@@ -61,7 +61,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
     pub fn full_kernel<C: Numeric, N: Size>(
         mut tensor: LinearViewMut<'_, Vector<C, N>>,
         value: InputScalar,
-        #[define(C)] _dtype: StorageType,
+        #[define(C)] _dtype: ElemType,
     ) {
         if !tensor.is_in_bounds(ABSOLUTE_POS) {
             terminate!();
@@ -378,7 +378,7 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     mut output: LinearViewMut<'_, C>,
     shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

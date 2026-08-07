@@ -22,7 +22,7 @@ fn gather_nd_kernel<T: Numeric, I: Int>(
     slice_size: usize,
     k: usize,
     working_units: usize,
-    #[define(T, I)] _dtypes: [StorageType; 2],
+    #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
     if ABSOLUTE_POS >= working_units {
         terminate!();

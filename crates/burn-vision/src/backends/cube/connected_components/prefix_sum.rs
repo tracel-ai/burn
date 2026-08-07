@@ -22,14 +22,14 @@ fn prefix_sum_kernel<I: Int, N: Size>(
     scan_bump: &Tensor<Atomic<I>>,
     reduction: &Tensor<Atomic<I>>,
     cube_count_x: usize,
-    #[define(I)] _dtype: StorageType,
+    #[define(I)] _dtype: ElemType,
 ) {
     let mut broadcast = Shared::<I>::new();
     let mut reduce = Shared::new_slice(MAX_REDUCE_SIZE);
     let batch = CUBE_POS_Z as usize;
-    let line_spt = comptime!(PART_SIZE / CUBE_SIZE / scan_in.vector_size());
+    let line_spt = PART_SIZE / CUBE_SIZE / scan_in.vector_size().comptime();
     let nums_per_cube = CUBE_SIZE * line_spt;
-    let v_last = comptime!(scan_in.vector_size() - 1);
+    let v_last = scan_in.vector_size().comptime() - 1;
 
     //acquire partition index
     if UNIT_POS_X == 0 {

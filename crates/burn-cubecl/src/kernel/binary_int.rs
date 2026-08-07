@@ -88,7 +88,7 @@ pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
     input: LinearView<'_, Vector<C, N>>,
     scalar: InputScalar,
     mut output: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -105,7 +105,7 @@ pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
     lhs: LinearView<'_, Vector<C, N>>,
     rhs: LinearView<'_, Vector<C, N>>,
     mut out: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

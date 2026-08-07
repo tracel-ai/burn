@@ -26,7 +26,7 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     slice_size: usize,
     k: usize,
     working_units: usize,
-    #[define(T, I)] _dtypes: [StorageType; 2],
+    #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
     if ABSOLUTE_POS >= working_units {
         terminate!();
@@ -83,7 +83,7 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
         Vector::cast_from(data[data_idx]),
         Vector::cast_from(values[val_offset]),
     );
-    data[data_idx] = result.extract(0);
+    data[data_idx] = result.extract(0usize);
 }
 
 pub(crate) fn scatter_nd<R: CubeRuntime>(

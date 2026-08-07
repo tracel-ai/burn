@@ -256,7 +256,7 @@ mod tests {
         let id_default = ParamId::new();
 
         let mut scheduler = ModuleLrSchedulerConfig::new(0.001.into())
-            .with_group(ParamGroup::from_ids(vec![id_group.clone()]), 0.1)
+            .with_group(ParamGroup::from_ids(vec![id_group]), 0.1)
             .init()
             .unwrap();
 
@@ -278,7 +278,7 @@ mod tests {
         let id = ParamId::new();
 
         check_approx(
-            policy.lr_from_param(id.clone(), Some("model.backbone.layer.weight")),
+            policy.lr_from_param(id, Some("model.backbone.layer.weight")),
             0.1,
         );
         check_approx(
@@ -296,11 +296,11 @@ mod tests {
         let mut scheduler =
             ModuleLrSchedulerConfig::new(LinearLrSchedulerConfig::new(0.001, 0.0001, 4).into())
                 .with_group(
-                    ParamGroup::from_ids(vec![id_a.clone()]),
+                    ParamGroup::from_ids(vec![id_a]),
                     LinearLrSchedulerConfig::new(0.1, 0.01, 4),
                 )
                 .with_group(
-                    ParamGroup::from_ids(vec![id_b.clone()]),
+                    ParamGroup::from_ids(vec![id_b]),
                     LinearLrSchedulerConfig::new(0.5, 0.05, 4),
                 )
                 .init()
@@ -308,9 +308,9 @@ mod tests {
 
         // Each group returns its own initial LR
         let policy = scheduler.step();
-        check_approx(policy.lr_from_param(id_a.clone(), None), 0.1);
-        check_approx(policy.lr_from_param(id_b.clone(), None), 0.5);
-        check_approx(policy.lr_from_param(id_default.clone(), None), 0.001);
+        check_approx(policy.lr_from_param(id_a, None), 0.1);
+        check_approx(policy.lr_from_param(id_b, None), 0.5);
+        check_approx(policy.lr_from_param(id_default, None), 0.001);
 
         // All three schedulers advanced; LRs are strictly between initial and final
         let policy = scheduler.step();
@@ -338,7 +338,7 @@ mod tests {
         let make = || {
             ModuleLrSchedulerConfig::new(LinearLrSchedulerConfig::new(0.01, 0.001, 9).into())
                 .with_group(
-                    ParamGroup::from_ids(vec![id_group.clone()]),
+                    ParamGroup::from_ids(vec![id_group]),
                     LinearLrSchedulerConfig::new(0.1, 0.01, 9),
                 )
                 .init()
@@ -357,8 +357,8 @@ mod tests {
         let mut restored = make().load_record(record);
 
         for _ in 0..4 {
-            let lr_restored = restored.step().lr_from_param(id_group.clone(), None);
-            let lr_truth = truth.step().lr_from_param(id_group.clone(), None);
+            let lr_restored = restored.step().lr_from_param(id_group, None);
+            let lr_truth = truth.step().lr_from_param(id_group, None);
             check_approx(lr_restored, lr_truth);
         }
     }

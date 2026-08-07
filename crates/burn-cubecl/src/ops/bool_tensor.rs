@@ -98,6 +98,11 @@ impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
         kernel::equal(lhs, rhs, dtype)
     }
 
+    fn bool_not_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        let dtype = lhs.dtype;
+        kernel::not_equal(lhs, rhs, dtype)
+    }
+
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let dtype = tensor.dtype;
         let storage = dtype_to_storage_type(dtype);

@@ -19,7 +19,7 @@ use burn_ir::TensorId;
 use cubecl::{
     Runtime,
     client::ComputeClient,
-    ir::{ElemType, StorageType, UIntKind},
+    ir::{ElemType, UIntKind},
 };
 use cubecl::{
     ir::VectorSize,
@@ -83,11 +83,11 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             TensorView::NhwcStrides { .. } => None,
         });
 
-        let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);
+        let mut ref_elem = (ElemType::UInt(UIntKind::U64), 8);
         let mut quants_vector_sizes: Option<Vec<VectorSize>> = None;
 
         for input in plan.handle_inputs.iter() {
-            let elem: StorageType = match input {
+            let elem: ElemType = match input {
                 HandleInput::Normal(h) => dtype_to_storage_type(h.global_ir.dtype),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
                     burn_std::DType::QFloat(scheme) => {
@@ -105,7 +105,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
         for r in plan.global_outputs.iter() {
-            let elem: StorageType = dtype_to_storage_type(r.dtype);
+            let elem: ElemType = dtype_to_storage_type(r.dtype);
             let elem_size = elem.size();
 
             if ref_elem.1 >= elem_size {
