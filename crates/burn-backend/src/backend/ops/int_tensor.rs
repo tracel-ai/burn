@@ -909,6 +909,9 @@ pub trait IntTensorOps<B: Backend> {
     /// The mean of all elements in the tensor.
     fn int_mean(tensor: IntTensor<B>) -> IntTensor<B> {
         let num_elems = tensor.shape().num_elements() as i64;
+        // Dividing by a zero count has no integer answer, and unlike a float there is no `NaN`
+        // to fall back on, so reject it rather than return whatever the device's division gives.
+        assert!(num_elems > 0, "Cannot compute mean of empty tensor");
         B::int_div_scalar(B::int_sum(tensor), num_elems.into())
     }
 

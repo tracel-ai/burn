@@ -79,3 +79,40 @@ fn test_prod_dim_int() {
         .into_data()
         .assert_eq(&TensorData::from([[0], [60]]), false);
 }
+
+// `sum` and `prod` over zero elements return their identity for ints just as for floats.
+#[test]
+fn test_should_sum_empty_int() {
+    let tensor = TestTensorInt::<1>::empty([0], &Default::default());
+
+    let output = tensor.sum();
+
+    output.into_data().assert_eq(&TensorData::from([0]), false);
+}
+
+#[test]
+fn test_should_prod_empty_int() {
+    let tensor = TestTensorInt::<1>::empty([0], &Default::default());
+
+    let output = tensor.prod();
+
+    output.into_data().assert_eq(&TensorData::from([1]), false);
+}
+
+// A float mean of nothing is `NaN`, but an integer has no such value, so the empty integer mean
+// is rejected instead of reporting whatever a division by a zero count produces.
+#[test]
+#[should_panic]
+fn test_mean_empty_int_should_panic() {
+    let tensor = TestTensorInt::<1>::empty([0], &Default::default());
+
+    let _ = tensor.mean().into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_mean_dim_empty_axis_int_should_panic() {
+    let tensor = TestTensorInt::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.mean_dim(1).into_data();
+}

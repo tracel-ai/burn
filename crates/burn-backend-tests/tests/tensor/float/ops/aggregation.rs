@@ -643,3 +643,99 @@ fn test_should_mean_overflow_intermediate_sum() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([511.5]), Tolerance::default());
 }
+
+// Reducing zero elements returns the identity of the folded operation: 0 for `sum`, 1 for
+// `prod`. Matches numpy and torch. The extrema (`max` / `min`) have no identity and are
+// covered by the `should_panic` tests in `maxmin.rs` instead.
+#[test]
+fn test_should_sum_empty() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([0.0]), false);
+}
+
+#[test]
+fn test_should_prod_empty() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.prod();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([1.0]), false);
+}
+
+// `mean` of nothing is `0 / 0`, so `NaN` rather than an identity.
+#[test]
+fn test_should_mean_empty_is_nan() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.mean().into_data();
+
+    let values = output.as_slice::<FloatElem>().unwrap();
+    assert_eq!(values.len(), 1);
+    assert!(values[0].is_nan(), "mean of an empty tensor should be NaN");
+}
+
+// Shape [3, 0]: the reduced axis is empty but the output is not, so one identity is written
+// per surviving position. This is the case that had no viable autotune candidate.
+#[test]
+fn test_should_sum_dim_empty_axis() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.sum_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[0.0], [0.0], [0.0]]), false);
+}
+
+#[test]
+fn test_should_prod_dim_empty_axis() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.prod_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1.0], [1.0], [1.0]]), false);
+}
+
+// Shape [0, 3]: the reduced axis is non-empty, but every output position is eliminated by the
+// zero-length outer axis, so the result is empty rather than an identity.
+#[test]
+fn test_should_sum_dim_empty_tensor_non_empty_axis() {
+    let tensor = TestTensor::<2>::empty([0, 3], &Default::default());
+
+    let output = tensor.sum_dim(1);
+
+    assert_eq!(output.dims(), [0, 1]);
+}
+
+// Shape [3, 0] reduced over every axis: `sum` folds to a single identity.
+#[test]
+fn test_should_sum_all_dims_empty_axis() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([0.0]), false);
+}
+
+// Shape [0, 0]: the reduced axis is empty, so `max_dim` is rejected even though the output would
+// have been empty anyway. Whether the output is empty depends on the *other* axis, so accepting
+// this while rejecting [3, 0] would make the same operation succeed or fail based on an unrelated
+// dimension. numpy raises `ValueError` and torch raises `IndexError` for both shapes.
+#[test]
+#[should_panic]
+fn test_should_max_dim_empty_axis_empty_output() {
+    let tensor = TestTensor::<2>::empty([0, 0], &Default::default());
+
+    let _ = tensor.max_dim(1).into_data();
+}

@@ -2,13 +2,15 @@
 use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
 use crate::{
     CubeRuntime,
-    ops::numeric::{empty_device_contiguous_dtype, zeros_client},
+    ops::numeric::{empty_device_contiguous_dtype, full_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
-use burn_backend::cubecl::{dtype_to_elem_type, elem_type_to_dtype};
+use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type, elem_type_to_dtype};
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{BoolDType, Metadata};
-use cubecl::{AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type};
+use cubecl::{
+    AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type, prelude::InputScalar,
+};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy, ReduceWithIndicesDtypes,
     components::instructions::ReduceOperationConfig,
@@ -26,6 +28,69 @@ pub struct SumAutotuneKey {
     /// The anchored length of the tensor
     #[autotune(anchor)]
     length: usize,
+}
+
+/// The value a reduction over zero elements must produce, if one exists.
+///
+/// A reduction folds a binary operation along the axis, so reducing zero elements yields that
+/// operation's identity: `Sum` and `Any` fold with `+` / `OR` (identity `0`), `Prod` and `All`
+/// with `*` / `AND` (identity `1`). `Mean` divides a zero sum by a zero count, which is `NaN` -
+/// the same answer numpy and torch give.
+///
+/// The extrema return `None`, meaning "no defined result". `Max` / `Min` / `TopK` have no
+/// identity in a bounded numeric type (there is no integer below `i32::MIN`), an `Arg*` would
+/// have to name an element that does not exist, and `MaxAbs` is an extremum too. numpy raises
+/// `ValueError` and torch raises `IndexError` for all of these, so reporting an error rather
+/// than inventing a value keeps burn consistent with both, and with the CPU backends, which
+/// already reject an empty `max` / `min`.
+fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<f64> {
+    match config {
+        ReduceOperationConfig::Sum | ReduceOperationConfig::Any => Some(0.0),
+        ReduceOperationConfig::Prod | ReduceOperationConfig::All => Some(1.0),
+        // Only floats can carry `NaN`; an integer mean of nothing has no representable value.
+        ReduceOperationConfig::Mean => dtype.is_float().then_some(f64::NAN),
+        ReduceOperationConfig::Max
+        | ReduceOperationConfig::Min
+        | ReduceOperationConfig::MaxAbs
+        | ReduceOperationConfig::TopK(_)
+        | ReduceOperationConfig::ArgMax
+        | ReduceOperationConfig::ArgMin
+        | ReduceOperationConfig::ArgTopK(_) => None,
+    }
+}
+
+/// Fill `output` with the identity of `config`, or report that `config` has none.
+///
+/// The reduce kernels require at least one element along the reduced axis (cubek's
+/// `validate_shapes` rejects a zero-length axis with [`ReduceError::ReduceAxisTooSmall`]), so a
+/// zero-length axis never reaches a kernel and the identity is written directly instead.
+///
+/// An operation with no identity is rejected even when `output` is itself empty. Emptiness of
+/// the output depends on the *other* axes, so allowing it would make `max` over a zero-length
+/// axis succeed for shape `[0, 0]` and fail for `[3, 0]` - and numpy, torch and the CPU
+/// backends all reject both.
+fn reduce_empty_axis<Run: CubeRuntime>(
+    output: CubeTensor<Run>,
+    axis_length: usize,
+    config: ReduceOperationConfig,
+) -> Result<CubeTensor<Run>, ReduceError> {
+    let identity =
+        empty_reduce_identity(config, output.dtype).ok_or(ReduceError::ReduceAxisTooSmall {
+            axis_length,
+            k: accumulator_len(config),
+        })?;
+
+    if output.meta.num_elements() == 0 {
+        return Ok(output);
+    }
+
+    Ok(full_device_dtype(
+        output.client.clone(),
+        output.shape(),
+        output.device.clone(),
+        InputScalar::new(identity, dtype_to_storage_type(output.dtype)),
+        output.dtype,
+    ))
 }
 
 /// Check if the client supports atomic add for the given element type.
@@ -62,6 +127,12 @@ pub fn sum<Run: CubeRuntime>(
 ) -> Result<CubeTensor<Run>, ReduceError> {
     let client = tensor.client.clone();
     let device = tensor.device.clone();
+
+    // No element to sum: the result is the additive identity, and no strategy can launch a
+    // kernel over an empty input.
+    if tensor.meta.num_elements() == 0 {
+        return Ok(zeros_client(client, device, [1].into(), tensor.dtype));
+    }
 
     match strategy {
         SumStrategy::OneShot(cube_count) => {
@@ -225,6 +296,14 @@ pub fn reduce_dim<Run: CubeRuntime>(
         },
     )?;
 
+    // A zero-length reduced axis has nothing to fold, so write the identity into `output`
+    // instead of launching a kernel. `output` already carries the right shape, with `dim` set
+    // to `accumulator_len`.
+    let axis_length = input.meta.shape[dim];
+    if axis_length == 0 {
+        return reduce_empty_axis::<Run>(output, axis_length, config);
+    }
+
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce::<Run>(
             &client,
@@ -324,6 +403,17 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
     .ok_or_else(invalid_axis)?;
     let indices = init_reduce_output_dtype::<Run>(&input, dim, indices_dtype, out_len)
         .ok_or_else(invalid_axis)?;
+
+    // Every `config` reaching this point is `Max`, `Min` or `TopK`: an empty axis leaves each of
+    // them with no value to report and no index to name, so it is always rejected - including
+    // when the outputs are themselves empty, which depends on the other axes rather than on this
+    // one.
+    if input.meta.shape[dim] == 0 {
+        return Err(ReduceError::ReduceAxisTooSmall {
+            axis_length: 0,
+            k: out_len,
+        });
+    }
 
     let client = input.client.clone();
 

@@ -85,3 +85,24 @@ fn test_any_dim_large() {
     let boolean = TestTensorBool::<2>::from_data(TensorData::new(mask, [rows, cols]), &device);
     expected.assert_eq(&boolean.any_dim(1).into_data(), false);
 }
+
+/// `any` folds with OR, whose identity is `false`, so an empty input is `false`. Unlike the
+/// numeric extrema this is well defined, and `all` (identity `true`) is covered in `all.rs`.
+#[test]
+fn test_any_empty() {
+    let device = Default::default();
+    let expected = TensorData::from([false]);
+
+    expected.assert_eq(
+        &TestTensor::<1>::empty([0], &device).any().into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorInt::<1>::empty([0], &device).any().into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorBool::<1>::empty([0], &device).any().into_data(),
+        false,
+    );
+}

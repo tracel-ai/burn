@@ -45,3 +45,24 @@ fn test_all_dim_large() {
     let boolean = TestTensorBool::<2>::from_data(TensorData::new(mask, [rows, cols]), &device);
     expected.assert_eq(&boolean.all_dim(1).into_data(), false);
 }
+
+/// `all` folds with AND, whose identity is `true`, so an empty input is vacuously `true`.
+/// Matches numpy and torch; `any` (identity `false`) is covered in `any.rs`.
+#[test]
+fn test_all_empty() {
+    let device = Default::default();
+    let expected = TensorData::from([true]);
+
+    expected.assert_eq(
+        &TestTensor::<1>::empty([0], &device).all().into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorInt::<1>::empty([0], &device).all().into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorBool::<1>::empty([0], &device).all().into_data(),
+        false,
+    );
+}

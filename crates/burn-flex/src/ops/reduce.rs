@@ -423,6 +423,12 @@ pub fn prod_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
 
 /// Max of all elements, returning a scalar tensor of shape \[1\].
 pub fn max(tensor: FlexTensor) -> FlexTensor {
+    // Asserted here rather than per dtype: the half paths seed the fold with an infinity, so
+    // without this they would report that seed as the max of nothing instead of failing.
+    assert!(
+        tensor.layout().shape().num_elements() > 0,
+        "max: cannot reduce an empty tensor"
+    );
     match tensor.dtype() {
         DType::F32 => max_f32_reduce(&tensor),
         DType::F64 => max_impl::<f64>(&tensor),
@@ -454,6 +460,10 @@ pub fn max(tensor: FlexTensor) -> FlexTensor {
 
 /// Min of all elements, returning a scalar tensor of shape \[1\].
 pub fn min(tensor: FlexTensor) -> FlexTensor {
+    assert!(
+        tensor.layout().shape().num_elements() > 0,
+        "min: cannot reduce an empty tensor"
+    );
     match tensor.dtype() {
         DType::F32 => min_f32_reduce(&tensor),
         DType::F64 => min_impl::<f64>(&tensor),

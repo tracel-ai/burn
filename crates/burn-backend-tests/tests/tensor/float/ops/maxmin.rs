@@ -300,3 +300,41 @@ fn test_max_dim_with_indices_nan_propagation() {
         .into_data()
         .assert_eq(&TensorData::from([[1]]), false);
 }
+
+// Unlike `sum` and `prod`, the extrema have no identity to return for an empty input: there is
+// no value below `i32::MIN` for an int tensor, and `argmax` would have to name an element that
+// does not exist. numpy raises `ValueError` and torch raises `IndexError` here, so burn must
+// fail rather than invent a value.
+#[test]
+#[should_panic]
+fn test_max_empty_should_panic() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let _ = tensor.max().into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_min_empty_should_panic() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let _ = tensor.min().into_data();
+}
+
+// Shape [3, 0]: the reduced axis is empty while the output is not, so a value would have to be
+// invented for each of the three surviving positions.
+#[test]
+#[should_panic]
+fn test_max_dim_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.max_dim(1).into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_argmax_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.argmax(1).into_data();
+}
