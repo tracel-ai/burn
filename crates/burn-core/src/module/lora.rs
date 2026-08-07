@@ -1,4 +1,4 @@
-use burn_tensor::{Distribution, Tensor};
+use burn_tensor::{Distribution, FloatDType, Tensor};
 
 use crate::module::{LoraAdapter, Param, ParamGroup, Quantizer, Reparameterizer};
 
@@ -82,6 +82,14 @@ impl Reparameterizer for LoraMapper {
         let device = tensor.device();
         let dims = tensor.dims();
         let (d_in, d_out) = (dims[0], dims[1]);
+        // The factors compose with the base in `base + scale * (a @ b)`, so they
+        // are built at the base's precision: a half-precision checkpoint would
+        // otherwise get f32 adapters and fail that op on any backend that does
+        // not promote silently. A *quantized* base is dequantized before it
+        // composes, so its packed dtype says nothing about theirs — they stay at
+        // the default there.
+        let base_dtype = tensor.dtype();
+        let dtype = base_dtype.is_float().then(|| FloatDType::from(base_dtype));
 
         // Freeze the base weight; only the adapter factors will be trained.
         let base = Param::from_mapped_value(id, tensor.set_require_grad(false), mapper);
@@ -92,6 +100,10 @@ impl Reparameterizer for LoraMapper {
             let std = self.config.init_std.unwrap_or(1.0 / rank as f64);
             let a = Tensor::<2>::random([d_in, rank], Distribution::Normal(0.0, std), &device);
             let b = Tensor::<2>::zeros([rank, d_out], &device);
+            let (a, b) = match dtype {
+                Some(dtype) => (a.cast(dtype), b.cast(dtype)),
+                None => (a, b),
+            };
 
             let adapter = LoraAdapter {
                 a: Param::from_tensor(a),

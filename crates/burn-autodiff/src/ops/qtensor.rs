@@ -6,37 +6,50 @@ use burn_backend::{
 };
 use burn_std::{FloatDType, IntDType, QuantScheme, Shape};
 
-use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
+use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 
 impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
-    fn q_from_data(_data: TensorData, _device: &Device<Self>) -> QuantizedTensor<Self> {
-        todo!()
+    fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
+        B::q_from_data(data, device)
     }
 
     fn quantize(
-        _tensor: FloatTensor<Self>,
-        _scheme: &QuantScheme,
-        _qparams: QuantizationParametersPrimitive<Self>,
+        tensor: FloatTensor<Self>,
+        scheme: &QuantScheme,
+        qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        todo!() // required for QAT
+        // Quantization detaches: the rounding makes it non-differentiable, so
+        // the packed tensor starts a new (grad-free) history. Quantization-aware
+        // training would need a straight-through estimator here instead.
+        B::quantize(
+            tensor.primitive,
+            scheme,
+            QuantizationParametersPrimitive {
+                scales: qparams.scales.primitive,
+            },
+        )
     }
 
     fn quantize_dynamic(
-        _tensor: FloatTensor<Self>,
-        _scheme: &QuantScheme,
+        tensor: FloatTensor<Self>,
+        scheme: &QuantScheme,
     ) -> QuantizedTensor<Self> {
-        todo!()
+        B::quantize_dynamic(tensor.primitive, scheme)
     }
 
-    fn dequantize(_tensor: QuantizedTensor<Self>, _dtype: FloatDType) -> FloatTensor<Self> {
-        todo!()
+    fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        // A quantized tensor carries no autodiff graph, so its float form is a
+        // new leaf that does not require gradients. Ops composing it with
+        // tracked tensors (e.g. a LoRA adapter over a frozen quantized base)
+        // propagate gradients through the tracked side only.
+        AutodiffTensor::new(B::dequantize(tensor, dtype))
     }
 
     fn q_to_device(
-        _tensor: QuantizedTensor<Self>,
-        _device: &Device<Self>,
+        tensor: QuantizedTensor<Self>,
+        device: &Device<Self>,
     ) -> QuantizedTensor<Self> {
-        unimplemented!()
+        B::q_to_device(tensor, device)
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
@@ -48,19 +61,19 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
     }
 
     fn q_swap_dims(
-        _tensor: QuantizedTensor<Self>,
-        _dim1: usize,
-        _dim2: usize,
+        tensor: QuantizedTensor<Self>,
+        dim1: usize,
+        dim2: usize,
     ) -> QuantizedTensor<Self> {
-        unimplemented!()
+        B::q_swap_dims(tensor, dim1, dim2)
     }
 
-    fn q_permute(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
+        B::q_permute(tensor, axes)
     }
 
-    fn q_flip(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_flip(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
+        B::q_flip(tensor, axes)
     }
 
     fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
