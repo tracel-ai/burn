@@ -143,7 +143,7 @@ impl TensorData {
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
-    /// let view: TensorDataView<f64> = data.try_index_view().unwrap();
+    /// let view: TensorDataView<f64> = data.try_view().unwrap();
     ///
     /// // Deref
     /// assert_eq!(&view.shape, &shape);
@@ -157,7 +157,7 @@ impl TensorData {
     /// # Returns
     /// `Ok(view)` on success; `Err(DataError::TypeError)` on view [`DType`]
     /// missmatch.
-    pub fn try_index_view<E: Element>(&self) -> Result<TensorDataView<'_, E>, DataError> {
+    pub fn try_view<E: Element>(&self) -> Result<TensorDataView<'_, E>, DataError> {
         TensorDataView::<E>::try_view(self)
     }
 
@@ -171,7 +171,7 @@ impl TensorData {
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
-    /// let view: TensorDataView<f64> = data.expect_index_view();
+    /// let view: TensorDataView<f64> = data.view();
     ///
     /// // Deref
     /// assert_eq!(&view.shape, &shape);
@@ -187,8 +187,8 @@ impl TensorData {
     ///
     /// # Panics
     /// If the view [`DType`] is not compatible with the [`TensorData`].
-    pub fn expect_index_view<E: Element>(&self) -> TensorDataView<'_, E> {
-        self.try_index_view().unwrap()
+    pub fn view<E: Element>(&self) -> TensorDataView<'_, E> {
+        self.try_view().unwrap()
     }
 
     /// Returns a [`TensorDataViewMut<'a, E>`] of the [`TensorData`].
@@ -201,7 +201,7 @@ impl TensorData {
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
-    /// let mut view: TensorDataViewMut<f64> = data.try_index_mut_view().unwrap();
+    /// let mut view: TensorDataViewMut<f64> = data.try_mut_view().unwrap();
     ///
     /// // Deref
     /// assert_eq!(&view.shape, &shape);
@@ -218,7 +218,7 @@ impl TensorData {
     /// # Returns
     /// `Ok(mut view)` on success; `Err(DataError::TypeError)` on view [`DType`]
     /// missmatch.
-    pub fn try_index_mut_view<E: Element>(
+    pub fn try_mut_view<E: Element>(
         &mut self,
     ) -> Result<TensorDataViewMut<'_, E>, DataError> {
         TensorDataViewMut::<E>::try_mut_view(self)
@@ -234,7 +234,7 @@ impl TensorData {
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
-    /// let mut view: TensorDataViewMut<f64> = data.expect_index_mut_view();
+    /// let mut view: TensorDataViewMut<f64> = data.mut_view();
     ///
     /// // Deref
     /// assert_eq!(&view.shape, &shape);
@@ -253,8 +253,8 @@ impl TensorData {
     ///
     /// # Panics
     /// If the view [`DType`] is not compatible with the [`TensorData`].
-    pub fn expect_index_mut_view<E: Element>(&mut self) -> TensorDataViewMut<'_, E> {
-        self.try_index_mut_view().unwrap()
+    pub fn mut_view<E: Element>(&mut self) -> TensorDataViewMut<'_, E> {
+        self.try_mut_view().unwrap()
     }
 
     /// Returns the immutable slice view of the tensor data.
@@ -987,7 +987,7 @@ impl core::fmt::Display for TensorData {
 /// use burn::prelude::*;
 ///
 /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-/// let view: TensorDataView<f64> = data.expect_index_view();
+/// let view: TensorDataView<f64> = data.view();
 ///
 /// // Deref
 /// assert_eq!(&view.shape, &data.shape);
@@ -1021,7 +1021,7 @@ impl<'a, E: Element> TensorDataView<'a, E> {
     /// use burn::prelude::*;
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    /// let view: TensorDataView<f64> = data.try_index_view().unwrap();
+    /// let view: TensorDataView<f64> = data.try_view().unwrap();
     ///
     /// // Deref.
     /// assert_eq!(&view.shape, &data.shape);
@@ -1075,8 +1075,7 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
 ///
 /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 /// let shape = data.shape.clone();
-/// let mut view: TensorDataViewMut<f64> =
-///     TensorDataViewMut::try_mut_view(&mut data).unwrap();
+/// let mut view: TensorDataViewMut<f64> = data.mut_view();
 ///
 /// // The view implements [`Deref`].
 /// assert_eq!(&view.shape, &shape);
@@ -1391,7 +1390,7 @@ mod tests {
     fn test_tensor_data_try_view_dtype_mismatch() {
         let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 
-        let result = data.try_index_view::<i32>();
+        let result = data.try_view::<i32>();
         assert!(matches!(result, Err(DataError::TypeMismatch(_))));
     }
 
@@ -1399,14 +1398,14 @@ mod tests {
     #[should_panic(expected = "Cannot view TensorData DType")]
     fn test_tensor_data_expect_view_dtype_mismatch() {
         let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-        let _view = data.expect_index_view::<i32>();
+        let _view = data.view::<i32>();
     }
 
     #[test]
     fn test_tensor_data_try_mut_view_dtype_mismatch() {
         let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 
-        let result = data.try_index_mut_view::<i32>();
+        let result = data.try_mut_view::<i32>();
         assert!(matches!(result, Err(DataError::TypeMismatch(_))));
     }
 
@@ -1414,13 +1413,13 @@ mod tests {
     #[should_panic(expected = "Cannot view TensorData DType")]
     fn test_tensor_data_expect_mut_view_dtype_mismatch() {
         let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-        let _view = data.expect_index_mut_view::<i32>();
+        let _view = data.mut_view::<i32>();
     }
 
     #[test]
     fn test_tensor_data_index_view() {
         let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-        let view = data.expect_index_view::<f64>();
+        let view = data.view::<f64>();
 
         // Deref
         assert_eq!(&data.shape, &view.shape);
@@ -1436,7 +1435,7 @@ mod tests {
         let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
         let shape = data.shape.clone();
 
-        let mut view = data.expect_index_mut_view::<f64>();
+        let mut view = data.mut_view::<f64>();
 
         // Deref
         assert_eq!(&view.shape, &shape);
