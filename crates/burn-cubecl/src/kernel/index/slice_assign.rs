@@ -101,6 +101,13 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
     indices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
+    let num_elems = value.meta.num_elements();
+
+    // Empty assignments have no work — launching a kernel here divides by
+    // zero in `FastDivmod` registration when a shape dim is 0.
+    if num_elems == 0 {
+        return tensor;
+    }
     // Check if any slice has non-unit step
     let has_non_unit_step = indices.iter().any(|s| s.step != 1 && s.step != 0);
 
@@ -160,7 +167,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         offsets.push(start);
     }
 
-    let working_units = value.meta.num_elements() / vector_size;
+    let working_units = num_elems / vector_size;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
@@ -196,6 +203,14 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     slices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
+    // Launch kernel
+    let working_units = value.meta.num_elements();
+
+    if working_units == 0 {
+        // Nothing to do
+        return tensor;
+    }
+
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
@@ -220,8 +235,6 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
         steps.push(1);
     }
 
-    // Launch kernel
-    let working_units = value.meta.num_elements();
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
