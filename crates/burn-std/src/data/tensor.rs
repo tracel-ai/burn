@@ -619,13 +619,13 @@ impl TensorData {
     /// # Returns
     /// `Ok(vec)` on success, or an error if the conversion fails.
     pub fn into_vec_as<E: Element>(self) -> Result<Vec<E>, DataError> {
-        self.try_convert::<E>()?.to_vec::<E>()
+        self.try_cast_as::<E>()?.to_vec::<E>()
     }
 
     /// Converts the data to a different element type.
     pub fn convert<E: Element>(self) -> Self {
         // TODO: deprecate?
-        self.try_convert::<E>().unwrap()
+        self.try_cast_as::<E>().unwrap()
     }
 
     /// Converts the data to a different element type.
@@ -641,7 +641,7 @@ impl TensorData {
     ///
     /// # Returns
     /// Ok(data) on success, (Currently) panics on failure.
-    pub fn try_convert<E: Element>(self) -> Result<TensorData, DataError> {
+    pub fn try_cast_as<E: Element>(self) -> Result<TensorData, DataError> {
         self.try_cast(E::dtype())
     }
 

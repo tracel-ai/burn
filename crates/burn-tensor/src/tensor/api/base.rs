@@ -2035,7 +2035,7 @@ where
     /// # Returns
     /// `Ok(data)`, or an error on data conversion errors.
     pub fn try_to_data_as<E: Element>(&self) -> Result<TensorData, DataError> {
-        self.to_data().try_convert::<E>()
+        self.to_data().try_cast_as::<E>()
     }
 
     /// Copies the current `Tensor` into `TensorData`; converts the dtype.
@@ -2091,7 +2091,7 @@ where
     /// # Returns
     /// `Ok(data)`, or an error on data conversion errors.
     pub fn try_into_data_as<E: Element>(self) -> Result<TensorData, DataError> {
-        self.into_data().try_convert::<E>()
+        self.into_data().try_cast_as::<E>()
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
