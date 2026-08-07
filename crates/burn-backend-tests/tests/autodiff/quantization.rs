@@ -43,7 +43,9 @@ fn should_diff_composition_over_dequantized_base() {
         .matmul(w_dq.clone().add(a.clone().matmul(b.clone())));
     let grads = y.sum().backward();
 
-    let grad_x = x.grad(&grads).expect("x is tracked through the composition");
+    let grad_x = x
+        .grad(&grads)
+        .expect("x is tracked through the composition");
     let grad_a = a.grad(&grads).expect("the a factor is tracked");
     let grad_b = b.grad(&grads).expect("the b factor is tracked");
     assert!(

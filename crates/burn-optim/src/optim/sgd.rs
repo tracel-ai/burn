@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn lora_finetune_trains_adapter_and_freezes_base() {
-        use burn::module::{LoraConfig, Module};
+        use burn::module::{Lora, Module};
         use burn::tensor::Tolerance;
 
         let device = Device::default().autodiff();
@@ -170,7 +170,7 @@ mod tests {
         let base_before = linear.weight.val();
 
         // Apply LoRA transparently — no change to `Linear` or its forward code.
-        let mut model = linear.apply_lora(LoraConfig::new(4, 8.0));
+        let mut model = linear.apply_lora(Lora::new(4, 8.0));
         assert!(model.weight.adapter().is_some());
         let b_before = model.weight.adapter().unwrap().b.val();
 
