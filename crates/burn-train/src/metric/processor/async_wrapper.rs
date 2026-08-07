@@ -36,6 +36,7 @@ impl<ET: Send + 'static, EV: Send + 'static, P: EventProcessorTraining<ET, EV> +
                         Message::Train(event) => worker.processor.process_train(event),
                         Message::Valid(event) => worker.processor.process_valid(event),
                         Message::Flush(callback) => {
+                            worker.processor.flush();
                             callback.send_blocking(()).unwrap();
                         }
                         Message::Renderer(callback) => {
@@ -164,6 +165,7 @@ mod tests {
 
     struct TestProcessor {
         processed: Arc<AtomicUsize>,
+        processed_on_flush: Arc<AtomicUsize>,
     }
 
     impl EventProcessorTraining<usize, usize> for TestProcessor {
@@ -175,6 +177,11 @@ mod tests {
             self.processed.fetch_add(event, Ordering::SeqCst);
         }
 
+        fn flush(&mut self) {
+            self.processed_on_flush
+                .store(self.processed.load(Ordering::SeqCst), Ordering::SeqCst);
+        }
+
         fn renderer(self) -> Box<dyn MetricsRenderer> {
             Box::new(CliMetricsRenderer::new())
         }
@@ -183,8 +190,10 @@ mod tests {
     #[test]
     fn flush_waits_for_queued_training_events() {
         let processed = Arc::new(AtomicUsize::new(0));
+        let processed_on_flush = Arc::new(AtomicUsize::new(0));
         let mut processor = AsyncProcessorTraining::new(TestProcessor {
             processed: processed.clone(),
+            processed_on_flush: processed_on_flush.clone(),
         });
 
         processor.process_train(2);
@@ -192,5 +201,7 @@ mod tests {
         processor.flush();
 
         assert_eq!(processed.load(Ordering::SeqCst), 5);
+        // The wrapped processor is flushed before the acknowledgement is sent back.
+        assert_eq!(processed_on_flush.load(Ordering::SeqCst), 5);
     }
 }

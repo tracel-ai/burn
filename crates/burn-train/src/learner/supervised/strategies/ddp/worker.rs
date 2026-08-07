@@ -126,7 +126,11 @@ impl<M: LearnerModel> DdpWorker<M> {
                 event_processor.process_train(LearnerEvent::EndEpoch(epoch));
             }
 
-            if self.checkpointer.is_some() || self.components.early_stopping.is_some() {
+            if self.components.flush_metrics {
+                // Only the main worker runs validation, so every worker waits for its validation
+                // and epoch end events to be queued before draining the event processor. This way
+                // checkpointing and early stopping never read a missing or stale metric value.
+                self.components.epoch_barrier.wait();
                 self.event_processor.lock().unwrap().flush();
             }
 

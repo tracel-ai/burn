@@ -1,5 +1,5 @@
 use core::panic;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Barrier, Mutex, mpsc};
 use std::thread;
 
 use crate::ddp::worker::DdpWorker;
@@ -28,6 +28,11 @@ pub(crate) struct WorkerComponents {
     pub train_total_items: usize,
     /// The total number of items in the validation dataset.
     pub valid_total_items: usize,
+    /// Whether metrics must be flushed at the end of each epoch, because checkpointing or early
+    /// stopping reads them from the event store.
+    pub flush_metrics: bool,
+    /// Synchronizes all workers at the end of each epoch, before metrics are flushed.
+    pub epoch_barrier: Arc<Barrier>,
 }
 
 /// A training strategy for Distributed Data Parallel (DDP) training.
@@ -84,6 +89,9 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
         let event_processor = Arc::new(Mutex::new(training_components.event_processor));
 
         let interrupter = training_components.interrupter;
+        // Must be the same for every worker, since they all take part in the synchronization.
+        let flush_metrics = training_components.checkpointer.is_some()
+            || training_components.early_stopping.is_some();
         let worker_components = WorkerComponents {
             num_epochs: training_components.num_epochs,
             grad_accumulation: training_components.grad_accumulation,
@@ -92,6 +100,8 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
             event_store: training_components.event_store,
             train_total_items,
             valid_total_items,
+            flush_metrics,
+            epoch_barrier: Arc::new(Barrier::new(peer_count)),
         };
 
         // Start worker for main device
