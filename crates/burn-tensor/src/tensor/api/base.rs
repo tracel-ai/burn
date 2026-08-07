@@ -2125,7 +2125,7 @@ where
     /// `Ok(data)`, or an error on data conversion errors.
     pub fn try_into_data_as<E: Element>(self) -> Result<TensorData, DataError> {
         self.try_into_data()
-            .map_err(|e| DataError::TypeMismatch(e.to_string()))?
+            .map_err(|e| DataError::TypeMismatch(format!("{e:?}")))?
             .try_cast_as::<E>()
     }
 
@@ -2155,7 +2155,7 @@ where
     /// `Ok(data)`, or an error on data conversion errors.
     pub fn try_into_data_dtype(self, dtype: DType) -> Result<TensorData, DataError> {
         self.try_into_data()
-            .map_err(|e| DataError::TypeMismatch(e.to_string()))?
+            .map_err(|e| DataError::TypeMismatch(format!("{e:?}")))?
             .try_cast(dtype)
     }
 
