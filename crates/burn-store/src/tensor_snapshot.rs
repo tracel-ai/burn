@@ -3,19 +3,8 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_core::tensor::quantization::{QuantParam, params_shape};
+use burn_core::tensor::quantization::{global_scale_size, params_shape, scale_size};
 use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
-use half::f16;
-
-/// Returns the byte size of a quantization parameter type.
-// TODO: Add `size_bytes()` method to `QuantParam` in cubecl and use it here.
-const fn quant_param_size(param: QuantParam) -> usize {
-    match param {
-        QuantParam::F32 => core::mem::size_of::<f32>(),
-        QuantParam::F16 | QuantParam::BF16 => core::mem::size_of::<f16>(),
-        QuantParam::UE8M0 | QuantParam::UE4M3 => core::mem::size_of::<u8>(),
-    }
-}
 
 /// Error type for TensorSnapshot operations
 #[derive(Debug, Clone)]
@@ -262,8 +251,8 @@ impl TensorSnapshot {
                 // Calculate number of quantization parameters (scales)
                 let num_params = params_shape(&self.shape, scheme.level).num_elements();
 
-                let scale_bytes = num_params * quant_param_size(scheme.param);
-                let global_bytes = scheme.level.global_param().map_or(0, quant_param_size);
+                let scale_bytes = num_params * scale_size(scheme.param);
+                let global_bytes = global_scale_size(&scheme);
 
                 // Dense: the alignment `QuantizedBytes` passes when it appends the scales only
                 // sizes the allocation, it does not move the write offset.

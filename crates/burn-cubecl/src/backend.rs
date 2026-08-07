@@ -4,7 +4,7 @@ use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
     TensorData,
 };
-use burn_std::{BoolStore, DType};
+use burn_std::{BoolStore, DType, quantization::levels_supported};
 use cubecl::{
     features::{MmaConfig, TypeUsage},
     server::ComputeServer,
@@ -132,6 +132,12 @@ where
         if let DType::Bool(BoolStore::Native) = dtype {
             return false;
         }
+        // `dtype_to_storage_type` doesn't see `scheme.level`/`scheme.param`.
+        if let DType::QFloat(scheme) = dtype
+            && !levels_supported(&scheme)
+        {
+            return false;
+        }
 
         let client = R::client(device);
 
@@ -149,6 +155,12 @@ where
         // Right now no cubecl backend actually works with native bool, even if
         // the `TypeUsage` might indicate otherwise.
         if let DType::Bool(BoolStore::Native) = dtype {
+            return DTypeUsageSet::empty();
+        }
+        // Same reason as `supports_dtype`.
+        if let DType::QFloat(scheme) = dtype
+            && !levels_supported(&scheme)
+        {
             return DTypeUsageSet::empty();
         }
 

@@ -4,8 +4,9 @@ use burn_backend::{
     DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive, get_device_settings,
     ops::{FloatTensorOps, QTensorOps},
     quantization::{
-        QParams, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
-        QuantizationParametersPrimitive, QuantizedBytes, scale_to_param, validate_levels,
+        BlockSize, QParams, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore,
+        QuantValue, QuantizationParametersPrimitive, QuantizedBytes, scale_to_param,
+        validate_levels,
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -51,7 +52,10 @@ impl QTensorOps<Self> for NdArray {
                         let qparams = qparams
                             .block
                             .into_iter()
-                            .map(|scales| QParams { scales })
+                            .map(|scales| QParams {
+                                scales,
+                                global: None,
+                            })
                             .collect();
 
                         NdArrayQTensor {
@@ -134,7 +138,10 @@ impl QTensorOps<Self> for NdArray {
                 let values = strategy.quantize(data_f.as_slice().unwrap());
                 (
                     TensorData::quantized(values, shape.clone(), *scheme, &[scales], None),
-                    vec![QParams { scales }],
+                    vec![QParams {
+                        scales,
+                        global: None,
+                    }],
                 )
             }
             QuantScheme {
@@ -152,24 +159,14 @@ impl QTensorOps<Self> for NdArray {
                     | QuantValue::Q2S,
                 store: QuantStore::Native,
                 ..
-            } => {
-                let scales = scales.as_slice();
-                let (strategy, qparams) = scales
-                    .iter()
-                    .map(|&s| {
-                        (
-                            SymmetricQuantization::init(s, scheme.value),
-                            QParams { scales: s },
-                        )
-                    })
-                    .unzip();
-                let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, *block_size);
-                let values = strategy.quantize(data_f.as_slice().unwrap());
-                (
-                    TensorData::quantized(values, shape.clone(), *scheme, scales, None),
-                    qparams,
-                )
-            }
+            } => quantize_per_block(
+                data_f.as_slice().unwrap(),
+                shape.clone(),
+                scheme,
+                *block_size,
+                scales.as_slice(),
+                None,
+            ),
             QuantScheme {
                 level: QuantLevel::BlockTensor { block, .. },
                 mode: QuantMode::Symmetric,
@@ -187,21 +184,13 @@ impl QTensorOps<Self> for NdArray {
                 ..
             } => {
                 let global = global.expect("a two-level scheme should have a per-tensor scale");
-                let scales = scales.as_slice();
-                let (strategy, qparams) = scales
-                    .iter()
-                    .map(|&s| {
-                        (
-                            SymmetricQuantization::init(global * s, scheme.value),
-                            QParams { scales: s },
-                        )
-                    })
-                    .unzip();
-                let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, *block);
-                let values = strategy.quantize(data_f.as_slice().unwrap());
-                (
-                    TensorData::quantized(values, shape.clone(), *scheme, scales, Some(global)),
-                    qparams,
+                quantize_per_block(
+                    data_f.as_slice().unwrap(),
+                    shape.clone(),
+                    scheme,
+                    *block,
+                    scales.as_slice(),
+                    Some(global),
                 )
             }
             scheme => unimplemented!("Quantization not supported for scheme {scheme:?}"),
@@ -540,6 +529,36 @@ fn ternary_matmul(
         out,
         Shape::from(out_dims),
     )))
+}
+
+/// `global: None` is a one-level `Block` (multiplier 1.0).
+fn quantize_per_block(
+    data_f: &[f32],
+    shape: Shape,
+    scheme: &QuantScheme,
+    block: BlockSize,
+    scales: &[f32],
+    global: Option<f32>,
+) -> (TensorData, Vec<QParams<f32>>) {
+    let multiplier = global.unwrap_or(1.0);
+    let (strategy, qparams): (Vec<_>, Vec<_>) = scales
+        .iter()
+        .map(|&s| {
+            (
+                SymmetricQuantization::init(multiplier * s, scheme.value),
+                QParams {
+                    scales: s,
+                    global: None,
+                },
+            )
+        })
+        .unzip();
+    let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, block);
+    let values = strategy.quantize(data_f);
+    (
+        TensorData::quantized(values, shape, *scheme, scales, global),
+        qparams,
+    )
 }
 
 fn dequantize<Q: QuantElement>(

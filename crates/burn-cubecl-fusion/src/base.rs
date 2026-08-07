@@ -17,16 +17,7 @@ pub trait FallbackOperation<R: Runtime>: Send + Sync {
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
-///
-/// Carries the per-tensor scale even though no fused kernel applies one: every quantized tensor on
-/// a fused backend round trips through this handle whether or not anything fuses.
-#[derive(Clone, Debug)]
-pub struct QParams {
-    /// The block scales.
-    pub scales: QParamTensor,
-    /// The per-tensor scale of a two-level scheme.
-    pub global: Option<QParamTensor>,
-}
+pub type QParams = burn_std::quantization::QParams<QParamTensor>;
 
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {

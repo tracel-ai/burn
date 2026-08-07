@@ -124,9 +124,6 @@ fn new_quantized<R: CubeRuntime>(
     let global_desc = global_dtype
         .map(|dtype| MemoryLayoutDescriptor::new(alloc_kind, global_shape.clone(), dtype.size()));
 
-    let mut descs = vec![data_desc.clone(), scales_desc.clone()];
-    descs.extend(global_desc.clone());
-
     let mut tensors = match data {
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
@@ -136,7 +133,10 @@ fn new_quantized<R: CubeRuntime>(
                 (Ok((bytes_data, bytes_params)), None) => client
                     .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_params)]),
                 (Ok((bytes_data, bytes_params)), Some(global_desc)) => {
-                    let scales_bytes = bytes_params.len() - global_desc.elem_size;
+                    let scales_bytes = bytes_params
+                        .len()
+                        .checked_sub(global_desc.elem_size)
+                        .expect("quantized tensor data is shorter than the scheme's global scale");
                     match bytes_params.split(scales_bytes, SplitPolicy::Shared) {
                         Ok((block, global)) => client.create_tensors(vec![
                             (data_desc, bytes_data),
@@ -152,8 +152,10 @@ fn new_quantized<R: CubeRuntime>(
                 }
                 (Err((data, _)), global_desc) => {
                     let params = &data[num_bytes..];
-                    let scales_bytes =
-                        params.len() - global_desc.as_ref().map_or(0, |d| d.elem_size);
+                    let scales_bytes = params
+                        .len()
+                        .checked_sub(global_desc.as_ref().map_or(0, |d| d.elem_size))
+                        .expect("quantized tensor data is shorter than the scheme's global scale");
                     let mut entries = vec![
                         (data_desc, &data[..num_bytes]),
                         (scales_desc, &params[..scales_bytes]),
@@ -165,7 +167,11 @@ fn new_quantized<R: CubeRuntime>(
                 }
             }
         }
-        None => client.empty_tensors(descs),
+        None => {
+            let mut descs = vec![data_desc, scales_desc];
+            descs.extend(global_desc);
+            client.empty_tensors(descs)
+        }
     };
 
     let global = global_dtype.map(|dtype| {
@@ -244,6 +250,15 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
+        // The kernel reads this at the scheme's param width, not the tensor's actual dtype.
+        if let Some(global) = &qparams.global {
+            assert_eq!(
+                global.dtype,
+                DType::F32,
+                "a two-level scheme's per-tensor scale must be an f32 tensor, got {:?}",
+                global.dtype
+            );
+        }
         kernel::quantization::quantize(tensor, scheme, qparams.scales, qparams.global)
     }
 

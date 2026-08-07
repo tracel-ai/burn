@@ -79,6 +79,8 @@ pub enum QuantPropagation {
 pub struct QParams<S> {
     /// The scaling factor.
     pub scales: S,
+    /// The per-tensor scale [`scales`](Self::scales) are relative to, for a two-level scheme.
+    pub global: Option<S>,
 }
 
 /// Scales recovered from a quantized byte buffer.
@@ -103,6 +105,25 @@ pub struct QParamTensor {
     pub dtype: DType,
 }
 
+/// Why a scheme's levels are not ones a backend can quantize against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LevelProblem {
+    /// The per-tensor scale is not `f32`; any precision it loses becomes a mismatch on every block.
+    GlobalNotF32,
+    /// The block param's range reaches too close to `f32`'s, driving the per-tensor scale subnormal.
+    ParamTooWide,
+}
+
+impl core::fmt::Display for LevelProblem {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let message = match self {
+            Self::GlobalNotF32 => "a two-level scheme currently requires an f32 per-tensor scale",
+            Self::ParamTooWide => "a two-level scheme needs block scales narrower than f32",
+        };
+        f.write_str(message)
+    }
+}
+
 /// Panic unless the scheme's levels are ones a backend can quantize against.
 pub fn validate_levels(scheme: &QuantScheme) {
     if let Some(problem) = level_problem(scheme) {
@@ -118,20 +139,15 @@ pub fn levels_supported(scheme: &QuantScheme) -> bool {
     level_problem(scheme).is_none()
 }
 
-fn level_problem(scheme: &QuantScheme) -> Option<&'static str> {
+fn level_problem(scheme: &QuantScheme) -> Option<LevelProblem> {
     let global = scheme.level.global_param()?;
 
-    // The block scales were divided by the unrounded per-tensor scale, so any precision that scale
-    // loses to its own param becomes a mismatch applied to every block. `f32` loses none.
     if global != QuantParam::F32 {
-        return Some("a two-level scheme currently requires an f32 per-tensor scale");
+        return Some(LevelProblem::GlobalNotF32);
     }
 
-    // The per-tensor scale is the largest block scale divided by the block param's maximum, so a
-    // param reaching f32's exponent range drives that quotient subnormal and the renormalized block
-    // scales to infinity.
     if scheme.param.max_representable() > crate::f16::MAX.to_f32() {
-        return Some("a two-level scheme needs block scales narrower than f32");
+        return Some(LevelProblem::ParamTooWide);
     }
 
     None
@@ -228,8 +244,13 @@ impl QuantizedBytes {
 
         // Laid out as `[block scale, ...]` optionally followed by the per-tensor scale.
         let global_bytes = global_scale_size(&scheme);
-        let block_end = qparams.len() - global_bytes;
-        let block_start = block_end - scale_size(scheme.param) * num_params;
+        let block_end = qparams
+            .len()
+            .checked_sub(global_bytes)
+            .expect("quantized parameter buffer is shorter than the scheme's global scale");
+        let block_start = block_end
+            .checked_sub(scale_size(scheme.param) * num_params)
+            .expect("quantized parameter buffer is shorter than the scheme's block scales");
 
         let block = decode_scales(&qparams[block_start..block_end], scheme.param);
         let global = scheme
@@ -254,7 +275,7 @@ impl QuantizedBytes {
     /// Returns the values in i8 and a newly allocated vector containing the
     /// quantization parameter bytes.
     fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
-        // Rounded up to match `params_shape`, which is what the writer sized the region from.
+        // Rounded up, so a trailing partial block still gets its scale.
         let num_params = self
             .scheme
             .level
@@ -309,12 +330,12 @@ pub fn scale_to_param(scale: f32, param: QuantParam) -> f32 {
 }
 
 /// Bytes taken by the per-tensor scale, zero for levels that do not carry one.
-fn global_scale_size(scheme: &QuantScheme) -> usize {
+pub fn global_scale_size(scheme: &QuantScheme) -> usize {
     scheme.level.global_param().map_or(0, scale_size)
 }
 
 /// Bytes per stored scale entry for the given param dtype.
-fn scale_size(param: QuantParam) -> usize {
+pub fn scale_size(param: QuantParam) -> usize {
     match param {
         QuantParam::F32 => 4,
         QuantParam::F16 | QuantParam::BF16 => 2,

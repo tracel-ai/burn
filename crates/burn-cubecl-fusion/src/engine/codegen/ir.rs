@@ -922,6 +922,11 @@ impl FuseType {
     ///
     /// Same contract as [Self::from_quant_param]: callers must decline to fuse on `None`.
     pub fn from_quant_scheme(scheme: QuantScheme) -> Option<Self> {
+        // No fused kernel applies a per-tensor scale.
+        if scheme.level.global_param().is_some() {
+            return None;
+        }
+
         match scheme.store {
             QuantStore::Native => match scheme.value {
                 QuantValue::Q8F | QuantValue::Q8S => Some(Self::I8),

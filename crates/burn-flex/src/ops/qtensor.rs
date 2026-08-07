@@ -66,22 +66,11 @@ impl QTensorOps<Flex> for Flex {
                 );
                 let num_blocks = float_data.len() / block_elems;
 
-                let mut raw = Vec::with_capacity(num_blocks);
-                let mut peak: f32 = 0.0;
-                for block in float_data.chunks(block_elems) {
-                    let mut alpha: f32 = 0.0;
-                    for &x in block {
-                        let abs = x.abs();
-                        if abs > alpha {
-                            alpha = abs;
-                        }
-                    }
-                    let scale = 2.0 * alpha / range;
-                    if scale > peak {
-                        peak = scale;
-                    }
-                    raw.push(scale);
-                }
+                let raw: Vec<f32> = float_data
+                    .chunks(block_elems)
+                    .map(|block| block_max_abs_scale(block, range))
+                    .collect();
+                let peak = raw.iter().copied().fold(0.0f32, f32::max);
 
                 let global = validated_scale(peak / scheme.param.max_representable(), global_param);
 
@@ -100,15 +89,7 @@ impl QTensorOps<Flex> for Flex {
                 (quantized, scales, Some(global))
             }
             QuantLevel::Tensor => {
-                // Pass 1: find alpha = max(|min|, |max|)
-                let mut alpha: f32 = 0.0;
-                for &x in &*float_data {
-                    let abs = x.abs();
-                    if abs > alpha {
-                        alpha = abs;
-                    }
-                }
-                let scale = validated_scale(2.0 * alpha / range, scheme.param);
+                let scale = validated_scale(block_max_abs_scale(&float_data, range), scheme.param);
                 let inv_scale = 1.0 / scale;
 
                 // Pass 2: quantize
@@ -132,15 +113,7 @@ impl QTensorOps<Flex> for Flex {
                 let mut quantized = Vec::with_capacity(float_data.len());
 
                 for block in float_data.chunks(block_elems) {
-                    // Find alpha for this block
-                    let mut alpha: f32 = 0.0;
-                    for &x in block {
-                        let abs = x.abs();
-                        if abs > alpha {
-                            alpha = abs;
-                        }
-                    }
-                    let scale = validated_scale(2.0 * alpha / range, scheme.param);
+                    let scale = validated_scale(block_max_abs_scale(block, range), scheme.param);
                     let inv_scale = 1.0 / scale;
                     scales.push(scale);
 
@@ -196,6 +169,12 @@ impl QTensorOps<Flex> for Flex {
         let quantized = match scheme.level {
             QuantLevel::BlockTensor { block, .. } => {
                 let block_elems = block.num_elements();
+                debug_assert!(
+                    float_data.len().is_multiple_of(block_elems),
+                    "tensor length {} not divisible by block size {}",
+                    float_data.len(),
+                    block_elems
+                );
                 let global = global.expect("a two-level scheme should have a per-tensor scale");
                 let mut quantized = Vec::with_capacity(float_data.len());
                 for (block, &scale) in float_data.chunks(block_elems).zip(scales.iter()) {
@@ -433,6 +412,12 @@ fn block_safe_layout_op(
             Flex::quantize_dynamic(result, &scheme)
         }
     }
+}
+
+/// Unrounded; callers round separately.
+fn block_max_abs_scale(block: &[f32], range: f32) -> f32 {
+    let alpha = block.iter().fold(0.0f32, |alpha, &x| alpha.max(x.abs()));
+    2.0 * alpha / range
 }
 
 /// Round the scale to the scheme's param dtype, then ensure it is finite and nonzero to avoid

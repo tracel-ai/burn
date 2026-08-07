@@ -9,13 +9,7 @@ use super::CubeTensor;
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
-#[derive(Clone, Debug)]
-pub struct QParams {
-    /// The block scales.
-    pub scales: QParamTensor,
-    /// The per-tensor scale of a two-level scheme, in its own region after the block scales.
-    pub global: Option<QParamTensor>,
-}
+pub type QParams = burn_backend::quantization::QParams<QParamTensor>;
 
 impl<R: CubeRuntime> CubeTensor<R> {
     /// Create a new quantized tensor

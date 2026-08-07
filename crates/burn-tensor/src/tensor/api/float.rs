@@ -375,6 +375,21 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The quantized tensor.
     pub fn quantize(self, scheme: &QuantScheme, qparams: QuantizationParameters) -> Tensor<D> {
+        assert_eq!(
+            scheme.level.global_param().is_some(),
+            qparams.global.is_some(),
+            "{:?} does not match a per-tensor scale of {:?}",
+            scheme.level,
+            qparams.global,
+        );
+        if let Some(global) = &qparams.global {
+            assert_eq!(
+                global.dims()[0],
+                1,
+                "the per-tensor scale must have exactly one element, got {:?}",
+                global.dims()
+            );
+        }
         Tensor::new(quantize_impl(
             self.primitive,
             scheme,
