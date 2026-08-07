@@ -1,5 +1,6 @@
 use core::f32;
 
+use crate::indexing::AsIndex;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
@@ -7,7 +8,6 @@ use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
 use core::marker::PhantomData;
 use core::ops::{Index, IndexMut};
-use cubecl_zspace::indexing::AsIndex;
 use rand::Rng;
 use thiserror::Error;
 
