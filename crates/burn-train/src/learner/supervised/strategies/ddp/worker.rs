@@ -126,6 +126,10 @@ impl<M: LearnerModel> DdpWorker<M> {
                 event_processor.process_train(LearnerEvent::EndEpoch(epoch));
             }
 
+            if self.checkpointer.is_some() || self.components.early_stopping.is_some() {
+                self.event_processor.lock().unwrap().flush();
+            }
+
             if let Some(checkpointer) = &mut self.checkpointer {
                 checkpointer.checkpoint(&self.learner, epoch, &self.components.event_store);
             }

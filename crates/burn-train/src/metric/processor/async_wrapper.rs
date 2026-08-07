@@ -35,6 +35,9 @@ impl<ET: Send + 'static, EV: Send + 'static, P: EventProcessorTraining<ET, EV> +
                     match msg {
                         Message::Train(event) => worker.processor.process_train(event),
                         Message::Valid(event) => worker.processor.process_valid(event),
+                        Message::Flush(callback) => {
+                            callback.send_blocking(()).unwrap();
+                        }
                         Message::Renderer(callback) => {
                             callback.send_blocking(worker.processor.renderer()).unwrap();
                             return;
@@ -91,6 +94,7 @@ impl<P: EventProcessorEvaluation + 'static> AsyncProcessorEvaluation<P> {
 enum Message<EventTrain, EventValid> {
     Train(EventTrain),
     Valid(EventValid),
+    Flush(Sender<()>),
     Renderer(Sender<Box<dyn crate::renderer::MetricsRenderer>>),
 }
 
@@ -106,6 +110,14 @@ impl<ET: Send, EV: Send> EventProcessorTraining<ET, EV> for AsyncProcessorTraini
 
     fn process_valid(&mut self, event: EV) {
         self.sender.send_blocking(Message::Valid(event)).unwrap();
+    }
+
+    fn flush(&mut self) {
+        let (sender, receiver) = async_channel::bounded(1);
+        self.sender.send_blocking(Message::Flush(sender)).unwrap();
+        receiver
+            .recv_blocking()
+            .expect("training event processor flush should complete");
     }
 
     fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
@@ -138,5 +150,47 @@ impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEva
             Ok(value) => value,
             Err(err) => panic!("{err:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::renderer::{MetricsRenderer, cli::CliMetricsRenderer};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    struct TestProcessor {
+        processed: Arc<AtomicUsize>,
+    }
+
+    impl EventProcessorTraining<usize, usize> for TestProcessor {
+        fn process_train(&mut self, event: usize) {
+            self.processed.fetch_add(event, Ordering::SeqCst);
+        }
+
+        fn process_valid(&mut self, event: usize) {
+            self.processed.fetch_add(event, Ordering::SeqCst);
+        }
+
+        fn renderer(self) -> Box<dyn MetricsRenderer> {
+            Box::new(CliMetricsRenderer::new())
+        }
+    }
+
+    #[test]
+    fn flush_waits_for_queued_training_events() {
+        let processed = Arc::new(AtomicUsize::new(0));
+        let mut processor = AsyncProcessorTraining::new(TestProcessor {
+            processed: processed.clone(),
+        });
+
+        processor.process_train(2);
+        processor.process_valid(3);
+        processor.flush();
+
+        assert_eq!(processed.load(Ordering::SeqCst), 5);
     }
 }
