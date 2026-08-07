@@ -2042,15 +2042,15 @@ where
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// See: [`try_to_data_cast`].
+    /// See: [`try_to_data_dtype`].
     ///
     /// # Returns
     /// The new data.
     ///
     /// # Panics
     /// On data conversion error.
-    pub fn to_data_cast(&self, dtype: DType) -> TensorData {
-        self.try_to_data_cast(dtype).unwrap()
+    pub fn to_data_dtype(&self, dtype: DType) -> TensorData {
+        self.try_to_data_dtype(dtype).unwrap()
     }
 
     /// Copies the current `Tensor` into `TensorData`; converts the dtype.
@@ -2062,7 +2062,7 @@ where
     ///
     /// # Returns
     /// `Ok(data)`, or an error on data conversion errors.
-    pub fn try_to_data_cast(&self, dtype: DType) -> Result<TensorData, DataError> {
+    pub fn try_to_data_dtype(&self, dtype: DType) -> Result<TensorData, DataError> {
         self.to_data().try_cast(dtype)
     }
 
@@ -2101,15 +2101,15 @@ where
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// See: [`try_into_data_cast`].
+    /// See: [`try_into_data_dtype`].
     ///
     /// # Returns
     /// The new data.
     ///
     /// # Panics
     /// On data conversion error.
-    pub fn into_data_cast(self, dtype: DType) -> TensorData {
-        self.try_into_data_cast(dtype).unwrap()
+    pub fn into_data_dtype(self, dtype: DType) -> TensorData {
+        self.try_into_data_dtype(dtype).unwrap()
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
@@ -2121,7 +2121,7 @@ where
     ///
     /// # Returns
     /// `Ok(data)`, or an error on data conversion errors.
-    pub fn try_into_data_cast(self, dtype: DType) -> Result<TensorData, DataError> {
+    pub fn try_into_data_dtype(self, dtype: DType) -> Result<TensorData, DataError> {
         self.into_data().try_cast(dtype)
     }
 
