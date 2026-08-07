@@ -61,8 +61,8 @@ These methods are available for all modules.
 | `module.map(mapper)`                 | N/A                                      |
 | `module.freeze_group(param_group)`   | N/A                                      |
 | `module.unfreeze_group(param_group)` | N/A                                      |
-| `module.apply_lora(config)`          | N/A                                      |
-| `module.apply_qlora(config)`         | N/A                                      |
+| `module.apply_lora(lora)`            | N/A                                      |
+| `module.apply_qlora(qlora)`          | N/A                                      |
 | `module.apply_reparameterization(r)` | N/A                                      |
 | `module.into_record()`               | Similar to `state_dict`                  |
 | `module.load_record(record)`         | Similar to `load_state_dict(state_dict)` |
@@ -182,9 +182,9 @@ state materializes the value returned by `Param::val()`. LoRA uses this mechanis
 structural base and attach trainable low-rank factors:
 
 ```rust, ignore
-use burn::module::{LoraConfig, Module};
+use burn::module::{Lora, Module};
 
-let model = model.apply_lora(LoraConfig::new(8, 16.0));
+let model = model.apply_lora(Lora::new(8, 16.0));
 ```
 
 The `Reparameterizer` receives every floating-point parameter and its module path. It decides which

@@ -2,9 +2,16 @@ use burn_tensor::{Distribution, FloatDType, Tensor};
 
 use crate::module::{LoraAdapter, Param, ParamGroup, Quantizer, Reparameterizer};
 
-/// Configuration describing how to attach LoRA adapters to a module's weights.
+/// A [`Reparameterizer`] that attaches LoRA adapters to 2-D weight parameters.
+///
+/// It is applied via [`Module::apply_lora`](crate::module::Module::apply_lora).
+///
+/// All existing floating-point parameters are frozen. Matching rank-2 parameters receive
+/// trainable LoRA [adapter](LoraAdapter)s; other parameters remain frozen without adapters. No
+/// model or layer code needs to change—the same `Linear` (and any other module) keeps working, now
+/// producing `base + scale * (a @ b)` for adapted weights.
 #[derive(Debug, Clone)]
-pub struct LoraConfig {
+pub struct Lora {
     /// Rank of the low-rank decomposition.
     pub rank: usize,
     /// Scaling numerator; the adapter contribution is scaled by `alpha / rank`.
@@ -15,8 +22,8 @@ pub struct LoraConfig {
     pub param_group: ParamGroup,
 }
 
-impl LoraConfig {
-    /// Create a new LoRA configuration with the given rank and alpha.
+impl Lora {
+    /// Create a new LoRA reparameterizer with the given rank and alpha.
     pub fn new(rank: usize, alpha: f64) -> Self {
         Self {
             rank,
@@ -26,40 +33,14 @@ impl LoraConfig {
         }
     }
 
-    /// Set the parameter group to quantize on which to apply the LoRA.
+    /// Set the parameter group on which to apply LoRA adapters.
     pub fn set_param_group(mut self, group: ParamGroup) -> Self {
         self.param_group = group;
         self
     }
 }
 
-/// A [`Reparameterizer`] that attaches LoRA adapters to 2-D weight parameters.
-///
-/// It is applied via [`Module::apply_lora`](crate::module::Module::apply_lora).
-///
-/// All existing floating-point parameters are frozen. Matching rank-2 receive trainable LoRA
-/// [adapter](LoraAdapter)s; other parameters remain frozen without adapters. No model or layer
-/// code needs to change — the same `Linear` (and any other module) keeps working, now
-/// producing `base + scale * (a @ b)` for adapted weights.
-#[derive(Debug, Clone)]
-pub struct LoraMapper {
-    config: LoraConfig,
-}
-
-impl LoraMapper {
-    /// Create a new mapper from the given configuration.
-    pub fn new(config: LoraConfig) -> Self {
-        Self { config }
-    }
-
-    /// Specify a parameter group on which to apply the LoRA.
-    pub fn for_group(mut self, group: ParamGroup) -> Self {
-        self.config.param_group = group;
-        self
-    }
-}
-
-impl Reparameterizer for LoraMapper {
+impl Reparameterizer for Lora {
     type Reparam = LoraAdapter;
 
     fn reparameterize<const D: usize>(
@@ -77,7 +58,7 @@ impl Reparameterizer for LoraMapper {
             );
         }
 
-        let rank = self.config.rank;
+        let rank = self.rank;
         let (id, tensor, mapper) = param.consume();
         let device = tensor.device();
         let dims = tensor.dims();
@@ -94,10 +75,10 @@ impl Reparameterizer for LoraMapper {
         // Freeze the base weight; only the adapter factors will be trained.
         let base = Param::from_mapped_value(id, tensor.set_require_grad(false), mapper);
 
-        if self.config.param_group.matches(&id, Some(path)) {
+        if self.param_group.matches(&id, Some(path)) {
             // Standard LoRA init: A ~ N(0, std) and B = 0, so the initial delta (and the model output)
             // is unchanged when the adapter is first attached.
-            let std = self.config.init_std.unwrap_or(1.0 / rank as f64);
+            let std = self.init_std.unwrap_or(1.0 / rank as f64);
             let a = Tensor::<2>::random([d_in, rank], Distribution::Normal(0.0, std), &device);
             let b = Tensor::<2>::zeros([rank, d_out], &device);
             let (a, b) = match dtype {
@@ -108,7 +89,7 @@ impl Reparameterizer for LoraMapper {
             let adapter = LoraAdapter {
                 a: Param::from_tensor(a),
                 b: Param::from_tensor(b),
-                scale: self.config.alpha / rank as f64,
+                scale: self.alpha / rank as f64,
             };
 
             return (base, Some(adapter));
@@ -125,22 +106,19 @@ impl Reparameterizer for LoraMapper {
 ///
 /// The quantized base is kept at rest in its low-bit representation; the adapter contribution is
 /// added on top during the forward pass (the base is dequantized on the fly when composed).
-pub struct QLoraMapper {
-    lora: LoraMapper,
+pub struct QLora {
+    lora: Lora,
     quantizer: Quantizer,
 }
 
-impl QLoraMapper {
-    /// Create a new QLoRA mapper from the LoRA configuration and a quantizer.
-    pub fn new(config: LoraConfig, quantizer: Quantizer) -> Self {
-        Self {
-            lora: LoraMapper::new(config),
-            quantizer,
-        }
+impl QLora {
+    /// Create a new QLoRA reparameterizer from LoRA settings and a quantizer.
+    pub fn new(lora: Lora, quantizer: Quantizer) -> Self {
+        Self { lora, quantizer }
     }
 }
 
-impl Reparameterizer for QLoraMapper {
+impl Reparameterizer for QLora {
     type Reparam = LoraAdapter;
 
     fn reparameterize<const D: usize>(
@@ -164,12 +142,11 @@ mod tests {
     use crate::test_utils::SimpleLinear;
     use burn_tensor::Tolerance;
 
-    fn lora_model(in_features: usize, out_features: usize) -> (SimpleLinear, super::LoraConfig) {
+    fn lora_model(in_features: usize, out_features: usize) -> (SimpleLinear, super::Lora) {
         let device = test_device();
-        let config = LoraConfig::new(2, 4.0);
-        let model =
-            SimpleLinear::new(in_features, out_features, &device).apply_lora(config.clone());
-        (model, config)
+        let lora = Lora::new(2, 4.0);
+        let model = SimpleLinear::new(in_features, out_features, &device).apply_lora(lora.clone());
+        (model, lora)
     }
 
     #[test]
@@ -193,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn lora_mapper_freezes_base_and_trains_adapter() {
+    fn lora_freezes_base_and_trains_adapter() {
         let (model, _) = lora_model(4, 6);
         let weight = &model.weight;
         let adapter = weight.adapter().expect("adapter should be attached");
@@ -259,8 +236,8 @@ mod tests {
     #[test]
     fn lora_backward_grads_adapter_only() {
         let device = test_device().autodiff();
-        let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(4, 6, &device).apply_lora(config);
+        let lora = Lora::new(2, 4.0);
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(lora);
 
         // Forward through the composed weight and backpropagate.
         let loss = model.weight.val().sum();
@@ -290,8 +267,8 @@ mod tests {
 
         let original = SimpleLinear::new(8, 8, &device).weight.val();
 
-        let model =
-            SimpleLinear::new(8, 8, &device).apply_qlora(LoraConfig::new(2, 4.0), quantizer);
+        let qlora = QLora::new(Lora::new(2, 4.0), quantizer);
+        let model = SimpleLinear::new(8, 8, &device).apply_qlora(qlora);
 
         let weight = &model.weight;
         assert!(weight.adapter().is_some());
@@ -328,8 +305,8 @@ mod tests {
         };
 
         let group = ParamGroup::from_predicate("a");
-        let config = LoraConfig::new(2, 4.0).set_param_group(group);
-        let model = model.apply_lora(config);
+        let lora = Lora::new(2, 4.0).set_param_group(group);
+        let model = model.apply_lora(lora);
 
         // Only the parameter whose path matches the group gets an adapter attached.
         assert!(
@@ -350,8 +327,8 @@ mod tests {
     #[test]
     fn lora_valid_folds_adapter_for_inference() {
         let device = test_device().autodiff();
-        let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(4, 6, &device).apply_lora(config);
+        let lora = Lora::new(2, 4.0);
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(lora);
 
         let inference = model.valid();
         // The inference parameter has no adapter (folded) and equals the composed training weight.
