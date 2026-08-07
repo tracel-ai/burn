@@ -5,11 +5,12 @@ use burn_backend::{
     ops::{FloatTensorOps, QTensorOps},
     quantization::{
         QParams, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
-        QuantizationParametersPrimitive, QuantizedBytes, scale_to_param,
+        QuantizationParametersPrimitive, QuantizedBytes, params_shape, scale_to_param,
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_std::{FloatDType, IntDType};
+use ndarray::ArrayD;
 
 use crate::{
     NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, SharedArray, element::QuantElement,
@@ -17,7 +18,7 @@ use crate::{
     execute_with_numeric_dtype, slice,
 };
 
-use super::quantization::{QuantizationStrategy, SymmetricQuantization};
+use super::quantization::{Quantization, QuantizationStrategy, SymmetricQuantization};
 use super::{NdArrayMathOps, NdArrayOps};
 
 impl QTensorOps<Self> for NdArray {
@@ -286,22 +287,50 @@ impl QTensorOps<Self> for NdArray {
         dim1: usize,
         dim2: usize,
     ) -> QuantizedTensor<Self> {
-        NdArrayQTensor {
-            qtensor: execute_with_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
-                NdArrayOps::swap_dims(array, dim1, dim2)
-            }),
-            scheme: tensor.scheme,
-            qparams: tensor.qparams,
-        }
+        let mut axes = (0..tensor.qtensor.shape().num_dims()).collect::<Vec<_>>();
+        axes.swap(dim1, dim2);
+        Self::q_permute(tensor, &axes)
     }
 
     fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
+        let (scheme, qparams) = match tensor.scheme.level {
+            QuantLevel::Tensor => (tensor.scheme, tensor.qparams),
+            QuantLevel::Block(block_size) => {
+                let shape = tensor.qtensor.shape();
+                let qparams_shape = params_shape(&shape, tensor.scheme.level);
+                let scales = tensor
+                    .qparams
+                    .into_iter()
+                    .map(|params| params.scales)
+                    .collect();
+                let scales = ArrayD::from_shape_vec(qparams_shape.as_slice(), scales)
+                    .unwrap()
+                    .into_shared();
+                let scales = NdArrayOps::permute(scales, axes);
+                let qparams = scales
+                    .into_iter()
+                    .map(|scales| QParams { scales })
+                    .collect();
+
+                let block_size = block_size.to_dim_vec(shape.num_dims());
+                let block_size = axes
+                    .iter()
+                    .map(|axis| block_size[*axis])
+                    .collect::<Vec<_>>();
+                let scheme = tensor
+                    .scheme
+                    .with_level(QuantLevel::block(block_size.as_slice()));
+
+                (scheme, qparams)
+            }
+        };
+
         NdArrayQTensor {
             qtensor: execute_with_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
                 NdArrayOps::permute(array, axes)
             }),
-            scheme: tensor.scheme,
-            qparams: tensor.qparams,
+            scheme,
+            qparams,
         }
     }
 
@@ -495,5 +524,31 @@ fn dequantize<Q: QuantElement>(
     };
     let q_bytes = QuantizedBytes::new(data, scheme, &qparams);
     let (values, _qparams) = q_bytes.into_vec_i8();
-    TensorData::new(strategy.dequantize(&values), shape).convert_dtype(dtype)
+    let values = match strategy {
+        QuantizationStrategy::PerTensorSymmetric(quant) => quant.dequantize(&values),
+        QuantizationStrategy::PerBlockSymmetric(quant, block_size) => {
+            let block_size = block_size.to_dim_vec(shape.num_dims());
+            let qparams_shape = params_shape(&shape, scheme.level);
+
+            values
+                .into_iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    let mut index = index;
+                    let mut qparam_index = 0;
+                    let mut qparam_stride = 1;
+
+                    for dim in (0..shape.num_dims()).rev() {
+                        let coordinate = index % shape[dim];
+                        index /= shape[dim];
+                        qparam_index += coordinate / block_size[dim] as usize * qparam_stride;
+                        qparam_stride *= qparams_shape[dim];
+                    }
+
+                    quant[qparam_index].dequantize_one(value)
+                })
+                .collect()
+        }
+    };
+    TensorData::new(values, shape).convert_dtype(dtype)
 }

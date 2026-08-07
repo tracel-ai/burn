@@ -170,7 +170,8 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
     }
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
-        && let QuantStore::PackedU32(packed_dim) = &mut scheme.store
+        && let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+            &mut scheme.store
     {
         let rank = tensor.meta.num_dims();
         let new_pos = axes
