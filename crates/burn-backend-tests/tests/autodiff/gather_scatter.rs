@@ -98,6 +98,45 @@ fn test_scatter_assign_grad() {
         .assert_eq(&TensorData::from([[1., 1.], [1., 1.]]), false);
 }
 
+#[cfg(feature = "ndarray")]
+#[test]
+fn test_scatter_mul_grad() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::from_data(
+        TensorData::from([[2.0, 3.0, 4.0, 5.0], [6.0, 7.0, 8.0, 9.0]]),
+        &device,
+    )
+    .require_grad();
+    let values = TestTensor::from_data(TensorData::from([[10.0, 20.0], [30.0, 40.0]]), &device)
+        .require_grad();
+    let indices = TestTensorInt::<2>::from_data(TensorData::from([[3, 0], [1, 2]]), &device);
+    let weights = TestTensor::from_data(
+        TensorData::from([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]),
+        &device,
+    );
+
+    let result = tensor
+        .clone()
+        .scatter(1, indices, values.clone(), IndexingUpdateOp::Mul);
+
+    result.clone().into_data().assert_eq(
+        &TensorData::from([[40.0, 3.0, 4.0, 50.0], [6.0, 210.0, 320.0, 9.0]]),
+        false,
+    );
+
+    let grads = result.mul(weights).sum().backward();
+    let grad_tensor = tensor.grad(&grads).unwrap();
+    let grad_values = values.grad(&grads).unwrap();
+
+    grad_tensor.to_data().assert_eq(
+        &TensorData::from([[20.0, 2.0, 3.0, 40.0], [5.0, 180.0, 280.0, 8.0]]),
+        false,
+    );
+    grad_values
+        .to_data()
+        .assert_eq(&TensorData::from([[20.0, 2.0], [42.0, 56.0]]), false);
+}
+
 #[test]
 fn test_scatter_add_grad_partial_indices() {
     let device = AutodiffDevice::new();
