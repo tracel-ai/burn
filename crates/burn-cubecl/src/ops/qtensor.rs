@@ -20,6 +20,13 @@ use crate::{
 
 use super::{into_data, permute, swap_dims};
 
+/// Length of the block-scales region within a combined scales+global byte buffer.
+fn scales_region_len(total: usize, global: Option<&MemoryLayoutDescriptor>) -> usize {
+    total
+        .checked_sub(global.map_or(0, |d| d.elem_size))
+        .expect("quantized tensor data is shorter than the scheme's global scale")
+}
+
 /// Create a quantized tensor with packed values (u32).
 fn new_qtensor_optimized<R: CubeRuntime>(
     data: Bytes,
@@ -117,10 +124,8 @@ fn new_quantized<R: CubeRuntime>(
         MemoryLayoutDescriptor::new(alloc_kind, scales_shape.clone(), scales_dtype.size());
 
     let global_shape = Shape::new([1]);
-    let global_dtype = scheme.level.global_param().map(|param| match param {
-        QuantParam::F32 => DType::F32,
-        other => panic!("a two-level scheme requires an f32 per-tensor scale, got {other:?}"),
-    });
+    // validate_levels above guarantees any global param is f32.
+    let global_dtype = scheme.level.global_param().map(|_| DType::F32);
     let global_desc = global_dtype
         .map(|dtype| MemoryLayoutDescriptor::new(alloc_kind, global_shape.clone(), dtype.size()));
 
@@ -133,10 +138,7 @@ fn new_quantized<R: CubeRuntime>(
                 (Ok((bytes_data, bytes_params)), None) => client
                     .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_params)]),
                 (Ok((bytes_data, bytes_params)), Some(global_desc)) => {
-                    let scales_bytes = bytes_params
-                        .len()
-                        .checked_sub(global_desc.elem_size)
-                        .expect("quantized tensor data is shorter than the scheme's global scale");
+                    let scales_bytes = scales_region_len(bytes_params.len(), Some(&global_desc));
                     match bytes_params.split(scales_bytes, SplitPolicy::Shared) {
                         Ok((block, global)) => client.create_tensors(vec![
                             (data_desc, bytes_data),
@@ -152,10 +154,7 @@ fn new_quantized<R: CubeRuntime>(
                 }
                 (Err((data, _)), global_desc) => {
                     let params = &data[num_bytes..];
-                    let scales_bytes = params
-                        .len()
-                        .checked_sub(global_desc.as_ref().map_or(0, |d| d.elem_size))
-                        .expect("quantized tensor data is shorter than the scheme's global scale");
+                    let scales_bytes = scales_region_len(params.len(), global_desc.as_ref());
                     let mut entries = vec![
                         (data_desc, &data[..num_bytes]),
                         (scales_desc, &params[..scales_bytes]),

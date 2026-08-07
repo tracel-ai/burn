@@ -95,19 +95,14 @@ pub fn compute_q_params<B: Backend>(
 
             let scales = B::float_div_scalar(values_range, (b - a).into());
 
-            match scheme.level.global_param() {
-                None => QuantizationParametersPrimitive {
-                    scales,
-                    global: None,
-                },
+            let (scales, global) = match scheme.level.global_param() {
+                None => (scales, None),
                 Some(_) => {
                     let (scales, global) = normalize_scales::<B>(scales, scheme.param);
-                    QuantizationParametersPrimitive {
-                        scales,
-                        global: Some(global),
-                    }
+                    (scales, Some(global))
                 }
-            }
+            };
+            QuantizationParametersPrimitive { scales, global }
         }
     }
 }

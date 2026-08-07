@@ -4,9 +4,8 @@ use burn_backend::{
     DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive, get_device_settings,
     ops::{FloatTensorOps, QTensorOps},
     quantization::{
-        BlockSize, QParams, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore,
-        QuantValue, QuantizationParametersPrimitive, QuantizedBytes, scale_to_param,
-        validate_levels,
+        BlockSize, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
+        QuantizationParametersPrimitive, QuantizedBytes, scale_to_param, validate_levels,
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -49,14 +48,7 @@ impl QTensorOps<Self> for NdArray {
                         let scheme = scheme.with_store(QuantStore::Native);
 
                         let global = qparams.global;
-                        let qparams = qparams
-                            .block
-                            .into_iter()
-                            .map(|scales| QParams {
-                                scales,
-                                global: None,
-                            })
-                            .collect();
+                        let qparams = qparams.block;
 
                         NdArrayQTensor {
                             qtensor: NdArrayTensor::from_data(data),
@@ -110,27 +102,29 @@ impl QTensorOps<Self> for NdArray {
         });
 
         // Implement with ndarray instead of QuantizationStrategy?
-        let (data, qparams) = match scheme {
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                // `Q2S` is supported natively (stored as i8) — it feeds the multiply-free
-                // ternary matmul fast path in `q_matmul` (BitNet b1.58).
-                #[cfg(not(feature = "export_tests"))]
-                    value: QuantValue::Q8F | QuantValue::Q8S | QuantValue::Q2S,
-                // For tests, "native" sub-byte quant serves as a reference for value equality.
-                // Values are stored as i8 regardless.
-                #[cfg(feature = "export_tests")]
-                    value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                store: QuantStore::Native,
-                ..
-            } => {
+        let (data, qparams) = match (scheme.level.block_size(), scheme) {
+            (
+                None,
+                QuantScheme {
+                    mode: QuantMode::Symmetric,
+                    // `Q2S` is supported natively (stored as i8): it feeds the multiply-free
+                    // ternary matmul fast path in `q_matmul` (BitNet b1.58).
+                    #[cfg(not(feature = "export_tests"))]
+                        value: QuantValue::Q8F | QuantValue::Q8S | QuantValue::Q2S,
+                    // For tests, "native" sub-byte quant serves as a reference for value equality.
+                    // Values are stored as i8 regardless.
+                    #[cfg(feature = "export_tests")]
+                        value:
+                        QuantValue::Q8F
+                        | QuantValue::Q8S
+                        | QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S,
+                    store: QuantStore::Native,
+                    ..
+                },
+            ) => {
                 let scales = scales[0];
                 let strategy = QuantizationStrategy::PerTensorSymmetric(
                     SymmetricQuantization::init(scales, scheme.value),
@@ -138,62 +132,42 @@ impl QTensorOps<Self> for NdArray {
                 let values = strategy.quantize(data_f.as_slice().unwrap());
                 (
                     TensorData::quantized(values, shape.clone(), *scheme, &[scales], None),
-                    vec![QParams {
-                        scales,
-                        global: None,
-                    }],
+                    vec![scales],
                 )
             }
-            QuantScheme {
-                level: QuantLevel::Block(block_size),
-                mode: QuantMode::Symmetric,
-                #[cfg(not(feature = "export_tests"))]
-                    value: QuantValue::Q8F | QuantValue::Q8S,
-                #[cfg(feature = "export_tests")]
-                    value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                store: QuantStore::Native,
-                ..
-            } => quantize_per_block(
-                data_f.as_slice().unwrap(),
-                shape.clone(),
-                scheme,
-                *block_size,
-                scales.as_slice(),
-                None,
-            ),
-            QuantScheme {
-                level: QuantLevel::BlockTensor { block, .. },
-                mode: QuantMode::Symmetric,
-                #[cfg(not(feature = "export_tests"))]
-                    value: QuantValue::Q8F | QuantValue::Q8S,
-                #[cfg(feature = "export_tests")]
-                    value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                store: QuantStore::Native,
-                ..
-            } => {
-                let global = global.expect("a two-level scheme should have a per-tensor scale");
+            (
+                Some(block_size),
+                QuantScheme {
+                    mode: QuantMode::Symmetric,
+                    #[cfg(not(feature = "export_tests"))]
+                        value: QuantValue::Q8F | QuantValue::Q8S,
+                    #[cfg(feature = "export_tests")]
+                        value:
+                        QuantValue::Q8F
+                        | QuantValue::Q8S
+                        | QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S,
+                    store: QuantStore::Native,
+                    ..
+                },
+            ) => {
+                let global = if scheme.level.global_param().is_some() {
+                    Some(global.expect("a two-level scheme should have a per-tensor scale"))
+                } else {
+                    None
+                };
                 quantize_per_block(
                     data_f.as_slice().unwrap(),
                     shape.clone(),
                     scheme,
-                    *block,
+                    block_size,
                     scales.as_slice(),
-                    Some(global),
+                    global,
                 )
             }
-            scheme => unimplemented!("Quantization not supported for scheme {scheme:?}"),
+            (_, scheme) => unimplemented!("Quantization not supported for scheme {scheme:?}"),
         };
 
         let num_elements = data.num_elements();
@@ -217,7 +191,7 @@ impl QTensorOps<Self> for NdArray {
         let strategy = tensor.strategy();
         let scheme = tensor.scheme;
         let shape = tensor.shape();
-        let scales = tensor.qparams.iter().map(|q| q.scales).collect::<Vec<_>>();
+        let scales = tensor.qparams;
         let global = tensor.global;
         let data = match tensor.qtensor {
             NdArrayTensor::I8(storage) => {
@@ -314,7 +288,7 @@ impl QTensorOps<Self> for NdArray {
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         let shape = tensor.qtensor.shape();
-        let scales = tensor.qparams.iter().map(|q| q.scales).collect::<Vec<_>>();
+        let scales = tensor.qparams;
         Ok(execute_with_numeric_dtype!(
             tensor.qtensor,
             E,
@@ -491,7 +465,7 @@ fn ternary_matmul(
     let m: usize = ldims[..ldims.len() - 1].iter().product();
 
     // Per-tensor scale γ.
-    let gamma = rhs.qparams.first()?.scales;
+    let gamma = *rhs.qparams.first()?;
 
     // Canonical row-major values for both operands (`into_data` normalizes any strided layout).
     let a_data = lhs.clone().into_data();
@@ -539,19 +513,11 @@ fn quantize_per_block(
     block: BlockSize,
     scales: &[f32],
     global: Option<f32>,
-) -> (TensorData, Vec<QParams<f32>>) {
+) -> (TensorData, Vec<f32>) {
     let multiplier = global.unwrap_or(1.0);
     let (strategy, qparams): (Vec<_>, Vec<_>) = scales
         .iter()
-        .map(|&s| {
-            (
-                SymmetricQuantization::init(multiplier * s, scheme.value),
-                QParams {
-                    scales: s,
-                    global: None,
-                },
-            )
-        })
+        .map(|&s| (SymmetricQuantization::init(multiplier * s, scheme.value), s))
         .unzip();
     let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, block);
     let values = strategy.quantize(data_f);

@@ -1,6 +1,6 @@
 use burn_backend::{
     AllocationProperty, DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
+    quantization::{QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 use burn_std::BoolStore;
 
@@ -704,8 +704,8 @@ pub struct NdArrayQTensor {
     pub qtensor: NdArrayTensor,
     /// The quantization scheme.
     pub scheme: QuantScheme,
-    /// The quantization parameters.
-    pub qparams: Vec<QParams<f32>>,
+    /// The block scales.
+    pub qparams: Vec<f32>,
     /// The per-tensor scale that [`qparams`](Self::qparams) are expressed relative to, for a
     /// two-level scheme.
     pub global: Option<f32>,
@@ -714,64 +714,64 @@ pub struct NdArrayQTensor {
 impl NdArrayQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
-        match self.scheme {
-            QuantScheme {
-                level: QuantLevel::BlockTensor { block, .. },
-                mode: QuantMode::Symmetric,
-                ..
-            } => {
-                // Kept apart on the tensor so a round trip through bytes preserves each level at
-                // the precision it is stored in.
-                let global = self
-                    .global
-                    .expect("a two-level tensor should carry a per-tensor scale");
-                QuantizationStrategy::PerBlockSymmetric(
-                    self.qparams
-                        .iter()
-                        .map(|q| SymmetricQuantization::init(global * q.scales, self.scheme.value))
-                        .collect(),
-                    block,
-                )
-            }
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::E4M3
-                    | QuantValue::E5M2
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::E2M1
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                ..
-            } => QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                self.qparams[0].scales,
-                self.scheme.value,
-            )),
-            QuantScheme {
-                level: QuantLevel::Block(block_size),
-                mode: QuantMode::Symmetric,
-                value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::E4M3
-                    | QuantValue::E5M2
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::E2M1
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                ..
-            } => QuantizationStrategy::PerBlockSymmetric(
-                self.qparams
-                    .iter()
-                    .map(|q| SymmetricQuantization::init(q.scales, self.scheme.value))
-                    .collect(),
-                block_size,
-            ),
+        match self.scheme.level.block_size() {
+            None => match self.scheme {
+                QuantScheme {
+                    level: QuantLevel::Tensor,
+                    mode: QuantMode::Symmetric,
+                    value:
+                        QuantValue::Q8F
+                        | QuantValue::Q8S
+                        | QuantValue::E4M3
+                        | QuantValue::E5M2
+                        | QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::E2M1
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S,
+                    ..
+                } => QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
+                    self.qparams[0],
+                    self.scheme.value,
+                )),
+                _ => unreachable!("level.block_size() is None only for QuantLevel::Tensor"),
+            },
+            Some(block_size) => match self.scheme {
+                QuantScheme {
+                    level: QuantLevel::Block(_) | QuantLevel::BlockTensor { .. },
+                    mode: QuantMode::Symmetric,
+                    value:
+                        QuantValue::Q8F
+                        | QuantValue::Q8S
+                        | QuantValue::E4M3
+                        | QuantValue::E5M2
+                        | QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::E2M1
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S,
+                    ..
+                } => {
+                    // Kept apart on the tensor so a round trip through bytes preserves each level
+                    // at the precision it is stored in.
+                    let multiplier = if self.scheme.level.global_param().is_some() {
+                        self.global
+                            .expect("a two-level tensor should carry a per-tensor scale")
+                    } else {
+                        1.0
+                    };
+                    QuantizationStrategy::PerBlockSymmetric(
+                        self.qparams
+                            .iter()
+                            .map(|&s| {
+                                SymmetricQuantization::init(multiplier * s, self.scheme.value)
+                            })
+                            .collect(),
+                        block_size,
+                    )
+                }
+                _ => unreachable!("level.block_size() is Some only for Block/BlockTensor levels"),
+            },
         }
     }
 }

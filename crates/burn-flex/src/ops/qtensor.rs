@@ -19,6 +19,13 @@ use burn_std::{Bytes, Shape, Slice, bf16, f16};
 use super::float_storage_as_f32;
 use crate::{Flex, FlexQTensor, FlexTensor, Layout};
 
+fn assert_block_divides(len: usize, block_elems: usize) {
+    debug_assert!(
+        len.is_multiple_of(block_elems),
+        "tensor length {len} not divisible by block size {block_elems}"
+    );
+}
+
 impl QTensorOps<Flex> for Flex {
     fn q_from_data(data: TensorData, _device: &Device<Flex>) -> QuantizedTensor<Flex> {
         let scheme = match data.dtype {
@@ -58,12 +65,7 @@ impl QTensorOps<Flex> for Flex {
                 global: global_param,
             } => {
                 let block_elems = block.num_elements();
-                debug_assert!(
-                    float_data.len().is_multiple_of(block_elems),
-                    "tensor length {} not divisible by block size {}",
-                    float_data.len(),
-                    block_elems
-                );
+                assert_block_divides(float_data.len(), block_elems);
                 let num_blocks = float_data.len() / block_elems;
 
                 let raw: Vec<f32> = float_data
@@ -102,12 +104,7 @@ impl QTensorOps<Flex> for Flex {
             }
             QuantLevel::Block(block_size) => {
                 let block_elems = block_size.num_elements();
-                debug_assert!(
-                    float_data.len().is_multiple_of(block_elems),
-                    "tensor length {} not divisible by block size {}",
-                    float_data.len(),
-                    block_elems
-                );
+                assert_block_divides(float_data.len(), block_elems);
                 let num_blocks = float_data.len() / block_elems;
                 let mut scales = Vec::with_capacity(num_blocks);
                 let mut quantized = Vec::with_capacity(float_data.len());
@@ -166,43 +163,25 @@ impl QTensorOps<Flex> for Flex {
 
         let (a, b) = scheme.value.range();
 
-        let quantized = match scheme.level {
-            QuantLevel::BlockTensor { block, .. } => {
-                let block_elems = block.num_elements();
-                debug_assert!(
-                    float_data.len().is_multiple_of(block_elems),
-                    "tensor length {} not divisible by block size {}",
-                    float_data.len(),
-                    block_elems
-                );
-                let global = global.expect("a two-level scheme should have a per-tensor scale");
-                let mut quantized = Vec::with_capacity(float_data.len());
-                for (block, &scale) in float_data.chunks(block_elems).zip(scales.iter()) {
-                    let inv_scale = 1.0 / (global * scale);
-                    for &x in block {
-                        quantized.push((x * inv_scale).round().clamp(a, b) as i8);
-                    }
-                }
-                quantized
-            }
-            QuantLevel::Tensor => {
+        let quantized = match scheme.level.block_size() {
+            None => {
                 let inv_scale = 1.0 / scales[0];
                 float_data
                     .iter()
                     .map(|&x| (x * inv_scale).round().clamp(a, b) as i8)
                     .collect::<Vec<i8>>()
             }
-            QuantLevel::Block(block_size) => {
+            Some(block_size) => {
                 let block_elems = block_size.num_elements();
-                debug_assert!(
-                    float_data.len().is_multiple_of(block_elems),
-                    "tensor length {} not divisible by block size {}",
-                    float_data.len(),
-                    block_elems
-                );
+                assert_block_divides(float_data.len(), block_elems);
+                let multiplier = if scheme.level.global_param().is_some() {
+                    global.expect("a two-level scheme should have a per-tensor scale")
+                } else {
+                    1.0
+                };
                 let mut quantized = Vec::with_capacity(float_data.len());
                 for (block, &scale) in float_data.chunks(block_elems).zip(scales.iter()) {
-                    let inv_scale = 1.0 / scale;
+                    let inv_scale = 1.0 / (multiplier * scale);
                     for &x in block {
                         quantized.push((x * inv_scale).round().clamp(a, b) as i8);
                     }
@@ -223,34 +202,30 @@ impl QTensorOps<Flex> for Flex {
         let qt = tensor.tensor.to_contiguous();
         let q_data: &[i8] = qt.storage();
 
-        let dequantized = match tensor.scheme.level {
-            QuantLevel::BlockTensor { block, .. } => {
-                let block_elems = block.num_elements();
-                let global = tensor
-                    .global
-                    .expect("a two-level tensor should carry a per-tensor scale");
-                q_data
-                    .chunks(block_elems)
-                    .zip(tensor.scales.iter())
-                    .flat_map(|(block, &scale)| {
-                        let scale = global * scale;
-                        block.iter().map(move |&x_q| scale * x_q as f32)
-                    })
-                    .collect::<Vec<f32>>()
-            }
-            QuantLevel::Tensor => {
+        let dequantized = match tensor.scheme.level.block_size() {
+            None => {
                 let scale = tensor.scales[0];
                 q_data
                     .iter()
                     .map(|&x_q| scale * x_q as f32)
                     .collect::<Vec<f32>>()
             }
-            QuantLevel::Block(block_size) => {
+            Some(block_size) => {
                 let block_elems = block_size.num_elements();
+                let multiplier = if tensor.scheme.level.global_param().is_some() {
+                    tensor
+                        .global
+                        .expect("a two-level tensor should carry a per-tensor scale")
+                } else {
+                    1.0
+                };
                 q_data
                     .chunks(block_elems)
                     .zip(tensor.scales.iter())
-                    .flat_map(|(block, &scale)| block.iter().map(move |&x_q| scale * x_q as f32))
+                    .flat_map(|(block, &scale)| {
+                        let scale = multiplier * scale;
+                        block.iter().map(move |&x_q| scale * x_q as f32)
+                    })
                     .collect::<Vec<f32>>()
             }
         };

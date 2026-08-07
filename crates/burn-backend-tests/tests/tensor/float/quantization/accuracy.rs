@@ -9,20 +9,8 @@
 use super::*;
 use burn_tensor::{
     Shape, TensorData,
-    quantization::{QuantLevel, QuantParam, QuantScheme, QuantValue, params_shape},
+    quantization::{QuantLevel, QuantParam, QuantScheme, QuantValue, params_shape, scale_size},
 };
-
-/// Bits per stored scale.
-// TODO: replace with `QuantParam::size_bits()` once it exists upstream in cubecl. This is the
-// fourth copy of this table (see also `burn-std`'s `scale_size` and `burn-store`'s
-// `quant_param_size`).
-fn param_size_bits(param: QuantParam) -> usize {
-    match param {
-        QuantParam::F32 => 32,
-        QuantParam::F16 | QuantParam::BF16 => 16,
-        QuantParam::UE8M0 | QuantParam::UE4M3 => 8,
-    }
-}
 
 /// Total storage cost of a quantized tensor, per element of the original tensor.
 ///
@@ -31,10 +19,10 @@ fn param_size_bits(param: QuantParam) -> usize {
 fn bits_per_element(scheme: &QuantScheme, shape: &Shape) -> f64 {
     let numel = shape.num_elements();
     let num_scales = params_shape(shape, scheme.level).num_elements();
-    let global_bits = scheme.level.global_param().map_or(0, param_size_bits);
+    let global_bits = scheme.level.global_param().map_or(0, |p| scale_size(p) * 8);
 
     scheme.size_bits_value() as f64
-        + (param_size_bits(scheme.param) * num_scales + global_bits) as f64 / numel as f64
+        + (scale_size(scheme.param) * 8 * num_scales + global_bits) as f64 / numel as f64
 }
 
 /// Deterministic standard-normal samples, so a reported number is reproducible across runs and
