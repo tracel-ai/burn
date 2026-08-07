@@ -11,7 +11,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_std::ExecutionError;
+use burn_std::{DataError, ExecutionError};
 use burn_std::{SliceOps, sync::RwLock};
 use core::iter::ExactSizeIterator;
 use core::iter::repeat;
@@ -1969,8 +1969,16 @@ where
     /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
+    ///
+    /// # Results
+    /// data on success.
+    ///
+    /// # Panics
+    /// Panics on failure.
     pub fn into_data(self) -> TensorData {
-        into_data_sync_impl(self.primitive, K::KIND)
+        self.try_into_data().expect(
+            "Error while reading data: use `try_into_data` instead to catch the error at runtime",
+        )
     }
 
     /// Converts the data of the current tensor and returns any error that might have occurred since the
@@ -1981,6 +1989,9 @@ where
     /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
+    ///
+    /// # Results
+    /// `Ok(data)` on success, `Err(error)` on failure
     pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
         try_into_data_sync_impl(self.primitive, K::KIND)
     }
@@ -1992,8 +2003,30 @@ where
     /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
+    ///
+    /// # Results
+    /// data on success.
+    ///
+    /// # Panics
+    /// Panics on failure.
     pub fn to_data(&self) -> TensorData {
-        self.clone().into_data()
+        self.try_to_data().expect(
+            "Error while reading data: use `try_to_data` instead to catch the error at runtime",
+        )
+    }
+
+    /// Converts the data of the current tensor.
+    ///
+    /// # Note
+    ///
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
+    /// tensors at once. This may improve laziness, especially if executed on a different
+    /// thread in native environments.
+    ///
+    /// # Results
+    /// `Ok(data)` on success, `Err(error)` on failure
+    pub fn try_to_data(&self) -> Result<TensorData, ExecutionError> {
+        self.clone().try_into_data()
     }
 
     /// Returns the data of the current tensor.
@@ -2008,6 +2041,122 @@ where
         &self,
     ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
         into_data_async_impl(self.primitive.clone(), K::KIND)
+    }
+
+    /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`try_to_data_as`].
+    ///
+    /// # Returns
+    /// The new data.
+    ///
+    /// # Panics
+    /// On data conversion error.
+    pub fn to_data_as<E: Element>(&self) -> TensorData {
+        self.to_data().convert::<E>()
+    }
+
+    /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.to_data().try_convert::<E>()`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Returns
+    /// `Ok(data)`, or an error on data conversion errors.
+    pub fn try_to_data_as<E: Element>(&self) -> Result<TensorData, DataError> {
+        self.to_data().try_cast_as::<E>()
+    }
+
+    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`try_to_data_dtype`].
+    ///
+    /// # Returns
+    /// The new data.
+    ///
+    /// # Panics
+    /// On data conversion error.
+    pub fn to_data_dtype(&self, dtype: DType) -> TensorData {
+        self.try_to_data_dtype(dtype).unwrap()
+    }
+
+    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.to_data().try_cast(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Returns
+    /// `Ok(data)`, or an error on data conversion errors.
+    pub fn try_to_data_dtype(&self, dtype: DType) -> Result<TensorData, DataError> {
+        self.to_data().try_cast(dtype)
+    }
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`try_into_data_as`].
+    ///
+    /// # Returns
+    /// The new data.
+    ///
+    /// # Panics
+    /// On data conversion error.
+    pub fn into_data_as<E: Element>(self) -> TensorData {
+        self.try_into_data_as::<E>().unwrap()
+    }
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_into_data()?.try_cast_as::<E>(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Returns
+    /// `Ok(data)`, or an error on data conversion errors.
+    pub fn try_into_data_as<E: Element>(self) -> Result<TensorData, DataError> {
+        self.try_into_data()
+            .map_err(|e| DataError::TypeMismatch(format!("{e:?}")))?
+            .try_cast_as::<E>()
+    }
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`try_into_data_dtype`].
+    ///
+    /// # Returns
+    /// The new data.
+    ///
+    /// # Panics
+    /// On data conversion error.
+    pub fn into_data_dtype(self, dtype: DType) -> TensorData {
+        self.try_into_data_dtype(dtype).unwrap()
+    }
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_into_data()?.try_cast(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Returns
+    /// `Ok(data)`, or an error on data conversion errors.
+    pub fn try_into_data_dtype(self, dtype: DType) -> Result<TensorData, DataError> {
+        self.try_into_data()
+            .map_err(|e| DataError::TypeMismatch(format!("{e:?}")))?
+            .try_cast(dtype)
     }
 
     /// Create a tensor from the given data on the given device.
@@ -2698,13 +2847,9 @@ where
     /// println!("{scalar}");
     /// ```
     pub fn into_scalar<E: Element>(self) -> E {
-        check!(TensorCheck::into_scalar::<D>(&self.shape()));
-
-        let err_msg =
-            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
-
-        let data = self.into_data();
-        data.iter::<E>().next().expect(err_msg)
+        self.try_into_scalar::<E>().expect(
+            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime",
+        )
     }
 
     /// Convert the tensor into a scalar and returns any error that might have occurred since the
@@ -2720,12 +2865,8 @@ where
     /// The scalar value of the tensor.
     pub fn try_into_scalar<E: Element>(self) -> Result<E, ExecutionError> {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
-
-        let err_msg =
-            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
-
         let data = self.try_into_data()?;
-        Ok(data.iter::<E>().next().expect(err_msg))
+        Self::_unpack_scalar::<E>(data)
     }
 
     /// Convert the tensor into a scalar.
@@ -2735,12 +2876,15 @@ where
     /// If the tensor doesn't have one element.
     pub async fn into_scalar_async<E: Element>(self) -> Result<E, ExecutionError> {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
-
-        let err_msg =
-            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
-
         let data = self.into_data_async().await?;
-        Ok(data.iter::<E>().next().expect(err_msg))
+        Self::_unpack_scalar::<E>(data)
+    }
+
+    fn _unpack_scalar<E: Element>(data: TensorData) -> Result<E, ExecutionError> {
+        Ok(data
+            .iter::<E>()
+            .next()
+            .unwrap_or_else(|| panic!("Internal Shape Error: {:?}", data.shape)))
     }
 
     /// Broadcast the tensor to the given shape.
@@ -3377,12 +3521,6 @@ fn try_into_data_sync_impl(
         "Failed to read tensor data synchronously.
         This can happen on platforms that don't support blocking futures like WASM.
         If possible, try using into_data_async instead.",
-    )
-}
-
-fn into_data_sync_impl(primitive: BridgeTensor, kind: crate::ops::Kind) -> TensorData {
-    try_into_data_sync_impl(primitive, kind).expect(
-        "Error while reading data: use `try_into_data` instead to catch the error at runtime",
     )
 }
 

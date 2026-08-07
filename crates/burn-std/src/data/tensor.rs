@@ -1,10 +1,13 @@
 use core::f32;
 
+use crate::indexing::AsIndex;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
+use core::marker::PhantomData;
+use core::ops::{Index, IndexMut};
 use rand::Rng;
 use thiserror::Error;
 
@@ -12,12 +15,24 @@ use crate::Scalar;
 use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
+use crate::tensor::ravel_index;
 use crate::{
     BoolStore, Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Shape, bf16,
     f16,
 };
 
 use serde::{Deserialize, Serialize};
+
+/// The things that can go wrong when manipulating tensor data.
+#[derive(Debug, Error)]
+pub enum DataError {
+    /// Failed to cast the values to a specified element type.
+    #[error("Failed to cast values to the specified element type.\nError:\n  {0}")]
+    CastError(CheckedCastError),
+    /// Invalid target element type.
+    #[error("{0}")]
+    TypeMismatch(String),
+}
 
 /// Data structure for tensors.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,7 +114,7 @@ impl TensorData {
     /// Creates a new tensor data structure from raw bytes stored in a vector.
     ///
     /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
-    /// certain that the bytes representation is valid.
+    /// certain that the byte representation is valid.
     pub fn from_bytes_vec<S: Into<Shape>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
         Self {
             bytes: Bytes::from_bytes_vec(bytes),
@@ -116,6 +131,108 @@ impl TensorData {
             expected_data_len, num_data,
             "Shape {shape:?} is invalid for input of size {num_data:?}",
         );
+    }
+
+    /// Returns an [`Index`] view wrapper of the [`TensorData`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use burn_std::*;
+    ///
+    /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+    /// let shape = data.shape.clone();
+    /// let view: TensorDataView<f64> = data.try_view().unwrap();
+    ///
+    /// assert_eq!(view[&[0, 0]], 1.0);
+    /// assert_eq!(view[&[0, 1]], 2.0);
+    /// assert_eq!(view[&[1, 0]], 3.0);
+    /// assert_eq!(view[&[1, 1]], 4.0);
+    /// ```
+    ///
+    /// # Returns
+    /// `Ok(view)` on success; `Err(DataError::TypeError)` on view [`DType`]
+    /// miss-match.
+    pub fn try_view<E: Element>(&self) -> Result<TensorDataView<'_, E>, DataError> {
+        TensorDataView::<E>::try_view(self)
+    }
+
+    /// Returns a [`TensorDataView<E>`] of the [`TensorData`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use burn_std::*;
+    ///
+    /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+    /// let shape = data.shape.clone();
+    /// let view: TensorDataView<f64> = data.view();
+    ///
+    /// assert_eq!(view[&[0, 0]], 1.0);
+    /// assert_eq!(view[&[0, 1]], 2.0);
+    /// assert_eq!(view[&[1, 0]], 3.0);
+    /// assert_eq!(view[&[1, 1]], 4.0);
+    /// ```
+    ///
+    /// # Returns
+    /// The view.
+    ///
+    /// # Panics
+    /// If the view [`DType`] is not compatible with the [`TensorData`].
+    pub fn view<E: Element>(&self) -> TensorDataView<'_, E> {
+        self.try_view().unwrap()
+    }
+
+    /// Returns a [`TensorDataViewMut<E>`] of the [`TensorData`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use burn_std::*;
+    ///
+    /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+    /// let shape = data.shape.clone();
+    /// let mut view: TensorDataViewMut<f64> = data.try_mut_view().unwrap();
+    ///
+    /// assert_eq!(view[&[0, 0]], 1.0);
+    /// assert_eq!(view[&[0, 1]], 2.0);
+    /// assert_eq!(view[&[1, 0]], 3.0);
+    /// assert_eq!(view[&[1, 1]], 4.0);
+    ///
+    /// view[&[0, 0]] = 10.0;
+    /// assert_eq!(view[&[0, 0]], 10.0);
+    /// ```
+    ///
+    /// # Returns
+    /// `Ok(mut view)` on success; `Err(DataError::TypeError)` on view [`DType`]
+    /// miss-match.
+    pub fn try_mut_view<E: Element>(&mut self) -> Result<TensorDataViewMut<'_, E>, DataError> {
+        TensorDataViewMut::<E>::try_mut_view(self)
+    }
+
+    /// Returns a [`TensorDataViewMut<E>`] of the [`TensorData`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use burn_std::*;
+    ///
+    /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+    /// let shape = data.shape.clone();
+    /// let mut view: TensorDataViewMut<f64> = data.mut_view();
+    ///
+    /// assert_eq!(view[&[0, 0]], 1.0);
+    /// assert_eq!(view[&[0, 1]], 2.0);
+    /// assert_eq!(view[&[1, 0]], 3.0);
+    /// assert_eq!(view[&[1, 1]], 4.0);
+    ///
+    /// view[&[0, 0]] = 10.0;
+    /// assert_eq!(view[&[0, 0]], 10.0);
+    /// ```
+    ///
+    /// # Returns
+    /// The mut view.
+    ///
+    /// # Panics
+    /// If the view [`DType`] is not compatible with the [`TensorData`].
+    pub fn mut_view<E: Element>(&mut self) -> TensorDataViewMut<'_, E> {
+        self.try_mut_view().unwrap()
     }
 
     /// Returns the immutable slice view of the tensor data.
@@ -457,14 +574,61 @@ impl TensorData {
         self
     }
 
+    /// Copy and convert the data to a [`Vec<E>`].
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.clone().into_vec_as::<E>()`
+    ///
+    /// Particular conversions may provide more efficient implementations.
+    ///
+    /// # Returns
+    /// `Ok(vec)` on success, or an error if the conversion fails.
+    pub fn to_vec_as<E: Element>(&self) -> Result<Vec<E>, DataError> {
+        self.clone().into_vec_as::<E>()
+    }
+
+    /// Convert the data to [`Vec<E>`].
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.try_convert::<E>()?.to_vec::<E>()`
+    ///
+    /// Particular conversions may provide more efficient implementations.
+    ///
+    /// # Returns
+    /// `Ok(vec)` on success, or an error if the conversion fails.
+    pub fn into_vec_as<E: Element>(self) -> Result<Vec<E>, DataError> {
+        self.try_cast_as::<E>()?.to_vec::<E>()
+    }
+
     /// Converts the data to a different element type.
     pub fn convert<E: Element>(self) -> Self {
-        self.convert_dtype(E::dtype())
+        // TODO: deprecate?
+        self.try_cast_as::<E>().unwrap()
     }
 
     /// Converts the data to a different element type.
     pub fn convert_dtype(self, dtype: DType) -> Self {
-        if dtype == self.dtype {
+        // TODO: deprecate?
+        self.try_cast(dtype).unwrap()
+    }
+
+    /// Convert the data to a new dtype.
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.try_cast(E::dtype())`
+    ///
+    /// # Returns
+    /// Ok(data) on success, (Currently) panics on failure.
+    pub fn try_cast_as<E: Element>(self) -> Result<TensorData, DataError> {
+        self.try_cast(E::dtype())
+    }
+
+    /// Cast the data to a new dtype.
+    ///
+    /// # Returns
+    /// Ok(data) on success, (Currently) panics on failure.
+    pub fn try_cast(self, dtype: DType) -> Result<TensorData, DataError> {
+        Ok(if dtype == self.dtype {
             self
         } else if dtype.size() == self.dtype.size()
             && !matches!(
@@ -488,7 +652,12 @@ impl TensorData {
                 DType::U8 => self.convert_inplace_dtype::<u8>(dtype),
                 DType::Bool(BoolStore::U8) => self.convert_inplace_dtype::<u8>(dtype),
                 DType::Bool(BoolStore::U32) => self.convert_inplace_dtype::<u32>(dtype),
-                DType::Bool(BoolStore::Native) | DType::QFloat(_) => unreachable!(),
+                DType::Bool(BoolStore::Native) | DType::QFloat(_) => {
+                    return Err(DataError::TypeMismatch(format!(
+                        "DType ({:?}) cannot be converted to ({:?})",
+                        self.dtype, dtype
+                    )));
+                }
             }
         } else {
             match self.dtype {
@@ -507,9 +676,14 @@ impl TensorData {
                 DType::Bool(BoolStore::Native) => self.convert_clone_dtype::<bool>(dtype),
                 DType::Bool(BoolStore::U8) => self.convert_clone_dtype::<u8>(dtype),
                 DType::Bool(BoolStore::U32) => self.convert_clone_dtype::<u32>(dtype),
-                DType::QFloat(_) => unreachable!(),
+                DType::QFloat(_) => {
+                    return Err(DataError::TypeMismatch(format!(
+                        "DType ({:?}) cannot be converted to ({:?})",
+                        self.dtype, dtype
+                    )));
+                }
             }
-        }
+        })
     }
 
     fn convert_inplace_dtype<Current: Element + AnyBitPattern>(self, dtype: DType) -> Self {
@@ -782,15 +956,201 @@ impl core::fmt::Display for TensorData {
     }
 }
 
-/// The things that can go wrong when manipulating tensor data.
-#[derive(Debug, Error)]
-pub enum DataError {
-    /// Failed to cast the values to a specified element type.
-    #[error("Failed to cast values to the specified element type.\nError:\n  {0}")]
-    CastError(CheckedCastError),
-    /// Invalid target element type.
-    #[error("{0}")]
-    TypeMismatch(String),
+/// [Index] view wrapper for a [`TensorData`].
+///
+/// # Example
+/// ```rust,no_run
+/// use burn_std::*;
+///
+/// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+/// let view: TensorDataView<f64> = data.view();
+///
+/// assert_eq!(&view.shape(), &data.shape);
+/// assert_eq!(&view.dtype(), &data.dtype);
+///
+/// assert_eq!(view[&[0, 0]], 1.0);
+/// assert_eq!(view[&[0, 1]], 2.0);
+/// assert_eq!(view[&[1, 0]], 3.0);
+/// assert_eq!(view[&[1, 1]], 4.0);
+/// ```
+#[derive(Debug)]
+pub struct TensorDataView<'a, E: Element> {
+    data: &'a TensorData,
+    _phantom: PhantomData<&'a E>,
+}
+
+impl<'a, E: Element> TensorDataView<'a, E> {
+    /// Returns an [`Index`] view wrapper of the [`TensorData`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use burn_std::*;
+    ///
+    /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+    /// let view: TensorDataView<f64> = data.try_view().unwrap();
+    ///
+    /// assert_eq!(&view.shape(), &data.shape);
+    /// assert_eq!(&view.dtype(), &data.dtype);
+    ///
+    /// assert_eq!(view[&[0, 0]], 1.0);
+    /// assert_eq!(view[&[0, 1]], 2.0);
+    /// assert_eq!(view[&[1, 0]], 3.0);
+    /// assert_eq!(view[&[1, 1]], 4.0);
+    /// ```
+    ///
+    /// # Returns
+    /// `Ok(view)` on success; `Err(DataError::TypeError)` on view [`DType`]
+    /// miss-match.
+    pub fn try_view(data: &'a TensorData) -> Result<TensorDataView<'a, E>, DataError> {
+        if !data.matches_target_dtype::<E>() {
+            Err(DataError::TypeMismatch(format!(
+                "Cannot view TensorData DType \"{:?}\" as \"{:?}\"",
+                data.dtype,
+                E::dtype()
+            )))
+        } else {
+            Ok(TensorDataView {
+                data,
+                _phantom: PhantomData,
+            })
+        }
+    }
+
+    /// Returns the shape of the view.
+    pub fn shape(&self) -> Shape {
+        self.data.shape.clone()
+    }
+
+    /// Returns the dtype of the view.
+    pub fn dtype(&self) -> DType {
+        self.data.dtype
+    }
+
+    /// Ravels the dims via [`ravel_dims`] and the view's shape.
+    pub fn ravel_dims<I: AsIndex>(&self, dims: &[I]) -> usize {
+        ravel_index(dims, &self.data.shape)
+    }
+}
+
+impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
+    type Output = E;
+
+    fn index(&self, index: &[I]) -> &Self::Output {
+        let o = self.ravel_dims(index);
+        &self.data.as_slice::<E>().unwrap()[o]
+    }
+}
+
+/// Mutable [`IndexMut`] view wrapper for a [`TensorData`].
+///
+/// # Example
+/// ```rust,no_run
+/// use burn_std::*;
+///
+/// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+/// let shape = data.shape.clone();
+/// let dtype = data.dtype;
+/// let mut view: TensorDataViewMut<f64> = data.mut_view();
+///
+/// assert_eq!(&view.shape(), &shape);
+/// assert_eq!(&view.dtype(), &dtype);
+///
+/// assert_eq!(view[&[0, 0]], 1.0);
+/// assert_eq!(view[&[0, 1]], 2.0);
+/// assert_eq!(view[&[1, 0]], 3.0);
+/// assert_eq!(view[&[1, 1]], 4.0);
+///
+/// view[&[0, 0]] = 10.0;
+/// assert_eq!(view[&[0, 0]], 10.0);
+/// ```
+#[derive(Debug)]
+pub struct TensorDataViewMut<'a, E: Element> {
+    data: &'a mut TensorData,
+    _phantom: PhantomData<&'a E>,
+}
+
+impl<'a, E: Element> TensorDataViewMut<'a, E> {
+    /// Returns an indexed view of the data.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use burn_std::*;
+    ///
+    /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+    /// let shape = data.shape.clone();
+    /// let dtype = data.dtype;
+    ///
+    /// let mut view: TensorDataViewMut<f64> =
+    ///     TensorDataViewMut::try_mut_view(&mut data).unwrap();
+    ///
+    /// assert_eq!(&view.shape(), &shape);
+    /// assert_eq!(&view.dtype(), &dtype);
+    ///
+    /// assert_eq!(view[&[0, 0]], 1.0);
+    /// assert_eq!(view[&[0, 1]], 2.0);
+    /// assert_eq!(view[&[1, 0]], 3.0);
+    /// assert_eq!(view[&[1, 1]], 4.0);
+    ///
+    /// view[&[0, 0]] = 10.0;
+    /// assert_eq!(view[&[0, 0]], 10.0);
+    /// ```
+    ///
+    /// # Returns
+    /// `Ok(mut view)` on success; `Err(DataError::TypeError)` on view [`DType`]
+    /// miss-match.
+    pub fn try_mut_view(data: &'a mut TensorData) -> Result<TensorDataViewMut<'a, E>, DataError> {
+        if !data.matches_target_dtype::<E>() {
+            Err(DataError::TypeMismatch(format!(
+                "Cannot view TensorData DType \"{:?}\" as \"{:?}\"",
+                data.dtype,
+                E::dtype()
+            )))
+        } else {
+            Ok(TensorDataViewMut {
+                data,
+                _phantom: PhantomData,
+            })
+        }
+    }
+
+    /// Returns the shape of the view.
+    pub fn shape(&self) -> Shape {
+        self.data.shape.clone()
+    }
+
+    /// Returns the dtype of the view.
+    pub fn dtype(&self) -> DType {
+        self.data.dtype
+    }
+
+    /// Ravels the dims via [`ravel_dims`] and the view's shape.
+    pub fn ravel_dims<I: AsIndex>(&self, dims: &[I]) -> usize {
+        ravel_index(dims, &self.data.shape)
+    }
+}
+
+impl<'a, I, E> Index<&[I]> for TensorDataViewMut<'a, E>
+where
+    I: AsIndex,
+    E: Element,
+{
+    type Output = E;
+
+    fn index(&self, index: &[I]) -> &Self::Output {
+        let o = self.ravel_dims::<I>(index);
+        &self.data.as_slice::<E>().unwrap()[o]
+    }
+}
+
+impl<'a, I, E> IndexMut<&[I]> for TensorDataViewMut<'a, E>
+where
+    I: AsIndex,
+    E: Element,
+{
+    fn index_mut(&mut self, index: &[I]) -> &mut Self::Output {
+        let o = self.ravel_dims::<I>(index);
+        &mut self.data.as_mut_slice::<E>().unwrap()[o]
+    }
 }
 
 #[cfg(test)]
@@ -989,5 +1349,103 @@ mod tests {
         let serialized = serde_json::to_string(&data).unwrap();
         let json: serde_json::Value = serde_json::from_str(&serialized).unwrap();
         assert_eq!(json["shape"], serde_json::json!([2, 3]));
+    }
+
+    #[test]
+    fn test_tensor_data_try_view_dtype_mismatch() {
+        let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+
+        let result = data.try_view::<i32>();
+        assert!(matches!(result, Err(DataError::TypeMismatch(_))));
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot view TensorData DType")]
+    fn test_tensor_data_expect_view_dtype_mismatch() {
+        let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+        let _view = data.view::<i32>();
+    }
+
+    #[test]
+    fn test_tensor_data_try_mut_view_dtype_mismatch() {
+        let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+
+        let result = data.try_mut_view::<i32>();
+        assert!(matches!(result, Err(DataError::TypeMismatch(_))));
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot view TensorData DType")]
+    fn test_tensor_data_expect_mut_view_dtype_mismatch() {
+        let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+        let _view = data.mut_view::<i32>();
+    }
+
+    #[test]
+    fn test_tensor_data_index_view() {
+        let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+        let view = data.view::<f64>();
+
+        assert_eq!(&view.shape(), &data.shape);
+
+        assert_eq!(view[&[0, 0]], 1.0);
+        assert_eq!(view[&[0, 1]], 2.0);
+        assert_eq!(view[&[1, 0]], 3.0);
+        assert_eq!(view[&[1, 1]], 4.0);
+    }
+
+    #[test]
+    fn test_tensor_data_index_mut_view() {
+        let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+        let shape = data.shape.clone();
+
+        let mut view = data.mut_view::<f64>();
+
+        assert_eq!(&view.shape(), &shape);
+
+        assert_eq!(view[&[0, 0]], 1.0);
+        assert_eq!(view[&[0, 1]], 2.0);
+        assert_eq!(view[&[1, 0]], 3.0);
+        assert_eq!(view[&[1, 1]], 4.0);
+
+        view[&[0, 0]] = 10.0;
+        assert_eq!(view[&[0, 0]], 10.0);
+    }
+
+    #[test]
+    fn test_to_vec_as() {
+        let data = TensorData::from([0.0f32, 1.0, 2.5]);
+
+        // Same-dtype copy.
+        assert_eq!(data.to_vec_as::<f32>().unwrap(), vec![0.0f32, 1.0, 2.5]);
+
+        // Widening cast (different element size).
+        assert_eq!(data.to_vec_as::<f64>().unwrap(), vec![0.0f64, 1.0, 2.5]);
+
+        // Float to int cast (same element size) truncates.
+        assert_eq!(data.to_vec_as::<i32>().unwrap(), vec![0i32, 1, 2]);
+
+        // The source data is borrowed, not consumed.
+        data.assert_eq(&TensorData::from([0.0f32, 1.0, 2.5]), true);
+    }
+
+    #[test]
+    fn test_into_vec_as() {
+        let data = TensorData::from([0i32, 1, 2, 3]);
+
+        // Same-dtype conversion.
+        assert_eq!(
+            data.clone().into_vec_as::<i32>().unwrap(),
+            vec![0i32, 1, 2, 3]
+        );
+
+        // Int to float cast.
+        assert_eq!(
+            data.clone().into_vec_as::<f32>().unwrap(),
+            vec![0.0f32, 1.0, 2.0, 3.0]
+        );
+
+        // Narrowing int cast.
+        assert_eq!(data.into_vec_as::<u8>().unwrap(), vec![0u8, 1, 2, 3]);
     }
 }
