@@ -1628,12 +1628,16 @@ where
     ///   booleans, `Add` is logical or.
     /// - `IndexingUpdateOp::Assign` replaces values at the selected positions (`=`), when
     ///   supported by the backend.
+    /// - `IndexingUpdateOp::Mul` multiplies values at the selected positions (`*=`), when
+    ///   supported by the backend.
     ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
     ///   backends.
     /// - For `Assign`, duplicate indices result in undefined behavior for both the forward result
     ///   and the backward gradients.
+    /// - For `Mul`, duplicate indices are multiplied in an unspecified order and backward
+    ///   gradients are undefined.
     ///
     /// For deterministic results and correct gradient calculation across all operations,
     /// `indices` should contain unique entries.
@@ -1661,6 +1665,13 @@ where
     /// `input[indices[i], j, k] = values[i, j, k]; // dim = 0`
     /// `input[i, indices[j], k] = values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[k]] = values[i, j, k]; // dim = 2`
+    ///
+    /// With `IndexingUpdateOp::Mul`, when supported by the backend, the selected values are
+    /// multiplied instead:
+    ///
+    /// `input[indices[i], j, k] *= values[i, j, k]; // dim = 0`
+    /// `input[i, indices[j], k] *= values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[k]] *= values[i, j, k]; // dim = 2`
     ///
     /// # Warning
     ///
@@ -1846,6 +1857,13 @@ where
     /// `input[i, indices[i, j, k], k] = values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[i, j, k]] = values[i, j, k]; // dim = 2`
     ///
+    /// With `IndexingUpdateOp::Mul`, when supported by the backend, the indexed values are
+    /// multiplied instead:
+    ///
+    /// `input[indices[i, j, k], j, k] *= values[i, j, k]; // dim = 0`
+    /// `input[i, indices[i, j, k], k] *= values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[i, j, k]] *= values[i, j, k]; // dim = 2`
+    ///
     /// # Arguments
     /// * `dim` - The axis along which to scatter elements. Supports negative indexing.
     /// * `indices` - The indices of the elements to scatter.
@@ -1862,6 +1880,8 @@ where
     ///   backends.
     /// - For `Assign`, duplicate indices result in undefined behavior for both the forward result
     ///   and the backward gradients.
+    /// - For `Mul`, duplicate indices are multiplied in an unspecified order and backward
+    ///   gradients are undefined.
     ///
     /// For deterministic results and correct gradient calculation across all operations,
     /// `indices` should contain unique entries.
