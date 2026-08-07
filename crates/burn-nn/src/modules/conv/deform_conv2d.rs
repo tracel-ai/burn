@@ -115,7 +115,7 @@ impl DeformConv2dConfig {
             dilation: self.dilation,
             padding: self.padding.clone(),
             weight_groups: self.weight_groups,
-            offset_groups: self.weight_groups,
+            offset_groups: self.offset_groups,
         }
     }
 }
