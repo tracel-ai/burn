@@ -137,7 +137,7 @@ impl TensorData {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use burn_std::::*;
+    /// use burn_std::*;
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
@@ -160,7 +160,7 @@ impl TensorData {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use burn_std::::*;
+    /// use burn_std::*;
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
@@ -185,7 +185,7 @@ impl TensorData {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use burn_std::::*;
+    /// use burn_std::*;
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
@@ -211,7 +211,7 @@ impl TensorData {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use burn_std::::*;
+    /// use burn_std::*;
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
@@ -960,7 +960,7 @@ impl core::fmt::Display for TensorData {
 ///
 /// # Example
 /// ```rust,no_run
-/// use burn_std::::*;
+/// use burn_std::*;
 ///
 /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 /// let view: TensorDataView<f64> = data.view();
@@ -983,7 +983,7 @@ impl<'a, E: Element> TensorDataView<'a, E> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use burn_std::::*;
+    /// use burn_std::*;
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let view: TensorDataView<f64> = data.try_view().unwrap();
@@ -1043,7 +1043,7 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
 ///
 /// # Example
 /// ```rust,no_run
-/// use burn_std::::*;
+/// use burn_std::*;
 ///
 /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 /// let shape = data.shape.clone();
@@ -1070,7 +1070,7 @@ impl<'a, E: Element> TensorDataViewMut<'a, E> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use burn_std::::*;
+    /// use burn_std::*;
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
