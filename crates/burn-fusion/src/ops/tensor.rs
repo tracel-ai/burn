@@ -701,6 +701,53 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct ScatterOps<B: FusionBackend> {
+            desc: ScatterOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ScatterOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let value = handles.get_float_tensor::<B>(&self.desc.value);
+
+                let output =
+                    B::float_scatter(self.desc.dim, tensor, indices, value, self.desc.update);
+
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ScatterOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            update,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::Scatter(desc.clone())),
+                ScatterOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn float_scatter_nd(
         data: FloatTensor<Self>,
         indices: IntTensor<Self>,
@@ -849,6 +896,53 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             indices.into_ir(),
             value.into_ir(),
             IndexingUpdateOp::Add,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::SelectAssign(desc.clone())),
+                SelectAssignOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_select_assign(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct SelectAssignOps<B: FusionBackend> {
+            desc: SelectAssignOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectAssignOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let value = handles.get_float_tensor::<B>(&self.desc.value);
+
+                let output =
+                    B::float_select_assign(tensor, self.desc.dim, indices, value, self.desc.update);
+
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = SelectAssignOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            update,
             || client.create_empty_handle(),
         );
 

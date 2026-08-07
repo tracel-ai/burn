@@ -387,6 +387,18 @@ impl ModuleOps<Self> for LibTorch {
         TchTensor::new(tensor)
     }
 
+    fn adaptive_avg_pool3d(x: TchTensor, output_size: [usize; 3]) -> TchTensor {
+        let tensor = tch::Tensor::adaptive_avg_pool3d(&x.tensor, output_size.map(|e| e as i64));
+
+        TchTensor::new(tensor)
+    }
+
+    fn adaptive_avg_pool3d_backward(x: TchTensor, grad: TchTensor) -> TchTensor {
+        let tensor = tch::Tensor::internal_adaptive_avg_pool3d_backward(&x.tensor, &grad.tensor);
+
+        TchTensor::new(tensor)
+    }
+
     fn adaptive_avg_pool1d(x: TchTensor, output_size: usize) -> TchTensor {
         let tensor = tch::Tensor::adaptive_avg_pool1d(&x.tensor, output_size as i64);
 

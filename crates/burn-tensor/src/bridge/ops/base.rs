@@ -336,6 +336,30 @@ pub(crate) trait BasicOps: TensorKind {
     /// function, which is more high-level and designed for public use.
     fn mask_fill(tensor: BridgeTensor, mask: BridgeTensor, value: Scalar) -> BridgeTensor;
 
+    /// Selects the elements of the tensor where the mask is true, returned as a 1D tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `mask` - The boolean mask, with the same shape as the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A 1D tensor containing the selected elements, in the order of the flattened input tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For selecting the elements of a tensor where a mask is true, users should prefer the [`Tensor::mask_select`](crate::Tensor::mask_select)
+    /// function, which is more high-level and designed for public use.
+    fn mask_select(
+        tensor: BridgeTensor,
+        mask: BridgeTensor,
+    ) -> impl Future<Output = BridgeTensor> + Send;
+
     /// Gathers elements from a tensor along an axis.
     ///
     /// # Arguments

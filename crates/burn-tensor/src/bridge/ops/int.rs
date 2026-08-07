@@ -85,15 +85,13 @@ impl BasicOps for Int {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::int(Dispatch::int_select_add(
-                tensor.into(),
-                dim,
-                indices.into(),
-                values.into(),
-            )),
-            _ => unimplemented!(),
-        }
+        BridgeTensor::int(Dispatch::int_select_assign(
+            tensor.into(),
+            dim,
+            indices.into(),
+            values.into(),
+            update,
+        ))
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
@@ -108,6 +106,10 @@ impl BasicOps for Int {
         BridgeTensor::int(Dispatch::int_mask_fill(tensor.into(), mask.into(), value))
     }
 
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::int(Dispatch::int_mask_select(tensor.into(), mask.into()).await)
+    }
+
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_gather(dim, tensor.into(), indices.into()))
     }
@@ -119,15 +121,13 @@ impl BasicOps for Int {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::int(Dispatch::int_scatter_add(
-                dim,
-                tensor.into(),
-                indices.into(),
-                values.into(),
-            )),
-            _ => unimplemented!(),
-        }
+        BridgeTensor::int(Dispatch::int_scatter(
+            dim,
+            tensor.into(),
+            indices.into(),
+            values.into(),
+            update,
+        ))
     }
 
     fn scatter_nd(

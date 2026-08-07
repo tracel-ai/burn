@@ -348,7 +348,7 @@ pub(crate) fn handle_command(
                         .get_or_insert_with(Vec::new)
                         .push("webgpu".to_string());
 
-                    let args_wgpu = args.clone().try_into().unwrap();
+                    let args_wgpu = args_wgpu.try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_wgpu)?;
                     handle_wgpu_test("burn-core", &args_wgpu)?;
                     handle_wgpu_test("burn-vision", &args_wgpu)?;

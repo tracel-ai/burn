@@ -1,7 +1,6 @@
-use crate::{
-    CubeBackend, CubeRuntime, kernel::attention::attention_autotune,
-    ops::numeric::empty_device_dtype, tensor::CubeTensor,
-};
+#[cfg(feature = "autotune")]
+use crate::kernel::attention::attention_autotune;
+use crate::{CubeBackend, CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType, Shape,

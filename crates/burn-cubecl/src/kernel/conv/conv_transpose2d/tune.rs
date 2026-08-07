@@ -73,7 +73,7 @@ fn create_key<R: CubeRuntime>(
     ),
 ) -> CubeAutotuneKey {
     let [batch_size, in_channels, height, width] = input.meta.shape().dims();
-    let [out_channels, _, kernel_h, kernel_w] = weights.meta.shape().dims();
+    let [_, out_channels_per_group, kernel_h, kernel_w] = weights.meta.shape().dims();
     let ConvTransposeOptions {
         stride,
         padding,
@@ -81,6 +81,7 @@ fn create_key<R: CubeRuntime>(
         groups,
         padding_out,
     } = options.clone();
+    let out_channels = out_channels_per_group * groups;
     CubeAutotuneKey::ConvTranspose(ConvTranspose2dAutotuneKey::new(
         [kernel_h, kernel_w],
         stride,

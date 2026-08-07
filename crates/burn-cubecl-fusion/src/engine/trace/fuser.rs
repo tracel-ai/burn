@@ -11,7 +11,6 @@ use crate::engine::trace::{TensorView, block::QuantInput};
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorIr};
 use burn_std::{DType, Shape};
-use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
 /// It is responsible to create a [trace](FuseTrace) composed of multiple [blocks](super::block::FuseBlock).
@@ -189,20 +188,16 @@ impl TraceFuser {
         if self.resources.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
         }
-        self.resources.outputs.update(tensor);
 
-        let precision = tensor.dtype.into();
-        let precision_scales = match tensor.dtype {
-            DType::QFloat(scheme) => match scheme.param {
-                QuantParam::F32 => FuseType::F32,
-                QuantParam::F16 => FuseType::F16,
-                QuantParam::BF16 => FuseType::BF16,
-                QuantParam::UE8M0 | QuantParam::UE4M3 => {
-                    unimplemented!("Unsupported fuse precision");
-                }
-            },
+        let (precision, precision_scales) = match tensor.dtype {
+            DType::QFloat(scheme) => (
+                FuseType::from_quant_scheme(scheme)?,
+                FuseType::from_quant_param(scheme.param)?,
+            ),
             _ => return None,
         };
+
+        self.resources.outputs.update(tensor);
 
         let (new_input, q_index) = self.resources.inputs.insert_quant(tensor.clone());
         let input = FuseArg::Input(new_input, precision, LayoutInfo::Unknown);

@@ -34,11 +34,9 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
-    ///     println!("{tensor}");
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
+    /// println!("{tensor}");
     /// ```
     pub fn from_bool<A: Into<TensorData>>(data: A, device: &Device) -> Self {
         Self::from_data(data.into(), device)
@@ -55,12 +53,10 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
-    ///     let int_tensor = bool_tensor.int();
-    ///     println!("{int_tensor}"); // [1, 0, 1]
-    /// }
+    /// let device = Default::default();
+    /// let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
+    /// let int_tensor = bool_tensor.int();
+    /// println!("{int_tensor}"); // [1, 0, 1]
     /// ```
     pub fn int(self) -> Tensor<D, Int> {
         let device = self.device();
@@ -78,12 +74,10 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
-    ///     let float_tensor = bool_tensor.float();
-    ///     println!("{float_tensor}"); // [1.0, 0.0, 1.0]
-    /// }
+    /// let device = Default::default();
+    /// let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
+    /// let float_tensor = bool_tensor.float();
+    /// println!("{float_tensor}"); // [1.0, 0.0, 1.0]
     /// ```
     pub fn float(self) -> Tensor<D> {
         let device = self.device();
@@ -100,16 +94,14 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, IntDType, FloatDType};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
+    /// let device = Default::default();
+    /// let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
     ///
-    ///     // Cast to int
-    ///     let int_tensor = bool_tensor.clone().cast(IntDType::I64);
+    /// // Cast to int
+    /// let int_tensor = bool_tensor.clone().cast(IntDType::I64);
     ///
-    ///     // Cast to float
-    ///     let float_tensor = bool_tensor.cast(FloatDType::F32);
-    /// }
+    /// // Cast to float
+    /// let float_tensor = bool_tensor.cast(FloatDType::F32);
     /// ```
     #[must_use]
     pub fn cast<T: Cast<D, Bool>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
@@ -123,12 +115,10 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
-    ///     let inverted = tensor.bool_not();
-    ///     println!("{inverted}"); // [[false, true], [true, false]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
+    /// let inverted = tensor.bool_not();
+    /// println!("{inverted}"); // [[false, true], [true, false]]
     /// ```
     pub fn bool_not(self) -> Self {
         Tensor::new(bool_not_impl(self.primitive))
@@ -149,13 +139,11 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
-    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
-    ///     let result = a.bool_and(b);
-    ///     println!("{result}"); // [[true, false], [false, false]]
-    /// }
+    /// let device = Default::default();
+    /// let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    /// let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
+    /// let result = a.bool_and(b);
+    /// println!("{result}"); // [[true, false], [false, false]]
     /// ```
     pub fn bool_and(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
         Tensor::new(bool_and_impl(self.primitive, rhs.primitive))
@@ -176,13 +164,11 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
-    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
-    ///     let result = a.bool_or(b);
-    ///     println!("{result}"); // [[true, true], [true, false]]
-    /// }
+    /// let device = Default::default();
+    /// let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    /// let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
+    /// let result = a.bool_or(b);
+    /// println!("{result}"); // [[true, true], [true, false]]
     /// ```
     pub fn bool_or(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
         Tensor::new(bool_or_impl(self.primitive, rhs.primitive))
@@ -204,13 +190,11 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
-    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
-    ///     let result = a.bool_xor(b);
-    ///     println!("{result}"); // [[false, true], [true, false]]
-    /// }
+    /// let device = Default::default();
+    /// let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    /// let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
+    /// let result = a.bool_xor(b);
+    /// println!("{result}"); // [[false, true], [true, false]]
     /// ```
     pub fn bool_xor(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
         Tensor::new(bool_xor_impl(self.primitive, rhs.primitive))
@@ -228,16 +212,14 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let tensor = Tensor::<2, Bool>::from_bool(
-    ///         [[true, false, true], [false, true, false], [false, true, false]],
-    ///         &device,
-    ///     );
-    ///     let indices = tensor.nonzero();
-    ///     println!("{}", indices[0]); // [0, 0, 1, 2]
-    ///     println!("{}", indices[1]); // [0, 2, 1, 1]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2, Bool>::from_bool(
+    ///     [[true, false, true], [false, true, false], [false, true, false]],
+    ///     &device,
+    /// );
+    /// let indices = tensor.nonzero();
+    /// println!("{}", indices[0]); // [0, 0, 1, 2]
+    /// println!("{}", indices[1]); // [0, 2, 1, 1]
     /// ```
     pub fn nonzero(self) -> Vec<Tensor<1, Int>> {
         try_read_sync(self.nonzero_async())
@@ -278,15 +260,13 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let tensor = Tensor::<2, Bool>::from_bool(
-    ///         [[true, false, true], [false, true, false], [false, true, false]],
-    ///         &device,
-    ///     );
-    ///     let indices = tensor.argwhere();
-    ///     println!("{indices}"); // [[0, 0], [0, 2], [1, 1], [2, 1]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2, Bool>::from_bool(
+    ///     [[true, false, true], [false, true, false], [false, true, false]],
+    ///     &device,
+    /// );
+    /// let indices = tensor.argwhere();
+    /// println!("{indices}"); // [[0, 0], [0, 2], [1, 1], [2, 1]]
     /// ```
     pub fn argwhere(self) -> Tensor<2, Int> {
         try_read_sync(self.argwhere_async())
@@ -361,13 +341,11 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///   let mask = Tensor::<2, Bool>::triu_mask([3, 3], 0, &Default::default());
-    ///   println!("{mask}");
-    ///   // [[false, false, false],
-    ///   //  [true, false, false],
-    ///   //  [true, true, false]]
-    /// }
+    /// let mask = Tensor::<2, Bool>::triu_mask([3, 3], 0, &Default::default());
+    /// println!("{mask}");
+    /// // [[false, false, false],
+    /// //  [true, false, false],
+    /// //  [true, true, false]]
     /// ```
     pub fn triu_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Upper, offset, device)
@@ -394,13 +372,11 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///   let mask = Tensor::<2, Bool>::tril_mask([3, 3], 0, &Default::default());
-    ///   println!("{mask}");
-    ///   // [[false, true, true],
-    ///   //  [false, false, true],
-    ///   //  [false, false, false]]
-    /// }
+    /// let mask = Tensor::<2, Bool>::tril_mask([3, 3], 0, &Default::default());
+    /// println!("{mask}");
+    /// // [[false, true, true],
+    /// //  [false, false, true],
+    /// //  [false, false, false]]
     /// ```
     pub fn tril_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Lower, offset, device)
@@ -427,13 +403,11 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```rust
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example() {
-    ///   let mask = Tensor::<2, Bool>::diag_mask([3, 3], 0, &Default::default());
-    ///   println!("{mask}");
-    ///   // [[false, true, true],
-    ///   //  [true, false, true],
-    ///   //  [true, true, false]]
-    /// }
+    /// let mask = Tensor::<2, Bool>::diag_mask([3, 3], 0, &Default::default());
+    /// println!("{mask}");
+    /// // [[false, true, true],
+    /// //  [true, false, true],
+    /// //  [true, true, false]]
     /// ```
     pub fn diag_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Diagonal, offset, device)

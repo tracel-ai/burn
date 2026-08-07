@@ -114,7 +114,12 @@ impl Optimizer for AdamW {
 
 impl AdamWConfig {
     /// Build an [`AdamW`] from the config.
-    pub(crate) fn build(&self) -> AdamW {
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
+    pub fn build(&self) -> AdamW {
         AdamW {
             momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,

@@ -6,7 +6,7 @@ use crate::{Backend, Distribution, TensorData, TensorMetadata};
 use crate::{ExecutionError, Scalar, get_device_settings};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
 use core::ops::Range;
 
 /// Int Tensor API for basic and numeric operations, see
@@ -149,6 +149,38 @@ pub trait IntTensorOps<B: Backend> {
     /// The tensor with the values filled.
     fn int_mask_fill(tensor: IntTensor<B>, mask: BoolTensor<B>, value: Scalar) -> IntTensor<B>;
 
+    /// Selects the elements of the tensor where the mask is true, returned as a 1D tensor.
+    ///
+    /// The elements are collected in row-major order. Because the number of selected elements
+    /// depends on the mask values, the output shape is data-dependent: computing it may require
+    /// synchronizing with the device, which is why this operation is asynchronous.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `mask` - The boolean mask, with the same shape as the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A 1D tensor containing the selected elements.
+    fn int_mask_select(
+        tensor: IntTensor<B>,
+        mask: BoolTensor<B>,
+    ) -> impl Future<Output = IntTensor<B>> + 'static + Send {
+        async move {
+            // Data-dependent output length, so we defer to `bool_argwhere` (the only pre-existing
+            // data-dependent op) to collect the flat indices of the true mask values, then select.
+            let n = mask.shape().num_elements();
+            let int_dtype = get_device_settings::<B>(&mask.device()).int_dtype;
+            let mask = B::bool_reshape(mask, Shape::new([n]));
+            let indices = B::bool_argwhere(mask, int_dtype).await; // [count, 1]
+            let count = indices.shape()[0];
+            let indices = B::int_reshape(indices, Shape::new([count])); // squeeze to [count]
+            let tensor = B::int_reshape(tensor, Shape::new([n]));
+            B::int_select(tensor, 0, indices)
+        }
+    }
+
     /// Gather elements from the tensor at the given indices.
     ///
     /// # Arguments
@@ -176,6 +208,22 @@ pub trait IntTensorOps<B: Backend> {
         indices: IntTensor<B>,
         value: IntTensor<B>,
     ) -> IntTensor<B>;
+
+    /// Scatter elements into a tensor using the specified update operation.
+    ///
+    /// Backend implementations may override this to support operations beyond add.
+    fn int_scatter(
+        dim: usize,
+        tensor: IntTensor<B>,
+        indices: IntTensor<B>,
+        value: IntTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        match update {
+            IndexingUpdateOp::Add => Self::int_scatter_add(dim, tensor, indices, value),
+            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+        }
+    }
 
     /// Multi-dimensional scatter for int tensors.
     fn int_scatter_nd(
@@ -224,6 +272,22 @@ pub trait IntTensorOps<B: Backend> {
         indices: IntTensor<B>,
         value: IntTensor<B>,
     ) -> IntTensor<B>;
+
+    /// Assign selected elements along a dimension using the specified update operation.
+    ///
+    /// Backend implementations may override this to support operations beyond add.
+    fn int_select_assign(
+        tensor: IntTensor<B>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: IntTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        match update {
+            IndexingUpdateOp::Add => Self::int_select_add(tensor, dim, indices, value),
+            other => unimplemented!("int_select_assign with {other:?} update is not implemented"),
+        }
+    }
 
     /// Repeats the tensor along the given dimension the given number of times.
     ///

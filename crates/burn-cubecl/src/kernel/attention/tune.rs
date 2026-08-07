@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime, CubeTuneId,
-    kernel::attention::{AttentionStrategy, attention},
+    kernel::attention::{AttentionStrategy, attention, bounds::with_attention_bounds},
     tensor::CubeTensor,
 };
 use burn_backend::DType;
@@ -53,7 +53,7 @@ pub fn attention_autotune<R: CubeRuntime>(
             }
         });
 
-        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
+        let mut set = with_attention_bounds(TunableSet::new(create_key::<R>, input_gen::<R>));
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
