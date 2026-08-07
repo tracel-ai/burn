@@ -1,5 +1,6 @@
 use crate::AsIndex;
 use crate::Cast;
+use crate::DType;
 use crate::Device;
 use crate::Tensor;
 use crate::cast::ToElement;
@@ -388,6 +389,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
                 1,
                 "the per-tensor scale must have exactly one element, got {:?}",
                 global.dims()
+            );
+            assert_eq!(
+                global.dtype(),
+                DType::F32,
+                "the per-tensor scale must be an f32 tensor, got {:?}",
+                global.dtype()
             );
         }
         Tensor::new(quantize_impl(

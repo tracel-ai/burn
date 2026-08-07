@@ -264,7 +264,10 @@ impl QuantizedBytes {
     fn split_i8_values(self, scale_bytes: usize) -> (Vec<i8>, Vec<u8>) {
         let mut values = read_bytes_to_i8(self.bytes);
 
-        let values_end = values.len() - scale_bytes;
+        let values_end = values
+            .len()
+            .checked_sub(scale_bytes)
+            .expect("quantized tensor data is shorter than its scheme's parameters");
         let qparams = values.split_off(values_end);
 
         (values, bytemuck::cast_vec(qparams))
@@ -296,7 +299,10 @@ impl QuantizedBytes {
             QuantStore::PackedU32(_) => match self.scheme.value {
                 QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(scale_bytes),
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
-                    let split_at = self.bytes.len() - scale_bytes;
+                    let split_at =
+                        self.bytes.len().checked_sub(scale_bytes).expect(
+                            "quantized tensor data is shorter than its scheme's parameters",
+                        );
                     let qparams = self.bytes[split_at..].to_vec();
                     let values = bytemuck::cast_slice::<_, u32>(&self.bytes[..split_at]);
                     // Sub-byte values are unpacked as i8s for value equality tests
@@ -332,6 +338,18 @@ pub fn scale_to_param(scale: f32, param: QuantParam) -> f32 {
 /// Bytes taken by the per-tensor scale, zero for levels that do not carry one.
 pub fn global_scale_size(scheme: &QuantScheme) -> usize {
     scheme.level.global_param().map_or(0, scale_size)
+}
+
+/// Total bytes a tensor of `shape` occupies under `scheme`, laid out as [`QuantizedBytes::new`]
+/// writes it: values, then block scales, then (for a two-level scheme) the per-tensor scale.
+pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
+    let num_storage_elements = shape.num_elements().div_ceil(scheme.num_quants());
+    let value_bytes = num_storage_elements * scheme.size_bits_stored().div_ceil(8);
+
+    let num_params = params_shape(shape, scheme.level).num_elements();
+    let scale_bytes = num_params * scale_size(scheme.param);
+
+    value_bytes + scale_bytes + global_scale_size(scheme)
 }
 
 /// Bytes per stored scale entry for the given param dtype.

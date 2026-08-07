@@ -174,11 +174,7 @@ impl QTensorOps<Flex> for Flex {
             Some(block_size) => {
                 let block_elems = block_size.num_elements();
                 assert_block_divides(float_data.len(), block_elems);
-                let multiplier = if scheme.level.global_param().is_some() {
-                    global.expect("a two-level scheme should have a per-tensor scale")
-                } else {
-                    1.0
-                };
+                let multiplier = global.unwrap_or(1.0);
                 let mut quantized = Vec::with_capacity(float_data.len());
                 for (block, &scale) in float_data.chunks(block_elems).zip(scales.iter()) {
                     let inv_scale = 1.0 / (multiplier * scale);
@@ -212,13 +208,7 @@ impl QTensorOps<Flex> for Flex {
             }
             Some(block_size) => {
                 let block_elems = block_size.num_elements();
-                let multiplier = if tensor.scheme.level.global_param().is_some() {
-                    tensor
-                        .global
-                        .expect("a two-level tensor should carry a per-tensor scale")
-                } else {
-                    1.0
-                };
+                let multiplier = tensor.global.unwrap_or(1.0);
                 q_data
                     .chunks(block_elems)
                     .zip(tensor.scales.iter())

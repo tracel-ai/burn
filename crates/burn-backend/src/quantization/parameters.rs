@@ -14,9 +14,7 @@ pub struct QuantizationParametersPrimitive<B: Backend> {
     /// tensor's float dtype.
     pub scales: B::FloatTensorPrimitive,
     /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
-    /// two-level scheme. A value is reconstructed as `q * global * scale`.
-    ///
-    /// Always `f32`, unlike [`scales`](Self::scales), so the two cannot go into a binary op
+    /// two-level scheme. Always `f32`, unlike `scales`, so the two cannot go into a binary op
     /// without a cast.
     pub global: Option<B::FloatTensorPrimitive>,
 }

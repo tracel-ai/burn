@@ -2,12 +2,12 @@ use super::*;
 use alloc::{vec, vec::Vec};
 use burn_tensor::Tolerance;
 use burn_tensor::quantization::{
-    QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue, QuantizationParameters,
-    QuantizedBytes,
+    DecodedScales, QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue,
+    QuantizationParameters, QuantizedBytes,
 };
 use burn_tensor::{DType, Element, TensorData};
 
-fn get_q_params(data: TensorData) -> Vec<f32> {
+fn get_q_params(data: TensorData) -> DecodedScales {
     let num_elements = data.num_elements();
     let scheme = if let DType::QFloat(scheme) = data.dtype {
         scheme
@@ -19,7 +19,7 @@ fn get_q_params(data: TensorData) -> Vec<f32> {
         scheme,
         num_elements,
     };
-    q_bytes.into_vec_i8().1.block
+    q_bytes.into_vec_i8().1
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn should_support_quantize_symmetric_int8() {
     // Quantization parameters check
     let qparams = get_q_params(x_q_data);
     let expected = get_q_params(expected);
-    assert_eq!(qparams.len(), 1);
+    assert_eq!(qparams.block.len(), 1);
     // TODO: check scales
     assert_eq!(qparams, expected);
 

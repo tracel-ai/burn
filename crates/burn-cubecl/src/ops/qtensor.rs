@@ -8,7 +8,7 @@ use burn_backend::{
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata};
+use burn_std::{FloatDType, Metadata, quantization::global_scale_size};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -21,9 +21,9 @@ use crate::{
 use super::{into_data, permute, swap_dims};
 
 /// Length of the block-scales region within a combined scales+global byte buffer.
-fn scales_region_len(total: usize, global: Option<&MemoryLayoutDescriptor>) -> usize {
+fn scales_region_len(total: usize, scheme: &QuantScheme) -> usize {
     total
-        .checked_sub(global.map_or(0, |d| d.elem_size))
+        .checked_sub(global_scale_size(scheme))
         .expect("quantized tensor data is shorter than the scheme's global scale")
 }
 
@@ -138,7 +138,7 @@ fn new_quantized<R: CubeRuntime>(
                 (Ok((bytes_data, bytes_params)), None) => client
                     .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_params)]),
                 (Ok((bytes_data, bytes_params)), Some(global_desc)) => {
-                    let scales_bytes = scales_region_len(bytes_params.len(), Some(&global_desc));
+                    let scales_bytes = scales_region_len(bytes_params.len(), &scheme);
                     match bytes_params.split(scales_bytes, SplitPolicy::Shared) {
                         Ok((block, global)) => client.create_tensors(vec![
                             (data_desc, bytes_data),
@@ -154,7 +154,7 @@ fn new_quantized<R: CubeRuntime>(
                 }
                 (Err((data, _)), global_desc) => {
                     let params = &data[num_bytes..];
-                    let scales_bytes = scales_region_len(params.len(), global_desc.as_ref());
+                    let scales_bytes = scales_region_len(params.len(), &scheme);
                     let mut entries = vec![
                         (data_desc, &data[..num_bytes]),
                         (scales_desc, &params[..scales_bytes]),

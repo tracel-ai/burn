@@ -754,12 +754,7 @@ impl NdArrayQTensor {
                 } => {
                     // Kept apart on the tensor so a round trip through bytes preserves each level
                     // at the precision it is stored in.
-                    let multiplier = if self.scheme.level.global_param().is_some() {
-                        self.global
-                            .expect("a two-level tensor should carry a per-tensor scale")
-                    } else {
-                        1.0
-                    };
+                    let multiplier = self.global.unwrap_or(1.0);
                     QuantizationStrategy::PerBlockSymmetric(
                         self.qparams
                             .iter()

@@ -107,17 +107,9 @@ pub fn compute_q_params<B: Backend>(
     }
 }
 
-/// Split block scales into a per-tensor scale and block scales relative to it.
-///
-/// The global is picked so the largest block scale lands at the top of `block_param`'s range, which
-/// is what lets a narrow type cover a tensor whose raw scales would otherwise overflow or underflow
-/// it. Both levels come back unrounded, as the one-level scales do; backends round each to the
-/// precision it is stored in and quantize against that product.
-///
-/// The per-tensor scale is returned in `f32` whatever the tensor's dtype is. It sits a whole block
-/// param's range below the block scales, so at `f16` it would land among the subnormals and keep a
-/// number of bits that depends on the weights' magnitude, which is what the second level exists to
-/// remove.
+/// Splits block scales into a per-tensor scale and block scales relative to it, returned as
+/// `(scales, global)`. `global` is `f32`: at the block param's precision it would land among the
+/// subnormals, keeping a number of bits that depends on the weights' magnitude.
 fn normalize_scales<B: Backend>(
     scales: B::FloatTensorPrimitive,
     block_param: QuantParam,

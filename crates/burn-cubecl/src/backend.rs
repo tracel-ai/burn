@@ -7,6 +7,7 @@ use burn_backend::{
 use burn_std::{BoolStore, DType, quantization::levels_supported};
 use cubecl::{
     features::{MmaConfig, TypeUsage},
+    ir::{ElemType, StorageType},
     server::ComputeServer,
 };
 use std::marker::PhantomData;
@@ -132,14 +133,19 @@ where
         if let DType::Bool(BoolStore::Native) = dtype {
             return false;
         }
-        // `dtype_to_storage_type` doesn't see `scheme.level`/`scheme.param`.
-        if let DType::QFloat(scheme) = dtype
-            && !levels_supported(&scheme)
-        {
-            return false;
-        }
-
         let client = R::client(device);
+
+        // `dtype_to_storage_type` doesn't see `scheme.level`/`scheme.param`.
+        if let DType::QFloat(scheme) = dtype {
+            if !levels_supported(&scheme) {
+                return false;
+            }
+            let param_storage = StorageType::from(ElemType::from_quant_param(scheme.param));
+            let param_usage = client.properties().type_usage(param_storage);
+            if !param_usage.is_superset(TypeUsage::Buffer | TypeUsage::Conversion) {
+                return false;
+            }
+        }
 
         let type_usage = client.properties().type_usage(dtype_to_storage_type(dtype));
         // Same as `TypeUsage::all_scalar()`, but we make the usage explicit here
@@ -157,14 +163,19 @@ where
         if let DType::Bool(BoolStore::Native) = dtype {
             return DTypeUsageSet::empty();
         }
-        // Same reason as `supports_dtype`.
-        if let DType::QFloat(scheme) = dtype
-            && !levels_supported(&scheme)
-        {
-            return DTypeUsageSet::empty();
-        }
-
         let client = R::client(device);
+
+        // Same reason as `supports_dtype`.
+        if let DType::QFloat(scheme) = dtype {
+            if !levels_supported(&scheme) {
+                return DTypeUsageSet::empty();
+            }
+            let param_storage = StorageType::from(ElemType::from_quant_param(scheme.param));
+            let param_usage = client.properties().type_usage(param_storage);
+            if !param_usage.is_superset(TypeUsage::Buffer | TypeUsage::Conversion) {
+                return DTypeUsageSet::empty();
+            }
+        }
 
         let props = client.properties();
         let storage = dtype_to_storage_type(dtype);

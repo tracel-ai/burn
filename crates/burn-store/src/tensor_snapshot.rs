@@ -3,7 +3,7 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_core::tensor::quantization::{global_scale_size, params_shape, scale_size};
+use burn_core::tensor::quantization::quantized_data_len;
 use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
 
 /// Error type for TensorSnapshot operations
@@ -236,29 +236,9 @@ impl TensorSnapshot {
     /// - Quantization parameters (scale values appended to the data), including the per-tensor
     ///   scale of a two-level scheme
     pub fn data_len(&self) -> usize {
-        const BITS_PER_BYTE: usize = 8;
-
-        let num_elements: usize = self.shape.iter().product();
-
         match self.dtype {
-            DType::QFloat(scheme) => {
-                // Calculate value bytes using scheme's packing information
-                let num_storage_elements = num_elements.div_ceil(scheme.num_quants());
-                // Rounded up per element: a sub-byte value stored natively still takes a byte.
-                let value_bytes =
-                    num_storage_elements * scheme.size_bits_stored().div_ceil(BITS_PER_BYTE);
-
-                // Calculate number of quantization parameters (scales)
-                let num_params = params_shape(&self.shape, scheme.level).num_elements();
-
-                let scale_bytes = num_params * scale_size(scheme.param);
-                let global_bytes = global_scale_size(&scheme);
-
-                // Dense: the alignment `QuantizedBytes` passes when it appends the scales only
-                // sizes the allocation, it does not move the write offset.
-                value_bytes + scale_bytes + global_bytes
-            }
-            _ => num_elements * self.dtype.size(),
+            DType::QFloat(scheme) => quantized_data_len(&scheme, &self.shape),
+            _ => self.shape.iter().product::<usize>() * self.dtype.size(),
         }
     }
 

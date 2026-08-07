@@ -91,6 +91,12 @@ impl<R: Runtime> CubeFusionHandle<R> {
     /// Construct a separate tensor for the quantization scales, if present
     pub fn params(&self, scheme: QuantScheme) -> Option<Self> {
         let qparams = self.qparams.as_ref()?;
+        // Only the block scale is threaded through below; a two-level scheme's per-tensor scale
+        // would be silently dropped, so refuse rather than build a handle short one factor.
+        assert!(
+            scheme.level.global_param().is_none(),
+            "fused kernels don't yet support a two-level scheme's per-tensor scale"
+        );
         let mut handle = self.handle.clone();
         handle.offset_start = Some(qparams.scales.offset_start as u64);
         handle.offset_end = Some(qparams.scales.offset_end as u64);
