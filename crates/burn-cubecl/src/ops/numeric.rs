@@ -14,7 +14,10 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearViewMut,
+    calculate_cube_count_elemwise,
+    ir::{Comparison, ElemType, Instruction, Type, UnaryOperands},
+    prelude::*,
+    std::tensor::layout::linear::LinearViewMut,
 };
 use cubecl::{client::ComputeClient, server::MemoryLayout};
 use cubecl::{server::MemoryLayoutDescriptor, std::FastDivmod};
@@ -297,6 +300,54 @@ struct ProdOp;
 struct MaxOp;
 struct MinOp;
 
+// `N: Numeric` can't call the float-only `IsNan` trait after a comptime type check, so emit
+// the same Cube IR operation directly. Callers keep this inside float-only comptime branches.
+#[cube]
+fn numeric_is_nan<N: Numeric>(value: N) -> bool {
+    intrinsic!(|scope| {
+        let output = scope.create_value(Type::scalar(ElemType::Bool));
+        scope.register(Instruction::new(
+            Comparison::IsNan(UnaryOperands {
+                input: value.expand,
+            }),
+            output,
+        ));
+        output.into()
+    })
+}
+
+#[cube]
+fn cumulative_max<N: Numeric>(lhs: N, rhs: N) -> N {
+    let elem_type = type_of::<N>();
+    if comptime!(elem_type.is_float()) {
+        if numeric_is_nan::<N>(lhs) {
+            lhs
+        } else if numeric_is_nan::<N>(rhs) {
+            rhs
+        } else {
+            max(lhs, rhs)
+        }
+    } else {
+        max(lhs, rhs)
+    }
+}
+
+#[cube]
+fn cumulative_min<N: Numeric>(lhs: N, rhs: N) -> N {
+    let elem_type = type_of::<N>();
+    if comptime!(elem_type.is_float()) {
+        if numeric_is_nan::<N>(lhs) {
+            lhs
+        } else if numeric_is_nan::<N>(rhs) {
+            rhs
+        } else {
+            min(lhs, rhs)
+        }
+    } else {
+        min(lhs, rhs)
+    }
+}
+
 // Implement CumulativeOpFamily for each operation
 impl CumulativeOpFamily for SumOp {
     type CumulativeOp<C: Numeric> = Self;
@@ -340,7 +391,7 @@ impl<N: Numeric> CumulativeOp<N> for ProdOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MaxOp {
     fn execute(lhs: N, rhs: N) -> N {
-        max(lhs, rhs)
+        cumulative_max::<N>(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
@@ -351,7 +402,7 @@ impl<N: Numeric> CumulativeOp<N> for MaxOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MinOp {
     fn execute(lhs: N, rhs: N) -> N {
-        min(lhs, rhs)
+        cumulative_min::<N>(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
