@@ -20,8 +20,12 @@ const CHUNK_SIZE: usize = 4096;
 // f32 in-place binary ops
 // ============================================================================
 
+// The op is written as a closure-shaped expression `|a, b| ...` where
+// `a` is the destination element and `b` the source element. This lets
+// one macro stamp out both the natural kernels (`a - b`) and the
+// reversed ones (`b - a`) needed when operands are dispatched swapped.
 macro_rules! define_inplace_f32_op {
-    ($pub_fn:ident, $seq_fn:ident, $par_fn:ident, $op:tt) => {
+    ($pub_fn:ident, $seq_fn:ident, $par_fn:ident, |$a:ident, $b:ident| $body:expr) => {
         #[inline]
         pub fn $pub_fn(a: &mut [f32], b: &[f32]) {
             debug_assert_eq!(a.len(), b.len());
@@ -45,15 +49,17 @@ macro_rules! define_inplace_f32_op {
             let mut i = 0;
             while i < simd_len {
                 unsafe {
-                    let va = vload_unaligned(a.as_ptr().add(i));
-                    let vb = vload_unaligned(b.as_ptr().add(i));
-                    vstore_unaligned::<S, _>(a.as_mut_ptr().add(i), va $op vb);
+                    let $a = vload_unaligned(a.as_ptr().add(i));
+                    let $b = vload_unaligned(b.as_ptr().add(i));
+                    vstore_unaligned::<S, _>(a.as_mut_ptr().add(i), $body);
                 }
                 i += lanes;
             }
 
             for j in simd_len..len {
-                a[j] = a[j] $op b[j];
+                let $a = a[j];
+                let $b = b[j];
+                a[j] = $body;
             }
         }
 
@@ -68,10 +74,47 @@ macro_rules! define_inplace_f32_op {
     };
 }
 
-define_inplace_f32_op!(add_inplace_f32, add_inplace_f32_seq, add_inplace_f32_par, +);
-define_inplace_f32_op!(sub_inplace_f32, sub_inplace_f32_seq, sub_inplace_f32_par, -);
-define_inplace_f32_op!(mul_inplace_f32, mul_inplace_f32_seq, mul_inplace_f32_par, *);
-define_inplace_f32_op!(div_inplace_f32, div_inplace_f32_seq, div_inplace_f32_par, /);
+define_inplace_f32_op!(
+    add_inplace_f32,
+    add_inplace_f32_seq,
+    add_inplace_f32_par,
+    |a, b| a + b
+);
+define_inplace_f32_op!(
+    sub_inplace_f32,
+    sub_inplace_f32_seq,
+    sub_inplace_f32_par,
+    |a, b| a - b
+);
+define_inplace_f32_op!(
+    mul_inplace_f32,
+    mul_inplace_f32_seq,
+    mul_inplace_f32_par,
+    |a, b| a * b
+);
+define_inplace_f32_op!(
+    div_inplace_f32,
+    div_inplace_f32_seq,
+    div_inplace_f32_par,
+    |a, b| a / b
+);
+
+// Reversed kernels: `a[i] = b[i] OP a[i]`. Sub and div are not
+// commutative, so when a binary op is dispatched with swapped operands
+// (the destination buffer holds the original *rhs*), the kernel must
+// compute `src OP dst` instead of `dst OP src`.
+define_inplace_f32_op!(
+    rsub_inplace_f32,
+    rsub_inplace_f32_seq,
+    rsub_inplace_f32_par,
+    |a, b| b - a
+);
+define_inplace_f32_op!(
+    rdiv_inplace_f32,
+    rdiv_inplace_f32_seq,
+    rdiv_inplace_f32_par,
+    |a, b| b / a
+);
 
 // ============================================================================
 // f32 shared-row broadcast binary ops
@@ -89,8 +132,11 @@ define_inplace_f32_op!(div_inplace_f32, div_inplace_f32_seq, div_inplace_f32_par
 // gives the right answer but costs ~55k dispatches on the typical
 // layer_norm shape; see issue #64 item 2 benchmarks.
 
+// Like `define_inplace_f32_op`, the op is a closure-shaped expression
+// `|d, r| ...` over a destination element `d` and a shared-row element
+// `r`, so reversed kernels (`r - d`) can share the macro.
 macro_rules! define_shared_row_f32_op {
-    ($pub_fn:ident, $seq_fn:ident, $par_fn:ident, $op:tt) => {
+    ($pub_fn:ident, $seq_fn:ident, $par_fn:ident, |$d:ident, $r:ident| $body:expr) => {
         #[inline]
         pub fn $pub_fn(dst: &mut [f32], row: &[f32]) {
             let row_len = row.len();
@@ -125,17 +171,16 @@ macro_rules! define_shared_row_f32_op {
                 let mut i = 0;
                 while i < simd_len {
                     unsafe {
-                        let va = vload_unaligned::<S, _>(dst.as_ptr().add(base + i));
-                        let vb = vload_unaligned::<S, _>(row.as_ptr().add(i));
-                        vstore_unaligned::<S, _>(
-                            dst.as_mut_ptr().add(base + i),
-                            va $op vb,
-                        );
+                        let $d = vload_unaligned::<S, _>(dst.as_ptr().add(base + i));
+                        let $r = vload_unaligned::<S, _>(row.as_ptr().add(i));
+                        vstore_unaligned::<S, _>(dst.as_mut_ptr().add(base + i), $body);
                     }
                     i += lanes;
                 }
                 for j in simd_len..row_len {
-                    dst[base + j] = dst[base + j] $op row[j];
+                    let $d = dst[base + j];
+                    let $r = row[j];
+                    dst[base + j] = $body;
                 }
             }
         }
@@ -157,25 +202,42 @@ define_shared_row_f32_op!(
     add_shared_row_inplace_f32,
     add_shared_row_inplace_f32_seq,
     add_shared_row_inplace_f32_par,
-    +
+    |d, r| d + r
 );
 define_shared_row_f32_op!(
     sub_shared_row_inplace_f32,
     sub_shared_row_inplace_f32_seq,
     sub_shared_row_inplace_f32_par,
-    -
+    |d, r| d - r
 );
 define_shared_row_f32_op!(
     mul_shared_row_inplace_f32,
     mul_shared_row_inplace_f32_seq,
     mul_shared_row_inplace_f32_par,
-    *
+    |d, r| d * r
 );
 define_shared_row_f32_op!(
     div_shared_row_inplace_f32,
     div_shared_row_inplace_f32_seq,
     div_shared_row_inplace_f32_par,
-    /
+    |d, r| d / r
+);
+
+// Reversed kernels: `dst[..] = row OP dst[..]`. Used when a broadcast
+// binary op is dispatched with swapped operands (the broadcast row is
+// the original *lhs* of a non-commutative op), so the kernel must
+// compute `row - dst` / `row / dst` rather than the natural order.
+define_shared_row_f32_op!(
+    rsub_shared_row_inplace_f32,
+    rsub_shared_row_inplace_f32_seq,
+    rsub_shared_row_inplace_f32_par,
+    |d, r| r - d
+);
+define_shared_row_f32_op!(
+    rdiv_shared_row_inplace_f32,
+    rdiv_shared_row_inplace_f32_seq,
+    rdiv_shared_row_inplace_f32_par,
+    |d, r| r / d
 );
 
 // ============================================================================
@@ -989,6 +1051,95 @@ mod tests {
         let b = [2.0f32, 4.0, 5.0, 8.0];
         div_inplace_f32(&mut a, &b);
         assert_eq!(a, [5.0, 5.0, 6.0, 5.0]);
+    }
+
+    #[test]
+    fn test_rsub_inplace_f32() {
+        // dst = src - dst, i.e. a[i] = b[i] - a[i].
+        let mut a = [1.0f32, 2.0, 3.0, 4.0, 5.0];
+        let b = [10.0f32, 20.0, 30.0, 40.0, 50.0];
+        rsub_inplace_f32(&mut a, &b);
+        assert_eq!(a, [9.0, 18.0, 27.0, 36.0, 45.0]);
+    }
+
+    #[test]
+    fn test_rsub_inplace_f32_long() {
+        // Long enough to exercise both the SIMD body and the scalar
+        // tail on every lane width (100 = 6*16 + 4).
+        let mut a: Vec<f32> = (0..100).map(|i| i as f32).collect();
+        let b: Vec<f32> = (0..100).map(|i| (3 * i) as f32).collect();
+        rsub_inplace_f32(&mut a, &b);
+        let expected: Vec<f32> = (0..100).map(|i| (2 * i) as f32).collect();
+        assert_eq!(a, expected);
+    }
+
+    #[test]
+    fn test_rdiv_inplace_f32() {
+        // dst = src / dst, i.e. a[i] = b[i] / a[i].
+        let mut a = [2.0f32, 4.0, 5.0, 8.0];
+        let b = [10.0f32, 20.0, 30.0, 40.0];
+        rdiv_inplace_f32(&mut a, &b);
+        assert_eq!(a, [5.0, 5.0, 6.0, 5.0]);
+    }
+
+    #[test]
+    fn test_rdiv_inplace_f32_long() {
+        let mut a: Vec<f32> = (1..=100).map(|i| i as f32).collect();
+        let b: Vec<f32> = (1..=100).map(|i| (i * i) as f32).collect();
+        rdiv_inplace_f32(&mut a, &b);
+        let expected: Vec<f32> = (1..=100).map(|i| i as f32).collect();
+        assert_eq!(a, expected);
+    }
+
+    #[test]
+    fn test_rsub_shared_row_inplace_f32() {
+        // dst[r][j] = row[j] - dst[r][j]; row_len 7 is not a multiple
+        // of any SIMD width, so the scalar tail runs every row.
+        let row = [100.0f32, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0];
+        let mut dst: Vec<f32> = (0..21).map(|i| i as f32).collect();
+        rsub_shared_row_inplace_f32(&mut dst, &row);
+        let expected: Vec<f32> = (0..21).map(|i| row[i % 7] - i as f32).collect();
+        assert_eq!(dst, expected);
+    }
+
+    #[test]
+    fn test_rdiv_shared_row_inplace_f32() {
+        // dst[r][j] = row[j] / dst[r][j].
+        let row = [12.0f32, 24.0, 36.0, 48.0, 60.0];
+        let mut dst = [
+            1.0f32, 2.0, 3.0, 4.0, 5.0, // row 0
+            2.0, 4.0, 6.0, 8.0, 10.0, // row 1
+            3.0, 6.0, 9.0, 12.0, 15.0, // row 2
+        ];
+        rdiv_shared_row_inplace_f32(&mut dst, &row);
+        assert_eq!(
+            dst,
+            [
+                12.0, 12.0, 12.0, 12.0, 12.0, //
+                6.0, 6.0, 6.0, 6.0, 6.0, //
+                4.0, 4.0, 4.0, 4.0, 4.0, //
+            ]
+        );
+    }
+
+    /// The reversed kernels must agree with the natural kernels run on
+    /// swapped inputs: `rsub(a, b)` == `sub(b, a)` element-wise.
+    #[test]
+    fn test_reversed_kernels_match_swapped_natural_kernels() {
+        let x: Vec<f32> = (1..=50).map(|i| i as f32 * 0.75).collect();
+        let y: Vec<f32> = (1..=50).map(|i| (51 - i) as f32 * 1.25).collect();
+
+        let mut rsub_out = x.clone();
+        rsub_inplace_f32(&mut rsub_out, &y);
+        let mut sub_out = y.clone();
+        sub_inplace_f32(&mut sub_out, &x);
+        assert_eq!(rsub_out, sub_out);
+
+        let mut rdiv_out = x.clone();
+        rdiv_inplace_f32(&mut rdiv_out, &y);
+        let mut div_out = y.clone();
+        div_inplace_f32(&mut div_out, &x);
+        assert_eq!(rdiv_out, div_out);
     }
 
     #[test]
