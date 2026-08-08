@@ -223,23 +223,6 @@ define_shared_row_f32_op!(
     |d, r| d / r
 );
 
-// Reversed kernels: `dst[..] = row OP dst[..]`. Used when a broadcast
-// binary op is dispatched with swapped operands (the broadcast row is
-// the original *lhs* of a non-commutative op), so the kernel must
-// compute `row - dst` / `row / dst` rather than the natural order.
-define_shared_row_f32_op!(
-    rsub_shared_row_inplace_f32,
-    rsub_shared_row_inplace_f32_seq,
-    rsub_shared_row_inplace_f32_par,
-    |d, r| r - d
-);
-define_shared_row_f32_op!(
-    rdiv_shared_row_inplace_f32,
-    rdiv_shared_row_inplace_f32_seq,
-    rdiv_shared_row_inplace_f32_par,
-    |d, r| r / d
-);
-
 // ============================================================================
 // f32 in-place unary ops (SIMD-accelerated)
 // ============================================================================
@@ -1089,37 +1072,6 @@ mod tests {
         rdiv_inplace_f32(&mut a, &b);
         let expected: Vec<f32> = (1..=100).map(|i| i as f32).collect();
         assert_eq!(a, expected);
-    }
-
-    #[test]
-    fn test_rsub_shared_row_inplace_f32() {
-        // dst[r][j] = row[j] - dst[r][j]; row_len 7 is not a multiple
-        // of any SIMD width, so the scalar tail runs every row.
-        let row = [100.0f32, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0];
-        let mut dst: Vec<f32> = (0..21).map(|i| i as f32).collect();
-        rsub_shared_row_inplace_f32(&mut dst, &row);
-        let expected: Vec<f32> = (0..21).map(|i| row[i % 7] - i as f32).collect();
-        assert_eq!(dst, expected);
-    }
-
-    #[test]
-    fn test_rdiv_shared_row_inplace_f32() {
-        // dst[r][j] = row[j] / dst[r][j].
-        let row = [12.0f32, 24.0, 36.0, 48.0, 60.0];
-        let mut dst = [
-            1.0f32, 2.0, 3.0, 4.0, 5.0, // row 0
-            2.0, 4.0, 6.0, 8.0, 10.0, // row 1
-            3.0, 6.0, 9.0, 12.0, 15.0, // row 2
-        ];
-        rdiv_shared_row_inplace_f32(&mut dst, &row);
-        assert_eq!(
-            dst,
-            [
-                12.0, 12.0, 12.0, 12.0, 12.0, //
-                6.0, 6.0, 6.0, 6.0, 6.0, //
-                4.0, 4.0, 4.0, 4.0, 4.0, //
-            ]
-        );
     }
 
     /// The reversed kernels must agree with the natural kernels run on
