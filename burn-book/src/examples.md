@@ -6,10 +6,10 @@ In the [next chapter](./basic-workflow) you'll have the opportunity to implement
 Many additional Burn examples are available in the
 [examples](https://github.com/tracel-ai/burn/tree/main/examples) directory. Burn examples are
 organized as library crates with one or more examples that are executable binaries. An example can
-then be executed using the following cargo command line in the root of the Burn repository:
+then be executed using the following cargo command line in the root of the example's directory:
 
 ```bash
-cargo run --example <example name>
+cargo run --release --example <example name>
 ```
 
 To learn more about crates and examples, read the Rust section below.

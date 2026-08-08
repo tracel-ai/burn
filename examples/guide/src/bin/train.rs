@@ -8,7 +8,7 @@ use guide::{
 
 fn main() {
     // Create a default Wgpu-backed device.
-    let device = Device::wgpu(DeviceKind::DefaultDevice);
+    let device = Device::wgpu(Default::default());
 
     // All the training artifacts will be saved in this directory
     let artifact_dir = "target/guide";

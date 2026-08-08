@@ -1,6 +1,8 @@
+#[cfg(feature = "autotune")]
+use crate::kernel::interpolate::interpolate_autotune;
 use crate::{
     CubeRuntime,
-    kernel::{interpolate::interpolate_autotune, into_contiguous},
+    kernel::into_contiguous,
     ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };

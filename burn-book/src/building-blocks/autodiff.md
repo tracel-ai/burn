@@ -1,42 +1,35 @@
 # Autodiff
 
-Burn's tensor also supports auto-differentiation, which is an essential part of any deep learning
-framework. We introduced the `Backend` trait in the [previous section](./backend.md), but Burn also
-has another trait for autodiff: `AutodiffBackend`.
-
-However, not all tensors support auto-differentiation; you need a backend that implements both the
-`Backend` and `AutodiffBackend` traits. Fortunately, you can add auto-differentiation capabilities to any
-backend using a backend decorator: `type MyAutodiffBackend = Autodiff<MyBackend>`. This
-decorator implements both the `AutodiffBackend` and `Backend` traits by maintaining a dynamic
-computational graph and utilizing the inner backend to execute tensor operations.
-
-The `AutodiffBackend` trait adds new operations on float tensors that can't be called otherwise. It also
-provides a new associated type, `B::Gradients`, where each calculated gradient resides.
+Burn tensors support automatic differentiation, which is essential for training neural networks.
+Autodiff is selected at runtime by creating an autodiff-enabled device rather than by adding an
+`Autodiff<B>` type parameter to tensors and modules.
 
 ```rust, ignore
-fn calculate_gradients<B: AutodiffBackend>(tensor: Tensor<B, 2>) -> B::Gradients {
-    let mut gradients = tensor.clone().backward();
+use burn::tensor::{Device, Tensor};
 
-    let tensor_grad = tensor.grad(&gradients);        // get
-    let tensor_grad = tensor.grad_remove(&mut gradients); // pop
+let device = Device::wgpu(Default::default()).autodiff();
+let tensor = Tensor::<2>::ones([2, 2], &device).require_grad();
+let output = tensor.clone().powf_scalar(2.0).sum();
+let mut gradients = output.backward();
 
-    gradients
-}
+let tensor_grad = tensor.grad(&gradients);             // get
+let tensor_grad = tensor.grad_remove(&mut gradients);  // pop
 ```
 
-Note that some functions will always be available even if the backend doesn't implement the
-`AutodiffBackend` trait. In such cases, those functions will do nothing.
+Calling `backward` returns the calculated gradients in a container instead of updating a `grad`
+field on every parameter. Passing that container to `grad` or `grad_remove` makes the relationship
+between the backward pass and gradient access explicit. `grad_remove` can also enable in-place
+optimizations when a gradient is consumed only once.
 
-| Burn API                                | PyTorch Equivalent            |
-| --------------------------------------- | ----------------------------- |
-| `tensor.detach()`                       | `tensor.detach()`             |
-| `tensor.require_grad()`                 | `tensor.requires_grad()`      |
-| `tensor.is_require_grad()`              | `tensor.requires_grad`        |
-| `tensor.set_require_grad(require_grad)` | `tensor.requires_grad(False)` |
+Note that some functions will always be available even if the tensor is not on an autodiff-enabled
+device. In such cases, those functions will do nothing.
 
-However, you're unlikely to make any mistakes since you can't call `backward` on a tensor that is on
-a backend that doesn't implement `AutodiffBackend`. Additionally, you can't retrieve the gradient of a
-tensor without an autodiff backend.
+| Burn API                                | PyTorch Equivalent           |
+| --------------------------------------- | ---------------------------- |
+| `tensor.detach()`                       | `tensor.detach()`            |
+| `tensor.require_grad()`                 | `tensor.requires_grad_()`    |
+| `tensor.is_require_grad()`              | `tensor.requires_grad`       |
+| `tensor.set_require_grad(require_grad)` | `tensor.requires_grad_(...)` |
 
 ## Difference with PyTorch
 
@@ -45,16 +38,12 @@ parameter doesn't have its `grad` field updated. Instead, the backward pass retu
 calculated gradients in a container. This approach offers numerous benefits, such as the ability to
 easily send gradients to other threads.
 
-You can also retrieve the gradient for a specific parameter using the `grad` method on a tensor.
-Since this method takes the gradients as input, it's hard to forget to call `backward` beforehand.
-Note that sometimes, using `grad_remove` can improve performance by allowing inplace operations.
-
 In PyTorch, when you don't need gradients for inference or validation, you typically need to scope
 your code using a block.
 
 ```python
 # Inference mode
-torch.inference():
+torch.inference_mode():
    # your code
    ...
 
@@ -64,27 +53,28 @@ torch.no_grad():
    ...
 ```
 
-With Burn, you don't need to wrap the backend with the `Autodiff` for inference, and you
-can call `inner()` to obtain the inner tensor, which is useful for validation.
+With Burn, tensors shouldn't be on an autodiff device for inference, and you can call
+`inner()` to obtain the inner tensor, which is useful for validation.
 
 ```rust, ignore
-/// Use `B: AutodiffBackend`
-fn example_validation<B: AutodiffBackend>(tensor: Tensor<B, 2>) {
-    let inner_tensor: Tensor<B::InnerBackend, 2> = tensor.inner();
+fn example_validation(tensor: Tensor<2>) {
+    debug_assert!(tensor.device().is_autodiff());
+    let inner_tensor = tensor.inner();
     let _ = inner_tensor + 5;
 }
 
-/// Use `B: Backend`
-fn example_inference<B: Backend>(tensor: Tensor<B, 2>) {
+fn example_inference(tensor: Tensor<2>) {
+    debug_assert!(!tensor.device().is_autodiff());
     let _ = tensor + 5;
     ...
 }
 ```
 
-**Gradients with Optimizers**
+## Gradients with Optimizers
 
 We've seen how gradients can be used with tensors, but the process is a bit different when working
-with optimizers from `burn-core`. To work with the `Module` trait, a translation step is required to
+with optimizers from `burn-optim`. To work with the `Module` trait, a translation step is required to
 link tensor parameters with their gradients. This step is necessary to easily support gradient
 accumulation and training on multiple devices, where each module can be forked and run on different
-devices in parallel. We'll explore deeper into this topic in the [Module](./module.md) section.
+devices in parallel. The [Optimizer](./optimizer.md) section explains how those gradients update
+module parameters.

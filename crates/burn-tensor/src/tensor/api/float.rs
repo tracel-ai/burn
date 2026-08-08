@@ -113,11 +113,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let _ = Tensor::<1>::from_floats([1.0, 2.0], &device);
-    ///     let _ = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-    /// }
+    /// let device = Default::default();
+    /// let _ = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    /// let _ = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
     /// ```
     pub fn from_floats<A: Into<TensorData>>(floats: A, device: &Device) -> Self {
         Self::from_data(floats.into().convert::<f32>(), device)
@@ -131,11 +129,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let float_tensor = Tensor::<1>::from_floats([1.0, 2.0], &device);
-    ///     let int_tensor = float_tensor.int();
-    /// }
+    /// let device = Default::default();
+    /// let float_tensor = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    /// let int_tensor = float_tensor.int();
     /// ```
     pub fn int(self) -> Tensor<D, Int> {
         let device = self.device();
@@ -302,16 +298,14 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, FloatDType, IntDType};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let float_tensor = Tensor::<1>::from_floats([1.0, 2.5], &device);
+    /// let device = Default::default();
+    /// let float_tensor = Tensor::<1>::from_floats([1.0, 2.5], &device);
     ///
-    ///     // Within-kind cast (float to float)
-    ///     let f64_tensor = float_tensor.clone().cast(FloatDType::F64);
+    /// // Within-kind cast (float to float)
+    /// let f64_tensor = float_tensor.clone().cast(FloatDType::F64);
     ///
-    ///     // Cross-kind cast (float to int)
-    ///     let int_tensor = float_tensor.cast(IntDType::I64);
-    /// }
+    /// // Cross-kind cast (float to int)
+    /// let int_tensor = float_tensor.cast(IntDType::I64);
     /// ```
     #[must_use]
     pub fn cast<T: Cast<D, Float>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
@@ -441,14 +435,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor1.is_close(tensor2, None, None);
-    ///    println!("{tensor}");
-    ///    // [[true, true, true], [true, true, true]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor1.is_close(tensor2, None, None);
+    /// println!("{tensor}");
+    /// // [[true, true, true], [true, true, true]]
     /// ```
     pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<D, Bool> {
         let rtol = rtol.unwrap_or(DEFAULT_RTOL);
@@ -504,14 +496,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let result = tensor1.all_close(tensor2, None, None);
-    ///    println!("{}", result);
-    ///    // true
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let result = tensor1.all_close(tensor2, None, None);
+    /// println!("{}", result);
+    /// // true
     /// ```
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
         self.is_close(other, rtol, atol)
@@ -531,13 +521,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.is_nan();
-    ///    println!("{tensor}");
-    ///    // [[false, true, false], [false, false, false]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.is_nan();
+    /// println!("{tensor}");
+    /// // [[false, true, false], [false, false, false]]
     /// ```
     pub fn is_nan(self) -> Tensor<D, Bool> {
         Tensor::new(is_nan_impl(self.primitive))
@@ -554,17 +542,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.contains_nan();
-    ///   println!("{tensor}");
-    ///   // [true]
-    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.contains_nan();
-    ///   println!("{tensor}");
-    ///   // [false]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// let tensor = tensor.contains_nan();
+    /// println!("{tensor}");
+    /// // [true]
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.contains_nan();
+    /// println!("{tensor}");
+    /// // [false]
     /// ```
     pub fn contains_nan(self) -> Tensor<1, Bool> {
         self.is_nan().any()
@@ -581,13 +567,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.is_finite();
-    ///    println!("{tensor}");
-    ///    // [[false, true, false], [false, false, false]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// let tensor = tensor.is_finite();
+    /// println!("{tensor}");
+    /// // [[false, true, false], [false, false, false]]
     /// ```
     pub fn is_inf(self) -> Tensor<D, Bool> {
         Tensor::new(is_inf_impl(self.primitive))
@@ -605,13 +589,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.is_finite();
-    ///    println!("{tensor}");
-    ///    // [[true, false, true], [false, true, true]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// let tensor = tensor.is_finite();
+    /// println!("{tensor}");
+    /// // [[true, false, true], [false, true, true]]
     /// ```
     pub fn is_finite(self) -> Tensor<D, Bool> {
         self.clone()
@@ -689,14 +671,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
-    ///    let tensor = tensor1.powf(tensor2);
-    ///    println!("{tensor}");
-    ///    // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    /// let tensor = tensor1.powf(tensor2);
+    /// println!("{tensor}");
+    /// // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
     /// ```
     pub fn powf(self, other: Self) -> Self {
         Tensor::new(powf_impl(self.primitive, other.primitive))
@@ -713,13 +693,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.powf_scalar(2.0);
-    ///    println!("{tensor}");
-    ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.powf_scalar(2.0);
+    /// println!("{tensor}");
+    /// // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
     /// ```
     pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
         let rhs = Scalar::new(other, &self.dtype());
@@ -761,16 +739,14 @@ impl<const D: usize> Tensor<D> {
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let probs = Tensor::<2>::from_floats(
-    ///         [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-    ///         &device,
-    ///     );
-    ///     let samples = probs.categorical(4);
-    ///     // First row always samples index 1, second row always samples index 2
-    ///     println!("{samples}");
-    /// }
+    /// let device = Default::default();
+    /// let probs = Tensor::<2>::from_floats(
+    ///     [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    ///     &device,
+    /// );
+    /// let samples = probs.categorical(4);
+    /// // First row always samples index 1, second row always samples index 2
+    /// println!("{samples}");
     /// ```
     pub fn categorical(self, num_samples: usize) -> Tensor<D, Int> {
         assert!(num_samples > 0, "categorical: num_samples must be >= 1");
@@ -908,12 +884,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
+    /// println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
     /// ```
     pub fn cosh(self) -> Self {
         Tensor::new(K::cosh(self.primitive))
@@ -929,12 +903,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
+    /// println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
     /// ```
     pub fn sinh(self) -> Self {
         Tensor::new(K::sinh(self.primitive))
@@ -950,12 +922,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
+    /// println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
     /// ```
     pub fn tanh(self) -> Self {
         Tensor::new(K::tanh(self.primitive))
@@ -971,12 +941,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
+    /// println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
     /// ```
     pub fn acos(self) -> Self {
         Tensor::new(K::acos(self.primitive))
@@ -992,12 +960,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
-    ///     println!("{}", tensor.acosh()); // [0.0000, 1.3170, 1.7627]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
+    /// println!("{}", tensor.acosh()); // [0.0000, 1.3170, 1.7627]
     /// ```
     pub fn acosh(self) -> Self {
         Tensor::new(K::acosh(self.primitive))
@@ -1013,12 +979,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
+    /// println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
     /// ```
     pub fn asin(self) -> Self {
         Tensor::new(K::asin(self.primitive))
@@ -1034,12 +998,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
+    /// println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
     /// ```
     pub fn asinh(self) -> Self {
         Tensor::new(K::asinh(self.primitive))
@@ -1055,12 +1017,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.atan()); // [ 0.0, -0.7854,  1.1071]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
+    /// println!("{}", tensor.atan()); // [ 0.0, -0.7854,  1.1071]
     /// ```
     pub fn atan(self) -> Self {
         Tensor::new(K::atan(self.primitive))
@@ -1076,12 +1036,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -0.5, 0.5], &device);
-    ///     println!("{}", tensor.atanh()); // [ 0.0, -0.5493,  0.5493]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -0.5, 0.5], &device);
+    /// println!("{}", tensor.atanh()); // [ 0.0, -0.5493,  0.5493]
     /// ```
     pub fn atanh(self) -> Self {
         Tensor::new(K::atanh(self.primitive))
@@ -1097,13 +1055,11 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let lhs = Tensor::<1>::from_data([-2.0, 2.0, -2.0], &device);
-    ///     let rhs = Tensor::<1>::from_data([1.0, -1.0, -1.0], &device);
-    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
-    /// }
+    /// let lhs = Tensor::<1>::from_data([-2.0, 2.0, -2.0], &device);
+    /// let rhs = Tensor::<1>::from_data([1.0, -1.0, -1.0], &device);
+    /// println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
     /// ```
     pub fn atan2(self, other: Self) -> Self {
         Tensor::new(K::atan2(self.primitive, other.primitive))

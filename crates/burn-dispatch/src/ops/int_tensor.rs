@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::IntTensorOps,
-    tensor::{BoolTensor, FloatTensor, IntTensor},
+    tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 
 use crate::{Dispatch, DispatchDevice};
@@ -66,6 +66,10 @@ impl IntTensorOps<Self> for Dispatch {
         binary_op!((tensor, int), (mask, bool), |tensor, mask| B::int_mask_fill(tensor, mask, value) => Int)
     }
 
+    async fn int_mask_select(tensor: IntTensor<Self>, mask: BoolTensor<Self>) -> IntTensor<Self> {
+        binary_op!((tensor, int), (mask, bool), |tensor, mask| B::int_mask_select(tensor, mask).await => Int)
+    }
+
     fn int_gather(
         dim: usize,
         tensor: IntTensor<Self>,
@@ -83,6 +87,19 @@ impl IntTensorOps<Self> for Dispatch {
         multi_op!(
             inputs[(tensor, int), (indices, int), (value, int)], => Int,
             B::int_scatter_add(dim, tensor, indices, value)
+        )
+    }
+
+    fn int_scatter(
+        dim: usize,
+        tensor: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        multi_op!(
+            inputs[(tensor, int), (indices, int), (value, int)], => Int,
+            B::int_scatter(dim, tensor, indices, value, update)
         )
     }
 
@@ -119,6 +136,19 @@ impl IntTensorOps<Self> for Dispatch {
         multi_op!(
             inputs[(tensor, int), (indices, int), (value, int)], => Int,
             B::int_select_add(tensor, dim, indices, value)
+        )
+    }
+
+    fn int_select_assign(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        multi_op!(
+            inputs[(tensor, int), (indices, int), (value, int)], => Int,
+            B::int_select_assign(tensor, dim, indices, value, update)
         )
     }
 

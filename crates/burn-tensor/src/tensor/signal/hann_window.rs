@@ -26,11 +26,9 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 /// use burn_tensor::Device;
 /// use burn_tensor::signal::hann_window;
 ///
-/// fn example() {
-///     let device = Default::default();
-///     let window = hann_window(8, true, &device);
-///     println!("{window}");
-/// }
+/// let device = Default::default();
+/// let window = hann_window(8, true, &device);
+/// println!("{window}");
 /// ```
 pub fn hann_window(
     size: usize,

@@ -899,6 +899,64 @@ macro_rules! binary_float_arms {
             }
         }
     }};
+    // (any, float) binary op
+    (
+        $kind:ident,
+        ($lhs:expr, $lhs_kind:ident),
+        ($rhs:expr, float),
+        |$lhs_inner:ident, $rhs_inner:ident| $body:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {{
+        #[cfg(feature = "autodiff")]
+        let checkpointing = $crate::validate_checkpointing($lhs.checkpointing, $rhs.checkpointing);
+        #[cfg(not(feature = "autodiff"))]
+        let checkpointing = $lhs.checkpointing;
+
+        match ($lhs.kind, $rhs.kind) {
+            $(
+                // Autodiff arms first
+                #[cfg(all(feature = "autodiff", $cfg))]
+                ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::Autodiff(rhs_inner)) => {
+                    // Match on inner
+                    match *rhs_inner {
+                        $crate::DispatchTensorKind::$Backend($rhs_inner) => {
+                            with_autodiff_backend!($Backend, checkpointing, |B| {
+                                let $lhs_inner = $lhs_inner.$lhs_kind();
+                                let $rhs_inner = $rhs_inner.autodiff();
+                                wrap_float!(
+                                    @wrap_autodiff
+                                    $kind,
+                                    $Backend,
+                                    checkpointing,
+                                    { $body }
+                                )
+                            })
+                        }
+                        $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor."),
+                        #[allow(unreachable_patterns)]
+                        _ => panic!("The provided tensors are not on the same backend.")
+                    }
+                },
+
+                #[cfg($cfg)]
+                ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
+                    type B = $crate::backends::$Backend;
+                    let $lhs_inner = $lhs_inner.$lhs_kind();
+                    let $rhs_inner = $rhs_inner.float();
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$kind($body)),
+                        checkpointing,
+                    }
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            (lhs, rhs) => {
+                panic!(
+                    "The provided tensors are not on the same backend. Got backends {:?} and {:?}.", lhs, rhs
+                );
+            }
+        }
+    }};
     (
         $kind:ident,
         ($lhs:expr, $lhs_kind:ident),

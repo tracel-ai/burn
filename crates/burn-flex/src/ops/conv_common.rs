@@ -1,10 +1,9 @@
 //! Shared macros and helpers for forward and transposed convolution.
 
+use crate::{FlexTensor, Layout};
 use alloc::vec::Vec;
 use burn_backend::DType;
-use burn_std::{Bytes, Shape, bf16};
-
-use crate::{FlexTensor, Layout};
+use burn_std::{Bytes, Element, ElementAdd, Shape, bf16};
 
 // ============================================================================
 // Macros for dtype wrappers
@@ -89,21 +88,21 @@ pub(crate) fn convert_f32_to_bf16(tensor: &FlexTensor) -> FlexTensor {
 // Bias addition
 // ============================================================================
 
-#[allow(clippy::needless_range_loop)]
-pub(crate) fn add_bias<T: Copy>(
+#[allow(clippy::needless_range_loop, clippy::extra_unused_type_parameters)]
+#[cfg_attr(feature = "simd", macerator::with_simd)]
+pub(crate) fn add_bias<#[cfg(feature = "simd")] S: macerator::Simd, T: Element + ElementAdd>(
     output: &mut [T],
     bias: &[T],
     batch: usize,
     channels: usize,
     spatial: usize,
-    add_fn: fn(T, T) -> T,
 ) {
     for b in 0..batch {
         for c in 0..channels {
             let offset = b * channels * spatial + c * spatial;
             let bias_val = bias[c];
             for i in 0..spatial {
-                output[offset + i] = add_fn(output[offset + i], bias_val);
+                output[offset + i] = T::add(output[offset + i], bias_val);
             }
         }
     }
