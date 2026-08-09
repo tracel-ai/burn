@@ -40,7 +40,12 @@ pub struct SgdState<const D: usize> {
 
 impl SgdConfig {
     /// Build a [`Sgd`] from the config.
-    pub(crate) fn build(&self) -> Sgd {
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
+    pub fn build(&self) -> Sgd {
         Sgd {
             momentum: self.momentum.as_ref().map(Momentum::new),
             weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
@@ -155,7 +160,7 @@ mod tests {
 
     #[test]
     fn lora_finetune_trains_adapter_and_freezes_base() {
-        use burn::module::{LoraConfig, Module};
+        use burn::module::{Lora, Module};
         use burn::tensor::Tolerance;
 
         let device = Device::default().autodiff();
@@ -165,7 +170,7 @@ mod tests {
         let base_before = linear.weight.val();
 
         // Apply LoRA transparently — no change to `Linear` or its forward code.
-        let mut model = linear.apply_lora(LoraConfig::new(4, 8.0));
+        let mut model = linear.apply_lora(Lora::new(4, 8.0));
         assert!(model.weight.adapter().is_some());
         let b_before = model.weight.adapter().unwrap().b.val();
 

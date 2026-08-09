@@ -75,6 +75,41 @@ fn all_tensorless_input_panics() {
     let _ = <Dispatch as RtBackend>::pick(Operand::Empty);
 }
 
+// Regression test for autodiff dispatch with more than one concrete backend. Float dispatch tensors
+// store the concrete backend inside `DispatchTensorKind::Autodiff`, so routing must inspect that
+// inner kind instead of allowing the first generated autodiff arm to capture every backend.
+#[cfg(all(feature = "autodiff", feature = "flex"))]
+mod multi_backend_autodiff {
+    use super::*;
+    use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
+    use burn::backend::{Autodiff, Backend, Flex};
+
+    #[backend_extension(NdArray, Flex, Autodiff)]
+    pub trait DoubleBackend: Backend {
+        fn double(x: FloatTensor<Self>) -> FloatTensor<Self> {
+            Self::float_add(x.clone(), x)
+        }
+    }
+
+    impl DoubleBackend for NdArray {}
+    impl DoubleBackend for Flex {}
+    impl<B: Backend + DoubleBackend, C: CheckpointStrategy> DoubleBackend for Autodiff<B, C> {}
+
+    fn assert_double(device: Device) {
+        let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
+        let out = <Dispatch as DoubleBackend>::double(x.into_dispatch());
+        Tensor::<1>::from_dispatch(out)
+            .into_data()
+            .assert_eq(&burn::tensor::TensorData::from([2.0f32, 4.0, 6.0]), true);
+    }
+
+    #[test]
+    fn autodiff_input_dispatches_to_each_concrete_backend() {
+        assert_double(Device::ndarray().autodiff());
+        assert_double(Device::flex().autodiff());
+    }
+}
+
 // End-to-end autodiff: a differentiable op over a struct input, with a hand-written `Backward`, run
 // on `NdArray` through `Dispatch`. Verifies gradients actually flow back into the struct's fields
 // (not just that the dispatch glue type-checks).

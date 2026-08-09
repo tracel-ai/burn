@@ -112,7 +112,7 @@ impl<B: Backend> BackendTensor<B> {
     ///TODO: Need to figure out how to return the inner autodiff tensor primitive;
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
-    pub fn autodiff_float(self) -> FloatTensor<Autodiff<B>> {
+    pub fn autodiff(self) -> FloatTensor<Autodiff<B>> {
         match self {
             BackendTensor::Autodiff(tensor) => tensor,
             // NOTE: this is the panicking code reached in tensor.rs:74:18:
@@ -132,7 +132,7 @@ impl<B: Backend> BackendTensor<B> {
 
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
-    pub fn as_autodiff_float(&self) -> &FloatTensor<Autodiff<B>> {
+    pub fn as_autodiff(&self) -> &FloatTensor<Autodiff<B>> {
         match self {
             BackendTensor::Autodiff(tensor) => tensor,
             _ => unreachable!(),
@@ -479,10 +479,19 @@ impl TensorMetadata for DispatchTensor {
         // we can wrap with Autodiff in all cases.
 
         #[cfg(feature = "autodiff")]
-        if let DispatchDevice::Autodiff(device) = &mut device
-            && let Some(checkpointing) = &self.checkpointing
-        {
-            device.checkpointing = *checkpointing;
+        if let Some(checkpointing) = &self.checkpointing {
+            // A packed (quantized) tensor is float-kind data that travels beside
+            // the tape untracked, so its device is the autodiff one: whatever is
+            // built from it — its dequantized form, LoRA factors over it — must
+            // land on the tape.
+            if matches!(self.dtype(), DType::QFloat(_))
+                && !matches!(device, DispatchDevice::Autodiff(_))
+            {
+                device = DispatchDevice::autodiff(device);
+            }
+            if let DispatchDevice::Autodiff(device) = &mut device {
+                device.checkpointing = *checkpointing;
+            }
         }
 
         device

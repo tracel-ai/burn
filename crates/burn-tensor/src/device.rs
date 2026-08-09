@@ -1145,7 +1145,7 @@ mod autodiff_move_tests {
     // lands on the underlying hardware and stays non-tracked. Regression test for a panic in
     // `float_to_device` ("Cannot move between autodiff and non-autodiff instances").
     #[test]
-    fn move_non_autodiff_float_tensor_to_autodiff_device() {
+    fn move_non_autodiff_tensor_to_autodiff_device() {
         let device = Device::default();
         let ad_device = device.clone().autodiff();
 

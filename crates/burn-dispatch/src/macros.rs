@@ -360,7 +360,7 @@ macro_rules! float_to_device_arms {
                 ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::$B1(d)) => {
                     let kind = $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new($crate::DispatchTensorKind::$B1($crate::BackendTensor::Autodiff(
                         with_autodiff_backend!($B1, $ckp, |B| {
-                            B::$to_device(tensor.autodiff_float(), d)
+                            B::$to_device(tensor.autodiff(), d)
                         })
                     ))));
                     $crate::DispatchTensor {kind, checkpointing: $ckp}
@@ -910,8 +910,8 @@ macro_rules! unary_float_arms {
         paste::paste! { $inner.[< as_ $inner_kind >]() }
     };
 
-    (@unwrap_ad owned, $inner:ident) => { $inner.autodiff_float() };
-    (@unwrap_ad ref, $inner:ident) => { $inner.as_autodiff_float() };
+    (@unwrap_ad owned, $inner:ident) => { $inner.autodiff() };
+    (@unwrap_ad ref, $inner:ident) => { $inner.as_autodiff() };
 
 }
 
@@ -1056,8 +1056,8 @@ macro_rules! binary_float_arms {
                 binary_float_arms!(
                     @autodiff
                     $kind,
-                    (*lhs_inner, autodiff_float, checkpointing),
-                    (*rhs_inner, autodiff_float, checkpointing),
+                    (*lhs_inner, autodiff, checkpointing),
+                    (*rhs_inner, autodiff, checkpointing),
                     |$lhs_inner, $rhs_inner| $body;
                     $([$Backend, $cfg]),*
                 )
@@ -1104,7 +1104,7 @@ macro_rules! binary_float_arms {
                     match *lhs_inner {
                         $crate::DispatchTensorKind::$Backend($lhs_inner) => {
                             with_autodiff_backend!($Backend, checkpointing, |B| {
-                                let $lhs_inner = $lhs_inner.autodiff_float();
+                                let $lhs_inner = $lhs_inner.autodiff();
                                 let $rhs_inner = $rhs_inner.$rhs_kind();
                                 wrap_floatlike!(
                                     @wrap_autodiff
@@ -1126,6 +1126,64 @@ macro_rules! binary_float_arms {
                     type B = $crate::backends::$Backend;
                     let $lhs_inner = $lhs_inner.float();
                     let $rhs_inner = $rhs_inner.$rhs_kind();
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$kind($body)),
+                        checkpointing,
+                    }
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            (lhs, rhs) => {
+                panic!(
+                    "The provided tensors are not on the same backend. Got backends {:?} and {:?}.", lhs, rhs
+                );
+            }
+        }
+    }};
+    // (any, float) binary op
+    (
+        $kind:ident,
+        ($lhs:expr, $lhs_kind:ident),
+        ($rhs:expr, float),
+        |$lhs_inner:ident, $rhs_inner:ident| $body:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {{
+        #[cfg(feature = "autodiff")]
+        let checkpointing = $crate::validate_checkpointing($lhs.checkpointing, $rhs.checkpointing);
+        #[cfg(not(feature = "autodiff"))]
+        let checkpointing = $lhs.checkpointing;
+
+        match ($lhs.kind, $rhs.kind) {
+            $(
+                // Autodiff arms first
+                #[cfg(all(feature = "autodiff", $cfg))]
+                ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::Autodiff(rhs_inner)) => {
+                    // Match on inner
+                    match *rhs_inner {
+                        $crate::DispatchTensorKind::$Backend($rhs_inner) => {
+                            with_autodiff_backend!($Backend, checkpointing, |B| {
+                                let $lhs_inner = $lhs_inner.$lhs_kind();
+                                let $rhs_inner = $rhs_inner.autodiff();
+                                wrap_floatlike!(
+                                    @wrap_autodiff
+                                    $kind,
+                                    $Backend,
+                                    checkpointing,
+                                    { $body }
+                                )
+                            })
+                        }
+                        $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor."),
+                        #[allow(unreachable_patterns)]
+                        _ => panic!("The provided tensors are not on the same backend.")
+                    }
+                },
+
+                #[cfg($cfg)]
+                ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
+                    type B = $crate::backends::$Backend;
+                    let $lhs_inner = $lhs_inner.$lhs_kind();
+                    let $rhs_inner = $rhs_inner.float();
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$kind($body)),
                         checkpointing,
@@ -1276,7 +1334,7 @@ macro_rules! binary_complex_arms {
                     @autodiff
                     $kind,
                     (*lhs_inner, autodiff_complex, checkpointing),
-                    (*rhs_inner, autodiff_float, checkpointing),
+                    (*rhs_inner, autodiff, checkpointing),
                     |$lhs_inner, $rhs_inner| $body;
                     $([$Backend, $cfg]),*
                 )
@@ -1524,7 +1582,7 @@ macro_rules! wrap_input_autodiff {
     };
     // Float tensors: wrap with autodiff
     ($Backend:ident, $inner:expr, float) => {
-        $inner.autodiff_float()
+        $inner.autodiff()
     };
     // Complex tensors: wrap with autodiff
     ($Backend:ident, $inner:expr, complex) => {
@@ -1917,7 +1975,7 @@ macro_rules! vec_op_arms {
                     #[cfg($cfg)]
                     $crate::DispatchTensorKind::$Backend(_) => {
                         with_autodiff_backend!($Backend, checkpointing, |B| {
-                            let $inner = unwrap_vec!(@autodiff $Backend, $tensors, autodiff_float);
+                            let $inner = unwrap_vec!(@autodiff $Backend, $tensors, autodiff);
                             wrap_floatlike!( @wrap_autodiff Float, $Backend, checkpointing, { $body } )
                         })
                     }

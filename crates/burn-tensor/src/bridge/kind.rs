@@ -363,6 +363,16 @@ impl BridgeTensor {
         }
     }
 
+    /// The float primitive when the tensor holds one; `None` for the other
+    /// kinds, a packed (quantized) tensor included.
+    #[cfg(feature = "autodiff")]
+    pub(crate) fn try_as_float(&self) -> Option<&DispatchTensor> {
+        match self.as_variant() {
+            BridgeTensorVariant::Float(tensor) => Some(tensor),
+            _ => None,
+        }
+    }
+
     pub(crate) fn into_dispatch_vec(tensors: Vec<Self>) -> Vec<DispatchTensor> {
         tensors.into_iter().map(Into::into).collect()
     }
