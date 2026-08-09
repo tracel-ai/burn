@@ -205,7 +205,7 @@ impl BackendTypes for Candle {
 
     type QuantizedTensorPrimitive = CandleTensor;
 
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CandleTensor, CandleDevice>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CandleDevice>;
 
     type GraphPrimitive = burn_backend::GraphUnsupported;
 }

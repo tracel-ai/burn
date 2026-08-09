@@ -30,8 +30,7 @@ impl<B: FusionBackend> BackendTypes for Fusion<B> {
     type IntTensorPrimitive = FusionTensor<B::FusionRuntime>;
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
-    type ComplexTensorPrimitive =
-        UnimplementedTensorPrimitive<FusionTensor<B::FusionRuntime>, B::Device>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<B::Device>;
 
     // Fusion adds nothing to a captured graph: the fused kernels are recorded
     // on the inner backend's stream, so the graph handle is the inner one.

@@ -12,45 +12,42 @@ pub enum TensorPrimitive<B: BackendTypes> {
 
 /// a Placeholder primitive for tensor types that are not yet supported by a backend.
 #[derive(Clone)]
-pub struct UnimplementedTensorPrimitive<E: Clone + Send + Sync + 'static, D> {
-    _elem: core::marker::PhantomData<E>,
+pub struct UnimplementedTensorPrimitive<D> {
     _device: core::marker::PhantomData<D>,
 }
 
-impl<E: Clone + Send + Sync + 'static, D> UnimplementedTensorPrimitive<E, D> {
+impl<D> UnimplementedTensorPrimitive<D> {
     /// Stub to make it compatible with backend decorators
     pub fn primitive(&self) -> ! {
-        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
     }
 }
 
-impl<E: Clone + Send + Sync + 'static, D: DeviceOps> TensorMetadata
-    for UnimplementedTensorPrimitive<E, D>
-{
+impl<D: DeviceOps> TensorMetadata for UnimplementedTensorPrimitive<D> {
     type Device = D;
     /// Stub method that panics with a message indicating that the given tensor type is not yet supported for the backend associated with the device.
     fn device(&self) -> Self::Device {
-        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
     }
     fn dtype(&self) -> DType {
-        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
     }
 
     fn shape(&self) -> Shape {
-        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
     }
 
     fn can_mut(&self) -> bool {
-        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
     }
 }
 
-impl<E: Clone + Send + Sync + 'static, D> core::fmt::Debug for UnimplementedTensorPrimitive<E, D> {
+impl<D> core::fmt::Debug for UnimplementedTensorPrimitive<D> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
             "placeholder tensor primitive for {}",
-            core::any::type_name::<E>()
+            core::any::type_name::<D>()
         )
     }
 }

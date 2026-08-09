@@ -48,8 +48,6 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(_) => panic!("Should be float, got autodiff complex"),
             BackendTensor::Complex(_) => panic!("Should be float, got complex"),
         }
     }
@@ -62,9 +60,6 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(_) => panic!("Should be float, got autodiff complex"),
-            //#[cfg(feature = "complex")]
             BackendTensor::Complex(_) => panic!("Should be float, got complex"),
         }
     }
@@ -78,9 +73,6 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be int, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be int, got autodiff"),
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(_) => panic!("Should be int, got autodiff complex"),
-            //#[cfg(feature = "complex")]
             BackendTensor::Complex(_) => panic!("Should be int, got complex"),
         }
     }
@@ -94,9 +86,6 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be bool, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be bool, got autodiff"),
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(_) => panic!("Should be bool, got autodiff complex"),
-            //#[cfg(feature = "complex")]
             BackendTensor::Complex(_) => panic!("Should be bool, got complex"),
         }
     }
@@ -120,16 +109,6 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
 
-    // #[cfg(feature = "autodiff")]
-    // /// Returns the inner autodiff tensor primitive.
-    // pub fn autodiff_complex(self) -> ComplexTensor<Autodiff<B>> {
-    //     match self {
-    //         BackendTensor::AutodiffComplex(tensor) => tensor,
-    //         // NOTE: this is the panicking code reached in tensor.rs:74:18:
-    //         _ => unreachable!(),
-    //     }
-    // }
-
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
     pub fn as_autodiff(&self) -> &FloatTensor<Autodiff<B>> {
@@ -138,15 +117,6 @@ impl<B: Backend> BackendTensor<B> {
             _ => unreachable!(),
         }
     }
-
-    // #[cfg(feature = "autodiff")]
-    // /// Returns the inner autodiff complex tensor primitive.
-    // pub fn as_autodiff_complex(&self) -> &ComplexTensor<Autodiff<B>> {
-    //     match self {
-    //         BackendTensor::AutodiffComplex(tensor) => tensor,
-    //         _ => unreachable!(),
-    //     }
-    // }
 
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
@@ -211,8 +181,6 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Complex(tensor) => tensor.device(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.device(),
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(tensor) => tensor.device(),
         }
     }
     fn dtype(&self) -> DType {
@@ -224,8 +192,6 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Complex(tensor) => tensor.dtype(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.dtype(),
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(tensor) => tensor.dtype(),
         }
     }
 
@@ -251,8 +217,6 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.can_mut(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.can_mut(),
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(tensor) => tensor.can_mut(),
             BackendTensor::Complex(tensor) => tensor.can_mut(),
         }
     }

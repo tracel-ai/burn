@@ -64,7 +64,7 @@ impl BackendTypes for NdArray {
     type IntTensorPrimitive = NdArrayTensor;
     type BoolTensorPrimitive = NdArrayTensor;
     type QuantizedTensorPrimitive = NdArrayQTensor;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<NdArrayTensor, NdArrayDevice>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<NdArrayDevice>;
 
     type GraphPrimitive = burn_backend::GraphUnsupported;
 }

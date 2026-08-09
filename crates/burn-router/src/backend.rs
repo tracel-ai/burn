@@ -33,7 +33,7 @@ impl<R: RouterChannel> BackendTypes for BackendRouter<R> {
     type IntTensorPrimitive = RouterTensor<R::Client>;
     type BoolTensorPrimitive = RouterTensor<R::Client>;
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<R::Client, R::Device>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<R::Device>;
 
     type GraphPrimitive = burn_backend::GraphUnsupported;
 }

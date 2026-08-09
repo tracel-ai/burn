@@ -41,8 +41,7 @@ where
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CubeTensor<R>, R::Device>;
-
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<R::Device>;
     type GraphPrimitive = cubecl::client::Graph<R>;
 }
 
