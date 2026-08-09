@@ -127,6 +127,12 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
 
     let shape_out = broadcast_shape(&[&lhs, &rhs]);
 
+    // A zero-sized broadcast output has no elements to compute, and the in-place/kernel paths
+    // below assume a non-empty output. Return the empty output directly.
+    if shape_out.num_elements() == 0 {
+        return empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, lhs.dtype);
+    }
+
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 

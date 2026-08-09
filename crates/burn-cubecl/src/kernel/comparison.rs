@@ -136,6 +136,18 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
 
     let shape_out = broadcast_shape(&[&lhs, &rhs]);
     let client = lhs.client.clone();
+
+    // A zero-sized broadcast output has no elements to compute, and the in-place/kernel paths
+    // below assume a non-empty output. Return the empty output directly.
+    if shape_out.num_elements() == 0 {
+        return empty_device_dtype(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            shape_out,
+            dtype_bool,
+        );
+    }
+
     let num_elems = shape_out.num_elements();
 
     let working_units = num_elems / vector_size as usize;

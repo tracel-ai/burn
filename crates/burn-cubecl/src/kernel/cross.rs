@@ -77,6 +77,16 @@ pub(crate) fn cross<R: CubeRuntime>(
 
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
 
+    // A zero-sized broadcast output has no elements to compute. Return the empty output directly.
+    if output_shape.num_elements() == 0 {
+        return empty_device_dtype(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            output_shape,
+            lhs.dtype,
+        );
+    }
+
     let output = empty_device_dtype(
         lhs.client.clone(),
         lhs.device.clone(),
