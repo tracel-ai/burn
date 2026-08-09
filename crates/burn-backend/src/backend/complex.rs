@@ -2,31 +2,6 @@ use burn_std::TensorData;
 
 use crate::{Backend, BackendTypes, ops::ComplexTensorOps};
 
-/// Describes the memory layout used by complex tensor primitives.
-///
-/// This marker trait is used to select layout-specific behavior through trait bounds,
-/// for example when implementing optimized kernels that rely on a particular memory
-/// representation.
-///
-/// Current layouts include interleaved complex values (real/imaginary pairs stored
-/// together), but additional layouts may be added in the future.
-pub trait Layout:
-    Clone + core::fmt::Debug + core::marker::Sync + core::marker::Send + 'static
-{
-}
-
-/// Trait for compound tensors that are composed of multiple component tensors.
-pub trait SplitLayout: Layout {}
-
-#[derive(Clone, Debug)]
-/// Indicates that the underlying implementation uses a complex primitive type \[float,float\] like that found in the
-/// num_complex trait.
-pub struct InterleavedLayout {
-    //_marker: core::marker::PhantomData<E>,
-}
-
-impl Layout for InterleavedLayout {}
-
 /// Complex tensor primitive type used by the backend.
 pub type ComplexTensor<B> = <B as BackendTypes>::ComplexTensorPrimitive;
 
@@ -41,12 +16,12 @@ pub trait ComplexTensorBackend:
     ///
     /// Must share all primitive types and device with `Self` so that operations
     /// can delegate directly without any type-level conversion.
-    type InnerBackend: Backend<
-            Device = Self::Device,
-            FloatTensorPrimitive = Self::FloatTensorPrimitive,
-            IntTensorPrimitive = Self::IntTensorPrimitive,
-            BoolTensorPrimitive = Self::BoolTensorPrimitive,
-        >;
+    // type InnerBackend: Backend<
+    //         Device = Self::Device,
+    //         //FloatTensorPrimitive = Self::FloatTensorPrimitive,
+    //         IntTensorPrimitive = Self::IntTensorPrimitive,
+    //         BoolTensorPrimitive = Self::BoolTensorPrimitive,
+    //     >;
 
     /// Creates a complex tensor from real-valued data, padding the imaginary part with zeros.
     ///

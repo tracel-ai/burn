@@ -1,5 +1,5 @@
 use crate::transform::{Mapper, MapperDataset};
-use crate::{Dataset, InMemDataset};
+use crate::{Dataset, DatasetError, InMemDataset};
 
 use globwalk::{self, DirEntry};
 use image::{self, ColorType};
@@ -13,7 +13,7 @@ use thiserror::Error;
 const SUPPORTED_FILES: [&str; 4] = ["bmp", "jpg", "jpeg", "png"];
 const BBOX_MIN_NUM_VALUES: usize = 4;
 
-/// Image data type.
+/// A single pixel component's value, tagged with its bit depth.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PixelDepth {
     /// 8-bit unsigned.
@@ -22,6 +22,100 @@ pub enum PixelDepth {
     U16(u16),
     /// 32-bit floating point.
     F32(f32),
+}
+
+/// A packed image buffer. All pixels share one depth, stored once for the
+/// whole buffer.
+///
+/// Prefer this to a `Vec<`[`PixelDepth`]`>`, which pays 8 bytes per pixel to
+/// tag each one individually.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PixelData {
+    /// 8-bit unsigned components.
+    U8(Vec<u8>),
+    /// 16-bit unsigned components.
+    U16(Vec<u16>),
+    /// 32-bit floating point components.
+    F32(Vec<f32>),
+}
+
+impl PixelData {
+    /// Number of pixels in the buffer.
+    pub fn len(&self) -> usize {
+        match self {
+            PixelData::U8(v) => v.len(),
+            PixelData::U16(v) => v.len(),
+            PixelData::F32(v) => v.len(),
+        }
+    }
+
+    /// Whether the buffer is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Iterate the components as scalar [`PixelDepth`] values for depth-agnostic access.
+    pub fn iter(&self) -> Box<dyn Iterator<Item = PixelDepth> + '_> {
+        match self {
+            PixelData::U8(v) => Box::new(v.iter().map(|&x| PixelDepth::U8(x))),
+            PixelData::U16(v) => Box::new(v.iter().map(|&x| PixelDepth::U16(x))),
+            PixelData::F32(v) => Box::new(v.iter().map(|&x| PixelDepth::F32(x))),
+        }
+    }
+}
+
+impl From<Vec<u8>> for PixelData {
+    fn from(value: Vec<u8>) -> Self {
+        PixelData::U8(value)
+    }
+}
+
+impl From<Vec<u16>> for PixelData {
+    fn from(value: Vec<u16>) -> Self {
+        PixelData::U16(value)
+    }
+}
+
+impl From<Vec<f32>> for PixelData {
+    fn from(value: Vec<f32>) -> Self {
+        PixelData::F32(value)
+    }
+}
+
+impl TryFrom<PixelData> for Vec<u8> {
+    type Error = &'static str;
+
+    fn try_from(value: PixelData) -> Result<Self, Self::Error> {
+        if let PixelData::U8(v) = value {
+            Ok(v)
+        } else {
+            Err("PixelData is not U8")
+        }
+    }
+}
+
+impl TryFrom<PixelData> for Vec<u16> {
+    type Error = &'static str;
+
+    fn try_from(value: PixelData) -> Result<Self, Self::Error> {
+        if let PixelData::U16(v) = value {
+            Ok(v)
+        } else {
+            Err("PixelData is not U16")
+        }
+    }
+}
+
+impl TryFrom<PixelData> for Vec<f32> {
+    type Error = &'static str;
+
+    fn try_from(value: PixelData) -> Result<Self, Self::Error> {
+        if let PixelData::F32(v) = value {
+            Ok(v)
+        } else {
+            Err("PixelData is not F32")
+        }
+    }
 }
 
 impl TryFrom<PixelDepth> for u8 {
@@ -95,8 +189,8 @@ pub struct BoundingBox {
 /// Image dataset item.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageDatasetItem {
-    /// Image as a vector with a valid image type.
-    pub image: Vec<PixelDepth>,
+    /// Image as a packed buffer of a single component type.
+    pub image: PixelData,
 
     /// Original source image width.
     pub image_width: usize,
@@ -366,58 +460,19 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
         let img_width = image.width() as usize;
         let img_height = image.height() as usize;
 
-        // Image as Vec<PixelDepth>
+        // Image as a packed buffer of a single component type. `into_raw`
+        // hands back the decoder's own contiguous vector.
         let img_vec = match image.color() {
-            ColorType::L8 => image
-                .into_luma8()
-                .iter()
-                .map(|&x| PixelDepth::U8(x))
-                .collect(),
-            ColorType::La8 => image
-                .into_luma_alpha8()
-                .iter()
-                .map(|&x| PixelDepth::U8(x))
-                .collect(),
-            ColorType::L16 => image
-                .into_luma16()
-                .iter()
-                .map(|&x| PixelDepth::U16(x))
-                .collect(),
-            ColorType::La16 => image
-                .into_luma_alpha16()
-                .iter()
-                .map(|&x| PixelDepth::U16(x))
-                .collect(),
-            ColorType::Rgb8 => image
-                .into_rgb8()
-                .iter()
-                .map(|&x| PixelDepth::U8(x))
-                .collect(),
-            ColorType::Rgba8 => image
-                .into_rgba8()
-                .iter()
-                .map(|&x| PixelDepth::U8(x))
-                .collect(),
-            ColorType::Rgb16 => image
-                .into_rgb16()
-                .iter()
-                .map(|&x| PixelDepth::U16(x))
-                .collect(),
-            ColorType::Rgba16 => image
-                .into_rgba16()
-                .iter()
-                .map(|&x| PixelDepth::U16(x))
-                .collect(),
-            ColorType::Rgb32F => image
-                .into_rgb32f()
-                .iter()
-                .map(|&x| PixelDepth::F32(x))
-                .collect(),
-            ColorType::Rgba32F => image
-                .into_rgba32f()
-                .iter()
-                .map(|&x| PixelDepth::F32(x))
-                .collect(),
+            ColorType::L8 => PixelData::U8(image.into_luma8().into_raw()),
+            ColorType::La8 => PixelData::U8(image.into_luma_alpha8().into_raw()),
+            ColorType::L16 => PixelData::U16(image.into_luma16().into_raw()),
+            ColorType::La16 => PixelData::U16(image.into_luma_alpha16().into_raw()),
+            ColorType::Rgb8 => PixelData::U8(image.into_rgb8().into_raw()),
+            ColorType::Rgba8 => PixelData::U8(image.into_rgba8().into_raw()),
+            ColorType::Rgb16 => PixelData::U16(image.into_rgb16().into_raw()),
+            ColorType::Rgba16 => PixelData::U16(image.into_rgba16().into_raw()),
+            ColorType::Rgb32F => PixelData::F32(image.into_rgb32f().into_raw()),
+            ColorType::Rgba32F => PixelData::F32(image.into_rgba32f().into_raw()),
             _ => panic!("Unrecognized image color type"),
         };
 
@@ -460,7 +515,7 @@ pub struct ImageFolderDataset {
 }
 
 impl Dataset<ImageDatasetItem> for ImageFolderDataset {
-    fn get(&self, index: usize) -> Option<ImageDatasetItem> {
+    fn get(&self, index: usize) -> Result<ImageDatasetItem, DatasetError> {
         self.dataset.get(index)
     }
 
@@ -513,6 +568,7 @@ impl ImageFolderDataset {
                     .join(",")
             )],
         )
+        .case_insensitive(true)
         .follow_links(true)
         .sort_by(|p1: &DirEntry, p2: &DirEntry| p1.path().cmp(p2.path())) // order by path
         .build()
@@ -712,7 +768,10 @@ impl ImageFolderDataset {
     /// Check if extension is supported.
     fn check_extension<S: AsRef<str>>(extension: &S) -> Result<String, ImageLoaderError> {
         let extension = extension.as_ref();
-        if !SUPPORTED_FILES.contains(&extension) {
+        if !SUPPORTED_FILES
+            .iter()
+            .any(|&e| e.eq_ignore_ascii_case(extension))
+        {
             Err(ImageLoaderError::InvalidFileExtensionError(
                 extension.to_string(),
             ))
@@ -736,7 +795,7 @@ mod tests {
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // Dataset elements should be: orange (0), red (1), red (1)
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
@@ -750,7 +809,7 @@ mod tests {
 
         // Filtered dataset has 2 elements
         assert_eq!(dataset.len(), 2);
-        assert_eq!(dataset.get(2), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(2))).is_err());
 
         // Dataset elements should be: orange (0), red (1)
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
@@ -762,7 +821,7 @@ mod tests {
         let root = Path::new(DATASET_ROOT);
         let items = vec![
             (root.join("orange").join("dot.jpg"), "orange".to_string()),
-            (root.join("red").join("dot.jpg"), "red".to_string()),
+            (root.join("red").join("dot.JPG"), "red".to_string()),
             (root.join("red").join("dot.png"), "red".to_string()),
         ];
         let dataset =
@@ -770,7 +829,7 @@ mod tests {
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // Test item sizes
 
@@ -802,7 +861,7 @@ mod tests {
         let root = Path::new(DATASET_ROOT);
         let items = vec![
             (root.join("orange").join("dot.jpg"), "orange".to_string()),
-            (root.join("red").join("dot.jpg"), "red".to_string()),
+            (root.join("red").join("dot.JPG"), "red".to_string()),
             (root.join("red").join("dot.png"), "red".to_string()),
         ];
         let dataset =
@@ -810,7 +869,7 @@ mod tests {
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // Dataset elements should be: orange (0), red (1), red (1)
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
@@ -827,7 +886,7 @@ mod tests {
                 vec!["dot".to_string(), "orange".to_string()],
             ),
             (
-                root.join("red").join("dot.jpg"),
+                root.join("red").join("dot.JPG"),
                 vec!["dot".to_string(), "red".to_string()],
             ),
             (
@@ -843,7 +902,7 @@ mod tests {
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // Dataset elements should be: [dot, orange] (0, 1), [dot, red] (0, 2), [dot, red] (0, 2)
         assert_eq!(
@@ -904,6 +963,42 @@ mod tests {
     #[should_panic]
     pub fn pixel_depth_try_into_f32_invalid() {
         let _: f32 = PixelDepth::U16(u16::MAX).try_into().unwrap();
+    }
+
+    #[test]
+    pub fn pixel_data_len_and_iter() {
+        let data = PixelData::U8(vec![1, 2, 3]);
+        assert_eq!(data.len(), 3);
+        assert!(!data.is_empty());
+        assert!(PixelData::U16(vec![]).is_empty());
+
+        let depths: Vec<PixelDepth> = data.iter().collect();
+        assert_eq!(
+            depths,
+            vec![PixelDepth::U8(1), PixelDepth::U8(2), PixelDepth::U8(3)]
+        );
+    }
+
+    #[test]
+    pub fn pixel_data_try_into_vec() {
+        let u8s: Vec<u8> = PixelData::U8(vec![1, 2, 3]).try_into().unwrap();
+        assert_eq!(u8s, vec![1, 2, 3]);
+
+        let u16s: Vec<u16> = PixelData::U16(vec![4, 5]).try_into().unwrap();
+        assert_eq!(u16s, vec![4, 5]);
+
+        let f32s: Vec<f32> = PixelData::F32(vec![6.0, 7.0]).try_into().unwrap();
+        assert_eq!(f32s, vec![6.0, 7.0]);
+
+        // Depth mismatch is rejected.
+        assert!(Vec::<u8>::try_from(PixelData::U16(vec![1])).is_err());
+    }
+
+    #[test]
+    pub fn pixel_data_from_vec() {
+        assert_eq!(PixelData::from(vec![1u8, 2]), PixelData::U8(vec![1, 2]));
+        assert_eq!(PixelData::from(vec![1u16, 2]), PixelData::U16(vec![1, 2]));
+        assert_eq!(PixelData::from(vec![1.0f32]), PixelData::F32(vec![1.0]));
     }
 
     #[test]
@@ -1011,7 +1106,7 @@ mod tests {
 
         // Dataset has 3 elements; each (image, annotation) is a single item
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         // checkerboard mask
         const TEST_CHECKERBOARD_MASK_PATTERN: [u8; 64] = [
@@ -1064,7 +1159,7 @@ mod tests {
     pub fn coco_detection_dataset() {
         let dataset = ImageFolderDataset::new_coco_detection(COCO_JSON, COCO_IMAGES).unwrap();
         assert_eq!(dataset.len(), 3); // we have only three images defined
-        assert_eq!(dataset.get(3), None);
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dataset.get(3))).is_err());
 
         const TWO_DOTS_AND_TRIANGLE_B1: BoundingBox = BoundingBox {
             coords: [3.125_172, 18.090_784, 10.960_11, 10.740_027],
@@ -1096,7 +1191,7 @@ mod tests {
             label: 0,
         };
 
-        for item in dataset.iter() {
+        for item in dataset.iter().map(Result::unwrap) {
             let file_name = Path::new(&item.image_path).file_name().unwrap();
             match item.annotation {
                 // check if the number of bounding boxes is correct

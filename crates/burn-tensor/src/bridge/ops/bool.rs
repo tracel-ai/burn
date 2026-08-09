@@ -128,6 +128,10 @@ impl BasicOps for Bool {
         BridgeTensor::bool(Dispatch::bool_mask_fill(tensor.into(), mask.into(), value))
     }
 
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::bool(Dispatch::bool_mask_select(tensor.into(), mask.into()).await)
+    }
+
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
         BridgeTensor::bool(Dispatch::bool_gather(dim, tensor.into(), indices.into()))
     }
@@ -197,11 +201,11 @@ impl BasicOps for Bool {
         BridgeTensor::bool(Dispatch::bool_not_equal(lhs.into(), rhs.into()))
     }
 
-    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         BridgeTensor::bool(Dispatch::bool_equal_elem(lhs.into(), rhs))
     }
 
-    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn not_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         BridgeTensor::bool(Dispatch::bool_not_equal_elem(lhs.into(), rhs))
     }
 

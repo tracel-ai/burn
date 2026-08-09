@@ -9,14 +9,46 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,
+    client::ComputeClient,
     std::tensor::MatrixBatchLayout,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
-    definition::MatmulKind,
-    strategy::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+    components::tile::TileMatmulKind,
+    definition::{MatmulElems, MatmulGlobalElems, MatmulKind, adjust_dtypes},
+    strategy::{
+        MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, should_tune_double_buffering,
+    },
 };
 use serde::{Deserialize, Serialize};
+
+/// Whether the device can run `tile_matmul` with the element types of the matmul `definition`.
+///
+/// The kernel runs on the *register* types, not the global ones: the selection paths promote
+/// them with [`adjust_dtypes`] when the tile matmul needs an accelerator (f32 to tf32, flex32 to
+/// f16). Without the same promotion here, every f32 problem would look unsupported and the tf32
+/// tensor core path would be lost.
+fn tile_matmul_supported<R: Runtime>(
+    client: &ComputeClient<R>,
+    tile_matmul: TileMatmulKind,
+    definition: &MatmulProblemDefinition,
+) -> bool {
+    let mut elems = MatmulElems::from_globals(&MatmulGlobalElems {
+        lhs: definition.elem_lhs,
+        rhs: definition.elem_rhs,
+        out: definition.elem_out,
+    });
+    adjust_dtypes(client, &mut elems, tile_matmul.requires_accelerator());
+
+    !tile_matmul
+        .supported_sizes(
+            client,
+            elems.lhs_register,
+            elems.rhs_register,
+            elems.acc_register,
+        )
+        .is_empty()
+}
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedMatmulAutotuneKey {
@@ -32,9 +64,10 @@ pub fn fused_matmul_autotune<R: Runtime>(
     optimization: MatmulOptimizationTuneArg<R>,
     context: &mut Context<CubeFusionHandle<R>>,
 ) {
+    let tune_client = optimization.info.client.clone();
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_HIGH: i8 = 2;
         const PRIORITY_MEDIUM: i8 = 1;
@@ -172,6 +205,10 @@ pub fn fused_matmul_autotune<R: Runtime>(
 
         // Accelerated matmuls
         for tile_matmul in [AcceleratedTileKind::Cmma, AcceleratedTileKind::Mma] {
+            let tm = match tile_matmul {
+                AcceleratedTileKind::Cmma => TileMatmulKind::Cmma,
+                AcceleratedTileKind::Mma => TileMatmulKind::Mma,
+            };
             for (selector, double_buf, extra_group) in [
                 (
                     FusedMatmulSelector::Simple {
@@ -211,21 +248,34 @@ pub fn fused_matmul_autotune<R: Runtime>(
                     Some(&odd),
                 ),
             ] {
-                let priority_within_group =
-                    |key: &FusedMatmulAutotuneKey, double_buf: bool| match double_buf {
-                        false => PRIORITY_MAX,
-                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                // Accelerated kernels are demoted when the device doesn't support the tile
+                // matmul they are built on, otherwise they would be compiled just to fail. They
+                // keep the minimum priority rather than being discarded, so they remain a last
+                // resort and the tune plan can never end up empty.
+                let accelerated_priority =
+                    move |key: &FusedMatmulAutotuneKey, client: &ComputeClient<R>| {
+                        if !tile_matmul_supported::<R>(client, tm, &key.matmul_key.definition) {
+                            return PRIORITY_MIN;
+                        }
+
+                        match double_buf {
+                            false => PRIORITY_MAX,
+                            true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                        }
                     };
+
+                let client_accelerated = tune_client.clone();
                 let mut tunable = Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
                 .group(&accelerated, move |key| {
-                    priority_within_group(key, double_buf)
+                    accelerated_priority(key, &client_accelerated)
                 });
 
                 if let Some(group) = extra_group {
+                    let client_extra = tune_client.clone();
                     tunable =
-                        tunable.group(group, move |key| priority_within_group(key, double_buf));
+                        tunable.group(group, move |key| accelerated_priority(key, &client_extra));
                 }
                 set = set.with(tunable);
             }

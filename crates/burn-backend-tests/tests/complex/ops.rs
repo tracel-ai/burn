@@ -2,6 +2,8 @@ use burn_tensor::Device;
 use burn_tensor::Tolerance;
 use burn_tensor::{ComplexScalar, Float, Tensor, TensorData};
 
+use crate::TestTensor;
+
 #[test]
 fn test_complex_conj() {
     let tensor = TestTensor::<2>::from_data(

@@ -336,12 +336,16 @@ impl IntTensorOps<Self> for LibTorch {
         )
     }
 
+    async fn int_mask_select(tensor: TchTensor, mask: TchTensor) -> TchTensor {
+        TchTensor::new(tensor.tensor.masked_select(&mask.tensor))
+    }
+
     fn int_argmax(tensor: TchTensor, dim: usize) -> TchTensor {
         TchOps::argmax(tensor, dim)
     }
 
-    fn int_argtopk(_tensor: TchTensor, _dim: usize, _k: usize) -> TchTensor {
-        panic!("argtopk not implemented for torch")
+    fn int_argtopk(tensor: TchTensor, dim: usize, k: usize) -> TchTensor {
+        TchOps::argtopk(tensor, dim, k)
     }
 
     fn int_topk(tensor: TchTensor, dim: usize, k: usize) -> TchTensor {

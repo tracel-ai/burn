@@ -148,12 +148,15 @@ impl Applier {
     }
 
     /// Apply a tensor snapshot with shape validation and optional adapter transformation.
-    /// Returns the loaded tensor and the persisted [`ParamId`] from the snapshot (if available).
+    ///
+    /// Returns the loaded tensor and the snapshot's persisted [`ParamId`], or `None` for that id
+    /// when the source format carries no parameter identity (e.g. PyTorch, Safetensors). Callers
+    /// must keep the target parameter's own id in that case.
     fn apply_tensor<const D: usize, K>(
         &mut self,
         target_device: &Device,
         target_shape: Shape,
-    ) -> Option<(Tensor<D, K>, ParamId)>
+    ) -> Option<(Tensor<D, K>, Option<ParamId>)>
     where
         K: burn_core::tensor::kind::Basic,
     {
@@ -236,7 +239,7 @@ impl Applier {
         self.applied.push(path);
         Some((
             Tensor::from_data(data, (target_device, snapshot.dtype)),
-            tensor_id.unwrap_or_default(),
+            tensor_id,
         ))
     }
 }
@@ -263,15 +266,17 @@ impl ModuleMapper for Applier {
     }
 
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+        let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
         // Try to apply snapshot with shape validation
         match self.apply_tensor(&target_device, target_shape) {
             Some((tensor, snapshot_id)) => {
-                // Use the persisted ParamId from the snapshot so optimizer state
-                // (keyed by ParamId) survives save/load cycles.
-                param.transform_for_load(tensor, snapshot_id)
+                // Prefer the snapshot's persisted ParamId so optimizer state (keyed by ParamId)
+                // survives save/load cycles, but keep the target's id when the source format
+                // carries no identity of its own.
+                param.transform_for_load(tensor, snapshot_id.unwrap_or(param_id))
             }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
@@ -281,12 +286,15 @@ impl ModuleMapper for Applier {
     }
 
     fn map_int<const D: usize>(&mut self, param: Param<Tensor<D, Int>>) -> Param<Tensor<D, Int>> {
+        let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
         // Try to apply snapshot with shape validation
         match self.apply_tensor(&target_device, target_shape) {
-            Some((tensor, snapshot_id)) => param.transform_for_load(tensor, snapshot_id),
+            Some((tensor, snapshot_id)) => {
+                param.transform_for_load(tensor, snapshot_id.unwrap_or(param_id))
+            }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
                 param
@@ -298,12 +306,15 @@ impl ModuleMapper for Applier {
         &mut self,
         param: Param<Tensor<D, Bool>>,
     ) -> Param<Tensor<D, Bool>> {
+        let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
         // Try to apply snapshot with shape validation
         match self.apply_tensor(&target_device, target_shape) {
-            Some((tensor, snapshot_id)) => param.transform_for_load(tensor, snapshot_id),
+            Some((tensor, snapshot_id)) => {
+                param.transform_for_load(tensor, snapshot_id.unwrap_or(param_id))
+            }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
                 param
@@ -700,6 +711,36 @@ mod tests {
         assert_eq!(
             loaded.id, persisted_id,
             "Applier should restore persisted ParamId from snapshot"
+        );
+    }
+
+    /// Formats without parameter identity (PyTorch, Safetensors) leave `tensor_id` empty. Loading
+    /// one must keep the target module's id rather than minting a fresh one, otherwise importing
+    /// weights orphans optimizer state keyed by ParamId.
+    #[test]
+    fn applier_keeps_target_param_id_when_snapshot_has_none() {
+        let device = Default::default();
+
+        let mut snapshot = crate::TensorSnapshot::from_data(
+            TensorData::new(vec![1.0f32, 2.0], [2]),
+            vec!["weight".to_string()],
+            vec!["Struct:Linear".to_string()],
+            ParamId::new(),
+        );
+        snapshot.tensor_id = None;
+
+        let mut applier = Applier::new(vec![snapshot], None, None, false);
+
+        applier.enter_module("weight", "Struct:Linear");
+        let target_id = ParamId::from(7u64);
+        let target = Param::initialized(target_id, Tensor::<1>::zeros([2], &device));
+
+        let loaded = applier.map_float(target);
+        applier.exit_module("weight", "Struct:Linear");
+
+        assert_eq!(
+            loaded.id, target_id,
+            "Applier should keep the target ParamId when the snapshot carries none"
         );
     }
 }

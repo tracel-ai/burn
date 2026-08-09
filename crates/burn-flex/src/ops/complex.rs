@@ -28,7 +28,7 @@ use crate::strided_index::StridedIter;
 use crate::{Flex, FlexDevice, FlexTensor, ops::binary::scalar_op_typed};
 
 impl ComplexTensorBackend for Flex {
-    type InnerBackend = Flex;
+    //type InnerBackend = Flex;
 
     fn complex_from_real_data(data: TensorData, _device: &Device<Self>) -> ComplexTensor<Self> {
         let interleaved_data = burn_std::complex_utils::interleaved_data_from_real_data(data);
@@ -312,7 +312,7 @@ impl ComplexTensorOps<Flex> for Flex {
         _device: &Device<Flex>,
         dtype: ComplexDType,
     ) -> ComplexTensor<Flex> {
-        let mut seed = crate::backend::SEED.lock().unwrap();
+        let mut seed = crate::backend::SEED.lock();
         let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
         let data = match dtype {
             ComplexDType::Complex32 => {

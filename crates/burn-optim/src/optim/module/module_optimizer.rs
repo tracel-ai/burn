@@ -162,21 +162,21 @@ impl ModuleOptimizer {
     /// Update the `module` parameters with the given `gradients`, advancing the optimizer state.
     pub fn step<M: AutodiffModule>(
         &mut self,
-        lr_module: ModuleLearningRate,
+        lr_module: impl Into<ModuleLearningRate>,
         module: M,
         grads: GradientsParams,
     ) -> M {
-        self.step_common(lr_module, module, grads.into())
+        self.step_common(lr_module.into(), module, grads.into())
     }
 
     /// Like [`step`](Self::step), but accumulating gradients sourced from multiple devices.
     pub fn step_multi<M: AutodiffModule>(
         &mut self,
-        lr_module: ModuleLearningRate,
+        lr_module: impl Into<ModuleLearningRate>,
         module: M,
         grads: MultiGradientsParams,
     ) -> M {
-        self.step_common(lr_module, module, grads.into())
+        self.step_common(lr_module.into(), module, grads.into())
     }
 
     fn optim_from_param(

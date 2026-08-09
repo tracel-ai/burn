@@ -1,5 +1,7 @@
 use burn_tensor::{Bool, ComplexScalar, IndexingUpdateOp, Int, Tensor, TensorData};
 
+use crate::TestTensor;
+
 #[test]
 fn test_complex_zeros() {
     let tensor = TestTensor::<2>::zeros([2, 3], &Default::default());
@@ -102,8 +104,8 @@ fn test_complex_into_parts() {
         },
     ]]);
 
-    let real = TestTensor::<2>::from_data([[1.0,3.0]], &Default::default()).into_data();
-    let imag = TestTensor::<2>::from_data([[2.0,4.0]], &Default::default()).into_data();
+    let real = TestTensor::<2>::from_data([[1.0, 3.0]], &Default::default()).into_data();
+    let imag = TestTensor::<2>::from_data([[2.0, 4.0]], &Default::default()).into_data();
 
     let result = tensor.into_parts();
 
@@ -273,10 +275,7 @@ fn complex_cast_to_float() {
     let result = tensor.cast(burn_backend::FloatDType::F32);
     let data = result.into_data();
 
-    let expected = TensorData::from([[
-        1.0,
-        3.0,
-    ]]);
+    let expected = TensorData::from([[1.0, 3.0]]);
 
     data.assert_eq(&expected, false);
 }

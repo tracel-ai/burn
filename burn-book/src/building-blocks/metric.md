@@ -45,21 +45,21 @@ Burn provides four built-in output structs that cover common tasks. Each one alr
 `Adaptor` for a set of metrics, so in many cases you can use them directly without writing any 
 adaptor code yourself.
 
-- `ClassificationOutput<B>`:
+- `ClassificationOutput`:
     - Use case: Single-label classification
-    - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2>`, `targets: Tensor<B, 1, Int>`
+    - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<1, Int>`
     - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, Precision\*, Recall\*, FBetaScore\*, AUROC\*, AUC-PR\*, Loss
-- `MultiLabelClassificationOutput<B>`:
+- `MultiLabelClassificationOutput`:
     - Use case: Multi-label classification
-    - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2>`, `targets: Tensor<B, 2, Int>`
+    - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<2, Int>`
     - Adapted metrics: HammingScore, Precision\*, Recall\*, FBetaScore\*, AUROC\*, AUC-PR\*, Loss
-- `RegressionOutput<B>`:
+- `RegressionOutput`:
     - Use case: Regression tasks
-    - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2>`, `targets: Tensor<B, 2>`
+    - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<2>`
     - Adapted metrics: Loss
-- `SequenceOutput<B>`:
+- `SequenceOutput`:
     - Use case: Sequence prediction
-    - Fields: `loss: Tensor<B, 1>`, `logits: Tensor<B, 3>`, `predictions: Option<Tensor<B, 2, Int>>`, `targets: Tensor<B, 2, Int>`
+    - Fields: `loss: Tensor<1>`, `logits: Tensor<3>`, `predictions: Option<Tensor<2, Int>>`, `targets: Tensor<2, Int>`
     - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, CER, WER, Loss
 
 \* Precision, Recall, FBetaScore, AUROC, and AUC-PR all use `ConfusionStatsInput` as their input type so these 
@@ -69,8 +69,8 @@ If your metric isn't already adapted for the appropriate output struct, you can 
 For example, here is how `ClassificationOutput` adapts to `AccuracyInput`:
 
 ```rust,ignore
-impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
-    fn adapt(&self) -> AccuracyInput<B> {
+impl Adaptor<AccuracyInput> for ClassificationOutput {
+    fn adapt(&self) -> AccuracyInput {
         AccuracyInput::new(self.output.clone(), self.targets.clone())
     }
 }
@@ -81,19 +81,19 @@ and then adapt your metric for the output struct:
 
 ```rust,ignore
 #[derive(new)]
-pub struct ClassificationOutput<B: Backend> {
+pub struct ClassificationOutput {
     /// The loss.
-    pub loss: Tensor<B, 1>,
+    pub loss: Tensor<1>,
 
     /// The output.
-    pub output: Tensor<B, 2>,
+    pub output: Tensor<2>,
 
     /// The targets.
-    pub targets: Tensor<B, 1, Int>,
+    pub targets: Tensor<1, Int>,
 }
 
-impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
-    fn adapt(&self) -> AccuracyInput<B> {
+impl Adaptor<AccuracyInput> for ClassificationOutput {
+    fn adapt(&self) -> AccuracyInput {
         AccuracyInput::new(self.output.clone(), self.targets.clone())
     }
 }
@@ -141,38 +141,36 @@ As an example, let's see how the loss metric is implemented.
 ```rust, ignore
 /// The loss metric.
 #[derive(Clone)]
-pub struct LossMetric<B: Backend> {
+pub struct LossMetric {
     name: Arc<String>,
     state: NumericMetricState,
-    _b: B,
 }
 
 /// The [loss metric](LossMetric) input type.
 #[derive(new)]
-pub struct LossInput<B: Backend> {
-    tensor: Tensor<B, 1>,
+pub struct LossInput {
+    tensor: Tensor<1>,
 }
 
-impl<B: Backend> Default for LossMetric<B> {
+impl Default for LossMetric {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> LossMetric<B> {
+impl LossMetric {
     /// Create the metric.
     pub fn new() -> Self {
         Self {
             name: Arc::new("Loss".to_string()),
             state: NumericMetricState::default(),
-            _b: Default::default(),
         }
     }
 }
 
 
-impl<B: Backend> Metric for LossMetric<B> {
-    type Input = LossInput<B>;
+impl Metric for LossMetric {
+    type Input = LossInput;
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [batch_size] = loss.tensor.dims();
@@ -185,11 +183,14 @@ impl<B: Backend> Metric for LossMetric<B> {
             .next()
             .unwrap();
 
-        self.state.update(
-            loss,
-            batch_size,
-            FormatOptions::new(self.name()).precision(2),
-        )
+        self.state.update(loss, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).precision(2))
     }
 
     fn clear(&mut self) {
@@ -214,13 +215,17 @@ When the metric you are implementing is numeric in nature, you may want to also 
 `Numeric` trait. This will allow your metric to be plotted.
 
 ```rust, ignore
-impl<B: Backend> Numeric for LossMetric<B> {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+impl Numeric for LossMetric {
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 ```

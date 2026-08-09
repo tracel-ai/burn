@@ -11,6 +11,7 @@ use crate::lr_scheduler::cosine::CosineAnnealingLrSchedulerConfig;
 use crate::lr_scheduler::exponential::ExponentialLrSchedulerConfig;
 use crate::lr_scheduler::linear::LinearLrSchedulerConfig;
 use crate::lr_scheduler::noam::NoamLrSchedulerConfig;
+use crate::lr_scheduler::sequential::SequentialLrSchedulerConfig;
 use crate::lr_scheduler::step::StepLrSchedulerConfig;
 use crate::{RecordState, StateSink, StateSource, join_path};
 use burn::store::RecordError;
@@ -238,6 +239,23 @@ pub enum LrSchedulerConfig {
     Step(StepLrSchedulerConfig),
     /// A [`ComposedLrSchedulerConfig`]
     Composed(ComposedLrSchedulerConfig),
+    /// A [`SequentialLrSchedulerConfig`]
+    Sequential(SequentialLrSchedulerConfig),
+}
+
+impl LrSchedulerConfig {
+    pub(crate) fn build(&self) -> Result<DynLrScheduler, String> {
+        Ok(match self {
+            Self::Constant(lr) => (*lr).into(),
+            Self::Linear(config) => config.build()?.into(),
+            Self::Cosine(config) => config.build()?.into(),
+            Self::Exponential(config) => config.build()?.into(),
+            Self::Noam(config) => config.build()?.into(),
+            Self::Step(config) => config.build()?.into(),
+            Self::Composed(config) => config.build()?.into(),
+            Self::Sequential(config) => config.build()?.into(),
+        })
+    }
 }
 
 impl_from_for_scheduler!(
@@ -248,6 +266,7 @@ impl_from_for_scheduler!(
     Noam(NoamLrSchedulerConfig),
     Step(StepLrSchedulerConfig),
     Composed(ComposedLrSchedulerConfig),
+    Sequential(SequentialLrSchedulerConfig),
 );
 
 #[cfg(test)]

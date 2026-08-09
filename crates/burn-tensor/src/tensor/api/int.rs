@@ -46,11 +46,9 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```rust
     /// use burn_tensor::{Tensor, Int};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let _x: Tensor<1, Int> = Tensor::from_ints([1, 2], &device);
-    ///     let _y: Tensor<2, Int> = Tensor::from_ints([[1, 2], [3, 4]], &device);
-    /// }
+    /// let device = Default::default();
+    /// let _x: Tensor<1, Int> = Tensor::from_ints([1, 2], &device);
+    /// let _y: Tensor<2, Int> = Tensor::from_ints([[1, 2], [3, 4]], &device);
     /// ```
     pub fn from_ints<A: Into<TensorData>>(ints: A, device: &Device) -> Self {
         Self::from_data(ints.into().convert::<i32>(), device)
@@ -64,11 +62,9 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```rust
     /// use burn_tensor::{Int, Tensor};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
-    ///     let float_tensor = int_tensor.float();
-    /// }
+    /// let device = Default::default();
+    /// let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
+    /// let float_tensor = int_tensor.float();
     /// ```
     pub fn float(self) -> Tensor<D, Float> {
         let device = self.device();
@@ -92,17 +88,23 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```rust
     ///    use burn_tensor::Int;
     ///    use burn_tensor::{Shape, Tensor};
-    ///    fn example() {
-    ///        let device = Default::default();
-    ///        let result: Tensor<3, _> = Tensor::<2, Int>::cartesian_grid([2, 3], &device);
-    ///        println!("{}", result);
-    ///    }
+    /// let device = Default::default();
+    /// let result: Tensor<3, _> = Tensor::<2, Int>::cartesian_grid([2, 3], &device);
+    /// println!("{}", result);
     /// ```
     pub fn cartesian_grid<S: Into<Shape>, const D2: usize>(
         shape: S,
         device: &Device,
     ) -> Tensor<D2, Int> {
         cartesian_grid::<S, D, D2>(shape, device)
+    }
+
+    /// Applies element wise square operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = x_i * x_i$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = x_i * x_i`")]
+    pub fn square(self) -> Self {
+        Self::new(square_impl(self.primitive))
     }
 
     /// Applies the bitwise logical and operation with each bit representing the integer.
@@ -177,16 +179,14 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```rust
     /// use burn_tensor::{Tensor, Int, IntDType, FloatDType};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
+    /// let device = Default::default();
+    /// let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
     ///
-    ///     // Within-kind cast (int to int)
-    ///     let i64_tensor = int_tensor.clone().cast(IntDType::I64);
+    /// // Within-kind cast (int to int)
+    /// let i64_tensor = int_tensor.clone().cast(IntDType::I64);
     ///
-    ///     // Cross-kind cast (int to float)
-    ///     let float_tensor = int_tensor.cast(FloatDType::F32);
-    /// }
+    /// // Cross-kind cast (int to float)
+    /// let float_tensor = int_tensor.cast(FloatDType::F32);
     /// ```
     #[must_use]
     pub fn cast<T: Cast<D, Int>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
@@ -225,7 +225,9 @@ fn int_to_float_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
     let out_dtype = device.settings().float_dtype;
     BridgeTensor::float(Dispatch::int_into_float(p.into(), out_dtype))
 }
-
+fn square_impl(tensor: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::int(Dispatch::int_square(tensor.into()))
+}
 fn bitwise_and_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
     BridgeTensor::int(Dispatch::bitwise_and(lhs.into(), rhs.into()))
 }

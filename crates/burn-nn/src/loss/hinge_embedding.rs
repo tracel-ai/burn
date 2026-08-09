@@ -94,7 +94,7 @@ impl HingeEmbeddingLoss {
     ) -> Tensor<D> {
         // y == 1  -> x ;  y == -1 -> max(0, margin - x)
         let negative = input.clone().neg().add_scalar(self.margin).clamp_min(0.0);
-        let positive_mask = target.equal_elem(1);
+        let positive_mask = target.equal_scalar(1);
         negative.mask_where(positive_mask, input)
     }
 }

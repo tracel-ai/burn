@@ -109,7 +109,7 @@ impl BasicOps for Complex {
         ))
     }
 
-    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let out_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::complex_equal_elem(
             lhs.into_complex(),
@@ -118,7 +118,7 @@ impl BasicOps for Complex {
         ))
     }
 
-    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn not_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let out_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::complex_not_equal_elem(
             lhs.into_complex(),
@@ -278,6 +278,12 @@ impl BasicOps for Complex {
             data.into_complex(),
             indices.into(),
         ))
+    }
+
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(
+            Dispatch::complex_mask_select(tensor.into_complex(), mask.into()).await,
+        )
     }
 }
 

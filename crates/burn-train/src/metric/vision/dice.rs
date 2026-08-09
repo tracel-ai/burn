@@ -6,7 +6,7 @@ use super::super::{
 };
 use burn_core::{
     prelude::Tensor,
-    tensor::{ElementConversion, Int, s},
+    tensor::{Int, s},
 };
 
 /// Input type for the [DiceMetric].
@@ -155,11 +155,15 @@ impl<const D: usize> Metric for DiceMetric<D> {
         let dice =
             (2.0 * intersection_val + epsilon) / (outputs_sum_val + targets_sum_val + epsilon);
 
-        self.state.update(
-            dice,
-            batch_size,
-            FormatOptions::new(self.name()).precision(4),
-        )
+        self.state.update(dice, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).precision(4))
+    }
+
+    // TODO: Dice should be using a state similar to precision & recall (accumulate state for epoch-level compute)
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).precision(4))
     }
 
     /// Clears the metric state.
@@ -171,19 +175,22 @@ impl<const D: usize> Metric for DiceMetric<D> {
         crate::metric::NumericAttributes {
             unit: None,
             higher_is_better: true,
-            ..Default::default()
         }
         .into()
     }
 }
 
 impl<const D: usize> crate::metric::Numeric for DiceMetric<D> {
-    fn value(&self) -> crate::metric::NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<crate::metric::NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> crate::metric::NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<crate::metric::NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> crate::metric::NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -202,7 +209,7 @@ mod tests {
             Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value().current() - 1.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -214,7 +221,7 @@ mod tests {
             Tensor::from_data([[[[0, 1], [0, 1]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!(metric.value().current() < 1e-6);
+        assert!(metric.value().unwrap().current() < 1e-6);
     }
 
     #[test]
@@ -227,7 +234,7 @@ mod tests {
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         // intersection = 1, sum = 2+2=4, dice = 2*1/4 = 0.5
-        assert!((metric.value().current() - 0.5).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 0.5).abs() < 1e-6);
     }
 
     #[test]
@@ -239,7 +246,7 @@ mod tests {
             Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value().current() - 1.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -251,7 +258,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 1, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value().current() - 1.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -267,7 +274,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value().current() - 1.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -283,7 +290,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value().current() - 1.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]

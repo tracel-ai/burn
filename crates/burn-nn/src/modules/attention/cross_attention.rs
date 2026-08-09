@@ -498,7 +498,7 @@ mod tests {
             [0..batch_size, seq_len_context - num_padded..seq_len_context],
             Tensor::ones([batch_size, num_padded], &device),
         );
-        let mask_bool = mask.equal_elem(1);
+        let mask_bool = mask.equal_scalar(1);
 
         let query = Tensor::<3>::random(
             [batch_size, seq_len_query, d_model],

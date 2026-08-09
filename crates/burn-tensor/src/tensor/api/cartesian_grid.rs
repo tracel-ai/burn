@@ -18,11 +18,9 @@ use alloc::vec::Vec;
 /// ```rust
 ///    use burn_tensor::Int;
 ///    use burn_tensor::{Shape, Tensor};
-///    fn example() {
-///        let device = Default::default();
-///        let result: Tensor<3, _> = Tensor::<2, Int>::cartesian_grid([2, 3], &device);
-///        println!("{}", result);
-///    }
+/// let device = Default::default();
+/// let result: Tensor<3, _> = Tensor::<2, Int>::cartesian_grid([2, 3], &device);
+/// println!("{}", result);
 /// ```
 pub fn cartesian_grid<S: Into<Shape>, const D: usize, const D2: usize>(
     shape: S,

@@ -262,16 +262,19 @@ impl ModuleVisitor for Collector {
         self.path.pop();
     }
 
+    // Record the `on_save` form: it is what the load side validates against and
+    // un-maps with `on_load`. Recording `val()` breaks any param whose mapper
+    // changes the shape (a `Col`-layout `Linear` weight).
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 
     fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 }
 
@@ -580,6 +583,55 @@ mod tests {
         assert_eq!(
             loaded.bias.val().to_data().to_vec::<f32>().unwrap(),
             vec![0.0, 0.0, 0.0]
+        );
+    }
+
+    /// Mirrors a `Col`-layout `Linear` weight: persisted as `[3, 2]`, live as
+    /// the transposed `[2, 3]` through the init/save/load mappers.
+    #[derive(Module, Debug)]
+    struct ColLike {
+        weight: Param<Tensor<2>>,
+    }
+
+    impl ColLike {
+        fn new(seed: f32, device: &Device) -> Self {
+            let init_device = device.clone();
+            let weight = Param::uninitialized(
+                crate::module::ParamId::new(),
+                move |device, _| Tensor::<2>::full([3, 2], seed, device),
+                init_device,
+                true,
+                [3, 2].into(),
+            )
+            .init_mapper(|t: Tensor<2>| t.transpose())
+            .save_mapper(|t: Tensor<2>| t.transpose())
+            .load_mapper(|t: Tensor<2>| t.transpose());
+            Self { weight }
+        }
+    }
+
+    /// A param whose mapper changes the shape must round-trip through the
+    /// record in its save form.
+    #[test]
+    fn round_trip_a_shape_mapped_param() {
+        let device = Default::default();
+
+        let saved = ColLike::new(1.0, &device);
+        assert_eq!(saved.weight.val().dims(), [2, 3]);
+        let record = saved.into_record();
+        assert_eq!(
+            record.tensors[0].data.shape,
+            Shape::from([3, 2]),
+            "the record must hold the save form, not the live form"
+        );
+
+        let record = ModuleRecord::from_bytes(record.into_bytes().unwrap()).unwrap();
+        let loaded = ColLike::new(0.0, &device).load_record(record);
+        assert_eq!(loaded.weight.val().dims(), [2, 3]);
+        assert_eq!(
+            loaded.weight.val().to_data().to_vec::<f32>().unwrap(),
+            vec![1.0; 6],
+            "the recorded values must land, mapped back to the live form"
         );
     }
 }

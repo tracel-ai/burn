@@ -15,7 +15,7 @@ fn test_1d_iter_last_item() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn test_too_high_dimension() {
     TestTensor::<1>::zeros([10], &Default::default()).iter_dim(1);
 }

@@ -79,21 +79,22 @@ pub(crate) enum PlotKind {
 }
 
 impl NumericMetricsState {
-    /// Register a new training value for the metric with the given name.
-    pub(crate) fn push(&mut self, tag: TuiTag, name: MetricName, data: NumericEntry) {
-        if let Some((recent, full)) = self.data.get_mut(name.as_ref()) {
-            recent.push(tag.clone(), data.current());
-            full.push(tag, data);
-        } else {
-            let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
-            let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
-
-            recent.push(tag.clone(), data.current());
-            full.push(tag, data);
-
+    /// Register a new metric with the given name.
+    pub(crate) fn register(&mut self, name: MetricName) {
+        if !self.data.contains_key(name.as_ref()) {
+            let recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
+            let full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
             self.names.push(name.clone());
             self.data.insert(name, (recent, full));
         }
+    }
+
+    /// Push a new value for the metric with the given name.
+    pub(crate) fn push(&mut self, tag: TuiTag, name: MetricName, data: Option<NumericEntry>) {
+        self.register(name.clone());
+        let (recent, full) = self.data.get_mut(name.as_ref()).unwrap();
+        recent.push(tag.clone(), data.clone());
+        full.push(tag, data);
     }
 
     /// Update the state with the training progress.

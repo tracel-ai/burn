@@ -4,7 +4,7 @@ use crate::engine::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_std::{DType, Shape, quantization::QuantParam};
+use burn_std::{DType, Shape};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
 
@@ -216,16 +216,11 @@ impl FuseBlockBuilder {
             return None;
         }
 
-        let precision = tensor.dtype.into();
-        let precision_scales = match tensor.dtype {
-            DType::QFloat(scheme) => match scheme.param {
-                QuantParam::F32 => FuseType::F32,
-                QuantParam::F16 => FuseType::F16,
-                QuantParam::BF16 => FuseType::BF16,
-                QuantParam::UE8M0 | QuantParam::UE4M3 => {
-                    unimplemented!("Unsupported fuse precision");
-                }
-            },
+        let (precision, precision_scales) = match tensor.dtype {
+            DType::QFloat(scheme) => (
+                FuseType::from_quant_scheme(scheme)?,
+                FuseType::from_quant_param(scheme.param)?,
+            ),
             _ => return None,
         };
 

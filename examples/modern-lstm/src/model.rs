@@ -67,7 +67,9 @@ impl LstmCellConfig {
             .clone()
             .unwrap()
             .val()
-            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias.clone());
+            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias.clone())
+            .detach()
+            .require_grad();
         weight_ih.bias = weight_ih.bias.map(|p| p.map(|_t| bias));
 
         let mut weight_hh = LinearConfig::new(self.hidden_size, 4 * self.hidden_size)
@@ -78,7 +80,9 @@ impl LstmCellConfig {
             .clone()
             .unwrap()
             .val()
-            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias);
+            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias)
+            .detach()
+            .require_grad();
         weight_hh.bias = weight_hh.bias.map(|p| p.map(|_t| bias));
 
         LstmCell {
@@ -137,7 +141,7 @@ impl LstmCell {
 
         let h_t = self.dropout.forward(h_t);
 
-        LstmState::new(h_t, c_t)
+        LstmState::new(c_t, h_t)
     }
 
     // Initialize cell state and hidden state if provided or with zeros
@@ -348,5 +352,35 @@ impl LstmNetwork {
         output = self.dropout.forward(output);
         // Use final timestep output for prediction
         self.fc.forward(output.slice_dim(1, -1).squeeze_dim::<2>(1))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gate_biases_stay_trainable() {
+        let device = Device::default().autodiff();
+        let cell = LstmCellConfig::new(3, 4, 0.0).init(&device);
+
+        assert!(
+            cell.weight_ih
+                .bias
+                .as_ref()
+                .unwrap()
+                .val()
+                .is_require_grad(),
+            "weight_ih bias is frozen"
+        );
+        assert!(
+            cell.weight_hh
+                .bias
+                .as_ref()
+                .unwrap()
+                .val()
+                .is_require_grad(),
+            "weight_hh bias is frozen"
+        );
     }
 }

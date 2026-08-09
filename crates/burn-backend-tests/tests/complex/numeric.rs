@@ -3,6 +3,8 @@ use burn_tensor::Tolerance;
 use burn_tensor::{ComplexScalar, TensorData};
 use burn_tensor::{Distribution, Int};
 
+use crate::TestTensor;
+
 #[test]
 fn test_complex_add() {
     let tensor1 = TestTensor::<2>::from_data(
@@ -119,8 +121,6 @@ fn test_complex_sub() {
 //         ]]),
 //         &Default::default(),
 //     );
-      
-    
 
 //     let result = tensor1 - tensor2;
 //     let data = result.into_data();
@@ -138,8 +138,6 @@ fn test_complex_sub() {
 
 //     data.assert_eq(&expected, false);
 // }
-
-
 
 #[test]
 fn test_complex_mul() {

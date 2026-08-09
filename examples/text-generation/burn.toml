@@ -1,0 +1,22 @@
+[fusion]
+logger = { file = "/tmp/fusion.log", level = "full" }
+
+[cubecl.profiling]
+logger = { log = "info", level = "disabled" }
+
+[cubecl.autotune]
+level = "balanced"
+cache = "target"
+logger = { info = true, level = "full" }
+
+[cubecl.compilation]
+logger = { level = "disabled" }
+cache = "target"
+check_mode = "auto"
+
+[cubecl.memory]
+logger = { level = "disabled", file = "/tmp/memory.log" }
+persistent_memory = "enabled"
+
+[cubecl.streaming]
+max_streams = 8

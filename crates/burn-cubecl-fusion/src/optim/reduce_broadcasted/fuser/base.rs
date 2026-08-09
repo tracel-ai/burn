@@ -175,7 +175,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             fallbacks,
             broadcasted,
         });
-        CubeOptimization::ReduceBroadcasted(ReduceBroadcastedOptimization { info, num_ops })
+        CubeOptimization::new(ReduceBroadcastedOptimization { info, num_ops })
     }
 
     fn reset(&mut self) {

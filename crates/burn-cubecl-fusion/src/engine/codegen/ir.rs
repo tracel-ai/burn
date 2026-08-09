@@ -2,7 +2,7 @@ use super::tensor::GlobalTensor;
 use crate::engine::codegen::{DynElem, DynSize, DynVector};
 use burn_std::{
     BoolStore, DType, Shape, Strides, bf16, f16,
-    quantization::{QuantScheme, QuantStore, QuantValue},
+    quantization::{QuantParam, QuantScheme, QuantStore, QuantValue},
     strides,
 };
 use core::fmt::Display;
@@ -905,6 +905,43 @@ impl From<StorageType> for FuseType {
 }
 
 impl FuseType {
+    /// The type quantization scales are read as, or `None` when fusion can't read that param.
+    ///
+    /// Callers must decline to fuse on `None` rather than fail: an unsupported param is only a
+    /// missing feature here, and the unfused path still handles it.
+    pub fn from_quant_param(param: QuantParam) -> Option<Self> {
+        match param {
+            QuantParam::F32 => Some(Self::F32),
+            QuantParam::F16 => Some(Self::F16),
+            QuantParam::BF16 => Some(Self::BF16),
+            QuantParam::UE8M0 | QuantParam::UE4M3 => None,
+        }
+    }
+
+    /// The type quantized values are read as, or `None` when fusion can't read that scheme.
+    ///
+    /// Same contract as [Self::from_quant_param]: callers must decline to fuse on `None`.
+    pub fn from_quant_scheme(scheme: QuantScheme) -> Option<Self> {
+        match scheme.store {
+            QuantStore::Native => match scheme.value {
+                QuantValue::Q8F | QuantValue::Q8S => Some(Self::I8),
+                QuantValue::E4M3 | QuantValue::E5M2 => None,
+                QuantValue::Q4F
+                | QuantValue::Q4S
+                | QuantValue::Q2F
+                | QuantValue::Q2S
+                | QuantValue::E2M1 => {
+                    panic!("Can't store native sub-byte values")
+                }
+            },
+            QuantStore::PackedU32(_) => Some(Self::U32),
+            QuantStore::PackedNative(_) => match scheme.value {
+                QuantValue::E2M1 => None,
+                other => panic!("{other:?} doesn't support native packing"),
+            },
+        }
+    }
+
     /// Converts the [fused element type](FuseType) into the [cubecl element type](ElemType).
     pub fn into_elem(self) -> ElemType {
         match self {
@@ -954,26 +991,8 @@ impl From<DType> for FuseType {
             DType::Bool(BoolStore::U8) => Self::U8,
             DType::Bool(BoolStore::U32) => Self::U32,
             DType::F64 => Self::F64,
-            DType::QFloat(scheme) => match scheme.store {
-                QuantStore::Native => match scheme.value {
-                    QuantValue::Q8F | QuantValue::Q8S => Self::I8,
-                    QuantValue::E4M3 | QuantValue::E5M2 => {
-                        unimplemented!("Unsupported precision for fusion")
-                    }
-                    QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S
-                    | QuantValue::E2M1 => {
-                        panic!("Can't store native sub-byte values")
-                    }
-                },
-                QuantStore::PackedU32(_) => Self::U32,
-                QuantStore::PackedNative(_) => match scheme.value {
-                    QuantValue::E2M1 => unimplemented!("Unsupported precision for fusion"),
-                    other => panic!("{other:?} doesn't support native packing"),
-                },
-            },
+            DType::QFloat(scheme) => Self::from_quant_scheme(scheme)
+                .unwrap_or_else(|| unimplemented!("Unsupported precision for fusion")),
             DType::Complex64 => {
                 unimplemented!("Fusion support for complex numbers not yet implemented")
             }

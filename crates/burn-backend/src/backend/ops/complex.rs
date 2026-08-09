@@ -3,12 +3,13 @@ use burn_std::{
     Shape, Slice, TensorData,
 };
 
+use crate::Backend;
+use crate::backend::ops::bool_tensor::BoolTensorOps;
 use crate::{
-    BackendTypes, ComplexTensor, ComplexTensorBackend, TensorMetadata,
+    BackendTypes, ComplexTensor, ComplexTensorBackend, TensorMetadata, get_device_settings,
     ops::IntTensorOps,
-    tensor::{Device, FloatTensor, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
-
 /// Primitive complex tensor operations implemented by a backend.
 ///
 /// This trait defines the low-level API used by higher-level complex tensor types.
@@ -1229,18 +1230,17 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The elements of `lhs` raised to the power of the corresponding elements of `rhs`.
     fn complex_powi(lhs: ComplexTensor<B>, rhs: IntTensor<B>) -> ComplexTensor<B>
     where
-        B::InnerBackend: IntTensorOps<B::InnerBackend>,
+        B: Backend,
+        //B::InnerBackend: IntTensorOps<B::InnerBackend>,
         // make the equality explicit at the use site
-        <B::InnerBackend as BackendTypes>::IntTensorPrimitive: From<B::IntTensorPrimitive>,
+        <B as BackendTypes>::IntTensorPrimitive: From<B::IntTensorPrimitive>,
+        //<B::InnerBackend as BackendTypes>::IntTensorPrimitive: From<B::IntTensorPrimitive>,
     {
         let dtype = burn_std::complex_utils::complex_to_real_dtype(lhs.dtype());
 
         Self::complex_powf(
             lhs,
-            <B::InnerBackend as IntTensorOps<B::InnerBackend>>::int_into_float(
-                rhs,
-                FloatDType::from(dtype),
-            ),
+            <B as IntTensorOps<B>>::int_into_float(rhs, FloatDType::from(dtype)),
         )
     }
 
@@ -1307,4 +1307,39 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// A tensor with the same shape where each element is the cumulative product
     /// of all elements up to and including that position along the dimension.
     fn complex_cumprod(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B>;
+
+    /// Selects the elements of the tensor where the mask is true, returned as a 1D tensor.
+    ///
+    /// The elements are collected in row-major order. Because the number of selected elements
+    /// depends on the mask values, the output shape is data-dependent: computing it may require
+    /// synchronizing with the device, which is why this operation is asynchronous.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `mask` - The boolean mask, with the same shape as the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A 1D tensor containing the selected elements.
+    fn complex_mask_select(
+        tensor: ComplexTensor<B>,
+        mask: BoolTensor<B>,
+    ) -> impl Future<Output = ComplexTensor<B>> + 'static + Send
+    where
+        B: Backend,
+    {
+        async move {
+            // Data-dependent output length, so we defer to `bool_argwhere` (the only pre-existing
+            // data-dependent op) to collect the flat indices of the true mask values, then select.
+            let n = mask.shape().num_elements();
+            let int_dtype = get_device_settings::<B>(&mask.device()).int_dtype;
+            let mask = B::bool_reshape(mask, Shape::new([n]));
+            let indices = B::bool_argwhere(mask, int_dtype).await; // [count, 1]
+            let count = indices.shape()[0];
+            let indices = B::int_reshape(indices, Shape::new([count])); // squeeze to [count]
+            let tensor = B::complex_reshape(tensor, Shape::new([n]));
+            B::complex_select(tensor, 0, indices)
+        }
+    }
 }

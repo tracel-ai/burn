@@ -254,11 +254,8 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                     dtype: self.dtype,
                 };
 
-                // A drop issued from a *different* thread than the home stream interleaves at a
-                // nondeterministic point in that stream's pending fused segment, where the block
-                // DAG can reorder the free ahead of a still-pending read and let the buffer be
-                // reused while an in-flight kernel still reads it. Route those through a path that
-                // flushes the home stream to a clean boundary first.
+                // A foreign drop interleaves at a nondeterministic point in the home stream's
+                // pending fused segment; route it through a path that never touches the queue.
                 if StreamId::current() == self.stream {
                     self.client.register(
                         self.stream,

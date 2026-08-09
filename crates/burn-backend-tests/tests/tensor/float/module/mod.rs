@@ -2,6 +2,7 @@ use super::*;
 
 mod adaptive_avgpool1d;
 mod adaptive_avgpool2d;
+mod adaptive_avgpool3d;
 mod attention;
 mod avgpool1d;
 mod avgpool2d;
@@ -15,6 +16,7 @@ mod conv_transpose2d;
 mod conv_transpose3d;
 mod ctc;
 mod deform_conv2d;
+mod fold4d;
 mod forward;
 mod lanczos3_interpolate;
 mod linear;

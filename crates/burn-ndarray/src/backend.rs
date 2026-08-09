@@ -7,7 +7,7 @@ use burn_backend::{
     Backend, BackendTypes, DType, DeviceId, DeviceOps, UnimplementedTensorPrimitive,
 };
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
-use burn_std::stub::Mutex;
+use burn_std::sync::Mutex;
 use burn_std::{BoolStore, DeviceSettings, QuantConfig};
 use rand::SeedableRng;
 
@@ -80,7 +80,7 @@ impl Backend for NdArray {
 
     fn seed(_device: &Self::Device, seed: u64) {
         let rng = NdArrayRng::seed_from_u64(seed);
-        let mut seed = SEED.lock().unwrap();
+        let mut seed = SEED.lock();
         *seed = Some(rng);
     }
 

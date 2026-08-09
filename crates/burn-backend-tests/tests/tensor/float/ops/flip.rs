@@ -23,7 +23,7 @@ fn flip_float() {
     flipped.into_data().assert_eq(&expected, false);
 
     // Test with no flip
-    let flipped = tensor.clone().flip([]);
+    let flipped = tensor.clone().flip([] as [isize; 0]);
     tensor.into_data().assert_eq(&flipped.into_data(), false);
 }
 
@@ -38,7 +38,7 @@ fn flip_duplicated_axes() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn flip_out_of_bound_axis() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);

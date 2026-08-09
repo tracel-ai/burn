@@ -8,7 +8,7 @@ use crate::{Backend, Distribution, TensorData, get_device_settings};
 use crate::{ExecutionError, Scalar, TensorMetadata};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
@@ -453,6 +453,22 @@ pub trait FloatTensorOps<B: Backend> {
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
+    /// Scatter elements into a tensor using the specified update operation.
+    ///
+    /// Backend implementations may override this to support operations beyond add.
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<B>,
+        indices: IntTensor<B>,
+        value: FloatTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<B> {
+        match update {
+            IndexingUpdateOp::Add => Self::float_scatter_add(dim, tensor, indices, value),
+            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     /// Multi-dimensional scatter: update `data` at locations specified by `indices` with `values`.
     ///
     /// # Arguments
@@ -520,6 +536,24 @@ pub trait FloatTensorOps<B: Backend> {
         indices: IntTensor<B>,
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
+
+    /// Assign selected elements along a dimension using the specified update operation.
+    ///
+    /// Backend implementations may override this to support operations beyond add.
+    fn float_select_assign(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: FloatTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<B> {
+        match update {
+            IndexingUpdateOp::Add => Self::float_select_add(tensor, dim, indices, value),
+            other => {
+                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            }
+        }
+    }
 
     /// Select tensor elements corresponding to the given slices.
     ///
@@ -594,6 +628,38 @@ pub trait FloatTensorOps<B: Backend> {
         mask: BoolTensor<B>,
         value: Scalar,
     ) -> FloatTensor<B>;
+
+    /// Selects the elements of the tensor where the mask is true, returned as a 1D tensor.
+    ///
+    /// The elements are collected in row-major order. Because the number of selected elements
+    /// depends on the mask values, the output shape is data-dependent: computing it may require
+    /// synchronizing with the device, which is why this operation is asynchronous.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `mask` - The boolean mask, with the same shape as the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A 1D tensor containing the selected elements.
+    fn float_mask_select(
+        tensor: FloatTensor<B>,
+        mask: BoolTensor<B>,
+    ) -> impl Future<Output = FloatTensor<B>> + 'static + Send {
+        async move {
+            // Data-dependent output length, so we defer to `bool_argwhere` (the only pre-existing
+            // data-dependent op) to collect the flat indices of the true mask values, then select.
+            let n = mask.shape().num_elements();
+            let int_dtype = get_device_settings::<B>(&mask.device()).int_dtype;
+            let mask = B::bool_reshape(mask, Shape::new([n]));
+            let indices = B::bool_argwhere(mask, int_dtype).await; // [count, 1]
+            let count = indices.shape()[0];
+            let indices = B::int_reshape(indices, Shape::new([count])); // squeeze to [count]
+            let tensor = B::float_reshape(tensor, Shape::new([n]));
+            B::float_select(tensor, 0, indices)
+        }
+    }
 
     /// Equal comparison of two tensors.
     ///
@@ -1463,6 +1529,42 @@ pub trait FloatTensorOps<B: Backend> {
         let dtype = get_device_settings::<B>(&device).int_dtype;
         let k_indices = B::int_arange(0..k as i64, &device, dtype);
         Self::float_select(Self::float_sort(tensor, dim, true), dim, k_indices)
+    }
+
+    /// Gets the values of the k maximum elements of a tensor along an axis, and their indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of maximum elements
+    /// * `out_dtype` - The indices tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tuple with the values of the k maximum elements of `tensor` along `dim`, and their
+    /// indices.
+    ///
+    /// The default sorts once and keeps the first `k` of each half. It deliberately does not
+    /// compose `float_topk` with `float_argtopk`: those default to a sort each, so that would
+    /// sort twice, and it would also require `float_argtopk` from backends that only have
+    /// sorting. Backends whose top-k already carries both results should override this and
+    /// produce them in a single pass.
+    fn float_topk_with_indices(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> (FloatTensor<B>, IntTensor<B>) {
+        let device = tensor.device();
+        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let k_indices = B::int_arange(0..k as i64, &device, dtype);
+        let (values, indices) = Self::float_sort_with_indices(tensor, dim, true, out_dtype);
+
+        (
+            Self::float_select(values, dim, k_indices.clone()),
+            B::int_select(indices, dim, k_indices),
+        )
     }
 
     /// Gets the indices of the minimum elements of a tensor along an axis.

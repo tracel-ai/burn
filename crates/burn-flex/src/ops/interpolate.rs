@@ -436,6 +436,55 @@ where
     )
 }
 
+#[derive(Clone, Copy)]
+struct AxisTap {
+    index: usize,
+    weight: f64,
+}
+
+struct AxisTaps<const N: usize> {
+    taps: [AxisTap; N],
+    len: usize,
+}
+
+impl<const N: usize> AxisTaps<N> {
+    #[inline]
+    fn as_slice(&self) -> &[AxisTap] {
+        &self.taps[..self.len]
+    }
+}
+
+/// Precompute Bicubic source indices and weights for one output axis.
+fn bicubic_axis_taps(
+    in_size: usize,
+    out_size: usize,
+    ratio: f64,
+    align_corners: bool,
+    a: f64,
+) -> Vec<[AxisTap; 4]> {
+    (0..out_size)
+        .map(|out_coord| {
+            let coord = map_coord(out_coord, ratio, align_corners);
+            let base = coord.floor() as isize;
+            let mut taps = [AxisTap {
+                index: 0,
+                weight: 0.0,
+            }; 4];
+
+            for (tap, offset) in taps.iter_mut().zip(-1..=2_isize) {
+                let index = (base + offset).clamp(0, in_size as isize - 1) as usize;
+                let distance = (coord - base as f64) - offset as f64;
+                *tap = AxisTap {
+                    index,
+                    weight: cubic_weight(distance, a),
+                };
+            }
+
+            taps
+        })
+        .collect()
+}
+
 /// Bicubic interpolation using cubic convolution.
 fn interpolate_bicubic_impl<T>(
     x: FlexTensor,
@@ -466,6 +515,30 @@ where
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
     let a = -0.75_f64;
+    let y_axis_taps = bicubic_axis_taps(in_height, out_height, y_ratio, align_corners, a);
+    let x_axis_taps = bicubic_axis_taps(in_width, out_width, x_ratio, align_corners, a);
+
+    /// Compute one Bicubic output pixel from precomputed axis taps.
+    #[inline]
+    fn bicubic_sample<T: Float + burn_backend::Element + bytemuck::Pod>(
+        input: &[T],
+        in_base: usize,
+        in_width: usize,
+        y_taps: &[AxisTap; 4],
+        x_taps: &[AxisTap; 4],
+    ) -> T {
+        let mut sum = 0.0_f64;
+
+        for y_tap in y_taps {
+            for x_tap in x_taps {
+                let value = input[in_base + y_tap.index * in_width + x_tap.index];
+                let value = <T as num_traits::ToPrimitive>::to_f64(&value).unwrap_or(0.0);
+                sum += value * x_tap.weight * y_tap.weight;
+            }
+        }
+
+        T::from(sum).unwrap()
+    }
 
     let output = {
         #[cfg(feature = "rayon")]
@@ -489,37 +562,15 @@ where
                     let in_base = b * channels * in_hw + c * in_hw;
                     let out_base = b * channels * out_hw + c * out_hw;
 
-                    let y_in = map_coord(oh, y_ratio, align_corners);
-                    let y0 = y_in.floor() as isize;
+                    let y_taps = &y_axis_taps[oh];
 
-                    for ow in 0..out_width {
-                        let x_in = map_coord(ow, x_ratio, align_corners);
-                        let x0 = x_in.floor() as isize;
-
-                        let mut sum = 0.0_f64;
-
-                        for dy in -1..=2_isize {
-                            let y = y0 + dy;
-                            let y_clamped = y.clamp(0, in_height as isize - 1) as usize;
-                            let ty = (y_in - y0 as f64) - dy as f64;
-                            let wy = cubic_weight(ty, a);
-
-                            for dx in -1..=2_isize {
-                                let x = x0 + dx;
-                                let x_clamped = x.clamp(0, in_width as isize - 1) as usize;
-                                let tx = (x_in - x0 as f64) - dx as f64;
-                                let wx = cubic_weight(tx, a);
-
-                                let val = input[in_base + y_clamped * in_width + x_clamped];
-                                let val_f64 =
-                                    <T as num_traits::ToPrimitive>::to_f64(&val).unwrap_or(0.0);
-                                sum += val_f64 * wx * wy;
-                            }
-                        }
-
+                    for (ow, x_taps) in x_axis_taps.iter().enumerate() {
                         let out_idx = out_base + oh * out_width + ow;
                         unsafe {
-                            out_ptr.write(out_idx, T::from(sum).unwrap());
+                            out_ptr.write(
+                                out_idx,
+                                bicubic_sample(input, in_base, in_width, y_taps, x_taps),
+                            );
                         }
                     }
                 });
@@ -530,38 +581,14 @@ where
                         let in_base = b * channels * in_hw + c * in_hw;
                         let out_base = b * channels * out_hw + c * out_hw;
 
-                        for oh in 0..out_height {
-                            let y_in = map_coord(oh, y_ratio, align_corners);
-                            let y0 = y_in.floor() as isize;
-
-                            for ow in 0..out_width {
-                                let x_in = map_coord(ow, x_ratio, align_corners);
-                                let x0 = x_in.floor() as isize;
-
-                                let mut sum = 0.0_f64;
-
-                                for dy in -1..=2_isize {
-                                    let y = y0 + dy;
-                                    let y_clamped = y.clamp(0, in_height as isize - 1) as usize;
-                                    let ty = (y_in - y0 as f64) - dy as f64;
-                                    let wy = cubic_weight(ty, a);
-
-                                    for dx in -1..=2_isize {
-                                        let x = x0 + dx;
-                                        let x_clamped = x.clamp(0, in_width as isize - 1) as usize;
-                                        let tx = (x_in - x0 as f64) - dx as f64;
-                                        let wx = cubic_weight(tx, a);
-
-                                        let val = input[in_base + y_clamped * in_width + x_clamped];
-                                        let val_f64 = <T as num_traits::ToPrimitive>::to_f64(&val)
-                                            .unwrap_or(0.0);
-                                        sum += val_f64 * wx * wy;
-                                    }
-                                }
-
+                        for (oh, y_taps) in y_axis_taps.iter().enumerate() {
+                            for (ow, x_taps) in x_axis_taps.iter().enumerate() {
                                 let out_idx = out_base + oh * out_width + ow;
                                 unsafe {
-                                    out_ptr.write(out_idx, T::from(sum).unwrap());
+                                    out_ptr.write(
+                                        out_idx,
+                                        bicubic_sample(input, in_base, in_width, y_taps, x_taps),
+                                    );
                                 }
                             }
                         }
@@ -579,36 +606,10 @@ where
                     let in_base = b * channels * in_hw + c * in_hw;
                     let out_base = b * channels * out_hw + c * out_hw;
 
-                    for oh in 0..out_height {
-                        let y_in = map_coord(oh, y_ratio, align_corners);
-                        let y0 = y_in.floor() as isize;
-
-                        for ow in 0..out_width {
-                            let x_in = map_coord(ow, x_ratio, align_corners);
-                            let x0 = x_in.floor() as isize;
-
-                            let mut sum = 0.0_f64;
-
-                            for dy in -1..=2_isize {
-                                let y = y0 + dy;
-                                let y_clamped = y.clamp(0, in_height as isize - 1) as usize;
-                                let ty = (y_in - y0 as f64) - dy as f64;
-                                let wy = cubic_weight(ty, a);
-
-                                for dx in -1..=2_isize {
-                                    let x = x0 + dx;
-                                    let x_clamped = x.clamp(0, in_width as isize - 1) as usize;
-                                    let tx = (x_in - x0 as f64) - dx as f64;
-                                    let wx = cubic_weight(tx, a);
-
-                                    let val = input[in_base + y_clamped * in_width + x_clamped];
-                                    let val_f64 =
-                                        <T as num_traits::ToPrimitive>::to_f64(&val).unwrap_or(0.0);
-                                    sum += val_f64 * wx * wy;
-                                }
-                            }
-
-                            output[out_base + oh * out_width + ow] = T::from(sum).unwrap();
+                    for (oh, y_taps) in y_axis_taps.iter().enumerate() {
+                        for (ow, x_taps) in x_axis_taps.iter().enumerate() {
+                            output[out_base + oh * out_width + ow] =
+                                bicubic_sample(input, in_base, in_width, y_taps, x_taps);
                         }
                     }
                 }
@@ -655,6 +656,41 @@ fn lanczos3_weight(x: f64) -> f64 {
     (pi_x.sin() * pi_x_over_3.sin()) / (pi_x * pi_x_over_3)
 }
 
+/// Precompute Lanczos3 source indices and weights for one output axis.
+fn lanczos3_axis_taps(
+    in_size: usize,
+    out_size: usize,
+    ratio: f64,
+    align_corners: bool,
+) -> Vec<AxisTaps<6>> {
+    (0..out_size)
+        .map(|out_coord| {
+            let coord = map_coord(out_coord, ratio, align_corners);
+            let base = coord.floor();
+            let mut taps = [AxisTap {
+                index: 0,
+                weight: 0.0,
+            }; 6];
+            let mut len = 0;
+
+            for offset in -2..=3_isize {
+                let index = base as isize + offset;
+                if index < 0 || index >= in_size as isize {
+                    continue;
+                }
+
+                taps[len] = AxisTap {
+                    index: index as usize,
+                    weight: lanczos3_weight(coord - (base + offset as f64)),
+                };
+                len += 1;
+            }
+
+            AxisTaps { taps, len }
+        })
+        .collect()
+}
+
 /// Lanczos3 interpolation (6x6 sinc-windowed kernel).
 ///
 /// Uses skip-and-renormalize boundary handling: out-of-bounds samples are
@@ -689,43 +725,29 @@ where
     let out_numel = batch * channels * out_height * out_width;
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
-    let max_h = in_height as isize - 1;
-    let max_w = in_width as isize - 1;
+    let y_axis_taps = lanczos3_axis_taps(in_height, out_height, y_ratio, align_corners);
+    let x_axis_taps = lanczos3_axis_taps(in_width, out_width, x_ratio, align_corners);
 
-    /// Compute one Lanczos3 output pixel given pre-computed y coordinates.
+    /// Compute one Lanczos3 output pixel from precomputed axis taps.
     #[inline]
-    #[allow(clippy::too_many_arguments)]
     fn lanczos3_sample<T: Float + burn_backend::Element + bytemuck::Pod>(
         input: &[T],
         in_base: usize,
         in_width: usize,
-        y_in: f64,
-        y0: f64,
-        x_in: f64,
-        max_h: isize,
-        max_w: isize,
+        y_taps: &AxisTaps<6>,
+        x_taps: &AxisTaps<6>,
     ) -> T {
-        let x0 = x_in.floor();
         let mut result = 0.0_f64;
         let mut weight_sum = 0.0_f64;
 
-        for ky in -2..=3_isize {
-            let yi = y0 as isize + ky;
-            if yi < 0 || yi > max_h {
-                continue;
-            }
-            let wy = lanczos3_weight(y_in - (y0 + ky as f64));
-            for kx in -2..=3_isize {
-                let xi = x0 as isize + kx;
-                if xi < 0 || xi > max_w {
-                    continue;
-                }
-                let wx = lanczos3_weight(x_in - (x0 + kx as f64));
-                let w = wy * wx;
-                let val = input[in_base + yi as usize * in_width + xi as usize];
-                let val_f64 = <T as num_traits::ToPrimitive>::to_f64(&val).unwrap_or(0.0);
-                result += val_f64 * w;
-                weight_sum += w;
+        // Keep the original nested accumulation order for bitwise-equivalent results.
+        for y_tap in y_taps.as_slice() {
+            for x_tap in x_taps.as_slice() {
+                let weight = y_tap.weight * x_tap.weight;
+                let value = input[in_base + y_tap.index * in_width + x_tap.index];
+                let value = <T as num_traits::ToPrimitive>::to_f64(&value).unwrap_or(0.0);
+                result += value * weight;
+                weight_sum += weight;
             }
         }
 
@@ -753,16 +775,14 @@ where
                 let in_base = b * channels * in_hw + c * in_hw;
                 let out_base = b * channels * out_hw + c * out_hw;
 
-                let y_in = map_coord(oh, y_ratio, align_corners);
-                let y0 = y_in.floor();
+                let y_taps = &y_axis_taps[oh];
 
-                for ow in 0..out_width {
-                    let x_in = map_coord(ow, x_ratio, align_corners);
+                for (ow, x_taps) in x_axis_taps.iter().enumerate() {
                     let out_idx = out_base + oh * out_width + ow;
                     unsafe {
                         out_ptr.write(
                             out_idx,
-                            lanczos3_sample(input, in_base, in_width, y_in, y0, x_in, max_h, max_w),
+                            lanczos3_sample(input, in_base, in_width, y_taps, x_taps),
                         );
                     }
                 }
@@ -778,15 +798,10 @@ where
                     let in_base = b * channels * in_hw + c * in_hw;
                     let out_base = b * channels * out_hw + c * out_hw;
 
-                    for oh in 0..out_height {
-                        let y_in = map_coord(oh, y_ratio, align_corners);
-                        let y0 = y_in.floor();
-
-                        for ow in 0..out_width {
-                            let x_in = map_coord(ow, x_ratio, align_corners);
-                            output[out_base + oh * out_width + ow] = lanczos3_sample(
-                                input, in_base, in_width, y_in, y0, x_in, max_h, max_w,
-                            );
+                    for (oh, y_taps) in y_axis_taps.iter().enumerate() {
+                        for (ow, x_taps) in x_axis_taps.iter().enumerate() {
+                            output[out_base + oh * out_width + ow] =
+                                lanczos3_sample(input, in_base, in_width, y_taps, x_taps);
                         }
                     }
                 }
@@ -1097,12 +1112,10 @@ fn convert_f32_to_bf16(x: &FlexTensor) -> FlexTensor {
     )
 }
 
-// Tests kept here exercise flex-specific behavior: the f32-typed
-// internal helpers (`interpolate_nearest_f32`, `interpolate_bilinear_f32`,
-// `interpolate_bicubic_f32`, `interpolate_nearest_backward_f32`) that
-// back the dtype-dispatching public ops. End-to-end interpolate
-// correctness across backends lives in the shared module tests under
-// crates/burn-backend-tests/tests/tensor/float/module/{bicubic,bilinear,
+// Tests kept here exercise flex-specific behavior: the typed internal helpers,
+// axis-tap precomputation, and dtype dispatch that back the public ops.
+// End-to-end interpolate correctness across backends lives in the shared module tests
+// under crates/burn-backend-tests/tests/tensor/float/module/{bicubic,bilinear,
 // lanczos3,nearest}_interpolate.rs.
 #[cfg(test)]
 mod tests {
@@ -1116,6 +1129,379 @@ mod tests {
             Layout::contiguous(Shape::from(vec![batch, channels, height, width])),
             DType::F32,
         )
+    }
+
+    fn patterned_data<T: Float>(numel: usize) -> Vec<T> {
+        (0..numel)
+            .map(|i| {
+                let value = ((i * 37 + i * i * 13) % 257) as f64 / 17.0 - 7.0;
+                T::from(value).unwrap()
+            })
+            .collect()
+    }
+
+    // Snapshot of the pre-optimization implementation and accumulation order.
+    // Update only when intentionally changing the numerical compatibility contract.
+    fn bicubic_reference<T>(
+        input: &[T],
+        shape: [usize; 4],
+        output_size: [usize; 2],
+        align_corners: bool,
+    ) -> Vec<T>
+    where
+        T: Float + burn_backend::Element + bytemuck::Pod,
+    {
+        let [batch, channels, in_height, in_width] = shape;
+        let [out_height, out_width] = output_size;
+        let y_ratio = coord_ratio(in_height, out_height, align_corners);
+        let x_ratio = coord_ratio(in_width, out_width, align_corners);
+        let in_hw = in_height * in_width;
+        let out_hw = out_height * out_width;
+        let mut output = vec![T::zero(); batch * channels * out_hw];
+        let a = -0.75_f64;
+
+        for b in 0..batch {
+            for c in 0..channels {
+                let in_base = b * channels * in_hw + c * in_hw;
+                let out_base = b * channels * out_hw + c * out_hw;
+
+                for oh in 0..out_height {
+                    let y_in = map_coord(oh, y_ratio, align_corners);
+                    let y0 = y_in.floor() as isize;
+
+                    for ow in 0..out_width {
+                        let x_in = map_coord(ow, x_ratio, align_corners);
+                        let x0 = x_in.floor() as isize;
+                        let mut sum = 0.0_f64;
+
+                        for dy in -1..=2_isize {
+                            let y = y0 + dy;
+                            let y_index = y.clamp(0, in_height as isize - 1) as usize;
+                            let y_weight = cubic_weight((y_in - y0 as f64) - dy as f64, a);
+
+                            for dx in -1..=2_isize {
+                                let x = x0 + dx;
+                                let x_index = x.clamp(0, in_width as isize - 1) as usize;
+                                let x_weight = cubic_weight((x_in - x0 as f64) - dx as f64, a);
+                                let value = input[in_base + y_index * in_width + x_index];
+                                let value =
+                                    <T as num_traits::ToPrimitive>::to_f64(&value).unwrap_or(0.0);
+                                sum += value * x_weight * y_weight;
+                            }
+                        }
+
+                        output[out_base + oh * out_width + ow] = T::from(sum).unwrap();
+                    }
+                }
+            }
+        }
+
+        output
+    }
+
+    // Snapshot of the pre-optimization implementation and accumulation order.
+    // Update only when intentionally changing the numerical compatibility contract.
+    fn lanczos3_reference<T>(
+        input: &[T],
+        shape: [usize; 4],
+        output_size: [usize; 2],
+        align_corners: bool,
+    ) -> Vec<T>
+    where
+        T: Float + burn_backend::Element + bytemuck::Pod,
+    {
+        let [batch, channels, in_height, in_width] = shape;
+        let [out_height, out_width] = output_size;
+        let y_ratio = coord_ratio(in_height, out_height, align_corners);
+        let x_ratio = coord_ratio(in_width, out_width, align_corners);
+        let in_hw = in_height * in_width;
+        let out_hw = out_height * out_width;
+        let max_h = in_height as isize - 1;
+        let max_w = in_width as isize - 1;
+        let mut output = vec![T::zero(); batch * channels * out_hw];
+
+        for b in 0..batch {
+            for c in 0..channels {
+                let in_base = b * channels * in_hw + c * in_hw;
+                let out_base = b * channels * out_hw + c * out_hw;
+
+                for oh in 0..out_height {
+                    let y_in = map_coord(oh, y_ratio, align_corners);
+                    let y0 = y_in.floor();
+
+                    for ow in 0..out_width {
+                        let x_in = map_coord(ow, x_ratio, align_corners);
+                        let x0 = x_in.floor();
+                        let mut result = 0.0_f64;
+                        let mut weight_sum = 0.0_f64;
+
+                        for ky in -2..=3_isize {
+                            let y_index = y0 as isize + ky;
+                            if y_index < 0 || y_index > max_h {
+                                continue;
+                            }
+                            let y_weight = lanczos3_weight(y_in - (y0 + ky as f64));
+
+                            for kx in -2..=3_isize {
+                                let x_index = x0 as isize + kx;
+                                if x_index < 0 || x_index > max_w {
+                                    continue;
+                                }
+                                let x_weight = lanczos3_weight(x_in - (x0 + kx as f64));
+                                let weight = y_weight * x_weight;
+                                let value =
+                                    input[in_base + y_index as usize * in_width + x_index as usize];
+                                let value =
+                                    <T as num_traits::ToPrimitive>::to_f64(&value).unwrap_or(0.0);
+                                result += value * weight;
+                                weight_sum += weight;
+                            }
+                        }
+
+                        if weight_sum != 0.0 {
+                            result /= weight_sum;
+                        }
+                        output[out_base + oh * out_width + ow] = T::from(result).unwrap();
+                    }
+                }
+            }
+        }
+
+        output
+    }
+
+    fn assert_bitwise_equal<T: bytemuck::Pod>(
+        actual: &[T],
+        expected: &[T],
+        shape: [usize; 4],
+        output_size: [usize; 2],
+        align_corners: bool,
+    ) {
+        assert_eq!(
+            bytemuck::cast_slice::<T, u8>(actual),
+            bytemuck::cast_slice::<T, u8>(expected),
+            "shape={shape:?}, output_size={output_size:?}, align_corners={align_corners}"
+        );
+    }
+
+    fn assert_bicubic_matches_reference<T>(
+        shape: [usize; 4],
+        output_size: [usize; 2],
+        align_corners: bool,
+    ) where
+        T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
+    {
+        let numel = shape.iter().product();
+        let data = patterned_data::<T>(numel);
+        let expected = bicubic_reference(&data, shape, output_size, align_corners);
+        let input = FlexTensor::new(
+            Bytes::from_elems(data),
+            Layout::contiguous(Shape::from(shape.to_vec())),
+            <T as burn_backend::Element>::dtype(),
+        );
+        let actual = interpolate_bicubic_impl::<T>(input, output_size, align_corners);
+        assert_bitwise_equal(
+            actual.storage::<T>(),
+            &expected,
+            shape,
+            output_size,
+            align_corners,
+        );
+    }
+
+    fn assert_lanczos3_matches_reference<T>(
+        shape: [usize; 4],
+        output_size: [usize; 2],
+        align_corners: bool,
+    ) where
+        T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
+    {
+        let numel = shape.iter().product();
+        let data = patterned_data::<T>(numel);
+        let expected = lanczos3_reference(&data, shape, output_size, align_corners);
+        let input = FlexTensor::new(
+            Bytes::from_elems(data),
+            Layout::contiguous(Shape::from(shape.to_vec())),
+            <T as burn_backend::Element>::dtype(),
+        );
+        let actual = interpolate_lanczos3_impl::<T>(input, output_size, align_corners);
+        assert_bitwise_equal(
+            actual.storage::<T>(),
+            &expected,
+            shape,
+            output_size,
+            align_corners,
+        );
+    }
+
+    fn assert_bicubic_bf16_matches_reference(
+        shape: [usize; 4],
+        output_size: [usize; 2],
+        align_corners: bool,
+    ) {
+        let numel = shape.iter().product();
+        let data: Vec<bf16> = patterned_data::<f32>(numel)
+            .into_iter()
+            .map(bf16::from_f32)
+            .collect();
+        let data_f32: Vec<f32> = data.iter().map(|value| value.to_f32()).collect();
+        let expected: Vec<bf16> = bicubic_reference(&data_f32, shape, output_size, align_corners)
+            .into_iter()
+            .map(bf16::from_f32)
+            .collect();
+        let input = FlexTensor::new(
+            Bytes::from_elems(data),
+            Layout::contiguous(Shape::from(shape.to_vec())),
+            DType::BF16,
+        );
+        let actual = interpolate_bicubic_bf16(input, output_size, align_corners);
+        assert_bitwise_equal(
+            actual.storage::<bf16>(),
+            &expected,
+            shape,
+            output_size,
+            align_corners,
+        );
+    }
+
+    fn assert_lanczos3_bf16_matches_reference(
+        shape: [usize; 4],
+        output_size: [usize; 2],
+        align_corners: bool,
+    ) {
+        let numel = shape.iter().product();
+        let data: Vec<bf16> = patterned_data::<f32>(numel)
+            .into_iter()
+            .map(bf16::from_f32)
+            .collect();
+        let data_f32: Vec<f32> = data.iter().map(|value| value.to_f32()).collect();
+        let expected: Vec<bf16> = lanczos3_reference(&data_f32, shape, output_size, align_corners)
+            .into_iter()
+            .map(bf16::from_f32)
+            .collect();
+        let input = FlexTensor::new(
+            Bytes::from_elems(data),
+            Layout::contiguous(Shape::from(shape.to_vec())),
+            DType::BF16,
+        );
+        let actual = interpolate_lanczos3_bf16(input, output_size, align_corners);
+        assert_bitwise_equal(
+            actual.storage::<bf16>(),
+            &expected,
+            shape,
+            output_size,
+            align_corners,
+        );
+    }
+
+    const EQUIVALENCE_CASES: [([usize; 4], [usize; 2]); 8] = [
+        ([1, 1, 1, 1], [1, 1]),
+        ([1, 1, 1, 5], [3, 9]),
+        ([1, 1, 5, 1], [9, 3]),
+        ([1, 2, 4, 5], [7, 8]),
+        ([2, 3, 9, 7], [3, 4]),
+        ([1, 1, 7, 5], [1, 1]),
+        ([1, 7, 4, 5], [7, 8]),
+        ([1, 8, 4, 5], [7, 8]),
+    ];
+
+    #[test]
+    fn test_bicubic_axis_taps_match_direct_computation() {
+        let a = -0.75_f64;
+        for in_size in 1..=8 {
+            for out_size in 1..=9 {
+                for align_corners in [false, true] {
+                    let ratio = coord_ratio(in_size, out_size, align_corners);
+                    let table = bicubic_axis_taps(in_size, out_size, ratio, align_corners, a);
+
+                    for (out_coord, axis_taps) in table.iter().enumerate() {
+                        let coord = map_coord(out_coord, ratio, align_corners);
+                        let base = coord.floor() as isize;
+                        assert_eq!(axis_taps.len(), 4);
+
+                        for (tap, offset) in axis_taps.iter().zip(-1..=2_isize) {
+                            let index = (base + offset).clamp(0, in_size as isize - 1) as usize;
+                            let weight = cubic_weight((coord - base as f64) - offset as f64, a);
+                            assert_eq!(tap.index, index);
+                            assert_eq!(tap.weight.to_bits(), weight.to_bits());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_lanczos3_axis_taps_match_direct_computation() {
+        for in_size in 1..=8 {
+            for out_size in 1..=9 {
+                for align_corners in [false, true] {
+                    let ratio = coord_ratio(in_size, out_size, align_corners);
+                    let table = lanczos3_axis_taps(in_size, out_size, ratio, align_corners);
+
+                    for (out_coord, axis_taps) in table.iter().enumerate() {
+                        let coord = map_coord(out_coord, ratio, align_corners);
+                        let base = coord.floor();
+                        let expected: Vec<AxisTap> = (-2..=3_isize)
+                            .filter_map(|offset| {
+                                let index = base as isize + offset;
+                                (index >= 0 && index < in_size as isize).then(|| AxisTap {
+                                    index: index as usize,
+                                    weight: lanczos3_weight(coord - (base + offset as f64)),
+                                })
+                            })
+                            .collect();
+
+                        assert_eq!(axis_taps.len, expected.len());
+                        for (tap, expected) in axis_taps.as_slice().iter().zip(expected) {
+                            assert_eq!(tap.index, expected.index);
+                            assert_eq!(tap.weight.to_bits(), expected.weight.to_bits());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_bicubic_matches_reference_for_all_dtypes() {
+        for (shape, output_size) in EQUIVALENCE_CASES {
+            for align_corners in [false, true] {
+                assert_bicubic_matches_reference::<f32>(shape, output_size, align_corners);
+                assert_bicubic_matches_reference::<f64>(shape, output_size, align_corners);
+                assert_bicubic_matches_reference::<f16>(shape, output_size, align_corners);
+                assert_bicubic_bf16_matches_reference(shape, output_size, align_corners);
+            }
+        }
+    }
+
+    #[test]
+    fn test_lanczos3_matches_reference_for_all_dtypes() {
+        for (shape, output_size) in EQUIVALENCE_CASES {
+            for align_corners in [false, true] {
+                assert_lanczos3_matches_reference::<f32>(shape, output_size, align_corners);
+                assert_lanczos3_matches_reference::<f64>(shape, output_size, align_corners);
+                assert_lanczos3_matches_reference::<f16>(shape, output_size, align_corners);
+                assert_lanczos3_bf16_matches_reference(shape, output_size, align_corners);
+            }
+        }
+    }
+
+    #[test]
+    fn test_lanczos3_skips_out_of_bounds_taps() {
+        let mut data: Vec<f32> = (0..8).map(|value| value as f32).collect();
+        data[0] = f32::NAN;
+        let expected = lanczos3_reference(&data, [1, 1, 1, 8], [1, 8], true);
+        let input = FlexTensor::new(
+            Bytes::from_elems(data),
+            Layout::contiguous(Shape::from(vec![1, 1, 1, 8])),
+            DType::F32,
+        );
+        let actual = interpolate_lanczos3_f32(input, [1, 8], true);
+        let actual = actual.storage::<f32>();
+
+        assert!(actual[7].is_finite());
+        assert_eq!(actual[7].to_bits(), expected[7].to_bits());
     }
 
     #[test]

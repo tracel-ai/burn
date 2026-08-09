@@ -827,6 +827,30 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    AdaptiveAvgPool3dOpIr {
+        x: TensorIr,
+        output_size: [usize; 3]
+    },
+    shape = Shape::new([
+        x.shape[0],
+        x.shape[1],
+        output_size[0],
+        output_size[1],
+        output_size[2]
+    ]),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
+    AdaptiveAvgPool3dBackwardOpIr {
+        x: TensorIr,
+        grad: TensorIr,
+    },
+    shape = x.shape.clone(),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
     InterpolateOpIr {
         x: TensorIr,
         output_size: [usize; 2],
@@ -1347,6 +1371,31 @@ impl ReduceDimWithIndicesOpIr {
         ReduceDimWithIndicesOpIr {
             tensor,
             dim,
+            out,
+            out_indices,
+        }
+    }
+}
+
+impl TopKWithIndicesOpIr {
+    pub fn create(
+        tensor: TensorIr,
+        dim: usize,
+        k: usize,
+        dtype_indices: DType,
+        mut new_id: impl FnMut() -> TensorId,
+    ) -> Self {
+        // Unlike a plain reduce-with-indices, the reduced axis keeps `k` entries
+        // rather than collapsing to 1.
+        let mut shape = tensor.shape.clone();
+        shape[dim] = k;
+        let out = TensorIr::uninit(new_id(), shape.clone(), tensor.dtype);
+        let out_indices = TensorIr::uninit(new_id(), shape.clone(), dtype_indices);
+
+        TopKWithIndicesOpIr {
+            tensor,
+            dim,
+            k,
             out,
             out_indices,
         }

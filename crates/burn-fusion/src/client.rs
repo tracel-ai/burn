@@ -8,7 +8,7 @@ use burn_std::CommunicationId;
 
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_std::stub::RwLock;
+use burn_std::sync::RwLock;
 use hashbrown::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -137,9 +137,8 @@ where
 
     /// Register a `Drop` issued from a thread other than the tensor's home `stream`.
     ///
-    /// Routes to [`FusionServer::register_foreign_drop`], which drains the home stream to a clean
-    /// segment boundary before enqueuing the drop so the free cannot reorder into an in-flight
-    /// fused segment. Same-stream drops must keep using [`Self::register`].
+    /// Routes to [`FusionServer::register_foreign_drop`]. Same-stream drops must keep using
+    /// [`Self::register`].
     pub(crate) fn register_foreign_drop<O>(&self, stream: StreamId, ir: TensorIr, operation: O)
     where
         O: Operation<R> + 'static,
@@ -436,13 +435,13 @@ where
             .expect("Can downcast to `FusionUtilities`");
         let id = CommunicationId::from(device_ids);
 
-        if !utilities.initialized_comms.read().unwrap().contains(&id) {
+        if !utilities.initialized_comms.read().contains(&id) {
             // Communication initialization is blocking for the server, so we need to flush right away to make sure other devices
             // aren't waiting indefinitely on this initialization call.
             // This is already handled by cubecl, but since fusion adds another layer of streams and asynchronous submits,
             // we also needed to add some logic here to flush the fusion server.
             self.flush_queue();
-            let mut initialized_comms = utilities.initialized_comms.write().unwrap();
+            let mut initialized_comms = utilities.initialized_comms.write();
             initialized_comms.insert(id);
         }
     }

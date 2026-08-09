@@ -61,6 +61,41 @@ fn test_select_add_grad() {
         .assert_eq(&TensorData::from([[64., 64., 64.], [19., 19., 19.]]), false);
 }
 
+#[cfg(feature = "ndarray")]
+#[test]
+fn test_select_assign_grad() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[0.0, 1.0, 2.0, 3.0], [4.0, 5.0, 6.0, 7.0]]),
+        &device,
+    )
+    .require_grad();
+    let values = TestTensor::from_data(TensorData::from([[10.0, 20.0], [30.0, 40.0]]), &device)
+        .require_grad();
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([3, 1]), &device);
+
+    let result = tensor
+        .clone()
+        .select_assign(1, indices, values.clone(), IndexingUpdateOp::Assign);
+
+    result.clone().into_data().assert_eq(
+        &TensorData::from([[0.0, 20.0, 2.0, 10.0], [4.0, 40.0, 6.0, 30.0]]),
+        false,
+    );
+
+    let grads = result.sum().backward();
+    let grad_tensor = tensor.grad(&grads).unwrap();
+    let grad_values = values.grad(&grads).unwrap();
+
+    grad_tensor.into_data().assert_eq(
+        &TensorData::from([[1., 0., 1., 0.], [1., 0., 1., 0.]]),
+        false,
+    );
+    grad_values
+        .into_data()
+        .assert_eq(&TensorData::from([[1., 1.], [1., 1.]]), false);
+}
+
 #[test]
 fn test_select_add_grad_different_shapes() {
     let device = AutodiffDevice::new();

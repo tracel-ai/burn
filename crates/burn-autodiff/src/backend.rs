@@ -7,7 +7,6 @@ use alloc::{format, string::String};
 use core::marker::PhantomData;
 
 use burn_backend::{
-    UnimplementedTensorPrimitive,
     backend::{AutodiffBackend, Backend, BackendTypes, ExecutionError},
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -35,8 +34,7 @@ impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
 
-    type ComplexTensorPrimitive =
-        UnimplementedTensorPrimitive<B::ComplexTensorPrimitive, B::Device>;
+    type ComplexTensorPrimitive = B::ComplexTensorPrimitive;
 
     // A replayed graph would skip re-recording the autodiff tape, so capture
     // is not supported under autodiff.

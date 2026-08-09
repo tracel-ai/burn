@@ -17,6 +17,6 @@ fn flip_int() {
     flipped.into_data().assert_eq(&expected, false);
 
     // Test with no flip
-    let flipped = tensor.clone().flip([]);
+    let flipped = tensor.clone().flip([] as [isize; 0]);
     assert_eq!(tensor.into_data(), flipped.into_data());
 }

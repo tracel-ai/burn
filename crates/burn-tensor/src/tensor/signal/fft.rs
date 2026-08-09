@@ -2,10 +2,11 @@ use alloc::vec;
 use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 
-use crate::Tensor;
 use crate::check;
 use crate::check::TensorCheck;
+use crate::check::unwrap_dim_index;
 use crate::ops::BridgeTensor;
+use crate::{AsIndex, Tensor};
 
 /// Computes the 1-dimensional discrete Fourier Transform of real-valued input.
 ///
@@ -29,6 +30,7 @@ where $N$ is the size of the signal along the specified dimension.
 ///
 /// * `signal` - The input tensor containing the real-valued signal.
 /// * `dim` - The dimension along which to take the FFT.
+///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional FFT length. When `None`, the signal must be a power of two along `dim`.
 ///   When `Some(n)`, `n` must also be a power of two; the signal is truncated or zero-padded
 ///   to length `n`. Non-power-of-two `n` is rejected with a panic (true arbitrary-size DFT
@@ -46,18 +48,16 @@ where $N$ is the size of the signal along the specified dimension.
 /// ```rust
 /// use burn_tensor::Tensor;
 ///
-/// fn example() {
-///     let device = Default::default();
-///     let signal = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
-///     let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
-/// }
+/// let device = Default::default();
+/// let signal = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+/// let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
 /// ```
 pub fn rfft<const D: usize>(
     signal: Tensor<D>,
-    dim: usize,
+    dim: impl AsIndex,
     n: Option<usize>,
 ) -> (Tensor<D>, Tensor<D>) {
-    check!(TensorCheck::check_dim::<D>(dim));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "RFFT");
 
     match n {
         None => check!(TensorCheck::check_is_power_of_two::<D>(
@@ -106,6 +106,7 @@ where $N$ is the size of the reconstructed signal.
 /// * `spectrum_re` - The real part of the spectrum.
 /// * `spectrum_im` - The imaginary part of the spectrum.
 /// * `dim` - The dimension along which to take the inverse FFT.
+///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional output signal length. When `None`, the reconstructed signal length
 ///   `2 * (size - 1)` must be a power of two. When `Some(n)`, `n` must also be a power of
 ///   two and the output has exactly `n` samples. Non-power-of-two `n` is rejected.
@@ -119,20 +120,18 @@ where $N$ is the size of the reconstructed signal.
 /// ```rust
 /// use burn_tensor::Tensor;
 ///
-/// fn example() {
-///     let device = Default::default();
-///     let real = Tensor::<1>::from_floats([10.0, -2.0, 2.0], &device);
-///     let imag = Tensor::<1>::from_floats([0.0, 2.0, 0.0], &device);
-///     let signal = burn_tensor::signal::irfft(real, imag, 0, None);
-/// }
+/// let device = Default::default();
+/// let real = Tensor::<1>::from_floats([10.0, -2.0, 2.0], &device);
+/// let imag = Tensor::<1>::from_floats([0.0, 2.0, 0.0], &device);
+/// let signal = burn_tensor::signal::irfft(real, imag, 0, None);
 /// ```
 pub fn irfft<const D: usize>(
     spectrum_re: Tensor<D>,
     spectrum_im: Tensor<D>,
-    dim: usize,
+    dim: impl AsIndex,
     n: Option<usize>,
 ) -> Tensor<D> {
-    check!(TensorCheck::check_dim::<D>(dim));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "IRFFT");
 
     if let Some(n) = n {
         assert!(n >= 1, "irfft: n must be >= 1, got {n}");
@@ -192,6 +191,7 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 /// * `signal_im` - The imaginary part of the complex input signal. Must have the
 ///   same shape as `signal_re`.
 /// * `dim` - The dimension along which to take the FFT.
+///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional FFT length. When `None`, the signal must be a power of two
 ///   along `dim`. When `Some(n)`, `n` must also be a power of two; the signal is
 ///   truncated or zero-padded to length `n`.
@@ -206,17 +206,15 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 /// ```rust
 /// use burn_tensor::Tensor;
 ///
-/// fn example() {
-///     let device = Default::default();
-///     let re = Tensor::<1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
-///     let im = Tensor::<1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
-///     let (spec_re, spec_im) = burn_tensor::signal::cfft(re, im, 0, None);
-/// }
+/// let device = Default::default();
+/// let re = Tensor::<1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
+/// let im = Tensor::<1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
+/// let (spec_re, spec_im) = burn_tensor::signal::cfft(re, im, 0, None);
 /// ```
 pub fn cfft<const D: usize>(
     signal_re: Tensor<D>,
     signal_im: Tensor<D>,
-    dim: usize,
+    dim: impl AsIndex,
     n: Option<usize>,
 ) -> (Tensor<D>, Tensor<D>) {
     assert!(
@@ -227,7 +225,7 @@ pub fn cfft<const D: usize>(
         signal_im.shape(),
     );
 
-    check!(TensorCheck::check_dim::<D>(dim));
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "CFFT");
     let fft_size = n.unwrap_or(signal_re.dims()[dim]);
 
     // rfft validates power-of-two and n constraints internally
