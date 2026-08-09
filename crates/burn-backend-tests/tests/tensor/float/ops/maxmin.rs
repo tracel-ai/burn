@@ -333,8 +333,35 @@ fn test_max_dim_empty_axis_should_panic() {
 
 #[test]
 #[should_panic]
+fn test_min_dim_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.min_dim(1).into_data();
+}
+
+#[test]
+#[should_panic]
 fn test_argmax_empty_axis_should_panic() {
     let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.argmax(1).into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_argmin_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.argmin(1).into_data();
+}
+
+// Shape [0, 0]: the output is empty too, so nothing would have to be invented — but emptiness of
+// the output depends on the *other* axis, and honouring it would make `argmax(1)` succeed here and
+// panic for [3, 0]. Rejected either way, matching numpy, torch and the cubecl backends.
+#[test]
+#[should_panic]
+fn test_argmax_empty_axis_empty_output_should_panic() {
+    let tensor = TestTensor::<2>::empty([0, 0], &Default::default());
 
     let _ = tensor.argmax(1).into_data();
 }

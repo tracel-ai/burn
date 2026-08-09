@@ -630,6 +630,10 @@ fn min_impl<E: Element + bytemuck::Pod + PartialOrd>(tensor: &FlexTensor) -> Fle
 
 /// Argmax along a dimension, returning indices as isize (INDEX_DTYPE).
 pub fn argmax(tensor: FlexTensor, dim: usize) -> FlexTensor {
+    assert!(
+        tensor.layout().shape()[dim] > 0,
+        "argmax: dimension {dim} has size 0"
+    );
     assert_dim_fits_isize(tensor.layout().shape()[dim], dim);
     // f32 last-dim fast path: 2-pass SIMD for large rows, 1-pass scalar for small rows
     if tensor.dtype() == DType::F32 && dim == tensor.layout().shape().num_dims() - 1 {
@@ -682,6 +686,10 @@ pub fn argmax(tensor: FlexTensor, dim: usize) -> FlexTensor {
 
 /// Argmin along a dimension, returning indices as isize (INDEX_DTYPE).
 pub fn argmin(tensor: FlexTensor, dim: usize) -> FlexTensor {
+    assert!(
+        tensor.layout().shape()[dim] > 0,
+        "argmin: dimension {dim} has size 0"
+    );
     assert_dim_fits_isize(tensor.layout().shape()[dim], dim);
     // f32 last-dim fast path: 2-pass SIMD for large rows, 1-pass scalar for small rows
     if tensor.dtype() == DType::F32 && dim == tensor.layout().shape().num_dims() - 1 {
