@@ -86,8 +86,7 @@ fn test_any_dim_large() {
     expected.assert_eq(&boolean.any_dim(1).into_data(), false);
 }
 
-/// `any` folds with OR, whose identity is `false`, so an empty input is `false`. Unlike the
-/// numeric extrema this is well defined, and `all` (identity `true`) is covered in `all.rs`.
+// `any` folds with OR, whose identity is `false`.
 #[test]
 fn test_any_empty() {
     let device = Default::default();

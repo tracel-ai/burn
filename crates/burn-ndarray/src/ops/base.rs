@@ -789,8 +789,8 @@ where
 
 /// The mean of zero elements, which is `0 / 0`.
 ///
-/// Floats represent that as `NaN`, matching numpy and torch. Integers have no such value, so an
-/// integer mean of nothing is rejected rather than silently reported as some other number.
+/// `NaN` for a float, matching numpy and torch. Integers have no such value, so an integer mean of
+/// nothing is rejected rather than silently reported as some other number.
 pub(crate) fn empty_mean<E: NdArrayElement>() -> E {
     assert!(
         E::dtype().is_float(),
@@ -944,9 +944,7 @@ where
 
     /// Mean of all elements - zero-copy for borrowed storage.
     pub fn mean_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
-        // `ndarray::mean` returns `None` for an empty view. The mean of nothing is `0 / 0`, which
-        // is `NaN` for a float (as numpy and torch report) but has no integer value, so an
-        // integer mean of nothing is rejected the same way an empty `max` is.
+        // `ndarray::mean` returns `None` for an empty view.
         let mean = view.mean().unwrap_or_else(empty_mean);
         ArrayD::from_elem(IxDyn(&[1]), mean).into_shared()
     }
@@ -1678,9 +1676,8 @@ fn arg_view<E: NdArrayElement + PartialOrd, I: NdArrayElement + PartialOrd>(
     dim: usize,
     cmp: CmpType,
 ) -> SharedArray<I> {
-    // There is no element to name along an empty axis. Checked before `map_axis`, which skips the
-    // closure entirely when another axis is also zero-length and would otherwise let that case
-    // through while `[3, 0]` panics on `arr[0]`.
+    // Checked before `map_axis`, which skips its closure entirely when another axis is also
+    // zero-length and would otherwise let `[0, 0]` through while `[3, 0]` panics on `arr[0]`.
     assert!(
         view.shape()[dim] > 0,
         "Cannot compute arg over an empty axis"

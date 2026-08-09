@@ -30,19 +30,12 @@ pub struct SumAutotuneKey {
     length: usize,
 }
 
-/// The value a reduction over zero elements must produce, if one exists.
+/// The value a reduction over zero elements must produce, or `None` if there is none.
 ///
-/// A reduction folds a binary operation along the axis, so reducing zero elements yields that
-/// operation's identity: `Sum` and `Any` fold with `+` / `OR` (identity `0`), `Prod` and `All`
-/// with `*` / `AND` (identity `1`). `Mean` divides a zero sum by a zero count, which is `NaN` -
-/// the same answer numpy and torch give.
-///
-/// The extrema return `None`, meaning "no defined result". `Max` / `Min` / `TopK` have no
-/// identity in a bounded numeric type (there is no integer below `i32::MIN`), an `Arg*` would
-/// have to name an element that does not exist, and `MaxAbs` is an extremum too. numpy raises
-/// `ValueError` and torch raises `IndexError` for all of these, so reporting an error rather
-/// than inventing a value keeps burn consistent with both, and with the CPU backends, which
-/// already reject an empty `max` / `min`.
+/// Reducing zero elements yields the folded operation's identity. The extrema have no identity in
+/// a bounded numeric type (there is no integer below `i32::MIN`) and an `Arg*` would have to name
+/// an element that does not exist, so they return `None`: numpy raises `ValueError` and torch
+/// raises `IndexError` for all of them, as do burn's CPU backends for an empty `max`/`min`.
 fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<f64> {
     match config {
         ReduceOperationConfig::Sum | ReduceOperationConfig::Any => Some(0.0),
@@ -61,14 +54,12 @@ fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<
 
 /// Fill `output` with the identity of `config`, or report that `config` has none.
 ///
-/// The reduce kernels require at least one element along the reduced axis (cubek's
-/// `validate_shapes` rejects a zero-length axis with [`ReduceError::ReduceAxisTooSmall`]), so a
-/// zero-length axis never reaches a kernel and the identity is written directly instead.
+/// Written directly rather than launched as a kernel because cubek's `validate_shapes` rejects a
+/// zero-length axis with [`ReduceError::ReduceAxisTooSmall`], so no kernel can run.
 ///
-/// An operation with no identity is rejected even when `output` is itself empty. Emptiness of
-/// the output depends on the *other* axes, so allowing it would make `max` over a zero-length
-/// axis succeed for shape `[0, 0]` and fail for `[3, 0]` - and numpy, torch and the CPU
-/// backends all reject both.
+/// An operation with no identity is rejected even when `output` is itself empty: emptiness of the
+/// output depends on the *other* axes, so allowing it would make `max` succeed for shape `[0, 0]`
+/// and fail for `[3, 0]`.
 fn reduce_empty_axis<Run: CubeRuntime>(
     output: CubeTensor<Run>,
     axis_length: usize,
@@ -128,8 +119,7 @@ pub fn sum<Run: CubeRuntime>(
     let client = tensor.client.clone();
     let device = tensor.device.clone();
 
-    // No element to sum: the result is the additive identity, and no strategy can launch a
-    // kernel over an empty input.
+    // No strategy can launch a kernel over an empty input, so write the additive identity.
     if tensor.meta.num_elements() == 0 {
         return Ok(zeros_client(client, device, [1].into(), tensor.dtype));
     }
@@ -296,9 +286,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
         },
     )?;
 
-    // A zero-length reduced axis has nothing to fold, so write the identity into `output`
-    // instead of launching a kernel. `output` already carries the right shape, with `dim` set
-    // to `accumulator_len`.
+    // `output` already carries the right shape here, with `dim` set to `accumulator_len`.
     let axis_length = input.meta.shape[dim];
     if axis_length == 0 {
         return reduce_empty_axis::<Run>(output, axis_length, config);
@@ -404,10 +392,9 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
     let indices = init_reduce_output_dtype::<Run>(&input, dim, indices_dtype, out_len)
         .ok_or_else(invalid_axis)?;
 
-    // Every `config` reaching this point is `Max`, `Min` or `TopK`: an empty axis leaves each of
-    // them with no value to report and no index to name, so it is always rejected - including
-    // when the outputs are themselves empty, which depends on the other axes rather than on this
-    // one.
+    // Every `config` reaching this point is an extremum, so an empty axis leaves it with no value
+    // to report and no index to name. Always rejected, including when the outputs are themselves
+    // empty — see `reduce_empty_axis`.
     if input.meta.shape[dim] == 0 {
         return Err(ReduceError::ReduceAxisTooSmall {
             axis_length: 0,

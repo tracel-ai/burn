@@ -46,8 +46,7 @@ fn test_all_dim_large() {
     expected.assert_eq(&boolean.all_dim(1).into_data(), false);
 }
 
-/// `all` folds with AND, whose identity is `true`, so an empty input is vacuously `true`.
-/// Matches numpy and torch; `any` (identity `false`) is covered in `any.rs`.
+// Vacuously true: `all` folds with AND, whose identity is `true`.
 #[test]
 fn test_all_empty() {
     let device = Default::default();
