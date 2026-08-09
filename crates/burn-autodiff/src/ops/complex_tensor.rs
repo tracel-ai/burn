@@ -1,19 +1,10 @@
 use burn_backend::{
-    Backend, ComplexTensorBackend, TensorMetadata,
+    ComplexTensorBackend,
     ops::ComplexTensorOps,
-    tensor::{BoolTensor, ComplexTensor, Device, IntTensor},
+    tensor::{Device, IntTensor},
 };
 
-use crate::{
-    Autodiff, NodeId,
-    checkpoint::{
-        base::Checkpointer, retro_forward::RetroForward, state::BackwardStates,
-        strategy::CheckpointStrategy,
-    },
-    grads::Gradients,
-    ops::{Backward, Ops, OpsKind, unary},
-    tensor::AutodiffTensor,
-};
+use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 
 impl<B: ComplexTensorBackend, C: CheckpointStrategy> ComplexTensorBackend for Autodiff<B, C> {
     fn complex_from_real_data(

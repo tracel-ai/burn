@@ -4,7 +4,6 @@ use burn_std::{
 };
 
 use crate::Backend;
-use crate::backend::ops::bool_tensor::BoolTensorOps;
 use crate::{
     BackendTypes, ComplexTensor, ComplexTensorBackend, TensorMetadata, get_device_settings,
     ops::IntTensorOps,

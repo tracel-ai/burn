@@ -1,6 +1,6 @@
 use burn_std::TensorData;
 
-use crate::{Backend, BackendTypes, ops::ComplexTensorOps};
+use crate::{BackendTypes, ops::ComplexTensorOps};
 
 /// Complex tensor primitive type used by the backend.
 pub type ComplexTensor<B> = <B as BackendTypes>::ComplexTensorPrimitive;
@@ -12,17 +12,6 @@ pub type ComplexTensor<B> = <B as BackendTypes>::ComplexTensorPrimitive;
 pub trait ComplexTensorBackend:
     ComplexTensorOps<Self> + Sized + BackendTypes + Send + Sync + 'static
 {
-    /// The inner backend type.
-    ///
-    /// Must share all primitive types and device with `Self` so that operations
-    /// can delegate directly without any type-level conversion.
-    // type InnerBackend: Backend<
-    //         Device = Self::Device,
-    //         //FloatTensorPrimitive = Self::FloatTensorPrimitive,
-    //         IntTensorPrimitive = Self::IntTensorPrimitive,
-    //         BoolTensorPrimitive = Self::BoolTensorPrimitive,
-    //     >;
-
     /// Creates a complex tensor from real-valued data, padding the imaginary part with zeros.
     ///
     /// Each element `x` in `data` becomes `x + 0i`.
