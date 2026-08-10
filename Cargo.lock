@@ -1176,7 +1176,6 @@ dependencies = [
  "burn-fusion",
  "burn-ir",
  "burn-std",
- "burn-wgpu",
  "hashbrown 0.16.1",
  "log",
  "serde",
