@@ -1,6 +1,7 @@
+/// Set of utilities for going to/from tensor data for split and interleaved tensors as well as complex<->float dtypes
 use alloc::vec::Vec;
-
-use crate::{DType, TensorData};
+use burn_backend::ops::{complex_to_real_dtype, real_to_complex_dtype};
+use burn_std::TensorData;
 
 /// Converts a real float `TensorData` into interleaved complex `TensorData` by inserting zero
 /// imaginary parts.
@@ -229,38 +230,4 @@ pub fn split_from_interleaved_data(interleaved: TensorData) -> (TensorData, Tens
         TensorData::from_bytes_vec(real_bytes, interleaved.shape.clone(), real_dtype),
         TensorData::from_bytes_vec(imag_bytes, interleaved.shape, real_dtype),
     )
-}
-
-/// Maps a real float [`DType`] to the corresponding complex [`DType`].
-///
-/// * `F32` → `Complex32`
-/// * `F64` → `Complex64`
-///
-/// # Panics
-///
-/// Panics if `real_data` is not a supported float dtype.
-#[inline(always)]
-pub const fn real_to_complex_dtype(real_data: DType) -> DType {
-    match real_data {
-        DType::F32 => DType::Complex32,
-        DType::F64 => DType::Complex64,
-        _ => panic!("r2c: Unsupported dtype"),
-    }
-}
-
-/// Maps a complex [`DType`] to the corresponding real float [`DType`].
-///
-/// * `Complex32` → `F32`
-/// * `Complex64` → `F64`
-///
-/// # Panics
-///
-/// Panics if `complex_dtype` is not a supported complex dtype.
-#[inline(always)]
-pub const fn complex_to_real_dtype(complex_dtype: DType) -> DType {
-    match complex_dtype {
-        DType::Complex32 => DType::F32,
-        DType::Complex64 => DType::F64,
-        _ => panic!("c2r: Unsupported dtype"),
-    }
 }

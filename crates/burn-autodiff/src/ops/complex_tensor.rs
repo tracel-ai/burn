@@ -1,44 +1,35 @@
 use burn_backend::{
-    ComplexTensorBackend,
+    Backend, ComplexTensorBackend,
     ops::ComplexTensorOps,
-    tensor::{Device, IntTensor},
+    tensor::{Device, FloatTensor, IntTensor},
 };
 
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 
-impl<B: ComplexTensorBackend, C: CheckpointStrategy> ComplexTensorBackend for Autodiff<B, C> {
-    fn complex_from_real_data(
-        data: burn_std::TensorData,
-        device: &Self::Device,
-    ) -> burn_backend::ComplexTensor<Self> {
-        B::complex_from_real_data(data, device)
+impl<B: ComplexTensorBackend + Backend, C: CheckpointStrategy> ComplexTensorBackend
+    for Autodiff<B, C>
+{
+}
+impl<B: ComplexTensorBackend + Backend, C: CheckpointStrategy> ComplexTensorOps<Self>
+    for Autodiff<B, C>
+{
+    fn complex_device(tensor: &burn_backend::ComplexTensor<Self>) -> B::Device {
+        B::complex_device(tensor)
     }
 
-    fn complex_from_imag_data(
+    fn complex_from_data(
         data: burn_std::TensorData,
-        device: &Self::Device,
+        device: &Device<Self>,
     ) -> burn_backend::ComplexTensor<Self> {
-        B::complex_from_imag_data(data, device)
-    }
-
-    fn complex_from_interleaved_data(
-        data: burn_std::TensorData,
-        device: &Self::Device,
-    ) -> burn_backend::ComplexTensor<Self> {
-        B::complex_from_interleaved_data(data, device)
+        B::complex_from_data(data, device)
     }
 
     fn complex_from_parts_data(
         real_data: burn_std::TensorData,
         imag_data: burn_std::TensorData,
-        device: &Self::Device,
+        device: &Device<Self>,
     ) -> burn_backend::ComplexTensor<Self> {
         B::complex_from_parts_data(real_data, imag_data, device)
-    }
-}
-impl<B: ComplexTensorBackend, C: CheckpointStrategy> ComplexTensorOps<Self> for Autodiff<B, C> {
-    fn complex_device(tensor: &burn_backend::ComplexTensor<Self>) -> B::Device {
-        B::complex_device(tensor)
     }
 
     async fn complex_into_interleaved_data(
@@ -210,11 +201,10 @@ impl<B: ComplexTensorBackend, C: CheckpointStrategy> ComplexTensorOps<Self> for 
     }
 
     fn complex_from_parts(
-        real: burn_std::TensorData,
-        imag: burn_std::TensorData,
-        device: &Device<Self>,
+        real: FloatTensor<Self>,
+        imag: FloatTensor<Self>,
     ) -> burn_backend::ComplexTensor<Self> {
-        B::complex_from_parts(real, imag, device)
+        B::complex_from_parts(real.primitive, imag.primitive)
     }
 
     fn complex_from_polar(

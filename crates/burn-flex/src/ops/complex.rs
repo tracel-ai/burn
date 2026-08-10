@@ -19,6 +19,7 @@ use crate::ops::binary::{
 };
 
 use crate::ops::comparison::compare_elem_typed;
+use crate::ops::complex_utils;
 use crate::ops::{
     binary::scalar_op_typed_rhs,
     comparison::{bool_scalar, compare_typed, iter_elements, reduce_bool_dim},
@@ -29,35 +30,6 @@ use crate::{Flex, FlexDevice, FlexTensor, ops::binary::scalar_op_typed};
 
 impl ComplexTensorBackend for Flex {
     //type InnerBackend = Flex;
-
-    fn complex_from_real_data(data: TensorData, _device: &Device<Self>) -> ComplexTensor<Self> {
-        let interleaved_data = burn_std::complex_utils::interleaved_data_from_real_data(data);
-
-        FlexTensor::from_data(interleaved_data)
-    }
-
-    fn complex_from_imag_data(data: TensorData, _device: &Device<Self>) -> ComplexTensor<Self> {
-        let interleaved_data = burn_std::complex_utils::interleaved_data_from_imag_data(data);
-
-        FlexTensor::from_data(interleaved_data)
-    }
-
-    fn complex_from_interleaved_data(
-        data: TensorData,
-        _device: &Self::Device,
-    ) -> ComplexTensor<Self> {
-        FlexTensor::from_data(data)
-    }
-
-    fn complex_from_parts_data(
-        real_data: TensorData,
-        imag_data: TensorData,
-        _device: &Self::Device,
-    ) -> ComplexTensor<Self> {
-        let interleaved_data =
-            burn_std::complex_utils::interleaved_data_from_parts_data(real_data, imag_data);
-        FlexTensor::from_data(interleaved_data)
-    }
 }
 
 impl ComplexTensorOps<Flex> for Flex {
@@ -70,7 +42,7 @@ impl ComplexTensorOps<Flex> for Flex {
     async fn complex_into_split_data(
         tensor: ComplexTensor<Flex>,
     ) -> Result<(TensorData, TensorData), burn_backend::ExecutionError> {
-        Ok(burn_std::complex_utils::split_from_interleaved_data(
+        Ok(complex_utils::split_from_interleaved_data(
             tensor.into_data(),
         ))
     }
@@ -84,6 +56,20 @@ impl ComplexTensorOps<Flex> for Flex {
         _device: &Device<Flex>,
     ) -> ComplexTensor<Flex> {
         tensor
+    }
+
+    fn complex_from_data(data: TensorData, _device: &Device<Self>) -> ComplexTensor<Self> {
+        FlexTensor::from_data(data)
+    }
+
+    fn complex_from_parts_data(
+        real_data: TensorData,
+        imag_data: TensorData,
+        _device: &Device<Self>,
+    ) -> ComplexTensor<Self> {
+        let interleaved_data =
+            complex_utils::interleaved_data_from_parts_data(real_data, imag_data);
+        FlexTensor::from_data(interleaved_data)
     }
 
     fn complex_add(lhs: ComplexTensor<Flex>, rhs: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
@@ -134,12 +120,12 @@ impl ComplexTensorOps<Flex> for Flex {
         crate::c2r_unary_op!(tensor, |a| a.norm())
     }
 
-    fn complex_from_parts(
-        real: TensorData,
-        imag: TensorData,
-        device: &Device<Flex>,
-    ) -> ComplexTensor<Flex> {
-        <Flex as ComplexTensorBackend>::complex_from_parts_data(real, imag, device)
+    fn complex_from_parts(real: FloatTensor<Self>, imag: FloatTensor<Self>) -> ComplexTensor<Flex> {
+        <Flex as ComplexTensorOps<Flex>>::complex_from_parts_data(
+            real.into_data(),
+            imag.into_data(),
+            &FlexDevice,
+        )
     }
 
     fn complex_from_polar(
@@ -161,7 +147,7 @@ impl ComplexTensorOps<Flex> for Flex {
             |m, sin_p| m * sin_p,
             None,
         );
-        Self::complex_from_parts(real_part.into_data(), imag_part.into_data(), &FlexDevice)
+        Self::complex_from_parts_data(real_part.into_data(), imag_part.into_data(), &FlexDevice)
     }
 
     fn complex_exp(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {

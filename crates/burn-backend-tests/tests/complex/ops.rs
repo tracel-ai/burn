@@ -132,8 +132,8 @@ fn test_complex_phase() {
 #[test]
 fn test_complex_from_parts() {
     let result = TestTensor::<2>::from_parts(
-        TensorData::from([[1.0_f32, 2.0], [3.0, 4.0]]),
-        TensorData::from([[5.0_f32, 6.0], [7.0, 8.0]]),
+        TensorData::from([[1.0_f32, 2.0], [3.0, 4.0]]).into(),
+        TensorData::from([[5.0_f32, 6.0], [7.0, 8.0]]).into(),
         &Device::default().into(),
     );
     let data = result.into_data();
@@ -215,14 +215,14 @@ fn test_complex_exp() {
     // exp(a + bi) = exp(a) * (cos(b) + i*sin(b))
     // exp(0 + 0i) = 1 * (1 + 0i) = 1 + 0i
     // exp(0 + πi) = 1 * (-1 + 0i) = -1 + 0i (approximately)
-    let expected_data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!((expected_data[0] - 1.0).abs() < 1e-6); // real part of exp(0)
-    assert!(expected_data[1].abs() < 1e-6); // imag part of exp(0)
-    assert!((expected_data[2] + 1.0).abs() < 1e-5); // real part of exp(iπ), should be close to -1
-    assert!(expected_data[3].abs() < 1e-5); // imag part of exp(iπ), should be close to 0
+    let expected_data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!((expected_data[0].real - 1.0).abs() < 1e-6); // real part of exp(0)
+    assert!(expected_data[0].imag.abs() < 1e-6); // imag part of exp(0)
+    assert!((expected_data[1].real + 1.0).abs() < 1e-5); // real part of exp(iπ), should be close to -1
+    assert!(expected_data[1].imag.abs() < 1e-5); // imag part of exp(iπ), should be close to 0
 }
 
 #[test]
@@ -243,14 +243,14 @@ fn test_complex_sin() {
 
     let result = tensor.sin();
 
-    let expected_data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!(expected_data[0].abs() < 1e-6); // real part of sin(0)
-    assert!(expected_data[1].abs() < 1e-6); // imag part of sin(0)
-    assert!((expected_data[2] - 1.0).abs() < 1e-6); // real part of sin(π/2)
-    assert!(expected_data[3].abs() < 1e-6); // imag part of sin(π/2)
+    let expected_data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!(expected_data[0].real.abs() < 1e-6); // real part of sin(0)
+    assert!(expected_data[0].imag.abs() < 1e-6); // imag part of sin(0)
+    assert!((expected_data[1].real - 1.0).abs() < 1e-6); // real part of sin(π/2)
+    assert!(expected_data[1].imag.abs() < 1e-6); // imag part of sin(π/2)
 }
 
 #[test]
@@ -271,14 +271,14 @@ fn test_complex_cos() {
 
     let result = tensor.cos();
 
-    let expected_data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!((expected_data[0] - 1.0).abs() < 1e-6); // real part of cos(0)
-    assert!(expected_data[1].abs() < 1e-6); // imag part of cos(0)
-    assert!((expected_data[2] + 1.0).abs() < 1e-5); // real part of cos(π)
-    assert!(expected_data[3].abs() < 1e-5); // imag part of cos(π)
+    let expected_data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!((expected_data[0].real - 1.0).abs() < 1e-6); // real part of cos(0)
+    assert!(expected_data[0].imag.abs() < 1e-6); // imag part of cos(0)
+    assert!((expected_data[1].real + 1.0).abs() < 1e-5); // real part of cos(π)
+    assert!(expected_data[1].imag.abs() < 1e-5); // imag part of cos(π)
 }
 
 #[test]
@@ -299,14 +299,14 @@ fn test_complex_log() {
 
     let result = tensor.log();
 
-    let expected_data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!(expected_data[0].abs() < 1e-6); // real part of log(1)
-    assert!(expected_data[1].abs() < 1e-6); // imag part of log(1)
-    assert!((expected_data[2] - 1.0).abs() < 1e-5); // real part of log(e)
-    assert!(expected_data[3].abs() < 1e-5); // imag part of log(e)
+    let expected_data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!(expected_data[0].real.abs() < 1e-6); // real part of log(1)
+    assert!(expected_data[0].imag.abs() < 1e-6); // imag part of log(1)
+    assert!((expected_data[1].real - 1.0).abs() < 1e-5); // real part of log(e)
+    assert!(expected_data[1].imag.abs() < 1e-5); // imag part of log(e)
 }
 
 #[test]
@@ -360,14 +360,14 @@ fn test_complex_sqrt() {
 
     let result = tensor.sqrt();
 
-    let expected_data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!((expected_data[0] - 2.0).abs() < 1e-6); // real part of sqrt(4)
-    assert!(expected_data[1].abs() < 1e-6); // imag part of sqrt(4)
-    assert!(expected_data[2].abs() < 1e-5); // real part of sqrt(-1)
-    assert!((expected_data[3] - 1.0).abs() < 1e-5); // imag part of sqrt(-1)
+    let expected_data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!((expected_data[0].real - 2.0).abs() < 1e-6); // real part of sqrt(4)
+    assert!(expected_data[0].imag.abs() < 1e-6); // imag part of sqrt(4)
+    assert!(expected_data[1].real.abs() < 1e-5); // real part of sqrt(-1)
+    assert!((expected_data[1].imag - 1.0).abs() < 1e-5); // imag part of sqrt(-1)
 }
 
 #[test]
@@ -451,18 +451,18 @@ fn test_complex_acos() {
 
     let result = tensor.acos();
 
-    let data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!(data[0].abs() < 1e-5, "re(acos(1)) = {}", data[0]);
-    assert!(data[1].abs() < 1e-5, "im(acos(1)) = {}", data[1]);
+    let data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!(data[0].real.abs() < 1e-5, "re(acos(1)) = {}", data[0]);
+    assert!(data[0].imag.abs() < 1e-5, "im(acos(1)) = {}", data[1]);
     assert!(
-        (data[2] - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+        (data[1].real - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
         "re(acos(0)) = {}",
-        data[2]
+        data[1].real
     );
-    assert!(data[3].abs() < 1e-5, "im(acos(0)) = {}", data[3]);
+    assert!(data[1].imag.abs() < 1e-5, "im(acos(0)) = {}", data[3]);
 }
 
 #[test]
@@ -478,12 +478,12 @@ fn test_complex_acosh() {
 
     let result = tensor.acosh();
 
-    let data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!(data[0].abs() < 1e-5, "re(acosh(1)) = {}", data[0]);
-    assert!(data[1].abs() < 1e-5, "im(acosh(1)) = {}", data[1]);
+    let data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!(data[0].real.abs() < 1e-5, "re(acosh(1)) = {}", data[0]);
+    assert!(data[0].imag.abs() < 1e-5, "im(acosh(1)) = {}", data[1]);
 }
 
 #[test]
@@ -505,18 +505,18 @@ fn test_complex_asin() {
 
     let result = tensor.asin();
 
-    let data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!(data[0].abs() < 1e-5, "re(asin(0)) = {}", data[0]);
-    assert!(data[1].abs() < 1e-5, "im(asin(0)) = {}", data[1]);
+    let data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!(data[0].real.abs() < 1e-5, "re(asin(0)) = {}", data[0]);
+    assert!(data[0].imag.abs() < 1e-5, "im(asin(0)) = {}", data[1]);
     assert!(
-        (data[2] - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+        (data[1].real - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
         "re(asin(1)) = {}",
-        data[2]
+        data[1].real
     );
-    assert!(data[3].abs() < 1e-5, "im(asin(1)) = {}", data[3]);
+    assert!(data[1].imag.abs() < 1e-5, "im(asin(1)) = {}", data[3]);
 }
 
 #[test]
@@ -532,12 +532,12 @@ fn test_complex_asinh() {
 
     let result = tensor.asinh();
 
-    let data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!(data[0].abs() < 1e-5, "re(asinh(0)) = {}", data[0]);
-    assert!(data[1].abs() < 1e-5, "im(asinh(0)) = {}", data[1]);
+    let data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!(data[0].real.abs() < 1e-5, "re(asinh(0)) = {}", data[0]);
+    assert!(data[0].imag.abs() < 1e-5, "im(asinh(0)) = {}", data[1]);
 }
 
 #[test]
@@ -559,18 +559,18 @@ fn test_complex_atan() {
 
     let result = tensor.atan();
 
-    let data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!(data[0].abs() < 1e-5, "re(atan(0)) = {}", data[0]);
-    assert!(data[1].abs() < 1e-5, "im(atan(0)) = {}", data[1]);
+    let data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!(data[0].real.abs() < 1e-5, "re(atan(0)) = {}", data[0]);
+    assert!(data[0].imag.abs() < 1e-5, "im(atan(0)) = {}", data[1]);
     assert!(
-        (data[2] - std::f32::consts::FRAC_PI_4).abs() < 1e-5,
+        (data[1].real - std::f32::consts::FRAC_PI_4).abs() < 1e-5,
         "re(atan(1)) = {}",
-        data[2]
+        data[1].real
     );
-    assert!(data[3].abs() < 1e-5, "im(atan(1)) = {}", data[3]);
+    assert!(data[1].imag.abs() < 1e-5, "im(atan(1)) = {}", data[3]);
 }
 
 #[test]
@@ -586,10 +586,10 @@ fn test_complex_atanh() {
 
     let result = tensor.atanh();
 
-    let data: Vec<f32> =
-        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
-            .into_vec()
-            .unwrap();
-    assert!(data[0].abs() < 1e-5, "re(atanh(0)) = {}", data[0]);
-    assert!(data[1].abs() < 1e-5, "im(atanh(0)) = {}", data[1]);
+    let data: Vec<ComplexScalar<f32>> = result
+        .into_data()
+        .into_vec()
+        .expect("could not convert complex tensor data to vec");
+    assert!(data[0].real.abs() < 1e-5, "re(atanh(0)) = {}", data[0]);
+    assert!(data[0].imag.abs() < 1e-5, "im(atanh(0)) = {}", data[1]);
 }

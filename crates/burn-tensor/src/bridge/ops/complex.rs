@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use burn_backend::ops::ComplexTensorOps;
+use burn_backend::ops::{ComplexTensorOps, FloatTensorOps};
 use burn_backend::{ComplexTensorBackend, Distribution, Scalar, TensorData, TensorMetadata};
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
@@ -78,10 +78,7 @@ impl BasicOps for Complex {
     }
 
     fn from_data(data: TensorData, device: &Device, _dtype: DType) -> BridgeTensor {
-        BridgeTensor::complex(Dispatch::complex_from_interleaved_data(
-            data,
-            device.as_dispatch(),
-        ))
+        BridgeTensor::complex(Dispatch::complex_from_data(data, device.as_dispatch()))
     }
 
     fn repeat_dim(tensor: BridgeTensor, dim: usize, times: usize) -> BridgeTensor {
@@ -401,7 +398,18 @@ pub(crate) trait ComplexOps: FloatMathOps {
     /// # Returns
     ///
     /// A complex tensor whose shape matches the input data.
-    fn from_parts<T>(real: T, imag: T, device: &Device) -> BridgeTensor
+    fn from_parts(real: BridgeTensor, imag: BridgeTensor) -> BridgeTensor;
+    /// Creates a complex tensor by combining separate real and imaginary part tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `real` - The real parts, as anything that can be converted into `TensorData`.
+    /// * `imag` - The imaginary parts, as anything that can be converted into `TensorData`.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor whose shape matches the input data.
+    fn from_parts_data<T>(real: T, imag: T, device: &Device) -> BridgeTensor
     where
         T: Into<TensorData>;
 
@@ -428,9 +436,7 @@ pub(crate) trait ComplexOps: FloatMathOps {
     /// # Returns
     ///
     /// A complex tensor whose shape matches the input data.
-    fn from_real<T>(real: T, device: &Device) -> BridgeTensor
-    where
-        T: Into<TensorData>;
+    fn from_real(real: BridgeTensor) -> BridgeTensor;
 
     /// Creates a complex tensor from polar form, converting `(r, θ)` pairs to `r·cos θ + i·r·sin θ`.
     ///
@@ -465,15 +471,8 @@ impl ComplexOps for Complex {
         BridgeTensor::float(Dispatch::complex_abs(tensor.into_complex()))
     }
 
-    fn from_parts<T>(real: T, imag: T, device: &Device) -> BridgeTensor
-    where
-        T: Into<TensorData>,
-    {
-        BridgeTensor::complex(Dispatch::complex_from_parts(
-            real.into(),
-            imag.into(),
-            device.as_dispatch(),
-        ))
+    fn from_parts(real: BridgeTensor, imag: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(Dispatch::complex_from_parts(real.into(), imag.into()))
     }
 
     async fn try_into_parts_async(
@@ -508,14 +507,13 @@ impl ComplexOps for Complex {
         ))
     }
 
-    fn from_real<T>(real: T, device: &Device) -> BridgeTensor
-    where
-        T: Into<TensorData>,
-    {
-        BridgeTensor::complex(Dispatch::complex_from_real_data(
-            real.into(),
-            device.as_dispatch(),
-        ))
+    fn from_real(real: BridgeTensor) -> BridgeTensor {
+        let shape = real.shape();
+        let dtype = real.dtype();
+        let device = real.as_dispatch().device();
+
+        let zeros = Dispatch::float_zeros(shape, &device, dtype.into());
+        BridgeTensor::complex(Dispatch::complex_from_parts(real.into(), zeros))
     }
 
     fn recip(tensor: BridgeTensor) -> BridgeTensor {
@@ -524,6 +522,17 @@ impl ComplexOps for Complex {
 
     fn finv(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_finv(tensor.into_complex()))
+    }
+
+    fn from_parts_data<T>(real: T, imag: T, device: &Device) -> BridgeTensor
+    where
+        T: Into<TensorData>,
+    {
+        BridgeTensor::complex(Dispatch::complex_from_parts_data(
+            real.into(),
+            imag.into(),
+            device.as_dispatch(),
+        ))
     }
 }
 

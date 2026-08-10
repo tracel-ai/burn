@@ -19,8 +19,7 @@ pub use burn_std::{
     AllocationProperty, BoolDType, BoolStore, Bytes, ComplexDType, ComplexScalar, DType, DataError,
     DeviceHandle, Distribution, DistributionSampler, DistributionSamplerKind, Element, ElementAdd,
     ElementConversion, ElementEq, ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar,
-    SplitPolicy, TensorData, Tolerance, bf16, complex_utils, distribution, element, f16,
-    stream::StreamId,
+    SplitPolicy, TensorData, Tolerance, bf16, distribution, element, f16, stream::StreamId,
 };
 
 /// Shape definition.
@@ -70,13 +69,7 @@ mod cube_wgpu {
     impl DeviceOps for WgpuDevice {
         #[cfg(not(any(feature = "cubecl-metal", feature = "cubecl-vulkan")))]
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U32),
-                None,
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U32))
         }
 
         #[cfg(any(feature = "cubecl-metal", feature = "cubecl-vulkan"))]

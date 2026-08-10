@@ -1,6 +1,6 @@
 use burn_std::{
-    ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, IntDType, Scalar,
-    Shape, Slice, TensorData,
+    ComplexDType, DType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, IntDType,
+    Scalar, Shape, Slice, TensorData,
 };
 
 use crate::Backend;
@@ -25,6 +25,62 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// The device of the tensor.
     fn complex_device(tensor: &ComplexTensor<B>) -> B::Device;
+
+    /// Creates a complex tensor from interleaved complex data.
+    ///
+    /// The `data` buffer must already be in interleaved layout, i.e. elements are ordered as
+    /// `[re₀, im₀, re₁, im₁, …]`. No conversion is performed — the buffer is used directly.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Interleaved complex data with alternating real and imaginary values.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor backed by the interleaved buffer.
+    fn complex_from_data(data: TensorData, device: &Device<B>) -> ComplexTensor<B>;
+
+    /// Creates a complex tensor from real and imaginary tensor data.
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `real` - tensor containing the real values.
+    /// * `imag` - tensor containing the imag values.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor backed by the interleaved buffer.
+    fn complex_from_parts(real: FloatTensor<B>, imaginary: FloatTensor<B>) -> ComplexTensor<B>;
+
+    /// Creates a complex tensor from two separate real and imaginary data buffers.
+    ///
+    /// Both buffers must have the same shape and element type. They are combined into a single
+    /// complex tensor, pairing each `real_data[i]` with `imag_data[i]` as `re + im·i`.
+    ///
+    /// # Arguments
+    ///
+    /// * `real_data` - The real parts.
+    /// * `imag_data` - The imaginary parts. Must match the shape and dtype of `real_data`.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor constructed from the paired real and imaginary buffers.
+    fn complex_from_parts_data(
+        real_data: TensorData,
+        imag_data: TensorData,
+        device: &Device<B>,
+    ) -> ComplexTensor<B>
+    where
+        B: Backend,
+    {
+        let real = B::float_from_data(real_data, device);
+        let imag = B::float_from_data(imag_data, device);
+        Self::complex_from_parts(real, imag)
+    }
 
     /// Converts the tensor to interleaved complex data, where real and imaginary parts alternate.
     ///
@@ -428,30 +484,6 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// A float tensor containing the phases in radians.
     fn complex_arg(tensor: ComplexTensor<B>) -> FloatTensor<B>;
-
-    /// Creates a complex tensor from separate real and imaginary host buffers.
-    ///
-    /// Each output element is formed as `real[i] + imag[i] * i`.
-    ///
-    /// # Arguments
-    ///
-    /// * `real` - Host data containing real parts.
-    /// * `imag` - Host data containing imaginary parts.
-    /// * `device` - Target device where the complex tensor is allocated.
-    ///
-    /// # Returns
-    ///
-    /// A complex tensor allocated on `device` with values composed from `real` and `imag`.
-    ///
-    /// # Notes
-    ///
-    /// Backends are expected to require matching shape and element type between `real` and
-    /// `imag`. Mismatches may panic or otherwise fail according to backend validation rules.
-    fn complex_from_parts(
-        real: TensorData,
-        imag: TensorData,
-        device: &Device<B>,
-    ) -> ComplexTensor<B>;
 
     /// Creates a complex tensor from magnitude and phase (polar form).
     ///
@@ -1246,9 +1278,8 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         //B::InnerBackend: IntTensorOps<B::InnerBackend>,
         // make the equality explicit at the use site
         <B as BackendTypes>::IntTensorPrimitive: From<B::IntTensorPrimitive>,
-        //<B::InnerBackend as BackendTypes>::IntTensorPrimitive: From<B::IntTensorPrimitive>,
     {
-        let dtype = burn_std::complex_utils::complex_to_real_dtype(lhs.dtype());
+        let dtype = complex_to_real_dtype(lhs.dtype());
 
         Self::complex_powf(
             lhs,
@@ -1353,5 +1384,39 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
             let tensor = B::complex_reshape(tensor, Shape::new([n]));
             B::complex_select(tensor, 0, indices)
         }
+    }
+}
+
+/// Maps a real float [`DType`] to the corresponding complex [`DType`].
+///
+/// * `F32` → `Complex32`
+/// * `F64` → `Complex64`
+///
+/// # Panics
+///
+/// Panics if `real_data` is not a supported float dtype.
+#[inline(always)]
+pub const fn real_to_complex_dtype(real_data: DType) -> DType {
+    match real_data {
+        DType::F32 => DType::Complex32,
+        DType::F64 => DType::Complex64,
+        _ => panic!("r2c: Unsupported dtype"),
+    }
+}
+
+/// Maps a complex [`DType`] to the corresponding real float [`DType`].
+///
+/// * `Complex32` → `F32`
+/// * `Complex64` → `F64`
+///
+/// # Panics
+///
+/// Panics if `complex_dtype` is not a supported complex dtype.
+#[inline(always)]
+pub const fn complex_to_real_dtype(complex_dtype: DType) -> DType {
+    match complex_dtype {
+        DType::Complex32 => DType::F32,
+        DType::Complex64 => DType::F64,
+        _ => panic!("c2r: Unsupported dtype"),
     }
 }

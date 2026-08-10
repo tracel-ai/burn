@@ -31,6 +31,22 @@ impl ComplexTensorOps<Self> for Dispatch {
         ))
     }
 
+    fn complex_from_data(
+        data: burn_backend::TensorData,
+        device: &DispatchDevice,
+    ) -> burn_backend::ComplexTensor<Self> {
+        creation_op!(Complex, device, |device| B::complex_from_data(data, device))
+    }
+
+    fn complex_from_parts_data(
+        real_data: burn_backend::TensorData,
+        imag_data: burn_backend::TensorData,
+        device: &DispatchDevice,
+    ) -> burn_backend::ComplexTensor<Self> {
+        creation_op!(Complex, device, |device| {
+            B::complex_from_parts_data(real_data, imag_data, device)
+        })
+    }
     async fn complex_into_data(tensor: ComplexTensor<Self>) -> Result<TensorData, ExecutionError> {
         unary_complex!(tensor, complex, |tensor| B::complex_into_data(tensor).await)
     }
@@ -48,7 +64,7 @@ impl ComplexTensorOps<Self> for Dispatch {
             |inner, device| {
                 let data = burn_backend::read_sync(B1::complex_into_data(inner))
                     .expect("Should read data");
-                B2::complex_from_interleaved_data(data, device)
+                B2::complex_from_data(data, device)
             }
         )
     }
@@ -521,13 +537,12 @@ impl ComplexTensorOps<Self> for Dispatch {
     }
 
     fn complex_from_parts(
-        real: TensorData,
-        imag: TensorData,
-        device: &DispatchDevice,
+        real: FloatTensor<Self>,
+        imag: FloatTensor<Self>,
     ) -> burn_backend::ComplexTensor<Self> {
-        complex_creation_op!(Complex, device, |device| B::complex_from_parts(
-            real, imag, device
-        ))
+        binary_op!((real, float),(imag, float),|real,imag| B::complex_from_parts(
+            real, imag,
+        ) => Complex)
     }
 
     fn complex_from_polar(

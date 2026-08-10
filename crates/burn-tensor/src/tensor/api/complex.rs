@@ -248,13 +248,11 @@ where
     ///
     /// ```ignore
     /// let device = Default::default();
-    /// let tensor = Tensor::<1, Complex>::from_parts([1.0, -2.0], [3.0, 4.0], &device);
+    /// let tensor = Tensor::<1, Complex>::from_parts(
+    ///     TensorData::from([1.0, -2.0]).into(), TensorData::from([3.0, 4.0]).into(), &device);
     /// ```
-    pub fn from_parts<T>(real: T, imag: T, device: &Device) -> Self
-    where
-        T: Into<TensorData>,
-    {
-        Self::new(K::from_parts(real.into(), imag.into(), device))
+    pub fn from_parts(real: Tensor<D>, imag: Tensor<D>, device: &Device) -> Self {
+        Self::new(K::from_parts(real.primitive, imag.primitive))
     }
     /// Converts a complex tensor into separate real and imaginary host data.
     pub fn into_parts(self) -> (TensorData, TensorData) {
@@ -274,11 +272,8 @@ where
     }
 
     /// Create a Complex Tensor from a float tensor representing the real part, filling the imaginary part with zeros.
-    pub fn from_real<T>(real: T, device: &Device) -> Self
-    where
-        T: Into<TensorData>,
-    {
-        Self::new(K::from_real(real.into(), device))
+    pub fn from_real(real: Tensor<D>) -> Self {
+        Self::new(K::from_real(real.primitive))
     }
 
     /// Creates a complex tensor from magnitude and phase (polar form).

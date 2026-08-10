@@ -1023,6 +1023,15 @@ macro_rules! binary_op {
             |$lhs_inner, $rhs_inner| { $body }
         )
     };
+    (($lhs:expr, $lhs_kind:ident), ($rhs:expr, $rhs_kind:ident), |$lhs_inner:ident, $rhs_inner:ident| $body:expr => Complex) => {
+        complex_backend_list!(
+            binary_op_arms,
+            Complex,
+            ($lhs, $lhs_kind),
+            ($rhs, $rhs_kind),
+            |$lhs_inner, $rhs_inner| { $body }
+        )
+    };
     (($lhs:expr, $lhs_kind:ident), ($rhs:expr, $rhs_kind:ident), |$lhs_inner:ident, $rhs_inner:ident| $body:expr => $kind:ident) => {
         backend_list!(
             binary_op_arms,
