@@ -347,9 +347,6 @@ impl From<DType> for ComplexDType {
     }
 }
 
-// A lot of this is a workaround for DeviceSettings needing to be constructed before we can check if the device supports complex dtypes,
-// which is a chicken-and-egg problem. By making ComplexDType separate from DType and fallible to convert from DType,
-//  we can represent unsupported complex dtypes as `None` and avoid the need for a sentinel `Unsupported` variant in DType.
 impl TryFrom<Option<DType>> for ComplexDType {
     fn try_from(value: Option<DType>) -> Result<Self, Self::Error> {
         match value {
