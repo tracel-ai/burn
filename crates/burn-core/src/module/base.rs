@@ -262,7 +262,24 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     where
         Self: Sized,
     {
-        crate::store::ModuleRecord::from_module(self)
+        crate::store::ModuleRecord::from_module(self, None)
+    }
+
+    /// Collect the parameters `group` names into a [`ModuleRecord`](crate::store::ModuleRecord).
+    ///
+    /// The record of a part of the module rather than all of it — what a run that trained a
+    /// group writes when the rest of the module is the checkpoint it started from, and what
+    /// [`load_record`](Module::load_record) applies back over that checkpoint (with
+    /// [`allow_partial`](crate::store::ModuleRecord::allow_partial), since the record holds
+    /// nothing for the parameters outside the group).
+    ///
+    /// A parameter the group does not match is skipped before its data is read, so this never
+    /// materializes the rest of the module.
+    fn into_record_group(self, group: ParamGroup) -> crate::store::ModuleRecord
+    where
+        Self: Sized,
+    {
+        crate::store::ModuleRecord::from_module(self, Some(group))
     }
 
     /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, returning the loaded
