@@ -92,6 +92,9 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
             );
             event_processor.process_valid(LearnerEvent::EndSplit(epoch));
             event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            if checkpointer.is_some() || early_stopping.is_some() {
+                event_processor.flush();
+            }
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(&learner, epoch, &training_components.event_store);

@@ -355,6 +355,7 @@ where
             .clone()
             .mask_fill(self.clone().lower_scalar(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_scalar(0), 0)); // Handle positive indices
+
         // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
 
@@ -581,6 +582,12 @@ where
     /// * `dim` - The dimension along which to find the maximum value.
     ///   Negative dimensions are supported and count from the end.
     ///
+    /// # NaN behavior
+    ///
+    /// For floating-point tensors, NaNs take precedence over non-NaN values. If a reduced slice
+    /// contains multiple NaNs, the lowest coordinate along `dim` is returned. Non-NaN ties also
+    /// return the lowest coordinate.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -591,6 +598,10 @@ where
     /// let tensor = tensor.argmax(1);
     /// println!("{:?}", tensor.shape());
     /// // Shape { dims: [2, 1, 3] }
+    ///
+    /// let tensor = Tensor::<1>::from_data([3.0, f32::NAN, f32::NAN], &device);
+    /// let index: i32 = tensor.argmax(0).into_scalar();
+    /// assert_eq!(index, 1);
     /// ```
     pub fn argmax(self, dim: impl AsIndex) -> Tensor<D, Int> {
         let dim = unwrap_dim_index(dim.try_dim_index(D), "Argmax");
@@ -623,6 +634,8 @@ where
 
     /// Find the maximum value.
     ///
+    /// For floating-point tensors, the result is NaN if any element is NaN.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -633,6 +646,10 @@ where
     /// let tensor = tensor.max();
     /// println!("{tensor}");
     /// // [9.0]
+    ///
+    /// let tensor = Tensor::<1>::from_data([1.0, f32::NAN, 3.0], &device);
+    /// let value: f32 = tensor.max().into_scalar();
+    /// assert!(value.is_nan());
     /// ```
     pub fn max(self) -> Tensor<1, K> {
         Tensor::new(K::max(self.primitive))
@@ -641,6 +658,10 @@ where
     /// Find the maximum value along the given dimension.
     ///
     /// Also returns the indices.
+    ///
+    /// For floating-point tensors, a NaN in a reduced slice produces a NaN value. The returned
+    /// index is the lowest coordinate containing NaN. Non-NaN ties also return the lowest
+    /// coordinate.
     ///
     /// # Example
     ///
@@ -667,6 +688,8 @@ where
     }
 
     /// Find the maximum absolute value.
+    ///
+    /// For floating-point tensors, the result is NaN if any element is NaN.
     ///
     /// # Example
     ///
@@ -723,6 +746,8 @@ where
     /// The returned tensor will have the same rank,
     /// but the aggregated dimension will have size 1.
     ///
+    /// For floating-point tensors, a reduced slice produces NaN if it contains a NaN.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -752,6 +777,8 @@ where
     /// The returned tensor will have the same rank,
     /// but the aggregated dimensions will have size 1.
     ///
+    /// For floating-point tensors, a reduced region produces NaN if it contains a NaN.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -775,6 +802,12 @@ where
     /// * `dim` - The dimension along which to find the minimum value.
     ///   Negative dimensions are supported and count from the end.
     ///
+    /// # NaN behavior
+    ///
+    /// For floating-point tensors, NaNs take precedence over non-NaN values. If a reduced slice
+    /// contains multiple NaNs, the lowest coordinate along `dim` is returned. Non-NaN ties also
+    /// return the lowest coordinate.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -792,6 +825,8 @@ where
     }
 
     /// Find the minimum value.
+    ///
+    /// For floating-point tensors, the result is NaN if any element is NaN.
     ///
     /// # Example
     ///
@@ -819,6 +854,8 @@ where
     ///
     /// The returned tensor will have the same rank,
     /// but the aggregated dimension will have size 1.
+    ///
+    /// For floating-point tensors, a reduced slice produces NaN if it contains a NaN.
     ///
     /// # Example
     ///
@@ -848,6 +885,8 @@ where
     /// The returned tensor will have the same rank,
     /// but the aggregated dimensions will have size 1.
     ///
+    /// For floating-point tensors, a reduced region produces NaN if it contains a NaN.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -866,6 +905,10 @@ where
     /// Find the minimum value along the given dimension.
     ///
     /// Also returns the indices.
+    ///
+    /// For floating-point tensors, a NaN in a reduced slice produces a NaN value. The returned
+    /// index is the lowest coordinate containing NaN. Non-NaN ties also return the lowest
+    /// coordinate.
     ///
     /// # Example
     ///
@@ -1021,6 +1064,9 @@ where
     /// * `dim` - The dimension or axis along which to compute the cumulative minimum.
     ///   Negative dimensions are supported and count from the end.
     ///
+    /// For floating-point tensors, once a NaN is encountered in a scan, the output at that
+    /// position and every later position in the scan is NaN.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1046,6 +1092,9 @@ where
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative maximum.
     ///   Negative dimensions are supported and count from the end.
+    ///
+    /// For floating-point tensors, once a NaN is encountered in a scan, the output at that
+    /// position and every later position in the scan is NaN.
     ///
     /// # Example
     ///
@@ -1077,6 +1126,8 @@ where
     /// The returned tensor will have the same rank,
     /// but the aggregated dimension will have size 1.
     ///
+    /// For floating-point tensors, a reduced slice produces NaN if it contains a NaN.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1104,6 +1155,8 @@ where
     ///
     /// The returned tensor will have the same rank,
     /// but the aggregated dimensions will have size 1.
+    ///
+    /// For floating-point tensors, a reduced region produces NaN if it contains a NaN.
     ///
     /// # Example
     ///
