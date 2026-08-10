@@ -419,12 +419,8 @@ mod tests {
 
     impl DeviceOps for TestDevice {
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::with_dtypes(
-                FloatDType::F32,
-                IntDType::I32,
-                BoolDType::Native,
-                Complex32,
-            )
+            DeviceSettings::new(FloatDType::F32, IntDType::I32, BoolDType::Native)
+                .with_complex(Complex32)
         }
     }
 
