@@ -1,4 +1,6 @@
-use super::Param;
+use super::{Param, Reparameterization};
+use crate as burn;
+use crate::module::Module;
 use burn_tensor::Tensor;
 
 /// A LoRA (Low-Rank Adaptation) adapter attached to a frozen weight [parameter](Param).
@@ -9,7 +11,7 @@ use burn_tensor::Tensor;
 /// parameter; the adapter factors are surfaced to the optimizer, autodiff and record systems as
 /// regular parameters with their own [`ParamId`](super::ParamId)s through the module
 /// visitor/mapper traversal.
-#[derive(Clone, Debug)]
+#[derive(Debug, Module)]
 pub struct LoraAdapter {
     /// Down-projection factor with shape `[d_in, rank]` (trainable).
     pub a: Param<Tensor<2>>,
@@ -17,6 +19,15 @@ pub struct LoraAdapter {
     pub b: Param<Tensor<2>>,
     /// Scaling factor applied to the low-rank product, typically `alpha / rank`.
     pub scale: f64,
+}
+
+impl Reparameterization for LoraAdapter {
+    const NAME: &'static str = "lora";
+
+    fn materialize<const D: usize>(&self, base: Tensor<D>) -> Tensor<D> {
+        let delta = self.delta().reshape(base.shape());
+        base + delta
+    }
 }
 
 impl LoraAdapter {

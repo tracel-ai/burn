@@ -294,6 +294,9 @@ fn global_view<E: CubePrimitive>(
         MatmulArg::Normal(_) => View::new::<GlobalInput, Coords1d>(data_buf, data_layout),
         MatmulArg::Quantized { scales, scheme, .. } => {
             let scales_layout = match comptime![scheme.level] {
+                QuantLevel::BlockTensor { .. } => {
+                    unimplemented!("two-level quantization is not supported yet")
+                }
                 QuantLevel::Tensor => GlobalScaleLayout::new_PerTensor(shape),
                 QuantLevel::Block(block_size) => {
                     let block_size = comptime![block_size.as_dim::<2>()];

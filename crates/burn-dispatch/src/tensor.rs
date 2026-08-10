@@ -416,10 +416,19 @@ impl TensorMetadata for DispatchTensor {
         // we can wrap with Autodiff in all cases.
 
         #[cfg(feature = "autodiff")]
-        if let DispatchDevice::Autodiff(device) = &mut device
-            && let Some(checkpointing) = &self.checkpointing
-        {
-            device.checkpointing = *checkpointing;
+        if let Some(checkpointing) = &self.checkpointing {
+            // A packed (quantized) tensor is float-kind data that travels beside
+            // the tape untracked, so its device is the autodiff one: whatever is
+            // built from it — its dequantized form, LoRA factors over it — must
+            // land on the tape.
+            if matches!(self.dtype(), DType::QFloat(_))
+                && !matches!(device, DispatchDevice::Autodiff(_))
+            {
+                device = DispatchDevice::autodiff(device);
+            }
+            if let DispatchDevice::Autodiff(device) = &mut device {
+                device.checkpointing = *checkpointing;
+            }
         }
 
         device

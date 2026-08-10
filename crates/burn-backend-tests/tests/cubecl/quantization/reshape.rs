@@ -149,3 +149,45 @@ fn should_quantize_dequantize_per_block_reshaped_2d_q8s_packed() {
 // - multi-block successful reshape (all current success tests use exactly 1 block, e.g. [4, 32] -> [1, 4, 32] with block_size 32)
 // - packed dimension alignment failure (invalid shape for packed num_quants)
 // - ND-block unsqueeze (should succeed per the is_unsqueeze exemption, but nothing tests it)
+
+/// Reshape correctness isolated from quantization error: dequantize the *same*
+/// quantized tensor via both orders. Any difference is the reshape's doing.
+fn reshape_matches_dequantize_then_reshape(value: QuantValue, level: QuantLevel) {
+    let numel = 32i64;
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+    let scheme = QuantScheme::default()
+        .with_level(level)
+        .with_value(value)
+        .with_store(QuantStore::PackedU32(0));
+
+    let data = TestTensorInt::arange(0..numel, &ref_device)
+        .float()
+        .div_scalar(numel)
+        .into_data();
+
+    let q = TestTensor::<1>::from_data(data, &device).quantize_dynamic(&scheme);
+
+    let reshaped_then_deq = q.clone().reshape::<2, _>([2, 16]).dequantize().into_data();
+    let deq_then_reshaped = q.dequantize().reshape::<2, _>([2, 16]).into_data();
+
+    reshaped_then_deq.assert_eq(&deq_then_reshaped, true);
+}
+
+#[test]
+fn q8s_reshape_matches_dequantize_then_reshape() {
+    reshape_matches_dequantize_then_reshape(QuantValue::Q8S, QuantLevel::Tensor);
+}
+
+#[test]
+fn q4s_reshape_matches_dequantize_then_reshape() {
+    reshape_matches_dequantize_then_reshape(QuantValue::Q4S, QuantLevel::Tensor);
+}
+
+#[test]
+fn q4s_block_reshape_matches_dequantize_then_reshape() {
+    reshape_matches_dequantize_then_reshape(
+        QuantValue::Q4S,
+        QuantLevel::Block(BlockSize::new([16])),
+    );
+}

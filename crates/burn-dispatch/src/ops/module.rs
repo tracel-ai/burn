@@ -153,6 +153,25 @@ impl ModuleOps<Self> for Dispatch {
         )
     }
 
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(x, float)],
+            => Float,
+            B::adaptive_avg_pool3d(x, output_size)
+        )
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(x, float), (grad, float)],
+            => Float,
+            B::adaptive_avg_pool3d_backward(x, grad)
+        )
+    }
+
     fn max_pool2d(
         x: FloatTensor<Self>,
         kernel_size: [usize; 2],

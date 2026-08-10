@@ -74,7 +74,12 @@ impl Optimizer for AdaGrad {
 
 impl AdaGradConfig {
     /// Build an [`AdaGrad`] from the config.
-    pub(crate) fn build(&self) -> AdaGrad {
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
+    pub fn build(&self) -> AdaGrad {
         AdaGrad {
             lr_decay: LrDecay {
                 lr_decay: self.lr_decay,
@@ -172,7 +177,7 @@ mod tests {
         let mut optimizer = create_adagrad();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let bytes = optimizer.into_bytes().unwrap();
         assert!(!bytes.is_empty());
@@ -228,11 +233,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear;
         let weights_expected = TensorData::from([

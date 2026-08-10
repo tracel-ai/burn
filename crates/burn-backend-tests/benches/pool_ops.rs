@@ -12,10 +12,11 @@ mod common;
 use common::BencherExt;
 
 use burn_tensor::{Tensor, TensorData, module};
-use divan::{AllocProfiler, Bencher};
+use divan::Bencher;
 
+#[cfg(not(feature = "bench-disable-alloc"))]
 #[global_allocator]
-static ALLOC: AllocProfiler = AllocProfiler::system();
+static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Pooling Benchmarks");

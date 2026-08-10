@@ -18,9 +18,6 @@ pub mod tensor;
 /// Elements for JIT backend
 pub mod element;
 
-/// Peak throughput measurement helpers.
-pub mod throughput;
-
 use cubecl::{CubeTask, Runtime};
 pub use element::{BoolElement, CubeElement, FloatElement, IntElement};
 

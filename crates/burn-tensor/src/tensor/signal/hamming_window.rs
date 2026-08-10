@@ -26,11 +26,9 @@ where $\alpha = 25/46$, $\beta = 1 - \alpha$, and $N$ = `size` when `periodic` i
 /// use burn_tensor::Device;
 /// use burn_tensor::signal::hamming_window;
 ///
-/// fn example() {
-///     let device = Default::default();
-///     let window = hamming_window(8, true, &device);
-///     println!("{window}");
-/// }
+/// let device = Default::default();
+/// let window = hamming_window(8, true, &device);
+/// println!("{window}");
 /// ```
 pub fn hamming_window(
     size: usize,

@@ -372,6 +372,28 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = ScatterOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            update,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Scatter(desc)))
+            .output()
+    }
+
     fn float_scatter_nd(
         data: FloatTensor<Self>,
         indices: IntTensor<Self>,
@@ -431,6 +453,28 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
             indices.into_ir(),
             value.into_ir(),
             IndexingUpdateOp::Add,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::SelectAssign(desc)))
+            .output()
+    }
+
+    fn float_select_assign(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = SelectAssignOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            update,
             || client.create_empty_handle(),
         );
 

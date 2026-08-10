@@ -10,19 +10,15 @@ In this section, we will go into the process of extending a backend, providing m
 But before we proceed, let's establish the fundamental principles that will empower you to craft
 your own backend extensions.
 
-As you can observe, most types in Burn are generic over the Backend trait. This might give the
-impression that Burn operates at a high level over the backend layer. However, making the trait
-explicit instead of being chosen via a compilation flag was a thoughtful design decision. This
-explicitness does not imply that all backends must be identical; rather, it offers a great deal of
-flexibility when composing backends. The autodifferentiation backend trait (see
-[autodiff section](../../building-blocks/autodiff.md)) is an example of how the backend trait has
-been extended to enable gradient computation with backpropagation. Furthermore, this design allows
-you to create your own backend extension. To achieve this, you need to design your own backend trait
-specifying which functions should be supported.
+Burn's user-facing tensors and modules are runtime-dispatched and don't expose a backend generic.
+Backend traits remain part of the lower layer, where they define primitive operations that can
+be registered with the Tensor → Bridge → Dispatch → Backend stack. To create an extension, define a
+backend trait specifying the new primitive operation, implement it for the backends you support,
+and expose a backend-independent `Tensor` function that calls through `Dispatch`.
 
 ```rust, ignore
-pub trait Backend: burn::tensor::backend::Backend {
-    fn my_new_function(tensor: B::FloatTensorPrimitive) -> B::FloatTensorPrimitive {
+pub trait Backend: burn::backend::Backend {
+    fn my_new_function(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // You can define a basic implementation reusing the Burn Backend API.
         // This can be useful since all backends will now automatically support
         // your model. But performance can be improved for this new

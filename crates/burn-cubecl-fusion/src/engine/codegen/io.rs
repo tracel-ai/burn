@@ -330,6 +330,9 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
     let tensor_len = tensor.tensor.len();
     let rank = config.rank;
     let layout = match level {
+        QuantLevel::BlockTensor { .. } => {
+            unimplemented!("two-level quantization is not supported yet")
+        }
         QuantLevel::Tensor => ScalesLayout::new_PerTensor(PerTensorLayout::new(tensor_len)),
         QuantLevel::Block(block_size) => {
             let block_size = comptime![block_size.to_dim_vec(rank)];

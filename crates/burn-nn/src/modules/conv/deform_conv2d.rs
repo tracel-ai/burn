@@ -81,6 +81,13 @@ impl DeformConv2dConfig {
         if self.padding == PaddingConfig2d::Same {
             checks::check_same_padding_support(&self.kernel_size);
         }
+        if !self.channels[0].is_multiple_of(self.offset_groups) {
+            panic!(
+                "Channels must be divisible by the number of groups. Got \
+                 channels_in={}, offset_groups={}",
+                self.channels[0], self.offset_groups
+            );
+        }
 
         let shape = [
             self.channels[1],
@@ -115,7 +122,7 @@ impl DeformConv2dConfig {
             dilation: self.dilation,
             padding: self.padding.clone(),
             weight_groups: self.weight_groups,
-            offset_groups: self.weight_groups,
+            offset_groups: self.offset_groups,
         }
     }
 }

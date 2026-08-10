@@ -18,7 +18,10 @@ impl QTensorOps<Self> for Dispatch {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        binary_op!(
+        // `binary_float` rather than `binary_op`: on an autodiff device the
+        // tensor and its scales arrive autodiff-wrapped, and quantization
+        // detaches them (the packed result carries no graph).
+        binary_float!(
             (tensor, float),
             (qparams.scales, float),
             |tensor, scales| {
@@ -134,8 +137,11 @@ impl QTensorOps<Self> for Dispatch {
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
                 let propagation = rhs.device().defaults().quantization.propagation;
+                // `binary_float` on the mixed cases: the float side may arrive
+                // autodiff-wrapped, in which case the op runs on the autodiff
+                // backend so gradients flow through the float operand.
                 if matches!(propagation, QuantPropagation::Propagate) {
-                    let out = binary_op!(
+                    let out = binary_float!(
                         (lhs, float),
                         (rhs, quantized),
                         |lhs, rhs| {
@@ -151,7 +157,7 @@ impl QTensorOps<Self> for Dispatch {
                     );
                     TensorPrimitive::QFloat(out)
                 } else {
-                    let out = binary_op!(
+                    let out = binary_float!(
                         (lhs, float),
                         (rhs, quantized),
                         |lhs, rhs| {
@@ -171,7 +177,7 @@ impl QTensorOps<Self> for Dispatch {
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
                 let propagation = lhs.device().defaults().quantization.propagation;
                 if matches!(propagation, QuantPropagation::Propagate) {
-                    let out = binary_op!(
+                    let out = binary_float!(
                         (lhs, quantized),
                         (rhs, float),
                         |lhs, rhs| {
@@ -187,7 +193,7 @@ impl QTensorOps<Self> for Dispatch {
                     );
                     TensorPrimitive::QFloat(out)
                 } else {
-                    let out = binary_op!(
+                    let out = binary_float!(
                         (lhs, quantized),
                         (rhs, float),
                         |lhs, rhs| {

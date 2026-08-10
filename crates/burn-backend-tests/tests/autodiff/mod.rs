@@ -4,6 +4,7 @@ pub use super::*;
 mod abs;
 mod adaptive_avgpool1d;
 mod adaptive_avgpool2d;
+mod adaptive_avgpool3d;
 mod add;
 mod aggregation;
 #[cfg(feature = "distributed")]
@@ -61,6 +62,8 @@ mod neg;
 mod nonzero;
 mod permute;
 mod pow;
+#[cfg(feature = "quantization")]
+mod quantization;
 mod recip;
 mod relu;
 mod remainder;

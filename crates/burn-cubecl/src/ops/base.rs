@@ -274,6 +274,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     // Extra check to ensure block scales must be properly handled once they're added
     if tensor.qparams.is_some() {
         match tensor.scheme().level {
+            QuantLevel::BlockTensor { .. } => todo!(),
             QuantLevel::Tensor => {}
             QuantLevel::Block(_) => todo!(),
         }
@@ -356,16 +357,6 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     let n_new_dims = shape.num_dims().saturating_sub(curr_shape.num_dims());
     let is_unsqueeze = n_new_dims > 0 && shape[n_new_dims..] == **curr_shape;
 
-    if !is_unsqueeze
-        && matches!(
-            scheme.value,
-            QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
-        )
-    {
-        // FIXME
-        todo!("Reshape with sub-byte values is not supported")
-    }
-
     // Check valid reshapes
     if let ReshapeAction::UpdateStrides { .. } = &action_values {
         match analysis_values {
@@ -398,6 +389,9 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     let shape_last = *shape.last().unwrap();
 
     let shape_scales = match scheme.level {
+        QuantLevel::BlockTensor { .. } => {
+            unimplemented!("two-level quantization is not supported yet")
+        }
         QuantLevel::Tensor => scales.meta.shape().clone(), // always [1], invariant under reshape
         QuantLevel::Block(block_size)
             if block_size.len() == 1 && shape_last < (block_size[0] as usize) =>
@@ -445,6 +439,19 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
         }
         // Any action to recompute
         (ReshapeAction::Recompute, _) | (_, ReshapeAction::Recompute) => {
+            // Rewriting the buffer would have to repack values that share a
+            // storage element; a metadata-only reshape leaves the packing alone.
+            if !is_unsqueeze
+                && matches!(
+                    scheme.value,
+                    QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
+                )
+            {
+                todo!(
+                    "Reshape with sub-byte values is not supported when the buffer must be recomputed"
+                )
+            }
+
             if let QuantLevel::Block(_) = scheme.level
                 && shape_scales.num_elements() > 1
             {
