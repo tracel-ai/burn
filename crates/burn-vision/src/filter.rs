@@ -1,10 +1,18 @@
+// The `Config` derive macro expands to `burn::...` paths, so it needs a crate
+// alias named `burn` in scope.
+use burn_core as burn;
 use burn_core::{
     Tensor,
+    config::Config,
     tensor::{
-        FloatDType,
+        Device, FloatDType,
         module::conv2d,
         ops::{ConvOptions, PadMode},
     },
+};
+use burn_std::{
+    rand::{self, RngExt, SeedableRng, StdRng},
+    sync::Mutex,
 };
 
 /// Depthwise convolution of a tensor with a 2D kernel.
@@ -45,6 +53,79 @@ pub fn filter2d(images: Tensor<4>, kernel: Tensor<2>, border: PadMode) -> Tensor
         None,
         ConvOptions::new([1, 1], [0, 0], [1, 1], channels),
     )
+}
+
+/// Configuration for a [`BoxBlur`] augmentation.
+#[derive(Config, Debug)]
+pub struct BoxBlurConfig {
+    /// The size of one side of the (square) kernel, in pixels.
+    #[config(default = 3)]
+    pub kernel_size: usize,
+    /// Probability of the blur being applied.
+    #[config(default = 1.0)]
+    pub probability: f32,
+}
+
+impl BoxBlurConfig {
+    /// Builds the box-filter kernel on `device` and returns the ready [`BoxBlur`].
+    ///
+    /// # Panics
+    /// Panics unless `kernel_size` is odd and at least `3`.
+    pub fn init(&self, device: &Device) -> BoxBlur {
+        assert!(
+            self.kernel_size >= 3 && self.kernel_size % 2 == 1,
+            "kernel_size must be odd and at least 3, got {}",
+            self.kernel_size
+        );
+
+        let weight = 1.0 / (self.kernel_size * self.kernel_size) as f32;
+        let kernel = Tensor::<2>::full([self.kernel_size, self.kernel_size], weight, device);
+
+        BoxBlur {
+            kernel,
+            probability: self.probability,
+            rng: Mutex::new(StdRng::from_rng(&mut rand::get_seeded_rng())),
+        }
+    }
+}
+
+/// Blurs a batch of images with a uniform box filter, applied with a given
+/// probability. Built from a [`BoxBlurConfig`].
+#[derive(Debug)]
+pub struct BoxBlur {
+    /// The precomputed `[kernel_size, kernel_size]` box-filter kernel.
+    kernel: Tensor<2>,
+    /// Probability of the blur being applied.
+    probability: f32,
+    rng: Mutex<StdRng>,
+}
+
+impl BoxBlur {
+    /// Draws from `seed` rather than from the thread's generator.
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.rng = Mutex::new(StdRng::seed_from_u64(seed));
+        self
+    }
+
+    fn sample(&self) -> bool {
+        let mut rng = self.rng.lock();
+
+        rng.random::<f32>() < self.probability
+    }
+
+    /// Unconditionally applies the box filter to the batch of images.
+    pub fn apply(&self, images: Tensor<4>) -> Tensor<4> {
+        filter2d(images, self.kernel.clone(), PadMode::Reflect)
+    }
+
+    /// Applies the box filter with probability `probability`, otherwise returns
+    /// the images unchanged.
+    pub fn forward(&self, images: Tensor<4>) -> Tensor<4> {
+        match self.sample() {
+            true => self.apply(images),
+            false => images,
+        }
+    }
 }
 
 #[cfg(test)]
