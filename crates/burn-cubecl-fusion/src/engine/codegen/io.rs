@@ -174,18 +174,15 @@ fn index_offset_with_quant_layout(
     }];
 
     let mut offset = 0;
-    let mut stride_ref = 1;
 
     #[unroll]
-    for r in 0..rank {
-        let i = reverse_index(rank, r).comptime();
-        let coord = offset_ref / stride_ref % locals.ref_shape[i];
+    for i in 0..rank {
+        let coord = offset_ref / locals.ref_strides[i] % tensor.tensor.shape(i);
         if comptime![i == packed_axis] {
             offset += coord / num_quants * tensor.tensor.stride(i);
         } else {
             offset += coord * tensor.tensor.stride(i);
         }
-        stride_ref *= locals.ref_shape[i];
     }
 
     offset / tensor.tensor.vector_size()

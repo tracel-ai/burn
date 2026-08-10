@@ -4,9 +4,7 @@ use burn_backend::{
     DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
     get_device_settings,
     ops::QTensorOps,
-    quantization::{
-        QuantLevel, QuantPropagation, QuantScheme, QuantStore, QuantizationParametersPrimitive,
-    },
+    quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{
@@ -23,34 +21,6 @@ use crate::{
 };
 
 use super::NoOp;
-
-fn permute_quantized_dtype(dtype: DType, rank: usize, axes: &[usize]) -> DType {
-    let DType::QFloat(mut scheme) = dtype else {
-        return dtype;
-    };
-
-    if let QuantLevel::Block(block_size) = scheme.level {
-        let block_size = block_size.to_dim_vec(rank);
-        let block_size = axes
-            .iter()
-            .map(|axis| block_size[*axis])
-            .collect::<Vec<_>>();
-        scheme = scheme.with_level(QuantLevel::block(&block_size));
-    }
-
-    if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
-        &mut scheme.store
-    {
-        let packed_axis = rank - *packed_dim - 1;
-        let new_axis = axes
-            .iter()
-            .position(|axis| *axis == packed_axis)
-            .expect("Permute axes to contain the packed axis");
-        *packed_dim = rank - new_axis - 1;
-    }
-
-    DType::QFloat(scheme)
-}
 
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
@@ -225,13 +195,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let streams = StreamId::current();
 
         let client = tensor.client.clone();
-        let mut desc = SwapDimsOpIr::create(tensor.into_ir(), dim1, dim2, || {
+        let desc = SwapDimsOpIr::create(tensor.into_ir(), dim1, dim2, || {
             client.create_empty_handle()
         });
-        let rank = desc.input.shape.num_dims();
-        let mut axes = (0..rank).collect::<Vec<_>>();
-        axes.swap(dim1, dim2);
-        desc.out.dtype = permute_quantized_dtype(desc.input.dtype, rank, &axes);
 
         client
             .register(
@@ -260,11 +226,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let streams = StreamId::current();
 
         let client = tensor.client.clone();
-        let mut desc = PermuteOpIr::create(tensor.into_ir(), axes.into(), || {
+        let desc = PermuteOpIr::create(tensor.into_ir(), axes.into(), || {
             client.create_empty_handle()
         });
-        let rank = desc.input.shape.num_dims();
-        desc.out.dtype = permute_quantized_dtype(desc.input.dtype, rank, &desc.axes);
 
         client
             .register(

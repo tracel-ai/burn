@@ -1065,15 +1065,27 @@ fn dequantize<C: Float, N: Size>(
         }
     } else {
         let packed_axis = comptime![config.rank - packed_dim - 1];
-        let mut packed_stride = 1;
-        #[unroll]
-        for i in packed_axis + 1..config.rank {
-            packed_stride *= locals.ref_shape[i];
-        }
 
         #[unroll]
         for i in 0..N::value() {
-            let position = write_pos * N::value() + i;
+            let position = write_pos * locals.ref_vector_size + i;
+            let packed_coord =
+                position / locals.ref_strides[packed_axis] % locals.ref_shape[packed_axis];
+            let packed_index = packed_coord % num_quants;
+
+            // Scale layouts use a row-major logical position, while `position` belongs to the
+            // potentially strided reference layout. Decode its coordinates with the reference
+            // strides, then flatten them in logical order.
+            let mut logical_position = 0;
+            let mut logical_stride = 1;
+            #[unroll]
+            for r in 0..config.rank {
+                let dim = reverse_index(config.rank, r).comptime();
+                let coord = position / locals.ref_strides[dim] % locals.ref_shape[dim];
+                logical_position += coord * logical_stride;
+                logical_stride *= locals.ref_shape[dim];
+            }
+
             let input = read_quantized_scalar::<QStoreType>(
                 inputs,
                 &*locals,
@@ -1089,8 +1101,7 @@ fn dequantize<C: Float, N: Size>(
                 QParamType,
                 QStoreType,
                 Const<1>,
-            >(position, input, &scales, scheme);
-            let packed_index = (position / packed_stride) % scheme.num_quants();
+            >(logical_position, input, &scales, scheme);
             vector.insert(i, result[0].extract(packed_index));
         }
     }
