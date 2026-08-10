@@ -251,8 +251,25 @@ where
     /// let tensor = Tensor::<1, Complex>::from_parts(
     ///     TensorData::from([1.0, -2.0]).into(), TensorData::from([3.0, 4.0]).into(), &device);
     /// ```
+    #[allow(unused)]
     pub fn from_parts(real: Tensor<D>, imag: Tensor<D>, device: &Device) -> Self {
         Self::new(K::from_parts(real.primitive, imag.primitive))
+    }
+
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let device = Default::default();
+    /// let tensor = Tensor::<1, Complex>::from_parts_data(
+    ///     [1.0, -2.0], [3.0, 4.0], &device);
+    /// ```
+    #[allow(unused)]
+    pub fn from_parts_data<T>(real: T, imag: T, device: &Device) -> Self
+    where
+        T: Into<TensorData>,
+    {
+        Self::new(K::from_parts_data(real.into(), imag.into(), device))
     }
     /// Converts a complex tensor into separate real and imaginary host data.
     pub fn into_parts(self) -> (TensorData, TensorData) {

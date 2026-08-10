@@ -18,6 +18,7 @@ use burn_std::TensorData;
 /// A `TensorData` with the same shape and an interleaved complex dtype, where the imaginary
 /// parts are all zero.
 #[inline]
+#[allow(unused)]
 pub fn interleaved_data_from_real_data(data: TensorData) -> TensorData {
     let elem_size = data.dtype.size();
 
@@ -60,6 +61,7 @@ fn zeroed_vec(size: usize) -> Vec<u8> {
 /// A `TensorData` with the same shape and an interleaved complex dtype, where the real
 /// parts are all zero.
 #[inline]
+#[allow(unused)]
 pub fn interleaved_data_from_imag_data(data: TensorData) -> TensorData {
     let elem_size = data.dtype.size();
     let mut interleaved_bytes = zeroed_vec(data.bytes.len() * 2);
@@ -131,6 +133,7 @@ pub fn interleaved_data_from_parts_data(real: TensorData, imag: TensorData) -> T
 ///
 /// A float `TensorData` with the same shape containing only the real parts.
 #[inline]
+#[allow(unused)]
 pub fn interleaved_data_to_real_data(interleaved: TensorData) -> TensorData {
     let real_dtype = complex_to_real_dtype(interleaved.dtype);
     let real_elem_size: usize = real_dtype.size();
@@ -151,6 +154,7 @@ pub fn interleaved_data_to_real_data(interleaved: TensorData) -> TensorData {
 
 /// Converts an interleaved complex `TensorData` into a float `TensorData`, flattening the real and imaginary parts into a single float buffer.
 #[inline]
+#[allow(unused)]
 pub fn interleaved_data_to_raw_float_data(interleaved: TensorData) -> TensorData {
     let real_dtype = complex_to_real_dtype(interleaved.dtype);
 
@@ -178,6 +182,7 @@ pub fn interleaved_data_to_raw_float_data(interleaved: TensorData) -> TensorData
 ///
 /// A float `TensorData` with the same shape containing only the imaginary parts.
 #[inline]
+#[allow(unused)]
 pub fn interleaved_data_to_imag_data(interleaved: TensorData) -> TensorData {
     let real_dtype = complex_to_real_dtype(interleaved.dtype);
     let real_elem_size = real_dtype.size();

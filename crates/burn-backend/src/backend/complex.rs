@@ -1,4 +1,4 @@
-use crate::{BackendTypes, ops::ComplexTensorOps, tensor::FloatTensor};
+use crate::{BackendTypes, ops::ComplexTensorOps};
 
 /// Complex tensor primitive type used by the backend.
 pub type ComplexTensor<B> = <B as BackendTypes>::ComplexTensorPrimitive;
