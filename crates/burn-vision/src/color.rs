@@ -11,7 +11,7 @@ pub trait ColorConversion {
     ///
     /// # Arguments
     /// * `self`: A batched image tensor of shape `[batch, channel, height, width]`
-    ///           in the `0.0..=1.0` range.
+    ///   in the `0.0..=1.0` range.
     ///
     /// # Returns
     /// The grayscale image tensor of shape `[batch, 1, height, width]`.
@@ -28,7 +28,7 @@ pub trait ColorConversion {
     ///
     /// # Arguments
     /// * `self`: A batched image tensor of shape `[batch, channel, height, width]`
-    ///           in the `0.0..=1.0` range.
+    ///   in the `0.0..=1.0` range.
     ///
     /// # Returns
     /// The same-shape image tensor in HSV color space.
@@ -37,8 +37,8 @@ pub trait ColorConversion {
     ///
     /// # Arguments
     /// * `self`: A batched image tensor of shape `[batch, channel, height, width]`.
-    ///           The first channel (hue) is in the `0.0..360.0` range.
-    ///           The other two (saturation and value) are in the `0.0..=1.0` range.
+    ///   The first channel (hue) is in the `0.0..360.0` range.
+    ///   The other two (saturation and value) are in the `0.0..=1.0` range.
     ///
     /// # Returns
     /// The same-shape image tensor in RGB color space.
@@ -137,11 +137,17 @@ mod tests {
     use burn_core::tensor::{Device, TensorData, Tolerance};
 
     fn pixel_to_tensor(rgb: [f32; 3]) -> Tensor<4> {
-        Tensor::<4>::from_data(TensorData::new(rgb.to_vec(), [1, 3, 1, 1]), &Device::default())
+        Tensor::<4>::from_data(
+            TensorData::new(rgb.to_vec(), [1, 3, 1, 1]),
+            &Device::default(),
+        )
     }
 
     fn gray_to_tensor(gray: f32) -> Tensor<4> {
-        Tensor::<4>::from_data(TensorData::new(vec![gray], [1, 1, 1, 1]), &Device::default())
+        Tensor::<4>::from_data(
+            TensorData::new(vec![gray], [1, 1, 1, 1]),
+            &Device::default(),
+        )
     }
 
     fn assert_gray(rgb: [f32; 3], expected: f32) {

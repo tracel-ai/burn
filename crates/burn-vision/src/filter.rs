@@ -26,9 +26,9 @@ use burn_std::{
 /// * `input` - A tensor shaped `[N, C, H, W]`.
 /// * `kernel` - The A 2D tensor to convolve with the input.
 /// * `border` - The [padding mode](PadMode) applied to the input before the
-///              convolution.
+///   convolution.
 ///
-/// # Retuns
+/// # Returns
 /// The filtered batched images, same shape as the input.
 pub fn filter2d(images: Tensor<4>, kernel: Tensor<2>, border: PadMode) -> Tensor<4> {
     let [_, channels, _, _] = images.dims();
@@ -147,7 +147,7 @@ pub fn median(images: Tensor<4>, size: usize) -> Tensor<4> {
 
     Tensor::stack::<5>(kernel_size, 0)
         .sort(0)
-        .slice([middle..middle + 1])
+        .slice(middle..middle + 1)
         .reshape(dims)
 }
 
