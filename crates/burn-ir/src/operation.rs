@@ -2052,7 +2052,7 @@ impl From<InterpolateMode> for InterpolateModeIr {
     fn from(val: InterpolateMode) -> Self {
         match val {
             InterpolateMode::Nearest => Self::Nearest,
-            InterpolateMode::NearestExact => Self::Nearest,
+            InterpolateMode::NearestExact => Self::NearestExact,
             InterpolateMode::Bilinear => Self::Bilinear,
             InterpolateMode::Bicubic => Self::Bicubic,
             InterpolateMode::Lanczos3 => Self::Lanczos3,

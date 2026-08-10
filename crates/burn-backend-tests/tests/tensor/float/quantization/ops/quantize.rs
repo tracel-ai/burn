@@ -172,6 +172,20 @@ fn should_quantize_transposed<const D: usize>(tensor: Tensor<D>, scheme: QuantSc
     );
 }
 
+fn should_dequantize_transposed<const D: usize>(tensor: Tensor<D>, scheme: QuantScheme) {
+    let output = tensor
+        .clone()
+        .quantize_dynamic(&scheme)
+        .transpose()
+        .dequantize()
+        .transpose();
+
+    tensor.into_data().assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::absolute(1e-1).set_relative(1e-2),
+    );
+}
+
 #[test]
 fn should_quantize_symmetric_int8_transposed_8x32() {
     let device = Default::default();
@@ -187,6 +201,23 @@ fn should_quantize_symmetric_int8_transposed_8x32() {
         .scheme
         .with_value(QuantValue::Q8S);
     should_quantize_transposed(tensor, scheme);
+}
+
+#[test]
+fn should_dequantize_symmetric_int8_transposed_8x32() {
+    let device = Default::default();
+
+    let values = (0..256)
+        .map(|value| value as f32 / 256.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<2>::from_data(TensorData::new(values, [8, 32]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+    should_dequantize_transposed(tensor, scheme);
 }
 
 #[test]
@@ -222,6 +253,79 @@ fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([32]));
     should_quantize_transposed(tensor, scheme);
+}
+
+#[test]
+fn should_dequantize_symmetric_per_block_int8_transposed_32x64() {
+    let device = Default::default();
+
+    let values = (0..2048)
+        .map(|value| value as f32 / 2048.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<2>::from_data(TensorData::new(values, [32, 64]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block([32]));
+
+    should_dequantize_transposed(tensor, scheme);
+}
+
+#[test]
+fn should_dequantize_symmetric_per_block_int8_permuted_2x8x16() {
+    let device = Default::default();
+
+    let values = (0..256)
+        .map(|value| value as f32 / 256.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<3>::from_data(TensorData::new(values, [2, 8, 16]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block([1, 2, 16]));
+    let expected = tensor.clone().permute([1, 2, 0]);
+    let output = tensor
+        .quantize_dynamic(&scheme)
+        .permute([1, 2, 0])
+        .dequantize();
+
+    expected.into_data().assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::absolute(1e-1).set_relative(1e-2),
+    );
+}
+
+#[test]
+fn should_dequantize_symmetric_per_block_int8_permuted_packed_axis_first() {
+    let device = Default::default();
+
+    let values = (0..256)
+        .map(|value| value as f32 / 256.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<3>::from_data(TensorData::new(values, [2, 8, 16]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block([1, 2, 16]));
+    let expected = tensor.clone().permute([2, 0, 1]);
+    let output = tensor
+        .quantize_dynamic(&scheme)
+        .permute([2, 0, 1])
+        .dequantize();
+
+    expected.into_data().assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::absolute(1e-1).set_relative(1e-2),
+    );
 }
 
 #[test]

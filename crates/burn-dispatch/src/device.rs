@@ -647,6 +647,10 @@ impl From<RocmDevice> for DispatchDevice {
 
 // A bare `WgpuDevice` maps to the auto-compiler [`DispatchDevice::Wgpu`] variant. To target a
 // specific wgpu specialization (Metal, Vulkan, WebGpu) construct the variant explicitly.
+//
+// The gates form a priority chain (metal, then vulkan, then webgpu) rather than mutually
+// exclusive conditions: cargo unifies features across a workspace, so several specializations
+// can be on at once and exclusive gates would leave the conversion with no impl at all.
 #[cfg(all(
     feature = "wgpu",
     not(any(feature = "metal", feature = "vulkan", feature = "webgpu"))
@@ -657,14 +661,14 @@ impl From<WgpuDevice> for DispatchDevice {
     }
 }
 
-#[cfg(all(feature = "metal", not(any(feature = "vulkan", feature = "webgpu"))))]
+#[cfg(feature = "metal")]
 impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
         DispatchDevice::Metal(device)
     }
 }
 
-#[cfg(all(feature = "vulkan", not(any(feature = "metal", feature = "webgpu"))))]
+#[cfg(all(feature = "vulkan", not(feature = "metal")))]
 impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
         DispatchDevice::Vulkan(device)

@@ -1,8 +1,5 @@
 use crate::metric::{AccuracyInput, PerplexityInput, TopKAccuracyInput};
-use crate::metric::{
-    Adaptor, CerInput, LossInput, WerInput,
-    processor::ItemLazy,
-};
+use crate::metric::{Adaptor, CerInput, LossInput, WerInput, processor::ItemLazy};
 use burn_core::tensor::{Int, Tensor};
 
 /// Sequence prediction output adapted for multiple metrics.

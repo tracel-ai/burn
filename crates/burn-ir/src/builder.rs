@@ -10,13 +10,47 @@ use burn_backend::{
         },
         unfold::calculate_unfold_shape,
     },
-    quantization::QuantScheme,
+    quantization::{QuantLevel, QuantScheme, QuantStore},
     tensor::IndexingUpdateOp,
 };
 
 use crate::{ScalarIr, TensorId, TensorIr};
 
 use super::operation::*;
+
+fn permute_quantized_dtype(dtype: DType, rank: usize, axes: &[usize]) -> DType {
+    let DType::QFloat(mut scheme) = dtype else {
+        return dtype;
+    };
+
+    if let QuantLevel::Block(block_size) = scheme.level {
+        let block_size = block_size.to_dim_vec(rank);
+        let block_size = axes
+            .iter()
+            .map(|axis| block_size[*axis])
+            .collect::<Vec<_>>();
+        scheme = scheme.with_level(QuantLevel::block(&block_size));
+    }
+
+    if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+        &mut scheme.store
+    {
+        let packed_axis = rank - *packed_dim - 1;
+        let new_axis = axes
+            .iter()
+            .position(|axis| *axis == packed_axis)
+            .expect("Permute axes to contain the packed axis");
+        *packed_dim = rank - new_axis - 1;
+    }
+
+    DType::QFloat(scheme)
+}
+
+fn swap_dims_quantized_dtype(dtype: DType, rank: usize, dim1: usize, dim2: usize) -> DType {
+    let mut axes = (0..rank).collect::<Vec<_>>();
+    axes.swap(dim1, dim2);
+    permute_quantized_dtype(dtype, rank, &axes)
+}
 
 impl CreationOpIr {
     pub fn create(shape: Shape, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
@@ -260,13 +294,13 @@ impl_ir_create!(
         dim2: usize
     },
     shape = input.shape.clone().swapped(dim1, dim2).unwrap(),
-    dtype = input.dtype
+    dtype = swap_dims_quantized_dtype(input.dtype, input.shape.rank(), dim1, dim2)
 );
 
 impl_ir_create!(
     PermuteOpIr { input: TensorIr, axes: Vec<usize> },
     shape = input.shape.clone().permuted(&axes).unwrap(),
-    dtype = input.dtype
+    dtype = permute_quantized_dtype(input.dtype, input.shape.rank(), &axes)
 );
 
 impl_ir_create!(

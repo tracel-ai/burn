@@ -416,7 +416,7 @@ fn vector_sizes_quants<R: Runtime>(
                 unreachable!("Can't store native sub-byte values")
             }
         },
-        QuantStore::PackedU32(_) => {
+        QuantStore::PackedU32(packed_dim) => {
             let mut vector_sizes = client
                 .io_optimized_vector_sizes(size_of::<u32>())
                 .collect::<Vec<_>>();
@@ -433,6 +433,13 @@ fn vector_sizes_quants<R: Runtime>(
                 if val < min {
                     vector_sizes.push(val);
                 }
+            }
+
+            if packed_dim != 0 {
+                // A moved packed axis uses scalar gathers and unpacks one storage word at a time.
+                // Keep output vectors at most as wide as the unpacked word to preserve the
+                // dynamic vector type used by the dequantization kernel.
+                vector_sizes.retain(|size| *size <= scheme.num_quants());
             }
 
             match &quants_vector_sizes {

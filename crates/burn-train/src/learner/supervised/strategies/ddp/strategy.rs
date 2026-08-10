@@ -1,5 +1,5 @@
 use core::panic;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Barrier, Mutex, mpsc};
 use std::thread;
 
 use crate::ddp::worker::DdpWorker;
@@ -28,6 +28,8 @@ pub(crate) struct WorkerComponents {
     pub train_total_items: usize,
     /// The total number of items in the validation dataset.
     pub valid_total_items: usize,
+    /// Synchronizes all workers before early stopping reads metrics from the event store.
+    pub epoch_barrier: Arc<Barrier>,
 }
 
 /// A training strategy for Distributed Data Parallel (DDP) training.
@@ -92,6 +94,7 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
             event_store: training_components.event_store,
             train_total_items,
             valid_total_items,
+            epoch_barrier: Arc::new(Barrier::new(peer_count)),
         };
 
         // Start worker for main device

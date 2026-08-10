@@ -61,8 +61,9 @@ These methods are available for all modules.
 | `module.map(mapper)`                 | N/A                                      |
 | `module.freeze_group(param_group)`   | N/A                                      |
 | `module.unfreeze_group(param_group)` | N/A                                      |
-| `module.apply_lora(config)`          | N/A                                      |
-| `module.apply_qlora(config)`         | N/A                                      |
+| `module.apply_lora(lora)`            | N/A                                      |
+| `module.apply_qlora(qlora)`          | N/A                                      |
+| `module.apply_reparameterization(r)` | N/A                                      |
 | `module.into_record()`               | Similar to `state_dict`                  |
 | `module.load_record(record)`         | Similar to `load_state_dict(state_dict)` |
 | `module.try_load_record(record)`     | Similar to `load_state_dict(state_dict)` |
@@ -172,6 +173,33 @@ impl ModuleMapper for Clamp {
     }
 }
 ```
+
+## Reparameterization
+
+A reparameterization changes how a parameter's effective value is computed without changing the
+module's type or forward pass. The original parameter remains its structural base, while an attached
+state materializes the value returned by `Param::val()`. LoRA uses this mechanism to keep a frozen
+structural base and attach trainable low-rank factors:
+
+```rust, ignore
+use burn::module::{Lora, Module};
+
+let model = model.apply_lora(Lora::new(8, 16.0));
+```
+
+The `Reparameterizer` receives every floating-point parameter and its module path. It decides which
+parameters to transform, prepares their structural bases, and optionally attaches a
+`Reparameterization`. A reparameterization is itself a regular module, so its parameters
+automatically participate in visitors, mappers, optimization, records, device transfers, and
+autodiff. Custom techniques implement these traits and are applied through
+`apply_reparameterization`, making custom parameter-level PEFT methods possible without modifying
+the original model or layer.
+
+LoRA and QLoRA are built on the same mechanism but provide the convenience methods `apply_lora` and
+`apply_qlora` for normal use. Reparameterizations cannot currently be nested, so
+`apply_reparameterization` should only be called on a module that does not already contain
+reparameterized parameters. Use `Param::base()` to access the stored base directly and
+`Param::val()` to obtain the materialized value.
 
 ## Module Display
 
