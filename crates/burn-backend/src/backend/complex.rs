@@ -1,5 +1,3 @@
-use burn_std::TensorData;
-
 use crate::{BackendTypes, ops::ComplexTensorOps, tensor::FloatTensor};
 
 /// Complex tensor primitive type used by the backend.

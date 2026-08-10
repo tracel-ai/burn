@@ -31,9 +31,6 @@ pub enum BackendTensor<B: BackendTypes> {
     #[cfg(feature = "autodiff")]
     /// Autodiff float tensor handle.
     Autodiff(FloatTensor<Autodiff<B>>),
-    // #[cfg(feature = "autodiff")]
-    // /// Autodiff complex tensor handle.
-    // AutodiffComplex(ComplexTensor<Autodiff<B>>),
     /// Complex tensor handle.
     Complex(B::ComplexTensorPrimitive),
 }
@@ -98,7 +95,6 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
 
-    ///TODO: Need to figure out how to return the inner autodiff tensor primitive;
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
     pub fn autodiff(self) -> FloatTensor<Autodiff<B>> {
@@ -163,8 +159,6 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => "Quantized",
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => "Autodiff",
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(_) => "AutodiffComplex",
             BackendTensor::Complex(_) => "Complex",
         }
     }
@@ -203,8 +197,6 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.shape(),
-            // #[cfg(feature = "autodiff")]
-            // BackendTensor::AutodiffComplex(tensor) => tensor.shape(),
             BackendTensor::Complex(tensor) => tensor.shape(),
         }
     }
@@ -599,16 +591,12 @@ macro_rules! impl_dispatch_conversion {
                         DispatchTensorKind::$backend(BackendTensor::Quantized(t))
                     }
                     BackendTensor::Complex(t) => {
-                        //let ad_tensor = BackendTensor::AutodiffComplex(t);
-                        //let inner_dispatch = DispatchTensorKind::$backend(ad_tensor);
                         DispatchTensorKind::$backend(BackendTensor::Complex(t))
                     }
 
                     BackendTensor::Autodiff(_) => {
                         panic!("Unexpected Autodiff variant provided to `from_backend`",)
-                    } // BackendTensor::AutodiffComplex(_) => {
-                      //     panic!("Unexpected Autodiff complex variant provided to `from_backend`",)
-                      // }
+                    }
                 };
 
                 DispatchTensor {
