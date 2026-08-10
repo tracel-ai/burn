@@ -85,6 +85,7 @@ pub struct ModuleRecord {
     tensors: Vec<RecordTensor>,
     dtype_policy: DTypePolicy,
     allow_partial: bool,
+    allow_unused: bool,
     validate: bool,
 }
 
@@ -94,6 +95,7 @@ impl core::fmt::Debug for ModuleRecord {
             .field("num_tensors", &self.tensors.len())
             .field("dtype_policy", &self.dtype_policy)
             .field("allow_partial", &self.allow_partial)
+            .field("allow_unused", &self.allow_unused)
             .field("validate", &self.validate)
             .finish()
     }
@@ -105,6 +107,7 @@ impl ModuleRecord {
             tensors,
             dtype_policy: DTypePolicy::default(),
             allow_partial: false,
+            allow_unused: false,
             validate: true,
         }
     }
@@ -133,8 +136,24 @@ impl ModuleRecord {
     }
 
     /// Allow loading even when some module parameters are absent from the record.
+    ///
+    /// What a record of a part of a module needs — one taken with
+    /// [`into_record_group`](crate::module::Module::into_record_group), say — since it holds
+    /// nothing for the parameters outside that part.
     pub fn allow_partial(mut self, allow: bool) -> Self {
         self.allow_partial = allow;
+        self
+    }
+
+    /// Allow loading even when the record holds tensors no module parameter matches.
+    ///
+    /// The mirror of [`allow_partial`](Self::allow_partial), and refused by default: a record
+    /// entry that lands nowhere means the module is not the one the record was taken from, and
+    /// the load that looks like it succeeded has quietly done less than it was asked — or, at
+    /// `allow_partial(true)`, nothing at all. Allow it for the deliberate case, loading a
+    /// checkpoint into a part of the module it came from.
+    pub fn allow_unused(mut self, allow: bool) -> Self {
+        self.allow_unused = allow;
         self
     }
 
@@ -218,6 +237,7 @@ impl ModuleRecord {
     pub(crate) fn apply<M: Module>(self, module: M) -> Result<M, RecordError> {
         let validate = self.validate;
         let allow_partial = self.allow_partial;
+        let allow_unused = self.allow_unused;
 
         let mut mapper = ModuleRecordMapper::new(self);
         let module = module.map(&mut mapper);
@@ -232,6 +252,12 @@ impl ModuleRecord {
             return Err(RecordError::Validation(format!(
                 "Missing tensors: {:?}",
                 mapper.missing
+            )));
+        }
+        if !allow_unused && !mapper.unused().is_empty() {
+            return Err(RecordError::Validation(format!(
+                "Unused tensors: {:?}",
+                mapper.unused()
             )));
         }
 
@@ -319,6 +345,14 @@ impl ModuleRecordMapper {
             missing: Vec::new(),
             errors: Vec::new(),
         }
+    }
+
+    /// The recorded tensors no parameter matched — what is left once the traversal has taken
+    /// every hit out. Sorted, so a message naming them reads the same twice.
+    fn unused(&self) -> Vec<&str> {
+        let mut unused: Vec<&str> = self.tensors.keys().map(String::as_str).collect();
+        unused.sort_unstable();
+        unused
     }
 
     /// Look up the recorded tensor for the current path and build the tensor to load,
@@ -474,6 +508,30 @@ mod tests {
         let (weight, bias) = weights(&loaded);
         assert_eq!(weight, vec![1.0, 2.0, 3.0, 4.0]);
         assert_eq!(bias, vec![0.0, 0.0], "the bias is outside the group");
+    }
+
+    #[test]
+    fn a_record_entry_matching_no_parameter_is_refused() {
+        let device = Default::default();
+        // A record of the wider module, applied to one that has no `gamma`: the entry lands
+        // nowhere, and a load that quietly did less than it was asked is what this refuses.
+        let record = TinyWide::zeros(&device).into_record();
+
+        let refusal = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).try_load_record(record.clone());
+        let Err(RecordError::Validation(message)) = refusal else {
+            panic!("a record entry that matches no parameter must be refused");
+        };
+        assert!(
+            message.contains("gamma"),
+            "the refusal must name it: {message}"
+        );
+
+        // Allowed for the deliberate case — loading a checkpoint into a part of the module it
+        // came from — and then the parameters that do match still land.
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device)
+            .try_load_record(record.allow_unused(true))
+            .unwrap();
+        assert_eq!(weights(&loaded), (vec![0.0; 4], vec![0.0; 2]));
     }
 
     #[test]
