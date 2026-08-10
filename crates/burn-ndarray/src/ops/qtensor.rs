@@ -323,6 +323,9 @@ impl QTensorOps<Self> for NdArray {
 
                 (scheme, qparams)
             }
+            QuantLevel::BlockTensor { .. } => {
+                unimplemented!("two-level quantization is not supported yet")
+            }
         };
 
         NdArrayQTensor {
