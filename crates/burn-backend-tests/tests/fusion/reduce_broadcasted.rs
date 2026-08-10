@@ -1,5 +1,4 @@
 use super::*;
-#[cfg(feature = "cube")]
 use burn_fusion::inspect::FusionInspector;
 use burn_tensor::{ElementConversion, TensorData, Tolerance};
 
@@ -237,7 +236,6 @@ fn test_reduce_broadcasted_max_nan() {
 
         // Materialize the inputs before recording the fused graph.
         device.sync().unwrap();
-        #[cfg(feature = "cube")]
         let inspector = FusionInspector::install(stream);
 
         let output = tensor + fused_on_read.clone();
@@ -254,16 +252,13 @@ fn test_reduce_broadcasted_max_nan() {
         ]);
         actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 
-        #[cfg(feature = "cube")]
-        {
-            let reports = inspector.drain();
-            assert!(
-                reports
-                    .iter()
-                    .flat_map(|report| report.fused_blocks())
-                    .any(|block| block.fuser_name() == Some("ReduceBroadcasted")),
-                "expected ReduceBroadcasted fusion, got {reports:#?}"
-            );
-        }
+        let reports = inspector.drain();
+        assert!(
+            reports
+                .iter()
+                .flat_map(|report| report.fused_blocks())
+                .any(|block| block.fuser_name() == Some("ReduceBroadcasted")),
+            "expected ReduceBroadcasted fusion, got {reports:#?}"
+        );
     });
 }

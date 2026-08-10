@@ -511,6 +511,52 @@ fn float_extremum_contiguous<E: Float, const MAX: bool>(data: &[E]) -> E {
         .fold(first, select_float_extremum::<E, MAX>)
 }
 
+/// Returns whether the layout visits every storage element exactly once.
+///
+/// Dense permutations and flips can reduce the raw storage directly because
+/// extrema are independent of traversal order. Partial, broadcast, overlapping,
+/// or gapped views must preserve their logical indexing through `StridedIter`.
+fn layout_covers_storage_once(layout: &Layout, storage_len: usize) -> bool {
+    if storage_len == 0 || layout.num_elements() != storage_len {
+        return false;
+    }
+
+    let mut dimensions: Vec<_> = layout
+        .shape()
+        .iter()
+        .copied()
+        .zip(layout.strides().iter().copied())
+        .filter(|(size, _)| *size > 1)
+        .map(|(size, stride)| (stride.unsigned_abs(), size, stride < 0))
+        .collect();
+    dimensions.sort_unstable_by_key(|&(stride, _, _)| stride);
+
+    let mut expected_stride = 1usize;
+    let mut min_offset = layout.start_offset();
+    for (stride, size, is_negative) in dimensions {
+        if stride != expected_stride {
+            return false;
+        }
+
+        if is_negative {
+            let Some(reach) = stride.checked_mul(size - 1) else {
+                return false;
+            };
+            let Some(offset) = min_offset.checked_sub(reach) else {
+                return false;
+            };
+            min_offset = offset;
+        }
+
+        let Some(next_stride) = expected_stride.checked_mul(size) else {
+            return false;
+        };
+        expected_stride = next_stride;
+    }
+
+    min_offset == 0 && expected_stride == storage_len
+}
+
 fn max_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
     let result = match tensor.layout().contiguous_offsets() {
         Some((start, end)) => {
@@ -519,10 +565,14 @@ fn max_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
         }
         None => {
             let data: &[f32] = tensor.storage();
-            StridedIter::new(tensor.layout())
-                .map(|idx| data[idx])
-                .reduce(select_float_extremum::<f32, true>)
-                .expect("max: tensor must not be empty")
+            if layout_covers_storage_once(tensor.layout(), data.len()) {
+                max_f32_contiguous(data)
+            } else {
+                StridedIter::new(tensor.layout())
+                    .map(|idx| data[idx])
+                    .reduce(select_float_extremum::<f32, true>)
+                    .expect("max: tensor must not be empty")
+            }
         }
     };
 
@@ -551,10 +601,14 @@ fn min_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
         }
         None => {
             let data: &[f32] = tensor.storage();
-            StridedIter::new(tensor.layout())
-                .map(|idx| data[idx])
-                .reduce(select_float_extremum::<f32, false>)
-                .expect("min: tensor must not be empty")
+            if layout_covers_storage_once(tensor.layout(), data.len()) {
+                min_f32_contiguous(data)
+            } else {
+                StridedIter::new(tensor.layout())
+                    .map(|idx| data[idx])
+                    .reduce(select_float_extremum::<f32, false>)
+                    .expect("min: tensor must not be empty")
+            }
         }
     };
 
@@ -2289,9 +2343,65 @@ mod tests {
     use alloc::vec;
     use burn_backend::TensorData;
     use burn_backend::ops::{FloatTensorOps, IntTensorOps};
-    use burn_std::{bf16, f16};
+    use burn_std::{Shape, bf16, f16};
 
-    use crate::{Flex, FlexTensor};
+    use crate::strided_index::StridedIter;
+    use crate::{Flex, FlexTensor, Layout};
+
+    #[test]
+    fn test_layout_covers_storage_once() {
+        fn reference(layout: &Layout, storage_len: usize) -> bool {
+            if storage_len == 0 || layout.num_elements() != storage_len {
+                return false;
+            }
+
+            let mut indices: Vec<_> = StridedIter::new(layout).collect();
+            indices.sort_unstable();
+            indices.into_iter().eq(0..storage_len)
+        }
+
+        let base = Layout::contiguous(Shape::from(vec![2, 3, 4]));
+        let cases = [
+            ("contiguous", base.clone(), 24),
+            ("permuted", base.permute(&[2, 0, 1]), 24),
+            ("flipped", base.flip(&[0, 2]), 24),
+            (
+                "permuted singleton dimension",
+                Layout::contiguous(Shape::from(vec![2, 1, 3])).permute(&[1, 2, 0]),
+                6,
+            ),
+            ("narrowed", base.narrow(1, 1, 1), 24),
+            (
+                "expanded",
+                Layout::new(Shape::from(vec![2, 2]), vec![0, 1], 2),
+                4,
+            ),
+            (
+                "overlapping",
+                Layout::new(Shape::from(vec![2, 2]), vec![1, 1], 0),
+                4,
+            ),
+            (
+                "gapped",
+                Layout::new(Shape::from(vec![2, 2]), vec![3, 1], 0),
+                4,
+            ),
+            (
+                "offset",
+                Layout::new(Shape::from(vec![2, 2]), vec![2, 1], 1),
+                4,
+            ),
+            ("empty", Layout::contiguous(Shape::from(vec![0, 3])), 0),
+        ];
+
+        for (name, layout, storage_len) in cases {
+            assert_eq!(
+                super::layout_covers_storage_once(&layout, storage_len),
+                reference(&layout, storage_len),
+                "{name}"
+            );
+        }
+    }
 
     #[test]
     fn test_mean_f16_overflow_intermediate_sum() {
