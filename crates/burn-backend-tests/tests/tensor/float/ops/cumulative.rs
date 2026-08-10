@@ -1,7 +1,6 @@
 use super::*;
 use burn_tensor::TensorData;
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
 use burn_tensor::ElementConversion;
 
 #[test]
@@ -200,9 +199,7 @@ fn test_cummax_float_3d() {
     );
 }
 
-// NaN-propagation tests. All burn backends should propagate NaN from
-// cummin/cummax (matching PyTorch/NumPy/JAX/TF semantics). See issue #4814.
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+// All burn backends should propagate NaN from cummin/cummax. See issue #4814.
 #[test]
 fn test_cummin_nan_propagation() {
     // Once NaN appears, cummin propagates it forward.
@@ -217,7 +214,6 @@ fn test_cummin_nan_propagation() {
     assert!(data[3].is_nan());
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn test_cummax_nan_propagation() {
     let tensor = TestTensor::<1>::from([1.0, f32::NAN, 5.0, 2.0]);
@@ -231,16 +227,15 @@ fn test_cummax_nan_propagation() {
     assert!(data[3].is_nan());
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
-fn test_cummin_nan_at_start() {
+fn test_cummin_and_cummax_nan_at_start() {
     // NaN on the first element should poison the entire output.
     let tensor = TestTensor::<1>::from([f32::NAN, 1.0, 2.0]);
 
-    let output = tensor.cummin(0);
-
-    let data: Vec<FloatElem> = output.into_data().to_vec().unwrap();
-    assert!(data[0].is_nan());
-    assert!(data[1].is_nan());
-    assert!(data[2].is_nan());
+    for output in [tensor.clone().cummin(0), tensor.cummax(0)] {
+        let data: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+        assert!(data[0].is_nan());
+        assert!(data[1].is_nan());
+        assert!(data[2].is_nan());
+    }
 }
