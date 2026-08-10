@@ -191,16 +191,15 @@ pub fn set_default_dtypes<B: Backend>(
     check_dtype_support::<B>(device, float_dtype)?;
     check_dtype_support::<B>(device, int_dtype)?;
     check_dtype_support::<B>(device, bool_dtype)?;
+    let mut settings = DeviceSettings::new(float_dtype, int_dtype, bool_dtype);
     // implementing TryFrom<Option<ComplexDType>> for ComplexDType would be more ergonomic,
     // but that makes passing None at call sites ambiguous.
-    let complex_dtype = if let Some(complex_dtype) = complex_dtype {
+    if let Some(complex_dtype) = complex_dtype {
         check_dtype_support::<B>(device, complex_dtype)?;
-        Some(DType::from(complex_dtype))
-    } else {
-        None
+        settings = settings.with_complex(DType::from(complex_dtype))
     };
     let q_config = device.defaults().quantization;
-    let settings = DeviceSettings::new(float_dtype, int_dtype, bool_dtype, complex_dtype, q_config);
+    settings = settings.with_quantization(q_config);
 
     initialize_unchecked(device, settings)?;
     Ok(())

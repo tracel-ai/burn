@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ComplexDType, ExecutionError, Scalar, Shape, Slice, TensorData, TensorMetadata,
     ops::ComplexTensorOps,
-    tensor::{BoolTensor, ComplexTensor, FloatTensor, IntTensor},
+    tensor::{BoolTensor, ComplexTensor, Device, FloatTensor, IntTensor},
 };
 //used in complex_to_device
 #[allow(unused_imports)]
@@ -343,6 +343,16 @@ impl ComplexTensorOps<Self> for Dispatch {
         dtype: ComplexDType,
     ) -> ComplexTensor<Self> {
         complex_creation_op!(Complex, device, |device| B::complex_zeros(
+            shape, device, dtype
+        ))
+    }
+
+    fn complex_empty(
+        shape: Shape,
+        device: &Device<Self>,
+        dtype: ComplexDType,
+    ) -> ComplexTensor<Self> {
+        complex_creation_op!(Complex, device, |device| B::complex_empty(
             shape, device, dtype
         ))
     }

@@ -90,13 +90,7 @@ impl burn_backend::Device for LibTorchDevice {
 
 impl DeviceOps for LibTorchDevice {
     fn defaults(&self) -> DeviceSettings {
-        DeviceSettings::new(
-            DType::F32,
-            DType::I64,
-            DType::Bool(BoolStore::Native),
-            DType::Complex32,
-            Default::default(),
-        )
+        DeviceSettings::new(DType::F32, DType::I64, DType::Bool(BoolStore::Native))
     }
 }
 

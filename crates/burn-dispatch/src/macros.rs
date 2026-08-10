@@ -80,7 +80,10 @@ macro_rules! complex_backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
         $callback! {
             $($extra)*;
-            [Flex, all(feature = "flex", not(any(feature = "fusion", feature = "remote")))] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]]
+            [Flex, all(feature = "flex", not(any(feature = "fusion", feature = "remote")))] =>
+                [[Flex, all(feature = "flex", not(any(feature = "fusion", feature = "remote")))]]
+            // add other complex-capable backends here as both source and destination
+            // if/when they gain complex support
         }
     };
 }

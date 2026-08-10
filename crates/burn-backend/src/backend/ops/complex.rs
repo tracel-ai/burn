@@ -96,6 +96,19 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The tensor with the given shape and zeros.
     fn complex_zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
 
+    /// Creates an empty complex tensor with the given shape.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// The empty tensor with the given shape.
+    fn complex_empty(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
+
     /// Creates a new complex tensor with ones.
     ///
     /// # Arguments

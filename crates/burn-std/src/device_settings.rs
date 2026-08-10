@@ -37,32 +37,26 @@ impl DeviceSettings {
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
         bool_dtype: impl Into<BoolDType>,
-        complex_dtype: impl TryInto<ComplexDType>,
-        quantization: QuantConfig,
     ) -> Self {
         Self {
             float_dtype: float_dtype.into(),
             int_dtype: int_dtype.into(),
             bool_dtype: bool_dtype.into(),
-            complex_dtype: complex_dtype.try_into().ok(),
-            quantization,
+            complex_dtype: None,
+            quantization: Default::default(),
         }
     }
 
-    /// Creates a new [`DeviceSettings`] from any types convertible into the dtype kinds.
-    pub fn with_dtypes(
-        float_dtype: impl Into<FloatDType>,
-        int_dtype: impl Into<IntDType>,
-        bool_dtype: impl Into<BoolDType>,
-        complex_dtype: impl TryInto<ComplexDType>,
-    ) -> Self {
-        Self::new(
-            float_dtype,
-            int_dtype,
-            bool_dtype,
-            complex_dtype,
-            Default::default(),
-        )
+    /// Returns a new [`DeviceSettings`] with the complex dtype if supported.
+    pub fn with_complex(mut self, complex_dtype: impl TryInto<ComplexDType>) -> Self {
+        self.complex_dtype = complex_dtype.try_into().ok();
+        self
+    }
+
+    /// Returns a new [`DeviceSettings`] with the complex dtype if supported.
+    pub fn with_quantization(mut self, quantization: QuantConfig) -> Self {
+        self.quantization = quantization;
+        self
     }
 
     /// Returns the complex data type of the device.

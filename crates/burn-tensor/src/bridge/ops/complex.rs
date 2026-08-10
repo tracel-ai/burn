@@ -10,7 +10,7 @@ use crate::ops::{BridgeTensor, Complex, FloatMathOps};
 
 impl BasicOps for Complex {
     fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::complex(Dispatch::complex_zeros(
+        BridgeTensor::complex(Dispatch::complex_empty(
             shape,
             device.as_dispatch(),
             dtype.into(),

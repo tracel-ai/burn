@@ -76,6 +76,14 @@ impl<B: ComplexTensorBackend, C: CheckpointStrategy> ComplexTensorOps<Self> for 
         B::complex_zeros(shape, device, dtype)
     }
 
+    fn complex_empty(
+        shape: burn_std::Shape,
+        device: &Device<Self>,
+        dtype: burn_std::ComplexDType,
+    ) -> burn_backend::ComplexTensor<Self> {
+        B::complex_empty(shape, device, dtype)
+    }
+
     fn complex_ones(
         shape: burn_std::Shape,
         device: &Device<Self>,

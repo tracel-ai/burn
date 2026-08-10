@@ -24,16 +24,11 @@ pub enum NdArrayDevice {
 impl DeviceOps for NdArrayDevice {
     fn defaults(&self) -> DeviceSettings {
         // E = f32, I = i64
-        DeviceSettings::new(
-            DType::F32,
-            DType::I64,
-            DType::Bool(BoolStore::Native),
-            None,
-            QuantConfig::new(
+        DeviceSettings::new(DType::F32, DType::I64, DType::Bool(BoolStore::Native))
+            .with_quantization(QuantConfig::new(
                 QuantScheme::default().with_store(QuantStore::Native),
                 Default::default(),
-            ),
-        )
+            ))
     }
 }
 

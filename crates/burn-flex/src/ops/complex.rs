@@ -754,6 +754,14 @@ impl ComplexTensorOps<Flex> for Flex {
         FlexTensor::zeros(shape, dtype.into())
     }
 
+    fn complex_empty(
+        shape: burn_std::Shape,
+        _device: &Device<Flex>,
+        dtype: ComplexDType,
+    ) -> ComplexTensor<Flex> {
+        FlexTensor::empty(shape, dtype.into())
+    }
+
     fn complex_ones(
         shape: burn_std::Shape,
         _device: &Device<Flex>,

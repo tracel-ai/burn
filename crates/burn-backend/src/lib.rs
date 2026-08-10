@@ -81,13 +81,7 @@ mod cube_wgpu {
 
         #[cfg(any(feature = "cubecl-metal", feature = "cubecl-vulkan"))]
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                None,
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U8))
         }
     }
 }
@@ -100,13 +94,7 @@ mod cube_cuda {
 
     impl DeviceOps for CudaDevice {
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                None,
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U8))
         }
     }
 }
@@ -119,13 +107,7 @@ mod cube_cpu {
 
     impl DeviceOps for CpuDevice {
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                None,
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U8))
         }
     }
 }
@@ -138,13 +120,7 @@ mod cube_hip {
 
     impl DeviceOps for AmdDevice {
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                None,
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U8))
         }
     }
 }

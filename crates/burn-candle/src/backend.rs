@@ -184,13 +184,7 @@ impl burn_backend::Device for CandleDevice {
 }
 impl DeviceOps for CandleDevice {
     fn defaults(&self) -> DeviceSettings {
-        DeviceSettings::new(
-            DType::F32,
-            DType::I64,
-            DType::Bool(BoolStore::U8),
-            DType::Complex32,
-            Default::default(),
-        )
+        DeviceSettings::new(DType::F32, DType::I64, DType::Bool(BoolStore::U8))
     }
 }
 
