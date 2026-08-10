@@ -18,7 +18,7 @@ use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 
-use crate::module::{Module, ModuleMapper, ModuleVisitor, Param, ParamId};
+use crate::module::{Module, ModuleMapper, ModuleVisitor, Param, ParamGroup, ParamId};
 use crate::tensor::{Bool, DType, Device, Float, Int, Shape, Tensor, TensorData, kind::Basic};
 
 use burn_pack::{Reader, Writer};
@@ -202,8 +202,11 @@ impl ModuleRecord {
     /// Collect a module's parameters into a [`ModuleRecord`].
     ///
     /// Backs [`Module::into_record`](crate::module::Module::into_record).
-    pub(crate) fn from_module<M: Module>(module: M) -> Self {
-        let mut collector = Collector::default();
+    pub(crate) fn from_module<M: Module>(module: M, group: Option<ParamGroup>) -> Self {
+        let mut collector = Collector {
+            group,
+            ..Default::default()
+        };
         module.visit(&mut collector);
         ModuleRecord::from_tensors(collector.tensors)
     }
@@ -236,19 +239,31 @@ impl ModuleRecord {
     }
 }
 
-/// Visitor that collects every parameter as a [`RecordTensor`], keyed by its module path.
+/// Visitor that collects a module's parameters as [`RecordTensor`]s, keyed by module path.
+///
+/// A [`ParamGroup`] narrows what is collected: a parameter the group does not
+/// match is skipped before its data is read, so a record of one group never
+/// materializes the rest of the module.
 #[derive(Default)]
 struct Collector {
     path: Vec<String>,
+    group: Option<ParamGroup>,
     tensors: Vec<RecordTensor>,
 }
 
 impl Collector {
-    fn record(&mut self, id: ParamId, data: TensorData) {
+    fn record(&mut self, id: ParamId, data: impl FnOnce() -> TensorData) {
+        let path = self.path.join(".");
+        if let Some(group) = &self.group
+            && !group.matches(&id, Some(&path))
+        {
+            return;
+        }
+
         self.tensors.push(RecordTensor {
-            path: self.path.join("."),
+            path,
             id,
-            data,
+            data: data(),
         });
     }
 }
@@ -266,15 +281,15 @@ impl ModuleVisitor for Collector {
     // un-maps with `on_load`. Recording `val()` breaks any param whose mapper
     // changes the shape (a `Col`-layout `Linear` weight).
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
-        self.record(param.id, param.transform_for_save().val().into_data());
+        self.record(param.id, || param.transform_for_save().val().into_data());
     }
 
     fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
-        self.record(param.id, param.transform_for_save().val().into_data());
+        self.record(param.id, || param.transform_for_save().val().into_data());
     }
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
-        self.record(param.id, param.transform_for_save().val().into_data());
+        self.record(param.id, || param.transform_for_save().val().into_data());
     }
 }
 
@@ -383,7 +398,7 @@ impl ModuleMapper for ModuleRecordMapper {
 mod tests {
     use super::*;
     use crate as burn;
-    use crate::module::{Module, Param};
+    use crate::module::{Module, Param, ParamGroup};
     use crate::tensor::Tensor;
     use burn_tensor::Device;
 
@@ -439,6 +454,26 @@ mod tests {
         let (w, b) = weights(&loaded);
         assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
         assert_eq!(b, vec![5.0, 6.0]);
+    }
+
+    #[test]
+    fn a_group_records_its_own_parameters_only() {
+        let device = Default::default();
+        let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
+
+        let record = model
+            .clone()
+            .into_record_group(ParamGroup::from_path("weight"));
+        assert_eq!(record.len(), 1);
+
+        // Applied back over a module the record says nothing about the rest of:
+        // the group's parameter lands, everything else keeps what it had.
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device)
+            .try_load_record(record.allow_partial(true))
+            .unwrap();
+        let (weight, bias) = weights(&loaded);
+        assert_eq!(weight, vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(bias, vec![0.0, 0.0], "the bias is outside the group");
     }
 
     #[test]
