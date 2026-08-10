@@ -10,8 +10,8 @@ use alloc::vec::Vec;
 use burn_backend::{DType, Element};
 use burn_std::ComplexScalar;
 use burn_std::{Bytes, Shape, bf16, f16};
-use num_traits::Zero;
 use num_traits::Float;
+use num_traits::Zero;
 
 use crate::strided_index::StridedIter;
 use crate::{FlexTensor, Layout};
