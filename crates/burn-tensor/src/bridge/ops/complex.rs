@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::ops::{ComplexTensorOps, FloatTensorOps};
-use burn_backend::{ComplexTensorBackend, Distribution, Scalar, TensorData, TensorMetadata};
+use burn_backend::{Distribution, Scalar, TensorData, TensorMetadata};
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
