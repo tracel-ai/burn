@@ -193,13 +193,13 @@ def run():
     args = parse_args()
 
     download_and_export(
-        args.name,
-        args.subset,
-        args.file,
-        args.token,
-        args.data_dir,
-        args.cache_dir,
-        args.trust_remote_code,
+        name=args.name,
+        subset=args.subset,
+        db_file=args.file,
+        token=args.token,
+        data_dir=args.data_dir,
+        cache_dir=args.cache_dir,
+        trust_remote_code=args.trust_remote_code,
     )
 
 

@@ -170,7 +170,8 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
     }
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
-        && let QuantStore::PackedU32(packed_dim) = &mut scheme.store
+        && let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+            &mut scheme.store
     {
         let rank = tensor.meta.num_dims();
         let new_pos = axes
@@ -356,16 +357,6 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     let n_new_dims = shape.num_dims().saturating_sub(curr_shape.num_dims());
     let is_unsqueeze = n_new_dims > 0 && shape[n_new_dims..] == **curr_shape;
 
-    if !is_unsqueeze
-        && matches!(
-            scheme.value,
-            QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
-        )
-    {
-        // FIXME
-        todo!("Reshape with sub-byte values is not supported")
-    }
-
     // Check valid reshapes
     if let ReshapeAction::UpdateStrides { .. } = &action_values {
         match analysis_values {
@@ -448,6 +439,19 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
         }
         // Any action to recompute
         (ReshapeAction::Recompute, _) | (_, ReshapeAction::Recompute) => {
+            // Rewriting the buffer would have to repack values that share a
+            // storage element; a metadata-only reshape leaves the packing alone.
+            if !is_unsqueeze
+                && matches!(
+                    scheme.value,
+                    QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
+                )
+            {
+                todo!(
+                    "Reshape with sub-byte values is not supported when the buffer must be recomputed"
+                )
+            }
+
             if let QuantLevel::Block(_) = scheme.level
                 && shape_scales.num_elements() > 1
             {

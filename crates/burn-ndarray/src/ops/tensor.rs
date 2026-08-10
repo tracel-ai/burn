@@ -540,14 +540,14 @@ impl FloatTensorOps<Self> for NdArray {
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // Use view() for zero-copy on borrowed storage
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::max_view(array.view())
+            NdArrayMathOps::max_float_view(array.view())
         })
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // Use view() for zero-copy on borrowed storage
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::min_view(array.view())
+            NdArrayMathOps::min_float_view(array.view())
         })
     }
 

@@ -1,7 +1,6 @@
 use crate::metric::{
     AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput, PerplexityInput,
-    TopKAccuracyInput,
-    processor::ItemLazy,
+    TopKAccuracyInput, processor::ItemLazy,
 };
 use burn_core::tensor::{Int, Tensor};
 

@@ -18,7 +18,7 @@ use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 
-use crate::module::{Module, ModuleMapper, ModuleVisitor, Param, ParamId};
+use crate::module::{Module, ModuleMapper, ModuleVisitor, Param, ParamGroup, ParamId};
 use crate::tensor::{Bool, DType, Device, Float, Int, Shape, Tensor, TensorData, kind::Basic};
 
 use burn_pack::{Reader, Writer};
@@ -85,6 +85,7 @@ pub struct ModuleRecord {
     tensors: Vec<RecordTensor>,
     dtype_policy: DTypePolicy,
     allow_partial: bool,
+    allow_unused: bool,
     validate: bool,
 }
 
@@ -94,6 +95,7 @@ impl core::fmt::Debug for ModuleRecord {
             .field("num_tensors", &self.tensors.len())
             .field("dtype_policy", &self.dtype_policy)
             .field("allow_partial", &self.allow_partial)
+            .field("allow_unused", &self.allow_unused)
             .field("validate", &self.validate)
             .finish()
     }
@@ -105,6 +107,7 @@ impl ModuleRecord {
             tensors,
             dtype_policy: DTypePolicy::default(),
             allow_partial: false,
+            allow_unused: false,
             validate: true,
         }
     }
@@ -133,8 +136,24 @@ impl ModuleRecord {
     }
 
     /// Allow loading even when some module parameters are absent from the record.
+    ///
+    /// What a record of a part of a module needs — one taken with
+    /// [`into_record_group`](crate::module::Module::into_record_group), say — since it holds
+    /// nothing for the parameters outside that part.
     pub fn allow_partial(mut self, allow: bool) -> Self {
         self.allow_partial = allow;
+        self
+    }
+
+    /// Allow loading even when the record holds tensors no module parameter matches.
+    ///
+    /// The mirror of [`allow_partial`](Self::allow_partial), and refused by default: a record
+    /// entry that lands nowhere means the module is not the one the record was taken from, and
+    /// the load that looks like it succeeded has quietly done less than it was asked — or, at
+    /// `allow_partial(true)`, nothing at all. Allow it for the deliberate case, loading a
+    /// checkpoint into a part of the module it came from.
+    pub fn allow_unused(mut self, allow: bool) -> Self {
+        self.allow_unused = allow;
         self
     }
 
@@ -202,8 +221,11 @@ impl ModuleRecord {
     /// Collect a module's parameters into a [`ModuleRecord`].
     ///
     /// Backs [`Module::into_record`](crate::module::Module::into_record).
-    pub(crate) fn from_module<M: Module>(module: M) -> Self {
-        let mut collector = Collector::default();
+    pub(crate) fn from_module<M: Module>(module: M, group: Option<ParamGroup>) -> Self {
+        let mut collector = Collector {
+            group,
+            ..Default::default()
+        };
         module.visit(&mut collector);
         ModuleRecord::from_tensors(collector.tensors)
     }
@@ -215,6 +237,7 @@ impl ModuleRecord {
     pub(crate) fn apply<M: Module>(self, module: M) -> Result<M, RecordError> {
         let validate = self.validate;
         let allow_partial = self.allow_partial;
+        let allow_unused = self.allow_unused;
 
         let mut mapper = ModuleRecordMapper::new(self);
         let module = module.map(&mut mapper);
@@ -231,24 +254,42 @@ impl ModuleRecord {
                 mapper.missing
             )));
         }
+        if !allow_unused && !mapper.unused().is_empty() {
+            return Err(RecordError::Validation(format!(
+                "Unused tensors: {:?}",
+                mapper.unused()
+            )));
+        }
 
         Ok(module)
     }
 }
 
-/// Visitor that collects every parameter as a [`RecordTensor`], keyed by its module path.
+/// Visitor that collects a module's parameters as [`RecordTensor`]s, keyed by module path.
+///
+/// A [`ParamGroup`] narrows what is collected: a parameter the group does not
+/// match is skipped before its data is read, so a record of one group never
+/// materializes the rest of the module.
 #[derive(Default)]
 struct Collector {
     path: Vec<String>,
+    group: Option<ParamGroup>,
     tensors: Vec<RecordTensor>,
 }
 
 impl Collector {
-    fn record(&mut self, id: ParamId, data: TensorData) {
+    fn record(&mut self, id: ParamId, data: impl FnOnce() -> TensorData) {
+        let path = self.path.join(".");
+        if let Some(group) = &self.group
+            && !group.matches(&id, Some(&path))
+        {
+            return;
+        }
+
         self.tensors.push(RecordTensor {
-            path: self.path.join("."),
+            path,
             id,
-            data,
+            data: data(),
         });
     }
 }
@@ -266,15 +307,15 @@ impl ModuleVisitor for Collector {
     // un-maps with `on_load`. Recording `val()` breaks any param whose mapper
     // changes the shape (a `Col`-layout `Linear` weight).
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
-        self.record(param.id, param.transform_for_save().val().into_data());
+        self.record(param.id, || param.transform_for_save().val().into_data());
     }
 
     fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
-        self.record(param.id, param.transform_for_save().val().into_data());
+        self.record(param.id, || param.transform_for_save().val().into_data());
     }
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
-        self.record(param.id, param.transform_for_save().val().into_data());
+        self.record(param.id, || param.transform_for_save().val().into_data());
     }
 }
 
@@ -304,6 +345,14 @@ impl ModuleRecordMapper {
             missing: Vec::new(),
             errors: Vec::new(),
         }
+    }
+
+    /// The recorded tensors no parameter matched — what is left once the traversal has taken
+    /// every hit out. Sorted, so a message naming them reads the same twice.
+    fn unused(&self) -> Vec<&str> {
+        let mut unused: Vec<&str> = self.tensors.keys().map(String::as_str).collect();
+        unused.sort_unstable();
+        unused
     }
 
     /// Look up the recorded tensor for the current path and build the tensor to load,
@@ -383,7 +432,7 @@ impl ModuleMapper for ModuleRecordMapper {
 mod tests {
     use super::*;
     use crate as burn;
-    use crate::module::{Module, Param};
+    use crate::module::{Module, Param, ParamGroup};
     use crate::tensor::Tensor;
     use burn_tensor::Device;
 
@@ -439,6 +488,50 @@ mod tests {
         let (w, b) = weights(&loaded);
         assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
         assert_eq!(b, vec![5.0, 6.0]);
+    }
+
+    #[test]
+    fn a_group_records_its_own_parameters_only() {
+        let device = Default::default();
+        let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
+
+        let record = model
+            .clone()
+            .into_record_group(ParamGroup::from_path("weight"));
+        assert_eq!(record.len(), 1);
+
+        // Applied back over a module the record says nothing about the rest of:
+        // the group's parameter lands, everything else keeps what it had.
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device)
+            .try_load_record(record.allow_partial(true))
+            .unwrap();
+        let (weight, bias) = weights(&loaded);
+        assert_eq!(weight, vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(bias, vec![0.0, 0.0], "the bias is outside the group");
+    }
+
+    #[test]
+    fn a_record_entry_matching_no_parameter_is_refused() {
+        let device = Default::default();
+        // A record of the wider module, applied to one that has no `gamma`: the entry lands
+        // nowhere, and a load that quietly did less than it was asked is what this refuses.
+        let record = TinyWide::zeros(&device).into_record();
+
+        let refusal = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).try_load_record(record.clone());
+        let Err(RecordError::Validation(message)) = refusal else {
+            panic!("a record entry that matches no parameter must be refused");
+        };
+        assert!(
+            message.contains("gamma"),
+            "the refusal must name it: {message}"
+        );
+
+        // Allowed for the deliberate case — loading a checkpoint into a part of the module it
+        // came from — and then the parameters that do match still land.
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device)
+            .try_load_record(record.allow_unused(true))
+            .unwrap();
+        assert_eq!(weights(&loaded), (vec![0.0; 4], vec![0.0; 2]));
     }
 
     #[test]
