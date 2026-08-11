@@ -100,7 +100,7 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
             let b = k / oc_blocks;
             let ob = k % oc_blocks;
             let x = x.slice(s![b, .., .., ..]);
-            let out = unsafe_shared_out.get();
+            let mut out = unsafe_shared_out.get();
             let mut out = out.slice_mut(s![b, .., .., ..]);
             let w = weights.view();
 

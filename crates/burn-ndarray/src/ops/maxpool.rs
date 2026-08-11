@@ -69,7 +69,7 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output = unsafe_shared_out.get();
+            let mut output = unsafe_shared_out.get();
 
             for oh in 0..out_height {
                 for ow in 0..out_width {
@@ -157,8 +157,8 @@ pub(crate) fn max_pool2d_with_indices<E: FloatNdArrayElement, I: IntNdArrayEleme
             let b = k / channels;
             let c = k % channels;
 
-            let output = unsafe_shared_out.get();
-            let indices = unsafe_shared_indices.get();
+            let mut output = unsafe_shared_out.get();
+            let mut indices = unsafe_shared_indices.get();
 
             for oh in 0..out_height {
                 for ow in 0..out_width {
@@ -227,7 +227,7 @@ pub(crate) fn max_pool2d_backward<E: FloatNdArrayElement, I: IntNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output = unsafe_shared_out.get();
+            let mut output = unsafe_shared_out.get();
 
             for h in 0..height {
                 for w in 0..width {
