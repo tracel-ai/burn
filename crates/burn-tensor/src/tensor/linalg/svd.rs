@@ -236,8 +236,6 @@ fn svd_host<F: Float + Copy>(
     let mut givens: Vec<(usize, F, F, F, F)> = Vec::new();
     // Scratch reused across batch elements (allocated once, not per batch).
     let mut order: Vec<usize> = Vec::with_capacity(n);
-    let mut pu = vec![F::zero(); m * n];
-    let mut pvt = vec![F::zero(); n * n];
     let mut sorted = vec![F::zero(); n];
 
     for b in 0..batch {
@@ -245,9 +243,18 @@ fn svd_host<F: Float + Copy>(
         // Closed forms for the smallest sizes: exact and much cheaper than
         // the bidiagonalization + QR pipeline.
         if n == 1 {
-            let v = ab[0];
-            sigma[b] = v.abs();
-            u[b * m] = if v < F::zero() { -F::one() } else { F::one() };
+            // A is [m, 1] (wide inputs were transposed): the single singular
+            // value is the column norm and U is the normalized column.
+            let mut s = F::zero();
+            for i in 0..m {
+                let t = ab[i];
+                s = s + t * t;
+            }
+            let sv = s.sqrt();
+            sigma[b] = sv;
+            for i in 0..m {
+                u[b * m * n + i * n] = if sv > F::zero() { ab[i] / sv } else { F::one() };
+            }
             vt[b] = F::one();
             continue;
         }
@@ -260,6 +267,22 @@ fn svd_host<F: Float + Copy>(
             continue;
         }
         let (mut u1, bv, mut v1) = bidiag_host(ab, m, n);
+        // Transpose both factor buffers up front: the Givens rotations act on
+        // column pairs (k, k+1), which are stride-n in row-major storage but
+        // contiguous rows in the transposed layout, so the hot loops below
+        // stream memory instead of hopping columns.
+        let mut u1t = vec![F::zero(); m * n];
+        let mut v1t = vec![F::zero(); n * n];
+        for i in 0..m {
+            for j in 0..n {
+                u1t[j * m + i] = u1[i * n + j];
+            }
+        }
+        for i in 0..n {
+            for j in 0..n {
+                v1t[j * n + i] = v1[i * n + j];
+            }
+        }
         for i in 0..n {
             d[i] = bv[i * n + i];
         }
@@ -269,39 +292,39 @@ fn svd_host<F: Float + Copy>(
         givens.clear();
         let sigma_b = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps);
 
-        // U = U1 @ (product of left Givens rotations): apply each rotation to
-        // the column pair of U1 directly (same operator as the accumulation).
+        // U = U1 @ (product of left Givens rotations): in the transposed
+        // layout a rotation of columns (k, k+1) touches contiguous rows.
         for &(k, cl, sl, _, _) in &givens {
             for i in 0..m {
-                let (a0, b0) = (u1[i * n + k], u1[i * n + k + 1]);
-                u1[i * n + k] = cl * a0 + sl * b0;
-                u1[i * n + k + 1] = -sl * a0 + cl * b0;
+                let (a0, b0) = (u1t[k * m + i], u1t[(k + 1) * m + i]);
+                u1t[k * m + i] = cl * a0 + sl * b0;
+                u1t[(k + 1) * m + i] = -sl * a0 + cl * b0;
             }
         }
         // Vt = (V1 @ (product of right Givens rotations))^T.
         for &(k, _, _, cr, sr) in &givens {
             for i in 0..n {
-                let (a0, b0) = (v1[i * n + k], v1[i * n + k + 1]);
-                v1[i * n + k] = cr * a0 + sr * b0;
-                v1[i * n + k + 1] = -sr * a0 + cr * b0;
+                let (a0, b0) = (v1t[k * n + i], v1t[(k + 1) * n + i]);
+                v1t[k * n + i] = cr * a0 + sr * b0;
+                v1t[(k + 1) * n + i] = -sr * a0 + cr * b0;
             }
         }
         // Absorb the signs of the diagonal into U.
         for k in 0..n {
             if d[k] < F::zero() {
                 for i in 0..m {
-                    u1[i * n + k] = -u1[i * n + k];
+                    u1t[k * m + i] = -u1t[k * m + i];
                 }
             }
         }
         for i in 0..m {
             for j in 0..n {
-                u[b * m * n + i * n + j] = u1[i * n + j];
+                u[b * m * n + i * n + j] = u1t[j * m + i];
             }
         }
         for i in 0..n {
             for j in 0..n {
-                vt[b * n * n + i * n + j] = v1[j * n + i];
+                vt[b * n * n + i * n + j] = v1t[i * n + j];
             }
             sigma[b * n + i] = sigma_b[i];
         }
@@ -322,22 +345,20 @@ fn svd_host<F: Float + Copy>(
                 .partial_cmp(&sigma[b * n + i])
                 .unwrap_or(core::cmp::Ordering::Equal)
         });
+        // Apply the permutation while copying: in the transposed layout the
+        // column permutation of U is a row permutation of U1t, and the row
+        // permutation of Vt is a row permutation of V1t, so the factors land
+        // in the output tensors directly (no intermediate permute buffers).
         for (t, &src) in order.iter().enumerate() {
             for i in 0..m {
-                pu[i * n + t] = u[b * m * n + i * n + src];
+                u[b * m * n + i * n + t] = u1t[src * m + i];
             }
             for i in 0..n {
-                pvt[t * n + i] = vt[b * n * n + src * n + i];
+                vt[b * n * n + t * n + i] = v1t[src * n + i];
             }
             // read from the untouched slot: sigma is rewritten in place below
             let v = sigma[b * n + src];
             sorted[t] = if v.abs() <= zero_tol { F::zero() } else { v };
-        }
-        for i in 0..m * n {
-            u[b * m * n + i] = pu[i];
-        }
-        for i in 0..n * n {
-            vt[b * n * n + i] = pvt[i];
         }
         for i in 0..n {
             sigma[b * n + i] = sorted[i];
@@ -438,23 +459,31 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
     let mut ws: Vec<F> = vec![F::zero(); m * n];
     let mut taus = vec![F::zero(); n];
     let mut a = a.to_vec();
+    // Reused reflection scratch (allocated once, not per reflection).
+    let mut w = vec![F::zero(); m.max(n)];
+    let mut wta = vec![F::zero(); n];
+    let mut aw = vec![F::zero(); m];
 
     for i in 0..n {
         // Left reflection: annihilate the subdiagonal of column i.
         // Scaled norm (like LAPACK dlarfg): sqrt(sum x^2) without overflow or
         // underflow for extreme scales (|x| up to f32::MAX, down to subnormals).
-        let scale = (i..m).map(|k| a[k * n + i].abs()).fold(F::zero(), F::max);
+        let mut scale = F::zero();
+        for k in i..m {
+            let t = a[k * n + i].abs();
+            if t > scale {
+                scale = t;
+            }
+        }
         let norm = if scale == F::zero() {
             F::zero()
         } else {
-            scale
-                * (i..m)
-                    .map(|k| {
-                        let t = a[k * n + i] / scale;
-                        t * t
-                    })
-                    .fold(F::zero(), |s, x| s + x)
-                    .sqrt()
+            let mut s = F::zero();
+            for k in i..m {
+                let t = a[k * n + i] / scale;
+                s = s + t * t;
+            }
+            scale * s.sqrt()
         };
         let x0 = a[i * n + i];
         // sign = -(sign(x0)), with zero mapping to -1 (mask_fill in the tensor version).
@@ -466,16 +495,26 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
             -u0 / (norm * sign)
         };
         if norm != F::zero() {
-            let mut w = vec![F::zero(); m];
             w[i] = F::one();
             for k in (i + 1)..m {
                 w[k] = a[k * n + i] / u0;
             }
-            // wta[j] = w^T a[:, j], then a_new = a - tau w wta.
+            // wta[j] = w^T a[:, j], then a_new = a - tau w wta. Row-major
+            // sweeps: a[k, :] is contiguous, so both passes stay sequential.
             for j in i..n {
-                let wta: F = (i..m).fold(F::zero(), |s, k| s + w[k] * a[k * n + j]);
-                for k in i..m {
-                    a[k * n + j] = a[k * n + j] - tau * w[k] * wta;
+                wta[j] = F::zero();
+            }
+            for k in i..m {
+                let wk = w[k];
+                for j in i..n {
+                    wta[j] = wta[j] + wk * a[k * n + j];
+                }
+            }
+            let t = tau;
+            for k in i..m {
+                let wk = w[k] * t;
+                for j in i..n {
+                    a[k * n + j] = a[k * n + j] - wk * wta[j];
                 }
             }
             for (k, &wk) in w.iter().enumerate().take(m) {
@@ -486,20 +525,22 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
 
         // Right reflection: annihilate row i right of the superdiagonal.
         if i + 1 < n - 1 {
-            let scale = ((i + 1)..n)
-                .map(|j| a[i * n + j].abs())
-                .fold(F::zero(), F::max);
+            let mut scale = F::zero();
+            for j in (i + 1)..n {
+                let t = a[i * n + j].abs();
+                if t > scale {
+                    scale = t;
+                }
+            }
             let norm = if scale == F::zero() {
                 F::zero()
             } else {
-                scale
-                    * ((i + 1)..n)
-                        .map(|j| {
-                            let t = a[i * n + j] / scale;
-                            t * t
-                        })
-                        .fold(F::zero(), |s, x| s + x)
-                        .sqrt()
+                let mut s = F::zero();
+                for j in (i + 1)..n {
+                    let t = a[i * n + j] / scale;
+                    s = s + t * t;
+                }
+                scale * s.sqrt()
             };
             let y0 = a[i * n + i + 1];
             let sign = if y0 >= F::zero() { -F::one() } else { F::one() };
@@ -510,24 +551,36 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
                 -u0 / (norm * sign)
             };
             if norm != F::zero() {
-                let mut w = vec![F::zero(); n];
                 w[i + 1] = F::one();
                 for j in (i + 2)..n {
                     w[j] = a[i * n + j] / u0;
                 }
-                // aw[k] = a[k, :] w, then a_new = a - tau aw w^T.
+                // aw[k] = a[k, :] w, then a_new = a - tau aw w^T. Contiguous
+                // row sweeps again: a[k, j] advances sequentially in both.
                 for k in i..m {
-                    let aw: F = ((i + 1)..n).fold(F::zero(), |s, j| s + a[k * n + j] * w[j]);
+                    let mut s = F::zero();
                     for j in (i + 1)..n {
-                        a[k * n + j] = a[k * n + j] - tau * aw * w[j];
+                        s = s + a[k * n + j] * w[j];
+                    }
+                    aw[k] = s;
+                }
+                let t = tau;
+                for k in i..m {
+                    let awk = aw[k] * t;
+                    for j in (i + 1)..n {
+                        a[k * n + j] = a[k * n + j] - awk * w[j];
                     }
                 }
                 // V1 = V1 (I - tau w w^T): update the columns i+1..n.
                 for i2 in 0..n {
-                    let vw: F = ((i + 1)..n).fold(F::zero(), |s, j| s + v1[i2 * n + j] * w[j]);
+                    let mut vw = F::zero();
+                    for j in (i + 1)..n {
+                        vw = vw + v1[i2 * n + j] * w[j];
+                    }
                     if vw != F::zero() {
+                        let tvw = tau * vw;
                         for j in (i + 1)..n {
-                            v1[i2 * n + j] = v1[i2 * n + j] - tau * vw * w[j];
+                            v1[i2 * n + j] = v1[i2 * n + j] - tvw * w[j];
                         }
                     }
                 }
@@ -541,15 +594,20 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
     for i in (0..n).rev() {
         let tau = taus[i];
         if tau != F::zero() {
-            for j in 0..n {
-                let mut uw = F::zero();
-                for k in i..m {
-                    uw = uw + ws[i * m + k] * u1[k * n + j];
+            // uw[j] = w^T u1[:, j] computed over contiguous column strips:
+            // u1[k, :] is row-major, so sweep k outer, j inner.
+            let mut uw = vec![F::zero(); n];
+            for k in i..m {
+                let wk = ws[i * m + k];
+                for j in 0..n {
+                    uw[j] = uw[j] + wk * u1[k * n + j];
                 }
-                if uw != F::zero() {
-                    for k in i..m {
-                        u1[k * n + j] = u1[k * n + j] - tau * ws[i * m + k] * uw;
-                    }
+            }
+            let t = tau;
+            for k in i..m {
+                let wk = ws[i * m + k] * t;
+                for j in 0..n {
+                    u1[k * n + j] = u1[k * n + j] - wk * uw[j];
                 }
             }
         }
@@ -895,5 +953,22 @@ mod tests {
             }
         }
         assert!(err < 1e-12, "batch2 recon {err}");
+    }
+}
+
+/// Bench-only hooks (behind the `bench` feature).
+#[cfg(feature = "bench")]
+pub mod bench_hooks {
+    use super::*;
+    pub fn bidiag<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>, Vec<F>) {
+        bidiag_host(a, m, n)
+    }
+    pub fn qr_sweeps<F: Float + Copy>(
+        d: &mut [F],
+        e: &mut [F],
+        givens: &mut Vec<(usize, F, F, F, F)>,
+        max_sweeps: usize,
+    ) -> Vec<F> {
+        dbdsqr(d, e, givens, max_sweeps)
     }
 }
