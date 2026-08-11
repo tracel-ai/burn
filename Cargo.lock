@@ -318,7 +318,7 @@ checksum = "ae36dc4177970ef04fde5178d3e2429882def40e57a451f919c098f72baa6cec"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -723,16 +723,16 @@ dependencies = [
  "burn-core",
  "burn-cpu",
  "burn-cuda",
- "burn-dispatch",
- "burn-flex",
- "burn-ir",
+ "burn-dispatch 0.22.0-pre.2",
+ "burn-flex 0.22.0-pre.2",
+ "burn-ir 0.22.0-pre.2",
  "burn-ndarray",
  "burn-nn",
  "burn-optim",
  "burn-rl",
  "burn-rocm",
  "burn-router",
- "burn-std",
+ "burn-std 0.22.0-pre.2",
  "burn-store",
  "burn-tch",
  "burn-train",
@@ -745,8 +745,8 @@ dependencies = [
 name = "burn-autodiff"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
- "burn-std",
+ "burn-backend 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "derive-new",
  "hashbrown 0.16.1",
  "log",
@@ -762,7 +762,7 @@ dependencies = [
 name = "burn-backend"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-std",
+ "burn-std 0.22.0-pre.2",
  "bytemuck",
  "cubecl",
  "derive-new",
@@ -781,6 +781,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-backend"
+version = "0.22.0-pre.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8157cd9dfe164c4a3e00183a4fbaa26789209ecf13ba55906185b532a20f1c5"
+dependencies = [
+ "burn-std 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytemuck",
+ "derive-new",
+ "enumset",
+ "hashbrown 0.16.1",
+ "num-traits",
+ "portable-atomic-util",
+ "rand 0.10.2",
+ "rand_distr 0.6.0",
+ "serde",
+ "spin",
+]
+
+[[package]]
 name = "burn-backend-extension"
 version = "0.22.0-pre.2"
 dependencies = [
@@ -794,13 +813,13 @@ name = "burn-backend-tests"
 version = "0.22.0-pre.2"
 dependencies = [
  "burn-autodiff",
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-cubecl",
  "burn-cubecl-fusion",
- "burn-flex",
+ "burn-flex 0.22.0-pre.2",
  "burn-fusion",
  "burn-ndarray",
- "burn-tensor",
+ "burn-tensor 0.22.0-pre.2",
  "ctor",
  "cubek",
  "divan",
@@ -817,8 +836,8 @@ name = "burn-communication"
 version = "0.22.0-pre.2"
 dependencies = [
  "axum",
- "burn-backend",
- "burn-std",
+ "burn-backend 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "bytes",
  "derive-new",
  "futures",
@@ -840,15 +859,15 @@ name = "burn-core"
 version = "0.22.0-pre.2"
 dependencies = [
  "ahash",
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-backend-extension",
  "burn-dataset",
  "burn-derive",
- "burn-dispatch",
- "burn-ir",
+ "burn-dispatch 0.22.0-pre.2",
+ "burn-ir 0.22.0-pre.2",
  "burn-pack",
- "burn-std",
- "burn-tensor",
+ "burn-std 0.22.0-pre.2",
+ "burn-tensor 0.22.0-pre.2",
  "derive-new",
  "half",
  "hashbrown 0.16.1",
@@ -871,7 +890,7 @@ dependencies = [
 name = "burn-cpu"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-cubecl",
  "burn-fusion",
  "cubecl",
@@ -881,11 +900,11 @@ dependencies = [
 name = "burn-cubecl"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-cubecl-fusion",
  "burn-fusion",
- "burn-ir",
- "burn-std",
+ "burn-ir 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "cubecl",
  "cubek",
  "derive-new",
@@ -900,10 +919,10 @@ dependencies = [
 name = "burn-cubecl-fusion"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-fusion",
- "burn-ir",
- "burn-std",
+ "burn-ir 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "cubecl",
  "cubek",
  "derive-new",
@@ -918,7 +937,7 @@ dependencies = [
 name = "burn-cuda"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-cubecl",
  "burn-fusion",
  "cubecl",
@@ -928,7 +947,7 @@ dependencies = [
 name = "burn-dataset"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-std",
+ "burn-std 0.22.0-pre.2",
  "csv",
  "derive-new",
  "dirs",
@@ -974,10 +993,10 @@ name = "burn-dispatch"
 version = "0.22.0-pre.2"
 dependencies = [
  "burn-autodiff",
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-cpu",
  "burn-cuda",
- "burn-flex",
+ "burn-flex 0.22.0-pre.2",
  "burn-ndarray",
  "burn-remote",
  "burn-rocm",
@@ -987,13 +1006,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-dispatch"
+version = "0.22.0-pre.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5bf565da978d065420c0b750417e5bc6ee72e5a168e0b2b15fc300439a6d622"
+dependencies = [
+ "burn-backend 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "burn-flex 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "paste",
+]
+
+[[package]]
 name = "burn-flex"
 version = "0.22.0-pre.2"
 dependencies = [
  "aligned-vec",
- "burn-backend",
- "burn-ir",
- "burn-std",
+ "burn-backend 0.22.0-pre.2",
+ "burn-ir 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "bytemuck",
  "gemm",
  "half",
@@ -1008,12 +1038,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-flex"
+version = "0.22.0-pre.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3af60c5cda3823448c723d6e3840223e806bb122a639689421a2ca1164decbaa"
+dependencies = [
+ "burn-backend 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "burn-ir 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "burn-std 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytemuck",
+ "gemm",
+ "half",
+ "libm",
+ "num-traits",
+ "once_cell",
+ "portable-atomic",
+ "portable-atomic-util",
+]
+
+[[package]]
 name = "burn-fusion"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
- "burn-ir",
- "burn-std",
+ "burn-backend 0.22.0-pre.2",
+ "burn-ir 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "derive-new",
  "hashbrown 0.16.1",
  "log",
@@ -1027,7 +1076,18 @@ dependencies = [
 name = "burn-ir"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
+ "hashbrown 0.16.1",
+ "serde",
+]
+
+[[package]]
+name = "burn-ir"
+version = "0.22.0-pre.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26d4ac0a2fcd725d7d429589944f2b894bc1ff5da01d40598f46b9561fc8b717"
+dependencies = [
+ "burn-backend 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashbrown 0.16.1",
  "serde",
 ]
@@ -1038,9 +1098,9 @@ version = "0.22.0-pre.2"
 dependencies = [
  "atomic_float",
  "blas-src",
- "burn-backend",
- "burn-ir",
- "burn-std",
+ "burn-backend 0.22.0-pre.2",
+ "burn-ir 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "bytemuck",
  "bytes",
  "const-random",
@@ -1073,8 +1133,20 @@ name = "burn-no-std-tests"
 version = "0.22.0-pre.2"
 dependencies = [
  "burn",
- "burn-flex",
+ "burn-flex 0.22.0-pre.2",
  "burn-store",
+]
+
+[[package]]
+name = "burn-onnx-export"
+version = "0.22.0-pre.2"
+dependencies = [
+ "burn-backend 0.22.0-pre.2",
+ "burn-ir 0.22.0-pre.2",
+ "hashbrown 0.16.1",
+ "onnx-ir",
+ "protobuf",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1097,7 +1169,7 @@ dependencies = [
 name = "burn-pack"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-std",
+ "burn-std 0.22.0-pre.2",
  "byteorder",
  "ciborium",
  "serde",
@@ -1108,14 +1180,14 @@ dependencies = [
 name = "burn-remote"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-communication",
- "burn-flex",
+ "burn-flex 0.22.0-pre.2",
  "burn-fusion",
- "burn-ir",
+ "burn-ir 0.22.0-pre.2",
  "burn-router",
- "burn-std",
- "burn-tensor",
+ "burn-std 0.22.0-pre.2",
+ "burn-tensor 0.22.0-pre.2",
  "bytes",
  "futures-util",
  "gloo-timers",
@@ -1144,7 +1216,7 @@ dependencies = [
 name = "burn-rocm"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-cubecl",
  "burn-fusion",
  "cubecl",
@@ -1154,11 +1226,11 @@ dependencies = [
 name = "burn-router"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
- "burn-flex",
+ "burn-backend 0.22.0-pre.2",
+ "burn-flex 0.22.0-pre.2",
  "burn-fusion",
- "burn-ir",
- "burn-std",
+ "burn-ir 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "hashbrown 0.16.1",
  "log",
  "serde",
@@ -1200,13 +1272,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-std"
+version = "0.22.0-pre.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7327d31c17e6eda647a7e43752353d5481d4cdca6c89112cbcd6e5402bb45264"
+dependencies = [
+ "ahash",
+ "bytemuck",
+ "bytes",
+ "cubecl-common",
+ "cubecl-environment",
+ "cubecl-zspace",
+ "data-encoding",
+ "derive-new",
+ "enumset",
+ "half",
+ "hashbrown 0.16.1",
+ "num-traits",
+ "portable-atomic-util",
+ "rand 0.10.2",
+ "rand_distr 0.6.0",
+ "serde",
+ "smallvec",
+ "spin",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
 name = "burn-store"
 version = "0.22.0-pre.2"
 dependencies = [
  "burn-core",
  "burn-nn",
  "burn-pack",
- "burn-tensor",
+ "burn-tensor 0.22.0-pre.2",
  "byteorder",
  "bytes",
  "ciborium",
@@ -1230,7 +1330,7 @@ dependencies = [
 name = "burn-tch"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "cc",
  "libc",
  "log",
@@ -1242,10 +1342,24 @@ dependencies = [
 name = "burn-tensor"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
- "burn-dispatch",
- "burn-std",
+ "burn-backend 0.22.0-pre.2",
+ "burn-dispatch 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "colored 3.1.1",
+ "derive-new",
+ "num-traits",
+ "serde",
+]
+
+[[package]]
+name = "burn-tensor"
+version = "0.22.0-pre.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85e85e6beb63d3ccd18fa5c1f71e8e3806a7f940cec8769f522b9d8cd173c999"
+dependencies = [
+ "burn-backend 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "burn-dispatch 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "burn-std 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive-new",
  "num-traits",
  "serde",
@@ -1257,11 +1371,11 @@ version = "0.22.0-pre.2"
 dependencies = [
  "async-channel",
  "burn-core",
- "burn-flex",
+ "burn-flex 0.22.0-pre.2",
  "burn-nn",
  "burn-optim",
  "burn-rl",
- "burn-std",
+ "burn-std 0.22.0-pre.2",
  "burn-store",
  "derive-new",
  "dirs",
@@ -1290,8 +1404,8 @@ dependencies = [
  "burn-core",
  "burn-cubecl",
  "burn-fusion",
- "burn-ir",
- "burn-std",
+ "burn-ir 0.22.0-pre.2",
+ "burn-std 0.22.0-pre.2",
  "burn-store",
  "bytemuck",
  "cubecl",
@@ -1310,7 +1424,7 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-backend",
+ "burn-backend 0.22.0-pre.2",
  "burn-cubecl",
  "burn-fusion",
  "cubecl",
@@ -2039,7 +2153,7 @@ dependencies = [
  "document-features",
  "mio",
  "parking_lot",
- "rustix",
+ "rustix 1.1.4",
  "signal-hook 0.3.18",
  "signal-hook-mio",
  "winapi",
@@ -3792,7 +3906,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8640e34b88f7652208ce9e88b1a37a2ae95227d84abec377ccd3c5cfeb141ed4"
 dependencies = [
- "rustix",
+ "rustix 1.1.4",
  "windows-sys 0.59.0",
 ]
 
@@ -5518,6 +5632,12 @@ checksum = "b685d66585d646efe09fec763d796c291049c8b6bf84e04954bffc8748341f0d"
 
 [[package]]
 name = "linux-raw-sys"
+version = "0.4.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d26c52dbd32dccf2d10cac7725f8eae5296885fb5703b261f7d0a0739ec807ab"
+
+[[package]]
+name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
@@ -6719,6 +6839,33 @@ checksum = "1e68317604e77e53b85896388e1a803c1d21b74c899ec9e5e1112db90735edd7"
 dependencies = [
  "cc",
  "pkg-config",
+]
+
+[[package]]
+name = "onnx-ir"
+version = "0.22.0-pre.1"
+dependencies = [
+ "burn-tensor 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytemuck",
+ "bytes",
+ "derive-new",
+ "half",
+ "log",
+ "onnx-ir-derive",
+ "protobuf",
+ "protobuf-codegen",
+ "regex",
+ "serde",
+ "strum 0.28.0",
+]
+
+[[package]]
+name = "onnx-ir-derive"
+version = "0.22.0-pre.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -7941,6 +8088,58 @@ dependencies = [
 ]
 
 [[package]]
+name = "protobuf"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
+dependencies = [
+ "bytes",
+ "once_cell",
+ "protobuf-support",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "protobuf-codegen"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d3976825c0014bbd2f3b34f0001876604fe87e0c86cd8fa54251530f1544ace"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "protobuf",
+ "protobuf-parse",
+ "regex",
+ "tempfile",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "protobuf-parse"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4aeaa1f2460f1d348eeaeed86aea999ce98c1bded6f089ff8514c9d9dbdc973"
+dependencies = [
+ "anyhow",
+ "indexmap",
+ "log",
+ "protobuf",
+ "protobuf-support",
+ "tempfile",
+ "thiserror 1.0.69",
+ "which",
+]
+
+[[package]]
+name = "protobuf-support"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e36c2f31e0a47f9280fb347ef5e461ffcd2c52dd520d8e216b52f93b0b0d7d6"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "psm"
 version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8789,6 +8988,19 @@ dependencies = [
 
 [[package]]
 name = "rustix"
+version = "0.38.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdb5bc1ae2baa591800df16c9ca78619bf65c0488b41b96ccec5d11220d8c154"
+dependencies = [
+ "bitflags 2.13.1",
+ "errno",
+ "libc",
+ "linux-raw-sys 0.4.15",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "rustix"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
@@ -8796,7 +9008,7 @@ dependencies = [
  "bitflags 2.13.1",
  "errno",
  "libc",
- "linux-raw-sys",
+ "linux-raw-sys 0.12.1",
  "windows-sys 0.61.2",
 ]
 
@@ -8914,7 +9126,7 @@ version = "0.22.0-pre.2"
 dependencies = [
  "burn",
  "burn-autodiff",
- "burn-flex",
+ "burn-flex 0.22.0-pre.2",
  "burn-store",
  "float-cmp",
  "serde",
@@ -9060,7 +9272,7 @@ checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -9626,9 +9838,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "3.0.2"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a207d6d6a2b7fc470b80443726053f18a2481b7e1eee970597051596567987a3"
+checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9777,7 +9989,7 @@ dependencies = [
  "fastrand",
  "getrandom 0.4.3",
  "once_cell",
- "rustix",
+ "rustix 1.1.4",
  "windows-sys 0.61.2",
 ]
 
@@ -9798,7 +10010,7 @@ checksum = "9048a889effe34a5cddee0af7f53285198b16dca3be510858d38dfdb3e62a04e"
 dependencies = [
  "bitflags 2.13.1",
  "parking_lot",
- "rustix",
+ "rustix 1.1.4",
  "signal-hook 0.3.18",
  "windows-sys 0.61.2",
 ]
@@ -9809,7 +10021,7 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
- "rustix",
+ "rustix 1.1.4",
  "windows-sys 0.61.2",
 ]
 
@@ -9962,7 +10174,7 @@ checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -11324,6 +11536,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "which"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
+dependencies = [
+ "either",
+ "home",
+ "once_cell",
+ "rustix 0.38.44",
+]
+
+[[package]]
 name = "widestring"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11881,7 +12105,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
 dependencies = [
  "libc",
- "rustix",
+ "rustix 1.1.4",
 ]
 
 [[package]]

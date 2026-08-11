@@ -166,6 +166,7 @@ serde = { version = "1.0.228", default-features = false, features = [
     "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.148", default-features = false }
+protobuf = "3.7.2"
 smallvec = { version = "1", features = ["const_generics", "const_new"] }
 uuid = { version = "1.23.0", default-features = false }
 
@@ -219,6 +220,9 @@ burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "=0.22.0-
 burn-train = { path = "crates/burn-train", version = "=0.22.0-pre.2", default-features = false }
 burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.2", default-features = false }
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.2", default-features = false }
+# TODO: remove once burn-onnx-export is moved into burn-onnx
+onnx-ir = { path = "../burn-onnx/crates/onnx-ir", default-features = false }
+
 
 ### For the main burn branch. ###
 # cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "11aec302f1b008f8540938a26f26cc46298d1fab" }
