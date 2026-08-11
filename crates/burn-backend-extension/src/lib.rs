@@ -9,6 +9,38 @@ use syn::{
     ReturnType, Token, TraitItem, Type, TypeParamBound, parse_macro_input,
 };
 
+mod dispatch;
+
+/// Turns a backend-generic `impl Trait<Self> for Dispatch` into direct enum dispatch.
+///
+/// Method bodies are forwarding expressions written as if `B` were the concrete
+/// backend selected at runtime:
+///
+/// ```rust,ignore
+/// #[backend_dispatch]
+/// impl ActivationOps<Self> for Dispatch {
+///     fn softmax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+///         B::softmax(tensor, dim)
+///     }
+/// }
+/// ```
+///
+/// The forwarding expression is intentionally explicit: the macro does not derive
+/// the backend call from the method name. This keeps argument order, associated
+/// calls, and any small amount of backend-generic glue visible at the call site.
+/// The macro infers tensor argument and result conversions from the signature, binds
+/// `B` in each concrete backend arm, and evaluates the supplied body there.
+///
+/// Methods requiring creation, transfer, distributed, transaction, or other bespoke
+/// routing can opt out with `#[backend_dispatch(skip)]`. Operations that must reject
+/// autodiff inputs can use `#[backend_dispatch(base)]`.
+#[proc_macro_attribute]
+pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
+    dispatch::expand(attr.into(), item.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
 /// # `backend_extension`
 ///
 /// Attribute macro that generates dispatch glue for Burn backend extension traits.

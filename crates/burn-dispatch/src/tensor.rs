@@ -272,6 +272,109 @@ pub enum DispatchTensorKind {
     Autodiff(Box<DispatchTensorKind>),
 }
 
+/// Operation-wide state derived from the compatibility-preserving tensor fields.
+///
+/// Keeping this private lets dispatch implementations share validation and
+/// promotion rules without changing the public `DispatchTensor` layout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DispatchContextState {
+    Plain,
+    AutodiffAssociated,
+    TrackedFloat,
+}
+
+macro_rules! define_dispatch_backend_id {
+    (; $([$Backend:ident, $cfg:meta]),*) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(crate) enum DispatchBackendId {
+            $(#[cfg($cfg)] $Backend),*
+        }
+
+        fn dispatch_backend_id(kind: &DispatchTensorKind) -> DispatchBackendId {
+            match kind {
+                $(#[cfg($cfg)] DispatchTensorKind::$Backend(_) => DispatchBackendId::$Backend,)*
+                #[cfg(feature = "autodiff")]
+                DispatchTensorKind::Autodiff(inner) => dispatch_backend_id(inner),
+            }
+        }
+    };
+}
+backend_list!(define_dispatch_backend_id,);
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DispatchContext {
+    state: DispatchContextState,
+    checkpointing: Option<CheckpointingStrategy>,
+    backend: DispatchBackendId,
+}
+
+impl DispatchContext {
+    pub(crate) fn new(tensor: &DispatchTensor, base: bool) -> Self {
+        let (backend, tracked) = Self::classify(&tensor.kind);
+        if base && (tracked || tensor.checkpointing.is_some()) {
+            panic!("Operation not marked for autodiff.");
+        }
+        let state = if tracked {
+            DispatchContextState::TrackedFloat
+        } else if tensor.checkpointing.is_some() {
+            DispatchContextState::AutodiffAssociated
+        } else {
+            DispatchContextState::Plain
+        };
+        Self {
+            state,
+            checkpointing: tensor.checkpointing,
+            backend,
+        }
+    }
+
+    pub(crate) fn include(&mut self, tensor: &DispatchTensor) {
+        let (backend, tracked) = Self::classify(&tensor.kind);
+        assert_eq!(
+            self.backend, backend,
+            "Input tensors are on different backends"
+        );
+        if let (Some(lhs), Some(rhs)) = (self.checkpointing, tensor.checkpointing) {
+            assert_eq!(
+                lhs, rhs,
+                "Input tensors use different checkpointing strategies"
+            );
+        }
+        self.checkpointing = self.checkpointing.or(tensor.checkpointing);
+        if tracked {
+            self.state = DispatchContextState::TrackedFloat;
+        } else if self.state == DispatchContextState::Plain && tensor.checkpointing.is_some() {
+            self.state = DispatchContextState::AutodiffAssociated;
+        }
+    }
+
+    pub(crate) fn include_optional(&mut self, tensor: Option<&DispatchTensor>) {
+        if let Some(tensor) = tensor {
+            self.include(tensor);
+        }
+    }
+
+    pub(crate) fn checkpointing(&self) -> Option<CheckpointingStrategy> {
+        self.checkpointing
+    }
+
+    pub(crate) fn backend(&self) -> DispatchBackendId {
+        self.backend
+    }
+
+    pub(crate) fn uses_autodiff(&self) -> bool {
+        self.state != DispatchContextState::Plain
+    }
+
+    fn classify(kind: &DispatchTensorKind) -> (DispatchBackendId, bool) {
+        #[cfg(feature = "autodiff")]
+        if let DispatchTensorKind::Autodiff(inner) = kind {
+            return (dispatch_backend_id(inner), true);
+        }
+        (dispatch_backend_id(kind), false)
+    }
+}
+
 impl TensorMetadata for DispatchTensorKind {
     type Device = DispatchDevice;
 

@@ -1165,6 +1165,20 @@ macro_rules! first_input {
     };
 }
 
+/// Resolves and validates the shared context of required and optional tensors.
+macro_rules! dispatch_context {
+    (
+        [ $(($x:ident, $kind:ident)),+ ],
+        [ $(($opt:ident, $opt_kind:ident)),* ],
+        $base:expr
+    ) => {{
+        let mut context = $crate::tensor::DispatchContext::new(&first_input!([$(($x, $kind)),+]), $base);
+        $(context.include(&$x);)+
+        $(context.include_optional($opt.as_ref());)*
+        context
+    }};
+}
+
 /// Match arm generator for `multi_op`.
 /// Determines the backend based on the first input and delegates to `multi_op_arm`
 /// to handle the repetition-heavy unwrapping and wrapping logic.
@@ -1178,7 +1192,8 @@ macro_rules! multi_op_arms_autodiff {
         $( [$Backend:ident, $cfg:meta] ),*
     ) => {{
         let first_input = &first_input!($inputs);
-        let checkpointing = first_input.checkpointing;
+        let context = dispatch_context!($inputs, $opt_inputs, false);
+        let checkpointing = context.checkpointing();
         match &first_input.kind {
             // Autodiff first
             #[cfg(feature = "autodiff")]
@@ -1232,7 +1247,8 @@ macro_rules! multi_op_arms {
         $( [$Backend:ident, $cfg:meta] ),*
     ) => {{
         let first_input = &first_input!($inputs);
-        let checkpointing = first_input.checkpointing;
+        let context = dispatch_context!($inputs, $opt_inputs, true);
+        let checkpointing = context.checkpointing();
 
         match first_input.kind {
             $(
