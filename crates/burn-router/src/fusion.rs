@@ -23,8 +23,8 @@ use burn_fusion::{
     Optimization,
 };
 use burn_ir::{
-    BackendIr, CustomOpIr, GraphBindings, GraphId, Handle, HandleContainer, OperationIr, ScalarIr,
-    TensorHandle, TensorId, TensorIr, TensorStatus,
+    BackendIr, CustomOpIr, GraphBindings, GraphId, GraphIr, Handle, HandleContainer, OperationIr,
+    ScalarIr, TensorHandle, TensorId, TensorIr, TensorStatus,
 };
 use serde::{Deserialize, Serialize};
 
@@ -350,7 +350,7 @@ impl<R: RouterChannel> Operation<RouterFusionRuntime<R>> for CustomOperation<R> 
 /// the concrete bindings are computed from the [`Context`] and sent; the (large) graph itself
 /// travels only on the first invocation.
 pub struct RouterGraphExecution<R: RouterChannel> {
-    graph: Vec<OperationIr>,
+    graph: GraphIr,
     device: R::Device,
     /// Relative ids of the graph's boundary, precomputed once from the (static) graph so each
     /// replay is O(boundary) instead of re-scanning every tensor. Inputs are tensors not produced
@@ -369,12 +369,14 @@ pub struct RouterGraphExecution<R: RouterChannel> {
 /// graph re-registers itself on first use.
 #[derive(Serialize, Deserialize)]
 pub struct RouterGraphExecutionState {
-    graph: Vec<OperationIr>,
+    graph: GraphIr,
 }
 
 impl<R: RouterChannel> RouterGraphExecution<R> {
     fn new(graph: Vec<OperationIr>, device: R::Device) -> Self {
-        let (input_ids, output_ids) = classify_boundary(&graph);
+        let graph = GraphIr::new(graph);
+        let input_ids = graph.inputs.clone();
+        let output_ids = graph.outputs.clone();
         Self {
             graph,
             device,
@@ -397,40 +399,6 @@ impl<R: RouterChannel> RouterGraphExecution<R> {
 ///
 /// Intermediate tensors (compute-produced and consumed/dropped here) are in neither list — the
 /// replay owns their ids — so a replay only ever touches the boundary.
-fn classify_boundary(graph: &[OperationIr]) -> (Vec<TensorId>, Vec<TensorId>) {
-    let mut referenced: HashSet<TensorId> = HashSet::new();
-    let mut compute_produced: HashSet<TensorId> = HashSet::new();
-    let mut consumed: HashSet<TensorId> = HashSet::new();
-    for op in graph {
-        if let OperationIr::Drop(tensor) = op {
-            consumed.insert(tensor.id);
-        }
-        if !matches!(op, OperationIr::Init(_)) {
-            for tensor in op.outputs() {
-                compute_produced.insert(tensor.id);
-            }
-        }
-        for tensor in op.nodes() {
-            referenced.insert(tensor.id);
-            if tensor.status == TensorStatus::ReadWrite {
-                consumed.insert(tensor.id);
-            }
-        }
-    }
-
-    let inputs = referenced
-        .iter()
-        .filter(|id| !compute_produced.contains(id))
-        .copied()
-        .collect();
-    let outputs = compute_produced
-        .iter()
-        .filter(|id| !consumed.contains(id))
-        .copied()
-        .collect();
-    (inputs, outputs)
-}
-
 /// Estimate the % of serialized bytes that caching this op-graph saves per replay.
 ///
 /// Dependency-free structural estimate (reuses [`classify_boundary`]): the baseline is the whole
@@ -459,8 +427,9 @@ fn estimate_saved_pct(ops: &[OperationIr]) -> u64 {
         }
     }
 
-    let (inputs, outputs) = classify_boundary(ops);
-    let bindings = (inputs.len() + outputs.len()) as u64 * PAIR + dims.len() as u64 * PER_DIM;
+    let graph = GraphIr::new(ops.to_vec());
+    let bindings =
+        (graph.inputs.len() + graph.outputs.len()) as u64 * PAIR + dims.len() as u64 * PER_DIM;
 
     let saved = baseline.saturating_sub(bindings);
     (saved * 100 / baseline).min(100)
@@ -559,7 +528,7 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecu
             None => {
                 let id = next_graph_id();
                 self.graph_id = Some(id);
-                client.register_and_execute_graph(id, self.graph.clone(), bindings);
+                client.register_and_execute_graph(id, self.graph.operations.clone(), bindings);
             }
         };
     }
@@ -571,6 +540,6 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecu
     }
 
     fn from_state(device: &R::Device, state: RouterGraphExecutionState) -> Self {
-        Self::new(state.graph, device.clone())
+        Self::new(state.graph.operations, device.clone())
     }
 }
