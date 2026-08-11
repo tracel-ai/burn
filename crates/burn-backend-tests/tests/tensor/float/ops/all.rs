@@ -65,3 +65,30 @@ fn test_all_empty() {
         false,
     );
 }
+
+// Shape [3, 0]: the identity has to be written once per surviving position, which the whole-tensor
+// case above cannot cover.
+#[test]
+fn test_all_dim_empty_axis() {
+    let device = Default::default();
+    let expected = TensorData::from([[true], [true], [true]]);
+
+    expected.assert_eq(
+        &TestTensor::<2>::empty([3, 0], &device)
+            .all_dim(1)
+            .into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorInt::<2>::empty([3, 0], &device)
+            .all_dim(1)
+            .into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorBool::<2>::empty([3, 0], &device)
+            .all_dim(1)
+            .into_data(),
+        false,
+    );
+}
