@@ -1,0 +1,34 @@
+[package]
+name = "burn-capture"
+description = "Graph capture backend for the Burn framework"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-capture"
+documentation = "https://docs.rs/burn-capture"
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "burn-backend/std",
+    "burn-ir/std",
+    "burn-router/std",
+    "burn-std/std",
+]
+doc = ["default"]
+
+[dependencies]
+burn-backend = { workspace = true }
+burn-ir = { workspace = true }
+burn-router = { workspace = true }
+burn-std = { workspace = true }
+hashbrown = { workspace = true }
+spin = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
+

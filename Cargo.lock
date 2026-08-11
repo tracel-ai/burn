@@ -832,6 +832,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-capture"
+version = "0.22.0-pre.2"
+dependencies = [
+ "burn-backend 0.22.0-pre.2",
+ "burn-ir 0.22.0-pre.2",
+ "burn-router",
+ "burn-std 0.22.0-pre.2",
+ "hashbrown 0.16.1",
+ "spin",
+]
+
+[[package]]
 name = "burn-communication"
 version = "0.22.0-pre.2"
 dependencies = [
