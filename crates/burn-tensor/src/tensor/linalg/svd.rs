@@ -266,7 +266,7 @@ fn svd_host<F: Float + Copy>(
             vt[b * 4..b * 4 + 4].copy_from_slice(&vv);
             continue;
         }
-        let (mut u1, bv, mut v1) = bidiag_host(ab, m, n);
+        let (u1, bv, v1) = bidiag_host(ab, m, n);
         // Transpose both factor buffers up front: the Givens rotations act on
         // column pairs (k, k+1), which are stride-n in row-major storage but
         // contiguous rows in the transposed layout, so the hot loops below
@@ -953,22 +953,5 @@ mod tests {
             }
         }
         assert!(err < 1e-12, "batch2 recon {err}");
-    }
-}
-
-/// Bench-only hooks (behind the `bench` feature).
-#[cfg(feature = "bench")]
-pub mod bench_hooks {
-    use super::*;
-    pub fn bidiag<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>, Vec<F>) {
-        bidiag_host(a, m, n)
-    }
-    pub fn qr_sweeps<F: Float + Copy>(
-        d: &mut [F],
-        e: &mut [F],
-        givens: &mut Vec<(usize, F, F, F, F)>,
-        max_sweeps: usize,
-    ) -> Vec<F> {
-        dbdsqr(d, e, givens, max_sweeps)
     }
 }
