@@ -180,6 +180,19 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor.into_data::<B>().await
     }
 
+    async fn float_svd(
+        tensor: FloatTensor<Self>,
+        sweeps: usize,
+        swap: bool,
+    ) -> Result<(TensorData, TensorData, TensorData), ExecutionError> {
+        // Resolve through the fusion server into the inner backend's
+        // primitive and let the backend run its SVD (fused kernel or host
+        // pipeline); fusion has no IR op for SVD.
+        let client = tensor.client.clone();
+        let resolved = client.resolve_tensor_float::<B>(tensor);
+        B::float_svd(resolved, sweeps, swap).await
+    }
+
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(tensor),

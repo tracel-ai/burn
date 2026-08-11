@@ -286,7 +286,6 @@ pub fn dbdsqr_host<F: Float + Copy>(
     e: &[F],
     max_sweeps: usize,
 ) -> (Vec<F>, Vec<F>, Vec<(usize, F, F, F, F)>) {
-    let n = d.len();
     let mut d = d.to_vec();
     let mut e = e.to_vec();
     let mut givens: Vec<(usize, F, F, F, F)> = Vec::new();
