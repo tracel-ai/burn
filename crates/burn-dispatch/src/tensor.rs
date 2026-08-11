@@ -413,10 +413,13 @@ impl TensorMetadata for DispatchTensor {
 
         #[cfg(feature = "autodiff")]
         if let Some(checkpointing) = &self.checkpointing {
-            // Non-float tensors travel beside the tape untracked, but their device
-            // must retain the autodiff capability so tensors derived from them can
-            // join the graph (for example, an integer one-hot tensor cast to float).
-            if !matches!(device, DispatchDevice::Autodiff(_)) {
+            // Int, bool, and quantized tensors travel beside the tape untracked, but
+            // their device must retain the autodiff capability so tensors derived
+            // from them can join the graph (for example, an integer one-hot tensor
+            // cast to float). Plain float gradients can also carry checkpointing
+            // metadata copied from their source tensor, but remain on the inner
+            // backend and must continue to report that device.
+            if !self.dtype().is_float() && !matches!(device, DispatchDevice::Autodiff(_)) {
                 device = DispatchDevice::autodiff(device);
             }
             if let DispatchDevice::Autodiff(device) = &mut device {

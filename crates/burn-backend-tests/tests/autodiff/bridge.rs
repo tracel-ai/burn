@@ -37,5 +37,6 @@ fn one_hot_preserves_autodiff_device() {
     let loss = (logits.clone() * one_hot).sum();
     let grads = loss.backward();
 
-    assert!(logits.grad(&grads).is_some());
+    let logits_grad = logits.grad(&grads).expect("logits should have gradients");
+    assert!(!logits_grad.device().is_autodiff());
 }
