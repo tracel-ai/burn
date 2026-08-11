@@ -2,7 +2,7 @@
 use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
 use crate::{
     CubeRuntime,
-    ops::numeric::{empty_device_contiguous_dtype, full_device_dtype, zeros_client},
+    ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type, elem_type_to_dtype};
@@ -54,8 +54,8 @@ fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<
 
 /// Fill `output` with the identity of `config`, or report that `config` has none.
 ///
-/// Written directly rather than launched as a kernel because cubek's `validate_shapes` rejects a
-/// zero-length axis with [`ReduceError::ReduceAxisTooSmall`], so no kernel can run.
+/// Filled directly rather than by a reduce kernel because cubek's `validate_shapes` rejects a
+/// zero-length axis with [`ReduceError::ReduceAxisTooSmall`], so no reduction can run.
 ///
 /// An operation with no identity is rejected even when `output` is itself empty: emptiness of the
 /// output depends on the *other* axes, so allowing it would make `max` succeed for shape `[0, 0]`
@@ -75,13 +75,9 @@ fn reduce_empty_axis<Run: CubeRuntime>(
         return Ok(output);
     }
 
-    Ok(full_device_dtype(
-        output.client.clone(),
-        output.shape(),
-        output.device.clone(),
-        InputScalar::new(identity, dtype_to_storage_type(output.dtype)),
-        output.dtype,
-    ))
+    let identity = InputScalar::new(identity, dtype_to_storage_type(output.dtype));
+
+    Ok(fill_device_dtype(output, identity))
 }
 
 /// Check if the client supports atomic add for the given element type.
@@ -394,7 +390,7 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
 
     // Every `config` reaching this point is an extremum, so an empty axis leaves it with no value
     // to report and no index to name. Always rejected, including when the outputs are themselves
-    // empty — see `reduce_empty_axis`.
+    // empty - see `reduce_empty_axis`.
     if input.meta.shape[dim] == 0 {
         return Err(ReduceError::ReduceAxisTooSmall {
             axis_length: 0,
