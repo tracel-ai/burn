@@ -220,7 +220,100 @@ pub fn svd<const D: usize, const D1: usize>(
 /// Host pipeline: Golub-Kahan bidiagonalization + dbdsqr + factor assembly,
 /// per batch element. Pure scalar math over tensor data, deterministic and
 /// identical on every backend.
-fn svd_host<F: Float + Copy>(
+///
+/// With the `std` feature the batch is split across threads: the matrices in
+/// a batch are independent, so each thread works on its own slice and the
+/// results are concatenated in batch order (deterministic, same output).
+/// No-std builds fall back to the single-threaded loop.
+fn svd_host<F: Float + Copy + Send + Sync>(
+    a: &[F],
+    m: usize,
+    n: usize,
+    batch: usize,
+    max_sweeps: usize,
+    swap: bool,
+) -> (Vec<F>, Vec<F>, Vec<F>) {
+    // Factor layouts depend on the orientation: without swap U is [m, n] and
+    // Vt is [n, n]; with swap (wide input) U is [n, n] and Vt is [m, n].
+    let (u_len, vt_len) = if swap {
+        (n * n, m * n)
+    } else {
+        (m * n, n * n)
+    };
+    let mut u = vec![F::zero(); batch * u_len];
+    let mut sigma = vec![F::zero(); batch * n];
+    let mut vt = vec![F::zero(); batch * vt_len];
+
+    #[cfg(feature = "std")]
+    {
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .min(batch)
+            .max(1);
+        if threads > 1 {
+            // Each thread fills its own [b0, b1) slice of the output buffers:
+            // disjoint ranges, no synchronization needed beyond the join.
+            // Split the buffers once up front so every spawned closure holds
+            // only its own slices (no shared &mut borrows).
+            let chunk = batch.div_ceil(threads);
+            let mut u_slices: Vec<&mut [F]> = Vec::with_capacity(threads);
+            let mut sigma_slices: Vec<&mut [F]> = Vec::with_capacity(threads);
+            let mut vt_slices: Vec<&mut [F]> = Vec::with_capacity(threads);
+            let mut offsets = Vec::with_capacity(threads);
+            let mut counts = Vec::with_capacity(threads);
+            let mut rest_u = u.as_mut_slice();
+            let mut rest_s = sigma.as_mut_slice();
+            let mut rest_v = vt.as_mut_slice();
+            for t in 0..threads {
+                let b0 = t * chunk;
+                let b1 = (b0 + chunk).min(batch);
+                if b0 >= b1 {
+                    break;
+                }
+                let n_b = b1 - b0;
+                let (u_part, r) = rest_u.split_at_mut(n_b * u_len);
+                let (s_part, r2) = rest_s.split_at_mut(n_b * n);
+                let (v_part, r3) = rest_v.split_at_mut(n_b * vt_len);
+                u_slices.push(u_part);
+                sigma_slices.push(s_part);
+                vt_slices.push(v_part);
+                rest_u = r;
+                rest_s = r2;
+                rest_v = r3;
+                offsets.push(b0);
+                counts.push(n_b);
+            }
+            std::thread::scope(|scope| {
+                let mut us = u_slices.into_iter();
+                let mut ss = sigma_slices.into_iter();
+                let mut vs = vt_slices.into_iter();
+                for (&b0, &n_b) in offsets.iter().zip(counts.iter()) {
+                    let u_part = us.next().unwrap();
+                    let s_part = ss.next().unwrap();
+                    let v_part = vs.next().unwrap();
+                    let a_slice = &a[b0 * m * n..(b0 + n_b) * m * n];
+                    scope.spawn(move || {
+                        let (tu, ts, tv) = svd_host_seq(a_slice, m, n, n_b, max_sweeps, swap);
+                        u_part.copy_from_slice(&tu);
+                        s_part.copy_from_slice(&ts);
+                        v_part.copy_from_slice(&tv);
+                    });
+                }
+            });
+            return (u, sigma, vt);
+        }
+    }
+
+    let (tu, ts, tv) = svd_host_seq(a, m, n, batch, max_sweeps, swap);
+    u.copy_from_slice(&tu);
+    sigma.copy_from_slice(&ts);
+    vt.copy_from_slice(&tv);
+    (u, sigma, vt)
+}
+
+/// Single-threaded per-batch pipeline (shared by the parallel wrapper).
+fn svd_host_seq<F: Float + Copy>(
     a: &[F],
     m: usize,
     n: usize,
