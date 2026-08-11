@@ -292,21 +292,21 @@ fn svd_host<F: Float + Copy>(
         givens.clear();
         let sigma_b = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps);
 
-        // U = U1 @ (product of left Givens rotations): in the transposed
-        // layout a rotation of columns (k, k+1) touches contiguous rows.
-        for &(k, cl, sl, _, _) in &givens {
+        // Apply both the left (U) and right (Vt) rotations in one pass over
+        // the givens list: each entry touches one row pair of each factor, so
+        // a single loop keeps the rotation data in cache for both matrices.
+        for &(k, cl, sl, cr, sr) in &givens {
+            let (k_u, k1_u) = (k * m, (k + 1) * m);
+            let (k_v, k1_v) = (k * n, (k + 1) * n);
             for i in 0..m {
-                let (a0, b0) = (u1t[k * m + i], u1t[(k + 1) * m + i]);
-                u1t[k * m + i] = cl * a0 + sl * b0;
-                u1t[(k + 1) * m + i] = -sl * a0 + cl * b0;
+                let (a0, b0) = (u1t[k_u + i], u1t[k1_u + i]);
+                u1t[k_u + i] = cl * a0 + sl * b0;
+                u1t[k1_u + i] = -sl * a0 + cl * b0;
             }
-        }
-        // Vt = (V1 @ (product of right Givens rotations))^T.
-        for &(k, _, _, cr, sr) in &givens {
             for i in 0..n {
-                let (a0, b0) = (v1t[k * n + i], v1t[(k + 1) * n + i]);
-                v1t[k * n + i] = cr * a0 + sr * b0;
-                v1t[(k + 1) * n + i] = -sr * a0 + cr * b0;
+                let (a0, b0) = (v1t[k_v + i], v1t[k1_v + i]);
+                v1t[k_v + i] = cr * a0 + sr * b0;
+                v1t[k1_v + i] = -sr * a0 + cr * b0;
             }
         }
         // Absorb the signs of the diagonal into U.
