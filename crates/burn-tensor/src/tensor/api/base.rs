@@ -11,7 +11,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_std::{DataError, ExecutionError};
+use burn_std::{DataError, ExecutionError, WithOkOrPanic};
 use burn_std::{SliceOps, sync::RwLock};
 use core::iter::ExactSizeIterator;
 use core::iter::repeat;
@@ -19,16 +19,19 @@ use core::marker::PhantomData;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
+use crate::ops::{BasicOps, Kind};
 use crate::{AsIndex, Device, Slice, SliceArg, wrap_index};
 use crate::{Bool, ElementConversion, Float, Int, Shape, TensorData, check};
 use crate::{DType, Element};
 use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
+use core::future::Future;
 use serde::{Serialize, Serializer};
 
 /// A tensor with a given backend, shape and data type.
 ///
 /// # Indexing
+///
 /// Indexing a tensor can be done using [`slice`](Tensor::slice) for all tensor types
 /// or [`select`](Tensor::select) for numeric types.
 ///
@@ -2032,14 +2035,12 @@ where
     /// Returns the data of the current tensor.
     pub fn into_data_async(
         self,
-    ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
         into_data_async_impl(self.primitive, K::KIND)
     }
 
     /// Returns the data of the current tensor.
-    pub fn to_data_async(
-        &self,
-    ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
+    pub fn to_data_async(&self) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
         into_data_async_impl(self.primitive.clone(), K::KIND)
     }
 
@@ -2047,7 +2048,7 @@ where
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// See: [`try_to_data_as`].
+    /// See: [`Tensor::try_to_data_as`].
     ///
     /// # Returns
     /// The new data.
@@ -2075,7 +2076,7 @@ where
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// See: [`try_to_data_dtype`].
+    /// See: [`Tensor::try_to_data_dtype`].
     ///
     /// # Returns
     /// The new data.
@@ -2083,7 +2084,7 @@ where
     /// # Panics
     /// On data conversion error.
     pub fn to_data_dtype(&self, dtype: DType) -> TensorData {
-        self.try_to_data_dtype(dtype).unwrap()
+        self.try_to_data_dtype(dtype).ok_or_panic()
     }
 
     /// Copies the current `Tensor` into `TensorData`; converts the dtype.
@@ -2103,7 +2104,7 @@ where
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// See: [`try_into_data_as`].
+    /// See: [`Tensor::try_into_data_as`].
     ///
     /// # Returns
     /// The new data.
@@ -2111,7 +2112,7 @@ where
     /// # Panics
     /// On data conversion error.
     pub fn into_data_as<E: Element>(self) -> TensorData {
-        self.try_into_data_as::<E>().unwrap()
+        self.try_into_data_as::<E>().ok_or_panic().ok_or_panic()
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
@@ -2122,18 +2123,20 @@ where
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// # Returns
-    /// `Ok(data)`, or an error on data conversion errors.
-    pub fn try_into_data_as<E: Element>(self) -> Result<TensorData, DataError> {
-        self.try_into_data()
-            .map_err(|e| DataError::TypeMismatch(format!("{e:?}")))?
-            .try_cast_as::<E>()
+    /// Nested result, `Ok(Ok(data))` on success;
+    /// `Err(ExecutionError)` on transaction errors,
+    /// `Ok(Err(DataError))` on dtype errors,
+    pub fn try_into_data_as<E: Element>(
+        self,
+    ) -> Result<Result<TensorData, DataError>, ExecutionError> {
+        self.try_into_data().map(|d| d.try_cast_as::<E>())
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// See: [`try_into_data_dtype`].
+    /// See: [`Tensor::try_into_data_dtype`].
     ///
     /// # Returns
     /// The new data.
@@ -2141,7 +2144,7 @@ where
     /// # Panics
     /// On data conversion error.
     pub fn into_data_dtype(self, dtype: DType) -> TensorData {
-        self.try_into_data_dtype(dtype).unwrap()
+        self.try_into_data_dtype(dtype).ok_or_panic().ok_or_panic()
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
@@ -2153,10 +2156,11 @@ where
     ///
     /// # Returns
     /// `Ok(data)`, or an error on data conversion errors.
-    pub fn try_into_data_dtype(self, dtype: DType) -> Result<TensorData, DataError> {
-        self.try_into_data()
-            .map_err(|e| DataError::TypeMismatch(format!("{e:?}")))?
-            .try_cast(dtype)
+    pub fn try_into_data_dtype(
+        self,
+        dtype: DType,
+    ) -> Result<Result<TensorData, DataError>, ExecutionError> {
+        self.try_into_data().map(|d| d.try_cast(dtype))
     }
 
     /// Create a tensor from the given data on the given device.
@@ -3278,29 +3282,27 @@ where
 /// state-machine code lives here, compiled once inside `burn-tensor`.
 async fn into_data_async_impl(
     primitive: BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
 ) -> Result<TensorData, ExecutionError> {
-    use crate::ops::{BasicOps, Kind};
     match kind {
-        Kind::Float => <crate::Float as BasicOps>::into_data_async(primitive).await,
-        Kind::Int => <crate::Int as BasicOps>::into_data_async(primitive).await,
-        Kind::Bool => <crate::Bool as BasicOps>::into_data_async(primitive).await,
+        Kind::Float => <Float as BasicOps>::into_data_async(primitive).await,
+        Kind::Int => <Int as BasicOps>::into_data_async(primitive).await,
+        Kind::Bool => <Bool as BasicOps>::into_data_async(primitive).await,
     }
 }
 
-fn slice_bridge_by_kind(p: BridgeTensor, slices: &[Slice], kind: crate::ops::Kind) -> BridgeTensor {
-    use crate::ops::{BasicOps, Kind};
+fn slice_bridge_by_kind(p: BridgeTensor, slices: &[Slice], kind: Kind) -> BridgeTensor {
     match kind {
-        Kind::Float => <crate::Float as BasicOps>::slice(p, slices),
-        Kind::Int => <crate::Int as BasicOps>::slice(p, slices),
-        Kind::Bool => <crate::Bool as BasicOps>::slice(p, slices),
+        Kind::Float => <Float as BasicOps>::slice(p, slices),
+        Kind::Int => <Int as BasicOps>::slice(p, slices),
+        Kind::Bool => <Bool as BasicOps>::slice(p, slices),
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_inner(
     primitive: &BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3339,7 +3341,7 @@ fn push_newline_indent_impl(acc: &mut String, indent: usize) {
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_outer(
     primitive: &BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3373,7 +3375,7 @@ fn display_fmt_outer(
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_recursive(
     primitive: &BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3470,7 +3472,7 @@ fn display_fmt_recursive(
 
 fn display_fmt_impl(
     primitive: &BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
     kind_name: &str,
     f: &mut core::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
@@ -3502,9 +3504,9 @@ fn display_fmt_impl(
     }
     writeln!(f, "  shape:  {},", primitive.shape())?;
     let device = match kind {
-        crate::ops::Kind::Float => <crate::Float as crate::ops::BasicOps>::device(primitive),
-        crate::ops::Kind::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
-        crate::ops::Kind::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
+        Kind::Float => <Float as BasicOps>::device(primitive),
+        Kind::Int => <Int as BasicOps>::device(primitive),
+        Kind::Bool => <Bool as BasicOps>::device(primitive),
     };
     writeln!(f, "  device:  {:?},", device)?;
     writeln!(f, "  kind:  {:?},", kind_name)?;
@@ -3515,7 +3517,7 @@ fn display_fmt_impl(
 
 fn try_into_data_sync_impl(
     primitive: BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
 ) -> Result<TensorData, ExecutionError> {
     crate::try_read_sync(into_data_async_impl(primitive, kind)).expect(
         "Failed to read tensor data synchronously.
@@ -3526,9 +3528,12 @@ fn try_into_data_sync_impl(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use burn_std::SliceOps;
 
-    use crate::{Shape, s};
+    use crate::Slice;
+
+    use crate::s;
 
     #[test]
     fn slice_range_single_dim_leading() {
@@ -3565,8 +3570,6 @@ mod tests {
 
     #[test]
     fn test_negative_slice_indices() {
-        use crate::Slice;
-
         // Test negative indices conversion
         let slice: Slice = (-3..-1).into();
         assert_eq!(slice.start, -3);
