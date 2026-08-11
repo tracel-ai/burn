@@ -5,6 +5,12 @@
 //! These actually run the generated dispatch glue end to end: the runtime backend-selection walk,
 //! the tensor-less enum variant panic, and enum-variant-dependent unwrapping.
 #![cfg(feature = "ndarray")]
+// `multi_backend_autodiff` needs two concrete backends compiled in at once to prove the dispatch
+// walk inspects the backend inside `DispatchTensorKind::Autodiff` rather than letting the first
+// generated arm capture everything. This suite still pairs NdArray with Flex (the latter coming
+// from the default features); `Cpu` + Flex would work without a GPU or libtorch too, so this
+// should move to that pair before burn-ndarray is removed.
+#![allow(deprecated)]
 
 use burn::backend::{Dispatch, ExtensionType, NdArray, backend_extension, tensor::FloatTensor};
 use burn::tensor::{Device, Tensor};

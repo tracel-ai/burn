@@ -99,7 +99,7 @@
 //!   - `candle`: Makes available the Candle backend
 //!   - `tch`: Makes available the LibTorch backend
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
-//!   - `ndarray`: Makes available the NdArray backend (legacy - prefer `flex` for new projects)
+//!   - `ndarray`: Makes available the NdArray backend (deprecated - use `flex` instead)
 //! - Backend specifications
 //!   - `accelerate`: If supported, Accelerate will be used
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
