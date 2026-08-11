@@ -2,13 +2,15 @@
 use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
 use crate::{
     CubeRuntime,
-    ops::numeric::{empty_device_contiguous_dtype, zeros_client},
+    ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
-use burn_backend::cubecl::{dtype_to_elem_type, elem_type_to_dtype};
+use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type, elem_type_to_dtype};
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{BoolDType, Metadata};
-use cubecl::{AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type};
+use cubecl::{
+    AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type, prelude::InputScalar,
+};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy, ReduceWithIndicesDtypes,
     components::instructions::ReduceOperationConfig,
@@ -26,6 +28,56 @@ pub struct SumAutotuneKey {
     /// The anchored length of the tensor
     #[autotune(anchor)]
     length: usize,
+}
+
+/// The value a reduction over zero elements must produce, or `None` if there is none.
+///
+/// Reducing zero elements yields the folded operation's identity. The extrema have no identity in
+/// a bounded numeric type (there is no integer below `i32::MIN`) and an `Arg*` would have to name
+/// an element that does not exist, so they return `None`: numpy raises `ValueError` and torch
+/// raises `IndexError` for all of them, as do burn's CPU backends for an empty `max`/`min`.
+fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<f64> {
+    match config {
+        ReduceOperationConfig::Sum | ReduceOperationConfig::Any => Some(0.0),
+        ReduceOperationConfig::Prod | ReduceOperationConfig::All => Some(1.0),
+        // Only floats can carry `NaN`; an integer mean of nothing has no representable value.
+        ReduceOperationConfig::Mean => dtype.is_float().then_some(f64::NAN),
+        ReduceOperationConfig::Max
+        | ReduceOperationConfig::Min
+        | ReduceOperationConfig::MaxAbs
+        | ReduceOperationConfig::TopK(_)
+        | ReduceOperationConfig::ArgMax
+        | ReduceOperationConfig::ArgMin
+        | ReduceOperationConfig::ArgTopK(_) => None,
+    }
+}
+
+/// Fill `output` with the identity of `config`, or report that `config` has none.
+///
+/// Filled directly rather than by a reduce kernel because cubek's `validate_shapes` rejects a
+/// zero-length axis with [`ReduceError::ReduceAxisTooSmall`], so no reduction can run.
+///
+/// An operation with no identity is rejected even when `output` is itself empty: emptiness of the
+/// output depends on the *other* axes, so allowing it would make `max` succeed for shape `[0, 0]`
+/// and fail for `[3, 0]`.
+fn reduce_empty_axis<Run: CubeRuntime>(
+    output: CubeTensor<Run>,
+    axis_length: usize,
+    config: ReduceOperationConfig,
+) -> Result<CubeTensor<Run>, ReduceError> {
+    let identity =
+        empty_reduce_identity(config, output.dtype).ok_or(ReduceError::ReduceAxisTooSmall {
+            axis_length,
+            k: accumulator_len(config),
+        })?;
+
+    if output.meta.num_elements() == 0 {
+        return Ok(output);
+    }
+
+    let identity = InputScalar::new(identity, dtype_to_storage_type(output.dtype));
+
+    Ok(fill_device_dtype(output, identity))
 }
 
 /// Check if the client supports atomic add for the given element type.
@@ -62,6 +114,11 @@ pub fn sum<Run: CubeRuntime>(
 ) -> Result<CubeTensor<Run>, ReduceError> {
     let client = tensor.client.clone();
     let device = tensor.device.clone();
+
+    // No strategy can launch a kernel over an empty input, so write the additive identity.
+    if tensor.meta.num_elements() == 0 {
+        return Ok(zeros_client(client, device, [1].into(), tensor.dtype));
+    }
 
     match strategy {
         SumStrategy::OneShot(cube_count) => {
@@ -225,6 +282,12 @@ pub fn reduce_dim<Run: CubeRuntime>(
         },
     )?;
 
+    // `output` already carries the right shape here, with `dim` set to `accumulator_len`.
+    let axis_length = input.meta.shape[dim];
+    if axis_length == 0 {
+        return reduce_empty_axis::<Run>(output, axis_length, config);
+    }
+
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce::<Run>(
             &client,
@@ -324,6 +387,16 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
     .ok_or_else(invalid_axis)?;
     let indices = init_reduce_output_dtype::<Run>(&input, dim, indices_dtype, out_len)
         .ok_or_else(invalid_axis)?;
+
+    // Every `config` reaching this point is an extremum, so an empty axis leaves it with no value
+    // to report and no index to name. Always rejected, including when the outputs are themselves
+    // empty - see `reduce_empty_axis`.
+    if input.meta.shape[dim] == 0 {
+        return Err(ReduceError::ReduceAxisTooSmall {
+            axis_length: 0,
+            k: out_len,
+        });
+    }
 
     let client = input.client.clone();
 
