@@ -30,6 +30,14 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_into_data(tensor).await)
     }
 
+    async fn float_svd(
+        tensor: FloatTensor<Self>,
+        sweeps: usize,
+        swap: bool,
+    ) -> Result<(TensorData, TensorData, TensorData), ExecutionError> {
+        unary_float!(tensor, float, |tensor| B::float_svd(tensor, sweeps, swap).await)
+    }
+
     fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {
         // Relocating a non-tracked float tensor onto an autodiff device is a plain data move:
         // place it on the underlying hardware device and leave the tensor non-tracked. The

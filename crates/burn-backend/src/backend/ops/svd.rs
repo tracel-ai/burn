@@ -167,10 +167,6 @@ fn svd_host_seq<F: Float + Copy>(
     let mut vt = vec![F::zero(); batch * n * n];
     let mut d = vec![F::zero(); n];
     let mut e = vec![F::zero(); n.saturating_sub(1)];
-    let mut givens: Vec<(usize, F, F, F, F)> = Vec::new();
-    // Scratch reused across batch elements (allocated once, not per batch).
-    let mut order: Vec<usize> = Vec::with_capacity(n);
-    let mut sorted = vec![F::zero(); n];
 
     for b in 0..batch {
         let ab = &a[b * m * n..(b + 1) * m * n];
@@ -223,13 +219,12 @@ fn svd_host_seq<F: Float + Copy>(
         for i in 0..n.saturating_sub(1) {
             e[i] = bv[i * n + i + 1];
         }
-        givens.clear();
-        let sigma_b = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps);
+        let (sigma_b, d_final, givens_b) = dbdsqr_host(&d, &e, max_sweeps);
 
         // Apply both the left (U) and right (Vt) rotations in one pass over
         // the givens list: each entry touches one row pair of each factor, so
         // a single loop keeps the rotation data in cache for both matrices.
-        for &(k, cl, sl, cr, sr) in &givens {
+        for &(k, cl, sl, cr, sr) in &givens_b {
             let (k_u, k1_u) = (k * m, (k + 1) * m);
             let (k_v, k1_v) = (k * n, (k + 1) * n);
             for i in 0..m {
@@ -243,55 +238,114 @@ fn svd_host_seq<F: Float + Copy>(
                 v1t[k1_v + i] = -sr * a0 + cr * b0;
             }
         }
-        // Absorb the signs of the diagonal into U.
-        for k in 0..n {
-            if d[k] < F::zero() {
-                for i in 0..m {
-                    u1t[k * m + i] = -u1t[k * m + i];
+        let (ub, sb, vtb) = svd_postprocess(
+            &u1t,
+            &v1t,
+            &sigma_b,
+            &d_final,
+            m,
+            n,
+            1,
+            false,
+        );
+        u[b * m * n..(b + 1) * m * n].copy_from_slice(&ub);
+        sigma[b * n..(b + 1) * n].copy_from_slice(&sb);
+        vt[b * n * n..(b + 1) * n * n].copy_from_slice(&vtb);
+    }
+    if swap {
+        // The SVD was computed on A^T ([n, m]); the factors for the original
+        // wide A = Vt^T S U^T, so return u = Vt^T and vt = U^T (already
+        // permuted consistently with the sorted sigma).
+        let mut uf = vec![F::zero(); batch * n * n];
+        let mut vf = vec![F::zero(); batch * n * m];
+        for b in 0..batch {
+            for i in 0..n {
+                for j in 0..n {
+                    uf[(b * n + i) * n + j] = vt[(b * n + j) * n + i];
+                }
+            }
+            for i in 0..n {
+                for j in 0..m {
+                    vf[(b * n + i) * m + j] = u[b * m * n + j * n + i];
                 }
             }
         }
-        for i in 0..m {
-            for j in 0..n {
-                u[b * m * n + i * n + j] = u1t[j * m + i];
-            }
-        }
-        for i in 0..n {
-            for j in 0..n {
-                vt[b * n * n + i * n + j] = v1t[i * n + j];
-            }
-            sigma[b * n + i] = sigma_b[i];
-        }
-        // Sort the singular values descending and permute the factors, on the
-        // host: deterministic (stable sort), independent of backend
-        // gather/argsort kernels (which are view-based or nondeterministic on
-        // fused CUDA). Mask numerical zeros relative to sigma_max, with a
-        // dtype-derived threshold (10 * machine epsilon, same relative
-        // tolerance as the dbdsqr deflation test) instead of a fixed 1e-6.
-        let smax = sigma[b * n..(b + 1) * n]
-            .iter()
-            .fold(F::zero(), |s, &x| s.max(x.abs()));
+        (uf, sigma, vf)
+    } else {
+        (u, sigma, vt)
+    }
+}
+
+/// LAPACK dbdsqr-style shifted QR iteration on an upper bidiagonal matrix
+/// (main diagonal `d`, superdiagonal `e`). Returns the singular values, the
+/// final diagonal (signs are absorbed into U by the caller) and the Givens
+/// rotations `(k, cosl, sinl, cosr, sinr)` in application order so the
+/// caller can rebuild the singular vectors.
+pub fn dbdsqr_host<F: Float + Copy>(
+    d: &[F],
+    e: &[F],
+    max_sweeps: usize,
+) -> (Vec<F>, Vec<F>, Vec<(usize, F, F, F, F)>) {
+    let n = d.len();
+    let mut d = d.to_vec();
+    let mut e = e.to_vec();
+    let mut givens: Vec<(usize, F, F, F, F)> = Vec::new();
+    let sigma = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps);
+    (sigma, d, givens)
+}
+
+/// Sort the singular values descending, permute the factors, absorb the
+/// diagonal signs into U and apply the wide-input `swap` transposition.
+///
+/// Inputs are the transposed factor buffers (columns of U1 as rows of
+/// `u1t`, rows of V1 as rows of `v1t`), the raw diagonal `d` from dbdsqr
+/// (signs are absorbed into U) and the singular values. Output is the final
+/// row-major `(u, sigma, vt)` in the `linalg::svd` layout, with numerical
+/// zeros masked relative to `10 * eps * sigma_max`.
+pub fn svd_postprocess<F: Float + Copy>(
+    u1t: &[F],
+    v1t: &[F],
+    sigma_in: &[F],
+    d: &[F],
+    m: usize,
+    n: usize,
+    batch: usize,
+    swap: bool,
+) -> (Vec<F>, Vec<F>, Vec<F>) {
+    let mut u = vec![F::zero(); batch * m * n];
+    let mut sigma = sigma_in.to_vec();
+    let mut vt = vec![F::zero(); batch * n * n];
+    let mut order: Vec<usize> = Vec::with_capacity(n);
+    let mut sorted = vec![F::zero(); n];
+    for b in 0..batch {
+        let u1t_b = &u1t[b * m * n..(b + 1) * m * n];
+        let v1t_b = &v1t[b * n * n..(b + 1) * n * n];
+        let sigma_b = &sigma[b * n..(b + 1) * n];
+        let d_b = &d[b * n..(b + 1) * n];
+        let smax = sigma_b.iter().fold(F::zero(), |s, &x| s.max(x.abs()));
         let zero_tol = smax * (F::epsilon() * F::from(10.0).unwrap());
         order.clear();
         order.extend(0..n);
         order.sort_by(|&i, &j| {
-            sigma[b * n + j]
-                .partial_cmp(&sigma[b * n + i])
+            sigma_b[j]
+                .partial_cmp(&sigma_b[i])
                 .unwrap_or(core::cmp::Ordering::Equal)
         });
         // Apply the permutation while copying: in the transposed layout the
         // column permutation of U is a row permutation of U1t, and the row
         // permutation of Vt is a row permutation of V1t, so the factors land
         // in the output tensors directly (no intermediate permute buffers).
+        // Negative diagonal entries (the dbdsqr sign convention) are
+        // absorbed into U.
         for (t, &src) in order.iter().enumerate() {
+            let flip = d_b[src] < F::zero();
             for i in 0..m {
-                u[b * m * n + i * n + t] = u1t[src * m + i];
+                u[b * m * n + i * n + t] = if flip { -u1t_b[src * m + i] } else { u1t_b[src * m + i] };
             }
             for i in 0..n {
-                vt[b * n * n + t * n + i] = v1t[src * n + i];
+                vt[b * n * n + t * n + i] = v1t_b[src * n + i];
             }
-            // read from the untouched slot: sigma is rewritten in place below
-            let v = sigma[b * n + src];
+            let v = sigma_b[src];
             sorted[t] = if v.abs() <= zero_tol { F::zero() } else { v };
         }
         for i in 0..n {
