@@ -1,6 +1,6 @@
-use crate::module::{LoraConfig, ParamGroup};
+use crate::module::{Lora, ParamGroup, QLora};
 
-use super::{LoraMapper, Param, ParamId, QLoraMapper, Quantizer};
+use super::{ApplyReparameterization, Param, ParamId, Quantizer, Reparameterizer};
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -216,26 +216,42 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         self.map(quantizer)
     }
 
+    /// Attach reparameterizations using the given [`Reparameterizer`].
+    ///
+    /// Every floating-point parameter is passed to the reparameterizer along with its module path.
+    /// The reparameterizer prepares its structural base and optionally creates the state used by
+    /// [`Param::val`]. [`Lora`] is a built-in example.
+    ///
+    /// # Limitations
+    ///
+    /// Nested reparameterizations are not supported. This method should only be called on modules
+    /// that don't already contain reparameterized parameters.
+    fn apply_reparameterization<R>(self, reparameterizer: R) -> Self
+    where
+        Self: Sized,
+        R: Reparameterizer,
+    {
+        self.map(&mut ApplyReparameterization::new(reparameterizer))
+    }
+
     /// Attach LoRA adapters to the module's 2-D weights, freezing the base weights.
     ///
     /// The same module keeps working without any code changes; adapted weights now produce
     /// `base + scale * (a @ b)`, and only the adapter factors are trainable.
-    fn apply_lora(self, config: LoraConfig) -> Self
+    fn apply_lora(self, lora: Lora) -> Self
     where
         Self: Sized,
     {
-        let mut mapper = LoraMapper::new(config);
-        self.map(&mut mapper)
+        self.apply_reparameterization(lora)
     }
 
     /// Apply QLoRA to the module: quantize the (frozen) base weights and attach trainable LoRA
     /// adapters to 2-D weights.
-    fn apply_qlora(self, config: LoraConfig, quantizer: Quantizer) -> Self
+    fn apply_qlora(self, qlora: QLora) -> Self
     where
         Self: Sized,
     {
-        let mut mapper = QLoraMapper::new(config, quantizer);
-        self.map(&mut mapper)
+        self.apply_reparameterization(qlora)
     }
 
     /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
@@ -246,7 +262,24 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     where
         Self: Sized,
     {
-        crate::store::ModuleRecord::from_module(self)
+        crate::store::ModuleRecord::from_module(self, None)
+    }
+
+    /// Collect the parameters `group` names into a [`ModuleRecord`](crate::store::ModuleRecord).
+    ///
+    /// The record of a part of the module rather than all of it — what a run that trained a
+    /// group writes when the rest of the module is the checkpoint it started from, and what
+    /// [`load_record`](Module::load_record) applies back over that checkpoint (with
+    /// [`allow_partial`](crate::store::ModuleRecord::allow_partial), since the record holds
+    /// nothing for the parameters outside the group).
+    ///
+    /// A parameter the group does not match is skipped before its data is read, so this never
+    /// materializes the rest of the module.
+    fn into_record_group(self, group: ParamGroup) -> crate::store::ModuleRecord
+    where
+        Self: Sized,
+    {
+        crate::store::ModuleRecord::from_module(self, Some(group))
     }
 
     /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, returning the loaded

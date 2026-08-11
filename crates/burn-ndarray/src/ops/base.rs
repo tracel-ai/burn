@@ -33,7 +33,7 @@ use crate::ops::simd::{
 };
 use crate::reshape;
 use crate::{
-    IntNdArrayElement, ShapeOps,
+    FloatNdArrayElement, IntNdArrayElement, ShapeOps,
     ops::macros::{
         cummax_dim, cummin_dim, cumprod_dim, cumsum_dim, keepdim, mean_dim, prod_dim, sum_dim,
     },
@@ -177,6 +177,58 @@ where
             for (i, index) in indices.iter().enumerate() {
                 let index = index.elem::<i64>() as usize;
                 tensor[[b, index]].add_assign(value[[b, i]]);
+            }
+        }
+
+        let mut output = NdArrayOps::reshape(tensor.into_shared().into_dyn(), shape_tensor);
+        if dim != ndims - 1 {
+            output.swap_axes(ndims - 1, dim);
+        }
+        output
+    }
+
+    pub fn scatter_assign<I: NdArrayElement>(
+        dim: usize,
+        mut tensor: SharedArray<E>,
+        mut indices: SharedArray<I>,
+        mut value: SharedArray<E>,
+    ) -> SharedArray<E> {
+        let ndims = tensor.shape().num_dims();
+        if dim != ndims - 1 {
+            tensor.swap_axes(ndims - 1, dim);
+            indices.swap_axes(ndims - 1, dim);
+            value.swap_axes(ndims - 1, dim);
+        }
+
+        let (shape_tensor, shape_indices, shape_value) =
+            (tensor.shape().into_shape(), indices.shape(), value.shape());
+        let (size_tensor, size_index, size_value) = (
+            shape_tensor[ndims - 1],
+            shape_indices[ndims - 1],
+            shape_value[ndims - 1],
+        );
+        let batch_size = Self::gather_batch_size(&shape_tensor, shape_indices);
+
+        if shape_value != shape_indices {
+            panic!(
+                "Invalid dimension: the shape of the index tensor should be the same as the value \
+                 tensor: Index {:?} value {:?}",
+                shape_indices, shape_value
+            );
+        }
+
+        let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index]));
+        let value = NdArrayOps::reshape(value, Shape::new([batch_size, size_value]));
+        let mut tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor]));
+
+        for b in 0..batch_size {
+            let indices = indices.slice(s!(b, ..));
+
+            for (i, index) in indices.iter().enumerate() {
+                let index = index.elem::<i64>() as usize;
+                let value = value[[b, i]];
+                let out = &mut tensor[[b, index]];
+                *out = value;
             }
         }
 
@@ -964,6 +1016,24 @@ where
         output_array.into_shared()
     }
 
+    pub fn select_assign_replace<I: NdArrayElement>(
+        tensor: SharedArray<E>,
+        dim: usize,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
+    ) -> SharedArray<E> {
+        let mut output_array = tensor.into_owned();
+
+        for (index_value, index) in indices.into_iter().enumerate() {
+            let mut view = output_array.index_axis_mut(Axis(dim), index.elem::<i64>() as usize);
+            let value = value.index_axis(Axis(dim), index_value);
+
+            view.zip_mut_with(&value, |a, b| *a = *b);
+        }
+
+        output_array.into_shared()
+    }
+
     fn broadcast_dims<D>(lhs: D::Pattern, rhs: D::Pattern) -> Option<D::Pattern>
     where
         D: Dimension + IntoDimension<Dim = D>,
@@ -1111,12 +1181,50 @@ where
         ArrayD::from_elem(IxDyn(&[1]), max).into_shared()
     }
 
+    /// Max of all floating-point elements with NaN propagation.
+    pub fn max_float_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E>
+    where
+        E: FloatNdArrayElement,
+    {
+        let max = view
+            .iter()
+            .copied()
+            .reduce(|a, b| {
+                if a.partial_cmp(&a).is_none() || a > b {
+                    a
+                } else {
+                    b
+                }
+            })
+            .expect("Cannot compute max of empty tensor");
+        ArrayD::from_elem(IxDyn(&[1]), max).into_shared()
+    }
+
     /// Min of all elements - zero-copy for borrowed storage.
     pub fn min_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
         let min = view
             .iter()
             .copied()
             .reduce(|a, b| if a < b { a } else { b })
+            .expect("Cannot compute min of empty tensor");
+        ArrayD::from_elem(IxDyn(&[1]), min).into_shared()
+    }
+
+    /// Min of all floating-point elements with NaN propagation.
+    pub fn min_float_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E>
+    where
+        E: FloatNdArrayElement,
+    {
+        let min = view
+            .iter()
+            .copied()
+            .reduce(|a, b| {
+                if a.partial_cmp(&a).is_none() || a < b {
+                    a
+                } else {
+                    b
+                }
+            })
             .expect("Cannot compute min of empty tensor");
         ArrayD::from_elem(IxDyn(&[1]), min).into_shared()
     }

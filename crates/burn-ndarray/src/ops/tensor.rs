@@ -196,6 +196,32 @@ impl FloatTensorOps<Self> for NdArray {
         )
     }
 
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<Self>,
+        indices: NdArrayTensor,
+        value: FloatTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::float_scatter_add(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayOps::scatter_assign(dim, tensor, idx_array, value)
+                        })
+                    }
+                )
+            }
+            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn float_scatter_nd(
         data: FloatTensor<Self>,
         indices: NdArrayTensor,
@@ -256,6 +282,34 @@ impl FloatTensorOps<Self> for NdArray {
                 })
             }
         )
+    }
+
+    fn float_select_assign(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        indices: NdArrayTensor,
+        value: FloatTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::float_select_add(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayMathOps::select_assign_replace(tensor, dim, idx_array, value)
+                        })
+                    }
+                )
+            }
+            other => {
+                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            }
+        }
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_backend::Slice]) -> FloatTensor<Self> {
@@ -486,14 +540,14 @@ impl FloatTensorOps<Self> for NdArray {
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // Use view() for zero-copy on borrowed storage
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::max_view(array.view())
+            NdArrayMathOps::max_float_view(array.view())
         })
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // Use view() for zero-copy on borrowed storage
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::min_view(array.view())
+            NdArrayMathOps::min_float_view(array.view())
         })
     }
 

@@ -86,6 +86,13 @@ impl BoolTensorOps<Self> for Dispatch {
         binary_op!((tensor, bool), (mask, bool), |tensor, mask| B::bool_mask_fill(tensor, mask, value) => Bool)
     }
 
+    async fn bool_mask_select(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        binary_op!((tensor, bool), (mask, bool), |tensor, mask| B::bool_mask_select(tensor, mask).await => Bool)
+    }
+
     fn bool_gather(
         dim: usize,
         tensor: BoolTensor<Self>,

@@ -71,6 +71,8 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.global.drain(0..num_drained);
 
         self.reset_relative();
+        // An execution boundary: release frees whose references just ran.
+        self.flush_deferred(handles);
     }
 
     fn reset_relative(&mut self) {

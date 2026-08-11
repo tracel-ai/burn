@@ -256,6 +256,10 @@ impl FloatTensorOps<Self> for LibTorch {
         )
     }
 
+    async fn float_mask_select(tensor: TchTensor, mask: TchTensor) -> TchTensor {
+        TchTensor::new(tensor.tensor.masked_select(&mask.tensor))
+    }
+
     fn float_equal(lhs: TchTensor, rhs: TchTensor, _out_dtype: BoolDType) -> TchTensor {
         TchOps::equal(lhs, rhs)
     }
