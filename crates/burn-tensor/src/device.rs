@@ -306,6 +306,11 @@ impl Device {
 
     /// Default NdArray (CPU) device.
     #[cfg(feature = "ndarray")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-ndarray is deprecated and will be removed in a future release. Use `Device::flex()` for pure-Rust CPU execution instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn ndarray() -> Self {
         Self::new(burn_dispatch::devices::NdArrayDevice::default())
     }
