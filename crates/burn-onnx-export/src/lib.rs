@@ -3,13 +3,17 @@
 //! Shape validation and resolution deliberately precede ONNX lowering. This
 //! keeps trace-based inference replaceable by a future symbolic capture pass.
 
+extern crate alloc;
+
 mod error;
+mod exporter;
 mod lower;
 mod shape;
 mod validate;
 
 pub use error::ExportError;
-pub use lower::{ONNX_IR_VERSION, ONNX_OPSET_VERSION, export_graph};
+pub use exporter::{ExportInput, ExportValues, OnnxExporter};
+pub use lower::{ONNX_IR_VERSION, ONNX_OPSET_VERSION, export_graph, export_graph_with_values};
 pub use shape::{
     AxisSpec, InputSpec, PairedTraceShapeResolver, ResolvedExportGraph, ResolvedShape, ShapeExpr,
     ShapeResolver, StaticShapeResolver,

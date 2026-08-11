@@ -14,7 +14,8 @@ macro_rules! backend_list {
             [Flex, any(feature = "flex", default_backend)],
             [NdArray, feature = "ndarray"],
             [LibTorch, feature = "tch"],
-            [Remote, feature = "remote"]
+            [Remote, feature = "remote"],
+            [Capture, feature = "capture"]
         }
     };
 }
@@ -46,10 +47,11 @@ macro_rules! backend_matrix {
             [Vulkan, feature = "vulkan"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, any(feature = "flex", default_backend)], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
             [Wgpu, feature = "wgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [WebGpu, feature = "webgpu"], [Flex, any(feature = "flex", default_backend)], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
             [WebGpu, feature = "webgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [Flex, any(feature = "flex", default_backend)], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
-            [Flex, any(feature = "flex", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Flex, any(feature = "flex", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"], [Remote, feature = "remote"], [Capture, feature = "capture"]];
             [NdArray, feature = "ndarray"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, any(feature = "flex", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
             [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, any(feature = "flex", default_backend)], [NdArray, feature = "ndarray"], [Remote, feature = "remote"]];
-            [Remote, feature = "remote"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, any(feature = "flex", default_backend)], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]]
+            [Remote, feature = "remote"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, any(feature = "flex", default_backend)], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [Capture, feature = "capture"] => [[Flex, any(feature = "flex", default_backend)]]
         }
     };
 }
@@ -151,6 +153,7 @@ macro_rules! to_device_arms {
         $kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
         $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
     ) => {
+        #[allow(unreachable_patterns)]
         match ($tensor.kind, $device) {
             // --- Same backend to_device ---
             $(
@@ -160,6 +163,24 @@ macro_rules! to_device_arms {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::$kind(
                             $crate::backends::$B1::$to_device(t.$inner_fn(), d)
                         )),
+                        checkpointing: $tensor.checkpointing,
+                    }
+                }
+            )*
+
+            // Any concrete backend can be materialized on the capture backend.
+            // This is how ordinary module parameters and sample inputs become
+            // locally retained capture initializers.
+            $(
+                #[cfg(all($src_cfg, feature = "capture"))]
+                ($crate::DispatchTensorKind::$B1(t), $crate::DispatchDevice::Capture($device_ident)) => {
+                    type B1 = $crate::backends::$B1;
+                    type B2 = $crate::backends::Capture;
+                    let $inner = t.$inner_fn();
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::Capture(
+                            $crate::BackendTensor::$kind($body)
+                        ),
                         checkpointing: $tensor.checkpointing,
                     }
                 }
@@ -257,6 +278,7 @@ macro_rules! float_to_device_arms {
         $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
         $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
     ) => {
+        #[allow(unreachable_patterns)]
         match ($tensor.kind, $device) {
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensorKind::Autodiff(kind), $crate::DispatchDevice::Autodiff(device)) => {
@@ -276,6 +298,22 @@ macro_rules! float_to_device_arms {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::Float(
                             $crate::backends::$B1::$to_device(kind.float(), d)
                         )),
+                        checkpointing: $tensor.checkpointing,
+                    }
+                }
+            )*
+
+            // Materialize float tensors from any backend on capture.
+            $(
+                #[cfg(all($src_cfg, feature = "capture"))]
+                ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::Capture($device_ident)) => {
+                    type B1 = $crate::backends::$B1;
+                    type B2 = $crate::backends::Capture;
+                    let $inner = kind.float();
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::Capture(
+                            $crate::BackendTensor::Float($body)
+                        ),
                         checkpointing: $tensor.checkpointing,
                     }
                 }

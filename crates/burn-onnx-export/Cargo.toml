@@ -12,6 +12,11 @@ workspace = true
 [dependencies]
 burn-backend = { workspace = true }
 burn-ir = { workspace = true }
+burn-capture = { workspace = true }
+burn-router = { workspace = true }
+burn-core = { workspace = true }
+burn-tensor = { workspace = true, features = ["capture", "extension"] }
+bytes = { workspace = true }
 hashbrown = { workspace = true }
 thiserror = { workspace = true }
 onnx-ir = { workspace = true }

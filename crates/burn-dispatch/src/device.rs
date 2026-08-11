@@ -73,6 +73,10 @@ pub enum DispatchDevice {
     #[cfg(feature = "remote")]
     Remote(RemoteDevice),
 
+    /// A non-executing graph capture device.
+    #[cfg(feature = "capture")]
+    Capture(CaptureDevice),
+
     /// The [autodiff enabled backend](Autodiff) device.
     #[cfg(feature = "autodiff")]
     Autodiff(AutodiffDevice),
@@ -120,6 +124,8 @@ impl DispatchDevice {
             // The kernels run on the server, which this local API cannot reach.
             #[cfg(feature = "remote")]
             DispatchDevice::Remote(_) => Vec::new(),
+            #[cfg(feature = "capture")]
+            DispatchDevice::Capture(_) => Vec::new(),
         }
     }
 }
@@ -217,6 +223,8 @@ impl core::fmt::Debug for DispatchDevice {
             Self::LibTorch(device) => f.debug_tuple("LibTorch").field(device).finish(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => f.debug_tuple("Remote").field(device).finish(),
+            #[cfg(feature = "capture")]
+            Self::Capture(device) => f.debug_tuple("Capture").field(device).finish(),
             #[cfg(feature = "autodiff")]
             // Format without `AutodiffDevice` wrapper
             Self::Autodiff(device) => f.debug_tuple("Autodiff").field(&device.inner).finish(),
@@ -389,6 +397,8 @@ impl PartialEq for DispatchDevice {
             (Self::LibTorch(a), Self::LibTorch(b)) => a == b,
             #[cfg(feature = "remote")]
             (Self::Remote(a), Self::Remote(b)) => a == b,
+            #[cfg(feature = "capture")]
+            (Self::Capture(a), Self::Capture(b)) => a == b,
             #[allow(unreachable_patterns)]
             (_, _) => false,
         }
@@ -449,6 +459,8 @@ impl DispatchDevice {
             Self::LibTorch(_) => DispatchDeviceId::LibTorch,
             #[cfg(feature = "remote")]
             Self::Remote(_) => DispatchDeviceId::Remote,
+            #[cfg(feature = "capture")]
+            Self::Capture(_) => DispatchDeviceId::Capture,
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.backend_id(),
         }
@@ -489,6 +501,7 @@ pub enum DispatchDeviceId {
     Vulkan = 8,
     WebGpu = 9,
     Remote = 10,
+    Capture = 11,
 }
 
 impl From<DispatchDeviceId> for u16 {
@@ -524,6 +537,8 @@ impl TryFrom<u16> for DispatchDeviceId {
             9 => Ok(Self::WebGpu),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
+            #[cfg(feature = "capture")]
+            11 => Ok(Self::Capture),
             _ => Err(()),
         }
     }
@@ -554,6 +569,8 @@ impl DeviceOps for DispatchDevice {
             Self::LibTorch(device) => device.defaults(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.defaults(),
+            #[cfg(feature = "capture")]
+            Self::Capture(device) => device.defaults(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.defaults(),
         }
@@ -588,6 +605,8 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Self::Remote(RemoteDevice::from_id(device_id)),
+            #[cfg(feature = "capture")]
+            DispatchDeviceId::Capture => Self::Capture(CaptureDevice::from_id(device_id)),
             _ => unreachable!("No backend feature enabled."),
         }
     }
@@ -616,6 +635,8 @@ impl burn_backend::Device for DispatchDevice {
             Self::LibTorch(device) => device.to_id(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.to_id(),
+            #[cfg(feature = "capture")]
+            Self::Capture(device) => device.to_id(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.to_id(),
         };
@@ -707,5 +728,12 @@ impl From<LibTorchDevice> for DispatchDevice {
 impl From<RemoteDevice> for DispatchDevice {
     fn from(device: RemoteDevice) -> Self {
         DispatchDevice::Remote(device)
+    }
+}
+
+#[cfg(feature = "capture")]
+impl From<CaptureDevice> for DispatchDevice {
+    fn from(device: CaptureDevice) -> Self {
+        DispatchDevice::Capture(device)
     }
 }

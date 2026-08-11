@@ -95,6 +95,11 @@ pub mod backends {
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
 
+    #[cfg(feature = "capture")]
+    pub use burn_capture as capture;
+    #[cfg(feature = "capture")]
+    pub use burn_capture::CaptureBackend as Capture;
+
     pub use super::devices::*;
 }
 
@@ -120,6 +125,9 @@ pub mod devices {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
+
+    #[cfg(feature = "capture")]
+    pub use burn_capture::CaptureDevice;
 
     #[cfg(feature = "remote")]
     pub use burn_remote::BURN_REMOTE_ALPN;

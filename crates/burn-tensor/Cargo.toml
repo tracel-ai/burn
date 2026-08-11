@@ -53,6 +53,7 @@ remote = ["std", "burn-dispatch/remote"]
 remote-server = ["remote", "burn-dispatch/remote-server"]
 # Add the legacy WebSocket transport.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
+capture = ["burn-dispatch/capture"]
 
 # For backend extensions
 extension = []

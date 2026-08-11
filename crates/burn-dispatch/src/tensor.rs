@@ -266,6 +266,9 @@ pub enum DispatchTensorKind {
     /// The [Remote backend](Remote) tensor (lives on a remote server).
     #[cfg(feature = "remote")]
     Remote(BackendTensor<Remote>),
+    /// A tensor recorded by the capture backend.
+    #[cfg(feature = "capture")]
+    Capture(BackendTensor<Capture>),
 
     /// The [autodiff enabled backend](Autodiff) tensor.
     #[cfg(feature = "autodiff")]
@@ -299,6 +302,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::LibTorch(tensor) => tensor.dtype(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.dtype(),
+            #[cfg(feature = "capture")]
+            Self::Capture(tensor) => tensor.dtype(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(tensor) => tensor.dtype(),
         }
@@ -328,6 +333,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::LibTorch(tensor) => tensor.shape(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.shape(),
+            #[cfg(feature = "capture")]
+            Self::Capture(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(tensor) => tensor.shape(),
         }
@@ -357,6 +364,8 @@ impl TensorMetadata for DispatchTensorKind {
             DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => DispatchDevice::Remote(tensor.device()),
+            #[cfg(feature = "capture")]
+            DispatchTensorKind::Capture(tensor) => DispatchDevice::Capture(tensor.device()),
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
         }
@@ -386,6 +395,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::LibTorch(tensor) => tensor.can_mut(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.can_mut(),
+            #[cfg(feature = "capture")]
+            Self::Capture(tensor) => tensor.can_mut(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(tensor) => tensor.can_mut(),
         }
@@ -461,6 +472,8 @@ impl DispatchTensorKind {
             DispatchTensorKind::LibTorch(_) => "LibTorch",
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(_) => "Remote",
+            #[cfg(feature = "capture")]
+            DispatchTensorKind::Capture(_) => "Capture",
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(_) => "Autodiff",
         }
@@ -590,6 +603,7 @@ impl_dispatch_conversion!(Cpu, feature = "cpu");
 impl_dispatch_conversion!(Cuda, feature = "cuda");
 impl_dispatch_conversion!(Rocm, feature = "rocm");
 impl_dispatch_conversion!(Remote, feature = "remote");
+impl_dispatch_conversion!(Capture, feature = "capture");
 impl_dispatch_conversion!(Metal, feature = "metal");
 impl_dispatch_conversion!(Vulkan, feature = "vulkan");
 impl_dispatch_conversion!(Wgpu, feature = "wgpu");

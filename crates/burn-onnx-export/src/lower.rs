@@ -1,9 +1,10 @@
-use burn_backend::DType;
+use burn_backend::{DType, TensorData};
 use burn_ir::{
     ActivationOperationIr, FloatOperationIr, IntOperationIr, NumericOperationIr, OperationIr,
     TensorId, TensorIr,
 };
-use onnx_ir::{GraphProto, ModelProto, TypeProto, ValueInfoProto};
+use hashbrown::HashMap;
+use onnx_ir::{GraphProto, ModelProto, TensorProto, TypeProto, ValueInfoProto};
 use protobuf::{Message, MessageField};
 
 use crate::{ExportError, ResolvedExportGraph};
@@ -18,6 +19,18 @@ pub const ONNX_OPSET_VERSION: i64 = 18;
 /// This low-level API intentionally accepts no Burn module. Parameters can be
 /// added as initializers once capture supplies their tensor data and bindings.
 pub fn export_graph(graph: &ResolvedExportGraph) -> Result<Vec<u8>, ExportError> {
+    export_graph_with_values(graph, &HashMap::new(), &graph.graph.inputs)
+}
+
+/// Lower a resolved graph with concrete initialized values.
+///
+/// Values belonging to `runtime_inputs` describe sample inputs and are not
+/// embedded. Every other value is emitted as an ONNX initializer.
+pub fn export_graph_with_values(
+    graph: &ResolvedExportGraph,
+    values: &HashMap<TensorId, TensorData>,
+    runtime_inputs: &[TensorId],
+) -> Result<Vec<u8>, ExportError> {
     let mut proto = GraphProto::new();
     proto.name = "burn_graph".into();
 
@@ -28,6 +41,20 @@ pub fn export_graph(graph: &ResolvedExportGraph) -> Result<Vec<u8>, ExportError>
     for &id in &graph.graph.outputs {
         let tensor = find_tensor(graph, id).ok_or(ExportError::MissingValue(id))?;
         proto.output.push(value_info(tensor)?);
+    }
+    let runtime_inputs: hashbrown::HashSet<_> = runtime_inputs.iter().copied().collect();
+    let mut initializers: Vec<_> = values
+        .iter()
+        .filter(|(id, _)| !runtime_inputs.contains(*id))
+        .collect();
+    initializers.sort_by_key(|(id, _)| id.value());
+    for (&id, data) in initializers {
+        let mut initializer = TensorProto::new();
+        initializer.name = name(id);
+        initializer.data_type = onnx_data_dtype(id, data.dtype)?;
+        initializer.dims = data.shape.iter().map(|dim| *dim as i64).collect();
+        initializer.raw_data = bytes::Bytes::copy_from_slice(data.bytes.as_ref());
+        proto.initializer.push(initializer);
     }
 
     for (index, operation) in graph.graph.operations.iter().enumerate() {
@@ -56,6 +83,10 @@ pub fn export_graph(graph: &ResolvedExportGraph) -> Result<Vec<u8>, ExportError>
         .map_err(|error| ExportError::Serialization(error.to_string()))
 }
 
+fn onnx_data_dtype(tensor: TensorId, dtype: DType) -> Result<i32, ExportError> {
+    onnx_dtype_parts(tensor, dtype)
+}
+
 fn value_info(tensor: &TensorIr) -> Result<ValueInfoProto, ExportError> {
     let mut info = ValueInfoProto::new();
     info.name = name(tensor.id);
@@ -72,8 +103,12 @@ fn value_info(tensor: &TensorIr) -> Result<ValueInfoProto, ExportError> {
 }
 
 fn onnx_dtype(tensor: &TensorIr) -> Result<i32, ExportError> {
+    onnx_dtype_parts(tensor.id, tensor.dtype)
+}
+
+fn onnx_dtype_parts(tensor: TensorId, dtype: DType) -> Result<i32, ExportError> {
     // TensorProto.DataType numeric values from the ONNX specification.
-    match tensor.dtype {
+    match dtype {
         DType::F32 => Ok(1),
         DType::U8 => Ok(2),
         DType::I8 => Ok(3),
@@ -87,7 +122,7 @@ fn onnx_dtype(tensor: &TensorIr) -> Result<i32, ExportError> {
         DType::U64 => Ok(13),
         DType::BF16 => Ok(16),
         dtype => Err(ExportError::UnsupportedDType {
-            tensor: tensor.id,
+            tensor,
             dtype: format!("{dtype:?}"),
         }),
     }

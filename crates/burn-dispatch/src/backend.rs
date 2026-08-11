@@ -64,6 +64,9 @@ pub enum DispatchGraph {
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
     Remote(BackendGraph<Remote>),
+    /// A graph captured by the non-executing capture backend.
+    #[cfg(feature = "capture")]
+    Capture(BackendGraph<Capture>),
 }
 
 /// The error returned when a graph operation cannot be dispatched.
@@ -235,6 +238,8 @@ impl Backend for Dispatch {
             DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
+            #[cfg(feature = "capture")]
+            DispatchDeviceId::Capture => Capture::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
         }
     }

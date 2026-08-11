@@ -1006,6 +1006,7 @@ version = "0.22.0-pre.2"
 dependencies = [
  "burn-autodiff",
  "burn-backend 0.22.0-pre.2",
+ "burn-capture",
  "burn-cpu",
  "burn-cuda",
  "burn-flex 0.22.0-pre.2",
@@ -1154,7 +1155,12 @@ name = "burn-onnx-export"
 version = "0.22.0-pre.2"
 dependencies = [
  "burn-backend 0.22.0-pre.2",
+ "burn-capture",
+ "burn-core",
  "burn-ir 0.22.0-pre.2",
+ "burn-router",
+ "burn-tensor 0.22.0-pre.2",
+ "bytes",
  "hashbrown 0.16.1",
  "onnx-ir",
  "protobuf",
