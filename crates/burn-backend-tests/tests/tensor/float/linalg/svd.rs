@@ -931,18 +931,29 @@ fn bench_svd_realistic() {
         ("square 256x256".into(), vec![256, 256], 5),
     ];
     for (name, dims, r) in cases {
-        let a = TestTensor::<2>::random(dims.clone(), Distribution::Normal(0.0, 1.0), &device);
-        for _ in 0..(r / 2).max(1) {
+        if dims.len() == 3 {
+            let a = TestTensor::<3>::random(dims.clone(), Distribution::Normal(0.0, 1.0), &device);
+            let _ = svd::<3, 2>(a.clone(), 15);
+            let t0 = Instant::now();
+            for _ in 0..r {
+                let _ = svd::<3, 2>(a.clone(), 15);
+            }
+            let dt = t0.elapsed().as_secs_f64() / r as f64;
+            let (u, s, vt) = svd::<3, 2>(a.clone(), 15);
+            let err = recon_err::<3, 2>(a, u, &s, vt);
+            println!("BENCHR {name} | {:.1} us | err {err:.2e}", dt * 1e6);
+        } else {
+            let a = TestTensor::<2>::random(dims.clone(), Distribution::Normal(0.0, 1.0), &device);
             let _ = svd::<2, 1>(a.clone(), 15);
+            let t0 = Instant::now();
+            for _ in 0..r {
+                let _ = svd::<2, 1>(a.clone(), 15);
+            }
+            let dt = t0.elapsed().as_secs_f64() / r as f64;
+            let (u, s, vt) = svd::<2, 1>(a.clone(), 15);
+            let err = recon_err::<2, 1>(a, u, &s, vt);
+            println!("BENCHR {name} | {:.1} us | err {err:.2e}", dt * 1e6);
         }
-        let t0 = Instant::now();
-        for _ in 0..r {
-            let _ = svd::<2, 1>(a.clone(), 15);
-        }
-        let dt = t0.elapsed().as_secs_f64() / r as f64;
-        let (u, s, vt) = svd::<2, 1>(a.clone(), 15);
-        let err = recon_err::<2, 1>(a, u, &s, vt);
-        println!("BENCHR {name} | {:.1} us | err {err:.2e}", dt * 1e6);
     }
 }
 
