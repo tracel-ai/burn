@@ -52,6 +52,7 @@ burn-ir = { workspace = true, features = ["default"]}
 burn-core = { workspace = true, features = [
     "extension",
 ] }
+burn-std = { workspace = true }
 
 # TODO: requires burn-backend. The `extension` feature should expose this from `burn-core`.
 

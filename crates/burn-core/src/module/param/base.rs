@@ -327,7 +327,7 @@ impl<T: Parameter> Param<T> {
         self.reparameterization.as_deref()
     }
 
-    /// The concrete [reparametrization](Reparameterization) attached to this parameter, if any.
+    /// The concrete [reparameterization](Reparameterization) attached to this parameter, if any.
     pub fn reparameterization<R: Reparameterization>(&self) -> Option<&R> {
         self.reparameterization_dyn()?.as_any().downcast_ref()
     }
