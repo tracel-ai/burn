@@ -249,7 +249,13 @@ macro_rules! to_device_arms {
             #[cfg(feature = "autodiff")]
             (_, $crate::DispatchDevice::Autodiff(_)) => unreachable!("Autodiff should not wrap an autodiff device."),
             #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensorKind::Autodiff(..), _) => panic!("Operation not marked for autodiff.")
+            ($crate::DispatchTensorKind::Autodiff(..), _) => panic!("Operation not marked for autodiff."),
+            // Capture is intentionally one-way: initialized values can be moved onto a
+            // capture device, but captured tensors have no materialized data to move back.
+            #[cfg(feature = "capture")]
+            ($crate::DispatchTensorKind::Capture(_), _) => {
+                panic!("Cannot move a tensor from a capture device")
+            }
         }
     };
 }
@@ -337,7 +343,13 @@ macro_rules! float_to_device_arms {
                 )+
             )*
             #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances.")
+            ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances."),
+            // Capture is intentionally one-way: initialized values can be moved onto a
+            // capture device, but captured tensors have no materialized data to move back.
+            #[cfg(feature = "capture")]
+            ($crate::DispatchTensorKind::Capture(_), _) => {
+                panic!("Cannot move a tensor from a capture device")
+            }
         }
     };
 

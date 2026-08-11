@@ -1,13 +1,13 @@
 use burn_backend::{DType, TensorData};
 use burn_ir::{
-    ActivationOperationIr, FloatOperationIr, IntOperationIr, NumericOperationIr, OperationIr,
-    TensorId, TensorIr,
+    ActivationOperationIr, BaseOperationIr, FloatOperationIr, IntOperationIr, ModuleOperationIr,
+    NumericOperationIr, OperationIr, TensorId, TensorIr,
 };
 use hashbrown::HashMap;
 use onnx_ir::{GraphProto, ModelProto, TensorProto, TypeProto, ValueInfoProto};
 use protobuf::{Message, MessageField};
 
-use crate::{ExportError, ResolvedExportGraph};
+use crate::{ExportError, ResolvedExportGraph, ShapeExpr};
 
 /// ONNX IR version emitted by this exporter.
 pub const ONNX_IR_VERSION: i64 = 8;
@@ -58,6 +58,77 @@ pub fn export_graph_with_values(
     }
 
     for (index, operation) in graph.graph.operations.iter().enumerate() {
+        let reshape = match operation {
+            OperationIr::BaseFloat(BaseOperationIr::Reshape(op))
+            | OperationIr::BaseInt(BaseOperationIr::Reshape(op))
+            | OperationIr::BaseBool(BaseOperationIr::Reshape(op)) => Some(op),
+            _ => None,
+        };
+        if let Some(reshape) = reshape {
+            let resolved = graph
+                .shapes
+                .iter()
+                .find(|shape| shape.operation == index)
+                .ok_or_else(|| ExportError::DynamicShapeLost {
+                    tensor: reshape.out.id,
+                    axis: 0,
+                    reason: "reshape has no resolved shape operand".into(),
+                })?;
+            let mut dimensions = Vec::with_capacity(resolved.dimensions.len());
+            for (axis, dimension) in resolved.dimensions.iter().enumerate() {
+                dimensions.push(match dimension {
+                    ShapeExpr::Static(value) => *value as i64,
+                    ShapeExpr::Infer => -1,
+                    _ => {
+                        return Err(ExportError::DynamicShapeLost {
+                            tensor: reshape.out.id,
+                            axis,
+                            reason: "runtime reshape shape lowering is not implemented".into(),
+                        });
+                    }
+                });
+            }
+            let shape_name = format!("node_{index}_shape");
+            let mut shape_tensor = TensorProto::new();
+            shape_tensor.name = shape_name.clone();
+            shape_tensor.data_type = 7;
+            shape_tensor.dims = vec![dimensions.len() as i64];
+            let mut raw = Vec::with_capacity(dimensions.len() * size_of::<i64>());
+            for dimension in dimensions {
+                raw.extend_from_slice(&dimension.to_le_bytes());
+            }
+            shape_tensor.raw_data = bytes::Bytes::from(raw);
+            proto.initializer.push(shape_tensor);
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "Reshape".into();
+            node.input = vec![name(reshape.input.id), shape_name];
+            node.output = vec![name(reshape.out.id)];
+            continue;
+        }
+        if let OperationIr::Module(ModuleOperationIr::Linear(linear)) = operation {
+            let matmul_output = if linear.bias.is_some() {
+                format!("node_{index}_matmul")
+            } else {
+                name(linear.out.id)
+            };
+            proto.node.push(Default::default());
+            let matmul = proto.node.last_mut().unwrap();
+            matmul.name = format!("node_{index}_matmul");
+            matmul.op_type = "MatMul".into();
+            matmul.input = vec![name(linear.x.id), name(linear.weight.id)];
+            matmul.output = vec![matmul_output.clone()];
+            if let Some(bias) = &linear.bias {
+                proto.node.push(Default::default());
+                let add = proto.node.last_mut().unwrap();
+                add.name = format!("node_{index}_bias");
+                add.op_type = "Add".into();
+                add.input = vec![matmul_output, name(bias.id)];
+                add.output = vec![name(linear.out.id)];
+            }
+            continue;
+        }
         let Some(op_type) = onnx_op_type(operation) else {
             return Err(ExportError::UnsupportedOperation {
                 operation: index,
@@ -158,10 +229,6 @@ fn onnx_op_type(operation: &OperationIr) -> Option<&'static str> {
 
 fn operation_kind(operation: &OperationIr) -> String {
     format!("{operation:?}")
-        .split(['(', '{'])
-        .next()
-        .unwrap_or("unknown")
-        .into()
 }
 
 fn find_tensor(graph: &ResolvedExportGraph, id: TensorId) -> Option<&TensorIr> {

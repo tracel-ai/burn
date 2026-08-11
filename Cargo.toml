@@ -223,6 +223,7 @@ burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.2", default-
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.2", default-features = false }
 # TODO: remove once burn-onnx-export is moved into burn-onnx
 onnx-ir = { path = "../burn-onnx/crates/onnx-ir", default-features = false }
+ort = "=2.0.0-rc.13"
 
 
 ### For the main burn branch. ###

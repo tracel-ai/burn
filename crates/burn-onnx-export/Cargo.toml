@@ -21,3 +21,7 @@ hashbrown = { workspace = true }
 thiserror = { workspace = true }
 onnx-ir = { workspace = true }
 protobuf = { workspace = true }
+
+[dev-dependencies]
+burn-nn = { workspace = true }
+ort = { workspace = true }

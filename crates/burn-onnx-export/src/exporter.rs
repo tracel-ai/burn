@@ -161,12 +161,20 @@ mod tests {
     use super::*;
     use burn_core as burn;
     use burn_core::module::Param;
+    use burn_nn::{Linear, LinearConfig, Relu};
     use onnx_ir::ModelProto;
     use protobuf::Message;
 
     #[derive(Module, Debug)]
     struct AddModule {
         weight: Param<Tensor<1>>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Mlp {
+        first: Linear,
+        activation: Relu,
+        second: Linear,
     }
 
     #[test]
@@ -190,5 +198,40 @@ mod tests {
             model.graph.initializer[0].raw_data.len(),
             2 * size_of::<f32>()
         );
+    }
+
+    #[test]
+    fn exports_two_layer_mlp_forward() {
+        let device = Device::default();
+        let module = Mlp {
+            first: LinearConfig::new(4, 3).init(&device),
+            activation: Relu::new(),
+            second: LinearConfig::new(3, 2).init(&device),
+        };
+        let input = Tensor::<2>::from_floats([[1.0, 2.0, 3.0, 4.0]], &device);
+
+        let bytes = OnnxExporter::new()
+            .export(&module, input, |module, input| {
+                let hidden = module.first.forward(input);
+                module.second.forward(module.activation.forward(hidden))
+            })
+            .unwrap();
+        let model = ModelProto::parse_from_bytes(&bytes).unwrap();
+        let operations: Vec<_> = model
+            .graph
+            .node
+            .iter()
+            .map(|node| node.op_type.as_str())
+            .collect();
+        assert_eq!(
+            operations,
+            [
+                "MatMul", "Reshape", "Add", "Relu", "MatMul", "Reshape", "Add"
+            ]
+        );
+        // Four module parameters plus two constant bias-reshape operands.
+        assert_eq!(model.graph.initializer.len(), 6);
+        assert_eq!(model.graph.input.len(), 1);
+        assert_eq!(model.graph.output.len(), 1);
     }
 }
