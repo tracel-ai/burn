@@ -735,7 +735,7 @@ pub(crate) trait BasicOps: TensorKind {
     ///
     /// # Warning
     ///
-    /// For the `ndarray` and `candle` backends; this is not a view but a full copy.
+    /// For the `ndarray` backend; this is not a view but a full copy.
     ///
     /// # Arguments
     ///
