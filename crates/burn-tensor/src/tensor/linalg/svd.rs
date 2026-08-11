@@ -124,6 +124,9 @@ pub fn svd<const D: usize, const D1: usize>(
         du[D - 2] = n_rows;
         du[D - 1] = 0;
         let mut ds = [1; D1];
+        if D1 >= 2 {
+            ds[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
+        }
         ds[D1 - 1] = 0;
         let mut dv = [1; D];
         dv[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
@@ -231,9 +234,32 @@ fn svd_host<F: Float + Copy>(
     let mut d = vec![F::zero(); n];
     let mut e = vec![F::zero(); n.saturating_sub(1)];
     let mut givens: Vec<(usize, F, F, F, F)> = Vec::new();
+    // Scratch reused across batch elements (allocated once, not per batch).
+    let mut order: Vec<usize> = Vec::with_capacity(n);
+    let mut pu = vec![F::zero(); m * n];
+    let mut pvt = vec![F::zero(); n * n];
+    let mut sorted = vec![F::zero(); n];
 
     for b in 0..batch {
-        let (mut u1, bv, mut v1) = bidiag_host(&a[b * m * n..(b + 1) * m * n], m, n);
+        let ab = &a[b * m * n..(b + 1) * m * n];
+        // Closed forms for the smallest sizes: exact and much cheaper than
+        // the bidiagonalization + QR pipeline.
+        if n == 1 {
+            let v = ab[0];
+            sigma[b] = v.abs();
+            u[b * m] = if v < F::zero() { -F::one() } else { F::one() };
+            vt[b] = F::one();
+            continue;
+        }
+        if n == 2 && m == 2 {
+            let (s0, s1, uu, vv) = svd2x2(ab);
+            sigma[b * 2] = s0;
+            sigma[b * 2 + 1] = s1;
+            u[b * 4..b * 4 + 4].copy_from_slice(&uu);
+            vt[b * 4..b * 4 + 4].copy_from_slice(&vv);
+            continue;
+        }
+        let (mut u1, bv, mut v1) = bidiag_host(ab, m, n);
         for i in 0..n {
             d[i] = bv[i * n + i];
         }
@@ -289,15 +315,13 @@ fn svd_host<F: Float + Copy>(
             .iter()
             .fold(F::zero(), |s, &x| s.max(x.abs()));
         let zero_tol = smax * (F::epsilon() * F::from(10.0).unwrap());
-        let mut order: Vec<usize> = (0..n).collect();
+        order.clear();
+        order.extend(0..n);
         order.sort_by(|&i, &j| {
             sigma[b * n + j]
                 .partial_cmp(&sigma[b * n + i])
                 .unwrap_or(core::cmp::Ordering::Equal)
         });
-        let mut pu = vec![F::zero(); m * n];
-        let mut pvt = vec![F::zero(); n * n];
-        let mut sorted = vec![F::zero(); n];
         for (t, &src) in order.iter().enumerate() {
             for i in 0..m {
                 pu[i * n + t] = u[b * m * n + i * n + src];
@@ -340,6 +364,61 @@ fn svd_host<F: Float + Copy>(
         (uf, sigma, vf)
     } else {
         (u, sigma, vt)
+    }
+}
+
+/// Exact 2x2 SVD in closed form (J. Blinn, "Consider the lowly 2x2 matrix",
+/// IEEE CG&A 1996): returns (s0, s1, u, vt) with s0 >= s1 >= 0, u/vt row-major.
+///
+/// Derivation: U is the eigenvector rotation of A Aᵀ (a symmetric 2x2, whose
+/// dominant eigenvector angle is θ = ½·atan2(2(eg+fh), e²+f²−g²−h²)); after
+/// applying Uᵀ the two rows of UᵀA are orthogonal, so their normalized forms
+/// give Vᵀ directly and the row norms are the singular values.
+fn svd2x2<F: Float + Copy>(a: &[F]) -> (F, F, [F; 4], [F; 4]) {
+    let (e, f, g, h) = (a[0], a[1], a[2], a[3]);
+    let theta = F::from(0.5).unwrap()
+        * F::atan2(
+            F::from(2.0).unwrap() * (e * g + f * h),
+            e * e + f * f - g * g - h * h,
+        );
+    let (ct, st) = (theta.cos(), theta.sin());
+    // UᵀA rows (orthogonal by construction):
+    let e2 = ct * e + st * g;
+    let f2 = ct * f + st * h;
+    let g2 = -st * e + ct * g;
+    let h2 = -st * f + ct * h;
+    let s0 = (e2 * e2 + f2 * f2).sqrt();
+    let s1 = (g2 * g2 + h2 * h2).sqrt();
+    // Degenerate rows (σ = 0) fall back to a unit basis so U/Vt stay orthonormal.
+    let (r0c, r0s) = if s0 > F::zero() {
+        (e2 / s0, f2 / s0)
+    } else {
+        (F::one(), F::zero())
+    };
+    let (r1c, r1s) = if s1 > F::zero() {
+        (g2 / s1, h2 / s1)
+    } else {
+        (F::zero(), F::one())
+    };
+    // The rows of UᵀA are orthogonal up to sign; fix the handedness of Vt.
+    let det = r0c * r1s - r0s * r1c;
+    let (r1c, r1s) = if det < F::zero() {
+        (-r1c, -r1s)
+    } else {
+        (r1c, r1s)
+    };
+    let u = [ct, -st, st, ct];
+    let vt = [r0c, r0s, r1c, r1s];
+    if s0 >= s1 {
+        (s0, s1, u, vt)
+    } else {
+        // Swap columns of U / rows of Vt to keep descending order.
+        (
+            s1,
+            s0,
+            [u[2], u[3], u[0], u[1]],
+            [vt[2], vt[3], vt[0], vt[1]],
+        )
     }
 }
 
