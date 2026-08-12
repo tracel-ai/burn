@@ -1,7 +1,7 @@
 use super::{conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
-use crate::{Backend, TensorMetadata};
+use crate::{Backend, Scalar, TensorMetadata};
 pub use burn_std::ops::{
     AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
     GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
@@ -97,6 +97,36 @@ pub struct InterpolateBackward<B: Backend> {
 
 /// Module operations trait.
 pub trait ModuleOps<B: Backend> {
+    /// Applies batch normalization using explicitly supplied channel statistics.
+    ///
+    /// The input has shape `[batch, channels, ...]`; all other tensors have
+    /// shape `[channels]`.
+    ///
+    /// This operation doesn't calculate or update statistics. Callers may
+    /// supply running statistics for inference or batch statistics calculated
+    /// by a training path.
+    fn batch_norm(
+        x: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        beta: FloatTensor<B>,
+        mean: FloatTensor<B>,
+        variance: FloatTensor<B>,
+        epsilon: f64,
+    ) -> FloatTensor<B> {
+        let rank = x.shape().num_dims();
+        let channels = x.shape()[1];
+        let mut dimensions = alloc::vec![1; rank];
+        dimensions[1] = channels;
+        let shape = Shape::from(dimensions);
+        let gamma = B::float_reshape(gamma, shape.clone());
+        let beta = B::float_reshape(beta, shape.clone());
+        let mean = B::float_reshape(mean, shape.clone());
+        let variance = B::float_reshape(variance, shape);
+        let std = B::float_sqrt(B::float_add_scalar(variance, Scalar::Float(epsilon)));
+        let normalized = B::float_div(B::float_sub(x, mean), std);
+        B::float_add(B::float_mul(normalized, gamma), beta)
+    }
+
     /// Embedding operation.
     ///
     /// # Arguments

@@ -11,6 +11,42 @@ use crate::{
     },
 };
 
+/// Applies batch normalization using explicitly supplied channel statistics.
+///
+/// `input` has shape `[batch, channels, ...]`; `gamma`, `beta`, `mean`, and
+/// `variance` each have shape `[channels]`.
+///
+/// This function doesn't calculate or update statistics. Callers may supply
+/// running statistics for inference or batch statistics calculated by a
+/// training path.
+pub fn batch_norm<const D: usize>(
+    input: Tensor<D>,
+    gamma: Tensor<1>,
+    beta: Tensor<1>,
+    mean: Tensor<1>,
+    variance: Tensor<1>,
+    epsilon: f64,
+) -> Tensor<D> {
+    assert!(D >= 2, "batch norm requires an input rank of at least 2");
+    let channels = input.dims()[1];
+    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
+    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
+    assert_eq!(mean.dims(), [channels], "invalid batch norm mean shape");
+    assert_eq!(
+        variance.dims(),
+        [channels],
+        "invalid batch norm variance shape"
+    );
+    Tensor::new(BridgeTensor::float(Dispatch::batch_norm(
+        input.primitive.into_float(),
+        gamma.primitive.into_float(),
+        beta.primitive.into_float(),
+        mean.primitive.into_float(),
+        variance.primitive.into_float(),
+        epsilon,
+    )))
+}
+
 /// Computes the [CTC loss](burn_backend::ops::ModuleOps::ctc_loss).
 ///
 /// # Arguments
