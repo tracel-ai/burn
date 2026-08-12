@@ -1411,6 +1411,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 }
             },
             OperationIr::Module(op) => match op {
+                ModuleOperationIr::BatchNorm(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let gamma = handles.get_float_tensor::<B>(&desc.gamma);
+                    let beta = handles.get_float_tensor::<B>(&desc.beta);
+                    let mean = handles.get_float_tensor::<B>(&desc.mean);
+                    let variance = handles.get_float_tensor::<B>(&desc.variance);
+                    let output = B::batch_norm(x, gamma, beta, mean, variance, desc.epsilon.elem());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::Embedding(desc) => {
                     let weights = handles.get_float_tensor::<B>(&desc.weights);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);

@@ -108,14 +108,16 @@ impl BatchNorm {
 
     fn forward_inference<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let device = input.device();
-        let channels = input.dims()[1];
         let mean = self.running_mean.value().to_device(&device);
         let var = self.running_var.value().to_device(&device);
-
-        let mut shape = [1; D];
-        shape[1] = channels;
-
-        self.forward_shared(input, mean.reshape(shape), var.reshape(shape))
+        burn::tensor::module::batch_norm(
+            input,
+            self.gamma.val(),
+            self.beta.val(),
+            mean,
+            var,
+            self.epsilon,
+        )
     }
 
     fn forward_train<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
@@ -177,17 +179,14 @@ impl BatchNorm {
         var: Tensor<D>,
     ) -> Tensor<D> {
         let channels = x.dims()[1];
-        let mut shape = [1; D];
-        shape[1] = channels;
-
-        let std = var.add_scalar(self.epsilon).sqrt();
-
-        let x = x.sub(mean);
-        let x = x.div(std);
-
-        let x = x.mul(self.gamma.val().reshape(shape));
-
-        x.add(self.beta.val().reshape(shape))
+        burn::tensor::module::batch_norm(
+            x,
+            self.gamma.val(),
+            self.beta.val(),
+            mean.reshape([channels]),
+            var.reshape([channels]),
+            self.epsilon,
+        )
     }
 }
 
