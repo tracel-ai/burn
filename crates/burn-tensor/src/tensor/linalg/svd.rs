@@ -1,6 +1,5 @@
 use crate::{DType, Tensor, check, check::TensorCheck};
-use alloc::vec::Vec;
-use burn_std::{FloatDType, TensorData};
+use burn_std::FloatDType;
 
 /// Computes the singular value decomposition of a square or rectangular matrix.
 ///
@@ -133,9 +132,9 @@ pub fn svd<const D: usize, const D1: usize>(
         dv[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
         dv[D - 2] = 0;
         dv[D - 1] = n_cols;
-        let u_t = Tensor::<D>::from_data(TensorData::new(Vec::<f32>::new(), du), &device);
-        let s_t = Tensor::<D1>::from_data(TensorData::new(Vec::<f32>::new(), ds), &device);
-        let vt_t = Tensor::<D>::from_data(TensorData::new(Vec::<f32>::new(), dv), &device);
+        let u_t = Tensor::<D>::empty(du, (&device, DType::F32));
+        let s_t = Tensor::<D1>::empty(ds, (&device, DType::F32));
+        let vt_t = Tensor::<D>::empty(dv, (&device, DType::F32));
         let (u_t, s_t, vt_t) = if needs_upcast || original_dtype == DType::F64 {
             (
                 u_t.cast(original_dtype),

@@ -176,8 +176,7 @@ fn svd_host_seq<F: Float + Copy>(
             // A is [m, 1] (wide inputs were transposed): the single singular
             // value is the column norm and U is the normalized column.
             let mut s = F::zero();
-            for i in 0..m {
-                let t = ab[i];
+            for &t in ab.iter() {
                 s = s + t * t;
             }
             let sv = s.sqrt();
@@ -285,10 +284,10 @@ pub fn dbdsqr_host<F: Float + Copy>(
     d: &[F],
     e: &[F],
     max_sweeps: usize,
-) -> (Vec<F>, Vec<F>, Vec<(usize, F, F, F, F)>) {
+) -> (Vec<F>, Vec<F>, Vec<GivensRotation<F>>) {
     let mut d = d.to_vec();
     let mut e = e.to_vec();
-    let mut givens: Vec<(usize, F, F, F, F)> = Vec::new();
+    let mut givens: Vec<GivensRotation<F>> = Vec::new();
     let sigma = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps);
     (sigma, d, givens)
 }
@@ -301,6 +300,7 @@ pub fn dbdsqr_host<F: Float + Copy>(
 /// (signs are absorbed into U) and the singular values. Output is the final
 /// row-major `(u, sigma, vt)` in the `linalg::svd` layout, with numerical
 /// zeros masked relative to `10 * eps * sigma_max`.
+#[allow(clippy::too_many_arguments)]
 pub fn svd_postprocess<F: Float + Copy>(
     u1t: &[F],
     v1t: &[F],
@@ -488,8 +488,8 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
             }
             // wta[j] = w^T a[:, j], then a_new = a - tau w wta. Row-major
             // sweeps: a[k, :] is contiguous, so both passes stay sequential.
-            for j in i..n {
-                wta[j] = F::zero();
+            for v in wta[i..n].iter_mut() {
+                *v = F::zero();
             }
             for k in i..m {
                 let wk = w[k];
@@ -609,7 +609,7 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
 fn dbdsqr<F: Float + Copy>(
     d: &mut [F],
     e: &mut [F],
-    givens: &mut Vec<(usize, F, F, F, F)>,
+    givens: &mut Vec<GivensRotation<F>>,
     max_sweeps: usize,
 ) -> Vec<F> {
     let n = d.len();
@@ -700,6 +700,10 @@ fn dbdsqr<F: Float + Copy>(
     }
     d.iter().map(|x| x.abs()).collect()
 }
+
+/// A single Givens rotation produced by [`dbdsqr_host`]: the pivot column
+/// pair and the four rotation coefficients (cosl, sinl, cosr, sinr).
+pub type GivensRotation<F> = (usize, F, F, F, F);
 
 /// Largest singular value of the 2x2 block [[d1, e1], [0, d2]]. Scaled like
 /// LAPACK dlas2: no overflow or underflow on the intermediate squares.
