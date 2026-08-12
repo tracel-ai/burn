@@ -13,12 +13,10 @@ pub(crate) mod sort;
 pub mod svd;
 
 pub use activation::*;
-pub use argwhere::*;
 pub use bool_tensor::*;
 pub use int_tensor::*;
 pub use modules::*;
 pub use qtensor::*;
-pub use sort::*;
 pub use svd::*;
 pub use tensor::*;
 pub use transaction::*;
