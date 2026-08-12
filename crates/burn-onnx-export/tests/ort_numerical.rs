@@ -7,7 +7,9 @@ use burn_nn::{
 };
 use burn_onnx_export::{AxisSpec, InputSpec, OnnxExporter};
 use burn_tensor::{Device, Tensor, TensorData, Tolerance};
+use onnx_ir::ModelProto;
 use ort::{session::Session, value::Tensor as OrtTensor};
+use protobuf::Message;
 
 mod models;
 use models::resnet::ResNet18;
@@ -207,6 +209,15 @@ fn resnet18_matches_burn() {
     let model = OnnxExporter::new()
         .export(&module, input, ResNet18::forward)
         .unwrap();
+
+    let model_proto = ModelProto::parse_from_bytes(&model).unwrap();
+    let batch_norm_count = model_proto
+        .graph
+        .node
+        .iter()
+        .filter(|node| node.op_type == "BatchNormalization")
+        .count();
+    assert_eq!(batch_norm_count, 20);
 
     let actual = run_ort(&model, [1, 3, 64, 64], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(1.0e-3, 1.0e-5));

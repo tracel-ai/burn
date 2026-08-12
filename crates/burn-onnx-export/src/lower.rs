@@ -29,6 +29,16 @@ macro_rules! push_ints_attribute {
     }};
 }
 
+macro_rules! push_float_attribute {
+    ($node:expr, $name:expr, $value:expr) => {{
+        $node.attribute.push(Default::default());
+        let attribute = $node.attribute.last_mut().unwrap();
+        attribute.name = $name.into();
+        attribute.type_ = EnumOrUnknown::from_i32(1);
+        attribute.f = $value as f32;
+    }};
+}
+
 /// ONNX IR version emitted by this exporter.
 pub const ONNX_IR_VERSION: i64 = 8;
 /// Default ONNX operator set emitted by this exporter.
@@ -225,6 +235,22 @@ pub fn export_graph_with_bindings(
                 ]
             );
             push_int_attribute!(node, "group", conv.options.groups);
+            continue;
+        }
+        if let OperationIr::Module(ModuleOperationIr::BatchNorm(batch_norm)) = operation {
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "BatchNormalization".into();
+            node.input = vec![
+                tensor_name(batch_norm.x.id, initializer_names),
+                tensor_name(batch_norm.gamma.id, initializer_names),
+                tensor_name(batch_norm.beta.id, initializer_names),
+                tensor_name(batch_norm.mean.id, initializer_names),
+                tensor_name(batch_norm.variance.id, initializer_names),
+            ];
+            node.output = vec![tensor_name(batch_norm.out.id, initializer_names)];
+            push_float_attribute!(node, "epsilon", batch_norm.epsilon.elem::<f64>());
             continue;
         }
         if let OperationIr::Module(ModuleOperationIr::MaxPool2d(pool)) = operation {
