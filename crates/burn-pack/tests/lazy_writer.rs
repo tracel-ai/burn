@@ -29,12 +29,16 @@ struct LazyEntry {
 }
 
 impl LazyEntry {
-    fn new(name: &str, shape: &[usize], first_value: f32, log: &Log) -> Self {
-        let elements: usize = shape.iter().product();
+    fn new(name: &str, shape: impl Into<Shape>, first_value: f32, log: &Log) -> Self {
+        let shape = shape.into();
+        let elements = shape.num_elements();
+        // A ramp from a per-tensor base, so every tensor's bytes are unique: the eager-vs-lazy
+        // container comparison is byte-for-byte, and identical payloads would let swapped or
+        // misplaced tensor data pass it unnoticed.
         let values = (0..elements).map(|i| first_value + i as f32).collect();
         Self {
             name: name.to_string(),
-            shape: Shape::from(shape.to_vec()),
+            shape,
             values,
             declared_len: elements * 4,
             fails: false,
@@ -76,9 +80,9 @@ impl TensorEntry for LazyEntry {
 
 fn entries(log: &Log) -> Vec<LazyEntry> {
     vec![
-        LazyEntry::new("a", &[2, 2], 1.0, log),
-        LazyEntry::new("b", &[3], 100.0, log),
-        LazyEntry::new("c", &[64], 1000.0, log),
+        LazyEntry::new("a", [2, 2], 1.0, log),
+        LazyEntry::new("b", [3], 100.0, log),
+        LazyEntry::new("c", [64], 1000.0, log),
     ]
 }
 
@@ -129,7 +133,7 @@ fn lazy_and_eager_entries_produce_identical_containers() {
 #[test]
 fn declared_length_that_contradicts_the_shape_is_rejected_before_writing() {
     let log: Log = Rc::default();
-    let mut entry = LazyEntry::new("a", &[2, 2], 1.0, &log);
+    let mut entry = LazyEntry::new("a", [2, 2], 1.0, &log);
     // A 2x2 f32 tensor needs 16 bytes, whatever the entry claims.
     entry.declared_len = 8;
 
@@ -156,7 +160,7 @@ fn declared_length_that_contradicts_the_shape_is_rejected_before_writing() {
 #[test]
 fn provider_that_produces_a_different_length_is_rejected_mid_write() {
     let log: Log = Rc::default();
-    let mut entry = LazyEntry::new("a", &[2, 2], 1.0, &log);
+    let mut entry = LazyEntry::new("a", [2, 2], 1.0, &log);
     // `declared_len` stays 16 and agrees with the shape; the bytes do not.
     entry.values.truncate(2);
 
@@ -173,7 +177,7 @@ fn provider_that_produces_a_different_length_is_rejected_mid_write() {
 #[test]
 fn a_failing_provider_aborts_the_write() {
     let log: Log = Rc::default();
-    let mut entry = LazyEntry::new("a", &[1], 1.0, &log);
+    let mut entry = LazyEntry::new("a", [1], 1.0, &log);
     entry.fails = true;
 
     let err = Writer::new(vec![entry]).into_bytes().unwrap_err();
@@ -249,7 +253,7 @@ fn a_successful_write_replaces_an_existing_file() {
     let dest = dir.path().join("model.bpk");
 
     let log: Log = Rc::default();
-    Writer::new(vec![LazyEntry::new("old", &[4], 1.0, &log)])
+    Writer::new(vec![LazyEntry::new("old", [4], 1.0, &log)])
         .write_to_file(&dest)
         .unwrap();
     Writer::new(entries(&log)).write_to_file(&dest).unwrap();
