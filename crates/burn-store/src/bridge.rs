@@ -109,6 +109,46 @@ mod tests {
         assert_eq!(snapshot.param_id(), Some(id.val()));
     }
 
+    /// A materialization failure must reach the caller with its class and its tensor intact:
+    /// only a genuine read failure is an I/O error, and everything else (a backend panic, a
+    /// data error) must not masquerade as one, because it arrives mid-write alongside the
+    /// writer's real file errors and would send the user checking their disk. Reverting the
+    /// match in `into_bytes` to a blanket `IoError`, or dropping the writer's `in_tensor`
+    /// annotation, fails here.
+    #[test]
+    fn materialization_failures_keep_their_class_and_name() {
+        use burn_pack::Error as PackError;
+
+        let failing = |error: TensorSnapshotError| {
+            TensorSnapshot::from_closure(
+                Rc::new(move || Err(error.clone())),
+                DType::F32,
+                shape![1],
+                vec!["weight".to_string()],
+                vec![],
+                ParamId::new(),
+            )
+        };
+
+        let io = TensorSnapshotError::IoError("read failed".to_string());
+        let err = burn_pack::Writer::new(vec![failing(io)])
+            .into_bytes()
+            .unwrap_err();
+        assert!(
+            matches!(&err, PackError::IoError(m) if m.contains("tensor 'weight'") && m.contains("read failed")),
+            "expected a named IoError, got {err:?}"
+        );
+
+        let panic = TensorSnapshotError::PanicError("device readback panicked".to_string());
+        let err = burn_pack::Writer::new(vec![failing(panic)])
+            .into_bytes()
+            .unwrap_err();
+        assert!(
+            matches!(&err, PackError::ValidationError(m) if m.contains("tensor 'weight'") && m.contains("device readback panicked")),
+            "expected a named ValidationError, got {err:?}"
+        );
+    }
+
     /// The whole point of the [`TensorEntry`] impl is that the writer can lay out a container
     /// without materializing anything, then draw one tensor at a time. burn-pack has its own
     /// tests for that, but against a test double: this one pins the shipped path, so that

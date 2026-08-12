@@ -244,8 +244,7 @@ impl TensorSnapshot {
     ///
     /// For quantized types (`QFloat`), this accounts for:
     /// - The quantized values (packed according to the quantization scheme)
-    /// - Alignment padding (values are aligned to 4-byte boundary)
-    /// - Quantization parameters (scale values appended to the data)
+    /// - Quantization parameters (scale values appended directly after the values)
     pub fn data_len(&self) -> usize {
         const BITS_PER_BYTE: usize = 8;
 
@@ -469,6 +468,11 @@ mod tests {
     /// alignment round-up inflates), and a sub-byte `QuantValue` under `QuantStore::Native`
     /// (whose stored width rounds down to zero bytes if divided rather than div_ceil'd). A
     /// 32x32 Q8 tensor passes either way, so it cannot stand in for these.
+    ///
+    /// Both axes rely on the test backend storing quantized values natively, one `i8` per
+    /// value: `quantize_dynamic` rewrites the scheme's store to `QuantStore::Native` even
+    /// though `QuantScheme::default()` starts as `PackedU32`. A backend honoring `PackedU32`
+    /// would produce 4-byte-exact value counts and exercise neither axis.
     #[test]
     fn data_len_matches_materialized_bytes_when_quantized() {
         let device = Device::default();

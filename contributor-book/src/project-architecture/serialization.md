@@ -56,7 +56,7 @@ actually used.
 
 A pack is written with `burn_pack::Writer`, which is symmetric about this. It accepts any
 `burn_pack::TensorEntry`, a trait pairing the format-level metadata with a `byte_len()` that must be
-answerable without the data. The writer reads those accessors once each to compute every descriptor
+answerable without the data. The writer reads those accessors only while planning, to compute every descriptor
 and offset, before any I/O, then draws `into_bytes()` once per tensor in write order, dropping each
 tensor's bytes before requesting the next. `Tensor` implements the trait for data that is already
 resident; `burn-store` implements it for `TensorSnapshot`, deferring each `to_data()` (and so each

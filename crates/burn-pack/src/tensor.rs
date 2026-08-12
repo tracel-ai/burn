@@ -22,8 +22,10 @@ use crate::base::Error;
 /// The writer plans the entire container - descriptors, offsets, total size - from the
 /// metadata accessors alone, before any I/O happens and without calling
 /// [`into_bytes`](Self::into_bytes). Only then does it draw the bytes, once per tensor, in
-/// write order, dropping each tensor's before asking for the next. Every accessor is read
-/// exactly once, during planning.
+/// write order, dropping each tensor's before asking for the next. The accessors are read
+/// only while planning - once each per planning pass, and every entry point plans anew, so
+/// a [`size`](crate::Writer::size) call followed by a write reads them twice - never during
+/// the write itself.
 ///
 /// An implementation that defers materialization until `into_bytes` therefore holds only
 /// one tensor's data at a time. Paired with [`Writer::write_to_file`](crate::Writer::write_to_file),

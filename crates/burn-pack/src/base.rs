@@ -358,11 +358,15 @@ impl Error {
             Error::MetadataSerializationError(message)
             | Error::MetadataDeserializationError(message)
             | Error::IoError(message)
-            | Error::TensorNotFound(message)
             | Error::TensorBytesSizeMismatch(message)
             | Error::ValidationError(message) => *message = format!("tensor '{name}': {message}"),
-            // Header failures carry no message to annotate and cannot come from an entry.
-            Error::InvalidHeader | Error::InvalidMagicNumber | Error::InvalidVersion => {}
+            // Header failures carry no message to annotate (and are not expected from an
+            // entry), while `TensorNotFound`'s payload is a tensor name, not a sentence -
+            // prefixing either would garble its Display output.
+            Error::InvalidHeader
+            | Error::InvalidMagicNumber
+            | Error::InvalidVersion
+            | Error::TensorNotFound(_) => {}
         }
         self
     }

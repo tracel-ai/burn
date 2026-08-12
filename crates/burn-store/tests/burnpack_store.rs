@@ -49,11 +49,18 @@ fn first_weight(model: &TestModel) -> Vec<f32> {
 fn file_mode_round_trips_a_module() {
     let device = Device::default();
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("model.bpk");
+    // Extensionless on purpose: the store appends `.bpk` (auto-extension), and save and load
+    // must agree on the resolved path or the round trip breaks confusingly.
+    let path = dir.path().join("model");
 
     let model = TestModel::new(&device);
     let mut store = BurnpackStore::from_file(&path);
     model.save_into(&mut store).unwrap();
+
+    assert!(
+        dir.path().join("model.bpk").exists(),
+        "auto-extension should have appended .bpk"
+    );
 
     let mut loaded = TestModel::new(&device);
     let mut store = BurnpackStore::from_file(&path);

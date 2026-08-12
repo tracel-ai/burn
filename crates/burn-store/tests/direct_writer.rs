@@ -66,7 +66,9 @@ fn snapshots_write_and_read_back_without_a_module() {
 /// reject a save. The scheme/shape sweep behind that arithmetic is pinned at the unit level
 /// (`tensor_snapshot.rs`); this drives one tensor that carries both risk axes - a sub-byte
 /// value type and a value-byte count that is not a multiple of the scale alignment -
-/// through the writer and back.
+/// through the writer and back. (Both axes hold because the test backend's
+/// `quantize_dynamic` stores values natively, one `i8` each; a backend honoring the
+/// default `PackedU32` store would produce 4-byte-exact counts and exercise neither.)
 #[test]
 fn quantized_snapshot_writes_and_reads_back() {
     let device = Default::default();

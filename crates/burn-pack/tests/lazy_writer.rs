@@ -181,7 +181,32 @@ fn a_failing_provider_aborts_the_write() {
     entry.fails = true;
 
     let err = Writer::new(vec![entry]).into_bytes().unwrap_err();
-    assert!(matches!(err, Error::IoError(msg) if msg.contains("device read failed")));
+    // The name prefix is the writer's `in_tensor` annotation: a provider failure arrives
+    // mid-write, and without it the user cannot tell which of many tensors failed.
+    assert!(
+        matches!(&err, Error::IoError(msg) if msg.contains("tensor 'a'") && msg.contains("device read failed")),
+        "expected a named IoError, got {err:?}"
+    );
+}
+
+/// Planning rejects an inconsistent entry before the scratch file is even created, so a
+/// plan-time failure touches the disk not at all.
+#[test]
+fn a_plan_time_rejection_creates_no_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let log: Log = Rc::default();
+    let mut entry = LazyEntry::new("a", [2, 2], 1.0, &log);
+    entry.declared_len = 8;
+
+    Writer::new(vec![entry]).write_to_file(&dest).unwrap_err();
+
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        0,
+        "a plan-time rejection should create neither destination nor scratch file"
+    );
 }
 
 /// A lazy provider runs during the write, so its failure has to leave the destination as it
@@ -227,8 +252,8 @@ fn a_failed_write_leaves_an_existing_file_intact() {
     );
 }
 
-/// The other atomicity tests all fail before the rename. This one fails *at* it, which is
-/// the only path where a finished, full-size scratch file is the thing left to clean up.
+/// The other atomicity tests all fail before the rename. This one fails *at* it, leaving a
+/// finished, full-size scratch file as the thing to clean up.
 #[test]
 fn a_failed_rename_leaves_no_scratch_file() {
     let dir = tempfile::tempdir().unwrap();

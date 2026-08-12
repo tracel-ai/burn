@@ -146,8 +146,11 @@ impl<T: TensorEntry> Writer<T> {
     /// leave a truncated file where a valid one used to be.
     ///
     /// The guarantee covers process-level failure: a returned error, a panic, or the process
-    /// dying. It does not extend to power loss or a kernel panic, where the rename may reach
-    /// the disk before the data blocks do.
+    /// dying. Power loss and kernel panics get a narrower one: the data is synced before the
+    /// rename, so the destination holds either the old container or the complete new one,
+    /// never a mixture - but the rename itself may not survive (the directory is not synced),
+    /// leaving the old file in place as if the save never happened, possibly with a finished
+    /// scratch file beside it.
     ///
     /// Building alongside the destination has four consequences:
     ///
@@ -174,9 +177,8 @@ impl<T: TensorEntry> Writer<T> {
         let (scratch, mut sink) = ScratchFile::create(&path)?;
 
         self.write_container(&layout, &mut sink)?;
-        sink.finish()?;
 
-        scratch.persist(&path)
+        scratch.persist(sink, &path)
     }
 
     /// Build the complete on-disk layout: header, serialized metadata, and the
@@ -223,7 +225,7 @@ impl<T: TensorEntry> Writer<T> {
     ///
     /// Returns the descriptors keyed by name (for the metadata blob), the [`Placement`] of
     /// each tensor in `self.tensors` order (for the write pass), and the total data-section
-    /// size — the running offset after the last tensor. Offsets only grow, so this is also
+    /// size (the running offset after the last tensor). Offsets only grow, so this is also
     /// the highest descriptor end offset.
     fn build_descriptors(&self) -> Result<Descriptors, Error> {
         let mut tensors = BTreeMap::new();
@@ -284,15 +286,16 @@ impl<T: TensorEntry> Writer<T> {
 
     /// Reject a `byte_len` that cannot describe the tensor the entry declares.
     ///
-    /// A reader sizes its [`TensorData`](burn_std::Bytes) from the descriptor's shape and
+    /// A reader sizes a tensor's [`Bytes`] from the descriptor's shape and
     /// dtype, so a length that disagrees with them produces a container that reads back
     /// wrong rather than one that fails to write. Catching it during planning costs nothing
     /// and keeps the mistake from reaching a file at all.
     ///
     /// Quantized data is the deliberate exception: values are bit-packed and the scales are
-    /// appended inline, so its length is not a product of shape and dtype and only the
-    /// producer can compute it. That exception is why [`TensorEntry::byte_len`] exists as a
-    /// method rather than being derived here.
+    /// appended inline, so its length is not `num_elements * dtype.size()`. That layout
+    /// contract belongs to the quantization layer, and burn-pack deliberately does not
+    /// reimplement it - which is why [`TensorEntry::byte_len`] exists as a method the
+    /// producer supplies rather than something derived here.
     fn check_byte_len(name: &str, dtype: DType, shape: &Shape, data_len: u64) -> Result<(), Error> {
         if matches!(dtype, DType::QFloat(_)) {
             return Ok(());
@@ -331,8 +334,10 @@ impl<T: TensorEntry> Writer<T> {
     /// two pairs each entry with its own offset by construction. Offsets are never recovered
     /// from the entry a second time, which is what keeps the plan and the write in step.
     fn write_tensors(self, placements: &[Placement], sink: &mut impl Sink) -> Result<(), Error> {
-        // The zip below would silently drop tensors if the two ever diverged in length.
-        debug_assert_eq!(placements.len(), self.tensors.len());
+        // The zip below would silently drop tensors if the two ever diverged in length, and
+        // that is a corrupt container; one integer comparison per write buys a loud abort
+        // (which the scratch-file guard turns into a clean one) in release builds too.
+        assert_eq!(placements.len(), self.tensors.len());
 
         // Position within the data section (relative to its aligned start).
         let mut data_offset = 0usize;
@@ -493,8 +498,7 @@ impl Sink for BufferSink<'_> {
 ///
 /// The scratch path is a sibling of the destination rather than a system temp file so that
 /// [`persist`](Self::persist) stays on one filesystem: never `EXDEV`, and atomic on POSIX.
-/// (Windows renames via `MoveFileExW`, which Microsoft does not document as atomic when it
-/// replaces an existing file.)
+/// (Windows documents no atomicity guarantee when the rename replaces an existing file.)
 #[cfg(feature = "std")]
 struct ScratchFile {
     path: std::path::PathBuf,
@@ -551,11 +555,19 @@ impl ScratchFile {
         Ok(destination.with_file_name(scratch))
     }
 
-    /// Move the completed container onto `destination`, replacing any existing file.
+    /// Flush the completed container to disk and move it onto `destination`, replacing any
+    /// existing file there.
+    ///
+    /// Taking the sink is what enforces the ordering the all-or-nothing guarantee rests on:
+    /// persisting without first surrendering the file handle is unrepresentable, so the
+    /// deferred-write-error check in [`FileSink::finish`] cannot be skipped and the handle is
+    /// closed before the rename.
     ///
     /// On failure the finished container is deleted by the guard, so the error names it: the
     /// bytes were written and then discarded, which is worth saying out loud.
-    fn persist(mut self, destination: &Path) -> Result<(), Error> {
+    fn persist(mut self, sink: FileSink, destination: &Path) -> Result<(), Error> {
+        sink.finish()?;
+
         std::fs::rename(&self.path, destination).map_err(|e| {
             Error::IoError(format!(
                 "cannot move the completed container '{}' onto '{}': {e}",
@@ -600,8 +612,9 @@ impl FileSink {
     /// exactly there. Without this, such a write would be renamed over a good container
     /// while `write_to_file` returned `Ok`.
     ///
-    /// It also makes the rename durable in the right order on POSIX, so a crash cannot leave
-    /// the destination pointing at data that never reached the platter.
+    /// It also orders durability: the data is on disk before the rename happens, so a crash
+    /// cannot leave the destination pointing at data that never reached the platter. (The
+    /// rename itself may still be lost, since the directory is not synced.)
     fn finish(self) -> Result<(), Error> {
         self.file.sync_all().map_err(|e| {
             Error::IoError(format!(
