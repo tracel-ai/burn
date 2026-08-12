@@ -10,7 +10,7 @@ pub(crate) struct UnsafeSharedRef<'a, A, D> {
     _marker: PhantomData<&'a mut A>,
 }
 
-unsafe impl<A, D> Sync for UnsafeSharedRef<'_, A, D> {}
+unsafe impl<A: Send, D: Sync> Sync for UnsafeSharedRef<'_, A, D> {}
 
 impl<'a, A, D: Dimension> UnsafeSharedRef<'a, A, D> {
     pub fn new<S: RawDataMut<Elem = A>>(data: &'a mut ArrayBase<S, D>) -> Self {
@@ -22,7 +22,8 @@ impl<'a, A, D: Dimension> UnsafeSharedRef<'a, A, D> {
 
     /// # Safety
     ///
-    /// Elements written through the returned view must not be written through any other handle.
+    /// Every element accessed through the returned view must be disjoint from every element
+    /// accessed through any other live view returned by `get`.
     pub unsafe fn get(&self) -> ArrayViewMut<'a, A, D> {
         unsafe { self.view.clone().deref_into_view_mut() }
     }
