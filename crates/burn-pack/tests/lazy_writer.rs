@@ -16,6 +16,9 @@ type Log = Rc<RefCell<Vec<String>>>;
 /// the writer asks for them, logging each time it does.
 struct LazyEntry {
     name: String,
+    /// `F32` unless a test overrides it; the payload stays f32 either way, since the writer
+    /// never interprets the bytes.
+    dtype: DType,
     shape: Shape,
     /// The values handed over by [`TensorEntry::into_bytes`]. Normally matches `shape`; the
     /// mid-write guard test shortens it so the entry produces less than it promised.
@@ -38,6 +41,7 @@ impl LazyEntry {
         let values = (0..elements).map(|i| first_value + i as f32).collect();
         Self {
             name: name.to_string(),
+            dtype: DType::F32,
             shape,
             values,
             declared_len: elements * 4,
@@ -53,7 +57,7 @@ impl TensorEntry for LazyEntry {
     }
 
     fn dtype(&self) -> DType {
-        DType::F32
+        self.dtype
     }
 
     fn shape(&self) -> &Shape {
@@ -152,6 +156,26 @@ fn declared_length_that_contradicts_the_shape_is_rejected_before_writing() {
         log.borrow().is_empty(),
         "planning rejected the entry, so nothing should have been materialized"
     );
+}
+
+/// Quantized entries are exempt from the plan-time shape check: their length is not
+/// `num_elements * dtype.size()` (packed values, inline scales), so a `byte_len` that would
+/// be rejected for any other dtype must be accepted for `QFloat` - the exemption is what
+/// makes [`TensorEntry::byte_len`] usable for quantized data at all.
+#[test]
+fn a_quantized_byte_len_is_not_shape_checked_at_plan_time() {
+    use burn_std::QuantScheme;
+
+    let log: Log = Rc::default();
+    let mut entry = LazyEntry::new("q", [3], 1.0, &log);
+    entry.dtype = DType::QFloat(QuantScheme::default());
+    // 3 elements could never need 8 bytes under `num_elements * size()` arithmetic; for
+    // F32 this exact setup is rejected while planning (see the test above). The payload
+    // matches the declaration, so the mid-write guard is satisfied too.
+    entry.values.truncate(2);
+    entry.declared_len = 8;
+
+    Writer::new(vec![entry]).into_bytes().unwrap();
 }
 
 /// A `byte_len` consistent with the shape but a provider that produces something else slips

@@ -145,12 +145,13 @@ impl<T: TensorEntry> Writer<T> {
     /// hands back a different length than it declared) is an ordinary error, and it must not
     /// leave a truncated file where a valid one used to be.
     ///
-    /// The guarantee covers process-level failure: a returned error, a panic, or the process
-    /// dying. Power loss and kernel panics get a narrower one: the data is synced before the
-    /// rename, so the destination holds either the old container or the complete new one,
-    /// never a mixture - but the rename itself may not survive (the directory is not synced),
-    /// leaving the old file in place as if the save never happened, possibly with a finished
-    /// scratch file beside it.
+    /// The guarantee covers process-level failure (a returned error, a panic, the process
+    /// dying) and, on Unix, power loss too: the data is synced before the rename and the
+    /// directory after it, so a crash mid-save leaves the old container and a crash after
+    /// `Ok` leaves the new one - never a mixture, and never a lost save. Elsewhere the
+    /// directory sync is unavailable, so power loss immediately after a successful save can
+    /// revert the destination to the old container, possibly with the finished scratch file
+    /// back beside it.
     ///
     /// Building alongside the destination has four consequences:
     ///
@@ -563,8 +564,15 @@ impl ScratchFile {
     /// deferred-write-error check in [`FileSink::finish`] cannot be skipped and the handle is
     /// closed before the rename.
     ///
-    /// On failure the finished container is deleted by the guard, so the error names it: the
-    /// bytes were written and then discarded, which is worth saying out loud.
+    /// On Unix the parent directory is synced after the rename, making the rename itself
+    /// durable: once this returns `Ok`, power loss cannot revert the destination to the old
+    /// container. (Windows has no portable directory sync; NTFS journals metadata on its own
+    /// schedule.) If that final sync fails, the error says so explicitly - the new container
+    /// is at the destination and intact, only its durability is unconfirmed - because the
+    /// generic rename error below would wrongly imply the save did not happen.
+    ///
+    /// On rename failure the finished container is deleted by the guard, so the error names
+    /// it: the bytes were written and then discarded, which is worth saying out loud.
     fn persist(mut self, sink: FileSink, destination: &Path) -> Result<(), Error> {
         sink.finish()?;
 
@@ -576,6 +584,25 @@ impl ScratchFile {
             ))
         })?;
         self.persisted = true;
+
+        #[cfg(unix)]
+        {
+            // An empty parent means a bare relative file name; the directory is the cwd.
+            let parent = match destination.parent() {
+                Some(parent) if !parent.as_os_str().is_empty() => parent,
+                _ => Path::new("."),
+            };
+            File::open(parent)
+                .and_then(|directory| directory.sync_all())
+                .map_err(|e| {
+                    Error::IoError(format!(
+                        "'{}' was saved, but syncing its directory failed, so the rename may \
+                         not survive power loss: {e}",
+                        destination.display()
+                    ))
+                })?;
+        }
+
         Ok(())
     }
 }
@@ -613,8 +640,8 @@ impl FileSink {
     /// while `write_to_file` returned `Ok`.
     ///
     /// It also orders durability: the data is on disk before the rename happens, so a crash
-    /// cannot leave the destination pointing at data that never reached the platter. (The
-    /// rename itself may still be lost, since the directory is not synced.)
+    /// cannot leave the destination pointing at data that never reached the platter.
+    /// (Durability of the rename itself is [`ScratchFile::persist`]'s job.)
     fn finish(self) -> Result<(), Error> {
         self.file.sync_all().map_err(|e| {
             Error::IoError(format!(
