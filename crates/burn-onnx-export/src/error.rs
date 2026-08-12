@@ -55,4 +55,12 @@ pub enum ExportError {
     /// Encoding or writing the ONNX model failed.
     #[error("serialization failed: {0}")]
     Serialization(String),
+    /// Writing a serialized ONNX model to disk failed.
+    #[error("failed to write ONNX model to `{path}`: {reason}")]
+    FileWrite {
+        /// Destination path.
+        path: String,
+        /// Underlying I/O error.
+        reason: String,
+    },
 }

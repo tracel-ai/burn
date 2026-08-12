@@ -26,3 +26,4 @@ protobuf = { workspace = true }
 [dev-dependencies]
 burn-nn = { workspace = true }
 ort = { workspace = true }
+tempfile = { workspace = true }

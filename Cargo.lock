@@ -1241,6 +1241,7 @@ dependencies = [
  "onnx-ir",
  "ort",
  "protobuf",
+ "tempfile",
  "thiserror 2.0.19",
 ]
 
@@ -7101,6 +7102,7 @@ dependencies = [
 [[package]]
 name = "onnx-ir"
 version = "0.22.0-pre.1"
+source = "git+https://github.com/tracel-ai/burn-onnx#9e13c70e21b6f9f474865ed63c7b37629949229d"
 dependencies = [
  "burn-tensor 0.22.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytemuck",
@@ -7119,6 +7121,7 @@ dependencies = [
 [[package]]
 name = "onnx-ir-derive"
 version = "0.22.0-pre.1"
+source = "git+https://github.com/tracel-ai/burn-onnx#9e13c70e21b6f9f474865ed63c7b37629949229d"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -8,8 +8,8 @@ use burn_tensor::{Bool, Device, Float, Int, Tensor};
 use hashbrown::{HashMap, HashSet};
 
 use crate::{
-    ExportError, InputSpec, PairedTraceShapeResolver, ShapeResolver, StaticShapeResolver,
-    export_graph_with_bindings, shape::validate_input_specs,
+    ExportError, InputSpec, OnnxModel, PairedTraceShapeResolver, ShapeResolver,
+    StaticShapeResolver, export_graph_with_bindings, shape::validate_input_specs,
 };
 
 /// Collects tensor IDs from values accepted or returned by a forward function.
@@ -201,13 +201,13 @@ impl OnnxExporter {
         (Device::new(device), capture)
     }
 
-    /// Capture one module forward pass and return a serialized static-shape ONNX model.
+    /// Capture one module forward pass and return a static-shape ONNX model.
     pub fn export<M, I, O, F>(
         &self,
         module: &M,
         inputs: I,
         forward: F,
-    ) -> Result<Vec<u8>, ExportError>
+    ) -> Result<OnnxModel, ExportError>
     where
         M: Module,
         I: ExportInput,
@@ -225,6 +225,7 @@ impl OnnxExporter {
             &captured.input_ids,
             &captured.parameter_names,
         )
+        .map(OnnxModel::new)
     }
 
     /// Capture two shapes, validate their structure, and export symbolic input axes.
@@ -239,7 +240,7 @@ impl OnnxExporter {
         validation_inputs: I,
         input_specs: &[InputSpec],
         forward: F,
-    ) -> Result<Vec<u8>, ExportError>
+    ) -> Result<OnnxModel, ExportError>
     where
         M: Module,
         I: ExportInput,
@@ -263,6 +264,7 @@ impl OnnxExporter {
             &sample.input_ids,
             &sample.parameter_names,
         )
+        .map(OnnxModel::new)
     }
 
     fn capture_forward<M, I, O, F>(
@@ -417,6 +419,25 @@ mod tests {
             model.graph.initializer[0].raw_data.len(),
             2 * size_of::<f32>()
         );
+    }
+
+    #[test]
+    fn saves_exported_model() {
+        let device = Device::default();
+        let module = AddModule {
+            weight: Param::from_data([2.0f32, 3.0], &device),
+        };
+        let input = Tensor::<1>::from_floats([5.0f32, 7.0], &device);
+        let model = OnnxExporter::new()
+            .export(&module, input, |module, input| input + module.weight.val())
+            .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("model.onnx");
+
+        model.save(&path).unwrap();
+
+        assert_eq!(std::fs::read(path).unwrap(), model.as_bytes());
+        ModelProto::parse_from_bytes(model.as_bytes()).unwrap();
     }
 
     #[test]
