@@ -7,6 +7,10 @@ use burn_core as burn;
 use burn_core::module::{Module, Param};
 use burn_onnx_export::{AxisSpec, InputSpec, OnnxExporter};
 use burn_tensor::{Device, Tensor, TensorData};
+use burn_tensor::{
+    module::interpolate,
+    ops::{InterpolateMode, InterpolateOptions},
+};
 
 mod models;
 use models::resnet::ResNet18;
@@ -24,6 +28,19 @@ impl AddModule {
 
 #[derive(Module, Debug)]
 struct Flatten;
+
+#[derive(Module, Debug)]
+struct Resize;
+
+impl Resize {
+    fn forward(&self, input: Tensor<4>) -> Tensor<4> {
+        interpolate(
+            input,
+            [5, 7],
+            InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false),
+        )
+    }
+}
 
 impl Flatten {
     fn forward(&self, input: Tensor<3>) -> Tensor<2> {
@@ -91,6 +108,17 @@ fn checker_accepts_dynamic_reshape() {
     ])];
     let model = OnnxExporter::new()
         .export_dynamic(&Flatten, sample, validation, &specs, Flatten::forward)
+        .unwrap();
+    check_model(python, &model);
+}
+
+#[test]
+fn checker_accepts_interpolate() {
+    let Some(python) = checker() else { return };
+    let device = Device::default();
+    let input = Tensor::<4>::from_data(TensorData::zeros::<f32, _>([1, 1, 3, 4]), &device);
+    let model = OnnxExporter::new()
+        .export(&Resize, input, Resize::forward)
         .unwrap();
     check_model(python, &model);
 }

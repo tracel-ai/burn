@@ -7,6 +7,10 @@ use burn_nn::{
 };
 use burn_onnx_export::{AxisSpec, InputSpec, OnnxExporter};
 use burn_tensor::{Device, Tensor, TensorData, Tolerance};
+use burn_tensor::{
+    module::interpolate,
+    ops::{InterpolateMode, InterpolateOptions},
+};
 use onnx_ir::ModelProto;
 use ort::{session::Session, value::Tensor as OrtTensor};
 use protobuf::Message;
@@ -50,6 +54,32 @@ struct SmallCnn {
     conv: Conv2d,
     activation: Relu,
     pool: MaxPool2d,
+}
+
+#[derive(Module, Debug)]
+struct BilinearResize;
+
+impl BilinearResize {
+    fn forward(&self, input: Tensor<4>) -> Tensor<4> {
+        interpolate(
+            input,
+            [5, 7],
+            InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false),
+        )
+    }
+}
+
+#[derive(Module, Debug)]
+struct NearestResize;
+
+impl NearestResize {
+    fn forward(&self, input: Tensor<4>) -> Tensor<4> {
+        interpolate(
+            input,
+            [5, 7],
+            InterpolateOptions::new(InterpolateMode::Nearest),
+        )
+    }
 }
 
 impl SmallCnn {
@@ -162,6 +192,30 @@ fn small_cnn_matches_burn() {
 
     let actual = run_ort(&model, [1, 1, 5, 5], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
+}
+
+#[test]
+fn interpolate_matches_burn() {
+    let device = Device::default();
+    let input_values = (0..12).map(|value| value as f32).collect::<Vec<_>>();
+
+    let input =
+        Tensor::<4>::from_data(TensorData::new(input_values.clone(), [1, 1, 3, 4]), &device);
+    let expected = BilinearResize.forward(input.clone()).into_data();
+    let model = OnnxExporter::new()
+        .export(&BilinearResize, input, BilinearResize::forward)
+        .unwrap();
+    let actual = run_ort(&model, [1, 1, 3, 4], input_values.clone());
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
+
+    let input =
+        Tensor::<4>::from_data(TensorData::new(input_values.clone(), [1, 1, 3, 4]), &device);
+    let expected = NearestResize.forward(input.clone()).into_data();
+    let model = OnnxExporter::new()
+        .export(&NearestResize, input, NearestResize::forward)
+        .unwrap();
+    let actual = run_ort(&model, [1, 1, 3, 4], input_values);
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 }
 
 #[test]

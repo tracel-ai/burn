@@ -1,7 +1,7 @@
 use burn_backend::{DType, TensorData};
 use burn_ir::{
-    ActivationOperationIr, BaseOperationIr, FloatOperationIr, IntOperationIr, ModuleOperationIr,
-    NumericOperationIr, OperationIr, ScalarIr, ScalarOpIr, TensorId, TensorIr,
+    ActivationOperationIr, BaseOperationIr, FloatOperationIr, IntOperationIr, InterpolateModeIr,
+    ModuleOperationIr, NumericOperationIr, OperationIr, ScalarIr, ScalarOpIr, TensorId, TensorIr,
 };
 use hashbrown::{HashMap, HashSet};
 use onnx_ir::{GraphProto, ModelProto, TensorProto, TypeProto, ValueInfoProto};
@@ -36,6 +36,16 @@ macro_rules! push_float_attribute {
         attribute.name = $name.into();
         attribute.type_ = EnumOrUnknown::from_i32(1);
         attribute.f = $value as f32;
+    }};
+}
+
+macro_rules! push_string_attribute {
+    ($node:expr, $name:expr, $value:expr) => {{
+        $node.attribute.push(Default::default());
+        let attribute = $node.attribute.last_mut().unwrap();
+        attribute.name = $name.into();
+        attribute.type_ = EnumOrUnknown::from_i32(3);
+        attribute.s = bytes::Bytes::from_static($value.as_bytes());
     }};
 }
 
@@ -251,6 +261,65 @@ pub fn export_graph_with_bindings(
             ];
             node.output = vec![tensor_name(batch_norm.out.id, initializer_names)];
             push_float_attribute!(node, "epsilon", batch_norm.epsilon.elem::<f64>());
+            continue;
+        }
+        if let OperationIr::Module(ModuleOperationIr::Interpolate(interpolate)) = operation {
+            let (mode, coordinate_mode, nearest_mode) = match interpolate.options.mode {
+                InterpolateModeIr::Nearest => ("nearest", "asymmetric", Some("floor")),
+                InterpolateModeIr::NearestExact => {
+                    ("nearest", "half_pixel", Some("round_prefer_floor"))
+                }
+                InterpolateModeIr::Bilinear => (
+                    "linear",
+                    if interpolate.options.align_corners {
+                        "align_corners"
+                    } else {
+                        "half_pixel"
+                    },
+                    None,
+                ),
+                InterpolateModeIr::Bicubic => (
+                    "cubic",
+                    if interpolate.options.align_corners {
+                        "align_corners"
+                    } else {
+                        "half_pixel"
+                    },
+                    None,
+                ),
+                InterpolateModeIr::Lanczos3 => {
+                    return Err(ExportError::UnsupportedOperation {
+                        operation: index,
+                        kind: "Lanczos3 interpolation has no ONNX Resize mode".into(),
+                    });
+                }
+            };
+            let sizes = format!("node_{index}_sizes");
+            push_i64_initializer(
+                &mut proto,
+                sizes.clone(),
+                &interpolate.output_size.map(|dimension| dimension as i64),
+            );
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "Resize".into();
+            node.input = vec![
+                tensor_name(interpolate.x.id, initializer_names),
+                String::new(),
+                String::new(),
+                sizes,
+            ];
+            node.output = vec![tensor_name(interpolate.out.id, initializer_names)];
+            push_ints_attribute!(node, "axes", [2, 3]);
+            push_string_attribute!(node, "mode", mode);
+            push_string_attribute!(node, "coordinate_transformation_mode", coordinate_mode);
+            if let Some(nearest_mode) = nearest_mode {
+                push_string_attribute!(node, "nearest_mode", nearest_mode);
+            }
+            if matches!(interpolate.options.mode, InterpolateModeIr::Bicubic) {
+                push_float_attribute!(node, "cubic_coeff_a", -0.75);
+            }
             continue;
         }
         if let OperationIr::Module(ModuleOperationIr::MaxPool2d(pool)) = operation {
