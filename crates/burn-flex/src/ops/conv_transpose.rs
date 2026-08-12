@@ -451,7 +451,7 @@ mod tests {
         let w = FlexTensor::from_data(TensorData::new(vec![1.0f64; 4], vec![1, 1, 2, 2]));
         let opts = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
         let result = conv_transpose2d_f64(x, w, None, &opts);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out, vec![1.0, 3.0, 2.0, 4.0, 10.0, 6.0, 3.0, 7.0, 4.0]);
     }
 
@@ -466,7 +466,7 @@ mod tests {
         let w = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let opts = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
         let result = conv_transpose2d_f16(x, w, None, &opts);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
         let expected = [1.0f32, 3.0, 2.0, 4.0, 10.0, 6.0, 3.0, 7.0, 4.0];
         for (a, e) in out.iter().zip(expected.iter()) {
             assert!((a.to_f32() - e).abs() < 0.1);

@@ -133,8 +133,8 @@ where
                 let next_state: RLC::PolicyObs =
                     t.next_state.clone().to_observation(&env_runner.device());
                 let action: RLC::PolicyAction = t.action.clone().to_action(&env_runner.device());
-                let reward = t.reward.to_data().to_vec::<f32>().unwrap()[0];
-                let done = t.done.to_data().to_vec::<f32>().unwrap()[0] > 0.5;
+                let reward = t.reward.to_data().try_into_vec::<f32>().unwrap()[0];
+                let done = t.done.to_data().try_into_vec::<f32>().unwrap()[0] > 0.5;
                 transition_buffer.push(state, next_state, action, reward, done);
             }
 

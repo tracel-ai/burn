@@ -2,6 +2,10 @@ use super::*;
 use burn_tensor::signal::{cfft, irfft, rfft};
 use burn_tensor::{TensorData, Tolerance};
 
+const SQ2INV: f64 = std::f64::consts::FRAC_1_SQRT_2;
+const SQ2INV_PLUS_HALF: f64 = SQ2INV + 0.5;
+const SQ2INV_MINUS_HALF: f64 = SQ2INV + 0.5;
+
 #[test]
 fn rfft_zeros() {
     let signal = TestTensor::<1>::from([0.0, 0.0, 0.0, 0.0]);
@@ -61,7 +65,16 @@ fn rfft_length2() {
 
 #[test]
 fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
-    let signal = TestTensor::<2>::from([[0.0, 1.2071, 1.0, 0.2071, 0.0, -0.2071, -1.0, -1.2071]]);
+    let signal = TestTensor::<2>::from([[
+        0.0,
+        SQ2INV_PLUS_HALF,
+        1.0,
+        SQ2INV_MINUS_HALF,
+        0.0,
+        -SQ2INV_MINUS_HALF,
+        -1.0,
+        -SQ2INV_PLUS_HALF,
+    ]]);
     let dim = 1;
     let (spectrum_re, spectrum_im) = rfft(signal.clone(), dim, None);
     let expected_re = TensorData::from([[0, 0, 0, 0, 0]]);
@@ -81,7 +94,7 @@ fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
 
 #[test]
 fn rfft_dim1_cosine_wave_produces_real_spectrum() {
-    let signal = TestTensor::<2>::from([[1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071, 0.0, 0.7071]]);
+    let signal = TestTensor::<2>::from([[1.0, SQ2INV, 0.0, -SQ2INV, -1.0, -SQ2INV, 0.0, SQ2INV]]);
 
     let (spectrum_re, spectrum_im) = rfft(signal, 1, None);
 
@@ -103,7 +116,7 @@ fn rfft_dim1_cosine_wave_produces_real_spectrum() {
 #[test]
 fn rfft_dim1_2d_tensor_distinct_rows() {
     let signal = TestTensor::<2>::from([
-        [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
+        [0.0, SQ2INV, 1.0, SQ2INV, 0.0, -SQ2INV, -1.0, -SQ2INV],
         [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
     ]);
 
@@ -144,13 +157,13 @@ fn rfft_negative_dim_matches_positive_dim() {
 fn rfft_dim0_2d_tensor() {
     let signal = TestTensor::<2>::from([
         [0.0, 0.0],
-        [0.7071, 1.0],
+        [SQ2INV, 1.0],
         [1.0, 0.0],
-        [0.7071, -1.0],
+        [SQ2INV, -1.0],
         [0.0, 0.0],
-        [-0.7071, 1.0],
+        [-SQ2INV, 1.0],
         [-1.0, 0.0],
-        [-0.7071, -1.0],
+        [-SQ2INV, -1.0],
     ]);
 
     let (spectrum_re, spectrum_im) = rfft(signal, 0, None);
@@ -177,12 +190,12 @@ fn rfft_dim0_2d_tensor() {
 fn rfft_dim2_3d_tensor() {
     let signal = TestTensor::<3>::from([
         [
-            [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
+            [0.0, SQ2INV, 1.0, SQ2INV, 0.0, -SQ2INV, -1.0, -SQ2INV],
             [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
         ],
         [
             [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
-            [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
+            [0.0, SQ2INV, 1.0, SQ2INV, 0.0, -SQ2INV, -1.0, -SQ2INV],
         ],
     ]);
 
@@ -248,7 +261,16 @@ fn irfft_dim1_imaginary_spectrum_produces_sine_wave() {
 
     let signal = irfft(spectrum_re, spectrum_im, 1, None);
 
-    let expected = TensorData::from([[0.0, 1.2071, 1.0, 0.2071, 0.0, -0.2071, -1.0, -1.2071]]);
+    let expected = TensorData::from([[
+        0.0,
+        SQ2INV_PLUS_HALF,
+        1.0,
+        SQ2INV_MINUS_HALF,
+        0.0,
+        -SQ2INV_MINUS_HALF,
+        -1.0,
+        -SQ2INV_PLUS_HALF,
+    ]]);
 
     signal
         .into_data()
@@ -262,7 +284,7 @@ fn irfft_dim1_real_spectrum_produces_cosine_wave() {
 
     let signal = irfft(spectrum_re, spectrum_im, 1, None);
 
-    let expected = TensorData::from([[1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071, 0.0, 0.7071]]);
+    let expected = TensorData::from([[1.0, SQ2INV, 0.0, -SQ2INV, -1.0, -SQ2INV, 0.0, SQ2INV]]);
 
     signal
         .into_data()
@@ -279,7 +301,7 @@ fn irfft_dim1_2d_tensor_distinct_rows() {
     let signal = irfft(spectrum_re, spectrum_im, 1, None);
 
     let expected = TensorData::from([
-        [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
+        [0.0, SQ2INV, 1.0, SQ2INV, 0.0, -SQ2INV, -1.0, -SQ2INV],
         [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
     ]);
 
@@ -313,13 +335,13 @@ fn irfft_dim0_2d_tensor() {
 
     let expected = TensorData::from([
         [1.0, 1.0],
-        [0.7071, 0.7071],
+        [SQ2INV, SQ2INV],
         [0.0, 0.0],
-        [-0.7071, -0.7071],
+        [-SQ2INV, -SQ2INV],
         [-1.0, -1.0],
-        [-0.7071, -0.7071],
+        [-SQ2INV, -SQ2INV],
         [0.0, 0.0],
-        [0.7071, 0.7071],
+        [SQ2INV, SQ2INV],
     ]);
 
     signal
@@ -329,7 +351,16 @@ fn irfft_dim0_2d_tensor() {
 
 #[test]
 fn rfft_irfft_roundtrip_1d() {
-    let signal = TestTensor::<1>::from([0.0, 1.2071, 1.0, 0.2071, 0.0, -0.2071, -1.0, -1.2071]);
+    let signal = TestTensor::<1>::from([
+        0.0,
+        SQ2INV_PLUS_HALF,
+        1.0,
+        SQ2INV_MINUS_HALF,
+        0.0,
+        -SQ2INV_MINUS_HALF,
+        -1.0,
+        -SQ2INV_PLUS_HALF,
+    ]);
 
     let (re, im) = rfft(signal.clone(), 0, None);
     let reconstructed = irfft(re, im, 0, None);
@@ -342,7 +373,7 @@ fn rfft_irfft_roundtrip_1d() {
 #[test]
 fn rfft_irfft_roundtrip_dim1_2d() {
     let signal = TestTensor::<2>::from([
-        [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
+        [0.0, SQ2INV, 1.0, SQ2INV, 0.0, -SQ2INV, -1.0, -SQ2INV],
         [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
     ]);
 
@@ -358,13 +389,13 @@ fn rfft_irfft_roundtrip_dim1_2d() {
 fn rfft_irfft_roundtrip_dim0_2d() {
     let signal = TestTensor::<2>::from([
         [1.0, 0.0],
-        [0.7071, 1.0],
+        [SQ2INV, 1.0],
         [0.0, 0.0],
-        [-0.7071, -1.0],
+        [-SQ2INV, -1.0],
         [-1.0, 0.0],
-        [-0.7071, 1.0],
+        [-SQ2INV, 1.0],
         [0.0, 0.0],
-        [0.7071, -1.0],
+        [SQ2INV, -1.0],
     ]);
 
     let (re, im) = rfft(signal.clone(), 0, None);
@@ -390,13 +421,13 @@ fn rfft_irfft_roundtrip_dim1_3d() {
         ],
         [
             [1.0, 0.0],
-            [0.7071, 1.0],
+            [SQ2INV, 1.0],
             [0.0, 0.0],
-            [-0.7071, -1.0],
+            [-SQ2INV, -1.0],
             [-1.0, 0.0],
-            [-0.7071, 1.0],
+            [-SQ2INV, 1.0],
             [0.0, 0.0],
-            [0.7071, -1.0],
+            [SQ2INV, -1.0],
         ],
     ]);
 
@@ -488,7 +519,7 @@ fn rfft_2d_with_n_padded() {
 
     // Row 0: impulse zero-padded to 8 -> all-ones real
     let re_data = re.into_data();
-    let re_vals = re_data.to_vec::<f32>().unwrap();
+    let re_vals = re_data.try_to_vec::<f32>().unwrap();
     for k in 0..5 {
         assert!(
             (re_vals[k] - 1.0).abs() < 1e-3,

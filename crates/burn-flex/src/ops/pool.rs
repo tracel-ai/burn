@@ -1783,11 +1783,11 @@ mod tests {
 
         // count_include_pad = true: divide by kernel size (4)
         let result_include = avg_pool2d_f32(x.clone(), [2, 2], [2, 2], [1, 1], true, false);
-        let out_include: Vec<f32> = result_include.into_data().to_vec().unwrap();
+        let out_include: Vec<f32> = result_include.into_data().try_into_vec().unwrap();
 
         // count_include_pad = false: divide by actual count
         let result_exclude = avg_pool2d_f32(x, [2, 2], [2, 2], [1, 1], false, false);
-        let out_exclude: Vec<f32> = result_exclude.into_data().to_vec().unwrap();
+        let out_exclude: Vec<f32> = result_exclude.into_data().try_into_vec().unwrap();
 
         // Corner position with padding: only 1 valid element
         // With count_include_pad: 1.0 / 4 = 0.25
@@ -1802,7 +1802,7 @@ mod tests {
         let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
 
         let result = max_pool2d_f64(x, [2, 2], [2, 2], [0, 0], [1, 1], false);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out, vec![6.0, 8.0, 14.0, 16.0]);
     }
 
@@ -1812,7 +1812,7 @@ mod tests {
         let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
 
         let result = max_pool2d_f16(x, [2, 2], [2, 2], [0, 0], [1, 1], false);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
 
         assert!((out[0].to_f32() - 6.0).abs() < 0.1);
         assert!((out[1].to_f32() - 8.0).abs() < 0.1);
@@ -1826,7 +1826,7 @@ mod tests {
         let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
 
         let result = max_pool2d_bf16(x, [2, 2], [2, 2], [0, 0], [1, 1], false);
-        let out: Vec<bf16> = result.into_data().to_vec().unwrap();
+        let out: Vec<bf16> = result.into_data().try_into_vec().unwrap();
 
         assert!((out[0].to_f32() - 6.0).abs() < 0.5);
         assert!((out[1].to_f32() - 8.0).abs() < 0.5);
@@ -1844,7 +1844,7 @@ mod tests {
         let grad = FlexTensor::from_data(TensorData::new(vec![1.0f32; 4], vec![1, 1, 2, 2]));
 
         let x_grad = max_pool2d_backward_f32(x, grad, indices);
-        let grad_data: Vec<f32> = x_grad.into_data().to_vec().unwrap();
+        let grad_data: Vec<f32> = x_grad.into_data().try_into_vec().unwrap();
 
         // Gradient should be 1.0 at max positions, 0.0 elsewhere
         // Max positions were: 5, 7, 13, 15 (0-indexed)
@@ -1864,7 +1864,7 @@ mod tests {
         let grad = FlexTensor::from_data(TensorData::new(vec![4.0f32; 4], vec![1, 1, 2, 2]));
 
         let x_grad = avg_pool2d_backward_f32(x, grad, [2, 2], [2, 2], [0, 0], false);
-        let grad_data: Vec<f32> = x_grad.into_data().to_vec().unwrap();
+        let grad_data: Vec<f32> = x_grad.into_data().try_into_vec().unwrap();
 
         // Each position in input should receive grad/4 = 1.0
         assert!(grad_data.iter().all(|&v| (v - 1.0).abs() < 1e-5));
@@ -1878,7 +1878,7 @@ mod tests {
         // Backward with gradient of 4.0 for each output element
         let grad = FlexTensor::from_data(TensorData::new(vec![4.0f32; 4], vec![1, 1, 2, 2]));
         let x_grad = adaptive_avg_pool2d_backward_f32(x, grad);
-        let grad_data: Vec<f32> = x_grad.into_data().to_vec().unwrap();
+        let grad_data: Vec<f32> = x_grad.into_data().try_into_vec().unwrap();
 
         // Each input position receives gradient from its output region
         assert!(grad_data.iter().all(|&v| (v - 1.0).abs() < 1e-5));

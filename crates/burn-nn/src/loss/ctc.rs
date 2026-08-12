@@ -419,7 +419,7 @@ mod tests {
         let target_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
-        let loss_data = loss.into_data().to_vec::<f32>().unwrap();
+        let loss_data = loss.into_data().try_into_vec::<f32>().unwrap();
         assert!(
             loss_data[0].is_infinite() && loss_data[0] > 0.0,
             "Expected +inf, got {}",

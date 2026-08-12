@@ -305,7 +305,7 @@ mod test {
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
         let lstm = config.init(&Default::default());
 
-        let gate_to_data = |gate: GateController| gate.input_transform.weight.val().to_data();
+        let gate_to_data = |gate: GateController| gate.input_transform.weight.to_data();
 
         gate_to_data(lstm.input_gate).assert_within_range::<FT>(0.elem()..1.elem());
         gate_to_data(lstm.forget_gate).assert_within_range::<FT>(0.elem()..1.elem());

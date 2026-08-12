@@ -1105,7 +1105,7 @@ mod tests {
         let t = crate::FlexTensor::from_data(TensorData::from([1.5f32, -2.7, 0.0, 255.9]));
         let result = Flex::float_into_int(t, IntDType::I32);
         assert_eq!(result.dtype(), burn_backend::DType::I32);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1, -2, 0, 255]);
     }
 
@@ -1117,7 +1117,7 @@ mod tests {
         let t = crate::FlexTensor::from_data(TensorData::from([0.0f32, 1.9, 127.5, 255.0]));
         let result = Flex::float_into_int(t, IntDType::U8);
         assert_eq!(result.dtype(), burn_backend::DType::U8);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![0, 1, 127, 255]);
     }
 
@@ -1129,7 +1129,7 @@ mod tests {
         let t = crate::FlexTensor::from_data(TensorData::from([[1.0f32, 3.0, 2.0]]));
         let result = Flex::float_argmax(t, 1, IntDType::I32);
         assert_eq!(result.dtype(), burn_backend::DType::I32);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1]);
     }
 
@@ -1141,7 +1141,7 @@ mod tests {
         let t = crate::FlexTensor::from_data(TensorData::from([[3.0f32, 1.0, 2.0]]));
         let result = Flex::float_argmin(t, 1, IntDType::I32);
         assert_eq!(result.dtype(), burn_backend::DType::I32);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1]);
     }
 
@@ -1153,7 +1153,7 @@ mod tests {
         let t = crate::FlexTensor::from_data(TensorData::from([[1.0f32, 3.0, 2.0]]));
         let result = Flex::float_argmax(t, 1, IntDType::I64);
         assert_eq!(result.dtype(), burn_backend::DType::I64);
-        let data: Vec<i64> = result.into_data().to_vec().unwrap();
+        let data: Vec<i64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1]);
     }
 
@@ -1165,9 +1165,9 @@ mod tests {
         let t = crate::FlexTensor::from_data(TensorData::from([[1.0f32, 5.0], [3.0, 2.0]]));
         let (values, indices) = Flex::float_max_dim_with_indices(t, 1, IntDType::I32);
         assert_eq!(indices.dtype(), burn_backend::DType::I32);
-        let idx: Vec<i32> = indices.into_data().to_vec().unwrap();
+        let idx: Vec<i32> = indices.into_data().try_into_vec().unwrap();
         assert_eq!(idx, vec![1, 0]);
-        let vals: Vec<f32> = values.into_data().to_vec().unwrap();
+        let vals: Vec<f32> = values.into_data().try_into_vec().unwrap();
         assert_eq!(vals, vec![5.0, 3.0]);
     }
 
@@ -1179,9 +1179,9 @@ mod tests {
         let t = crate::FlexTensor::from_data(TensorData::from([[1.0f32, 5.0], [3.0, 2.0]]));
         let (values, indices) = Flex::float_min_dim_with_indices(t, 1, IntDType::I32);
         assert_eq!(indices.dtype(), burn_backend::DType::I32);
-        let idx: Vec<i32> = indices.into_data().to_vec().unwrap();
+        let idx: Vec<i32> = indices.into_data().try_into_vec().unwrap();
         assert_eq!(idx, vec![0, 1]);
-        let vals: Vec<f32> = values.into_data().to_vec().unwrap();
+        let vals: Vec<f32> = values.into_data().try_into_vec().unwrap();
         assert_eq!(vals, vec![1.0, 2.0]);
     }
 
@@ -1194,7 +1194,7 @@ mod tests {
         let device = crate::FlexDevice;
         let t = Flex::float_random(shape, dist, &device, FloatDType::F64);
         assert_eq!(t.dtype(), DType::F64);
-        let data: Vec<f64> = t.into_data().to_vec().unwrap();
+        let data: Vec<f64> = t.into_data().try_into_vec().unwrap();
         assert!(data.iter().all(|&v| (0.0..=1.0).contains(&v)));
     }
 

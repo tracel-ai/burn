@@ -340,14 +340,14 @@ mod tests {
 
         // Create snapshots with root-level paths (single-element path, no nested modules)
         let weight_snapshot = crate::TensorSnapshot::from_data(
-            weight.val().to_data(),
+            weight.to_data(),
             vec!["weight".to_string()], // root-level parameter name
             vec![],                     // no container
             ParamId::new(),
         );
 
         let bias_snapshot = crate::TensorSnapshot::from_data(
-            bias.val().to_data(),
+            bias.to_data(),
             vec!["bias".to_string()], // root-level parameter name
             vec![],                   // no container
             ParamId::new(),
@@ -372,8 +372,8 @@ mod tests {
         applier.exit_module("bias", "");
 
         // Verify values were loaded
-        let weight_data = weight_loaded.val().to_data().to_vec::<f32>().unwrap();
-        let bias_data = bias_loaded.val().to_data().to_vec::<f32>().unwrap();
+        let weight_data = weight_loaded.to_data().try_into_vec::<f32>().unwrap();
+        let bias_data = bias_loaded.to_data().try_into_vec::<f32>().unwrap();
 
         assert_eq!(weight_data, vec![1.0, 2.0, 3.0, 4.0]);
         assert_eq!(bias_data, vec![5.0, 6.0]);
@@ -432,7 +432,7 @@ mod tests {
         );
 
         // Verify data values are correct
-        let loaded_data = loaded.val().to_data().to_vec::<f64>().unwrap();
+        let loaded_data = loaded.to_data().try_into_vec::<f64>().unwrap();
         assert_eq!(loaded_data, vec![1.0, 2.0, 3.0, 4.0]);
 
         // Verify applier result
@@ -474,7 +474,7 @@ mod tests {
         assert_eq!(loaded.val().dtype(), DType::F32);
 
         // Verify data values
-        let loaded_data = loaded.val().to_data().to_vec::<f32>().unwrap();
+        let loaded_data = loaded.val().to_data().try_into_vec::<f32>().unwrap();
         assert_eq!(loaded_data, vec![1.0, 2.0, 3.0, 4.0]);
     }
 
@@ -525,7 +525,7 @@ mod tests {
 
         // Verify the actual values are preserved
         let retrieved_values: Vec<f16> = retrieved_data
-            .to_vec()
+            .try_to_vec()
             .expect("Should be able to convert to f16 vec");
         assert_eq!(
             retrieved_values, f16_values,
@@ -583,7 +583,7 @@ mod tests {
 
         // Verify the actual values are preserved
         let retrieved_values: Vec<bf16> = retrieved_data
-            .to_vec()
+            .try_to_vec()
             .expect("Should be able to convert to bf16 vec");
         assert_eq!(
             retrieved_values, bf16_values,

@@ -567,7 +567,7 @@ mod pytorch_comparison_tests {
             .grad(&grads)
             .unwrap()
             .into_data()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
 
         // Spot-check first, middle, and last (t, u) positions against torchaudio
@@ -599,7 +599,7 @@ mod pytorch_comparison_tests {
             .grad(&grads)
             .unwrap()
             .into_data()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
 
         // Spot-check: first position of each sample, and last position
@@ -637,7 +637,7 @@ mod pytorch_comparison_tests {
             .grad(&grads)
             .unwrap()
             .into_data()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
         let stride = 4 * 5; // U+1 * V per time step
         let zeros = vec![0.0f32; 5];
@@ -726,7 +726,7 @@ mod pytorch_comparison_tests {
             .grad(&grads)
             .unwrap()
             .into_data()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
         TensorData::from(&g[..4]).assert_approx_eq::<f32>(
             &TensorData::from([-0.3161f32, -0.3113, 0.2796, 0.3479]),
@@ -756,7 +756,7 @@ mod pytorch_comparison_tests {
             .grad(&grads)
             .unwrap()
             .into_data()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
         TensorData::from(&g[..4]).assert_approx_eq::<f32>(
             &TensorData::from([-0.1581f32, -0.1557, 0.1398, 0.1739]),

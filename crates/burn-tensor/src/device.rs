@@ -1147,7 +1147,7 @@ mod autodiff_move_tests {
         let moved = t.to_device(&ad_device);
 
         assert_eq!(
-            moved.to_data().to_vec::<f32>().unwrap(),
+            moved.to_data().try_into_vec::<f32>().unwrap(),
             vec![1.0, 2.0, 3.0, 4.0]
         );
     }

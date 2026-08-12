@@ -678,7 +678,7 @@ impl NdArrayTensor {
             ($data: expr, [$($dtype: pat => $ty: ty),*]) => {
                 match $data.dtype {
                     $( $dtype => {
-                        match data.into_vec::<$ty>() {
+                        match data.try_into_vec::<$ty>() {
                             Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
                             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
                         }.into()

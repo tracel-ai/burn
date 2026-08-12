@@ -37,7 +37,7 @@ impl Debug for ConfusionStats {
         let to_vec = |tensor_data: Tensor<1>| {
             tensor_data
                 .to_data()
-                .to_vec::<f32>()
+                .try_into_vec::<f32>()
                 .expect("A vector representation of the input Tensor is expected")
         };
         let ratio_of_support_vec =

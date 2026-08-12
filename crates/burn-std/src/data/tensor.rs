@@ -3,6 +3,7 @@ use core::f32;
 use crate::indexing::AsIndex;
 use alloc::boxed::Box;
 use alloc::format;
+use alloc::vec;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
 use core::marker::PhantomData;
@@ -151,7 +152,7 @@ impl TensorData {
 
     // Check that the input vector contains a correct number of elements
     fn check_data_len<E: Element>(data: &[E], shape: &Shape) {
-        let expected_data_len = Self::numel(shape);
+        let expected_data_len = numel(shape);
         let num_data = data.len();
         assert_eq!(
             expected_data_len, num_data,
@@ -177,7 +178,7 @@ impl TensorData {
     ///
     /// # Returns
     /// `Ok(view)` on success; `Err(DataError::TypeError)` on view [`DType`]
-    /// miss-match.
+    /// mismatch.
     pub fn try_view<E: Element>(&self) -> Result<TensorDataView<'_, E>, DataError> {
         TensorDataView::<E>::try_view(self)
     }
@@ -228,7 +229,7 @@ impl TensorData {
     ///
     /// # Returns
     /// `Ok(mut view)` on success; `Err(DataError::TypeError)` on view [`DType`]
-    /// miss-match.
+    /// mismatch.
     pub fn try_mut_view<E: Element>(&mut self) -> Result<TensorDataViewMut<'_, E>, DataError> {
         TensorDataViewMut::<E>::try_mut_view(self)
     }
@@ -304,13 +305,51 @@ impl TensorData {
         }
     }
 
+    /// Copy and convert the data to a [`Vec<E>`].
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.clone().into_vec_as::<E>()`
+    ///
+    /// Particular conversions may provide more efficient implementations.
+    ///
+    /// # Returns
+    /// `Ok(vec)` on success, or an error if the conversion fails.
+    pub fn try_to_vec_as<E: Element>(&self) -> Result<Vec<E>, DataError> {
+        self.clone().try_into_vec_as::<E>()
+    }
+
+    /// Convert the data to [`Vec<E>`].
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.try_convert::<E>()?.to_vec::<E>()`
+    ///
+    /// Particular conversions may provide more efficient implementations.
+    ///
+    /// # Returns
+    /// `Ok(vec)` on success, or an error if the conversion fails.
+    pub fn try_into_vec_as<E: Element>(self) -> Result<Vec<E>, DataError> {
+        self.try_cast_as::<E>()?.into_vec_unchecked::<E>()
+    }
+
     /// Returns the tensor data as a vector of scalar values.
+    #[deprecated(since = "0.22.0", note = "use try_to_vec::<E>()")]
     pub fn to_vec<E: Element>(&self) -> Result<Vec<E>, DataError> {
+        self.try_to_vec::<E>()
+    }
+
+    /// Returns the tensor data as a vector of scalar values.
+    #[deprecated(since = "0.22.0", note = "use try_into_vec::<E>()")]
+    pub fn into_vec<E: Element>(self) -> Result<Vec<E>, DataError> {
+        self.try_into_vec::<E>()
+    }
+
+    /// Returns the tensor data as a vector of scalar values.
+    pub fn try_to_vec<E: Element>(&self) -> Result<Vec<E>, DataError> {
         Ok(self.as_slice()?.to_vec())
     }
 
     /// Returns the tensor data as a vector of scalar values.
-    pub fn into_vec<E: Element>(self) -> Result<Vec<E>, DataError> {
+    pub fn try_into_vec<E: Element>(self) -> Result<Vec<E>, DataError> {
         // This means we cannot call `into_vec` for QFloat
         if !self.matches_target_dtype::<E>() {
             return Err(DataError::dtype_mismatch_as::<E>(self.dtype));
@@ -484,11 +523,7 @@ impl TensorData {
 
     /// Returns the total number of elements of the tensor data.
     pub fn num_elements(&self) -> usize {
-        Self::numel(&self.shape)
-    }
-
-    fn numel(shape: &[usize]) -> usize {
-        shape.iter().product()
+        numel(&self.shape)
     }
 
     /// Populates the data with random values.
@@ -498,7 +533,7 @@ impl TensorData {
         rng: &mut R,
     ) -> Self {
         let shape = shape.into();
-        let num_elements = Self::numel(&shape);
+        let num_elements = numel(&shape);
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
@@ -511,7 +546,7 @@ impl TensorData {
     /// Populates the data with zeros.
     pub fn zeros<E: Element, S: Into<Shape>>(shape: S) -> TensorData {
         let shape = shape.into();
-        let num_elements = Self::numel(&shape);
+        let num_elements = numel(&shape);
         let mut data = Vec::<E>::with_capacity(num_elements);
 
         for _ in 0..num_elements {
@@ -524,7 +559,7 @@ impl TensorData {
     /// Populates the data with ones.
     pub fn ones<E: Element, S: Into<Shape>>(shape: S) -> TensorData {
         let shape = shape.into();
-        let num_elements = Self::numel(&shape);
+        let num_elements = numel(&shape);
         let mut data = Vec::<E>::with_capacity(num_elements);
 
         for _ in 0..num_elements {
@@ -537,7 +572,7 @@ impl TensorData {
     /// Populates the data with the given value
     pub fn full<E: Element, S: Into<Shape>>(shape: S, fill_value: E) -> TensorData {
         let shape = shape.into();
-        let num_elements = Self::numel(&shape);
+        let num_elements = numel(&shape);
         let mut data = Vec::<E>::with_capacity(num_elements);
         for _ in 0..num_elements {
             data.push(fill_value)
@@ -589,32 +624,6 @@ impl TensorData {
         self
     }
 
-    /// Copy and convert the data to a [`Vec<E>`].
-    ///
-    /// By contract, this is equivalent to:
-    /// `data.clone().into_vec_as::<E>()`
-    ///
-    /// Particular conversions may provide more efficient implementations.
-    ///
-    /// # Returns
-    /// `Ok(vec)` on success, or an error if the conversion fails.
-    pub fn to_vec_as<E: Element>(&self) -> Result<Vec<E>, DataError> {
-        self.clone().into_vec_as::<E>()
-    }
-
-    /// Convert the data to [`Vec<E>`].
-    ///
-    /// By contract, this is equivalent to:
-    /// `data.try_convert::<E>()?.to_vec::<E>()`
-    ///
-    /// Particular conversions may provide more efficient implementations.
-    ///
-    /// # Returns
-    /// `Ok(vec)` on success, or an error if the conversion fails.
-    pub fn into_vec_as<E: Element>(self) -> Result<Vec<E>, DataError> {
-        self.try_cast_as::<E>()?.to_vec::<E>()
-    }
-
     /// Converts the data to a different element type.
     pub fn convert<E: Element>(self) -> Self {
         // TODO: deprecate?
@@ -643,8 +652,8 @@ impl TensorData {
     /// # Returns
     /// Ok(data) on success, (Currently) panics on failure.
     pub fn try_cast(self, dtype: DType) -> Result<TensorData, DataError> {
-        Ok(if dtype == self.dtype {
-            self
+        if dtype == self.dtype {
+            Ok(self)
         } else if dtype.size() == self.dtype.size()
             && !matches!(
                 self.dtype,
@@ -652,151 +661,206 @@ impl TensorData {
             )
             && !matches!(dtype, DType::Bool(BoolStore::Native) | DType::QFloat(_))
         {
-            match self.dtype {
-                DType::F64 => self.convert_inplace_dtype::<f64>(dtype),
-                DType::F32 | DType::Flex32 => self.convert_inplace_dtype::<f32>(dtype),
-                DType::F16 => self.convert_inplace_dtype::<f16>(dtype),
-                DType::BF16 => self.convert_inplace_dtype::<bf16>(dtype),
-                DType::I64 => self.convert_inplace_dtype::<i64>(dtype),
-                DType::I32 => self.convert_inplace_dtype::<i32>(dtype),
-                DType::I16 => self.convert_inplace_dtype::<i16>(dtype),
-                DType::I8 => self.convert_inplace_dtype::<i8>(dtype),
-                DType::U64 => self.convert_inplace_dtype::<u64>(dtype),
-                DType::U32 => self.convert_inplace_dtype::<u32>(dtype),
-                DType::U16 => self.convert_inplace_dtype::<u16>(dtype),
-                DType::U8 => self.convert_inplace_dtype::<u8>(dtype),
-                DType::Bool(BoolStore::U8) => self.convert_inplace_dtype::<u8>(dtype),
-                DType::Bool(BoolStore::U32) => self.convert_inplace_dtype::<u32>(dtype),
-                DType::Bool(BoolStore::Native) | DType::QFloat(_) => {
-                    return Err(DataError::DTypeMismatch {
-                        target: dtype,
-                        actual: self.dtype,
-                    });
-                }
-            }
+            self.try_cast_inplace(dtype)
         } else {
-            match self.dtype {
-                DType::F64 => self.convert_clone_dtype::<f64>(dtype),
-                DType::F32 | DType::Flex32 => self.convert_clone_dtype::<f32>(dtype),
-                DType::F16 => self.convert_clone_dtype::<f16>(dtype),
-                DType::BF16 => self.convert_clone_dtype::<bf16>(dtype),
-                DType::I64 => self.convert_clone_dtype::<i64>(dtype),
-                DType::I32 => self.convert_clone_dtype::<i32>(dtype),
-                DType::I16 => self.convert_clone_dtype::<i16>(dtype),
-                DType::I8 => self.convert_clone_dtype::<i8>(dtype),
-                DType::U64 => self.convert_clone_dtype::<u64>(dtype),
-                DType::U32 => self.convert_clone_dtype::<u32>(dtype),
-                DType::U16 => self.convert_clone_dtype::<u16>(dtype),
-                DType::U8 => self.convert_clone_dtype::<u8>(dtype),
-                DType::Bool(BoolStore::Native) => self.convert_clone_dtype::<bool>(dtype),
-                DType::Bool(BoolStore::U8) => self.convert_clone_dtype::<u8>(dtype),
-                DType::Bool(BoolStore::U32) => self.convert_clone_dtype::<u32>(dtype),
-                DType::QFloat(_) => {
-                    return Err(DataError::DTypeMismatch {
-                        target: dtype,
-                        actual: self.dtype,
-                    });
-                }
+            self.try_cast_clone(dtype)
+        }
+    }
+
+    // Self-to-Self casts should be stripped before this point.
+    fn try_cast_inplace(self, dtype: DType) -> Result<TensorData, DataError> {
+        fn convert_inplace<Current, Target>(data: TensorData) -> TensorData
+        where
+            Current: Element + AnyBitPattern,
+            Target: Element + AnyBitPattern,
+        {
+            convert_inplace_with::<Current, Target>(data, |x| x.elem())
+        }
+
+        fn convert_inplace_bool<Current, Target>(data: TensorData) -> TensorData
+        where
+            Current: Element + AnyBitPattern,
+            Target: Element + AnyBitPattern,
+        {
+            convert_inplace_with::<Current, Target>(data, |x| x.to_bool().elem())
+        }
+
+        fn convert_inplace_with<Current, Target>(
+            mut data: TensorData,
+            transform: impl Fn(&Current) -> Target,
+        ) -> TensorData
+        where
+            Current: Element + AnyBitPattern,
+            Target: Element + AnyBitPattern,
+        {
+            for x in bytemuck::cast_slice_mut::<_, Current>(&mut data.bytes) {
+                let t = transform(x);
+                let x = cast_mut::<_, Target>(x);
+                *x = t;
             }
-        })
+
+            data.dtype = Target::dtype();
+
+            data
+        }
+
+        fn try_cast_inplace_from<Current>(
+            data: TensorData,
+            dtype: DType,
+        ) -> Result<TensorData, DataError>
+        where
+            Current: Element + AnyBitPattern,
+        {
+            Ok(
+                // Convert target dtype to generic parameter.
+                match dtype {
+                    DType::F64 => convert_inplace::<Current, f64>(data),
+                    DType::F32 | DType::Flex32 => convert_inplace::<Current, f32>(data),
+                    DType::F16 => convert_inplace::<Current, f16>(data),
+                    DType::BF16 => convert_inplace::<Current, bf16>(data),
+                    DType::I64 => convert_inplace::<Current, i64>(data),
+                    DType::I32 => convert_inplace::<Current, i32>(data),
+                    DType::I16 => convert_inplace::<Current, i16>(data),
+                    DType::I8 => convert_inplace::<Current, i8>(data),
+                    DType::U64 => convert_inplace::<Current, u64>(data),
+                    DType::U32 => convert_inplace::<Current, u32>(data),
+                    DType::U16 => convert_inplace::<Current, u16>(data),
+                    DType::U8 => convert_inplace::<Current, u8>(data),
+                    DType::Bool(BoolStore::U8) => {
+                        convert_inplace_bool::<Current, u8>(data).into_bool_u8()
+                    }
+                    DType::Bool(BoolStore::U32) => {
+                        convert_inplace_bool::<Current, u32>(data).into_bool_u32()
+                    }
+                    DType::Bool(BoolStore::Native) | DType::QFloat(_) => {
+                        return Err(DataError::DTypeMismatch {
+                            target: dtype,
+                            actual: Current::dtype(),
+                        });
+                    }
+                },
+            )
+        }
+
+        // Convert self.dtype to generic parameter:
+        match self.dtype {
+            DType::F64 => try_cast_inplace_from::<f64>(self, dtype),
+            DType::F32 | DType::Flex32 => try_cast_inplace_from::<f32>(self, dtype),
+            DType::F16 => try_cast_inplace_from::<f16>(self, dtype),
+            DType::BF16 => try_cast_inplace_from::<bf16>(self, dtype),
+            DType::I64 => try_cast_inplace_from::<i64>(self, dtype),
+            DType::I32 => try_cast_inplace_from::<i32>(self, dtype),
+            DType::I16 => try_cast_inplace_from::<i16>(self, dtype),
+            DType::I8 => try_cast_inplace_from::<i8>(self, dtype),
+            DType::U64 => try_cast_inplace_from::<u64>(self, dtype),
+            DType::U32 => try_cast_inplace_from::<u32>(self, dtype),
+            DType::U16 => try_cast_inplace_from::<u16>(self, dtype),
+            DType::U8 => try_cast_inplace_from::<u8>(self, dtype),
+            DType::Bool(BoolStore::U8) => try_cast_inplace_from::<u8>(self, dtype),
+            DType::Bool(BoolStore::U32) => try_cast_inplace_from::<u32>(self, dtype),
+            DType::Bool(BoolStore::Native) | DType::QFloat(_) => Err(DataError::DTypeMismatch {
+                target: dtype,
+                actual: self.dtype,
+            }),
+        }
     }
 
-    fn convert_inplace_dtype<Current: Element + AnyBitPattern>(self, dtype: DType) -> Self {
-        match dtype {
-            DType::F64 => self.convert_inplace::<Current, f64>(),
-            DType::F32 | DType::Flex32 => self.convert_inplace::<Current, f32>(),
-            DType::F16 => self.convert_inplace::<Current, f16>(),
-            DType::BF16 => self.convert_inplace::<Current, bf16>(),
-            DType::I64 => self.convert_inplace::<Current, i64>(),
-            DType::I32 => self.convert_inplace::<Current, i32>(),
-            DType::I16 => self.convert_inplace::<Current, i16>(),
-            DType::I8 => self.convert_inplace::<Current, i8>(),
-            DType::U64 => self.convert_inplace::<Current, u64>(),
-            DType::U32 => self.convert_inplace::<Current, u32>(),
-            DType::U16 => self.convert_inplace::<Current, u16>(),
-            DType::U8 => self.convert_inplace::<Current, u8>(),
-            DType::Bool(BoolStore::U8) => self.convert_inplace_bool::<Current, u8>().into_bool_u8(),
-            DType::Bool(BoolStore::U32) => {
-                self.convert_inplace_bool::<Current, u32>().into_bool_u32()
+    fn try_cast_clone(self, dtype: DType) -> Result<TensorData, DataError> {
+        fn convert_clone<Current, Target>(data: TensorData) -> TensorData
+        where
+            Current: Element + CheckedBitPattern,
+            Target: Element + Zeroable,
+        {
+            convert_clone_with::<Current, Target>(data, |x| x.elem())
+        }
+
+        fn convert_clone_bool<Current, Target>(data: TensorData) -> TensorData
+        where
+            Current: Element + CheckedBitPattern,
+            Target: Element + Zeroable,
+        {
+            convert_clone_with::<Current, Target>(data, |x| x.to_bool().elem())
+        }
+
+        fn convert_clone_with<Current, Target>(
+            data: TensorData,
+            transform: impl Fn(&Current) -> Target,
+        ) -> TensorData
+        where
+            Current: Element + CheckedBitPattern,
+            Target: Element + Zeroable,
+        {
+            let this = bytemuck::checked::cast_slice::<_, Current>(&data.bytes);
+            let mut out: Vec<Target> = vec![Zeroable::zeroed(); data.num_elements()];
+
+            for (x, out) in this.iter().zip(&mut out) {
+                *out = transform(x);
             }
-            DType::Bool(BoolStore::Native) | DType::QFloat(_) => unreachable!(),
-        }
-    }
 
-    fn convert_inplace<Current: Element + AnyBitPattern, Target: Element + AnyBitPattern>(
-        self,
-    ) -> Self {
-        self.convert_inplace_with::<Current, Target>(|x| x.elem())
-    }
-
-    fn convert_inplace_bool<Current: Element + AnyBitPattern, Target: Element + AnyBitPattern>(
-        self,
-    ) -> Self {
-        self.convert_inplace_with::<Current, Target>(|x| x.to_bool().elem())
-    }
-
-    fn convert_inplace_with<Current: Element + AnyBitPattern, Target: Element + AnyBitPattern>(
-        mut self,
-        transform: impl Fn(&Current) -> Target,
-    ) -> Self {
-        for x in bytemuck::cast_slice_mut::<_, Current>(&mut self.bytes) {
-            let t = transform(x);
-            let x = cast_mut::<_, Target>(x);
-            *x = t;
+            TensorData::new(out, data.shape)
         }
 
-        self.dtype = Target::dtype();
-
-        self
-    }
-
-    fn convert_clone_dtype<Current: Element + CheckedBitPattern>(self, dtype: DType) -> Self {
-        match dtype {
-            DType::F64 => self.convert_clone::<Current, f64>(),
-            DType::F32 | DType::Flex32 => self.convert_clone::<Current, f32>(),
-            DType::F16 => self.convert_clone::<Current, f16>(),
-            DType::BF16 => self.convert_clone::<Current, bf16>(),
-            DType::I64 => self.convert_clone::<Current, i64>(),
-            DType::I32 => self.convert_clone::<Current, i32>(),
-            DType::I16 => self.convert_clone::<Current, i16>(),
-            DType::I8 => self.convert_clone::<Current, i8>(),
-            DType::U64 => self.convert_clone::<Current, u64>(),
-            DType::U32 => self.convert_clone::<Current, u32>(),
-            DType::U16 => self.convert_clone::<Current, u16>(),
-            DType::U8 => self.convert_clone::<Current, u8>(),
-            DType::Bool(BoolStore::Native) => self.convert_clone::<Current, bool>(),
-            DType::Bool(BoolStore::U8) => self.convert_clone_bool::<Current, u8>().into_bool_u8(),
-            DType::Bool(BoolStore::U32) => {
-                self.convert_clone_bool::<Current, u32>().into_bool_u32()
-            }
-            DType::QFloat(_) => unreachable!(),
-        }
-    }
-
-    fn convert_clone<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
-        self,
-    ) -> Self {
-        self.convert_clone_with::<Current, Target>(|x| x.elem())
-    }
-
-    fn convert_clone_bool<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
-        self,
-    ) -> Self {
-        self.convert_clone_with::<Current, Target>(|x| x.to_bool().elem())
-    }
-
-    fn convert_clone_with<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
-        self,
-        transform: impl Fn(&Current) -> Target,
-    ) -> Self {
-        let this = bytemuck::checked::cast_slice::<_, Current>(&self.bytes);
-        let mut out: Vec<Target> = ::alloc::vec![Zeroable::zeroed(); self.num_elements()];
-
-        for (x, out) in this.iter().zip(&mut out) {
-            *out = transform(x);
+        fn try_cast_clone_from<Current>(
+            data: TensorData,
+            dtype: DType,
+        ) -> Result<TensorData, DataError>
+        where
+            Current: Element + CheckedBitPattern,
+        {
+            Ok(
+                // Convert target dtype to generic parameter.
+                match dtype {
+                    DType::F64 => convert_clone::<Current, f64>(data),
+                    DType::F32 | DType::Flex32 => convert_clone::<Current, f32>(data),
+                    DType::F16 => convert_clone::<Current, f16>(data),
+                    DType::BF16 => convert_clone::<Current, bf16>(data),
+                    DType::I64 => convert_clone::<Current, i64>(data),
+                    DType::I32 => convert_clone::<Current, i32>(data),
+                    DType::I16 => convert_clone::<Current, i16>(data),
+                    DType::I8 => convert_clone::<Current, i8>(data),
+                    DType::U64 => convert_clone::<Current, u64>(data),
+                    DType::U32 => convert_clone::<Current, u32>(data),
+                    DType::U16 => convert_clone::<Current, u16>(data),
+                    DType::U8 => convert_clone::<Current, u8>(data),
+                    DType::Bool(BoolStore::Native) => convert_clone::<Current, bool>(data),
+                    DType::Bool(BoolStore::U8) => {
+                        convert_clone_bool::<Current, u8>(data).into_bool_u8()
+                    }
+                    DType::Bool(BoolStore::U32) => {
+                        convert_clone_bool::<Current, u32>(data).into_bool_u32()
+                    }
+                    DType::QFloat(_) => {
+                        return Err(DataError::DTypeMismatch {
+                            target: dtype,
+                            actual: Current::dtype(),
+                        });
+                    }
+                },
+            )
         }
 
-        Self::new(out, self.shape)
+        // Convert self.dtype to generic parameter:
+        match self.dtype {
+            DType::F64 => try_cast_clone_from::<f64>(self, dtype),
+            DType::F32 | DType::Flex32 => try_cast_clone_from::<f32>(self, dtype),
+            DType::F16 => try_cast_clone_from::<f16>(self, dtype),
+            DType::BF16 => try_cast_clone_from::<bf16>(self, dtype),
+            DType::I64 => try_cast_clone_from::<i64>(self, dtype),
+            DType::I32 => try_cast_clone_from::<i32>(self, dtype),
+            DType::I16 => try_cast_clone_from::<i16>(self, dtype),
+            DType::I8 => try_cast_clone_from::<i8>(self, dtype),
+            DType::U64 => try_cast_clone_from::<u64>(self, dtype),
+            DType::U32 => try_cast_clone_from::<u32>(self, dtype),
+            DType::U16 => try_cast_clone_from::<u16>(self, dtype),
+            DType::U8 => try_cast_clone_from::<u8>(self, dtype),
+            DType::Bool(BoolStore::Native) => try_cast_clone_from::<bool>(self, dtype),
+            DType::Bool(BoolStore::U8) => try_cast_clone_from::<u8>(self, dtype),
+            DType::Bool(BoolStore::U32) => try_cast_clone_from::<u32>(self, dtype),
+            DType::QFloat(_) => Err(DataError::DTypeMismatch {
+                target: dtype,
+                actual: self.dtype,
+            }),
+        }
     }
 
     /// Returns the data as a slice of bytes.
@@ -808,6 +872,10 @@ impl TensorData {
     pub fn into_bytes(self) -> Bytes {
         self.bytes
     }
+}
+
+fn numel(shape: &[usize]) -> usize {
+    shape.iter().product()
 }
 
 impl<E: Element, const A: usize> From<[E; A]> for TensorData {
@@ -1015,7 +1083,7 @@ impl<'a, E: Element> TensorDataView<'a, E> {
     ///
     /// # Returns
     /// `Ok(view)` on success; `Err(DataError::TypeError)` on view [`DType`]
-    /// miss-match.
+    /// mismatch.
     pub fn try_view(data: &'a TensorData) -> Result<TensorDataView<'a, E>, DataError> {
         if !data.matches_target_dtype::<E>() {
             Err(DataError::dtype_mismatch_as::<E>(data.dtype))
@@ -1037,9 +1105,9 @@ impl<'a, E: Element> TensorDataView<'a, E> {
         self.data.dtype
     }
 
-    /// Ravels the dims via [`ravel_index`] and the view's shape.
-    pub fn ravel_dims<I: AsIndex>(&self, dims: &[I]) -> usize {
-        ravel_index(dims, &self.data.shape)
+    /// Ravels the index via [`ravel_index`] and the view's shape.
+    pub fn ravel_index<I: AsIndex>(&self, index: &[I]) -> usize {
+        ravel_index(index, &self.data.shape)
     }
 }
 
@@ -1047,7 +1115,7 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
     type Output = E;
 
     fn index(&self, index: &[I]) -> &Self::Output {
-        let o = self.ravel_dims(index);
+        let o = self.ravel_index(index);
         &self.data.as_slice::<E>().ok_or_panic()[o]
     }
 }
@@ -1107,8 +1175,7 @@ impl<'a, E: Element> TensorDataViewMut<'a, E> {
     /// ```
     ///
     /// # Returns
-    /// `Ok(mut view)` on success; `Err(DataError::TypeError)` on view [`DType`]
-    /// miss-match.
+    /// `Ok(mut view)` on success; `Err(DataError::TypeError)` on view [`DType`] mismatch.
     pub fn try_mut_view(data: &'a mut TensorData) -> Result<TensorDataViewMut<'a, E>, DataError> {
         if !data.matches_target_dtype::<E>() {
             Err(DataError::dtype_mismatch_as::<E>(data.dtype))
@@ -1131,8 +1198,8 @@ impl<'a, E: Element> TensorDataViewMut<'a, E> {
     }
 
     /// Ravels the dims via [`ravel_index`] and the view's shape.
-    pub fn ravel_dims<I: AsIndex>(&self, dims: &[I]) -> usize {
-        ravel_index(dims, &self.data.shape)
+    pub fn ravel_index<I: AsIndex>(&self, index: &[I]) -> usize {
+        ravel_index(index, &self.data.shape)
     }
 }
 
@@ -1144,7 +1211,7 @@ where
     type Output = E;
 
     fn index(&self, index: &[I]) -> &Self::Output {
-        let o = self.ravel_dims::<I>(index);
+        let o = self.ravel_index::<I>(index);
         &self.data.as_slice::<E>().ok_or_panic()[o]
     }
 }
@@ -1155,7 +1222,7 @@ where
     E: Element,
 {
     fn index_mut(&mut self, index: &[I]) -> &mut Self::Output {
-        let o = self.ravel_dims::<I>(index);
+        let o = self.ravel_index::<I>(index);
         &mut self.data.as_mut_slice::<E>().ok_or_panic()[o]
     }
 }
@@ -1192,7 +1259,7 @@ mod tests {
         );
 
         let expected = data.iter::<f32>().collect::<Vec<f32>>();
-        let actual = data.into_vec::<f32>().ok_or_panic();
+        let actual = data.try_into_vec::<f32>().ok_or_panic();
 
         assert_eq!(expected, actual);
     }
@@ -1207,7 +1274,7 @@ mod tests {
             &mut StdRng::try_from_rng(&mut SysRng).ok_or_panic(),
         );
 
-        data.into_vec::<i32>().ok_or_panic();
+        data.try_into_vec::<i32>().ok_or_panic();
     }
 
     #[test]
@@ -1243,7 +1310,7 @@ mod tests {
         vector.push(3.0);
         let data1 = TensorData::new(vector, vec![2]);
 
-        let factor = core::mem::size_of::<f32>() / core::mem::size_of::<u8>();
+        let factor = size_of::<f32>() / size_of::<u8>();
         assert_eq!(data1.bytes.len(), 2 * factor);
         assert_eq!(data1.bytes.capacity(), 5 * factor);
     }
@@ -1252,10 +1319,9 @@ mod tests {
     fn should_convert_bytes_correctly_inplace() {
         fn test_precision<E: Element>() {
             let data = TensorData::new((0..32).collect(), [32]);
-            for (i, val) in data
-                .clone()
-                .convert::<E>()
-                .into_vec::<E>()
+            let self1 = data.clone().convert::<E>();
+            for (i, val) in self1
+                .try_into_vec::<E>()
                 .ok_or_panic()
                 .into_iter()
                 .enumerate()
@@ -1437,18 +1503,18 @@ mod tests {
 
         // Same-dtype copy.
         assert_eq!(
-            data.to_vec_as::<f32>().ok_or_panic(),
+            data.try_to_vec_as::<f32>().ok_or_panic(),
             vec![0.0f32, 1.0, 2.5]
         );
 
         // Widening cast (different element size).
         assert_eq!(
-            data.to_vec_as::<f64>().ok_or_panic(),
+            data.try_to_vec_as::<f64>().ok_or_panic(),
             vec![0.0f64, 1.0, 2.5]
         );
 
         // Float to int cast (same element size) truncates.
-        assert_eq!(data.to_vec_as::<i32>().ok_or_panic(), vec![0i32, 1, 2]);
+        assert_eq!(data.try_to_vec_as::<i32>().ok_or_panic(), vec![0i32, 1, 2]);
 
         // The source data is borrowed, not consumed.
         data.assert_eq(&TensorData::from([0.0f32, 1.0, 2.5]), true);
@@ -1460,17 +1526,20 @@ mod tests {
 
         // Same-dtype conversion.
         assert_eq!(
-            data.clone().into_vec_as::<i32>().ok_or_panic(),
+            data.clone().try_into_vec_as::<i32>().ok_or_panic(),
             vec![0i32, 1, 2, 3]
         );
 
         // Int to float cast.
         assert_eq!(
-            data.clone().into_vec_as::<f32>().ok_or_panic(),
+            data.clone().try_into_vec_as::<f32>().ok_or_panic(),
             vec![0.0f32, 1.0, 2.0, 3.0]
         );
 
         // Narrowing int cast.
-        assert_eq!(data.into_vec_as::<u8>().ok_or_panic(), vec![0u8, 1, 2, 3]);
+        assert_eq!(
+            data.try_into_vec_as::<u8>().ok_or_panic(),
+            vec![0u8, 1, 2, 3]
+        );
     }
 }

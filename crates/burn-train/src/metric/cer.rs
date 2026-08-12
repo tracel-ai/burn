@@ -93,12 +93,12 @@ impl Metric for CharErrorRate {
                 output_lengths_tensor
                     .into_data()
                     .convert::<i32>()
-                    .to_vec()
+                    .try_into_vec()
                     .unwrap(),
                 target_lengths_tensor
                     .into_data()
                     .convert::<i32>()
-                    .to_vec()
+                    .try_into_vec()
                     .unwrap(),
             )
         } else {
@@ -109,8 +109,8 @@ impl Metric for CharErrorRate {
             )
         };
 
-        let outputs_data = outputs.to_data().convert::<i32>().to_vec().unwrap();
-        let targets_data = targets.to_data().convert::<i32>().to_vec().unwrap();
+        let outputs_data = outputs.to_data().convert::<i32>().try_into_vec().unwrap();
+        let targets_data = targets.to_data().convert::<i32>().try_into_vec().unwrap();
 
         let total_edit_distance: usize = (0..batch_size)
             .map(|i| {

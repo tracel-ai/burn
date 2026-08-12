@@ -275,18 +275,14 @@ mod tests {
         let device = Default::default();
         let linear = LinearConfig::new(6, 12).init(&device);
 
-        let weight_before = linear.weight.val().to_data();
+        let weight_before = linear.weight.to_data();
         let data = linear.into_record().into_bytes().unwrap();
 
         let linear = LinearConfig::new(6, 12)
             .init(&device)
             .load_record(ModuleRecord::from_bytes(data).unwrap());
 
-        linear
-            .weight
-            .val()
-            .to_data()
-            .assert_eq(&weight_before, true);
+        linear.weight.to_data().assert_eq(&weight_before, true);
     }
 
     #[test]

@@ -140,7 +140,7 @@ fn checkpoint_restores_model_weights() {
         .weight
         .val()
         .into_data()
-        .to_vec::<f32>()
+        .try_into_vec::<f32>()
         .unwrap();
 
     assert_eq!(

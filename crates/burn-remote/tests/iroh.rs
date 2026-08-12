@@ -50,7 +50,7 @@ async fn executes_over_iroh_session_stream() {
 
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
     assert_eq!(
-        output.to_data().to_vec::<f32>().unwrap(),
+        output.to_data().try_into_vec::<f32>().unwrap(),
         vec![2.0, 4.0, 6.0]
     );
 
@@ -78,7 +78,7 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
     let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &source);
     let transferred = tensor.to_device(&target);
     assert_eq!(
-        transferred.to_data().to_vec::<f32>().unwrap(),
+        transferred.to_data().try_into_vec::<f32>().unwrap(),
         vec![3.0, 5.0, 7.0]
     );
 
@@ -122,7 +122,7 @@ fn synchronous_client_round_trip() {
 
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
     assert_eq!(
-        output.to_data().to_vec::<f32>().unwrap(),
+        output.to_data().try_into_vec::<f32>().unwrap(),
         vec![2.0, 4.0, 6.0]
     );
 
@@ -146,7 +146,7 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
     remote.connect();
     let device = Device::new(remote);
     let data = Tensor::<1>::from_floats([4.0], &device).to_data();
-    assert_eq!(data.to_vec::<f32>().unwrap(), vec![4.0]);
+    assert_eq!(data.try_into_vec::<f32>().unwrap(), vec![4.0]);
 
     router.shutdown().await.unwrap();
 }

@@ -1260,15 +1260,15 @@ where
     /// // Single dimension slicing - no brackets needed!
     /// let tensor = Tensor::<1, burn_tensor::Int>::arange(0..10, &device);
     /// let slice = tensor.clone().slice(2..8);  // Simple range
-    /// assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
+    /// assert_eq!(slice.into_data().try_into_vec::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
     ///
     /// // Using s! macro for single dimension with step
     /// let slice = tensor.clone().slice(s![0..10;2]);  // Every 2nd element
-    /// assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![0, 2, 4, 6, 8]);
+    /// assert_eq!(slice.into_data().try_into_vec::<i32>().unwrap(), vec![0, 2, 4, 6, 8]);
     ///
     /// // Reverse a dimension with negative step
     /// let slice = tensor.slice(s![..;-1]);  // Reverse entire tensor
-    /// assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
+    /// assert_eq!(slice.into_data().try_into_vec::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
     ///
     /// // Multi-dimensional slicing
     /// let tensor = Tensor::<2>::ones(Shape::new([4, 6]), &device);
@@ -2072,6 +2072,14 @@ where
         self.to_data().try_cast_as::<E>()
     }
 
+    /// Converts the current `Tensor` into `Vec<E>`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_to_data_as::<E>()?.try_to_vec::<E>()`.
+    pub fn try_to_vec_as<E: Element>(&self) -> Result<Vec<E>, DataError> {
+        self.try_to_data_as::<E>()?.try_to_vec()
+    }
+
     /// Copies the current `Tensor` into `TensorData`; converts the dtype.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
@@ -2130,6 +2138,15 @@ where
         self,
     ) -> Result<Result<TensorData, DataError>, ExecutionError> {
         self.try_into_data().map(|d| d.try_cast_as::<E>())
+    }
+
+    /// Converts the current `Tensor` into `Vec<E>`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_into_data_as::<E>()?.try_to_vec::<E>()`.
+    pub fn try_into_vec_as<E: Element>(self) -> Result<Result<Vec<E>, DataError>, ExecutionError> {
+        self.try_into_data_as::<E>()
+            .map(|dr| dr?.try_into_vec::<E>())
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.

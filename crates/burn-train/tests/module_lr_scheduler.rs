@@ -19,11 +19,10 @@ fn frozen_group_param_unchanged_after_training() {
     let before_frozen = model
         .frozen
         .weight
-        .val()
         .into_data()
-        .to_vec::<f32>()
+        .try_into_vec::<f32>()
         .unwrap();
-    let before_active = model.active.val().into_data().to_vec::<f32>().unwrap();
+    let before_active = model.active.into_data().try_into_vec::<f32>().unwrap();
 
     let optim = SgdConfig::new().init();
 
@@ -47,16 +46,14 @@ fn frozen_group_param_unchanged_after_training() {
         .model
         .frozen
         .weight
-        .val()
         .into_data()
-        .to_vec::<f32>()
+        .try_into_vec::<f32>()
         .unwrap();
     let after_active = result
         .model
         .active
-        .val()
         .into_data()
-        .to_vec::<f32>()
+        .try_into_vec::<f32>()
         .unwrap();
 
     assert_eq!(

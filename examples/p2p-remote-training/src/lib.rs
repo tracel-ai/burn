@@ -77,13 +77,13 @@ fn train(device: &Device) {
         b = b - db * LR;
 
         if step % 10 == 0 || step == STEPS - 1 {
-            let loss_val = loss.to_data().to_vec::<f32>().unwrap()[0];
+            let loss_val = loss.to_data().try_into_vec::<f32>().unwrap()[0];
             println!("{:>5}  {:>10.6}", step + 1, loss_val);
         }
     }
 
-    let w_val = w.to_data().to_vec::<f32>().unwrap()[0];
-    let b_val = b.to_data().to_vec::<f32>().unwrap()[0];
+    let w_val = w.to_data().try_into_vec::<f32>().unwrap()[0];
+    let b_val = b.to_data().try_into_vec::<f32>().unwrap()[0];
 
     println!("\nlearned: y = {w_val:.4} * x + {b_val:.4}");
     println!("target : y = 2.5000 * x + 0.5000");
