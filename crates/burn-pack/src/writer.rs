@@ -35,8 +35,8 @@ const fn align_offset(offset: u64, alignment: u64) -> u64 {
 /// so each window starts on an aligned device offset.
 const WRITE_CHUNK_SIZE: usize = 8 * 1024 * 1024;
 
-/// What planning produces: descriptors keyed by name for the metadata blob, each tensor's
-/// [`Placement`] in write order, and the total size of the data section.
+/// What [`Writer::build_descriptors`] produces: descriptors keyed by name for the metadata
+/// blob, each tensor's [`Placement`] in write order, and the total size of the data section.
 type Descriptors = (BTreeMap<String, TensorDescriptor>, Vec<Placement>, usize);
 
 /// Writer for creating Burnpack files.
@@ -182,7 +182,16 @@ impl<T: TensorEntry> Writer<T> {
     /// Build the complete on-disk layout: header, serialized metadata, and the
     /// position and size of the (aligned) tensor data section.
     fn plan(&self) -> Result<Layout, Error> {
-        let (metadata_bytes, placements, data_size) = self.build_metadata()?;
+        let (tensors, placements, data_size) = self.build_descriptors()?;
+        let metadata = Metadata {
+            tensors,
+            metadata: self.metadata.clone(),
+            scalars: self.scalars.clone(),
+        };
+
+        let mut metadata_bytes = Vec::new();
+        ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
+            .map_err(|e| Error::MetadataSerializationError(e.to_string()))?;
 
         let metadata_size: u32 = metadata_bytes.len().try_into().map_err(|_| {
             Error::IoError(format!(
@@ -207,25 +216,6 @@ impl<T: TensorEntry> Writer<T> {
             data_section_start,
             data_size,
         })
-    }
-
-    /// Serialize the metadata structure (tensor descriptors + key-value pairs) to CBOR.
-    ///
-    /// Also returns the per-tensor placements and the size of the tensor data section, both
-    /// computed while assigning offsets.
-    fn build_metadata(&self) -> Result<(Vec<u8>, Vec<Placement>, usize), Error> {
-        let (tensors, placements, data_size) = self.build_descriptors()?;
-        let metadata = Metadata {
-            tensors,
-            metadata: self.metadata.clone(),
-            scalars: self.scalars.clone(),
-        };
-
-        let mut metadata_bytes = Vec::new();
-        ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
-            .map_err(|e| Error::MetadataSerializationError(e.to_string()))?;
-
-        Ok((metadata_bytes, placements, data_size))
     }
 
     /// Build tensor descriptors, assigning each tensor an aligned offset within
@@ -308,15 +298,11 @@ impl<T: TensorEntry> Writer<T> {
             return Ok(());
         }
 
-        let expected = shape.iter().product::<usize>() as u64 * dtype.size() as u64;
+        let expected = shape.num_elements() as u64 * dtype.size() as u64;
         if data_len != expected {
             return Err(Error::ValidationError(format!(
-                "tensor '{}' declares {} bytes but its shape {:?} and dtype {:?} need {}",
-                name,
-                data_len,
-                shape.to_vec(),
-                dtype,
-                expected
+                "tensor '{}' declares {} bytes but its shape {} and dtype {:?} need {}",
+                name, data_len, shape, dtype, expected
             )));
         }
 
@@ -345,6 +331,9 @@ impl<T: TensorEntry> Writer<T> {
     /// two pairs each entry with its own offset by construction. Offsets are never recovered
     /// from the entry a second time, which is what keeps the plan and the write in step.
     fn write_tensors(self, placements: &[Placement], sink: &mut impl Sink) -> Result<(), Error> {
+        // The zip below would silently drop tensors if the two ever diverged in length.
+        debug_assert_eq!(placements.len(), self.tensors.len());
+
         // Position within the data section (relative to its aligned start).
         let mut data_offset = 0usize;
 

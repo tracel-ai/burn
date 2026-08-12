@@ -353,23 +353,18 @@ impl Error {
     /// Used on the write path, where a tensor's bytes are produced by caller code partway
     /// through the container: without the name, a failure on one tensor of many says only
     /// that something went wrong somewhere.
-    pub(crate) fn in_tensor(self, name: &str) -> Self {
-        let annotate = |message: String| format!("tensor '{name}': {message}");
-
-        match self {
-            Error::MetadataSerializationError(e) => Error::MetadataSerializationError(annotate(e)),
-            Error::MetadataDeserializationError(e) => {
-                Error::MetadataDeserializationError(annotate(e))
-            }
-            Error::IoError(e) => Error::IoError(annotate(e)),
-            Error::TensorNotFound(e) => Error::TensorNotFound(annotate(e)),
-            Error::TensorBytesSizeMismatch(e) => Error::TensorBytesSizeMismatch(annotate(e)),
-            Error::ValidationError(e) => Error::ValidationError(annotate(e)),
+    pub(crate) fn in_tensor(mut self, name: &str) -> Self {
+        match &mut self {
+            Error::MetadataSerializationError(message)
+            | Error::MetadataDeserializationError(message)
+            | Error::IoError(message)
+            | Error::TensorNotFound(message)
+            | Error::TensorBytesSizeMismatch(message)
+            | Error::ValidationError(message) => *message = format!("tensor '{name}': {message}"),
             // Header failures carry no message to annotate and cannot come from an entry.
-            header @ (Error::InvalidHeader | Error::InvalidMagicNumber | Error::InvalidVersion) => {
-                header
-            }
+            Error::InvalidHeader | Error::InvalidMagicNumber | Error::InvalidVersion => {}
         }
+        self
     }
 }
 

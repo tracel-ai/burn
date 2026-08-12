@@ -11,10 +11,9 @@
 use burn_core as burn;
 
 use burn_core::module::Module;
-use burn_core::tensor::quantization::{QuantScheme, QuantValue};
-use burn_core::tensor::{DType, Device, Distribution, Tensor, shape};
+use burn_core::tensor::{DType, Device};
 use burn_nn::{Linear, LinearConfig};
-use burn_store::{BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot, TensorSnapshot};
+use burn_store::{BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot};
 
 #[derive(Module, Debug)]
 struct TestModel {
@@ -122,38 +121,5 @@ fn saving_through_an_adapter_round_trips() {
         .zip(first_weight(&model).iter())
     {
         assert!((got - want).abs() < 1e-2, "{got} vs {want}");
-    }
-}
-
-/// Quantized weights are the case where the declared byte length is reconstructed from the
-/// scheme rather than observed. Getting that wrong makes the save fail outright, so walk the
-/// schemes and a shape whose packed values are not a multiple of the scale alignment.
-#[test]
-fn quantized_snapshots_save_and_load() {
-    let device = Device::default();
-
-    for value in [QuantValue::Q8S, QuantValue::Q4S, QuantValue::Q2S] {
-        for dims in [shape![32, 32], shape![5, 5]] {
-            let scheme = QuantScheme::default().with_value(value);
-            let tensor = Tensor::<2>::random(dims.clone(), Distribution::Default, &device)
-                .quantize_dynamic(&scheme);
-            let snapshot = TensorSnapshot::from_float(
-                &tensor,
-                vec!["weight".to_string()],
-                vec![],
-                Default::default(),
-            );
-
-            let packed = burn_store::burn_pack::Writer::new(vec![snapshot])
-                .into_bytes()
-                .unwrap_or_else(|e| panic!("saving {value:?} {dims:?} failed: {e}"));
-
-            let restored = burn_store::burn_pack::Reader::from_bytes(packed)
-                .unwrap()
-                .into_tensors()
-                .unwrap();
-            assert_eq!(restored.len(), 1);
-            assert_eq!(restored[0].shape, dims);
-        }
     }
 }

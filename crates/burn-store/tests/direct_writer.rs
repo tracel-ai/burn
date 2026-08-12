@@ -11,7 +11,8 @@
 #![cfg(all(feature = "burnpack", feature = "std"))]
 
 use burn_core::module::ParamId;
-use burn_core::tensor::Tensor;
+use burn_core::tensor::quantization::{QuantScheme, QuantValue};
+use burn_core::tensor::{Distribution, Tensor, shape};
 use burn_store::TensorSnapshot;
 use burn_store::burn_pack::{Reader, Writer};
 
@@ -58,4 +59,27 @@ fn snapshots_write_and_read_back_without_a_module() {
 
     let decoder = restored[0].to_data().unwrap();
     assert_eq!(decoder.to_vec::<f32>().unwrap(), vec![5.0, 6.0, 7.0, 8.0]);
+}
+
+/// Quantized is the case where the declared byte length is reconstructed from the scheme
+/// rather than observed, so it is where the writer's reserve-then-check plumbing would
+/// reject a save. The scheme/shape sweep behind that arithmetic is pinned at the unit level
+/// (`tensor_snapshot.rs`); this drives one tensor that carries both risk axes - a sub-byte
+/// value type and a value-byte count that is not a multiple of the scale alignment -
+/// through the writer and back.
+#[test]
+fn quantized_snapshot_writes_and_reads_back() {
+    let device = Default::default();
+    let dims = shape![5, 5];
+
+    let tensor = Tensor::<2>::random(dims.clone(), Distribution::Default, &device)
+        .quantize_dynamic(&QuantScheme::default().with_value(QuantValue::Q4S));
+    let snapshot =
+        TensorSnapshot::from_float(&tensor, vec!["weight".to_string()], vec![], ParamId::new());
+
+    let packed = Writer::new(vec![snapshot]).into_bytes().unwrap();
+
+    let restored = Reader::from_bytes(packed).unwrap().into_tensors().unwrap();
+    assert_eq!(restored.len(), 1);
+    assert_eq!(restored[0].shape, dims);
 }
