@@ -67,6 +67,17 @@ pub fn mask_where<R: CubeRuntime>(
 
     let out_shape = broadcast_shape(&[&input, &mask, &value]);
 
+    // A zero-sized broadcast output has no elements to compute, and the strategies below assume a
+    // non-empty output. Return the empty output directly.
+    if out_shape.num_elements() == 0 {
+        return empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            out_shape,
+            input.dtype,
+        );
+    }
+
     let output = match strategy {
         MaskWhereStrategy::Readonly => empty_device_dtype(
             input.client.clone(),
