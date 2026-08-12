@@ -126,6 +126,37 @@ pub fn export_graph_with_bindings(
     }
 
     for (index, operation) in graph.graph.operations.iter().enumerate() {
+        let full = match operation {
+            OperationIr::NumericFloat(_, NumericOperationIr::Full(full))
+            | OperationIr::NumericInt(_, NumericOperationIr::Full(full)) => Some(full),
+            _ => None,
+        };
+        if let Some(full) = full {
+            let shape_name = format!("node_{index}_shape");
+            push_i64_initializer(
+                &mut proto,
+                shape_name.clone(),
+                &full
+                    .out
+                    .shape
+                    .iter()
+                    .map(|dimension| *dimension as i64)
+                    .collect::<Vec<_>>(),
+            );
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "ConstantOfShape".into();
+            node.input = vec![shape_name];
+            node.output = vec![tensor_name(full.out.id, initializer_names)];
+            node.attribute.push(Default::default());
+            let attribute = node.attribute.last_mut().unwrap();
+            attribute.name = "value".into();
+            attribute.type_ = EnumOrUnknown::from_i32(4);
+            attribute.t =
+                MessageField::some(scalar_tensor(full.out.dtype, full.value, full.out.id)?);
+            continue;
+        }
         let reshape = match operation {
             OperationIr::BaseFloat(BaseOperationIr::Reshape(op))
             | OperationIr::BaseInt(BaseOperationIr::Reshape(op))
@@ -672,9 +703,20 @@ fn push_scalar_initializer(
     value: ScalarIr,
     tensor: TensorId,
 ) -> Result<(), ExportError> {
-    let mut initializer = TensorProto::new();
+    let mut initializer = scalar_tensor(dtype, value, tensor)?;
     initializer.name = name;
+    proto.initializer.push(initializer);
+    Ok(())
+}
+
+fn scalar_tensor(
+    dtype: DType,
+    value: ScalarIr,
+    tensor: TensorId,
+) -> Result<TensorProto, ExportError> {
+    let mut initializer = TensorProto::new();
     initializer.data_type = onnx_dtype_parts(tensor, dtype)?;
+    initializer.dims = vec![1];
     let bytes = match dtype {
         DType::F32 => value.elem::<f32>().to_le_bytes().to_vec(),
         DType::F64 => value.elem::<f64>().to_le_bytes().to_vec(),
@@ -688,8 +730,7 @@ fn push_scalar_initializer(
         }
     };
     initializer.raw_data = bytes::Bytes::from(bytes);
-    proto.initializer.push(initializer);
-    Ok(())
+    Ok(initializer)
 }
 
 #[cfg(test)]

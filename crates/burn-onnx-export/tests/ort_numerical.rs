@@ -82,6 +82,16 @@ impl NearestResize {
     }
 }
 
+#[derive(Module, Debug)]
+struct AddFull;
+
+impl AddFull {
+    fn forward(&self, input: Tensor<2>) -> Tensor<2> {
+        let full = Tensor::full([2, 3], 2.5, &input.device());
+        input + full
+    }
+}
+
 impl SmallCnn {
     fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         self.pool
@@ -215,6 +225,20 @@ fn interpolate_matches_burn() {
         .export(&NearestResize, input, NearestResize::forward)
         .unwrap();
     let actual = run_ort(&model, [1, 1, 3, 4], input_values);
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
+}
+
+#[test]
+fn full_matches_burn() {
+    let device = Device::default();
+    let input_values = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+    let input = Tensor::<2>::from_data(TensorData::new(input_values.clone(), [2, 3]), &device);
+    let expected = AddFull.forward(input.clone()).into_data();
+    let model = OnnxExporter::new()
+        .export(&AddFull, input, AddFull::forward)
+        .unwrap();
+
+    let actual = run_ort(&model, [2, 3], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 }
 
