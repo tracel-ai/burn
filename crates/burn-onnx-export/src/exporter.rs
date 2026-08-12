@@ -9,7 +9,7 @@ use hashbrown::{HashMap, HashSet};
 
 use crate::{
     ExportError, InputSpec, PairedTraceShapeResolver, ShapeResolver, StaticShapeResolver,
-    export_graph_with_bindings,
+    export_graph_with_bindings, shape::validate_input_specs,
 };
 
 /// Collects tensor IDs from values accepted or returned by a forward function.
@@ -29,8 +29,18 @@ pub trait ExportValues {
 
 /// Runtime input values which can be moved to the private capture device.
 pub trait ExportInput: ExportValues + Sized {
+    /// Append tensor shapes in the same flattened order as [`ExportValues`].
+    fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>);
+
     /// Move all contained tensors to the capture device.
     fn to_capture_device(self, device: &Device) -> Self;
+
+    /// Return tensor shapes in declaration order without executing a forward pass.
+    fn input_shapes(&self) -> Vec<Vec<usize>> {
+        let mut shapes = Vec::new();
+        self.collect_input_shapes(&mut shapes);
+        shapes
+    }
 }
 
 impl ExportValues for RouterTensor<CaptureClient> {
@@ -52,6 +62,10 @@ macro_rules! impl_tensor_value {
         }
 
         impl<const D: usize> ExportInput for Tensor<D, $kind> {
+            fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>) {
+                shapes.push(self.dims().to_vec());
+            }
+
             fn to_capture_device(self, device: &Device) -> Self {
                 self.to_device(device)
             }
@@ -72,6 +86,12 @@ impl<T: ExportValues> ExportValues for Vec<T> {
 }
 
 impl<T: ExportInput> ExportInput for Vec<T> {
+    fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>) {
+        for value in self {
+            value.collect_input_shapes(shapes);
+        }
+    }
+
     fn to_capture_device(self, device: &Device) -> Self {
         self.into_iter()
             .map(|value| value.to_capture_device(device))
@@ -89,6 +109,12 @@ macro_rules! impl_export_tuple {
             }
         }
         impl<$($name: ExportInput),+> ExportInput for ($($name,)+) {
+            #[allow(non_snake_case)]
+            fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>) {
+                let ($($name,)+) = self;
+                $($name.collect_input_shapes(shapes);)+
+            }
+
             #[allow(non_snake_case)]
             fn to_capture_device(self, device: &Device) -> Self {
                 let ($($name,)+) = self;
@@ -204,8 +230,8 @@ impl OnnxExporter {
     /// Capture two shapes, validate their structure, and export symbolic input axes.
     ///
     /// `input_specs` are positional and must contain one entry per tensor in
-    /// `sample_inputs`. The corresponding axes of `validation_inputs` must match
-    /// every declared dynamic axis's `validation_value`.
+    /// `sample_inputs`. Static axes must agree between both input sets; dynamic
+    /// axes must differ. Repeated symbols must refer to identical dimensions.
     pub fn export_dynamic<M, I, O, F>(
         &self,
         module: &M,
@@ -220,6 +246,9 @@ impl OnnxExporter {
         O: ExportValues,
         F: Fn(&M, I) -> O,
     {
+        let sample_shapes = sample_inputs.input_shapes();
+        let validation_shapes = validation_inputs.input_shapes();
+        validate_input_specs(input_specs, &sample_shapes, &validation_shapes)?;
         let sample = self.capture_forward(module, sample_inputs, &forward)?;
         let validation = self.capture_forward(module, validation_inputs, &forward)?;
         let resolved = PairedTraceShapeResolver {
@@ -350,6 +379,7 @@ mod tests {
     use burn_core as burn;
     use burn_core::module::Param;
     use burn_nn::{Linear, LinearConfig, Relu};
+    use core::cell::Cell;
     use onnx_ir::ModelProto;
     use protobuf::Message;
 
@@ -432,5 +462,32 @@ mod tests {
         assert!(initializer_names.contains(&"second.bias"));
         assert_eq!(model.graph.input.len(), 1);
         assert_eq!(model.graph.output.len(), 1);
+    }
+
+    #[test]
+    fn dynamic_specs_are_validated_before_forward() {
+        let device = Device::default();
+        let module = AddModule {
+            weight: Param::from_data([2.0f32, 3.0], &device),
+        };
+        let sample = Tensor::<1>::from_floats([1.0f32, 2.0], &device);
+        let validation = Tensor::<1>::from_floats([1.0f32, 2.0, 3.0], &device);
+        let calls = Cell::new(0);
+
+        let error = OnnxExporter::new()
+            .export_dynamic(
+                &module,
+                sample,
+                validation,
+                &[InputSpec::new([crate::AxisSpec::Static])],
+                |module, input| {
+                    calls.set(calls.get() + 1);
+                    input + module.weight.val()
+                },
+            )
+            .unwrap_err();
+
+        assert_eq!(calls.get(), 0);
+        assert!(matches!(error, ExportError::InvalidBoundary(_)));
     }
 }

@@ -7,12 +7,10 @@ use crate::{ExportError, GraphStructureValidator};
 pub enum AxisSpec {
     /// The dimension is fixed to the captured value.
     Static,
-    /// The dimension is runtime-variable and carries a validation value.
+    /// The dimension is runtime-variable and identified by an ONNX symbol.
     Dynamic {
         /// ONNX symbolic dimension name.
         symbol: String,
-        /// Dimension used for the second validation capture.
-        validation_value: usize,
     },
 }
 
@@ -32,10 +30,9 @@ impl InputSpec {
 
 impl AxisSpec {
     /// Create a dynamic axis annotation.
-    pub fn dynamic(symbol: impl Into<String>, validation_value: usize) -> Self {
+    pub fn dynamic(symbol: impl Into<String>) -> Self {
         Self::Dynamic {
             symbol: symbol.into(),
-            validation_value,
         }
     }
 }
@@ -132,13 +129,9 @@ pub struct PairedTraceShapeResolver<'a> {
 impl ShapeResolver for PairedTraceShapeResolver<'_> {
     fn resolve(&self) -> Result<ResolvedExportGraph, ExportError> {
         GraphStructureValidator::validate(self.sample, self.validation)?;
-        if self.inputs.len() != self.sample.inputs.len() {
-            return Err(ExportError::InvalidBoundary(format!(
-                "received {} input specs for {} graph inputs",
-                self.inputs.len(),
-                self.sample.inputs.len()
-            )));
-        }
+        let sample_shapes = boundary_shapes(self.sample, &self.sample.inputs)?;
+        let validation_shapes = boundary_shapes(self.validation, &self.validation.inputs)?;
+        validate_input_specs(self.inputs, &sample_shapes, &validation_shapes)?;
         let mut dynamic_axes = Vec::new();
         for (position, spec) in self.inputs.iter().enumerate() {
             let sample_id = self.sample.inputs[position];
@@ -167,21 +160,7 @@ impl ShapeResolver for PairedTraceShapeResolver<'_> {
                             });
                         }
                     }
-                    AxisSpec::Dynamic {
-                        symbol,
-                        validation_value,
-                    } => {
-                        if validation_input.shape[axis] != *validation_value {
-                            return Err(ExportError::InvalidBoundary(format!(
-                                "validation input {position} axis {axis} is {}, expected {validation_value}",
-                                validation_input.shape[axis]
-                            )));
-                        }
-                        if sample_input.shape[axis] == *validation_value {
-                            return Err(ExportError::InvalidBoundary(format!(
-                                "dynamic input {position} axis {axis} must use a validation value different from the sample value"
-                            )));
-                        }
+                    AxisSpec::Dynamic { symbol } => {
                         dynamic_axes.push(DynamicAxis {
                             tensor: sample_id,
                             axis,
@@ -335,6 +314,93 @@ impl ShapeResolver for PairedTraceShapeResolver<'_> {
     }
 }
 
+pub(crate) fn validate_input_specs(
+    specs: &[InputSpec],
+    sample_shapes: &[Vec<usize>],
+    validation_shapes: &[Vec<usize>],
+) -> Result<(), ExportError> {
+    if sample_shapes.len() != validation_shapes.len() {
+        return Err(ExportError::InvalidBoundary(format!(
+            "sample inputs contain {} tensors but validation inputs contain {}",
+            sample_shapes.len(),
+            validation_shapes.len()
+        )));
+    }
+    if specs.len() != sample_shapes.len() {
+        return Err(ExportError::InvalidBoundary(format!(
+            "received {} input specs for {} input tensors",
+            specs.len(),
+            sample_shapes.len()
+        )));
+    }
+
+    let mut symbols = hashbrown::HashMap::<&str, (usize, usize)>::new();
+    for (input, ((spec, sample), validation)) in specs
+        .iter()
+        .zip(sample_shapes)
+        .zip(validation_shapes)
+        .enumerate()
+    {
+        if sample.len() != validation.len() {
+            return Err(ExportError::InvalidBoundary(format!(
+                "sample input {input} has rank {} but validation input has rank {}",
+                sample.len(),
+                validation.len()
+            )));
+        }
+        if spec.axes.len() != sample.len() {
+            return Err(ExportError::InvalidBoundary(format!(
+                "input {input} has rank {} but its spec has {} axes",
+                sample.len(),
+                spec.axes.len()
+            )));
+        }
+        for (axis, ((axis_spec, &sample_dim), &validation_dim)) in
+            spec.axes.iter().zip(sample).zip(validation).enumerate()
+        {
+            match axis_spec {
+                AxisSpec::Static if sample_dim != validation_dim => {
+                    return Err(ExportError::InvalidBoundary(format!(
+                        "static input {input} axis {axis} differs ({sample_dim} != {validation_dim})"
+                    )));
+                }
+                AxisSpec::Dynamic { symbol } => {
+                    if symbol.is_empty() {
+                        return Err(ExportError::InvalidBoundary(format!(
+                            "dynamic input {input} axis {axis} has an empty symbol"
+                        )));
+                    }
+                    if sample_dim == validation_dim {
+                        return Err(ExportError::InvalidBoundary(format!(
+                            "dynamic input {input} axis {axis} must differ between sample and validation inputs"
+                        )));
+                    }
+                    if let Some((previous_sample, previous_validation)) =
+                        symbols.insert(symbol, (sample_dim, validation_dim))
+                        && (previous_sample, previous_validation) != (sample_dim, validation_dim)
+                    {
+                        return Err(ExportError::InvalidBoundary(format!(
+                            "dynamic symbol `{symbol}` refers to inconsistent dimensions"
+                        )));
+                    }
+                }
+                AxisSpec::Static => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+fn boundary_shapes(graph: &GraphIr, ids: &[TensorId]) -> Result<Vec<Vec<usize>>, ExportError> {
+    ids.iter()
+        .map(|&id| {
+            tensor(graph, id)
+                .map(|tensor| tensor.shape.to_vec())
+                .ok_or(ExportError::MissingValue(id))
+        })
+        .collect()
+}
+
 fn reshapes(
     graph: &GraphIr,
 ) -> impl Iterator<Item = (usize, &burn_ir::TensorIr, &burn_ir::TensorIr)> {
@@ -399,19 +465,10 @@ mod tests {
         // Deliberately use different tensor IDs to exercise structural normalization.
         let validation = reshape(11, 12, &[7, 3, 6, 7], &[7, 3, 42]);
         let specs = [InputSpec::new(vec![
-            AxisSpec::Dynamic {
-                symbol: "N".into(),
-                validation_value: 7,
-            },
+            AxisSpec::Dynamic { symbol: "N".into() },
             AxisSpec::Static,
-            AxisSpec::Dynamic {
-                symbol: "H".into(),
-                validation_value: 6,
-            },
-            AxisSpec::Dynamic {
-                symbol: "W".into(),
-                validation_value: 7,
-            },
+            AxisSpec::Dynamic { symbol: "H".into() },
+            AxisSpec::Dynamic { symbol: "W".into() },
         ])];
         let resolved = PairedTraceShapeResolver {
             sample: &sample,
@@ -438,9 +495,9 @@ mod tests {
         let sample = reshape(1, 2, &[2, 5, 7], &[2, 1, 5, 7]);
         let validation = reshape(11, 12, &[3, 6, 8], &[3, 1, 6, 8]);
         let specs = [InputSpec::new([
-            AxisSpec::dynamic("N", 3),
-            AxisSpec::dynamic("H", 6),
-            AxisSpec::dynamic("W", 8),
+            AxisSpec::dynamic("N"),
+            AxisSpec::dynamic("H"),
+            AxisSpec::dynamic("W"),
         ])];
         let resolved = PairedTraceShapeResolver {
             sample: &sample,
@@ -474,8 +531,8 @@ mod tests {
         let sample = reshape(1, 2, &[2, 2], &[2, 2]);
         let validation = reshape(11, 12, &[3, 3], &[3, 3]);
         let specs = [InputSpec::new([
-            AxisSpec::dynamic("first", 3),
-            AxisSpec::dynamic("second", 3),
+            AxisSpec::dynamic("first"),
+            AxisSpec::dynamic("second"),
         ])];
         assert!(matches!(
             (PairedTraceShapeResolver {

@@ -82,7 +82,7 @@ fn checker_accepts_dynamic_reshape() {
     let sample = Tensor::<3>::from_data(TensorData::zeros::<f32, _>([2, 3, 4]), &device);
     let validation = Tensor::<3>::from_data(TensorData::zeros::<f32, _>([5, 3, 4]), &device);
     let specs = [InputSpec::new([
-        AxisSpec::dynamic("batch", 5),
+        AxisSpec::dynamic("batch"),
         AxisSpec::Static,
         AxisSpec::Static,
     ])];

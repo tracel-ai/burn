@@ -123,7 +123,7 @@ fn dynamic_reshape_matches_burn_at_third_shape() {
     let sample = Tensor::<3>::from_data(TensorData::new(sample_values, [2, 3, 4]), &device);
     let validation = Tensor::<3>::from_data(TensorData::new(validation_values, [5, 3, 4]), &device);
     let specs = [InputSpec::new([
-        AxisSpec::dynamic("batch", 5),
+        AxisSpec::dynamic("batch"),
         AxisSpec::Static,
         AxisSpec::Static,
     ])];
@@ -170,10 +170,10 @@ fn dynamic_small_cnn_matches_burn_at_third_shape() {
     let sample = Tensor::<4>::from_data(TensorData::zeros::<f32, _>([1, 1, 5, 5]), &device);
     let validation = Tensor::<4>::from_data(TensorData::zeros::<f32, _>([2, 1, 7, 7]), &device);
     let specs = [InputSpec::new([
-        AxisSpec::dynamic("batch", 2),
+        AxisSpec::dynamic("batch"),
         AxisSpec::Static,
-        AxisSpec::dynamic("height", 7),
-        AxisSpec::dynamic("width", 7),
+        AxisSpec::dynamic("height"),
+        AxisSpec::dynamic("width"),
     ])];
     let model = OnnxExporter::new()
         .export_dynamic(&module, sample, validation, &specs, SmallCnn::forward)
