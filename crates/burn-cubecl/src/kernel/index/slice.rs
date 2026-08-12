@@ -62,7 +62,7 @@ fn slice_kernel<E: Numeric>(
     mut output: LinearViewMut<'_, E>,
     out_shape: Sequence<FastDivmod<usize>>,
     indices: Sequence<usize>,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -133,7 +133,7 @@ fn slice_with_steps_kernel<E: Numeric>(
     starts: Sequence<usize>,
     ends: Sequence<usize>,
     steps: Sequence<i32>,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

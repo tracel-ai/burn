@@ -226,7 +226,7 @@ pub(crate) fn create_key<Run: CubeRuntime>(
 ) -> ReduceDimAutotuneKey {
     let elem_input = dtype_to_elem_type(input.dtype);
     let elem_output = dtype_to_elem_type(output.dtype);
-    let elem_acc = dtypes.accumulation.elem_type();
+    let elem_acc = dtypes.accumulation;
 
     ReduceDimAutotuneKey::new(
         accumulator_len(*config),
@@ -315,7 +315,7 @@ pub(crate) fn create_key_with_indices<Run: CubeRuntime>(
 ) -> ReduceDimAutotuneKey {
     let elem_input = dtype_to_elem_type(input.dtype);
     let elem_output = dtype_to_elem_type(values.dtype);
-    let elem_acc = dtypes.accumulation.elem_type();
+    let elem_acc = dtypes.accumulation;
 
     ReduceDimAutotuneKey::new(
         accumulator_len(*config),

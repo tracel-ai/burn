@@ -13,7 +13,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
     input: LinearView<'_, Vector<I, N>>,
     mut output: LinearViewMut<'_, Vector<O, N>>,
-    #[define(I, O)] _dtypes: [StorageType; 2],
+    #[define(I, O)] _dtypes: [ElemType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

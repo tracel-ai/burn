@@ -822,6 +822,8 @@ fn mode_label(mode: &ThroughputMode) -> &'static str {
         ThroughputMode::ComputeDirect { .. } => "compute-direct",
         ThroughputMode::ComputeCmma { .. } => "compute-cmma",
         ThroughputMode::Memory => "memory",
+        ThroughputMode::MemoryRead => "memory-read",
+        ThroughputMode::MemoryWorkingSet { .. } => "memory-working-set",
         ThroughputMode::Launch => "launch",
     }
 }
@@ -841,7 +843,10 @@ impl core::fmt::Display for ThroughputStat {
             ThroughputMode::ComputeDirect { dtype } | ThroughputMode::ComputeCmma { dtype, .. } => {
                 alloc::format!("{dtype}")
             }
-            ThroughputMode::Memory | ThroughputMode::Launch => alloc::string::String::new(),
+            ThroughputMode::Memory
+            | ThroughputMode::MemoryRead
+            | ThroughputMode::MemoryWorkingSet { .. }
+            | ThroughputMode::Launch => alloc::string::String::new(),
         };
 
         let value = self.value.format(&self.key);

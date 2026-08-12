@@ -275,7 +275,7 @@ fn register_outputs<R: Runtime>(
                 let arg = handle.into_tensor_arg(global_shape.clone());
 
                 let elem = precision.into_elem();
-                let ty = Type::new(elem.into()).with_vector_size(vector_size);
+                let ty = Type::new(elem).with_vector_size(vector_size);
 
                 outputs
                     .tensors

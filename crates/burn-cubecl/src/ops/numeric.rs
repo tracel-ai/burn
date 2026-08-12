@@ -15,7 +15,7 @@ use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::{
     calculate_cube_count_elemwise,
-    ir::{Comparison, ElemType, Instruction, Type, UnaryOperands},
+    ir::{ElemType, dialect::math::IsNanOp},
     prelude::*,
     std::tensor::layout::linear::LinearViewMut,
 };
@@ -72,7 +72,7 @@ pub(crate) fn fill_device_dtype<R: CubeRuntime>(
     pub fn full_kernel<C: Numeric, N: Size>(
         mut tensor: LinearViewMut<'_, Vector<C, N>>,
         value: InputScalar,
-        #[define(C)] _dtype: StorageType,
+        #[define(C)] _dtype: ElemType,
     ) {
         if !tensor.is_in_bounds(ABSOLUTE_POS) {
             terminate!();
@@ -313,20 +313,14 @@ struct MinOp;
 #[cube]
 fn numeric_is_nan<N: Numeric>(value: N) -> bool {
     intrinsic!(|scope| {
-        let output = scope.create_value(Type::scalar(ElemType::Bool));
-        scope.register(Instruction::new(
-            Comparison::IsNan(UnaryOperands {
-                input: value.expand,
-            }),
-            output,
-        ));
-        output.into()
+        let is_nan = IsNanOp::new(scope.ctx_mut(), value.read_value(scope));
+        scope.register_with_result(&is_nan).into()
     })
 }
 
 #[cube]
 fn cumulative_max<N: Numeric>(lhs: N, rhs: N) -> N {
-    let elem_type = type_of::<N>();
+    let elem_type = elem_type_of::<N>();
     if comptime!(elem_type.is_float()) {
         if numeric_is_nan::<N>(lhs) {
             lhs
@@ -342,7 +336,7 @@ fn cumulative_max<N: Numeric>(lhs: N, rhs: N) -> N {
 
 #[cube]
 fn cumulative_min<N: Numeric>(lhs: N, rhs: N) -> N {
-    let elem_type = type_of::<N>();
+    let elem_type = elem_type_of::<N>();
     if comptime!(elem_type.is_float()) {
         if numeric_is_nan::<N>(lhs) {
             lhs
@@ -437,7 +431,7 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     mut output: LinearViewMut<'_, C>,
     shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

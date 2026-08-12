@@ -22,7 +22,7 @@ use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_std::DType;
-use cubecl::{Runtime, client::ComputeClient, ir::StorageType, prelude::*};
+use cubecl::{Runtime, client::ComputeClient, prelude::*};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, VectorizationMode,
     components::instructions::ReduceOperationConfig,
@@ -374,7 +374,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             dtypes: ReduceDtypes {
                 input: dtype_to_storage_type(self.reduce.op.input.dtype),
                 output: dtype_to_storage_type(self.reduce.op.out.dtype),
-                accumulation: self.reduce.acc.into_elem().into(),
+                accumulation: self.reduce.acc.into_elem(),
             },
             address_type,
             instruction: reduce_instruction2config(&self.reduce.inst),
@@ -507,9 +507,9 @@ pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Siz
     out_vec_axis: usize,
     #[comptime] blueprint: ReduceBlueprint,
     #[comptime] config: ReduceOperationConfig,
-    #[define(In)] _input_dtype: StorageType,
-    #[define(Out)] _output_dtype: StorageType,
-    #[define(Acc)] _acc_dtype: StorageType,
+    #[define(In)] _input_dtype: ElemType,
+    #[define(Out)] _output_dtype: ElemType,
+    #[define(Acc)] _acc_dtype: ElemType,
 ) {
     multi_block_variables_init(&input.config, &mut output.global.variables);
     multi_block_variables_init(&output.config, &mut output.global.variables);

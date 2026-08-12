@@ -252,7 +252,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&image.client, num_elements_offset);
     let cube_count = calculate_cube_count_elemwise(&image.client, num_elements_offset, cube_dim);
 
-    let dtype: StorageType = dtype_to_storage_type(image.dtype);
+    let dtype: ElemType = dtype_to_storage_type(image.dtype);
     unsafe {
         deform_col2img_coord_kernel::launch_unchecked(
             &grad_offset.client,
@@ -274,8 +274,8 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
                 options.stride[1],
                 options.dilation[0],
                 options.dilation[1],
-                InputScalar::new(options.padding[0] as f32, dtype.elem_type()),
-                InputScalar::new(options.padding[1] as f32, dtype.elem_type()),
+                InputScalar::new(options.padding[0] as f32, dtype),
+                InputScalar::new(options.padding[1] as f32, dtype),
                 offset_groups,
                 kernel_h,
                 kernel_w,
@@ -311,7 +311,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     grad_mask: ComptimeOption<&mut Tensor<F>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgCoordArgs,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     // Position format: [batch, [offset_groups, kernel_h, kernel_w, 2], out_h, out_w]
     // Columns format: [[in_channel, kernel_h, kernel_w], [batch, out_h, out_w]]
@@ -517,7 +517,7 @@ fn compute_input_grad<R: CubeRuntime>(
         false => deform_col2img_kernel::launch_unchecked::<CASFloatAtomicAdd, R>,
     };
     let dtype = offset.dtype;
-    let dtypes: [StorageType; 2] = match supports_same_type {
+    let dtypes: [ElemType; 2] = match supports_same_type {
         true => [dtype_to_storage_type(dtype), dtype_to_storage_type(dtype)],
         false => [
             dtype_to_storage_type(dtype),
@@ -541,8 +541,8 @@ fn compute_input_grad<R: CubeRuntime>(
                 options.stride[1],
                 options.dilation[0],
                 options.dilation[1],
-                InputScalar::new(options.padding[0] as f32, dtypes[0].elem_type()),
-                InputScalar::new(options.padding[1] as f32, dtypes[0].elem_type()),
+                InputScalar::new(options.padding[0] as f32, dtypes[0]),
+                InputScalar::new(options.padding[1] as f32, dtypes[0]),
                 options.offset_groups,
                 kernel_h,
                 kernel_w,
@@ -579,7 +579,7 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgArgs,
-    #[define(F, FP)] _dtype: [StorageType; 2],
+    #[define(F, FP)] _dtype: [ElemType; 2],
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
     if ABSOLUTE_POS >= columns.shape() {

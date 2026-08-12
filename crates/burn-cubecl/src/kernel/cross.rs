@@ -16,7 +16,7 @@ fn cross_kernel<E: Float>(
     lhs: LinearView<'_, E>,
     rhs: LinearView<'_, E>,
     mut output: LinearViewMut<'_, E>,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     // Each thread processes one 3-element vector
     let vector_idx = ABSOLUTE_POS;

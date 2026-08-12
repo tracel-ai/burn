@@ -44,7 +44,7 @@ fn deform_im2col_kernel<F: Float>(
     args: &DeformConv2dArgs,
     #[comptime] kernel_h_unroll: Option<usize>,
     #[comptime] kernel_w_unroll: Option<usize>,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     // position shape: [in_channels, batch_size, out_h, out_w]
     // columns shape: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
