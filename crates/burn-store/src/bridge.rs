@@ -1,9 +1,10 @@
 //! Bridge between [`TensorSnapshot`] (burn-core) and the tensor-agnostic burnpack format
 //! entries, used by [`BurnpackStore`](crate::BurnpackStore).
 //!
-//! Saving goes through the [`TensorEntry`] impl below, which keeps each snapshot lazy until
-//! the writer reaches it. Loading goes through [`tensor_to_snapshot`], which keeps a
-//! reader's (possibly file-backed) bytes lazy until the snapshot is materialized.
+//! Both directions are trait impls on [`TensorSnapshot`], and both stay lazy. Saving goes
+//! through [`TensorEntry`], which defers each snapshot until the writer reaches it; loading
+//! goes through `From<PackTensor>`, which leaves a reader's (possibly file-backed) bytes
+//! unread until the snapshot is materialized.
 
 use alloc::borrow::Cow;
 use alloc::format;
@@ -56,9 +57,8 @@ impl TensorEntry for TensorSnapshot {
 /// Turns a reader's [`PackTensor`] entry into a lazy [`TensorSnapshot`].
 ///
 /// The counterpart to the [`TensorEntry`] impl above, and lazy in the same way: the tensor's
-/// [`Bytes`](burn_pack::Bytes) may be file-backed (from
-/// [`Reader::from_file`](burn_pack::Reader::from_file)), in which case the data is only read
-/// from disk when the snapshot is materialized.
+/// [`burn_pack::Bytes`] may be file-backed (from [`burn_pack::Reader::from_file`]), in which
+/// case the data is only read from disk when the snapshot is materialized.
 impl From<PackTensor> for TensorSnapshot {
     fn from(tensor: PackTensor) -> Self {
         let dtype = tensor.dtype;

@@ -13,9 +13,9 @@ use burn_core::tensor::Tensor;
 use burn_store::TensorSnapshot;
 use burn_store::burn_pack::{Reader, Writer};
 
-fn snapshot(name: &str, values: [f32; 4]) -> TensorSnapshot {
+fn snapshot(name: &str, values: [[f32; 2]; 2]) -> TensorSnapshot {
     let device = Default::default();
-    let tensor = Tensor::<2>::from_data([[values[0], values[1]], [values[2], values[3]]], &device);
+    let tensor = Tensor::<2>::from_data(values, &device);
     TensorSnapshot::from_float(
         &tensor,
         name.split('.').map(str::to_string).collect(),
@@ -30,8 +30,8 @@ fn snapshots_write_and_read_back_without_a_module() {
     let path = dir.path().join("weights.bpk");
 
     let snapshots = vec![
-        snapshot("encoder.weight", [1.0, 2.0, 3.0, 4.0]),
-        snapshot("decoder.weight", [5.0, 6.0, 7.0, 8.0]),
+        snapshot("encoder.weight", [[1.0, 2.0], [3.0, 4.0]]),
+        snapshot("decoder.weight", [[5.0, 6.0], [7.0, 8.0]]),
     ];
 
     // `TensorSnapshot: TensorEntry`, so the writer takes them as-is and materializes each one

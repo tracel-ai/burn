@@ -30,8 +30,29 @@ assert_eq!(reader.into_tensors().unwrap()[0].shape.to_vec(), vec![2, 2]);
 ```
 
 Use `Writer::write_to_file` / `Reader::from_file` for disk I/O (the default `std` feature; disable
-it for no-std targets). See the [docs](https://docs.rs/burn-pack) for the format layout and the
-full API.
+it for no-std targets). `write_to_file` is all-or-nothing: the container is built alongside the
+destination and renamed into place once complete, so a failed write never leaves a truncated file.
+
+## Writing models larger than memory
+
+`Writer::new` takes anything implementing `TensorEntry`, not just `Tensor`. The writer lays out the
+whole container from `byte_len()` alone, before any I/O, then calls `into_bytes()` once per tensor
+in write order and drops each tensor's bytes before asking for the next. An implementation that
+materializes inside `into_bytes` therefore holds one tensor at a time:
+
+```rust,ignore
+impl TensorEntry for MyWeight {
+    fn byte_len(&self) -> usize { self.rows * self.cols * 4 }   // no data needed
+    fn into_bytes(self) -> Result<Bytes, Error> { self.read_from_device() }  // called once, in order
+    // name / dtype / shape / param_id ...
+}
+```
+
+Paired with `write_to_file`, peak host memory is bounded by the largest single tensor rather than
+by the whole model. `burn-store` implements this for `TensorSnapshot`, so saving a `Module` gets it
+for free.
+
+See the [docs](https://docs.rs/burn-pack) for the format layout and the full API.
 
 ## License
 

@@ -50,8 +50,22 @@ preserve a parameter's identity across save/load. Besides tensors, a pack can st
 scalars** (integers, floats, booleans), which the optimizer and learning rate scheduler records use
 to persist their non-tensor state.
 
-A pack is written with `burn_pack::Writer` and read back with `burn_pack::Reader`, both operating on
-`burn_pack::Tensor` entries plus a scalar map.
+A pack is read back with `burn_pack::Reader`, which yields `burn_pack::Tensor` entries plus a scalar
+map. Tensor bytes stay lazy: a file-backed reader only touches the disk when an entry's data is
+actually used.
+
+A pack is written with `burn_pack::Writer`, which is symmetric about this. It accepts any
+`burn_pack::TensorEntry`, a trait pairing the format-level metadata with a `byte_len()` that must be
+answerable without the data. The writer computes every descriptor and offset from `byte_len()`
+before any I/O, then calls `into_bytes()` once per tensor in write order, dropping each tensor's
+bytes before requesting the next. `Tensor` implements the trait for data that is already resident;
+`burn-store` implements it for `TensorSnapshot`, deferring each `to_data()` (and so each device
+readback) until the writer reaches that tensor. Saving a large module therefore costs one tensor of
+host memory at a time rather than the whole set.
+
+`Writer::write_to_file` builds the container in a scratch file beside the destination and renames it
+into place only once it is complete. Because a lazy entry's bytes are produced mid-write, provider
+failure is an ordinary outcome, and it must not truncate whatever was already at that path.
 
 ## The three record types
 

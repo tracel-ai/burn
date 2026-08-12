@@ -20,6 +20,8 @@ interoperability, and advanced tensor management.
   transformation
 - **Zero-Copy Loading** - Memory-mapped files and lazy tensor materialization for optimal
   performance
+- **Streaming Saves** - Burnpack file saves read back one tensor at a time, bounding peak memory by
+  the largest tensor instead of the whole model, and land atomically
 - **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom
   predicates
 - **Tensor Remapping** - Rename tensors during load/save for framework compatibility

@@ -129,12 +129,20 @@ impl<T: TensorEntry> Writer<T> {
     ///
     /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
     ///
-    /// The container is written to a temporary sibling of `path` and renamed into place only
+    /// The container is written to a scratch sibling of `path` and renamed into place only
     /// once every byte is on disk, so `path` either ends up holding a complete container or
     /// is left exactly as it was. This matters for lazy [`TensorEntry`] implementations,
     /// whose bytes are produced during the write: a provider that fails partway through (or
     /// hands back a different length than it declared) is an ordinary error, and it must not
     /// leave a truncated file where a valid one used to be.
+    ///
+    /// Two consequences of building alongside the destination:
+    ///
+    /// - Overwriting needs room for a second copy. Re-saving a model over itself transiently
+    ///   occupies twice its size, since the old file keeps its blocks until the rename.
+    /// - A hard kill (SIGKILL, OOM) skips the cleanup and strands the scratch file. Scratch
+    ///   names are `<file_name>.<pid>-<n>.tmp` siblings of `path`, so leftovers are
+    ///   identifiable and safe to delete once no writer is running.
     #[cfg(feature = "std")]
     pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
         let path = path.as_ref();
@@ -147,16 +155,13 @@ impl<T: TensorEntry> Writer<T> {
         let layout = self.plan()?;
         let scratch = ScratchFile::beside(&path)?;
 
-        // Scoped so the handle is closed before the rename: Windows will not rename a file
-        // that is still open.
-        {
-            let file = File::create(scratch.path()).map_err(|e| Error::IoError(e.to_string()))?;
-            let mut sink = FileSink { file };
-            self.write_container(&layout, &mut sink)?;
-            sink.file
-                .flush()
-                .map_err(|e| Error::IoError(e.to_string()))?;
-        }
+        let mut sink = FileSink {
+            file: File::create(&scratch.path).map_err(|e| Error::IoError(e.to_string()))?,
+        };
+        self.write_container(&layout, &mut sink)?;
+        // `File` is unbuffered, so there is nothing to flush; close it instead, because
+        // Windows will not rename a file that is still open.
+        drop(sink);
 
         scratch.persist(&path)
     }
@@ -463,10 +468,6 @@ impl ScratchFile {
             path: destination.with_file_name(scratch),
             persisted: false,
         })
-    }
-
-    fn path(&self) -> &Path {
-        &self.path
     }
 
     /// Move the completed container onto `destination`, replacing any existing file.
