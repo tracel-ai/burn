@@ -110,6 +110,15 @@ impl CatChannels {
     }
 }
 
+#[derive(Module, Debug)]
+struct Neg;
+
+impl Neg {
+    fn forward(&self, input: Tensor<2>) -> Tensor<2> {
+        -input
+    }
+}
+
 impl SmallCnn {
     fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         self.pool
@@ -313,6 +322,20 @@ fn cat_matches_burn() {
             .map(|dimension| *dimension as usize)
             .collect::<Vec<_>>(),
     );
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
+}
+
+#[test]
+fn neg_matches_burn() {
+    let device = Device::default();
+    let input_values = vec![-3.0f32, -0.5, 0.0, 2.0, 4.5, 10.0];
+    let input = Tensor::<2>::from_data(TensorData::new(input_values.clone(), [2, 3]), &device);
+    let expected = Neg.forward(input.clone()).into_data();
+    let model = OnnxExporter::new()
+        .export(&Neg, input, Neg::forward)
+        .unwrap();
+
+    let actual = run_ort(&model, [2, 3], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 }
 

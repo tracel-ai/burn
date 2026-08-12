@@ -708,6 +708,7 @@ fn onnx_op_type(operation: &OperationIr) -> Option<&'static str> {
             NumericOperationIr::Mul(_) => Some("Mul"),
             NumericOperationIr::Div(_) => Some("Div"),
             NumericOperationIr::Abs(_) => Some("Abs"),
+            NumericOperationIr::Neg(_) => Some("Neg"),
             _ => None,
         },
         OperationIr::Float(_, op) => match op {
