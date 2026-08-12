@@ -240,7 +240,6 @@ fn svd_host_seq<F: Float + Copy>(
             }
         }
         #[cfg(feature = "std")]
-        let t3 = std::time::Instant::now();
         let (ub, sb, vtb) = svd_postprocess(
             &u1t,
             &v1t,
