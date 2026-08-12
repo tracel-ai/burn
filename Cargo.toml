@@ -222,7 +222,7 @@ burn-train = { path = "crates/burn-train", version = "=0.22.0-pre.2", default-fe
 burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.2", default-features = false }
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.2", default-features = false }
 # TODO: remove once burn-onnx-export is moved into burn-onnx
-onnx-ir = { path = "../burn-onnx/crates/onnx-ir", default-features = false }
+onnx-ir = { git = "https://github.com/tracel-ai/burn-onnx", default-features = false }
 ort = "=2.0.0-rc.13"
 
 

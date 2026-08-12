@@ -1,5 +1,6 @@
 [package]
 name = "burn-capture"
+authors = ["laggui <lagrange.guillaume.1@gmail.com>"]
 description = "Graph capture backend for the Burn framework"
 edition.workspace = true
 license.workspace = true
