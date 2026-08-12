@@ -86,7 +86,9 @@ fn svd_host<F: Float + Copy + Send + Sync>(
     let mut vt = vec![F::zero(); batch * vt_len];
 
     #[cfg(feature = "std")]
-    {
+    if batch > 1 {
+        // available_parallelism is a syscall (~40us); skip it for single
+        // matrices where the threaded path is dead anyway.
         let threads = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(1)
@@ -237,6 +239,8 @@ fn svd_host_seq<F: Float + Copy>(
                 v1t[k1_v + i] = -sr * a0 + cr * b0;
             }
         }
+        #[cfg(feature = "std")]
+        let t3 = std::time::Instant::now();
         let (ub, sb, vtb) = svd_postprocess(
             &u1t,
             &v1t,
