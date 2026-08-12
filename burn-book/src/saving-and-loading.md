@@ -346,8 +346,8 @@ model.load_from(&mut store)?;
 
 Saving to a Burnpack **file** streams one tensor at a time: each parameter is read back from the
 device only when the writer reaches it, and released before the next one is read. Peak host memory
-is bounded by the largest single tensor rather than by the size of the model, so a model larger
-than available RAM still saves.
+is bounded by the largest single tensor rather than by the size of the model, so a model whose
+weights live on an accelerator can exceed host RAM and still save.
 
 ```rust, ignore
 // Streams to disk; only one tensor is held in host memory at a time.

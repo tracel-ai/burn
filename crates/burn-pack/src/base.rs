@@ -1,8 +1,9 @@
 //! Core types and constants for the Burnpack file format.
 //!
-//! See the [parent module](crate::burnpack) for the complete file format specification.
+//! See the [crate root](crate) for the complete file format specification.
 
 use alloc::collections::BTreeMap;
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_std::DType;
@@ -342,6 +343,32 @@ impl core::fmt::Display for Error {
                 write!(f, "Tensor bytes size mismatch: {}", e)
             }
             Error::ValidationError(e) => write!(f, "Validation error: {}", e),
+        }
+    }
+}
+
+impl Error {
+    /// Name the tensor an error came from, keeping the variant intact.
+    ///
+    /// Used on the write path, where a tensor's bytes are produced by caller code partway
+    /// through the container: without the name, a failure on one tensor of many says only
+    /// that something went wrong somewhere.
+    pub(crate) fn in_tensor(self, name: &str) -> Self {
+        let annotate = |message: String| format!("tensor '{name}': {message}");
+
+        match self {
+            Error::MetadataSerializationError(e) => Error::MetadataSerializationError(annotate(e)),
+            Error::MetadataDeserializationError(e) => {
+                Error::MetadataDeserializationError(annotate(e))
+            }
+            Error::IoError(e) => Error::IoError(annotate(e)),
+            Error::TensorNotFound(e) => Error::TensorNotFound(annotate(e)),
+            Error::TensorBytesSizeMismatch(e) => Error::TensorBytesSizeMismatch(annotate(e)),
+            Error::ValidationError(e) => Error::ValidationError(annotate(e)),
+            // Header failures carry no message to annotate and cannot come from an entry.
+            header @ (Error::InvalidHeader | Error::InvalidMagicNumber | Error::InvalidVersion) => {
+                header
+            }
         }
     }
 }

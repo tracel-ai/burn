@@ -17,9 +17,11 @@ type Log = Rc<RefCell<Vec<String>>>;
 struct LazyEntry {
     name: String,
     shape: Shape,
+    /// The values handed over by [`TensorEntry::into_bytes`]. Normally matches `shape`; the
+    /// mid-write guard test shortens it so the entry produces less than it promised.
     values: Vec<f32>,
-    /// Byte length as reported to the writer. Defaults to the real length; the consistency
-    /// test overrides it to check the writer's guard.
+    /// Byte length as reported to the writer. Normally matches both `shape` and `values`;
+    /// the plan-time guard test overrides it alone.
     declared_len: usize,
     /// Set by the failure test to make [`TensorEntry::into_bytes`] error.
     fails: bool,
@@ -122,18 +124,47 @@ fn lazy_and_eager_entries_produce_identical_containers() {
     assert_eq!(&from_lazy[..], &from_eager[..]);
 }
 
+/// A `byte_len` that cannot describe the declared shape and dtype is caught while planning,
+/// before any I/O happens, because the two are checked against each other directly.
 #[test]
-fn declared_length_that_disagrees_with_the_bytes_is_rejected() {
+fn declared_length_that_contradicts_the_shape_is_rejected_before_writing() {
     let log: Log = Rc::default();
     let mut entry = LazyEntry::new("a", &[2, 2], 1.0, &log);
-    // The layout reserves 8 bytes but the provider will hand back 16.
+    // A 2x2 f32 tensor needs 16 bytes, whatever the entry claims.
     entry.declared_len = 8;
 
     let err = Writer::new(vec![entry]).into_bytes().unwrap_err();
     match err {
+        Error::ValidationError(msg) => {
+            assert!(
+                msg.contains("declares 8 bytes"),
+                "unexpected message: {msg}"
+            );
+            assert!(msg.contains("need 16"), "unexpected message: {msg}");
+        }
+        other => panic!("expected ValidationError, got {other:?}"),
+    }
+    assert!(
+        log.borrow().is_empty(),
+        "planning rejected the entry, so nothing should have been materialized"
+    );
+}
+
+/// A `byte_len` consistent with the shape but a provider that produces something else slips
+/// past planning, so the writer re-checks the actual bytes before emitting them. This is the
+/// only guard quantized tensors get, since their length is not a product of shape and dtype.
+#[test]
+fn provider_that_produces_a_different_length_is_rejected_mid_write() {
+    let log: Log = Rc::default();
+    let mut entry = LazyEntry::new("a", &[2, 2], 1.0, &log);
+    // `declared_len` stays 16 and agrees with the shape; the bytes do not.
+    entry.values.truncate(2);
+
+    let err = Writer::new(vec![entry]).into_bytes().unwrap_err();
+    match err {
         Error::TensorBytesSizeMismatch(msg) => {
-            assert!(msg.contains("expected 8"), "unexpected message: {msg}");
-            assert!(msg.contains("got 16"), "unexpected message: {msg}");
+            assert!(msg.contains("expected 16"), "unexpected message: {msg}");
+            assert!(msg.contains("got 8"), "unexpected message: {msg}");
         }
         other => panic!("expected TensorBytesSizeMismatch, got {other:?}"),
     }
@@ -189,6 +220,26 @@ fn a_failed_write_leaves_an_existing_file_intact() {
         std::fs::read(&dest).unwrap(),
         original,
         "a failed write must not disturb the previous container"
+    );
+}
+
+/// The other atomicity tests all fail before the rename. This one fails *at* it, which is
+/// the only path where a finished, full-size scratch file is the thing left to clean up.
+#[test]
+fn a_failed_rename_leaves_no_scratch_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+    // A directory cannot be replaced by a rename, so persist fails after a complete write.
+    std::fs::create_dir(&dest).unwrap();
+
+    let log: Log = Rc::default();
+    Writer::new(entries(&log)).write_to_file(&dest).unwrap_err();
+
+    assert!(dest.is_dir(), "the destination should be untouched");
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        1,
+        "the completed scratch file should have been cleaned up"
     );
 }
 

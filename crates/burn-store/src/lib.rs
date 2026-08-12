@@ -131,13 +131,17 @@ pub use burnpack::BurnpackStore;
 /// out of an ONNX file during codegen, say):
 ///
 /// ```
-/// use burn_store::burn_pack::{Error, Writer};
+/// use burn_store::burn_pack::{Bytes, Error, Writer};
 /// use burn_store::TensorSnapshot;
 ///
-/// fn save(snapshots: Vec<TensorSnapshot>) -> Result<(), Error> {
-///     Writer::new(snapshots).write_to_file("model.bpk")
+/// fn pack(snapshots: Vec<TensorSnapshot>) -> Result<Bytes, Error> {
+///     Writer::new(snapshots).into_bytes()
 /// }
 /// ```
+///
+/// With burn-pack's `std` feature, `Writer::write_to_file` is the better choice for a large
+/// model: it streams to disk instead of building the container in memory. This example uses
+/// [`into_bytes`](burn_pack::Writer::into_bytes) so it compiles in no-std builds too.
 ///
 /// Reach for this rather than depending on `burn-pack` directly. The trait impl only applies
 /// for the exact `burn-pack` version burn-store was built against, and a separate dependency

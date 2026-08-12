@@ -19,10 +19,11 @@ use crate::base::Error;
 /// A tensor the [`Writer`](crate::Writer) can emit: format-level metadata plus a source of
 /// the raw little-endian bytes that is only drawn from when the writer reaches that tensor.
 ///
-/// The writer plans the entire container - descriptors, offsets, total size - from
-/// [`byte_len`](Self::byte_len) alone, before any I/O happens. Only then does it call
-/// [`into_bytes`](Self::into_bytes), once per tensor, in write order, dropping each
-/// tensor's bytes before asking for the next.
+/// The writer plans the entire container - descriptors, offsets, total size - from the
+/// metadata accessors alone, before any I/O happens and without calling
+/// [`into_bytes`](Self::into_bytes). Only then does it draw the bytes, once per tensor, in
+/// write order, dropping each tensor's before asking for the next. Every accessor is read
+/// exactly once, during planning.
 ///
 /// An implementation that defers materialization until `into_bytes` therefore holds only
 /// one tensor's data at a time. Paired with [`Writer::write_to_file`](crate::Writer::write_to_file),
@@ -48,14 +49,22 @@ pub trait TensorEntry {
 
     /// Number of raw bytes the tensor occupies, known without materializing the data.
     ///
-    /// Must equal the length of the [`Bytes`] returned by [`into_bytes`](Self::into_bytes).
-    /// The writer reserves exactly this much space in the data section and fails with
-    /// [`Error::TensorBytesSizeMismatch`] if the two disagree.
+    /// Must equal the length of the [`Bytes`] returned by [`into_bytes`](Self::into_bytes),
+    /// since the writer reserves exactly this much space in the data section. Two checks
+    /// enforce that, because getting it wrong would misplace every later tensor:
+    ///
+    /// - While planning, against [`shape`](Self::shape) and [`dtype`](Self::dtype), failing
+    ///   with [`Error::ValidationError`] before any I/O. Quantized data is exempt: its
+    ///   length is not a product of the two, which is why this is a method at all.
+    /// - While writing, against the bytes actually produced, failing with
+    ///   [`Error::TensorBytesSizeMismatch`].
     fn byte_len(&self) -> usize;
 
     /// Produce the tensor's raw little-endian bytes.
     ///
-    /// Called once, when the writer reaches this tensor in the data section.
+    /// Called at most once, when the writer reaches this tensor in the data section. Planning
+    /// can fail first (a duplicate name, an inconsistent `byte_len`), in which case it is
+    /// never called at all, so it is not a reliable teardown hook.
     fn into_bytes(self) -> Result<Bytes, Error>;
 }
 

@@ -7,7 +7,6 @@
 //! unread until the snapshot is materialized.
 
 use alloc::borrow::Cow;
-use alloc::format;
 use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -15,7 +14,7 @@ use alloc::vec::Vec;
 
 use burn_pack::{Bytes, DType, Error as PackError, Shape, Tensor as PackTensor, TensorEntry};
 
-use super::TensorSnapshot;
+use super::{TensorSnapshot, TensorSnapshotError};
 use burn_core::module::ParamId;
 use burn_core::tensor::TensorData;
 
@@ -48,9 +47,14 @@ impl TensorEntry for TensorSnapshot {
     }
 
     fn into_bytes(self) -> Result<Bytes, PackError> {
-        self.to_data()
-            .map(|data| data.bytes)
-            .map_err(|e| PackError::IoError(format!("{e:?}")))
+        self.to_data().map(|data| data.bytes).map_err(|e| match e {
+            // Only a genuine read failure is an I/O error. Materialization also fails when the
+            // backend panics reading a tensor back from the device, and calling that an I/O
+            // error sends the reader looking at their disk: it arrives mid-write, alongside
+            // the writer's own file errors, and reads exactly like one of them.
+            TensorSnapshotError::IoError(message) => PackError::IoError(message),
+            other => PackError::ValidationError(other.to_string()),
+        })
     }
 }
 
@@ -100,6 +104,45 @@ mod tests {
 
         assert_eq!(TensorEntry::name(&snapshot), "encoder.weight");
         assert_eq!(TensorEntry::shape(&snapshot), &shape![2, 2]);
+        assert_eq!(TensorEntry::dtype(&snapshot), DType::F32);
+        assert_eq!(TensorEntry::byte_len(&snapshot), 16);
         assert_eq!(snapshot.param_id(), Some(id.val()));
+    }
+
+    /// The whole point of the [`TensorEntry`] impl is that the writer can lay out a container
+    /// without materializing anything, then draw one tensor at a time. burn-pack has its own
+    /// tests for that, but against a test double: this one pins the shipped path, so that
+    /// wiring `byte_len` to `to_data().bytes.len()` (the obvious "fix" if `data_len` ever
+    /// looks wrong) fails here instead of silently restoring the old peak memory.
+    #[test]
+    fn writing_snapshots_materializes_each_one_once_and_only_while_writing() {
+        let calls = Rc::new(core::cell::Cell::new(0usize));
+
+        let snapshots: Vec<TensorSnapshot> = (0..3)
+            .map(|i| {
+                let calls = calls.clone();
+                let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0]);
+                TensorSnapshot::from_closure(
+                    Rc::new(move || {
+                        calls.set(calls.get() + 1);
+                        Ok(data.clone())
+                    }),
+                    DType::F32,
+                    shape![4],
+                    vec![format!("layer{i}"), "weight".to_string()],
+                    vec![],
+                    ParamId::new(),
+                )
+            })
+            .collect();
+
+        // Planning reads only the cached metadata.
+        let size = burn_pack::Writer::new(snapshots.clone()).size().unwrap();
+        assert!(size > 0);
+        assert_eq!(calls.get(), 0, "laying out the container materialized data");
+
+        // Writing draws from each snapshot exactly once.
+        burn_pack::Writer::new(snapshots).into_bytes().unwrap();
+        assert_eq!(calls.get(), 3);
     }
 }

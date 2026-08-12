@@ -36,9 +36,10 @@ destination and renamed into place once complete, so a failed write never leaves
 ## Writing models larger than memory
 
 `Writer::new` takes anything implementing `TensorEntry`, not just `Tensor`. The writer lays out the
-whole container from `byte_len()` alone, before any I/O, then calls `into_bytes()` once per tensor
-in write order and drops each tensor's bytes before asking for the next. An implementation that
-materializes inside `into_bytes` therefore holds one tensor at a time:
+whole container from the metadata accessors alone, before any I/O and without calling
+`into_bytes()`, then draws the bytes once per tensor in write order, dropping each tensor's before
+asking for the next. An implementation that materializes inside `into_bytes` therefore holds one
+tensor at a time:
 
 ```rust,ignore
 impl TensorEntry for MyWeight {

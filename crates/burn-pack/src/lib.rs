@@ -15,8 +15,8 @@
 //! read lazily from the source. A [`Writer`] accepts anything implementing [`TensorEntry`];
 //! [`Tensor`] is the implementation for bytes that are already resident. A caller that
 //! knows a tensor's byte length without holding its data (a module snapshot, an ONNX
-//! initializer) can implement [`TensorEntry`] to write a model larger than host memory -
-//! see that trait for the contract.
+//! initializer) can implement [`TensorEntry`] to write a model larger than host memory to a
+//! file - see that trait for the contract.
 //!
 //! ```
 //! use burn_pack::{Bytes, DType, Reader, Tensor, Writer};

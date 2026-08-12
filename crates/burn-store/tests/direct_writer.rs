@@ -4,9 +4,11 @@
 //! This is the path a codegen tool takes when it holds weights read out of some other format
 //! and wants a `.bpk` out of them. Being an integration test, it also pins the surface such a
 //! crate actually sees: the `burn_pack` re-export, the `TensorEntry` impl on `TensorSnapshot`,
-//! and the `From<Tensor>` conversion back.
+//! and the `From<burn_pack::Tensor>` conversion back.
 
-#![cfg(feature = "burnpack")]
+// Needs `std` as well as `burnpack`: the file round trip below goes through burn-pack's
+// `write_to_file` / `from_file`, which that crate gates on its own `std` feature.
+#![cfg(all(feature = "burnpack", feature = "std"))]
 
 use burn_core::module::ParamId;
 use burn_core::tensor::Tensor;

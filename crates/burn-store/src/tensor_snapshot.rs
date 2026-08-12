@@ -3,7 +3,7 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_core::tensor::quantization::{QPARAM_ALIGN, QuantParam, params_shape};
+use burn_core::tensor::quantization::{QuantParam, params_shape};
 use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
 use half::f16;
 
@@ -253,18 +253,20 @@ impl TensorSnapshot {
 
         match self.dtype {
             DType::QFloat(scheme) => {
-                // Calculate value bytes using scheme's packing information
+                // Each storage element packs `num_quants` values into `size_bits_stored` bits.
+                // Round that width up to whole bytes: a `QuantStore::Native` Q4 or Q2 value is
+                // narrower than a byte but still occupies one, and dividing down reports zero.
                 let num_storage_elements = num_elements.div_ceil(scheme.num_quants());
                 let value_bytes =
-                    num_storage_elements * (scheme.size_bits_stored() / BITS_PER_BYTE);
+                    num_storage_elements * scheme.size_bits_stored().div_ceil(BITS_PER_BYTE);
 
-                // Calculate number of quantization parameters (scales)
+                // Scales follow the values with nothing in between: `QuantizedBytes::new` appends
+                // them with `extend_from_byte_slice_aligned`, where the alignment constrains the
+                // allocation rather than the length, so it inserts no padding.
                 let num_params = params_shape(&self.shape, scheme.level).num_elements();
-
-                let aligned_value_bytes = value_bytes.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
                 let scale_bytes = num_params * quant_param_size(scheme.param);
 
-                aligned_value_bytes + scale_bytes
+                value_bytes + scale_bytes
             }
             _ => num_elements * self.dtype.size(),
         }
@@ -306,7 +308,7 @@ impl core::fmt::Debug for TensorSnapshot {
 mod tests {
     use super::*;
     use alloc::string::ToString;
-    use burn_core::tensor::quantization::QuantScheme;
+    use burn_core::tensor::quantization::{QuantScheme, QuantValue};
     use burn_core::tensor::{BoolStore, Device, Distribution, shape};
 
     #[test]
@@ -415,6 +417,17 @@ mod tests {
         assert_eq!(view_bool.data_len(), 4 * dtype.size()); // 4 elements * 1 byte
     }
 
+    fn assert_data_len_matches(snapshot: TensorSnapshot) {
+        let declared = snapshot.data_len();
+        let actual = snapshot.to_data().unwrap().bytes.len();
+        assert_eq!(
+            declared,
+            actual,
+            "data_len() disagrees with to_data() for {}",
+            snapshot.full_path()
+        );
+    }
+
     /// `data_len()` is computed from the cached shape and dtype rather than observed, and
     /// callers such as the burnpack writer reserve exactly that many bytes before ever
     /// calling `to_data()`. A disagreement would silently misplace everything written after
@@ -426,29 +439,59 @@ mod tests {
         let floats = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
         let ints = Tensor::<2, Int>::from_data([[1, 2], [3, 4]], &device);
         let bools = Tensor::<2, Bool>::from_data([[true, false], [false, true]], &device);
-        // Quantized is the one case where `data_len()` reconstructs the layout (packed
-        // values, alignment padding, then scales) instead of deriving it from an element
-        // count, so it is the most likely place for the two to drift apart.
-        let quantized = Tensor::<2>::random(shape![32, 32], Distribution::Default, &device)
-            .quantize_dynamic(&QuantScheme::default());
 
         let path = |name: &str| vec![name.to_string()];
-        let snapshots = [
-            TensorSnapshot::from_float(&floats, path("float"), vec![], ParamId::new()),
-            TensorSnapshot::from_int(&ints, path("int"), vec![], ParamId::new()),
-            TensorSnapshot::from_bool(&bools, path("bool"), vec![], ParamId::new()),
-            TensorSnapshot::from_float(&quantized, path("quantized"), vec![], ParamId::new()),
-        ];
+        assert_data_len_matches(TensorSnapshot::from_float(
+            &floats,
+            path("float"),
+            vec![],
+            ParamId::new(),
+        ));
+        assert_data_len_matches(TensorSnapshot::from_int(
+            &ints,
+            path("int"),
+            vec![],
+            ParamId::new(),
+        ));
+        assert_data_len_matches(TensorSnapshot::from_bool(
+            &bools,
+            path("bool"),
+            vec![],
+            ParamId::new(),
+        ));
+    }
 
-        for snapshot in snapshots {
-            let declared = snapshot.data_len();
-            let actual = snapshot.to_data().unwrap().bytes.len();
-            assert_eq!(
-                declared,
-                actual,
-                "data_len() disagrees with to_data() for {}",
-                snapshot.full_path()
-            );
+    /// Quantized is the one family where `data_len()` reconstructs the layout instead of
+    /// deriving it from an element count, so it is where the two drift apart.
+    ///
+    /// The shapes and schemes here are chosen to hit the two ways that reconstruction has
+    /// been wrong: a value-byte count that is not a multiple of 4 (which a spurious
+    /// alignment round-up inflates), and a sub-byte `QuantValue` under `QuantStore::Native`
+    /// (whose stored width rounds down to zero bytes if divided rather than div_ceil'd). A
+    /// 32x32 Q8 tensor passes either way, so it cannot stand in for these.
+    #[test]
+    fn data_len_matches_materialized_bytes_when_quantized() {
+        let device = Device::default();
+
+        let schemes = [
+            ("q8", QuantScheme::default()),
+            ("q4", QuantScheme::default().with_value(QuantValue::Q4S)),
+            ("q2", QuantScheme::default().with_value(QuantValue::Q2S)),
+        ];
+        // Element counts that are and are not multiples of the 4-byte scale alignment.
+        let shapes = [shape![32, 32], shape![3, 3], shape![5, 5], shape![2, 3]];
+
+        for (name, scheme) in schemes {
+            for shape in &shapes {
+                let tensor = Tensor::<2>::random(shape.clone(), Distribution::Default, &device)
+                    .quantize_dynamic(&scheme);
+                assert_data_len_matches(TensorSnapshot::from_float(
+                    &tensor,
+                    vec![format!("{name}-{shape:?}")],
+                    vec![],
+                    ParamId::new(),
+                ));
+            }
         }
     }
 
