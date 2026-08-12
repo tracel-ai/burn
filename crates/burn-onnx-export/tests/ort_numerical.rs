@@ -9,7 +9,7 @@ use burn_onnx_export::{AxisSpec, InputSpec, OnnxExporter};
 use burn_tensor::{Device, Tensor, TensorData, Tolerance};
 use burn_tensor::{
     module::interpolate,
-    ops::{InterpolateMode, InterpolateOptions},
+    ops::{InterpolateMode, InterpolateOptions, PadMode},
 };
 use onnx_ir::ModelProto;
 use ort::{session::Session, value::Tensor as OrtTensor};
@@ -89,6 +89,24 @@ impl AddFull {
     fn forward(&self, input: Tensor<2>) -> Tensor<2> {
         let full = Tensor::full([2, 3], 2.5, &input.device());
         input + full
+    }
+}
+
+#[derive(Module, Debug)]
+struct ConstantPad;
+
+impl ConstantPad {
+    fn forward(&self, input: Tensor<4>) -> Tensor<4> {
+        input.pad([(0, 0), (0, 0), (1, 2), (3, 1)], PadMode::Constant(2.5))
+    }
+}
+
+#[derive(Module, Debug)]
+struct CatChannels;
+
+impl CatChannels {
+    fn forward(&self, inputs: (Tensor<4>, Tensor<4>, Tensor<4>)) -> Tensor<4> {
+        Tensor::cat(vec![inputs.0, inputs.1, inputs.2], 1)
     }
 }
 
@@ -239,6 +257,62 @@ fn full_matches_burn() {
         .unwrap();
 
     let actual = run_ort(&model, [2, 3], input_values);
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
+}
+
+#[test]
+fn constant_pad_matches_burn() {
+    let device = Device::default();
+    let input_values = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+    let input =
+        Tensor::<4>::from_data(TensorData::new(input_values.clone(), [1, 1, 2, 3]), &device);
+    let expected = ConstantPad.forward(input.clone()).into_data();
+    let model = OnnxExporter::new()
+        .export(&ConstantPad, input, ConstantPad::forward)
+        .unwrap();
+
+    let actual = run_ort(&model, [1, 1, 2, 3], input_values);
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
+}
+
+#[test]
+fn cat_matches_burn() {
+    let device = Device::default();
+    let first_values = vec![1.0f32, 2.0, 3.0, 4.0];
+    let second_values = vec![5.0f32, 6.0, 7.0, 8.0];
+    let third_values = vec![9.0f32, 10.0, 11.0, 12.0];
+    let inputs = (
+        Tensor::<4>::from_data(TensorData::new(first_values.clone(), [1, 1, 2, 2]), &device),
+        Tensor::<4>::from_data(
+            TensorData::new(second_values.clone(), [1, 1, 2, 2]),
+            &device,
+        ),
+        Tensor::<4>::from_data(TensorData::new(third_values.clone(), [1, 1, 2, 2]), &device),
+    );
+    let expected = CatChannels.forward(inputs.clone()).into_data();
+    let model = OnnxExporter::new()
+        .export(&CatChannels, inputs, CatChannels::forward)
+        .unwrap();
+
+    let mut session = Session::builder()
+        .unwrap()
+        .commit_from_memory(&model)
+        .unwrap();
+    let outputs = session
+        .run(ort::inputs![
+            OrtTensor::from_array(([1, 1, 2, 2], first_values)).unwrap(),
+            OrtTensor::from_array(([1, 1, 2, 2], second_values)).unwrap(),
+            OrtTensor::from_array(([1, 1, 2, 2], third_values)).unwrap(),
+        ])
+        .unwrap();
+    let (shape, values) = outputs[0].try_extract_tensor::<f32>().unwrap();
+    let actual = TensorData::new(
+        values.to_vec(),
+        shape
+            .iter()
+            .map(|dimension| *dimension as usize)
+            .collect::<Vec<_>>(),
+    );
     actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 }
 

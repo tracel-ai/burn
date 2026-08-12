@@ -157,6 +157,71 @@ pub fn export_graph_with_bindings(
                 MessageField::some(scalar_tensor(full.out.dtype, full.value, full.out.id)?);
             continue;
         }
+        // TODO: remove once we have a PadOpIr.
+        let slice_assign = match operation {
+            OperationIr::BaseFloat(BaseOperationIr::SliceAssign(slice_assign))
+            | OperationIr::BaseInt(BaseOperationIr::SliceAssign(slice_assign)) => {
+                Some(slice_assign)
+            }
+            _ => None,
+        };
+        if let Some(slice_assign) = slice_assign
+            && let Some(full) = graph.graph.operations[..index]
+                .iter()
+                .rev()
+                .find_map(full_operation)
+                .filter(|full| full.out.id == slice_assign.tensor.id)
+        {
+            let rank = slice_assign.tensor.shape.num_dims();
+            let mut starts = Vec::with_capacity(rank);
+            let mut ends = Vec::with_capacity(rank);
+            let valid = slice_assign.ranges.len() == rank
+                && slice_assign.ranges.iter().enumerate().all(|(axis, range)| {
+                    let Some(end) = range.end else { return false };
+                    if range.step != 1 || range.start < 0 || end < range.start {
+                        return false;
+                    }
+                    let start = range.start as usize;
+                    let end = end as usize;
+                    if end > slice_assign.tensor.shape[axis]
+                        || end - start != slice_assign.value.shape[axis]
+                    {
+                        return false;
+                    }
+                    starts.push(start);
+                    ends.push(slice_assign.tensor.shape[axis] - end);
+                    true
+                });
+            if valid {
+                let pads_name = format!("node_{index}_pads");
+                let pads = starts
+                    .into_iter()
+                    .chain(ends)
+                    .map(|padding| padding as i64)
+                    .collect::<Vec<_>>();
+                push_i64_initializer(&mut proto, pads_name.clone(), &pads);
+                let value_name = format!("node_{index}_value");
+                push_scalar_initializer(
+                    &mut proto,
+                    value_name.clone(),
+                    full.out.dtype,
+                    full.value,
+                    full.out.id,
+                )?;
+                proto.node.push(Default::default());
+                let node = proto.node.last_mut().unwrap();
+                node.name = format!("node_{index}");
+                node.op_type = "Pad".into();
+                node.input = vec![
+                    tensor_name(slice_assign.value.id, initializer_names),
+                    pads_name,
+                    value_name,
+                ];
+                node.output = vec![tensor_name(slice_assign.out.id, initializer_names)];
+                push_string_attribute!(node, "mode", "constant");
+                continue;
+            }
+        }
         let reshape = match operation {
             OperationIr::BaseFloat(BaseOperationIr::Reshape(op))
             | OperationIr::BaseInt(BaseOperationIr::Reshape(op))
@@ -248,6 +313,26 @@ pub fn export_graph_with_bindings(
             node.op_type = "Reshape".into();
             node.input = vec![tensor_name(reshape.input.id, initializer_names), shape_name];
             node.output = vec![tensor_name(reshape.out.id, initializer_names)];
+            continue;
+        }
+        let cat = match operation {
+            OperationIr::BaseFloat(BaseOperationIr::Cat(cat))
+            | OperationIr::BaseInt(BaseOperationIr::Cat(cat))
+            | OperationIr::BaseBool(BaseOperationIr::Cat(cat)) => Some(cat),
+            _ => None,
+        };
+        if let Some(cat) = cat {
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "Concat".into();
+            node.input = cat
+                .tensors
+                .iter()
+                .map(|tensor| tensor_name(tensor.id, initializer_names))
+                .collect();
+            node.output = vec![tensor_name(cat.out.id, initializer_names)];
+            push_int_attribute!(node, "axis", cat.dim);
             continue;
         }
         if let OperationIr::Module(ModuleOperationIr::Conv2d(conv)) = operation {
@@ -654,6 +739,14 @@ fn scalar_numeric_op(operation: &OperationIr) -> Option<(&'static str, &ScalarOp
         NumericOperationIr::SubScalar(operation) => Some(("Sub", operation)),
         NumericOperationIr::MulScalar(operation) => Some(("Mul", operation)),
         NumericOperationIr::DivScalar(operation) => Some(("Div", operation)),
+        _ => None,
+    }
+}
+
+fn full_operation(operation: &OperationIr) -> Option<&burn_ir::FullOpIr> {
+    match operation {
+        OperationIr::NumericFloat(_, NumericOperationIr::Full(full))
+        | OperationIr::NumericInt(_, NumericOperationIr::Full(full)) => Some(full),
         _ => None,
     }
 }

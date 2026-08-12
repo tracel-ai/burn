@@ -32,6 +32,15 @@ struct Flatten;
 #[derive(Module, Debug)]
 struct Resize;
 
+#[derive(Module, Debug)]
+struct Cat;
+
+impl Cat {
+    fn forward(&self, input: Tensor<2>) -> Tensor<2> {
+        Tensor::cat(vec![input.clone(), input], 1)
+    }
+}
+
 impl Resize {
     fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         interpolate(
@@ -119,6 +128,17 @@ fn checker_accepts_interpolate() {
     let input = Tensor::<4>::from_data(TensorData::zeros::<f32, _>([1, 1, 3, 4]), &device);
     let model = OnnxExporter::new()
         .export(&Resize, input, Resize::forward)
+        .unwrap();
+    check_model(python, &model);
+}
+
+#[test]
+fn checker_accepts_cat() {
+    let Some(python) = checker() else { return };
+    let device = Device::default();
+    let input = Tensor::<2>::from_data(TensorData::zeros::<f32, _>([2, 3]), &device);
+    let model = OnnxExporter::new()
+        .export(&Cat, input, Cat::forward)
         .unwrap();
     check_model(python, &model);
 }
