@@ -255,7 +255,20 @@ impl TensorSnapshot {
                 // Each storage element packs `num_quants` values into `size_bits_stored` bits.
                 // Round that width up to whole bytes: a `QuantStore::Native` Q4 or Q2 value is
                 // narrower than a byte but still occupies one, and dividing down reports zero.
-                let num_storage_elements = num_elements.div_ceil(scheme.num_quants());
+                //
+                // Packing is dimension-local, not flat: each line along the packed (last)
+                // dimension packs separately, mirroring the storage-shape computation at
+                // allocation, so a non-divisible extent pads once per line rather than once
+                // overall. A flat `num_elements.div_ceil(num_quants)` would under-count, e.g.
+                // a [3, 3] Q4 `PackedU32` tensor occupies 3 lines x 1 u32 = 12 value bytes,
+                // not ceil(9 / 8) * 4 = 8.
+                let num_quants = scheme.num_quants();
+                let num_storage_elements = match self.shape.last() {
+                    Some(&last) if num_quants > 1 && last > 0 => {
+                        (num_elements / last) * last.div_ceil(num_quants)
+                    }
+                    _ => num_elements.div_ceil(num_quants),
+                };
                 let value_bytes =
                     num_storage_elements * scheme.size_bits_stored().div_ceil(BITS_PER_BYTE);
 
@@ -458,6 +471,30 @@ mod tests {
             vec![],
             ParamId::new(),
         ));
+    }
+
+    /// Packed quantized storage is dimension-local: each line along the packed (last)
+    /// dimension packs into whole storage elements on its own, so a non-divisible extent
+    /// pads per line. No current backend can materialize such a tensor (cubecl rejects
+    /// non-divisible extents at allocation, and the test backend rewrites packed schemes
+    /// to `Native`), so this pins the formula against a hand-computed layout instead of
+    /// against `to_data()`.
+    #[test]
+    fn data_len_packs_per_line_for_packed_stores() {
+        // Q4 in u32 words: 8 values per storage element, packed along the last dimension.
+        let scheme = QuantScheme::default().with_value(QuantValue::Q4S);
+        let snapshot = TensorSnapshot::from_closure(
+            Rc::new(|| Err(TensorSnapshotError::DataError("formula-only".to_string()))),
+            DType::QFloat(scheme),
+            shape![3, 3],
+            vec!["packed".to_string()],
+            vec![],
+            ParamId::new(),
+        );
+
+        // 3 lines x ceil(3 / 8) = 3 u32 words = 12 value bytes (a flat ceil(9 / 8) * 4
+        // would say 8), plus one tensor-level f32 scale.
+        assert_eq!(snapshot.data_len(), 12 + 4);
     }
 
     /// Quantized is the one family where `data_len()` reconstructs the layout instead of

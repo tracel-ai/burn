@@ -513,28 +513,45 @@ impl ScratchFile {
     /// The guard and its file are handed back together so neither can exist without the
     /// other: no path is reserved that nothing will clean up, and no file is created that no
     /// guard is watching.
+    ///
+    /// The file is opened with `create_new`, which refuses a path that already exists and
+    /// does not follow a symlink planted there - a plain `File::create` would truncate
+    /// whatever such a link points at. The scratch name is predictable (pid + counter), so a
+    /// stale leftover from a killed run, pid reuse, or a deliberately pre-created link all
+    /// surface as `AlreadyExists`, answered by moving on to the next counter value.
     fn create(destination: &Path) -> Result<(Self, FileSink), Error> {
-        let path = Self::path_beside(destination)?;
-        let file = File::create(&path)
-            .map_err(|e| Error::IoError(format!("cannot create '{}': {e}", path.display())))?;
-
-        let sink = FileSink {
-            file,
-            path: path.clone(),
-        };
-        Ok((
-            Self {
-                path,
-                persisted: false,
-            },
-            sink,
-        ))
+        loop {
+            let path = Self::path_beside(destination)?;
+            match File::create_new(&path) {
+                Ok(file) => {
+                    let sink = FileSink {
+                        file,
+                        path: path.clone(),
+                    };
+                    return Ok((
+                        Self {
+                            path,
+                            persisted: false,
+                        },
+                        sink,
+                    ));
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => {
+                    return Err(Error::IoError(format!(
+                        "cannot create '{}': {e}",
+                        path.display()
+                    )));
+                }
+            }
+        }
     }
 
-    /// Pick an unused scratch path alongside `destination`.
+    /// Pick a scratch path alongside `destination`.
     ///
-    /// The name carries the process id and a counter so concurrent writers, in this process
-    /// or another, never pick the same scratch file for the same destination.
+    /// The name carries the process id and a counter so concurrent writers for the same
+    /// destination pick distinct names; [`create`](Self::create)'s exclusive open is what
+    /// makes the rare collision harmless rather than this scheme's uniqueness.
     fn path_beside(destination: &Path) -> Result<std::path::PathBuf, Error> {
         use core::sync::atomic::{AtomicU64, Ordering};
         static NEXT: AtomicU64 = AtomicU64::new(0);
