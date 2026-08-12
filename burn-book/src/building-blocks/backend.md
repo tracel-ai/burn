@@ -34,7 +34,7 @@ and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 | `Device::rocm(0)`                          | ROCm/HIP GPU at index 0            |
 | `Device::cpu()`                            | CubeCL CPU backend                 |
 | `Device::flex()`                           | Flex CPU backend                   |
-| `Device::ndarray()`                        | NdArray CPU backend                |
+| `Device::ndarray()`                        | NdArray CPU backend (deprecated)   |
 | `Device::libtorch()`                       | LibTorch CPU backend               |
 | `Device::libtorch_cuda(0)`                 | LibTorch CUDA GPU at index 0       |
 | `Device::libtorch_mps()`                   | LibTorch Metal Performance Shaders |

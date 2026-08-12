@@ -5,10 +5,15 @@
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-ndarray.svg)](https://crates.io/crates/burn-ndarray)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn-ndarray/blob/master/README.md)
 
-> **New projects should use [`burn-flex`](https://crates.io/crates/burn-flex).** It is a
-> from-scratch pure-Rust CPU backend that replaces `burn-ndarray` with faster gemm, zero-copy view
-> operations, native quantization, and full support for `std`, `no_std`, and WebAssembly. See
-> [`burn-flex/COMPARISON.md`](../burn-flex/COMPARISON.md) for a migration path and
+> **Deprecated:** This crate is deprecated as of `0.22.0` and will be removed in a future release.
+> Please migrate to one of the actively maintained backends:
+>
+> - **[`burn-flex`](https://crates.io/crates/burn-flex)** for portable pure-Rust CPU execution. It is
+>   a from-scratch backend that replaces `burn-ndarray` with faster gemm, zero-copy view operations,
+>   native quantization, and full support for `std`, `no_std`, and WebAssembly.
+> - **CubeCL backends** (CUDA, ROCm, Vulkan, Metal, WebGPU) for GPU acceleration.
+>
+> See [`burn-flex/COMPARISON.md`](../burn-flex/COMPARISON.md) for a migration path and
 > operation-by-operation benchmarks.
 
 ## Feature Flags

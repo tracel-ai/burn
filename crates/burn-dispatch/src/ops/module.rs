@@ -10,6 +10,21 @@ use burn_backend::{
 use crate::Dispatch;
 
 impl ModuleOps<Self> for Dispatch {
+    fn batch_norm(
+        x: FloatTensor<Self>,
+        gamma: FloatTensor<Self>,
+        beta: FloatTensor<Self>,
+        mean: FloatTensor<Self>,
+        variance: FloatTensor<Self>,
+        epsilon: f64,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(x, float), (gamma, float), (beta, float), (mean, float), (variance, float)],
+            => Float,
+            B::batch_norm(x, gamma, beta, mean, variance, epsilon)
+        )
+    }
+
     fn conv2d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,

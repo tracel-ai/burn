@@ -294,11 +294,14 @@ pub fn sum_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
 /// Mean along a dimension, keeping the dimension with size 1.
 pub fn mean_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
     let dim_size = tensor.layout().shape()[dim];
-    assert!(
-        dim_size > 0,
-        "mean_dim: cannot take mean of empty dimension"
-    );
     let dtype = tensor.dtype();
+    // Floats divide by a zero `dim_size` to `NaN`, which is what `mean()` already returns for an
+    // empty input and what the other backends return here. Only the integer arms below have no
+    // such value, so only they are rejected.
+    assert!(
+        dim_size > 0 || dtype.is_float(),
+        "mean_dim: cannot take mean of an empty dimension for the integer type {dtype:?}"
+    );
 
     // Half-precision types fuse sum+divide in f32 to avoid overflow when the
     // intermediate sum exceeds f16::MAX, so they don't go through sum_dim.
@@ -462,6 +465,12 @@ pub fn prod_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
 
 /// Max of all elements, returning a scalar tensor of shape \[1\].
 pub fn max(tensor: FlexTensor) -> FlexTensor {
+    // Asserted here rather than per dtype: every path seeds the fold with an infinity, so without
+    // this they report that seed as the max of nothing instead of failing.
+    assert!(
+        tensor.layout().shape().num_elements() > 0,
+        "max: cannot reduce an empty tensor"
+    );
     match tensor.dtype() {
         DType::F32 => max_f32_reduce(&tensor),
         DType::F64 => float_extremum_f64_reduce::<true>(&tensor),
@@ -493,6 +502,10 @@ pub fn max(tensor: FlexTensor) -> FlexTensor {
 
 /// Min of all elements, returning a scalar tensor of shape \[1\].
 pub fn min(tensor: FlexTensor) -> FlexTensor {
+    assert!(
+        tensor.layout().shape().num_elements() > 0,
+        "min: cannot reduce an empty tensor"
+    );
     match tensor.dtype() {
         DType::F32 => min_f32_reduce(&tensor),
         DType::F64 => float_extremum_f64_reduce::<false>(&tensor),
@@ -751,6 +764,10 @@ fn min_impl<E: Element + bytemuck::Pod + PartialOrd>(tensor: &FlexTensor) -> Fle
 
 /// Argmax along a dimension, returning indices as isize (INDEX_DTYPE).
 pub fn argmax(tensor: FlexTensor, dim: usize) -> FlexTensor {
+    assert!(
+        tensor.layout().shape()[dim] > 0,
+        "argmax: dimension {dim} has size 0"
+    );
     assert_dim_fits_isize(tensor.layout().shape()[dim], dim);
     // f32 last-dim fast path: 2-pass SIMD for large rows, 1-pass scalar for small rows
     if tensor.dtype() == DType::F32 && dim == tensor.layout().shape().num_dims() - 1 {
@@ -803,6 +820,10 @@ pub fn argmax(tensor: FlexTensor, dim: usize) -> FlexTensor {
 
 /// Argmin along a dimension, returning indices as isize (INDEX_DTYPE).
 pub fn argmin(tensor: FlexTensor, dim: usize) -> FlexTensor {
+    assert!(
+        tensor.layout().shape()[dim] > 0,
+        "argmin: dimension {dim} has size 0"
+    );
     assert_dim_fits_isize(tensor.layout().shape()[dim], dim);
     // f32 last-dim fast path: 2-pass SIMD for large rows, 1-pass scalar for small rows
     if tensor.dtype() == DType::F32 && dim == tensor.layout().shape().num_dims() - 1 {
@@ -1513,10 +1534,6 @@ where
     );
 
     let dim_size = shape[dim];
-    assert!(
-        dim_size > 0,
-        "mean_dim: cannot take mean of empty dimension"
-    );
     let mut out_shape: Vec<usize> = shape.to_vec();
     out_shape[dim] = 1;
 

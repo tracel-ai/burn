@@ -25,7 +25,7 @@ pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output = unsafe_shared_out.get();
+            let mut output = unsafe_shared_out.get();
             for h in 0..output_size[0] {
                 for w in 0..output_size[1] {
                     let ih_start = start_index(h, output_size[0], input_height);
@@ -67,7 +67,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output_grad = unsafe_shared_out.get();
+            let mut output_grad = unsafe_shared_out.get();
             for oh in 0..output_height {
                 for ow in 0..output_width {
                     let ih_start = start_index(oh, output_height, input_height);
@@ -115,7 +115,7 @@ pub(crate) fn adaptive_avg_pool3d<E: FloatNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output = unsafe_shared_out.get();
+            let mut output = unsafe_shared_out.get();
             for d in 0..output_size[0] {
                 for h in 0..output_size[1] {
                     for w in 0..output_size[2] {
@@ -174,7 +174,7 @@ pub(crate) fn adaptive_avg_pool3d_backward<E: FloatNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output_grad = unsafe_shared_out.get();
+            let mut output_grad = unsafe_shared_out.get();
             for od in 0..output_depth {
                 for oh in 0..output_height {
                     for ow in 0..output_width {

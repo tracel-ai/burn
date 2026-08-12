@@ -9,7 +9,7 @@
 //! explicitly.
 
 use burn_std::{BoolStore, DType, QuantScheme, QuantStore, QuantValue};
-use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
+use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
 pub use cubecl::throughput::{ThroughputKey, ThroughputMode, ThroughputValue};
 
@@ -26,6 +26,7 @@ pub fn elem_type_to_dtype(value: ElemType) -> DType {
             FloatKind::F64 => DType::F64,
             FloatKind::TF32 => panic!("Not a valid DType for tensors."),
             FloatKind::E2M1
+            | FloatKind::E2M1x2
             | FloatKind::E2M3
             | FloatKind::E3M2
             | FloatKind::E4M3
@@ -100,17 +101,17 @@ pub fn dtype_to_elem_type(dtype: DType) -> ElemType {
     }
 }
 
-/// Convert a burn [`DType`] into the corresponding cubecl [`StorageType`].
+/// Convert a burn [`DType`] into the corresponding cubecl [`ElemType`].
 ///
 /// Handles sub-byte packed quantization configurations that cannot be expressed
-/// as a plain [`ElemType`] by emitting a `StorageType::Packed(...)`.
-pub fn dtype_to_storage_type(dtype: DType) -> StorageType {
+/// as a plain [`ElemType`] by emitting a direct `ElemType`.
+pub fn dtype_to_storage_type(dtype: DType) -> ElemType {
     match dtype {
         DType::QFloat(QuantScheme {
             store: QuantStore::PackedNative(_),
             value: QuantValue::E2M1,
             ..
-        }) => StorageType::Packed(ElemType::Float(FloatKind::E2M1), 2),
-        _ => dtype_to_elem_type(dtype).into(),
+        }) => ElemType::Float(FloatKind::E2M1x2),
+        _ => dtype_to_elem_type(dtype),
     }
 }

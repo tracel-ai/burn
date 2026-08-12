@@ -248,7 +248,7 @@ fn col2im_kernel<E: Numeric>(
     mut image: LinearViewMut<'_, E>,
     image_shape: Sequence<FastDivmod<usize>>,
     args: &Col2ImArgs,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if ABSOLUTE_POS >= image.shape() {
         terminate!();

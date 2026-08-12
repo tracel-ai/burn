@@ -949,6 +949,26 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    BatchNormOpIr {
+        x: TensorIr,
+        gamma: TensorIr,
+        beta: TensorIr,
+        mean: TensorIr,
+        variance: TensorIr,
+        epsilon: ScalarIr,
+    },
+    shape = x.shape.clone(),
+    dtype = output_dtype([
+        &x.dtype,
+        &gamma.dtype,
+        &beta.dtype,
+        &mean.dtype,
+        &variance.dtype
+    ])
+    .unwrap()
+);
+
+impl_ir_create!(
     LinearOpIr {
         x: TensorIr,
         weight: TensorIr,
