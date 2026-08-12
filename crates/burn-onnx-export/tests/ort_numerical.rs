@@ -9,6 +9,9 @@ use burn_onnx_export::{AxisSpec, InputSpec, OnnxExporter};
 use burn_tensor::{Device, Tensor, TensorData, Tolerance};
 use ort::{session::Session, value::Tensor as OrtTensor};
 
+mod models;
+use models::resnet::ResNet18;
+
 const RTOL: f32 = 1.0e-4;
 const ATOL: f32 = 1.0e-5;
 
@@ -187,4 +190,24 @@ fn dynamic_small_cnn_matches_burn_at_third_shape() {
     let expected = module.forward(third).into_data();
     let actual = run_ort(&model, [3, 1, 9, 9], third_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
+}
+
+#[test]
+fn resnet18_matches_burn() {
+    let device = Device::default();
+    let module = ResNet18::new(10, &device);
+    let input_values = (0..3 * 64 * 64)
+        .map(|value| (value % 251) as f32 / 251.0)
+        .collect::<Vec<_>>();
+    let input = Tensor::<4>::from_data(
+        TensorData::new(input_values.clone(), [1, 3, 64, 64]),
+        &device,
+    );
+    let expected = module.forward(input.clone()).into_data();
+    let model = OnnxExporter::new()
+        .export(&module, input, ResNet18::forward)
+        .unwrap();
+
+    let actual = run_ort(&model, [1, 3, 64, 64], input_values);
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(1.0e-3, 1.0e-5));
 }

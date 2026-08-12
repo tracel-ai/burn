@@ -1,7 +1,7 @@
 use burn_backend::{DType, TensorData};
 use burn_ir::{
     ActivationOperationIr, BaseOperationIr, FloatOperationIr, IntOperationIr, ModuleOperationIr,
-    NumericOperationIr, OperationIr, TensorId, TensorIr,
+    NumericOperationIr, OperationIr, ScalarIr, ScalarOpIr, TensorId, TensorIr,
 };
 use hashbrown::{HashMap, HashSet};
 use onnx_ir::{GraphProto, ModelProto, TensorProto, TypeProto, ValueInfoProto};
@@ -273,6 +273,17 @@ pub fn export_graph_with_bindings(
             push_int_attribute!(node, "count_include_pad", pool.count_include_pad);
             continue;
         }
+        if let OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool2d(pool)) = operation
+            && pool.output_size == [1, 1]
+        {
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "GlobalAveragePool".into();
+            node.input = vec![tensor_name(pool.x.id, initializer_names)];
+            node.output = vec![tensor_name(pool.out.id, initializer_names)];
+            continue;
+        }
         if let OperationIr::Module(ModuleOperationIr::Linear(linear)) = operation {
             let matmul_output = if linear.bias.is_some() {
                 format!("node_{index}_matmul")
@@ -296,6 +307,23 @@ pub fn export_graph_with_bindings(
                 add.input = vec![matmul_output, tensor_name(bias.id, initializer_names)];
                 add.output = vec![tensor_name(linear.out.id, initializer_names)];
             }
+            continue;
+        }
+        if let Some((op_type, scalar)) = scalar_numeric_op(operation) {
+            let scalar_name = format!("node_{index}_scalar");
+            push_scalar_initializer(
+                &mut proto,
+                scalar_name.clone(),
+                scalar.lhs.dtype,
+                scalar.rhs,
+                scalar.lhs.id,
+            )?;
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = op_type.into();
+            node.input = vec![tensor_name(scalar.lhs.id, initializer_names), scalar_name];
+            node.output = vec![tensor_name(scalar.out.id, initializer_names)];
             continue;
         }
         let Some(op_type) = onnx_op_type(operation) else {
@@ -489,6 +517,21 @@ fn onnx_op_type(operation: &OperationIr) -> Option<&'static str> {
     }
 }
 
+fn scalar_numeric_op(operation: &OperationIr) -> Option<(&'static str, &ScalarOpIr)> {
+    let (OperationIr::NumericFloat(_, operation) | OperationIr::NumericInt(_, operation)) =
+        operation
+    else {
+        return None;
+    };
+    match operation {
+        NumericOperationIr::AddScalar(operation) => Some(("Add", operation)),
+        NumericOperationIr::SubScalar(operation) => Some(("Sub", operation)),
+        NumericOperationIr::MulScalar(operation) => Some(("Mul", operation)),
+        NumericOperationIr::DivScalar(operation) => Some(("Div", operation)),
+        _ => None,
+    }
+}
+
 fn operation_kind(operation: &OperationIr) -> String {
     format!("{operation:?}")
 }
@@ -525,6 +568,33 @@ fn push_i64_initializer(proto: &mut GraphProto, name: String, values: &[i64]) {
     }
     tensor.raw_data = bytes::Bytes::from(raw);
     proto.initializer.push(tensor);
+}
+
+fn push_scalar_initializer(
+    proto: &mut GraphProto,
+    name: String,
+    dtype: DType,
+    value: ScalarIr,
+    tensor: TensorId,
+) -> Result<(), ExportError> {
+    let mut initializer = TensorProto::new();
+    initializer.name = name;
+    initializer.data_type = onnx_dtype_parts(tensor, dtype)?;
+    let bytes = match dtype {
+        DType::F32 => value.elem::<f32>().to_le_bytes().to_vec(),
+        DType::F64 => value.elem::<f64>().to_le_bytes().to_vec(),
+        DType::I32 => value.elem::<i32>().to_le_bytes().to_vec(),
+        DType::I64 => value.elem::<i64>().to_le_bytes().to_vec(),
+        dtype => {
+            return Err(ExportError::UnsupportedDType {
+                tensor,
+                dtype: format!("{dtype:?} scalar initializer"),
+            });
+        }
+    };
+    initializer.raw_data = bytes::Bytes::from(bytes);
+    proto.initializer.push(initializer);
+    Ok(())
 }
 
 #[cfg(test)]

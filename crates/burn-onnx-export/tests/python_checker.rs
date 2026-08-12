@@ -8,6 +8,9 @@ use burn_core::module::{Module, Param};
 use burn_onnx_export::{AxisSpec, InputSpec, OnnxExporter};
 use burn_tensor::{Device, Tensor, TensorData};
 
+mod models;
+use models::resnet::ResNet18;
+
 #[derive(Module, Debug)]
 struct AddModule {
     weight: Param<Tensor<1>>,
@@ -88,6 +91,18 @@ fn checker_accepts_dynamic_reshape() {
     ])];
     let model = OnnxExporter::new()
         .export_dynamic(&Flatten, sample, validation, &specs, Flatten::forward)
+        .unwrap();
+    check_model(python, &model);
+}
+
+#[test]
+fn checker_accepts_resnet18() {
+    let Some(python) = checker() else { return };
+    let device = Device::default();
+    let module = ResNet18::new(10, &device);
+    let input = Tensor::<4>::from_data(TensorData::zeros::<f32, _>([1, 3, 64, 64]), &device);
+    let model = OnnxExporter::new()
+        .export(&module, input, ResNet18::forward)
         .unwrap();
     check_model(python, &model);
 }
