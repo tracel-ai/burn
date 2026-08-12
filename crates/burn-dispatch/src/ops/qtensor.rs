@@ -5,14 +5,18 @@ use burn_backend::{
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
+use burn_backend_extension::backend_dispatch;
 
 use crate::{Dispatch, DispatchDevice};
 
+#[backend_dispatch]
 impl QTensorOps<Self> for Dispatch {
+    #[backend_dispatch(skip)]
     fn q_from_data(data: TensorData, device: &DispatchDevice) -> QuantizedTensor<Self> {
         creation_op!(Quantized, device, |device| B::q_from_data(data, device))
     }
 
+    #[backend_dispatch(skip)]
     fn quantize(
         tensor: FloatTensor<Self>,
         scheme: &QuantScheme,
@@ -31,9 +35,10 @@ impl QTensorOps<Self> for Dispatch {
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        unary_op!(tensor, quantized, |tensor| B::dequantize(tensor, dtype) => Float)
+        B::dequantize(tensor, dtype)
     }
 
+    #[backend_dispatch(skip)]
     fn q_to_device(
         tensor: QuantizedTensor<Self>,
         device: &DispatchDevice,
@@ -53,15 +58,16 @@ impl QTensorOps<Self> for Dispatch {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        unary_op!(tensor, quantized, |tensor| B::q_reshape(tensor, shape) => Quantized)
+        B::q_reshape(tensor, shape)
     }
 
+    #[backend_dispatch(skip)]
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         unary_op!(tensor, quantized, |tensor| B::q_into_data(tensor).await)
     }
 
     fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        unary_op!(tensor, quantized, |tensor| B::q_expand(tensor, shape) => Quantized)
+        B::q_expand(tensor, shape)
     }
 
     fn q_swap_dims(
@@ -69,15 +75,15 @@ impl QTensorOps<Self> for Dispatch {
         dim1: usize,
         dim2: usize,
     ) -> QuantizedTensor<Self> {
-        unary_op!(tensor, quantized, |tensor| B::q_swap_dims(tensor, dim1, dim2) => Quantized)
+        B::q_swap_dims(tensor, dim1, dim2)
     }
 
     fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
-        unary_op!(tensor, quantized, |tensor| B::q_permute(tensor, axes) => Quantized)
+        B::q_permute(tensor, axes)
     }
 
     fn q_flip(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
-        unary_op!(tensor, quantized, |tensor| B::q_flip(tensor, axes) => Quantized)
+        B::q_flip(tensor, axes)
     }
 
     fn q_select(
@@ -85,17 +91,14 @@ impl QTensorOps<Self> for Dispatch {
         dim: usize,
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
-        binary_op!(
-            (tensor, quantized),
-            (indices, int),
-            |tensor, indices| B::q_select(tensor, dim, indices) => Quantized
-        )
+        B::q_select(tensor, dim, indices)
     }
 
     fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
-        unary_op!(tensor, quantized, |tensor| B::q_slice(tensor, slices) => Quantized)
+        B::q_slice(tensor, slices)
     }
 
+    #[backend_dispatch(skip)]
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
         // TODO: this would be much cleaner if we consolidated tensor primitive types
         match (lhs, rhs) {

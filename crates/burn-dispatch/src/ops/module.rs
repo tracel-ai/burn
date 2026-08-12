@@ -6,9 +6,11 @@ use burn_backend::{
     },
     tensor::{FloatTensor, IntTensor},
 };
+use burn_backend_extension::backend_dispatch;
 
 use crate::Dispatch;
 
+#[backend_dispatch]
 impl ModuleOps<Self> for Dispatch {
     fn conv2d(
         x: FloatTensor<Self>,
@@ -693,6 +695,7 @@ impl ModuleOps<Self> for Dispatch {
         )
     }
 
+    #[backend_dispatch(skip)]
     fn has_ctc_loss_backward() -> bool {
         // Dispatch routes per-tensor at runtime, but autodiff queries this flag
         // statically. Returning `false` makes autodiff differentiate through

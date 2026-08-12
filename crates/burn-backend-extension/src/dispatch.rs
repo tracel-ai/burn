@@ -56,6 +56,28 @@ pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
             continue;
         }
 
+        // Specialized routing macros remain responsible for creation, transfer,
+        // vector, transaction, and primitive-enum operations until their dedicated
+        // signature forms are lowered here.
+        let block = &method.block;
+        let body_tokens = quote!(#block).to_string();
+        if [
+            "creation_op",
+            "to_device",
+            "vec_op",
+            "multi_op",
+            "unary_op",
+            "unary_float",
+            "binary_op",
+            "binary_float",
+            "dispatch_",
+        ]
+        .iter()
+        .any(|name| body_tokens.contains(name))
+        {
+            continue;
+        }
+
         let mut required = Vec::new();
         let mut optional = Vec::new();
         for arg in &method.sig.inputs {
@@ -239,8 +261,8 @@ fn extract_autodiff(name: &syn::Ident, kind: &syn::Ident, backend: &syn::Ident) 
         quote!(inner.#kind())
     };
     let associated = if kind == "float" {
-        quote!(panic!(
-            "an autodiff operation received an untracked float tensor"
+        quote!(<B as burn_backend::AutodiffBackend>::from_inner(
+            inner.float()
         ))
     } else {
         quote!(inner.#kind())
@@ -368,6 +390,7 @@ mod tests {
         assert!(output.contains("mask . map"));
         assert!(output.contains("BackendTensor :: Int"));
         assert!(output.contains(". await"));
+        assert!(output.contains("AutodiffBackend > :: from_inner"));
     }
 
     #[test]
