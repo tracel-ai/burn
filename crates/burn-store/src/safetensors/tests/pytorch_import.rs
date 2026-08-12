@@ -130,8 +130,8 @@ fn safetensors_round_trip_with_pytorch_model() {
     let output2 = model2.forward(input);
 
     // Check outputs are identical
-    let output1_data = output1.to_data().try_into_vec::<f32>().unwrap();
-    let output2_data = output2.to_data().try_into_vec::<f32>().unwrap();
+    let output1_data = output1.try_to_vec_as::<f32>().unwrap();
+    let output2_data = output2.try_to_vec_as::<f32>().unwrap();
 
     for (a, b) in output1_data.iter().zip(output2_data.iter()) {
         assert!((a - b).abs() < 1e-7, "Outputs differ after round trip");
