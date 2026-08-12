@@ -1,6 +1,6 @@
 use burn_backend::Shape;
-use burn_ir::{GraphIr, IrVisitorMut, TensorId, TensorIr};
-use hashbrown::HashMap;
+use burn_ir::{GraphIr, IrVisitorMut, OperationIr, TensorId, TensorIr};
+use hashbrown::{HashMap, HashSet};
 
 use crate::ExportError;
 
@@ -10,6 +10,8 @@ pub struct GraphStructureValidator;
 impl GraphStructureValidator {
     /// Compare operation variants, arity, dtypes, boundaries, and non-shape attributes.
     pub fn validate(sample: &GraphIr, validation: &GraphIr) -> Result<(), ExportError> {
+        validate_boundaries(sample, "sample")?;
+        validate_boundaries(validation, "validation")?;
         if sample.operations.len() != validation.operations.len() {
             return Err(ExportError::DynamicGraphMismatch {
                 operation: sample.operations.len().min(validation.operations.len()),
@@ -17,6 +19,20 @@ impl GraphStructureValidator {
                     "operation count differs ({} != {})",
                     sample.operations.len(),
                     validation.operations.len()
+                ),
+            });
+        }
+        if sample.inputs.len() != validation.inputs.len()
+            || sample.outputs.len() != validation.outputs.len()
+        {
+            return Err(ExportError::DynamicGraphMismatch {
+                operation: 0,
+                reason: format!(
+                    "boundary arity differs (inputs {} != {}, outputs {} != {})",
+                    sample.inputs.len(),
+                    validation.inputs.len(),
+                    sample.outputs.len(),
+                    validation.outputs.len()
                 ),
             });
         }
@@ -45,6 +61,33 @@ impl GraphStructureValidator {
         }
         Ok(())
     }
+}
+
+fn validate_boundaries(graph: &GraphIr, trace: &str) -> Result<(), ExportError> {
+    let known: HashSet<_> = graph
+        .operations
+        .iter()
+        .flat_map(OperationIr::nodes)
+        .map(|tensor| tensor.id)
+        .collect();
+    for (kind, boundaries) in [("input", &graph.inputs), ("output", &graph.outputs)] {
+        let mut unique = HashSet::new();
+        for &id in boundaries {
+            if !unique.insert(id) {
+                return Err(ExportError::DynamicGraphMismatch {
+                    operation: 0,
+                    reason: format!("{trace} trace has duplicate {kind} boundary {id}"),
+                });
+            }
+            if !known.contains(&id) {
+                return Err(ExportError::DynamicGraphMismatch {
+                    operation: 0,
+                    reason: format!("{trace} trace has unknown {kind} boundary {id}"),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Produce the structural form used to compare two independent captures.

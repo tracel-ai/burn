@@ -3,23 +3,45 @@ use burn_ir::{
     ActivationOperationIr, BaseOperationIr, FloatOperationIr, IntOperationIr, ModuleOperationIr,
     NumericOperationIr, OperationIr, TensorId, TensorIr,
 };
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use onnx_ir::{GraphProto, ModelProto, TensorProto, TypeProto, ValueInfoProto};
-use protobuf::{Message, MessageField};
+use protobuf::{EnumOrUnknown, Message, MessageField};
 
 use crate::{ExportError, ResolvedExportGraph, ShapeExpr};
+
+macro_rules! push_int_attribute {
+    ($node:expr, $name:expr, $value:expr) => {{
+        $node.attribute.push(Default::default());
+        let attribute = $node.attribute.last_mut().unwrap();
+        attribute.name = $name.into();
+        attribute.type_ = EnumOrUnknown::from_i32(2);
+        attribute.i = $value as i64;
+    }};
+}
+
+macro_rules! push_ints_attribute {
+    ($node:expr, $name:expr, $values:expr) => {{
+        $node.attribute.push(Default::default());
+        let attribute = $node.attribute.last_mut().unwrap();
+        attribute.name = $name.into();
+        attribute.type_ = EnumOrUnknown::from_i32(7);
+        attribute.ints = $values.into_iter().map(|value| value as i64).collect();
+    }};
+}
 
 /// ONNX IR version emitted by this exporter.
 pub const ONNX_IR_VERSION: i64 = 8;
 /// Default ONNX operator set emitted by this exporter.
 pub const ONNX_OPSET_VERSION: i64 = 18;
+/// Maximum protobuf payload supported by embedded ONNX tensor data.
+pub const MAX_EMBEDDED_PROTOBUF_BYTES: u64 = i32::MAX as u64;
 
 /// Lower an already captured and shape-resolved graph to an embedded ONNX model.
 ///
 /// This low-level API intentionally accepts no Burn module. Parameters can be
 /// added as initializers once capture supplies their tensor data and bindings.
 pub fn export_graph(graph: &ResolvedExportGraph) -> Result<Vec<u8>, ExportError> {
-    export_graph_with_values(graph, &HashMap::new(), &graph.graph.inputs)
+    export_graph_with_bindings(graph, &HashMap::new(), &graph.graph.inputs, &HashMap::new())
 }
 
 /// Lower a resolved graph with concrete initialized values.
@@ -31,26 +53,52 @@ pub fn export_graph_with_values(
     values: &HashMap<TensorId, TensorData>,
     runtime_inputs: &[TensorId],
 ) -> Result<Vec<u8>, ExportError> {
+    export_graph_with_bindings(graph, values, runtime_inputs, &HashMap::new())
+}
+
+/// Lower a resolved graph with concrete values and stable initializer names.
+///
+/// `initializer_names` typically maps captured module parameter tensor IDs to
+/// their module paths. Unnamed initialized values retain deterministic tensor-ID names.
+pub fn export_graph_with_bindings(
+    graph: &ResolvedExportGraph,
+    values: &HashMap<TensorId, TensorData>,
+    runtime_inputs: &[TensorId],
+    initializer_names: &HashMap<TensorId, String>,
+) -> Result<Vec<u8>, ExportError> {
+    validate_bindings(graph, values, runtime_inputs, initializer_names)?;
+    let runtime_set: HashSet<_> = runtime_inputs.iter().copied().collect();
+    let embedded_bytes = values
+        .iter()
+        .filter(|(id, _)| !runtime_set.contains(*id))
+        .map(|(_, value)| value.bytes.len() as u64)
+        .sum::<u64>();
+    if embedded_bytes > MAX_EMBEDDED_PROTOBUF_BYTES {
+        return Err(ExportError::Serialization(format!(
+            "embedded tensor data is {embedded_bytes} bytes, exceeding the protobuf limit of {MAX_EMBEDDED_PROTOBUF_BYTES} bytes"
+        )));
+    }
     let mut proto = GraphProto::new();
     proto.name = "burn_graph".into();
 
     for &id in &graph.graph.inputs {
         let tensor = find_tensor(graph, id).ok_or(ExportError::MissingValue(id))?;
-        proto.input.push(value_info(tensor)?);
+        proto.input.push(value_info(tensor, &graph.dynamic_axes)?);
     }
     for &id in &graph.graph.outputs {
         let tensor = find_tensor(graph, id).ok_or(ExportError::MissingValue(id))?;
-        proto.output.push(value_info(tensor)?);
+        proto.output.push(value_info(tensor, &graph.dynamic_axes)?);
     }
-    let runtime_inputs: hashbrown::HashSet<_> = runtime_inputs.iter().copied().collect();
     let mut initializers: Vec<_> = values
         .iter()
-        .filter(|(id, _)| !runtime_inputs.contains(*id))
+        .filter(|(id, _)| !runtime_set.contains(*id))
         .collect();
-    initializers.sort_by_key(|(id, _)| id.value());
+    initializers.sort_by(|(lhs, _), (rhs, _)| {
+        tensor_name(**lhs, initializer_names).cmp(&tensor_name(**rhs, initializer_names))
+    });
     for (&id, data) in initializers {
         let mut initializer = TensorProto::new();
-        initializer.name = name(id);
+        initializer.name = tensor_name(id, initializer_names);
         initializer.data_type = onnx_data_dtype(id, data.dtype)?;
         initializer.dims = data.shape.iter().map(|dim| *dim as i64).collect();
         initializer.raw_data = bytes::Bytes::copy_from_slice(data.bytes.as_ref());
@@ -74,58 +122,179 @@ pub fn export_graph_with_values(
                     axis: 0,
                     reason: "reshape has no resolved shape operand".into(),
                 })?;
-            let mut dimensions = Vec::with_capacity(resolved.dimensions.len());
-            for (axis, dimension) in resolved.dimensions.iter().enumerate() {
-                dimensions.push(match dimension {
-                    ShapeExpr::Static(value) => *value as i64,
-                    ShapeExpr::Infer => -1,
-                    _ => {
-                        return Err(ExportError::DynamicShapeLost {
-                            tensor: reshape.out.id,
-                            axis,
-                            reason: "runtime reshape shape lowering is not implemented".into(),
-                        });
-                    }
-                });
-            }
             let shape_name = format!("node_{index}_shape");
-            let mut shape_tensor = TensorProto::new();
-            shape_tensor.name = shape_name.clone();
-            shape_tensor.data_type = 7;
-            shape_tensor.dims = vec![dimensions.len() as i64];
-            let mut raw = Vec::with_capacity(dimensions.len() * size_of::<i64>());
-            for dimension in dimensions {
-                raw.extend_from_slice(&dimension.to_le_bytes());
+            if resolved
+                .dimensions
+                .iter()
+                .all(|dimension| matches!(dimension, ShapeExpr::Static(_) | ShapeExpr::Infer))
+            {
+                let dimensions = resolved
+                    .dimensions
+                    .iter()
+                    .map(|dimension| match dimension {
+                        ShapeExpr::Static(value) => *value as i64,
+                        ShapeExpr::Infer => -1,
+                        _ => unreachable!(),
+                    })
+                    .collect::<Vec<_>>();
+                push_i64_initializer(&mut proto, shape_name.clone(), &dimensions);
+            } else {
+                let mut parts = Vec::with_capacity(resolved.dimensions.len());
+                for (axis, dimension) in resolved.dimensions.iter().enumerate() {
+                    let part = format!("node_{index}_shape_part_{axis}");
+                    match dimension {
+                        ShapeExpr::Static(value) => {
+                            push_i64_initializer(&mut proto, part.clone(), &[*value as i64]);
+                        }
+                        ShapeExpr::Infer => {
+                            push_i64_initializer(&mut proto, part.clone(), &[-1]);
+                        }
+                        ShapeExpr::InputDim { input, axis }
+                        | ShapeExpr::TensorDim {
+                            tensor: input,
+                            axis,
+                        } => {
+                            let source_shape = format!("node_{index}_source_shape_{axis}");
+                            proto.node.push(Default::default());
+                            let shape = proto.node.last_mut().unwrap();
+                            shape.name = source_shape.clone();
+                            shape.op_type = "Shape".into();
+                            shape.input = vec![tensor_name(*input, initializer_names)];
+                            shape.output = vec![source_shape.clone()];
+
+                            let indices = format!("node_{index}_shape_index_{axis}");
+                            push_i64_initializer(&mut proto, indices.clone(), &[*axis as i64]);
+                            proto.node.push(Default::default());
+                            let gather = proto.node.last_mut().unwrap();
+                            gather.name = part.clone();
+                            gather.op_type = "Gather".into();
+                            gather.input = vec![source_shape, indices];
+                            gather.output = vec![part.clone()];
+                            gather.attribute.push(Default::default());
+                            let attribute = gather.attribute.last_mut().unwrap();
+                            attribute.name = "axis".into();
+                            attribute.type_ = EnumOrUnknown::from_i32(2);
+                            attribute.i = 0;
+                        }
+                    }
+                    parts.push(part);
+                }
+                proto.node.push(Default::default());
+                let concat = proto.node.last_mut().unwrap();
+                concat.name = shape_name.clone();
+                concat.op_type = "Concat".into();
+                concat.input = parts;
+                concat.output = vec![shape_name.clone()];
+                concat.attribute.push(Default::default());
+                let attribute = concat.attribute.last_mut().unwrap();
+                attribute.name = "axis".into();
+                attribute.type_ = EnumOrUnknown::from_i32(2);
+                attribute.i = 0;
             }
-            shape_tensor.raw_data = bytes::Bytes::from(raw);
-            proto.initializer.push(shape_tensor);
             proto.node.push(Default::default());
             let node = proto.node.last_mut().unwrap();
             node.name = format!("node_{index}");
             node.op_type = "Reshape".into();
-            node.input = vec![name(reshape.input.id), shape_name];
-            node.output = vec![name(reshape.out.id)];
+            node.input = vec![tensor_name(reshape.input.id, initializer_names), shape_name];
+            node.output = vec![tensor_name(reshape.out.id, initializer_names)];
+            continue;
+        }
+        if let OperationIr::Module(ModuleOperationIr::Conv2d(conv)) = operation {
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "Conv".into();
+            node.input = vec![
+                tensor_name(conv.x.id, initializer_names),
+                tensor_name(conv.weight.id, initializer_names),
+            ];
+            if let Some(bias) = &conv.bias {
+                node.input.push(tensor_name(bias.id, initializer_names));
+            }
+            node.output = vec![tensor_name(conv.out.id, initializer_names)];
+            push_ints_attribute!(node, "strides", conv.options.stride);
+            push_ints_attribute!(node, "dilations", conv.options.dilation);
+            push_ints_attribute!(
+                node,
+                "pads",
+                [
+                    conv.options.padding[0],
+                    conv.options.padding[1],
+                    conv.options.padding[0],
+                    conv.options.padding[1],
+                ]
+            );
+            push_int_attribute!(node, "group", conv.options.groups);
+            continue;
+        }
+        if let OperationIr::Module(ModuleOperationIr::MaxPool2d(pool)) = operation {
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "MaxPool".into();
+            node.input = vec![tensor_name(pool.x.id, initializer_names)];
+            node.output = vec![tensor_name(pool.out.id, initializer_names)];
+            push_ints_attribute!(node, "kernel_shape", pool.kernel_size);
+            push_ints_attribute!(node, "strides", pool.stride);
+            push_ints_attribute!(node, "dilations", pool.dilation);
+            push_ints_attribute!(
+                node,
+                "pads",
+                [
+                    pool.padding[0],
+                    pool.padding[1],
+                    pool.padding[0],
+                    pool.padding[1],
+                ]
+            );
+            push_int_attribute!(node, "ceil_mode", pool.ceil_mode);
+            continue;
+        }
+        if let OperationIr::Module(ModuleOperationIr::AvgPool2d(pool)) = operation {
+            proto.node.push(Default::default());
+            let node = proto.node.last_mut().unwrap();
+            node.name = format!("node_{index}");
+            node.op_type = "AveragePool".into();
+            node.input = vec![tensor_name(pool.x.id, initializer_names)];
+            node.output = vec![tensor_name(pool.out.id, initializer_names)];
+            push_ints_attribute!(node, "kernel_shape", pool.kernel_size);
+            push_ints_attribute!(node, "strides", pool.stride);
+            push_ints_attribute!(
+                node,
+                "pads",
+                [
+                    pool.padding[0],
+                    pool.padding[1],
+                    pool.padding[0],
+                    pool.padding[1],
+                ]
+            );
+            push_int_attribute!(node, "ceil_mode", pool.ceil_mode);
+            push_int_attribute!(node, "count_include_pad", pool.count_include_pad);
             continue;
         }
         if let OperationIr::Module(ModuleOperationIr::Linear(linear)) = operation {
             let matmul_output = if linear.bias.is_some() {
                 format!("node_{index}_matmul")
             } else {
-                name(linear.out.id)
+                tensor_name(linear.out.id, initializer_names)
             };
             proto.node.push(Default::default());
             let matmul = proto.node.last_mut().unwrap();
             matmul.name = format!("node_{index}_matmul");
             matmul.op_type = "MatMul".into();
-            matmul.input = vec![name(linear.x.id), name(linear.weight.id)];
+            matmul.input = vec![
+                tensor_name(linear.x.id, initializer_names),
+                tensor_name(linear.weight.id, initializer_names),
+            ];
             matmul.output = vec![matmul_output.clone()];
             if let Some(bias) = &linear.bias {
                 proto.node.push(Default::default());
                 let add = proto.node.last_mut().unwrap();
                 add.name = format!("node_{index}_bias");
                 add.op_type = "Add".into();
-                add.input = vec![matmul_output, name(bias.id)];
-                add.output = vec![name(linear.out.id)];
+                add.input = vec![matmul_output, tensor_name(bias.id, initializer_names)];
+                add.output = vec![tensor_name(linear.out.id, initializer_names)];
             }
             continue;
         }
@@ -139,8 +308,14 @@ pub fn export_graph_with_values(
         let node = proto.node.last_mut().expect("node was just inserted");
         node.name = format!("node_{index}");
         node.op_type = op_type.into();
-        node.input = operation.inputs().map(|tensor| name(tensor.id)).collect();
-        node.output = operation.outputs().map(|tensor| name(tensor.id)).collect();
+        node.input = operation
+            .inputs()
+            .map(|tensor| tensor_name(tensor.id, initializer_names))
+            .collect();
+        node.output = operation
+            .outputs()
+            .map(|tensor| tensor_name(tensor.id, initializer_names))
+            .collect();
     }
 
     let mut model = ModelProto::new();
@@ -154,20 +329,107 @@ pub fn export_graph_with_values(
         .map_err(|error| ExportError::Serialization(error.to_string()))
 }
 
+fn validate_bindings(
+    graph: &ResolvedExportGraph,
+    values: &HashMap<TensorId, TensorData>,
+    runtime_inputs: &[TensorId],
+    initializer_names: &HashMap<TensorId, String>,
+) -> Result<(), ExportError> {
+    let mut runtime = HashSet::new();
+    for &id in runtime_inputs {
+        if !runtime.insert(id) {
+            return Err(ExportError::InvalidBoundary(format!(
+                "duplicate runtime input tensor {id}"
+            )));
+        }
+        if !graph.graph.inputs.contains(&id) {
+            return Err(ExportError::InvalidBoundary(format!(
+                "runtime input tensor {id} is not a declared graph input"
+            )));
+        }
+    }
+    if runtime.len() != graph.graph.inputs.len() {
+        return Err(ExportError::InvalidBoundary(
+            "every declared graph input must have one runtime input binding".into(),
+        ));
+    }
+    for (&id, name) in initializer_names {
+        if runtime.contains(&id) {
+            return Err(ExportError::InvalidBoundary(format!(
+                "runtime input tensor {id} cannot also have an initializer name"
+            )));
+        }
+        if !values.contains_key(&id) {
+            return Err(ExportError::MissingValue(id));
+        }
+        if name.is_empty() {
+            return Err(ExportError::InvalidBoundary(format!(
+                "initializer tensor {id} has an empty name"
+            )));
+        }
+    }
+
+    let mut names = HashMap::<String, TensorId>::new();
+    let ids = graph
+        .graph
+        .operations
+        .iter()
+        .flat_map(OperationIr::nodes)
+        .map(|tensor| tensor.id)
+        .chain(values.keys().copied());
+    for id in ids {
+        let name = tensor_name(id, initializer_names);
+        if let Some(previous) = names.insert(name.clone(), id)
+            && previous != id
+        {
+            return Err(ExportError::InvalidBoundary(format!(
+                "ONNX value name `{name}` is shared by tensors {previous} and {id}"
+            )));
+        }
+    }
+
+    for (&id, data) in values {
+        let Some(tensor) = find_tensor(graph, id) else {
+            continue;
+        };
+        if tensor.dtype != data.dtype || tensor.shape != data.shape {
+            return Err(ExportError::InvalidValue {
+                tensor: id,
+                reason: format!(
+                    "graph metadata is {:?} {:?}, initialized value is {:?} {:?}",
+                    tensor.dtype, tensor.shape, data.dtype, data.shape
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 fn onnx_data_dtype(tensor: TensorId, dtype: DType) -> Result<i32, ExportError> {
     onnx_dtype_parts(tensor, dtype)
 }
 
-fn value_info(tensor: &TensorIr) -> Result<ValueInfoProto, ExportError> {
+fn value_info(
+    tensor: &TensorIr,
+    dynamic_axes: &[crate::DynamicAxis],
+) -> Result<ValueInfoProto, ExportError> {
     let mut info = ValueInfoProto::new();
     info.name = name(tensor.id);
     let mut ty = TypeProto::new();
     let tensor_type = ty.mut_tensor_type();
     tensor_type.elem_type = onnx_dtype(tensor)?;
     let shape = tensor_type.shape.mut_or_insert_default();
-    for &dim in tensor.shape.iter() {
+    for (axis, &dim) in tensor.shape.iter().enumerate() {
         shape.dim.push(Default::default());
-        shape.dim.last_mut().unwrap().set_dim_value(dim as i64);
+        let dimension = shape.dim.last_mut().unwrap();
+        if let Some(dynamic) = dynamic_axes
+            .iter()
+            .find(|dynamic| dynamic.tensor == tensor.id && dynamic.axis == axis)
+        {
+            dimension.set_dim_param(dynamic.symbol.clone());
+        } else {
+            dimension.set_dim_value(dim as i64);
+        }
     }
     info.type_ = MessageField::some(ty);
     Ok(info)
@@ -244,6 +506,27 @@ fn name(id: TensorId) -> String {
     format!("tensor_{}", id.value())
 }
 
+fn tensor_name(id: TensorId, initializer_names: &HashMap<TensorId, String>) -> String {
+    initializer_names
+        .get(&id)
+        .filter(|name| !name.is_empty())
+        .cloned()
+        .unwrap_or_else(|| name(id))
+}
+
+fn push_i64_initializer(proto: &mut GraphProto, name: String, values: &[i64]) {
+    let mut tensor = TensorProto::new();
+    tensor.name = name;
+    tensor.data_type = 7;
+    tensor.dims = vec![values.len() as i64];
+    let mut raw = Vec::with_capacity(size_of_val(values));
+    for value in values {
+        raw.extend_from_slice(&value.to_le_bytes());
+    }
+    tensor.raw_data = bytes::Bytes::from(raw);
+    proto.initializer.push(tensor);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,6 +550,7 @@ mod tests {
         let bytes = export_graph(&ResolvedExportGraph {
             graph,
             shapes: vec![],
+            dynamic_axes: vec![],
         })
         .unwrap();
         let model = ModelProto::parse_from_bytes(&bytes).unwrap();

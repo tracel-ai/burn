@@ -1,13 +1,16 @@
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
-use burn_capture::{CaptureClient, CaptureDevice, GraphCapture};
-use burn_core::module::Module;
-use burn_ir::OperationIr;
-use burn_ir::TensorId;
+use burn_capture::{CaptureClient, CaptureDevice, CapturedGraph, GraphCapture};
+use burn_core::module::{Module, ModuleVisitor, Param};
+use burn_ir::{OperationIr, TensorId};
 use burn_router::RouterTensor;
 use burn_tensor::{Bool, Device, Float, Int, Tensor};
+use hashbrown::{HashMap, HashSet};
 
-use crate::{ExportError, ShapeResolver, StaticShapeResolver, export_graph_with_values};
+use crate::{
+    ExportError, InputSpec, PairedTraceShapeResolver, ShapeResolver, StaticShapeResolver,
+    export_graph_with_bindings,
+};
 
 /// Collects tensor IDs from values accepted or returned by a forward function.
 ///
@@ -99,6 +102,58 @@ impl_export_tuple!(A, B);
 impl_export_tuple!(A, B, C);
 impl_export_tuple!(A, B, C, D);
 
+struct CapturedForward {
+    captured: CapturedGraph,
+    input_ids: Vec<TensorId>,
+    parameter_names: HashMap<TensorId, String>,
+}
+
+#[derive(Default)]
+struct ParameterNameVisitor {
+    path: Vec<String>,
+    names: HashMap<TensorId, String>,
+}
+
+impl ParameterNameVisitor {
+    fn record(&mut self, id: TensorId) {
+        self.names.entry(id).or_insert_with(|| self.path.join("."));
+    }
+}
+
+impl ModuleVisitor for ParameterNameVisitor {
+    fn enter_module(&mut self, name: &str, _container_type: &str) {
+        self.path.push(name.into());
+    }
+
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {
+        self.path.pop();
+    }
+
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
+        let tensor = param
+            .val()
+            .try_into_primitive::<burn_capture::CaptureBackend>()
+            .expect("module parameter must be on the capture device");
+        self.record(tensor.id());
+    }
+
+    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
+        let tensor = param
+            .val()
+            .try_into_primitive::<burn_capture::CaptureBackend>()
+            .expect("module parameter must be on the capture device");
+        self.record(tensor.id());
+    }
+
+    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
+        let tensor = param
+            .val()
+            .try_into_primitive::<burn_capture::CaptureBackend>()
+            .expect("module parameter must be on the capture device");
+        self.record(tensor.id());
+    }
+}
+
 /// High-level forward-capture ONNX exporter.
 ///
 /// The exporter clones an ordinary Burn module and moves both it and the sample
@@ -133,27 +188,160 @@ impl OnnxExporter {
         O: ExportValues,
         F: FnOnce(&M, I) -> O,
     {
+        let captured = self.capture_forward(module, inputs, forward)?;
+        let resolved = StaticShapeResolver {
+            graph: &captured.captured.graph,
+        }
+        .resolve()?;
+        export_graph_with_bindings(
+            &resolved,
+            &captured.captured.values,
+            &captured.input_ids,
+            &captured.parameter_names,
+        )
+    }
+
+    /// Capture two shapes, validate their structure, and export symbolic input axes.
+    ///
+    /// `input_specs` are positional and must contain one entry per tensor in
+    /// `sample_inputs`. The corresponding axes of `validation_inputs` must match
+    /// every declared dynamic axis's `validation_value`.
+    pub fn export_dynamic<M, I, O, F>(
+        &self,
+        module: &M,
+        sample_inputs: I,
+        validation_inputs: I,
+        input_specs: &[InputSpec],
+        forward: F,
+    ) -> Result<Vec<u8>, ExportError>
+    where
+        M: Module,
+        I: ExportInput,
+        O: ExportValues,
+        F: Fn(&M, I) -> O,
+    {
+        let sample = self.capture_forward(module, sample_inputs, &forward)?;
+        let validation = self.capture_forward(module, validation_inputs, &forward)?;
+        let resolved = PairedTraceShapeResolver {
+            sample: &sample.captured.graph,
+            validation: &validation.captured.graph,
+            inputs: input_specs,
+        }
+        .resolve()?;
+        export_graph_with_bindings(
+            &resolved,
+            &sample.captured.values,
+            &sample.input_ids,
+            &sample.parameter_names,
+        )
+    }
+
+    fn capture_forward<M, I, O, F>(
+        &self,
+        module: &M,
+        inputs: I,
+        forward: F,
+    ) -> Result<CapturedForward, ExportError>
+    where
+        M: Module,
+        I: ExportInput,
+        O: ExportValues,
+        F: FnOnce(&M, I) -> O,
+    {
         let (device, capture) = Self::capture();
         let module = module.clone().to_device(&device);
+        let mut visitor = ParameterNameVisitor::default();
+        module.visit(&mut visitor);
         let inputs = inputs.to_capture_device(&device);
         let input_ids = inputs.tensor_ids();
-        let outputs = forward(&module, inputs);
-        let output_ids = outputs.tensor_ids();
+        let output_ids = forward(&module, inputs).tensor_ids();
         let mut captured = capture
             .finish(input_ids.iter().copied(), output_ids)
             .map_err(|error| ExportError::InvalidBoundary(error.to_string()))?;
-        // Initial values are represented by graph inputs or ONNX initializers;
-        // lifetime-only drops have no ONNX computation semantics.
         captured
             .graph
             .operations
             .retain(|operation| !matches!(operation, OperationIr::Init(_) | OperationIr::Drop(_)));
-        let resolved = StaticShapeResolver {
-            graph: &captured.graph,
-        }
-        .resolve()?;
-        export_graph_with_values(&resolved, &captured.values, &input_ids)
+        validate_capture(&captured, &input_ids, &visitor.names)?;
+        Ok(CapturedForward {
+            captured,
+            input_ids,
+            parameter_names: visitor.names,
+        })
     }
+}
+
+fn validate_capture(
+    captured: &CapturedGraph,
+    runtime_inputs: &[TensorId],
+    parameter_names: &HashMap<TensorId, String>,
+) -> Result<(), ExportError> {
+    for (kind, boundaries) in [
+        ("input", captured.graph.inputs.as_slice()),
+        ("output", captured.graph.outputs.as_slice()),
+    ] {
+        let mut unique = HashSet::new();
+        if let Some(id) = boundaries.iter().find(|id| !unique.insert(**id)) {
+            return Err(ExportError::InvalidBoundary(format!(
+                "duplicate graph {kind} tensor {id}"
+            )));
+        }
+    }
+    if captured.graph.inputs != runtime_inputs {
+        return Err(ExportError::InvalidBoundary(
+            "captured graph inputs do not match runtime input declaration order".into(),
+        ));
+    }
+    for &id in runtime_inputs {
+        if !captured.values.contains_key(&id) {
+            return Err(ExportError::MissingValue(id));
+        }
+    }
+    for &id in parameter_names.keys() {
+        if !captured.values.contains_key(&id) {
+            return Err(ExportError::MissingValue(id));
+        }
+    }
+
+    let mut known: HashSet<_> = captured.values.keys().copied().collect();
+    let mut metadata = HashMap::new();
+    for (index, operation) in captured.graph.operations.iter().enumerate() {
+        for tensor in operation.inputs() {
+            metadata.entry(tensor.id).or_insert(tensor);
+            if !known.contains(&tensor.id) {
+                return Err(ExportError::InvalidBoundary(format!(
+                    "operation {index} reads tensor {} before it is initialized or produced",
+                    tensor.id
+                )));
+            }
+        }
+        for tensor in operation.outputs() {
+            metadata.entry(tensor.id).or_insert(tensor);
+            known.insert(tensor.id);
+        }
+    }
+    for &id in &captured.graph.outputs {
+        if !known.contains(&id) {
+            return Err(ExportError::InvalidBoundary(format!(
+                "graph output tensor {id} is not initialized or produced"
+            )));
+        }
+    }
+    for (&id, data) in &captured.values {
+        let Some(tensor) = metadata.get(&id) else {
+            continue;
+        };
+        if tensor.dtype != data.dtype || tensor.shape != data.shape {
+            return Err(ExportError::InvalidValue {
+                tensor: id,
+                reason: format!(
+                    "captured metadata is {:?} {:?}, initialized value is {:?} {:?}",
+                    tensor.dtype, tensor.shape, data.dtype, data.shape
+                ),
+            });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -194,6 +382,7 @@ mod tests {
         assert_eq!(model.graph.input.len(), 1);
         assert_eq!(model.graph.output.len(), 1);
         assert_eq!(model.graph.initializer.len(), 1);
+        assert_eq!(model.graph.initializer[0].name, "weight");
         assert_eq!(
             model.graph.initializer[0].raw_data.len(),
             2 * size_of::<f32>()
@@ -231,6 +420,16 @@ mod tests {
         );
         // Four module parameters plus two constant bias-reshape operands.
         assert_eq!(model.graph.initializer.len(), 6);
+        let initializer_names = model
+            .graph
+            .initializer
+            .iter()
+            .map(|tensor| tensor.name.as_str())
+            .collect::<Vec<_>>();
+        assert!(initializer_names.contains(&"first.weight"));
+        assert!(initializer_names.contains(&"first.bias"));
+        assert!(initializer_names.contains(&"second.weight"));
+        assert!(initializer_names.contains(&"second.bias"));
         assert_eq!(model.graph.input.len(), 1);
         assert_eq!(model.graph.output.len(), 1);
     }

@@ -1,7 +1,11 @@
 use burn_core as burn;
 use burn_core::module::{Module, Param};
-use burn_nn::{Linear, LinearConfig, Relu};
-use burn_onnx_export::OnnxExporter;
+use burn_nn::{
+    Linear, LinearConfig, Relu,
+    conv::{Conv2d, Conv2dConfig},
+    pool::{MaxPool2d, MaxPool2dConfig},
+};
+use burn_onnx_export::{AxisSpec, InputSpec, OnnxExporter};
 use burn_tensor::{Device, Tensor, TensorData, Tolerance};
 use ort::{session::Session, value::Tensor as OrtTensor};
 
@@ -24,6 +28,30 @@ struct Mlp {
     first: Linear,
     activation: Relu,
     second: Linear,
+}
+
+#[derive(Module, Debug)]
+struct Flatten;
+
+impl Flatten {
+    fn forward(&self, input: Tensor<3>) -> Tensor<2> {
+        let [batch, channels, width] = input.dims();
+        input.reshape([batch, channels * width])
+    }
+}
+
+#[derive(Module, Debug)]
+struct SmallCnn {
+    conv: Conv2d,
+    activation: Relu,
+    pool: MaxPool2d,
+}
+
+impl SmallCnn {
+    fn forward(&self, input: Tensor<4>) -> Tensor<4> {
+        self.pool
+            .forward(self.activation.forward(self.conv.forward(input)))
+    }
 }
 
 impl Mlp {
@@ -83,5 +111,80 @@ fn small_mlp_matches_burn() {
         .unwrap();
 
     let actual = run_ort(&model, [2, 4], input_values);
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
+}
+
+#[test]
+fn dynamic_reshape_matches_burn_at_third_shape() {
+    let device = Device::default();
+    let module = Flatten;
+    let sample_values = (0..24).map(|value| value as f32).collect::<Vec<_>>();
+    let validation_values = (0..60).map(|value| value as f32).collect::<Vec<_>>();
+    let sample = Tensor::<3>::from_data(TensorData::new(sample_values, [2, 3, 4]), &device);
+    let validation = Tensor::<3>::from_data(TensorData::new(validation_values, [5, 3, 4]), &device);
+    let specs = [InputSpec::new([
+        AxisSpec::dynamic("batch", 5),
+        AxisSpec::Static,
+        AxisSpec::Static,
+    ])];
+
+    let model = OnnxExporter::new()
+        .export_dynamic(&module, sample, validation, &specs, Flatten::forward)
+        .unwrap();
+
+    let third_values = (0..84).map(|value| value as f32).collect::<Vec<_>>();
+    let third = Tensor::<3>::from_data(TensorData::new(third_values.clone(), [7, 3, 4]), &device);
+    let expected = module.forward(third).into_data();
+    let actual = run_ort(&model, [7, 3, 4], third_values);
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
+}
+
+#[test]
+fn small_cnn_matches_burn() {
+    let device = Device::default();
+    let module = SmallCnn {
+        conv: Conv2dConfig::new([1, 2], [3, 3]).init(&device),
+        activation: Relu::new(),
+        pool: MaxPool2dConfig::new([2, 2]).init(),
+    };
+    let input_values = (0..25).map(|value| value as f32 / 10.0).collect::<Vec<_>>();
+    let input =
+        Tensor::<4>::from_data(TensorData::new(input_values.clone(), [1, 1, 5, 5]), &device);
+    let expected = module.forward(input.clone()).into_data();
+    let model = OnnxExporter::new()
+        .export(&module, input, SmallCnn::forward)
+        .unwrap();
+
+    let actual = run_ort(&model, [1, 1, 5, 5], input_values);
+    actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
+}
+
+#[test]
+fn dynamic_small_cnn_matches_burn_at_third_shape() {
+    let device = Device::default();
+    let module = SmallCnn {
+        conv: Conv2dConfig::new([1, 2], [3, 3]).init(&device),
+        activation: Relu::new(),
+        pool: MaxPool2dConfig::new([2, 2]).init(),
+    };
+    let sample = Tensor::<4>::from_data(TensorData::zeros::<f32, _>([1, 1, 5, 5]), &device);
+    let validation = Tensor::<4>::from_data(TensorData::zeros::<f32, _>([2, 1, 7, 7]), &device);
+    let specs = [InputSpec::new([
+        AxisSpec::dynamic("batch", 2),
+        AxisSpec::Static,
+        AxisSpec::dynamic("height", 7),
+        AxisSpec::dynamic("width", 7),
+    ])];
+    let model = OnnxExporter::new()
+        .export_dynamic(&module, sample, validation, &specs, SmallCnn::forward)
+        .unwrap();
+
+    let third_values = (0..243)
+        .map(|value| value as f32 / 100.0)
+        .collect::<Vec<_>>();
+    let third =
+        Tensor::<4>::from_data(TensorData::new(third_values.clone(), [3, 1, 9, 9]), &device);
+    let expected = module.forward(third).into_data();
+    let actual = run_ort(&model, [3, 1, 9, 9], third_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
 }

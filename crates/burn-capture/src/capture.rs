@@ -110,6 +110,13 @@ impl GraphCapture {
         let inputs: Vec<_> = inputs.into_iter().collect();
         let outputs: Vec<_> = outputs.into_iter().collect();
         for (boundary, ids) in [("input", &inputs), ("output", &outputs)] {
+            let mut unique = HashSet::new();
+            if let Some(id) = ids.iter().find(|id| !unique.insert(**id)) {
+                return Err(CaptureError::DuplicateBoundary {
+                    boundary,
+                    tensor: *id,
+                });
+            }
             if let Some(id) = ids.iter().find(|id| !known.contains(*id)) {
                 return Err(CaptureError::UnknownBoundary {
                     boundary,
@@ -147,6 +154,13 @@ pub enum CaptureError {
         /// Unknown tensor ID.
         tensor: TensorId,
     },
+    /// A tensor was declared more than once at the same boundary.
+    DuplicateBoundary {
+        /// Whether this is an input or output boundary.
+        boundary: &'static str,
+        /// Repeated tensor ID.
+        tensor: TensorId,
+    },
 }
 
 impl core::fmt::Display for CaptureError {
@@ -154,6 +168,9 @@ impl core::fmt::Display for CaptureError {
         match self {
             Self::UnknownBoundary { boundary, tensor } => {
                 write!(f, "unknown graph {boundary} tensor {tensor}")
+            }
+            Self::DuplicateBoundary { boundary, tensor } => {
+                write!(f, "duplicate graph {boundary} tensor {tensor}")
             }
         }
     }
@@ -386,6 +403,19 @@ mod tests {
         let tensor = client.register_tensor_data(TensorData::from([3i64]));
         let id = tensor.id();
         assert!(capture.finish([TensorId::new(u64::MAX)], []).is_err());
+        assert!(capture.finish([id], []).unwrap().values.contains_key(&id));
+    }
+
+    #[test]
+    fn duplicate_boundary_does_not_consume_capture() {
+        let (device, capture) = CaptureDevice::capture();
+        let client = get_client::<CaptureChannel>(&device);
+        let tensor = client.register_tensor_data(TensorData::from([3i64]));
+        let id = tensor.id();
+        assert!(matches!(
+            capture.finish([id, id], []),
+            Err(CaptureError::DuplicateBoundary { tensor, .. }) if tensor == id
+        ));
         assert!(capture.finish([id], []).unwrap().values.contains_key(&id));
     }
 }

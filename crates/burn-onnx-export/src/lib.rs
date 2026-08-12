@@ -13,9 +13,12 @@ mod validate;
 
 pub use error::ExportError;
 pub use exporter::{ExportInput, ExportValues, OnnxExporter};
-pub use lower::{ONNX_IR_VERSION, ONNX_OPSET_VERSION, export_graph, export_graph_with_values};
+pub use lower::{
+    MAX_EMBEDDED_PROTOBUF_BYTES, ONNX_IR_VERSION, ONNX_OPSET_VERSION, export_graph,
+    export_graph_with_bindings, export_graph_with_values,
+};
 pub use shape::{
-    AxisSpec, InputSpec, PairedTraceShapeResolver, ResolvedExportGraph, ResolvedShape, ShapeExpr,
-    ShapeResolver, StaticShapeResolver,
+    AxisSpec, DynamicAxis, InputSpec, PairedTraceShapeResolver, ResolvedExportGraph, ResolvedShape,
+    ShapeExpr, ShapeResolver, StaticShapeResolver,
 };
 pub use validate::GraphStructureValidator;

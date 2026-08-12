@@ -33,6 +33,14 @@ pub enum ExportError {
     /// A referenced tensor value is unavailable.
     #[error("missing value for tensor {0}")]
     MissingValue(TensorId),
+    /// An initialized value disagrees with the tensor metadata in the graph.
+    #[error("invalid value for tensor {tensor}: {reason}")]
+    InvalidValue {
+        /// Tensor identifier.
+        tensor: TensorId,
+        /// Shape or dtype mismatch detail.
+        reason: String,
+    },
     /// Graph inputs or outputs are inconsistent.
     #[error("invalid graph boundary: {0}")]
     InvalidBoundary(String),
