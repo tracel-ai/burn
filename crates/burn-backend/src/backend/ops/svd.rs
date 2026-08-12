@@ -67,6 +67,7 @@ pub fn svd_host_data(
 /// results are concatenated in batch order (deterministic, same output).
 /// No-std builds fall back to the single-threaded loop.
 fn svd_host<F: Float + Copy + Send + Sync>(
+
     a: &[F],
     m: usize,
     n: usize,
@@ -197,21 +198,16 @@ fn svd_host_seq<F: Float + Copy>(
             vt[b * 4..b * 4 + 4].copy_from_slice(&vv);
             continue;
         }
-        let (u1, bv, v1) = bidiag_host(ab, m, n);
-        // Transpose both factor buffers up front: the Givens rotations act on
+        let (u1, bv, mut v1) = bidiag_host(ab, m, n);
+        // Transpose the U1 factor up front: the Givens rotations act on
         // column pairs (k, k+1), which are stride-n in row-major storage but
         // contiguous rows in the transposed layout, so the hot loops below
-        // stream memory instead of hopping columns.
+        // stream memory instead of hopping columns. V1 already comes out of
+        // bidiag_host in transposed layout.
         let mut u1t = vec![F::zero(); m * n];
-        let mut v1t = vec![F::zero(); n * n];
         for i in 0..m {
             for j in 0..n {
                 u1t[j * m + i] = u1[i * n + j];
-            }
-        }
-        for i in 0..n {
-            for j in 0..n {
-                v1t[j * n + i] = v1[i * n + j];
             }
         }
         for i in 0..n {
@@ -234,15 +230,14 @@ fn svd_host_seq<F: Float + Copy>(
                 u1t[k1_u + i] = -sl * a0 + cl * b0;
             }
             for i in 0..n {
-                let (a0, b0) = (v1t[k_v + i], v1t[k1_v + i]);
-                v1t[k_v + i] = cr * a0 + sr * b0;
-                v1t[k1_v + i] = -sr * a0 + cr * b0;
+                let (a0, b0) = (v1[k_v + i], v1[k1_v + i]);
+                v1[k_v + i] = cr * a0 + sr * b0;
+                v1[k1_v + i] = -sr * a0 + cr * b0;
             }
         }
-        #[cfg(feature = "std")]
         let (ub, sb, vtb) = svd_postprocess(
             &u1t,
-            &v1t,
+            &v1,
             &sigma_b,
             &d_final,
             m,
@@ -433,11 +428,35 @@ fn svd2x2<F: Float + Copy>(a: &[F]) -> (F, F, [F; 4], [F; 4]) {
     }
 }
 
+/// Dot product of `a[lo..hi]` and `w[lo..hi]` as a sum over 8 independent
+/// accumulators. LLVM vectorizes independent chains without fast-math, while
+/// a plain `s = s + ...` reduction is forced to run scalar.
+#[inline]
+fn blk_sum<F: Float + Copy>(a: &[F], w: &[F], lo: usize, hi: usize) -> F {
+    let mut s = [F::zero(); 8];
+    let mut j = lo;
+    while j + 8 <= hi {
+        for t in 0..8 {
+            s[t] = s[t] + a[j + t] * w[j + t];
+        }
+        j += 8;
+    }
+    let mut r = s[0] + s[1] + s[2] + s[3] + s[4] + s[5] + s[6] + s[7];
+    while j < hi {
+        r = r + a[j] * w[j];
+        j += 1;
+    }
+    r
+}
+
 /// Golub-Kahan bidiagonalization on the host: `A = U1 B V1^T` with `B` upper
 /// bidiagonal (row-major `[m, n]`), using Householder reflections on
 /// shrinking submatrices, mirroring the tensor-op version operation for
 /// operation.
 fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>, Vec<F>) {
+    // V1 kept in transposed layout (v1t[j*n+i] = V1[i,j]): the reflection
+    // sweeps below then run over contiguous rows, and svd_host_seq consumes
+    // the transposed factor directly (no extra transposition pass).
     let mut v1 = vec![F::zero(); n * n];
     for i in 0..n {
         v1[i * n + i] = F::one();
@@ -453,6 +472,7 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
     let mut w = vec![F::zero(); m.max(n)];
     let mut wta = vec![F::zero(); n];
     let mut aw = vec![F::zero(); m];
+    let mut vw = vec![F::zero(); n];
 
     for i in 0..n {
         // Left reflection: annihilate the subdiagonal of column i.
@@ -548,11 +568,7 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
                 // aw[k] = a[k, :] w, then a_new = a - tau aw w^T. Contiguous
                 // row sweeps again: a[k, j] advances sequentially in both.
                 for k in i..m {
-                    let mut s = F::zero();
-                    for j in (i + 1)..n {
-                        s = s + a[k * n + j] * w[j];
-                    }
-                    aw[k] = s;
+                    aw[k] = blk_sum(&a[k * n..], &w, i + 1, n);
                 }
                 let t = tau;
                 for k in i..m {
@@ -561,19 +577,24 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
                         a[k * n + j] = a[k * n + j] - awk * w[j];
                     }
                 }
-                // V1 = V1 (I - tau w w^T): update the columns i+1..n.
-                for i2 in 0..n {
-                    let mut vw = F::zero();
-                    for j in (i + 1)..n {
-                        vw = vw + v1[i2 * n + j] * w[j];
-                    }
-                    if vw != F::zero() {
-                        let tvw = tau * vw;
-                        for j in (i + 1)..n {
-                            v1[i2 * n + j] = v1[i2 * n + j] - tvw * w[j];
-                        }
+                // V1 = V1 (I - tau w w^T) on the transposed factor: v1t[j, i2]
+                // -= tau w[j] vw[i2] with vw[i2] = sum_j v1t[j, i2] w[j].
+                // Both sweeps are outer-j/inner-i2, so they stream contiguous
+                // rows and vectorize (accumulators live in the vw array, no
+                // scalar reduction).
+                for (j, &wj) in w[i + 1..n].iter().enumerate() {
+                    let row = (i + 1 + j) * n;
+                    for i2 in 0..n {
+                        vw[i2] = vw[i2] + v1[row + i2] * wj;
                     }
                 }
+                for (j, &wj) in w[i + 1..n].iter().enumerate() {
+                    let row = (i + 1 + j) * n;
+                    for i2 in 0..n {
+                        v1[row + i2] = v1[row + i2] - tau * wj * vw[i2];
+                    }
+                }
+                vw.fill(F::zero());
             }
         }
     }
