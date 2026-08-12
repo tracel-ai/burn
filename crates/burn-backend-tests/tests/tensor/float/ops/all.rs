@@ -45,3 +45,50 @@ fn test_all_dim_large() {
     let boolean = TestTensorBool::<2>::from_data(TensorData::new(mask, [rows, cols]), &device);
     expected.assert_eq(&boolean.all_dim(1).into_data(), false);
 }
+
+// Vacuously true: `all` folds with AND, whose identity is `true`.
+#[test]
+fn test_all_empty() {
+    let device = Default::default();
+    let expected = TensorData::from([true]);
+
+    expected.assert_eq(
+        &TestTensor::<1>::empty([0], &device).all().into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorInt::<1>::empty([0], &device).all().into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorBool::<1>::empty([0], &device).all().into_data(),
+        false,
+    );
+}
+
+// Shape [3, 0]: the identity has to be written once per surviving position, which the whole-tensor
+// case above cannot cover.
+#[test]
+fn test_all_dim_empty_axis() {
+    let device = Default::default();
+    let expected = TensorData::from([[true], [true], [true]]);
+
+    expected.assert_eq(
+        &TestTensor::<2>::empty([3, 0], &device)
+            .all_dim(1)
+            .into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorInt::<2>::empty([3, 0], &device)
+            .all_dim(1)
+            .into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorBool::<2>::empty([3, 0], &device)
+            .all_dim(1)
+            .into_data(),
+        false,
+    );
+}

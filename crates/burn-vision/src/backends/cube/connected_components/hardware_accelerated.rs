@@ -63,7 +63,7 @@ fn end_distance(pixels: u32, tx: u32) -> u32 {
 #[allow(unconditional_panic, reason = "clippy thinks PLANE_DIM is always 2")]
 fn ballot_dyn(y: u32, pred: bool) -> u32 {
     let index = y % (PLANE_DIM / 32);
-    plane_ballot(pred).extract(index as usize)
+    plane_ballot(pred).extract_dynamic(index as usize)
 }
 
 #[cube(launch_unchecked)]
@@ -71,7 +71,7 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &Tensor<Atomic<I>>,
     #[comptime] connectivity: Connectivity,
-    #[define(I, BT)] _dtypes: [StorageType; 2],
+    #[define(I, BT)] _dtypes: [ElemType; 2],
 ) {
     let mut shared_pixels = Shared::new_slice(BLOCK_H);
 
@@ -199,7 +199,7 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &Tensor<Atomic<I>>,
     #[comptime] connectivity: Connectivity,
-    #[define(I, BT)] _dtypes: [StorageType; 2],
+    #[define(I, BT)] _dtypes: [ElemType; 2],
 ) {
     let plane_start_x = CUBE_POS_X * (CUBE_DIM_X * CUBE_DIM_Z - PLANE_DIM) + UNIT_POS_Z * PLANE_DIM;
     let y = (CUBE_POS_Y + 1) * BLOCK_H as u32;
@@ -302,7 +302,7 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
 fn relabeling<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &mut Tensor<I>,
-    #[define(I, BT)] _dtypes: [StorageType; 2],
+    #[define(I, BT)] _dtypes: [ElemType; 2],
 ) {
     let plane_start_x = CUBE_POS_X * CUBE_DIM_X;
     let y = ABSOLUTE_POS_Y;
@@ -353,7 +353,7 @@ fn analysis<I: Int, BT: CubePrimitive>(
     bottom: &mut Tensor<Atomic<I>>,
     max_label: &mut Tensor<Atomic<I>>,
     #[comptime] opts: ConnectedStatsOptions,
-    #[define(I, BT)] _dtypes: [StorageType; 2],
+    #[define(I, BT)] _dtypes: [ElemType; 2],
 ) {
     let y = ABSOLUTE_POS_Y;
     let x = ABSOLUTE_POS_X;
@@ -413,7 +413,7 @@ fn compact_labels<I: Int>(
     labels: &mut Tensor<I>,
     remap: &Tensor<I>,
     max_label: &Tensor<Atomic<I>>,
-    #[define(I)] _dtype: StorageType,
+    #[define(I)] _dtype: ElemType,
 ) {
     let x = ABSOLUTE_POS_X;
     let y = ABSOLUTE_POS_Y;
@@ -445,7 +445,7 @@ fn compact_stats<I: Int>(
     bottom: &Tensor<I>,
     bottom_new: &mut Tensor<I>,
     remap: &Tensor<I>,
-    #[define(I)] _dtype: StorageType,
+    #[define(I)] _dtype: ElemType,
 ) {
     let label = ABSOLUTE_POS_X;
     if label as usize >= remap.len() {

@@ -287,9 +287,19 @@ impl Numeric for Int {
     }
 
     fn mean(tensor: BridgeTensor) -> BridgeTensor {
+        // A float mean of nothing is `NaN`; an integer has no such value. Checked here rather than
+        // in `int_mean` so a backend that overrides it cannot report an arbitrary number instead.
+        assert!(
+            tensor.shape().num_elements() > 0,
+            "Cannot compute mean of an empty int tensor"
+        );
         BridgeTensor::int(Dispatch::int_mean(tensor.into()))
     }
     fn mean_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        assert!(
+            tensor.shape()[dim] > 0,
+            "Cannot compute mean of an empty axis for an int tensor"
+        );
         BridgeTensor::int(Dispatch::int_mean_dim(tensor.into(), dim))
     }
     fn cumsum(tensor: BridgeTensor, dim: usize) -> BridgeTensor {

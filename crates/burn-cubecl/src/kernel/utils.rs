@@ -51,15 +51,21 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
     );
 
     let dims = (0..rank).map(|dim| {
-        let max = tensors.iter().map(|it| it.meta.shape()[dim]).max();
-        let max = max.unwrap_or(1);
-        debug_assert!(
-            tensors
-                .iter()
-                .all(|it| it.meta.shape()[dim] == max || it.meta.shape()[dim] == 1),
-            "Broadcast dims must be size 1"
-        );
-        max
+        // Broadcasting stretches a size-1 dim to the other operand's size, which may be 0.
+        // Every size that is not 1 must agree, and that shared size (0 included) is the result.
+        // Taking the max would be wrong when a 0 meets a 1: max picks 1 and drops the 0.
+        let mut broadcast = 1;
+        for tensor in tensors {
+            let size = tensor.meta.shape()[dim];
+            if size != 1 {
+                debug_assert!(
+                    broadcast == 1 || broadcast == size,
+                    "Broadcast dims must match or be 1"
+                );
+                broadcast = size;
+            }
+        }
+        broadcast
     });
 
     Shape::from(dims)

@@ -32,7 +32,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     mut output: LinearViewMut<'_, E>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if ABSOLUTE_POS >= output.shape() {
         terminate!();

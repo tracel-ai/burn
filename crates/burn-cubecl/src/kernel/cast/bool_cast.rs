@@ -18,7 +18,7 @@ use cubecl::{
 fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
     input: LinearView<'_, Vector<B, N>>,
     mut output: LinearViewMut<'_, Vector<T, N>>,
-    #[define(B, T)] _dtypes: [StorageType; 2],
+    #[define(B, T)] _dtypes: [ElemType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

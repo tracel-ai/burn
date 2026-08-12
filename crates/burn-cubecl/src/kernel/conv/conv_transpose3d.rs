@@ -35,7 +35,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     mut output: LinearViewMut<'_, E>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!()

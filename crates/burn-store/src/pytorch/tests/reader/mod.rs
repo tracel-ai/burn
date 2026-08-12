@@ -903,7 +903,7 @@ fn test_read_pickle_data_nested_structure() {
         // The structure depends on how the file was saved
         // It could be flat keys like "layer1.weight" or nested dicts
         // Just verify it's a valid dict structure
-        for (_key, value) in dict.iter() {
+        for value in dict.values() {
             // Values could be None (tensors), nested dicts, or other types
             assert!(
                 matches!(value, PickleValue::None | PickleValue::Dict(_)),
@@ -929,7 +929,7 @@ fn test_read_pickle_data_types() {
         assert!(dict.len() >= 3, "Should have at least 3 tensor types");
 
         // All tensor values should be None in pickle data
-        for (_key, value) in dict.iter() {
+        for value in dict.values() {
             // All values should be None (tensors are not included in pickle data)
             assert!(
                 matches!(value, PickleValue::None),
@@ -978,7 +978,7 @@ fn test_read_pickle_data_simple_pickle() {
         assert!(dict.contains_key("bias"));
 
         // All tensor values should be None in pickle data
-        for (_key, value) in dict.iter() {
+        for value in dict.values() {
             assert!(matches!(value, PickleValue::None));
         }
     } else {

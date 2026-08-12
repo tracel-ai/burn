@@ -1,6 +1,9 @@
 use crate::engine::codegen::{DynElem, DynSize, DynVector};
 
-use cubecl::{ir::Type, prelude::*};
+use cubecl::{
+    ir::Type,
+    prelude::{polyfills::set_polyfill, *},
+};
 use std::hash::Hash;
 
 /// Represents a global tensor with the given [element type](ElemType).

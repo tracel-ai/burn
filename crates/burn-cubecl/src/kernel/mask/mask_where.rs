@@ -19,7 +19,7 @@ fn mask_where_kernel<T: Numeric, B: Int, N: Size>(
     value: LinearView<'_, Vector<T, N>>,
     mask: LinearView<'_, Vector<B, N>>,
     mut output: LinearViewMut<'_, Vector<T, N>>,
-    #[define(T, B)] _dtypes: [StorageType; 2],
+    #[define(T, B)] _dtypes: [ElemType; 2],
 ) {
     let pos = ABSOLUTE_POS;
     if !output.is_in_bounds(pos) {
@@ -66,6 +66,17 @@ pub fn mask_where<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let out_shape = broadcast_shape(&[&input, &mask, &value]);
+
+    // A zero-sized broadcast output has no elements to compute, and the strategies below assume a
+    // non-empty output. Return the empty output directly.
+    if out_shape.num_elements() == 0 {
+        return empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            out_shape,
+            input.dtype,
+        );
+    }
 
     let output = match strategy {
         MaskWhereStrategy::Readonly => empty_device_dtype(
