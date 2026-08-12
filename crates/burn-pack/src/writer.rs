@@ -128,6 +128,13 @@ impl<T: TensorEntry> Writer<T> {
     /// Write directly to a file (more memory efficient for large models).
     ///
     /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
+    ///
+    /// The container is written to a temporary sibling of `path` and renamed into place only
+    /// once every byte is on disk, so `path` either ends up holding a complete container or
+    /// is left exactly as it was. This matters for lazy [`TensorEntry`] implementations,
+    /// whose bytes are produced during the write: a provider that fails partway through (or
+    /// hands back a different length than it declared) is an ordinary error, and it must not
+    /// leave a truncated file where a valid one used to be.
     #[cfg(feature = "std")]
     pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
         let path = path.as_ref();
@@ -138,12 +145,20 @@ impl<T: TensorEntry> Writer<T> {
         };
 
         let layout = self.plan()?;
-        let file = File::create(path).map_err(|e| Error::IoError(e.to_string()))?;
+        let scratch = ScratchFile::beside(&path)?;
 
-        let mut sink = FileSink { file };
-        self.write_container(&layout, &mut sink)?;
+        // Scoped so the handle is closed before the rename: Windows will not rename a file
+        // that is still open.
+        {
+            let file = File::create(scratch.path()).map_err(|e| Error::IoError(e.to_string()))?;
+            let mut sink = FileSink { file };
+            self.write_container(&layout, &mut sink)?;
+            sink.file
+                .flush()
+                .map_err(|e| Error::IoError(e.to_string()))?;
+        }
 
-        sink.file.flush().map_err(|e| Error::IoError(e.to_string()))
+        scratch.persist(&path)
     }
 
     /// Build the complete on-disk layout: header, serialized metadata, and the
@@ -403,6 +418,73 @@ impl Sink for BufferSink<'_> {
         self.buffer[self.offset..self.offset + data.len()].copy_from_slice(data);
         self.offset += data.len();
         Ok(())
+    }
+}
+
+/// A scratch file next to the eventual destination, deleted unless it is persisted.
+///
+/// Gives [`Writer::write_to_file`] its all-or-nothing behaviour: the container is built
+/// here and only takes the destination's name once it is complete. Any earlier return
+/// drops the guard, which removes the partial file.
+///
+/// The scratch path is a sibling of the destination rather than a system temp file so that
+/// [`persist`](Self::persist) is a same-filesystem rename (atomic, and never `EXDEV`).
+#[cfg(feature = "std")]
+struct ScratchFile {
+    path: std::path::PathBuf,
+    persisted: bool,
+}
+
+#[cfg(feature = "std")]
+impl ScratchFile {
+    /// Reserve a scratch path alongside `destination`.
+    ///
+    /// The name carries the process id and a counter so concurrent writers, in this process
+    /// or another, never pick the same scratch file for the same destination.
+    fn beside(destination: &Path) -> Result<Self, Error> {
+        use core::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+
+        let name = destination.file_name().ok_or_else(|| {
+            Error::IoError(format!(
+                "Cannot write to '{}': not a file path",
+                destination.display()
+            ))
+        })?;
+
+        let mut scratch = name.to_os_string();
+        scratch.push(format!(
+            ".{}-{}.tmp",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+
+        Ok(Self {
+            path: destination.with_file_name(scratch),
+            persisted: false,
+        })
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Move the completed container onto `destination`, replacing any existing file.
+    fn persist(mut self, destination: &Path) -> Result<(), Error> {
+        std::fs::rename(&self.path, destination).map_err(|e| Error::IoError(e.to_string()))?;
+        self.persisted = true;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
+impl Drop for ScratchFile {
+    fn drop(&mut self) {
+        if !self.persisted {
+            // Best effort: the write already failed, and a leftover scratch file is a less
+            // useful thing to report than whatever went wrong.
+            let _ = std::fs::remove_file(&self.path);
+        }
     }
 }
 

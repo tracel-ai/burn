@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
-use crate::bridge;
 use crate::{
     IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot,
 };
@@ -485,7 +484,7 @@ impl BurnpackStore {
         let snapshots: Vec<TensorSnapshot> = reader
             .into_tensors()?
             .into_iter()
-            .map(bridge::tensor_to_snapshot)
+            .map(TensorSnapshot::from)
             .collect();
 
         // Apply remapping if configured (but NOT filtering - that's done at apply time)

@@ -53,27 +53,31 @@ impl TensorEntry for TensorSnapshot {
     }
 }
 
-/// Convert a [`PackTensor`] entry into a lazy [`TensorSnapshot`].
+/// Turns a reader's [`PackTensor`] entry into a lazy [`TensorSnapshot`].
 ///
-/// The tensor's [`Bytes`](burn_pack::Bytes) may be file-backed (from [`Reader::from_file`](burn_pack::Reader::from_file)),
-/// in which case the data is only read from disk when the snapshot is materialized.
-pub fn tensor_to_snapshot(tensor: PackTensor) -> TensorSnapshot {
-    let dtype = tensor.dtype;
-    let shape = tensor.shape.clone();
-    let path_stack: Vec<String> = tensor.name.split('.').map(|s| s.to_string()).collect();
-    let tensor_id = tensor.param_id.map(ParamId::from).unwrap_or_default();
+/// The counterpart to the [`TensorEntry`] impl above, and lazy in the same way: the tensor's
+/// [`Bytes`](burn_pack::Bytes) may be file-backed (from
+/// [`Reader::from_file`](burn_pack::Reader::from_file)), in which case the data is only read
+/// from disk when the snapshot is materialized.
+impl From<PackTensor> for TensorSnapshot {
+    fn from(tensor: PackTensor) -> Self {
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let path_stack: Vec<String> = tensor.name.split('.').map(|s| s.to_string()).collect();
+        let tensor_id = tensor.param_id.map(ParamId::from).unwrap_or_default();
 
-    let bytes = tensor.bytes;
-    let shape_for_closure = shape.clone();
-    let data_fn = Rc::new(move || {
-        Ok(TensorData::from_bytes(
-            bytes.clone(),
-            shape_for_closure.clone(),
-            dtype,
-        ))
-    });
+        let bytes = tensor.bytes;
+        let shape_for_closure = shape.clone();
+        let data_fn = Rc::new(move || {
+            Ok(TensorData::from_bytes(
+                bytes.clone(),
+                shape_for_closure.clone(),
+                dtype,
+            ))
+        });
 
-    TensorSnapshot::from_closure(data_fn, dtype, shape, path_stack, vec![], tensor_id)
+        TensorSnapshot::from_closure(data_fn, dtype, shape, path_stack, vec![], tensor_id)
+    }
 }
 
 #[cfg(all(test, feature = "std"))]

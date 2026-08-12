@@ -122,3 +122,26 @@ mod bridge;
 mod burnpack;
 #[cfg(feature = "burnpack")]
 pub use burnpack::BurnpackStore;
+
+/// The burnpack format crate, re-exported.
+///
+/// [`TensorSnapshot`] implements [`burn_pack::TensorEntry`], so a crate holding snapshots can
+/// drive a [`burn_pack::Writer`] itself instead of going through [`BurnpackStore`] (useful
+/// when the tensors did not come from a [`Module`](burn_core::module::Module) - weights read
+/// out of an ONNX file during codegen, say):
+///
+/// ```
+/// use burn_store::burn_pack::{Error, Writer};
+/// use burn_store::TensorSnapshot;
+///
+/// fn save(snapshots: Vec<TensorSnapshot>) -> Result<(), Error> {
+///     Writer::new(snapshots).write_to_file("model.bpk")
+/// }
+/// ```
+///
+/// Reach for this rather than depending on `burn-pack` directly. The trait impl only applies
+/// for the exact `burn-pack` version burn-store was built against, and a separate dependency
+/// that resolves to a different one fails with a confusing "`TensorSnapshot` doesn't
+/// implement `TensorEntry`" rather than a version conflict.
+#[cfg(feature = "burnpack")]
+pub use burn_pack;

@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use burn_pack::{Bytes, DType, Error, Shape, Tensor, TensorEntry, Writer};
+use burn_pack::{Bytes, DType, Error, Reader, Shape, Tensor, TensorEntry, Writer};
 use common::f32_tensor;
 
 /// Records every materialization, in the order it happened.
@@ -147,4 +147,73 @@ fn a_failing_provider_aborts_the_write() {
 
     let err = Writer::new(vec![entry]).into_bytes().unwrap_err();
     assert!(matches!(err, Error::IoError(msg) if msg.contains("device read failed")));
+}
+
+/// A lazy provider runs during the write, so its failure has to leave the destination as it
+/// was rather than truncated. Failing on the *last* tensor means the earlier ones were
+/// already streamed out, which is exactly the case a plain `File::create` would corrupt.
+#[test]
+fn a_failing_provider_leaves_no_file_behind() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let log: Log = Rc::default();
+    let mut entries = entries(&log);
+    entries.last_mut().unwrap().fails = true;
+
+    Writer::new(entries).write_to_file(&dest).unwrap_err();
+
+    assert!(!dest.exists(), "destination should not have been created");
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        0,
+        "scratch file should have been cleaned up"
+    );
+}
+
+#[test]
+fn a_failed_write_leaves_an_existing_file_intact() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    // A valid container already at the destination.
+    let log: Log = Rc::default();
+    Writer::new(entries(&log)).write_to_file(&dest).unwrap();
+    let original = std::fs::read(&dest).unwrap();
+
+    let mut entries = entries(&log);
+    entries.last_mut().unwrap().fails = true;
+    Writer::new(entries).write_to_file(&dest).unwrap_err();
+
+    assert_eq!(
+        std::fs::read(&dest).unwrap(),
+        original,
+        "a failed write must not disturb the previous container"
+    );
+}
+
+#[test]
+fn a_successful_write_replaces_an_existing_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let log: Log = Rc::default();
+    Writer::new(vec![LazyEntry::new("old", &[4], 1.0, &log)])
+        .write_to_file(&dest)
+        .unwrap();
+    Writer::new(entries(&log)).write_to_file(&dest).unwrap();
+
+    let names: Vec<String> = Reader::from_file(&dest)
+        .unwrap()
+        .into_tensors()
+        .unwrap()
+        .into_iter()
+        .map(|t| t.name)
+        .collect();
+    assert_eq!(names, ["a", "b", "c"]);
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        1,
+        "no scratch file should survive a successful write"
+    );
 }
