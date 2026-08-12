@@ -1,8 +1,8 @@
 use burn_backend::Scalar;
 
 use crate::alloc::borrow::ToOwned;
+use crate::check::unwrap_dim_index;
 use crate::kind::Numeric;
-use alloc::vec::Vec;
 
 use crate::{
     AsIndex, Bool, Distribution, ElementConversion, Int, Shape, Tensor, check, check::TensorCheck,
@@ -26,14 +26,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
-    ///    let tensor = tensor1 + tensor2;
-    ///    println!("{tensor}");
-    ///    // [[3.0, 1.0, 7.0], [6.0, 11.0, 9.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    /// let tensor = tensor1 + tensor2;
+    /// println!("{tensor}");
+    /// // [[3.0, 1.0, 7.0], [6.0, 11.0, 9.0]]
     /// ```
     #[allow(clippy::should_implement_trait)]
     pub fn add(self, other: Self) -> Self {
@@ -54,14 +52,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let scalar = 2.0;
-    ///   let tensor = tensor + scalar;
-    ///   println!("{tensor}");
-    ///   // [[3.0, 0.0, 5.0], [7.0, 11.0, 8.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let scalar = 2.0;
+    /// let tensor = tensor + scalar;
+    /// println!("{tensor}");
+    /// // [[3.0, 0.0, 5.0], [7.0, 11.0, 8.0]]
     /// ```
     pub fn add_scalar<E: ElementConversion>(self, other: E) -> Self {
         let other = Scalar::new(other, &self.dtype());
@@ -81,14 +77,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
-    ///   let tensor = tensor1 - tensor2;
-    ///   println!("{tensor}");
-    ///   // [[-1.0, -5.0, -1.0], [4.0, 7.0, 3.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    /// let tensor = tensor1 - tensor2;
+    /// println!("{tensor}");
+    /// // [[-1.0, -5.0, -1.0], [4.0, 7.0, 3.0]]
     /// ```
     #[allow(clippy::should_implement_trait)]
     pub fn sub(self, other: Self) -> Self {
@@ -109,14 +103,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let scalar = 2.0;
-    ///    let tensor = tensor - scalar;
-    ///    println!("{tensor}");
-    ///    // [[-1.0, -4.0, 1.0], [3.0, 7.0, 4.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let scalar = 2.0;
+    /// let tensor = tensor - scalar;
+    /// println!("{tensor}");
+    /// // [[-1.0, -4.0, 1.0], [3.0, 7.0, 4.0]]
     /// ```
     pub fn sub_scalar<E: ElementConversion>(self, other: E) -> Self {
         let other = Scalar::new(other, &self.dtype());
@@ -136,14 +128,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
-    ///    let tensor = tensor1 / tensor2;
-    ///    println!("{tensor}");
-    ///    // [[0.5, -0.6666667, 0.75], [5.0, 4.5, 2.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    /// let tensor = tensor1 / tensor2;
+    /// println!("{tensor}");
+    /// // [[0.5, -0.6666667, 0.75], [5.0, 4.5, 2.0]]
     /// ```
     #[allow(clippy::should_implement_trait)]
     pub fn div(self, other: Self) -> Self {
@@ -164,14 +154,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let scalar = 2.0;
-    ///    let tensor = tensor / scalar;
-    ///    println!("{tensor}");
-    ///    // [[0.5, -1.0, 1.5], [2.5, 4.5, 3.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let scalar = 2.0;
+    /// let tensor = tensor / scalar;
+    /// println!("{tensor}");
+    /// // [[0.5, -1.0, 1.5], [2.5, 4.5, 3.0]]
     /// ```
     pub fn div_scalar<E: ElementConversion>(self, other: E) -> Self {
         let other = Scalar::new(other, &self.dtype());
@@ -198,14 +186,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let scalar = 2.0;
-    ///    let tensor = tensor1 % scalar;
-    ///    println!("{tensor}");
-    ///    // [[1.0, 0.0, 1.0], [1.0, 1.0, 0.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let scalar = 2.0;
+    /// let tensor = tensor1 % scalar;
+    /// println!("{tensor}");
+    /// // [[1.0, 0.0, 1.0], [1.0, 1.0, 0.0]]
     /// ```
     pub fn remainder_scalar<E: ElementConversion>(self, other: E) -> Self {
         let other = Scalar::new(other, &self.dtype());
@@ -225,14 +211,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
-    ///    let tensor = tensor1 * tensor2;
-    ///    println!("{tensor}");
-    ///    // [[2.0, -6.0, 12.0], [5.0, 18.0, 18.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    /// let tensor = tensor1 * tensor2;
+    /// println!("{tensor}");
+    /// // [[2.0, -6.0, 12.0], [5.0, 18.0, 18.0]]
     /// ```
     #[allow(clippy::should_implement_trait)]
     pub fn mul(self, other: Self) -> Self {
@@ -253,14 +237,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let scalar = 2.0;
-    ///    let tensor = tensor * scalar;
-    ///    println!("{tensor}");
-    ///    // [[2.0, -4.0, 6.0], [10.0, 18.0, 12.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let scalar = 2.0;
+    /// let tensor = tensor * scalar;
+    /// println!("{tensor}");
+    /// // [[2.0, -4.0, 6.0], [10.0, 18.0, 12.0]]
     /// ```
     pub fn mul_scalar<E: ElementConversion>(self, other: E) -> Self {
         let other = Scalar::new(other, &self.dtype());
@@ -276,13 +258,11 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = -tensor;
-    ///    println!("{tensor}");
-    ///    // [[-1.0, 2.0, -3.0], [-5.0, -9.0, -6.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = -tensor;
+    /// println!("{tensor}");
+    /// // [[-1.0, 2.0, -3.0], [-5.0, -9.0, -6.0]]
     /// ```
     #[allow(clippy::should_implement_trait)]
     pub fn neg(self) -> Self {
@@ -296,13 +276,11 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.sign();
-    ///    println!("{tensor}");
-    ///    // [[1.0, -1.0, 1.0], [1.0, 1.0, 1.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.sign();
+    /// println!("{tensor}");
+    /// // [[1.0, -1.0, 1.0], [1.0, 1.0, 1.0]]
     /// ```
     pub fn sign(self) -> Self {
         Self::new(K::sign(self.primitive))
@@ -315,13 +293,11 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.mean();
-    ///    println!("{tensor}");
-    ///    // [3.6666667]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.mean();
+    /// println!("{tensor}");
+    /// // [3.6666667]
     /// ```
     pub fn mean(self) -> Tensor<1, K> {
         Tensor::new(K::mean(self.primitive))
@@ -334,13 +310,11 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.sum();
-    ///   println!("{tensor}");
-    ///   // [22.0]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.sum();
+    /// println!("{tensor}");
+    /// // [22.0]
     /// ```
     pub fn sum(self) -> Tensor<1, K> {
         Tensor::new(K::sum(self.primitive))
@@ -359,20 +333,17 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.clone().mean_dim(0);
-    ///   println!("{tensor}");
-    ///   // [[3.0, 3.5, 4.5]]
-    ///   let tensor = tensor.clone().mean_dim(1);
-    ///   println!("{tensor}");
-    ///   // [[0.6666667], [6.6666665]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let mean = tensor.clone().mean_dim(0);
+    /// println!("{mean}");
+    /// // [[3.0, 3.5, 4.5]]
+    /// let mean = tensor.mean_dim(1);
+    /// println!("{mean}");
+    /// // [[0.6666667], [6.6666665]]
     /// ```
     pub fn mean_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Mean Dim");
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
@@ -393,13 +364,11 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[2.0, 4.0], [6.0, -4.0]], &device);
-    ///    let tensor = tensor.clone().mean_dims(&[0, 1]);
-    ///    println!("{tensor}");
-    ///    // [[2.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[2.0, 4.0], [6.0, -4.0]], &device);
+    /// let tensor = tensor.clone().mean_dims(&[0, 1]);
+    /// println!("{tensor}");
+    /// // [[2.0]]
     /// ```
     pub fn mean_dims<I: AsIndex>(self, dims: &[I]) -> Self {
         dims.iter().fold(self, |tensor, &dim| tensor.mean_dim(dim))
@@ -418,20 +387,17 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.clone().sum_dim(0);
-    ///    println!("{tensor}");
-    ///    // [[6.0, 7.0, 9.0]]
-    ///    let tensor = tensor.clone().sum_dim(1);
-    ///    println!("{tensor}");
-    ///    // [[2.0], [20.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let sum = tensor.clone().sum_dim(0);
+    /// println!("{sum}");
+    /// // [[6.0, 7.0, 9.0]]
+    /// let sum = tensor.sum_dim(1);
+    /// println!("{sum}");
+    /// // [[2.0], [20.0]]
     /// ```
     pub fn sum_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Sum Dim");
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
@@ -452,13 +418,11 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.clone().sum_dims(&[0, 1]);
-    ///    println!("{tensor}");
-    ///    // [[27]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.clone().sum_dims(&[0, 1]);
+    /// println!("{tensor}");
+    /// // [[27]]
     /// ```
     pub fn sum_dims<I: AsIndex>(self, dims: &[I]) -> Self {
         dims.iter().fold(self, |tensor, &dim| tensor.sum_dim(dim))
@@ -482,24 +446,17 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let tensor = Tensor::<3>::from_data([
-    ///         [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
-    ///         [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
-    ///     ], &device);
-    ///     let tensor = tensor.clone().sum_dims_squeeze::<1, _>(&[0, 1]);
-    ///     println!("{tensor}");
-    ///     // [20.0, 16.0, 21.0]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<3>::from_data([
+    ///     [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
+    ///     [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
+    /// ], &device);
+    /// let tensor = tensor.clone().sum_dims_squeeze::<1, _>(&[0, 1]);
+    /// println!("{tensor}");
+    /// // [20.0, 16.0, 21.0]
     /// ```
     pub fn sum_dims_squeeze<const D2: usize, I: AsIndex>(self, dims: &[I]) -> Tensor<D2, K> {
-        // TODO: remove idims when squeeze_dims uses AsIndex.
-        let idims = dims
-            .iter()
-            .map(|&dim| (dim.expect_dim_index(D)) as isize)
-            .collect::<Vec<_>>();
-        self.sum_dims(dims).squeeze_dims::<D2>(&idims)
+        self.sum_dims(dims).squeeze_dims::<D2>(dims)
     }
 
     /// Aggregate all elements in the tensor with the product operation.
@@ -509,13 +466,11 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.prod();
-    ///    println!("{tensor}");
-    ///    // [-1620.0]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.prod();
+    /// println!("{tensor}");
+    /// // [-1620.0]
     /// ```
     pub fn prod(self) -> Tensor<1, K> {
         Tensor::new(K::prod(self.primitive))
@@ -539,20 +494,17 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.clone().prod_dim(0);
-    ///    println!("{tensor}");
-    ///    // [[5.0, -18.0, 18.0]]
-    ///    let tensor = tensor.clone().prod_dim(1);
-    ///    println!("{tensor}");
-    ///    // [[-6.0], [270.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let prod = tensor.clone().prod_dim(0);
+    /// println!("{prod}");
+    /// // [[5.0, -18.0, 18.0]]
+    /// let prod = tensor.prod_dim(1);
+    /// println!("{prod}");
+    /// // [[-6.0], [270.0]]
     /// ```
     pub fn prod_dim<I: AsIndex>(self, dim: I) -> Self {
-        let dim = dim.expect_dim_index(D);
-        check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Prod Dim");
         Self::new(K::prod_dim(self.primitive, dim))
     }
 
@@ -573,13 +525,11 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.clone().sum_dims(&[0, 1]);
-    ///    println!("{tensor}");
-    ///    // [[-1620.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.clone().sum_dims(&[0, 1]);
+    /// println!("{tensor}");
+    /// // [[-1620.0]]
     /// ```
     pub fn prod_dims<I: AsIndex>(self, dims: &[I]) -> Self {
         dims.iter().fold(self, |tensor, &dim| tensor.prod_dim(dim))
@@ -590,25 +540,24 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative sum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-    ///    let result = tensor.clone().cumsum(0);
-    ///    println!("{result}");
-    ///    // [[1.0, 2.0, 3.0], [5.0, 7.0, 9.0]]
-    ///    let result = tensor.cumsum(1);
-    ///    println!("{result}");
-    ///    // [[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    /// let result = tensor.clone().cumsum(0);
+    /// println!("{result}");
+    /// // [[1.0, 2.0, 3.0], [5.0, 7.0, 9.0]]
+    /// let result = tensor.cumsum(1);
+    /// println!("{result}");
+    /// // [[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]
     /// ```
-    pub fn cumsum(self, dim: usize) -> Self {
-        check!(TensorCheck::aggregate_dim::<D>("CumSum", dim));
+    pub fn cumsum<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cumsum");
         Self::new(K::cumsum(self.primitive, dim))
     }
 
@@ -617,25 +566,24 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative product.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-    ///    let result = tensor.clone().cumprod(0);
-    ///    println!("{result}");
-    ///    // [[1.0, 2.0, 3.0], [4.0, 10.0, 18.0]]
-    ///    let result = tensor.cumprod(1);
-    ///    println!("{result}");
-    ///    // [[1.0, 2.0, 6.0], [4.0, 20.0, 120.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    /// let result = tensor.clone().cumprod(0);
+    /// println!("{result}");
+    /// // [[1.0, 2.0, 3.0], [4.0, 10.0, 18.0]]
+    /// let result = tensor.cumprod(1);
+    /// println!("{result}");
+    /// // [[1.0, 2.0, 6.0], [4.0, 20.0, 120.0]]
     /// ```
-    pub fn cumprod(self, dim: usize) -> Self {
-        check!(TensorCheck::aggregate_dim::<D>("CumProd", dim));
+    pub fn cumprod<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Cumprod");
         Self::new(K::cumprod(self.primitive, dim))
     }
 
@@ -646,13 +594,11 @@ where
     /// ```rust
     /// use burn_tensor::{Int, Tensor};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<2, Int>::from_ints([[1, -2, 3], [4, -5, 6], [7, -8, 9]], &device);
-    ///   let tensor = tensor.abs();
-    ///   println!("{tensor}");
-    ///   // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2, Int>::from_ints([[1, -2, 3], [4, -5, 6], [7, -8, 9]], &device);
+    /// let tensor = tensor.abs();
+    /// println!("{tensor}");
+    /// // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     /// ```
     ///
     /// # Notes
@@ -677,24 +623,22 @@ where
     /// ```rust
     /// use burn_tensor::{Int, Tensor};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2, Int>::from_ints(
-    ///        [
-    ///          [1, 2, 3],
-    ///          [4, 5, 6],
-    ///          [7, 8, 9]
-    ///        ],
-    ///        &device
-    ///    );
-    ///    let tensor = tensor.triu(1);
-    ///    println!("{tensor}");
-    ///    // [
-    ///    //   [0, 2, 3],
-    ///    //   [0, 0, 6],
-    ///    //   [0, 0, 0]
-    ///    // ]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2, Int>::from_ints(
+    ///     [
+    ///       [1, 2, 3],
+    ///       [4, 5, 6],
+    ///       [7, 8, 9]
+    ///     ],
+    ///     &device
+    /// );
+    /// let tensor = tensor.triu(1);
+    /// println!("{tensor}");
+    /// // [
+    /// //   [0, 2, 3],
+    /// //   [0, 0, 6],
+    /// //   [0, 0, 0]
+    /// // ]
     /// ```
     pub fn triu(self, diagonal: i64) -> Self {
         check!(TensorCheck::tri::<{ D }>());
@@ -720,25 +664,23 @@ where
     /// ```rust
     /// use burn_tensor::{Int, Tensor};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2, Int>::from_ints(
-    ///        [
-    ///          [1, 2, 3],
-    ///          [4, 5, 6],
-    ///          [7, 8, 9]
-    ///        ],
-    ///        &device
-    ///    );
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2, Int>::from_ints(
+    ///     [
+    ///       [1, 2, 3],
+    ///       [4, 5, 6],
+    ///       [7, 8, 9]
+    ///     ],
+    ///     &device
+    /// );
     ///
-    ///    let tensor = tensor.tril(-1);
-    ///    println!("{tensor}");
-    ///    // [
-    ///    //   [0, 0, 0],
-    ///    //   [4, 0, 0],
-    ///    //   [7, 8, 0]
-    ///    // ]
-    /// }
+    /// let tensor = tensor.tril(-1);
+    /// println!("{tensor}");
+    /// // [
+    /// //   [0, 0, 0],
+    /// //   [4, 0, 0],
+    /// //   [7, 8, 0]
+    /// // ]
     /// ```
     pub fn tril(self, diagonal: i64) -> Self {
         check!(TensorCheck::tri::<{ D }>());
@@ -761,14 +703,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape, Int};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
-    ///    let tensor2 = Tensor::<2, Int>::from_ints([[2, 3, 4], [1, 2, 3]], &device);
-    ///    let tensor = tensor1.powi(tensor2);
-    ///    println!("{tensor}");
-    ///    // [[1, -8, 81], [5, 81, 216]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
+    /// let tensor2 = Tensor::<2, Int>::from_ints([[2, 3, 4], [1, 2, 3]], &device);
+    /// let tensor = tensor1.powi(tensor2);
+    /// println!("{tensor}");
+    /// // [[1, -8, 81], [5, 81, 216]]
     /// ```
     pub fn powi(self, other: Self) -> Self {
         Self::new(K::powi(self.primitive, other.primitive))
@@ -785,18 +725,16 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape, Int};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
-    ///    let tensor = tensor.powi_scalar(2);
-    ///    println!("{tensor}");
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
+    /// let tensor = tensor.powi_scalar(2);
+    /// println!("{tensor}");
     ///
-    ///    // [[1, 4, 9], [25, 81, 36]]
-    ///    let tensor = Tensor::<2>::from_data([[1.5, -2., 3.], [5., 9., 6.]], &device);
-    ///    let tensor = tensor.powi_scalar(2);
-    ///    println!("{tensor}");
-    ///    // [[2.25, 4., 9.], [25., 81., 36.]]
-    /// }
+    /// // [[1, 4, 9], [25, 81, 36]]
+    /// let tensor = Tensor::<2>::from_data([[1.5, -2., 3.], [5., 9., 6.]], &device);
+    /// let tensor = tensor.powi_scalar(2);
+    /// println!("{tensor}");
+    /// // [[2.25, 4., 9.], [25., 81., 36.]]
     /// ```
     pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
         let other = Scalar::new(other, &self.dtype());
@@ -814,18 +752,17 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [0.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.bool();
-    ///   println!("{tensor}");
-    ///   // [
-    ///   //   [true, true, true],
-    ///   //   [false, true, true]
-    ///   // ]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [0.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.bool();
+    /// println!("{tensor}");
+    /// // [
+    /// //   [true, true, true],
+    /// //   [false, true, true]
+    /// // ]
+    /// ```
     pub fn bool(self) -> Tensor<D, Bool> {
-        self.not_equal_elem(0)
+        self.not_equal_scalar(0)
     }
 
     /// Create a random tensor of the given shape on the given device where each element is
@@ -848,16 +785,14 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape, Distribution};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let distribution = Distribution::Uniform(0.0, 1.0); // Any random value between 0.0 and 1.0
-    ///   let tensor = Tensor::<2>::random(Shape::new([2, 3]), distribution, &device);
-    ///   println!("{tensor}");
-    ///   // [
-    ///   //   [0.08347523, 0.70498955, 0.60332155],
-    ///   //   [0.08173251, 0.18028641, 0.97942924]
-    ///   // ]
-    /// }
+    /// let device = Default::default();
+    /// let distribution = Distribution::Uniform(0.0, 1.0); // Any random value between 0.0 and 1.0
+    /// let tensor = Tensor::<2>::random(Shape::new([2, 3]), distribution, &device);
+    /// println!("{tensor}");
+    /// // [
+    /// //   [0.08347523, 0.70498955, 0.60332155],
+    /// //   [0.08173251, 0.18028641, 0.97942924]
+    /// // ]
     /// ```
     pub fn random<S: Into<Shape>>(
         shape: S,
@@ -924,14 +859,12 @@ where
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<1>::from_data([1.0, 2.0], &device);
-    ///    let tensor2 = Tensor::<1>::from_data([-2.0, 3.0], &device);
-    ///    let tensor = tensor1.dot(tensor2);
-    ///    println!("{tensor}");
-    ///    // [4]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<1>::from_data([1.0, 2.0], &device);
+    /// let tensor2 = Tensor::<1>::from_data([-2.0, 3.0], &device);
+    /// let tensor = tensor1.dot(tensor2);
+    /// println!("{tensor}");
+    /// // [4]
     /// ```
     pub fn dot(self, other: Self) -> Self {
         self.mul(other).sum()

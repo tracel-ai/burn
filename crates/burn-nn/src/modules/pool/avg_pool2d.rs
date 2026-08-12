@@ -67,8 +67,8 @@ impl ModuleDisplay for AvgPool2d {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
-            .add("kernel_size", &alloc::format!("{:?}", &self.kernel_size))
-            .add("stride", &alloc::format!("{:?}", &self.stride))
+            .add("kernel_size", &alloc::format!("{:?}", self.kernel_size))
+            .add("stride", &alloc::format!("{:?}", self.stride))
             .add_debug_attribute("padding", &self.padding)
             .add("count_include_pad", &self.count_include_pad)
             .add("ceil_mode", &self.ceil_mode)

@@ -118,10 +118,21 @@ cargo bench-metal
 
 # Flex
 cargo bench-flex
+# Flex+Simd
+cargo bench-flex --features flex-simd
+# Flex+Rayon
+cargo bench-flex --features flex-rayon
+# Flex+Simd+Rayon
+cargo bench-flex --features flex-simd,flex-rayon
 # NdArray
 cargo bench-ndarray
 # LibTorch
 cargo bench-tch
+```
+
+Get a more compact output without memory allocations using:
+```sh
+cargo bench-* --features bench-disable-alloc
 ```
 
 Run a single bench file by passing `--bench <name>`:

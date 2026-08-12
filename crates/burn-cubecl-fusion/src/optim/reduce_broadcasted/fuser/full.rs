@@ -90,6 +90,8 @@ impl ReduceBroadcastedFullFuser {
                         ReduceInstruction::Max => ReduceOperationConfig::Max,
                         ReduceInstruction::Min => ReduceOperationConfig::Min,
                         ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
+                        ReduceInstruction::Any => ReduceOperationConfig::Any,
+                        ReduceInstruction::All => ReduceOperationConfig::All,
                     };
 
                     let block = ReduceBroadcastedFuseBlock {

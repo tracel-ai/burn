@@ -14,6 +14,7 @@ pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 
 use alloc::vec::Vec;
 use core::any::TypeId;
+use cubecl_common::e4m3;
 use num_traits::PrimInt;
 use serde::{Deserialize, Serialize};
 
@@ -107,6 +108,9 @@ pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
 
             params_shape
         }
+        QuantLevel::BlockTensor { .. } => {
+            unimplemented!("two-level quantization is not supported yet, got {level:?}")
+        }
     }
 }
 
@@ -145,19 +149,16 @@ impl QuantizedBytes {
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
         let mut bytes = Bytes::from_elems(i8s);
 
-        match scheme.level {
-            QuantLevel::Tensor => {
-                let scale_bytes = bytemuck::bytes_of(&scales[0]);
-                bytes.extend_from_byte_slice_aligned(scale_bytes, QPARAM_ALIGN);
-            }
-            QuantLevel::Block(_block_size) => {
-                let mut scale_bytes = Vec::with_capacity(size_of_val(scales));
-                for scale in scales {
-                    scale_bytes.extend_from_slice(bytemuck::bytes_of(scale));
-                }
-                bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
-            }
-        }
+        let scales = match scheme.level {
+            QuantLevel::Tensor => &scales[..1],
+            QuantLevel::Block(_block_size) => scales,
+            QuantLevel::BlockTensor { .. } => unimplemented!(
+                "two-level quantization is not supported yet, got {:?}",
+                scheme.level
+            ),
+        };
+        let scale_bytes = encode_scales(scales, scheme.param);
+        bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
 
         Self {
             bytes,
@@ -168,62 +169,43 @@ impl QuantizedBytes {
 
     /// Returns the int8 quantized values with the quantization parameters.
     pub fn into_vec_i8(self) -> (Vec<i8>, QParams<Vec<f32>>) {
+        let param = self.scheme.param;
         let (values, (qparams, num_params)) = self.split_values_off();
 
         // Quantization parameters are added at the end of the tensor data.
-        // As such, the last bytes always correspond to the scale parameter(s).
-        // For example, per-block quantization can have multiple parameters for a single tensor:
+        // As such, the last bytes always correspond to the scale parameter(s),
+        // stored at the scheme's param dtype. For example, per-block
+        // quantization can have multiple parameters for a single tensor:
         // [scale, scale, scale, ...]
-        let scale_size = core::mem::size_of::<f32>(); // scale is stored as f32
-        let qparams_bytes: &[u8] = bytemuck::cast_slice(&qparams);
-        let total_bytes = qparams_bytes.len();
-
-        let scales_size = scale_size * num_params;
-
-        let scales = bytemuck::cast_slice(&qparams_bytes[total_bytes - scales_size..]).to_vec();
+        let scales_size = scale_size(param) * num_params;
+        let scales = decode_scales(&qparams[qparams.len() - scales_size..], param);
 
         (values, QParams { scales })
     }
 
-    fn split_i8_values(self, num_params: usize) -> (Vec<i8>, Vec<u32>) {
+    fn split_i8_values(self, scale_bytes: usize) -> (Vec<i8>, Vec<u8>) {
         let mut values = read_bytes_to_i8(self.bytes);
 
-        let scale_size = num_params * size_of::<f32>();
-        let values_end = values.len() - scale_size;
-
+        let values_end = values.len() - scale_bytes;
         let qparams = values.split_off(values_end);
 
-        let qparams = if (qparams.as_ptr() as usize).is_multiple_of(4) {
-            let mut qparams = core::mem::ManuallyDrop::new(qparams);
-            unsafe {
-                Vec::<u32>::from_raw_parts(
-                    qparams.as_mut_ptr() as _,
-                    qparams.len() / 4,
-                    qparams.capacity() / 4,
-                )
-            }
-        } else {
-            #[cfg(target_endian = "little")]
-            {
-                // SAFETY: quantized bytes representation is created from packed u32 values in little endian
-                bytemuck::cast_vec(qparams)
-            }
-            #[cfg(target_endian = "big")]
-            {
-                crate::quantization::pack_i8s_to_u32s(bytemuck::cast_vec(qparams))
-            }
-        };
-        (values, qparams)
+        (values, bytemuck::cast_vec(qparams))
     }
 
     /// Splits the quantized values of the tensor from the quantization parameters.
     ///
-    /// Returns the values in i8 and a newly allocated vector containing the quantization parameters.
-    fn split_values_off(self) -> (Vec<i8>, (Vec<u32>, usize)) {
+    /// Returns the values in i8 and a newly allocated vector containing the
+    /// quantization parameter bytes.
+    fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
         let num_params = match self.scheme.level {
             QuantLevel::Tensor => 1,
             QuantLevel::Block(block_size) => self.num_elements / block_size.num_elements(),
+            QuantLevel::BlockTensor { .. } => unimplemented!(
+                "two-level quantization is not supported yet, got {:?}",
+                self.scheme.level
+            ),
         };
+        let scale_bytes = scale_size(self.scheme.param) * num_params;
 
         if let QuantStore::PackedU32(packed_dim) = self.scheme.store {
             assert_eq!(
@@ -233,17 +215,15 @@ impl QuantizedBytes {
         }
 
         let (values, qparams) = match self.scheme.store {
-            QuantStore::Native => self.split_i8_values(num_params),
+            QuantStore::Native => self.split_i8_values(scale_bytes),
             QuantStore::PackedU32(_) => match self.scheme.value {
-                QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(num_params),
+                QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(scale_bytes),
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
-                    let mut values = bytemuck::cast_slice::<_, u32>(&self.bytes).to_vec();
-                    let scale_size = num_params; // size of f32 same as u32
-                    let values_end = values.len() - scale_size;
-
-                    let qparams = values.split_off(values_end);
+                    let split_at = self.bytes.len() - scale_bytes;
+                    let qparams = self.bytes[split_at..].to_vec();
+                    let values = bytemuck::cast_slice::<_, u32>(&self.bytes[..split_at]);
                     // Sub-byte values are unpacked as i8s for value equality tests
-                    let values = unpack_q_to_i8s(&values, self.num_elements, &self.scheme.value);
+                    let values = unpack_q_to_i8s(values, self.num_elements, &self.scheme.value);
                     (values, qparams)
                 }
                 QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
@@ -254,6 +234,95 @@ impl QuantizedBytes {
         };
 
         (values, (qparams, num_params))
+    }
+}
+
+/// Round a scale up to the smallest value representable by the param dtype that is no smaller.
+///
+/// Backends that keep scales in `f32` must apply this when quantizing, so that the scale they
+/// divide by is the one that will actually be stored. Otherwise a tensor dequantizes differently
+/// after a save/load round trip.
+///
+/// Up rather than to nearest, because a scale is derived from the largest magnitude it has to
+/// cover. Rounding down puts that value past the end of the quantized range, where it clips, which
+/// measured several times worse than the coarser step rounding up costs.
+pub fn scale_to_param(scale: f32, param: QuantParam) -> f32 {
+    let nearest = match param {
+        QuantParam::F32 => return scale,
+        QuantParam::F16 => crate::f16::from_f32(scale).to_f32(),
+        QuantParam::BF16 => crate::bf16::from_f32(scale).to_f32(),
+        QuantParam::UE4M3 => e4m3::from_f32(scale).to_f32(),
+        QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
+    };
+
+    if nearest >= scale || scale.is_nan() {
+        return nearest;
+    }
+
+    // Positive floats are ordered by their bit pattern, so the next representable value up is the
+    // next bit pattern.
+    let next = match param {
+        QuantParam::F16 => {
+            crate::f16::from_bits(crate::f16::from_f32(nearest).to_bits() + 1).to_f32()
+        }
+        QuantParam::BF16 => {
+            crate::bf16::from_bits(crate::bf16::from_f32(nearest).to_bits() + 1).to_f32()
+        }
+        QuantParam::UE4M3 => e4m3::from_bits(e4m3::from_f32(nearest).to_bits() + 1).to_f32(),
+        QuantParam::F32 | QuantParam::UE8M0 => unreachable!(),
+    };
+
+    // Stepping off the largest finite value lands on an infinity or a NaN encoding, so the
+    // saturated value is already the best answer.
+    if next.is_finite() { next } else { nearest }
+}
+
+/// Bytes per stored scale entry for the given param dtype.
+fn scale_size(param: QuantParam) -> usize {
+    match param {
+        QuantParam::F32 => 4,
+        QuantParam::F16 | QuantParam::BF16 => 2,
+        QuantParam::UE8M0 | QuantParam::UE4M3 => 1,
+    }
+}
+
+/// Decode stored scale entries into f32.
+fn decode_scales(bytes: &[u8], param: QuantParam) -> Vec<f32> {
+    match param {
+        QuantParam::F32 => bytes
+            .chunks_exact(4)
+            .map(|c| f32::from_ne_bytes([c[0], c[1], c[2], c[3]]))
+            .collect(),
+        QuantParam::F16 => bytes
+            .chunks_exact(2)
+            .map(|c| crate::f16::from_ne_bytes([c[0], c[1]]).to_f32())
+            .collect(),
+        QuantParam::BF16 => bytes
+            .chunks_exact(2)
+            .map(|c| crate::bf16::from_ne_bytes([c[0], c[1]]).to_f32())
+            .collect(),
+        QuantParam::UE4M3 => bytes.iter().map(|b| e4m3::from_bits(*b).to_f32()).collect(),
+        QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
+    }
+}
+
+/// Encode f32 scales at the param dtype for serialization.
+fn encode_scales(scales: &[f32], param: QuantParam) -> Vec<u8> {
+    match param {
+        QuantParam::F32 => scales.iter().flat_map(|s| s.to_ne_bytes()).collect(),
+        QuantParam::F16 => scales
+            .iter()
+            .flat_map(|s| crate::f16::from_f32(*s).to_ne_bytes())
+            .collect(),
+        QuantParam::BF16 => scales
+            .iter()
+            .flat_map(|s| crate::bf16::from_f32(*s).to_ne_bytes())
+            .collect(),
+        QuantParam::UE4M3 => scales
+            .iter()
+            .map(|s| e4m3::from_f32(*s).to_bits())
+            .collect(),
+        QuantParam::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
     }
 }
 
@@ -415,6 +484,81 @@ mod tests {
 
         assert_eq!(qparams.scales, vec![scale]);
 
+        assert_eq!(q_values, values);
+    }
+
+    /// Backends divide by what `scale_to_param` returns and hand that same value to
+    /// `encode_scales`. If encoding moved it, a tensor would dequantize differently after a
+    /// save/load round trip, so the codec has to leave an already-rounded scale alone.
+    #[test]
+    fn scale_to_param_survives_the_codec() {
+        // Includes values that saturate (500), land in e4m3's subnormals (1e-3), and underflow
+        // it entirely (7.7e-4).
+        let scales = [0.5f32, 0.3, 1.0 / 3.0, 500.0, 1e-3, 7.7e-4];
+
+        for param in [
+            QuantParam::F32,
+            QuantParam::F16,
+            QuantParam::BF16,
+            QuantParam::UE4M3,
+        ] {
+            let rounded: Vec<f32> = scales.iter().map(|s| scale_to_param(*s, param)).collect();
+            let via_codec = decode_scales(&encode_scales(&rounded, param), param);
+
+            assert_eq!(
+                rounded, via_codec,
+                "the codec moves a scale {param:?} can already represent"
+            );
+            // 500 is past what e4m3 can hold, so it saturates rather than rounding up.
+            for (scale, rounded) in scales.iter().zip(&rounded).filter(|(s, _)| **s < 500.0) {
+                assert!(
+                    rounded >= scale,
+                    "{scale} rounded down to {rounded} for {param:?}"
+                );
+            }
+        }
+    }
+
+    /// `scale_size` is what the readers use to locate the scales in the buffer, so an encoding
+    /// wider or narrower than it claims silently misreads every scale.
+    #[test]
+    fn encoded_scale_width_matches_scale_size() {
+        let scales = [0.5f32, 0.25, 0.125];
+
+        for param in [
+            QuantParam::F32,
+            QuantParam::F16,
+            QuantParam::BF16,
+            QuantParam::UE4M3,
+        ] {
+            assert_eq!(
+                encode_scales(&scales, param).len(),
+                scale_size(param) * scales.len(),
+                "encoded width disagrees with scale_size for {param:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_pack_unpack_ue4m3_block_scales() {
+        // Exactly representable in e4m3, so the round trip is lossless and the test pins the
+        // layout rather than the format's rounding.
+        let scales = [0.5f32, 0.125];
+        let values = vec![0i8, 25, 51, 76, 102, 127, -128, -1];
+
+        let q_bytes = QuantizedBytes::new(
+            values.clone(),
+            QuantScheme::default()
+                .with_value(QuantValue::Q8S)
+                .with_store(QuantStore::Native)
+                .with_level(QuantLevel::block([4]))
+                .with_param(QuantParam::UE4M3),
+            &scales,
+        );
+
+        let (q_values, qparams) = q_bytes.into_vec_i8();
+
+        assert_eq!(qparams.scales, scales);
         assert_eq!(q_values, values);
     }
 }

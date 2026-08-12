@@ -39,7 +39,8 @@ impl MetricsRendererTraining for CustomRenderer {
 }
 
 impl TrainingProgressLogger for CustomRenderer {
-    fn start(&mut self, _total_epochs: usize, _total_items: Option<usize>) {}
+    fn start(&mut self, _total_epochs: usize, _starting_epoch: usize, _total_items: Option<usize>) {
+    }
 
     fn update_epoch(&mut self, _epoch: usize) {}
 

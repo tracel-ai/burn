@@ -11,7 +11,8 @@ use burn_ir::{
     MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
     RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
     ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr,
-    SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, TopKWithIndicesOpIr, UnaryOpIr,
+    UnfoldOpIr,
 };
 
 impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
@@ -162,6 +163,28 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn int_scatter(
+        dim: usize,
+        tensor: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = ScatterOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            update,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Scatter(desc)))
+            .output()
+    }
+
     fn int_scatter_nd(
         data: IntTensor<Self>,
         indices: IntTensor<Self>,
@@ -221,6 +244,28 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             indices.into_ir(),
             value.into_ir(),
             IndexingUpdateOp::Add,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::SelectAssign(desc)))
+            .output()
+    }
+
+    fn int_select_assign(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = SelectAssignOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            update,
             || client.create_empty_handle(),
         );
 
@@ -826,6 +871,28 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
                 NumericOperationIr::MaxDim(desc),
             ))
             .output()
+    }
+
+    fn int_topk_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Forwarded explicitly rather than left to the trait default: the default would run
+        // its own sort here and never reach the backend's fused top-k.
+        let dtype = tensor.dtype;
+        let client = tensor.client.clone();
+        let desc = TopKWithIndicesOpIr::create(tensor.into_ir(), dim, k, dtype, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::NumericInt(
+                desc.tensor.dtype,
+                NumericOperationIr::TopKWithIndices(desc),
+            ))
+            .outputs()
+            .into()
     }
 
     fn int_max_dim_with_indices(

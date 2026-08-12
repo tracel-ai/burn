@@ -1,3 +1,4 @@
+use crate::check::unwrap_dim_index;
 use crate::tensor::Tensor;
 use crate::{AsIndex, kind::Numeric};
 
@@ -62,7 +63,7 @@ where
         "`outer` with D={D} expects R={} (got R={R})",
         D + 1
     );
-    let dim = dim.expect_dim_index(D);
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Outer");
 
     // (..., i, 1, ...)
     let x = lhs.unsqueeze_dim::<R>(dim + 1);

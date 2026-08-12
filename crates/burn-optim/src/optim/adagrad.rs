@@ -74,6 +74,11 @@ impl Optimizer for AdaGrad {
 
 impl AdaGradConfig {
     /// Build an [`AdaGrad`] from the config.
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
     pub fn build(&self) -> AdaGrad {
         AdaGrad {
             lr_decay: LrDecay {

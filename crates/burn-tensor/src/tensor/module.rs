@@ -1,14 +1,51 @@
 use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
+use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
 
 use crate::{
-    Bool, Int, Tensor, check,
+    Bool, DType, Int, Tensor, check,
     check::TensorCheck,
     ops::{
         AttentionModuleOptions, BridgeTensor, ConvOptions, ConvTransposeOptions, DeformConvOptions,
         InterpolateOptions, PadMode, PaddedConvOptions, UnfoldOptions,
     },
 };
+
+/// Applies batch normalization using explicitly supplied channel statistics.
+///
+/// `input` has shape `[batch, channels, ...]`; `gamma`, `beta`, `mean`, and
+/// `variance` each have shape `[channels]`.
+///
+/// This function doesn't calculate or update statistics. Callers may supply
+/// running statistics for inference or batch statistics calculated by a
+/// training path.
+pub fn batch_norm<const D: usize>(
+    input: Tensor<D>,
+    gamma: Tensor<1>,
+    beta: Tensor<1>,
+    mean: Tensor<1>,
+    variance: Tensor<1>,
+    epsilon: f64,
+) -> Tensor<D> {
+    assert!(D >= 2, "batch norm requires an input rank of at least 2");
+    let channels = input.dims()[1];
+    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
+    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
+    assert_eq!(mean.dims(), [channels], "invalid batch norm mean shape");
+    assert_eq!(
+        variance.dims(),
+        [channels],
+        "invalid batch norm variance shape"
+    );
+    Tensor::new(BridgeTensor::float(Dispatch::batch_norm(
+        input.primitive.into_float(),
+        gamma.primitive.into_float(),
+        beta.primitive.into_float(),
+        mean.primitive.into_float(),
+        variance.primitive.into_float(),
+        epsilon,
+    )))
+}
 
 /// Computes the [CTC loss](burn_backend::ops::ModuleOps::ctc_loss).
 ///
@@ -265,6 +302,38 @@ pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -
     )))
 }
 
+/// Applies a 3D to 4D fold, the inverse of [unfold4d].
+///
+/// Combines an array of sliding local blocks into a large containing tensor, summing the
+/// values of blocks that overlap. This is the operation performed by
+/// [`torch.nn.Fold`](https://pytorch.org/docs/stable/generated/torch.nn.Fold.html), and is the
+/// adjoint of [unfold4d]: it reuses the same one-hot kernel through a [conv_transpose2d].
+///
+/// # Arguments
+///
+/// * `x` - Input columns of shape
+///   `[batch_size, channels * kernel_size_0 * kernel_size_1, number_of_blocks]`.
+/// * `output_size` - The spatial size `[height, width]` of the folded output tensor.
+/// * `kernel_size` - The size of the sliding blocks.
+/// * `options` - The stride, padding and dilation of the matching unfold.
+///
+/// # Returns
+///
+/// A tensor of shape `[batch_size, channels, output_size_0, output_size_1]`.
+pub fn fold4d(
+    x: Tensor<3>,
+    output_size: [usize; 2],
+    kernel_size: [usize; 2],
+    options: UnfoldOptions,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::fold4d(
+        x.primitive.into_float(),
+        output_size,
+        kernel_size,
+        options,
+    )))
+}
+
 /// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
 pub fn max_pool1d(
     x: Tensor<3>,
@@ -401,6 +470,14 @@ pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
     )))
 }
 
+/// Applies a [3D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool3d).
+pub fn adaptive_avg_pool3d(x: Tensor<5>, output_size: [usize; 3]) -> Tensor<5> {
+    Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool3d(
+        x.primitive.into_float(),
+        output_size,
+    )))
+}
+
 /// Applies a [1D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
 pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
     Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool1d(
@@ -457,6 +534,37 @@ pub fn linear<const D: usize>(
         let input = input.unsqueeze::<2>();
         let output = linear(input, weight, bias);
         return output.squeeze_dim(0);
+    }
+
+    // A quantized weight must stay quantized: `linear_impl` converts its
+    // operands to float, which would dequantize (materialize) the whole weight
+    // matrix on every forward. Route through the quantized matmul instead, which
+    // streams the packed weight directly — but reuse the same batch-fold policy
+    // the float `linear` applies, so a decode-shaped call folds its batches into
+    // the rows for one `[rows, d_in] @ [d_in, d_out]` matmul rather than a
+    // broadcast batched matmul that re-reads the packed weight per batch.
+    if let DType::QFloat(_) = weight.dtype() {
+        let dims = input.dims();
+        let analysis = MatmulTransformAnalysis::from_shapes(&input.shape(), &weight.shape());
+
+        let output = match MatmulTransformPolicy::default().action(&analysis) {
+            MatmulTransformAction::MergeBatches { rows } => {
+                let d_in = dims[D - 1];
+                let d_out = weight.dims()[1];
+
+                let folded = input.reshape([rows, d_in]).matmul(weight);
+
+                let mut out_dims = dims;
+                out_dims[D - 1] = d_out;
+                folded.reshape(out_dims)
+            }
+            MatmulTransformAction::Keep => input.matmul(weight.unsqueeze::<D>()),
+        };
+
+        return match bias {
+            Some(bias) => output + bias.unsqueeze(),
+            None => output,
+        };
     }
 
     Tensor::new(linear_impl(

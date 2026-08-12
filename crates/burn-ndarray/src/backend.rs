@@ -5,7 +5,7 @@ use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore,
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
-use burn_std::stub::Mutex;
+use burn_std::sync::Mutex;
 use burn_std::{BoolStore, DeviceSettings, QuantConfig};
 use rand::SeedableRng;
 
@@ -61,6 +61,8 @@ impl BackendTypes for NdArray {
     type IntTensorPrimitive = NdArrayTensor;
     type BoolTensorPrimitive = NdArrayTensor;
     type QuantizedTensorPrimitive = NdArrayQTensor;
+
+    type GraphPrimitive = burn_backend::GraphUnsupported;
 }
 
 impl Backend for NdArray {
@@ -74,7 +76,7 @@ impl Backend for NdArray {
 
     fn seed(_device: &Self::Device, seed: u64) {
         let rng = NdArrayRng::seed_from_u64(seed);
-        let mut seed = SEED.lock().unwrap();
+        let mut seed = SEED.lock();
         *seed = Some(rng);
     }
 

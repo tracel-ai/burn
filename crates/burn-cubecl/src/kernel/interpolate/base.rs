@@ -1,6 +1,8 @@
+#[cfg(feature = "autotune")]
+use crate::kernel::interpolate::interpolate_autotune;
 use crate::{
     CubeRuntime,
-    kernel::{interpolate::interpolate_autotune, into_contiguous},
+    kernel::into_contiguous,
     ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
@@ -150,19 +152,19 @@ pub fn interpolate_backward<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
-fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
+pub(crate) fn map_mode(mode: InterpolateMode) -> CubekInterpolateMode {
+    match mode {
+        InterpolateMode::Nearest => CubekInterpolateMode::Nearest(CubekNearestMode::Floor),
+        InterpolateMode::NearestExact => CubekInterpolateMode::Nearest(CubekNearestMode::Exact),
+        InterpolateMode::Bilinear => CubekInterpolateMode::Bilinear,
+        InterpolateMode::Bicubic => CubekInterpolateMode::Bicubic,
+        InterpolateMode::Lanczos3 => CubekInterpolateMode::Lanczos3,
+    }
+}
+
+pub(crate) fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
     CubekInterpolateOptions {
-        mode: {
-            match options.mode {
-                InterpolateMode::Nearest => CubekInterpolateMode::Nearest(CubekNearestMode::Floor),
-                InterpolateMode::NearestExact => {
-                    CubekInterpolateMode::Nearest(CubekNearestMode::Exact)
-                }
-                InterpolateMode::Bilinear => CubekInterpolateMode::Bilinear,
-                InterpolateMode::Bicubic => CubekInterpolateMode::Bicubic,
-                InterpolateMode::Lanczos3 => CubekInterpolateMode::Lanczos3,
-            }
-        },
+        mode: map_mode(options.mode),
         align_corners: options.align_corners,
     }
 }

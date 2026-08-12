@@ -2,7 +2,7 @@ use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
     client::GlobalFusionClient,
-    get_client, reduce_int_ops, scalar_int_cmp_ops, scalar_int_ops,
+    get_client, reduce_ops, scalar_int_cmp_ops, scalar_int_ops,
     stream::{StreamId, execution::Operation},
     unary_int_ops,
 };
@@ -366,6 +366,53 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn int_scatter(
+        dim: usize,
+        tensor: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct ScatterOps<B: FusionBackend> {
+            desc: ScatterOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ScatterOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let value = handles.get_int_tensor::<B>(&self.desc.value);
+
+                let output =
+                    B::int_scatter(self.desc.dim, tensor, indices, value, self.desc.update);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ScatterOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            update,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseInt(BaseOperationIr::Scatter(desc.clone())),
+                ScatterOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn int_scatter_nd(
         data: IntTensor<Self>,
         indices: IntTensor<Self>,
@@ -514,6 +561,53 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             indices.into_ir(),
             value.into_ir(),
             IndexingUpdateOp::Add,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseInt(BaseOperationIr::SelectAssign(desc.clone())),
+                SelectAssignOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn int_select_assign(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct SelectAssignOps<B: FusionBackend> {
+            desc: SelectAssignOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectAssignOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let value = handles.get_int_tensor::<B>(&self.desc.value);
+
+                let output =
+                    B::int_select_assign(tensor, self.desc.dim, indices, value, self.desc.update);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = SelectAssignOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            update,
             || client.create_empty_handle(),
         );
 
@@ -1120,7 +1214,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, axis: usize) -> IntTensor<Self> {
-        reduce_int_ops!(SumDimOps, |tensor, axis, _| B::int_sum_dim(tensor, axis));
+        reduce_ops!(SumDimOps, int, |tensor, axis, _| B::int_sum_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1133,6 +1229,84 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::NumericInt(desc.out.dtype, NumericOperationIr::SumDim(desc.clone())),
                 SumDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn int_any(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce_ops!(IntAnyOps, int => bool, whole, |tensor, dtype| B::int_any(tensor, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        // Whole-tensor `Any`: not fused (the reduce fuser only fuses `*Dim`), so it
+        // runs the bare backend's dedicated cubek Any instruction via the fallback.
+        let desc = ReduceOpIr::create_bool(tensor.into_ir(), out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseInt(BaseOperationIr::Any(desc.clone())),
+                IntAnyOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn int_any_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce_ops!(IntAnyDimOps, int => bool, |tensor, axis, dtype| B::int_any_dim(tensor, axis, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseInt(BaseOperationIr::AnyDim(desc.clone())),
+                IntAnyDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn int_all(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce_ops!(IntAllOps, int => bool, whole, |tensor, dtype| B::int_all(tensor, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceOpIr::create_bool(tensor.into_ir(), out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseInt(BaseOperationIr::All(desc.clone())),
+                IntAllOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn int_all_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce_ops!(IntAllDimOps, int => bool, |tensor, axis, dtype| B::int_all_dim(tensor, axis, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseInt(BaseOperationIr::AllDim(desc.clone())),
+                IntAllDimOps::<B>::new(desc),
             )
             .output()
     }
@@ -1155,7 +1329,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(ProdDimOps, |tensor, axis, _| B::int_prod_dim(tensor, axis));
+        reduce_ops!(ProdDimOps, int, |tensor, axis, _| B::int_prod_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1189,7 +1365,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MeanDimOps, |tensor, axis, _| B::int_mean_dim(tensor, axis));
+        reduce_ops!(MeanDimOps, int, |tensor, axis, _| B::int_mean_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1232,6 +1410,33 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 CumsumOps::<B>::new(desc),
             )
             .output()
+    }
+
+    fn int_arange_step(
+        range: std::ops::Range<i64>,
+        step: usize,
+        device: &Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<Self> {
+        // Build `arange` from fusable ops (`int_full` of ones → `cumsum` → affine) instead of the
+        // host-materialized `from_data` default. This keeps it *inside* the fusion graph: for the
+        // remote backend it means no per-call `Init` op shipping the index data over the network —
+        // the indices are computed on the device and ride the cached graph like any other op.
+        // (`int_arange` delegates here, so this covers both.)
+        //
+        // Match the default impl's contract: `range.step_by(0)` panics, so a zero step is a misuse
+        // we surface loudly rather than silently returning an empty tensor.
+        assert!(step != 0, "arange step must be non-zero");
+        if range.end <= range.start {
+            return Self::int_full(Shape::new([0]), 0i64.into(), device, dtype);
+        }
+
+        let count = ((range.end - range.start) as usize).div_ceil(step);
+        // `ones.cumsum` is `[1, 2, ..., count]`; map the 1-based index `k` to `start + (k - 1) * step`.
+        let ones = Self::int_full(Shape::new([count]), 1i64.into(), device, dtype);
+        let counting = Self::int_cumsum(ones, 0);
+        let scaled = Self::int_mul_scalar(counting, (step as i64).into());
+        Self::int_add_scalar(scaled, (range.start - step as i64).into())
     }
 
     fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -1322,7 +1527,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(ArgMaxOps, |tensor, axis, _| B::int_argmax(tensor, axis));
+        reduce_ops!(ArgMaxOps, int, |tensor, axis, _| B::int_argmax(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1339,7 +1546,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_argtopk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
-        reduce_int_ops!(ArgTopKOps, B::int_argtopk);
+        reduce_ops!(ArgTopKOps, int, B::int_argtopk);
 
         let streams = StreamId::current();
 
@@ -1356,7 +1563,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_topk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
-        reduce_int_ops!(TopKOps, B::int_topk);
+        reduce_ops!(TopKOps, int, B::int_topk);
 
         let streams = StreamId::current();
 
@@ -1373,7 +1580,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(ArgMinOps, |tensor, axis, _| B::int_argmin(tensor, axis));
+        reduce_ops!(ArgMinOps, int, |tensor, axis, _| B::int_argmin(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1517,7 +1726,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MaxDimOps, |tensor, axis, _| B::int_max_dim(tensor, axis));
+        reduce_ops!(MaxDimOps, int, |tensor, axis, _| B::int_max_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1531,6 +1742,48 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 MaxDimOps::<B>::new(desc),
             )
             .output()
+    }
+
+    fn int_topk_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Forwarded explicitly rather than left to the trait default: the default would run
+        // its own sort here and never reach the backend's fused top-k.
+        #[derive(new, Debug)]
+        struct TopKWithIndicesOps<B: FusionBackend> {
+            desc: TopKWithIndicesOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for TopKWithIndicesOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
+                let (output, indices) =
+                    B::int_topk_with_indices(tensor, self.desc.dim, self.desc.k);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+                handles.register_int_tensor::<B>(&self.desc.out_indices.id, indices);
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let desc = TopKWithIndicesOpIr::create(tensor.into_ir(), dim, k, dtype, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::NumericInt(dtype, NumericOperationIr::TopKWithIndices(desc.clone())),
+                TopKWithIndicesOps::<B>::new(desc),
+            )
+            .outputs()
+            .into()
     }
 
     fn int_max_dim_with_indices(
@@ -1606,7 +1859,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MaxAbsDimOps, |tensor, axis, _| B::int_max_abs_dim(
+        reduce_ops!(MaxAbsDimOps, int, |tensor, axis, _| B::int_max_abs_dim(
             tensor, axis
         ));
 
@@ -1628,7 +1881,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MinDimOps, |tensor, axis, _| B::int_min_dim(tensor, axis));
+        reduce_ops!(MinDimOps, int, |tensor, axis, _| B::int_min_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 

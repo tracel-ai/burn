@@ -5,7 +5,11 @@ use crate::{
     },
     optim::reduce::args::{FusedReduceArgs, FusedReduceInput, FusedReduceOutput},
 };
-use cubecl::{Runtime, define_size, prelude::*, std::tensor::r#virtual::VirtualTensor};
+use cubecl::{
+    Runtime, define_size,
+    prelude::{polyfills::set_polyfill, *},
+    std::tensor::r#virtual::VirtualTensor,
+};
 use cubek::reduce::{
     ReduceInstruction, ReducePrecision, VectorizationMode,
     components::{

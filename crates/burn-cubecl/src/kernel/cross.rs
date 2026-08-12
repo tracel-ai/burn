@@ -16,7 +16,7 @@ fn cross_kernel<E: Float>(
     lhs: LinearView<'_, E>,
     rhs: LinearView<'_, E>,
     mut output: LinearViewMut<'_, E>,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     // Each thread processes one 3-element vector
     let vector_idx = ABSOLUTE_POS;
@@ -76,6 +76,16 @@ pub(crate) fn cross<R: CubeRuntime>(
     }
 
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
+
+    // A zero-sized broadcast output has no elements to compute. Return the empty output directly.
+    if output_shape.num_elements() == 0 {
+        return empty_device_dtype(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            output_shape,
+            lhs.dtype,
+        );
+    }
 
     let output = empty_device_dtype(
         lhs.client.clone(),

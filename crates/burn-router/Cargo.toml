@@ -24,11 +24,7 @@ std = ["burn-backend/std", "burn-std/std", "burn-ir/std"]
 # std (the fusion engine uses threads).
 fusion = ["std", "dep:burn-fusion", "dep:serde"]
 doc = ["default"]
-tracing = [
-    "burn-backend/tracing",
-    "burn-ir/tracing",
-    "burn-std/tracing",
-]
+tracing = ["burn-backend/tracing", "burn-ir/tracing", "burn-std/tracing"]
 
 [dependencies]
 burn-ir = { workspace = true }
@@ -41,12 +37,8 @@ log = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-burn-tensor = { workspace = true }
-burn-flex = { workspace = true, features = ["default"] }
-burn-wgpu = { workspace = true, features = [
-    "std",
-] }
-
+# Use path instead of workspace dep (which specifies a version, creating a circular publish dependency chain)
+burn-flex = { path = "../burn-flex", features = ["default"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

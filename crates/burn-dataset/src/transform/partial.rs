@@ -1,4 +1,5 @@
 use crate::Dataset;
+use std::error::Error;
 use std::{marker::PhantomData, sync::Arc};
 
 /// Only use a fraction of an existing dataset lazily.
@@ -82,17 +83,38 @@ where
     }
 }
 
-impl<D, I> Dataset<I> for PartialDataset<D, I>
+impl<D, I, E> Dataset<I, E> for PartialDataset<D, I>
 where
-    D: Dataset<I>,
+    D: Dataset<I, E>,
     I: Clone + Send + Sync,
+    E: Error + Send + Sync + 'static,
 {
-    fn get(&self, index: usize) -> Option<I> {
+    fn get(&self, index: usize) -> Result<I, E> {
         let index = index + self.start_index;
-        if index < self.start_index || index >= self.end_index {
-            return None;
-        }
+        assert!(
+            index >= self.start_index && index < self.end_index,
+            "Index out of bounds for PartialDataset: {} >= {}",
+            index,
+            self.end_index
+        );
         self.dataset.get(index)
+    }
+
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, E> {
+        let translated = indexes
+            .into_iter()
+            .map(|index| {
+                let index = index + self.start_index;
+                assert!(
+                    index >= self.start_index && index < self.end_index,
+                    "Index out of bounds for PartialDataset: {} >= {}",
+                    index,
+                    self.end_index
+                );
+                index
+            })
+            .collect();
+        self.dataset.get_many(translated)
     }
 
     fn len(&self) -> usize {
@@ -112,16 +134,20 @@ mod tests {
         let mut items_original_1 = HashSet::new();
         let mut items_original_2 = HashSet::new();
         let mut items_partial = HashSet::new();
-        dataset_original.iter().enumerate().for_each(|(i, item)| {
-            match i >= 10 {
-                true => items_original_2.insert(item),
-                false => items_original_1.insert(item),
-            };
-        });
+        dataset_original
+            .iter()
+            .map(Result::unwrap)
+            .enumerate()
+            .for_each(|(i, item)| {
+                match i >= 10 {
+                    true => items_original_2.insert(item),
+                    false => items_original_1.insert(item),
+                };
+            });
 
         let dataset_partial = PartialDataset::new(dataset_original, 0, 10);
 
-        for item in dataset_partial.iter() {
+        for item in dataset_partial.iter().map(Result::unwrap) {
             items_partial.insert(item);
         }
 
@@ -139,15 +165,19 @@ mod tests {
         let mut items_original_2 = HashSet::new();
         let mut items_partial = HashSet::new();
 
-        dataset_original.iter().enumerate().for_each(|(i, item)| {
-            match !(10..20).contains(&i) {
-                true => items_original_2.insert(item),
-                false => items_original_1.insert(item),
-            };
-        });
+        dataset_original
+            .iter()
+            .map(Result::unwrap)
+            .enumerate()
+            .for_each(|(i, item)| {
+                match !(10..20).contains(&i) {
+                    true => items_original_2.insert(item),
+                    false => items_original_1.insert(item),
+                };
+            });
 
         let dataset_partial = PartialDataset::new(dataset_original, 10, 20);
-        for item in dataset_partial.iter() {
+        for item in dataset_partial.iter().map(Result::unwrap) {
             items_partial.insert(item);
         }
 
@@ -159,11 +189,39 @@ mod tests {
     }
 
     #[test]
+    fn test_get_many() {
+        let dataset_original = FakeDataset::<String>::new(27);
+        let source_items: Vec<String> = dataset_original.iter().map(Result::unwrap).collect();
+
+        let dataset_partial = PartialDataset::new(dataset_original, 10, 20);
+
+        // Local indices, out of order and with a duplicate.
+        let requested = vec![5, 0, 3, 0];
+        let expected: Vec<String> = requested
+            .iter()
+            .map(|&i| source_items[10 + i].clone())
+            .collect();
+
+        let items = dataset_partial.get_many(requested).unwrap();
+
+        assert_eq!(items, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Index out of bounds for PartialDataset: 20 >= 20")]
+    fn test_get_many_out_of_bounds() {
+        let dataset_original = FakeDataset::<String>::new(27);
+        let dataset_partial = PartialDataset::new(dataset_original, 10, 20);
+
+        let _ = dataset_partial.get_many(vec![0, 10]);
+    }
+
+    #[test]
     fn test_split_contains_all_items_without_duplicates() {
         let dataset_original = FakeDataset::<String>::new(27);
         let mut items_original = Vec::new();
         let mut items_partial = Vec::new();
-        for item in dataset_original.iter() {
+        for item in dataset_original.iter().map(Result::unwrap) {
             items_original.push(item);
         }
 
@@ -172,7 +230,7 @@ mod tests {
 
         for (i, dataset) in dataset_partials.iter().enumerate() {
             assert_eq!(dataset.len(), expected_len[i]);
-            for item in dataset.iter() {
+            for item in dataset.iter().map(Result::unwrap) {
                 items_partial.push(item);
             }
         }
@@ -185,7 +243,7 @@ mod tests {
         let dataset_original = FakeDataset::<String>::new(27);
         let mut items_original = Vec::new();
         let mut items_partial = Vec::new();
-        for item in dataset_original.iter() {
+        for item in dataset_original.iter().map(Result::unwrap) {
             items_original.push(item);
         }
 
@@ -196,7 +254,7 @@ mod tests {
 
         for (i, dataset) in dataset_partials.iter().enumerate() {
             assert_eq!(dataset.len(), expected_len[i]);
-            for item in dataset.iter() {
+            for item in dataset.iter().map(Result::unwrap) {
                 items_partial.push(item);
             }
         }

@@ -174,8 +174,8 @@ pub(crate) trait Ordered: Numeric {
     /// or use this function directly.
     ///
     /// For element-wise greater than comparison between a tensor and a scalar, users should prefer the
-    /// [`Tensor::greater_elem`](crate::Tensor::greater_elem) function, which is more high-level and designed for public use.
-    fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    /// [`Tensor::greater_scalar`](crate::Tensor::greater_scalar) function, which is more high-level and designed for public use.
+    fn greater_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise greater than or equal comparison between two tensors.
     ///
@@ -220,8 +220,8 @@ pub(crate) trait Ordered: Numeric {
     /// or use this function directly.
     ///
     /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer the
-    /// [`Tensor::greater_equal_elem`](crate::Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
-    fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    /// [`Tensor::greater_equal_scalar`](crate::Tensor::greater_equal_scalar) function, which is more high-level and designed for public use.
+    fn greater_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise less than comparison between two tensors.
     ///
@@ -266,8 +266,8 @@ pub(crate) trait Ordered: Numeric {
     /// or use this function directly.
     ///
     /// For element-wise less than comparison between a tensor and a scalar, users should prefer the
-    /// [`Tensor::lower_elem`](crate::Tensor::lower_elem) function, which is more high-level and designed for public use.
-    fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    /// [`Tensor::lower_scalar`](crate::Tensor::lower_scalar) function, which is more high-level and designed for public use.
+    fn lower_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise less than or equal comparison between two tensors.
     ///
@@ -312,8 +312,8 @@ pub(crate) trait Ordered: Numeric {
     /// or use this function directly.
     ///
     /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer the
-    /// [`Tensor::lower_equal_elem`](crate::Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
-    fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+    /// [`Tensor::lower_equal_scalar`](crate::Tensor::lower_equal_scalar) function, which is more high-level and designed for public use.
+    fn lower_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -385,6 +385,35 @@ pub(crate) trait Ordered: Numeric {
     /// For getting the values of the k maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::topk`](crate::Tensor::topk) function, which is more high-level and designed for public use.
     fn topk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor;
+
+    /// Gets the values of the k maximum elements of a tensor along an axis, and their indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the k maximum elements of.
+    /// * `dim` - The axis along which to get the k maximum elements.
+    /// * `k` - The number of maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tuple of tensors where the dimension `dim` has size `k` and all other dimensions are the
+    /// same as the input tensor: the values of the `k` largest elements along the axis, and their
+    /// indices.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the k maximum elements of a tensor along an axis together with their indices,
+    /// users should prefer the [`Tensor::topk_with_indices`](crate::Tensor::topk_with_indices)
+    /// function, which is more high-level and designed for public use.
+    fn topk_with_indices(
+        tensor: BridgeTensor,
+        dim: usize,
+        k: usize,
+    ) -> (BridgeTensor, BridgeTensor);
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///

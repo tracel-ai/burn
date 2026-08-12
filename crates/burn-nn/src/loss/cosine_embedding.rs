@@ -63,7 +63,7 @@ impl ModuleDisplay for CosineEmbeddingLoss {
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
             .add("margin", &self.margin)
-            .add("reduction", format!("{:?}", &self.reduction).as_str())
+            .add("reduction", format!("{:?}", self.reduction).as_str())
             .optional()
     }
 }
@@ -126,12 +126,12 @@ impl CosineEmbeddingLoss {
         let mut loss = cos_sim.zeros_like();
 
         // Similar pairs (target == 1) - Formula: L = 1 - cos_sim
-        let similar_mask = target.clone().equal_elem(1);
+        let similar_mask = target.clone().equal_scalar(1);
         let similar_loss = cos_sim.clone().neg().add_scalar(1);
         loss = loss.mask_where(similar_mask, similar_loss);
 
         // Dissimilar pairs (target == -1) - Formula: L = max(0, cos_sim - margin)
-        let dissimilar_mask = target.equal_elem(-1);
+        let dissimilar_mask = target.equal_scalar(-1);
         let dissimilar_loss = relu(cos_sim.clone().sub_scalar(self.margin));
         loss = loss.mask_where(dissimilar_mask, dissimilar_loss);
 

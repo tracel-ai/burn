@@ -133,6 +133,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         output,
                         tensor_global,
                         strides,
+                        LayoutInfo::IsRef,
                         block_idx,
                     );
                 }
@@ -160,6 +161,21 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         original,
                         dims,
                         block_idx,
+                    );
+                }
+                OutputKind::Transform(TensorView::NhwcStrides {
+                    stride_relayout, ..
+                }) => {
+                    self.nhwc_strides_output(
+                        client,
+                        device,
+                        context,
+                        plan,
+                        output,
+                        tensor_global,
+                        strides,
+                        block_idx,
+                        stride_relayout,
                     );
                 }
             }
@@ -211,9 +227,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             if let Some(tensor_global) = context.tensors.get(id) {
                 context.handles.remove_handle(tensor_global.id);
             }
-        }
-        for id in plan.cleared.drain(..) {
-            context.handles.remove_handle(id);
         }
     }
 
@@ -340,11 +353,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         if let Some(transform) = self.resources.views.iter().find(|v| match v {
             TensorView::Reshape { reshaped, .. } => reshaped == &output.tensor_relative.id,
             TensorView::SwapDims { swapped, .. } => swapped == &output.tensor_relative.id,
+            TensorView::NhwcStrides { id, .. } => id == &output.tensor_relative.id,
         }) {
             return (OutputKind::Transform(transform.clone()), block_idx);
         }
 
         let block = &plan.blocks[block_idx];
+        let ref_layout_setting = &self.blocks[block_idx].settings.ref_layout;
         let kind = block
             .potential_inplaces
             .iter()
@@ -353,7 +368,20 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
                     && &*pi.strides == strides
-                    && block.reference.compatible_strides_for_inplace(strides)
+                    && if block.reference.is_found() {
+                        // An already-selected reference must have compatible strides.
+                        block.reference.compatible_strides_for_inplace(strides)
+                    } else {
+                        // When no reference has been selected yet, this output becomes
+                        // the reference (see [Self::inplace_output]); requiring an
+                        // existing reference here made the first output of every block
+                        // ineligible, since the reference is only selected while
+                        // processing outputs. Blocks that inherit their reference from
+                        // another block are excluded: the inherited layout is unknown
+                        // at this point, so it cannot be validated against the
+                        // candidate's strides.
+                        !matches!(ref_layout_setting, RefLayoutSetting::SameAsBlock { .. })
+                    }
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
             .unwrap_or(OutputKind::Normal);
@@ -373,6 +401,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         block_idx: usize,
     ) {
         let block = &mut plan.blocks[block_idx];
+        #[cfg(feature = "test-util")]
+        crate::inspect::record_inplace_alias();
         let potential_inplace = block.potential_inplaces.remove(input_index);
         let handle_input = match plan.handle_inputs.get(potential_inplace.input_pos).unwrap() {
             HandleInput::Normal(handle) => handle,
@@ -381,20 +411,25 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         };
 
-        if !block.reference.is_found()
-            && !matches!(
-                self.blocks[block_idx].settings.ref_layout,
-                RefLayoutSetting::SameAsBlock { .. }
-            )
-        {
-            let index_input = self
-                .resources
-                .inputs
-                .get_index(potential_inplace.tensor_relative.id)
-                .unwrap();
+        // [Self::output_kind] only selects inplace when the reference is already
+        // validated or this output can become the reference, which blocks inheriting
+        // their reference from another block (`SameAsBlock`) never can.
+        debug_assert!(
+            block.reference.is_found()
+                || !matches!(
+                    self.blocks[block_idx].settings.ref_layout,
+                    RefLayoutSetting::SameAsBlock { .. }
+                ),
+            "inplace alias selected for a `SameAsBlock` block without a validated reference",
+        );
 
+        if !block.reference.is_found() {
+            // The aliased output shares the input's buffer and layout, so the reference
+            // is expressed with the output argument. Runners assume references are
+            // either output-concrete or virtual; an input-concrete reference here would
+            // be resolved against the wrong argument list.
             block.reference = ReferenceSelection::Concrete {
-                layout: FuseArg::Input(index_input, output.precision, LayoutInfo::IsRef),
+                layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.clone(),
                 strides: handle_input.handle.strides.clone(),
             };
@@ -457,19 +492,24 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Strides,
+        base_layout_info: LayoutInfo,
         block_idx: usize,
     ) {
         let block = &mut plan.blocks[block_idx];
 
+        let is_allowed_by_settings = match self.blocks[block_idx].settings.ref_layout {
+            RefLayoutSetting::SameAsBlock { .. } => false,
+            RefLayoutSetting::OnlyContiguous => is_contiguous(&tensor_global.shape, &strides),
+            _ => true,
+        };
+
         if !block.reference.is_found()
             && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
-            && !matches!(
-                self.blocks[block_idx].settings.ref_layout,
-                RefLayoutSetting::SameAsBlock { .. }
-            )
+            && base_layout_info != LayoutInfo::Unknown
+            && is_allowed_by_settings
         {
             block.reference = ReferenceSelection::Concrete {
-                layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),
+                layout: FuseArg::Output(output.pos_original, output.precision, base_layout_info),
                 shape: tensor_global.shape.clone(),
                 strides: strides.clone(),
             };
@@ -478,7 +518,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
                 for op in ops {
                     if let FuseOp::Assign(op) = op {
-                        op.out.add_layout_info(LayoutInfo::IsRef);
+                        op.out.add_layout_info(base_layout_info);
                         break;
                     }
                 }
@@ -601,6 +641,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     output,
                     tensor_global,
                     strides,
+                    LayoutInfo::IsRef,
                     block_idx,
                 );
             }
@@ -662,6 +703,41 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.globals[output.pos_original] = Some(tensor_global);
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn nhwc_strides_output(
+        &mut self,
+        client: &ComputeClient<R>,
+        device: &R::Device,
+        context: &mut Context<CubeFusionHandle<R>>,
+        plan: &mut LaunchPlan<'a, R>,
+        output: OutputSorted,
+        tensor_global: TensorIr,
+        mut strides: Strides,
+        block_idx: usize,
+        stride_relayout: Shape,
+    ) {
+        let strides_changed =
+            relayout_strides(&mut strides, &tensor_global.shape, &stride_relayout);
+
+        let base_layout_info = if strides_changed {
+            LayoutInfo::Unknown
+        } else {
+            LayoutInfo::IsRef
+        };
+
+        self.normal_output(
+            client,
+            device,
+            context,
+            plan,
+            output,
+            tensor_global,
+            strides,
+            base_layout_info,
+            block_idx,
+        );
+    }
+
     fn find_child_input(
         handle_inputs: &[HandleInput<R>],
         original: TensorId,
@@ -699,4 +775,37 @@ fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize)
         }
         block.writes.insert(id, keep);
     }
+}
+
+fn relayout_strides(strides: &mut Strides, shape: &Shape, stride_relayout: &Shape) -> bool {
+    let rank = shape.num_dims();
+
+    if rank < 2 || stride_relayout.num_dims() != rank {
+        return false;
+    }
+
+    let mut dims_by_target_pos = vec![None; rank];
+
+    for original_dim in 0..rank {
+        let target_pos = stride_relayout[original_dim];
+
+        if target_pos >= rank || dims_by_target_pos[target_pos].is_some() {
+            return false;
+        }
+
+        dims_by_target_pos[target_pos] = Some(original_dim);
+    }
+
+    let mut current_stride = 1;
+    let mut strides_changed = false;
+
+    for original_dim in dims_by_target_pos.into_iter().rev().flatten() {
+        if strides[original_dim] != current_stride {
+            strides[original_dim] = current_stride;
+            strides_changed = true;
+        }
+        current_stride *= shape[original_dim];
+    }
+
+    strides_changed
 }

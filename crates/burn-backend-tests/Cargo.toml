@@ -25,11 +25,14 @@ default = [
     "std",
 ]
 std = ["burn-tensor/std"]
-
+bench-disable-alloc = []
 # Backends
 cuda = ["burn-tensor/cuda", "quantization", "cube"]
 rocm = ["burn-tensor/rocm", "quantization", "cube"]
-flex = ["burn-tensor/flex", "quantization"]
+flex = ["flex-base"]
+flex-base = ["burn-tensor/flex", "quantization"]
+flex-simd = ["flex-base", "burn-flex/simd"]
+flex-rayon = ["flex-base", "burn-flex/rayon"]
 ndarray = ["burn-tensor/ndarray", "quantization"]
 tch = ["burn-tensor/tch"]
 vulkan = ["wgpu", "burn-tensor/vulkan"]
@@ -44,7 +47,11 @@ remote = ["burn-tensor/remote"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
-fusion = ["burn-tensor/fusion", "burn-fusion/test-util"]
+fusion = [
+    "burn-tensor/fusion",
+    "burn-fusion/test-util",
+    "burn-cubecl-fusion?/test-util",
+]
 
 # CubeCL backends
 cube = [
@@ -54,6 +61,8 @@ cube = [
     "burn-ndarray",
     # Not used directly, but included to avoid recompiling with and without fusion
     "burn-cubecl",
+    # Direct dependency so fusion tests can assert launch-level decisions (in-place aliasing).
+    "burn-cubecl-fusion",
 ]
 
 # Test configs
@@ -80,9 +89,13 @@ burn-cubecl = { workspace = true, optional = true, features = [
     "default",
     "fusion",
 ] }
+burn-cubecl-fusion = { workspace = true, optional = true }
 
 # Enabled alongside the `fusion` feature so spy-based tests can import the spy API.
 burn-fusion = { workspace = true, optional = true }
+
+# allows us to explicitly enable simd without rayon
+burn-flex = { workspace = true, optional = true }
 
 num-traits = { workspace = true }
 serial_test = { workspace = true }

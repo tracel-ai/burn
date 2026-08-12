@@ -10,6 +10,21 @@ use burn_backend::{
 use crate::Dispatch;
 
 impl ModuleOps<Self> for Dispatch {
+    fn batch_norm(
+        x: FloatTensor<Self>,
+        gamma: FloatTensor<Self>,
+        beta: FloatTensor<Self>,
+        mean: FloatTensor<Self>,
+        variance: FloatTensor<Self>,
+        epsilon: f64,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(x, float), (gamma, float), (beta, float), (mean, float), (variance, float)],
+            => Float,
+            B::batch_norm(x, gamma, beta, mean, variance, epsilon)
+        )
+    }
+
     fn conv2d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -150,6 +165,25 @@ impl ModuleOps<Self> for Dispatch {
             inputs[(x, float), (grad, float)],
             => Float,
             B::adaptive_avg_pool2d_backward(x, grad)
+        )
+    }
+
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(x, float)],
+            => Float,
+            B::adaptive_avg_pool3d(x, output_size)
+        )
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(x, float), (grad, float)],
+            => Float,
+            B::adaptive_avg_pool3d_backward(x, grad)
         )
     }
 

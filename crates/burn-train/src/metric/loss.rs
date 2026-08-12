@@ -51,11 +51,14 @@ impl Metric for LossMetric {
             .next()
             .unwrap();
 
-        self.state.update(
-            loss,
-            batch_size,
-            FormatOptions::new(self.name()).precision(2),
-        )
+        self.state.update(loss, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).precision(2))
     }
 
     fn clear(&mut self) {
@@ -70,18 +73,21 @@ impl Metric for LossMetric {
         NumericAttributes {
             unit: None,
             higher_is_better: false,
-            ..Default::default()
         }
         .into()
     }
 }
 
 impl Numeric for LossMetric {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }

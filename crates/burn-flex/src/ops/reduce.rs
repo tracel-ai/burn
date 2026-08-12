@@ -9,6 +9,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
 use burn_std::{Bytes, Shape, bf16, f16};
+use num_traits::Float;
 
 use crate::strided_index::StridedIter;
 use crate::{FlexTensor, Layout};
@@ -277,11 +278,14 @@ pub fn sum_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
 /// Mean along a dimension, keeping the dimension with size 1.
 pub fn mean_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
     let dim_size = tensor.layout().shape()[dim];
-    assert!(
-        dim_size > 0,
-        "mean_dim: cannot take mean of empty dimension"
-    );
     let dtype = tensor.dtype();
+    // Floats divide by a zero `dim_size` to `NaN`, which is what `mean()` already returns for an
+    // empty input and what the other backends return here. Only the integer arms below have no
+    // such value, so only they are rejected.
+    assert!(
+        dim_size > 0 || dtype.is_float(),
+        "mean_dim: cannot take mean of an empty dimension for the integer type {dtype:?}"
+    );
 
     // Half-precision types fuse sum+divide in f32 to avoid overflow when the
     // intermediate sum exceeds f16::MAX, so they don't go through sum_dim.
@@ -423,19 +427,25 @@ pub fn prod_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
 
 /// Max of all elements, returning a scalar tensor of shape \[1\].
 pub fn max(tensor: FlexTensor) -> FlexTensor {
+    // Asserted here rather than per dtype: every path seeds the fold with an infinity, so without
+    // this they report that seed as the max of nothing instead of failing.
+    assert!(
+        tensor.layout().shape().num_elements() > 0,
+        "max: cannot reduce an empty tensor"
+    );
     match tensor.dtype() {
         DType::F32 => max_f32_reduce(&tensor),
-        DType::F64 => max_impl::<f64>(&tensor),
+        DType::F64 => float_extremum_f64_reduce::<true>(&tensor),
         DType::F16 => reduce_scalar_half(
             &tensor,
-            f32::max,
+            select_float_extremum::<f32, true>,
             f32::NEG_INFINITY,
             f16::to_f32,
             f16::from_f32,
         ),
         DType::BF16 => reduce_scalar_half(
             &tensor,
-            f32::max,
+            select_float_extremum::<f32, true>,
             f32::NEG_INFINITY,
             bf16::to_f32,
             bf16::from_f32,
@@ -454,15 +464,23 @@ pub fn max(tensor: FlexTensor) -> FlexTensor {
 
 /// Min of all elements, returning a scalar tensor of shape \[1\].
 pub fn min(tensor: FlexTensor) -> FlexTensor {
+    assert!(
+        tensor.layout().shape().num_elements() > 0,
+        "min: cannot reduce an empty tensor"
+    );
     match tensor.dtype() {
         DType::F32 => min_f32_reduce(&tensor),
-        DType::F64 => min_impl::<f64>(&tensor),
-        DType::F16 => {
-            reduce_scalar_half(&tensor, f32::min, f32::INFINITY, f16::to_f32, f16::from_f32)
-        }
+        DType::F64 => float_extremum_f64_reduce::<false>(&tensor),
+        DType::F16 => reduce_scalar_half(
+            &tensor,
+            select_float_extremum::<f32, false>,
+            f32::INFINITY,
+            f16::to_f32,
+            f16::from_f32,
+        ),
         DType::BF16 => reduce_scalar_half(
             &tensor,
-            f32::min,
+            select_float_extremum::<f32, false>,
             f32::INFINITY,
             bf16::to_f32,
             bf16::from_f32,
@@ -479,6 +497,79 @@ pub fn min(tensor: FlexTensor) -> FlexTensor {
     }
 }
 
+#[inline(always)]
+fn select_float_extremum<E: Float, const MAX: bool>(current: E, candidate: E) -> E {
+    let keep_current = if MAX {
+        current >= candidate
+    } else {
+        current <= candidate
+    };
+    if current.is_nan() || keep_current {
+        current
+    } else {
+        candidate
+    }
+}
+
+#[inline(always)]
+fn float_extremum_contiguous<E: Float, const MAX: bool>(data: &[E]) -> E {
+    let empty_message = if MAX {
+        "max: tensor must not be empty"
+    } else {
+        "min: tensor must not be empty"
+    };
+    let (&first, rest) = data.split_first().expect(empty_message);
+    rest.iter()
+        .copied()
+        .fold(first, select_float_extremum::<E, MAX>)
+}
+
+/// Returns whether the layout visits every storage element exactly once.
+///
+/// Dense permutations and flips can reduce the raw storage directly because
+/// extrema are independent of traversal order. Partial, broadcast, overlapping,
+/// or gapped views must preserve their logical indexing through `StridedIter`.
+fn layout_covers_storage_once(layout: &Layout, storage_len: usize) -> bool {
+    if storage_len == 0 || layout.num_elements() != storage_len {
+        return false;
+    }
+
+    let mut dimensions: Vec<_> = layout
+        .shape()
+        .iter()
+        .copied()
+        .zip(layout.strides().iter().copied())
+        .filter(|(size, _)| *size > 1)
+        .map(|(size, stride)| (stride.unsigned_abs(), size, stride < 0))
+        .collect();
+    dimensions.sort_unstable_by_key(|&(stride, _, _)| stride);
+
+    let mut expected_stride = 1usize;
+    let mut min_offset = layout.start_offset();
+    for (stride, size, is_negative) in dimensions {
+        if stride != expected_stride {
+            return false;
+        }
+
+        if is_negative {
+            let Some(reach) = stride.checked_mul(size - 1) else {
+                return false;
+            };
+            let Some(offset) = min_offset.checked_sub(reach) else {
+                return false;
+            };
+            min_offset = offset;
+        }
+
+        let Some(next_stride) = expected_stride.checked_mul(size) else {
+            return false;
+        };
+        expected_stride = next_stride;
+    }
+
+    min_offset == 0 && expected_stride == storage_len
+}
+
 fn max_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
     let result = match tensor.layout().contiguous_offsets() {
         Some((start, end)) => {
@@ -487,14 +578,12 @@ fn max_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
         }
         None => {
             let data: &[f32] = tensor.storage();
-            let elem_count = tensor.layout().num_elements();
-            if data.len() == elem_count {
-                // Non-contiguous but uses all elements (e.g., transposed)
+            if layout_covers_storage_once(tensor.layout(), data.len()) {
                 max_f32_contiguous(data)
             } else {
                 StridedIter::new(tensor.layout())
                     .map(|idx| data[idx])
-                    .reduce(|a, b| if a >= b { a } else { b })
+                    .reduce(select_float_extremum::<f32, true>)
                     .expect("max: tensor must not be empty")
             }
         }
@@ -513,10 +602,7 @@ fn max_f32_contiguous(data: &[f32]) -> f32 {
 
     #[cfg(not(feature = "simd"))]
     {
-        data.iter()
-            .copied()
-            .reduce(|a, b| if a >= b { a } else { b })
-            .expect("max: tensor must not be empty")
+        float_extremum_contiguous::<f32, true>(data)
     }
 }
 
@@ -528,13 +614,12 @@ fn min_f32_reduce(tensor: &FlexTensor) -> FlexTensor {
         }
         None => {
             let data: &[f32] = tensor.storage();
-            let elem_count = tensor.layout().num_elements();
-            if data.len() == elem_count {
+            if layout_covers_storage_once(tensor.layout(), data.len()) {
                 min_f32_contiguous(data)
             } else {
                 StridedIter::new(tensor.layout())
                     .map(|idx| data[idx])
-                    .reduce(|a, b| if a <= b { a } else { b })
+                    .reduce(select_float_extremum::<f32, false>)
                     .expect("min: tensor must not be empty")
             }
         }
@@ -553,11 +638,32 @@ fn min_f32_contiguous(data: &[f32]) -> f32 {
 
     #[cfg(not(feature = "simd"))]
     {
-        data.iter()
-            .copied()
-            .reduce(|a, b| if a <= b { a } else { b })
-            .expect("min: tensor must not be empty")
+        float_extremum_contiguous::<f32, false>(data)
     }
+}
+
+fn float_extremum_f64_reduce<const MAX: bool>(tensor: &FlexTensor) -> FlexTensor {
+    let empty_message = if MAX {
+        "max: tensor must not be empty"
+    } else {
+        "min: tensor must not be empty"
+    };
+    let result = match tensor.layout().contiguous_offsets() {
+        Some((start, end)) => {
+            let data: &[f64] = tensor.storage();
+            float_extremum_contiguous::<f64, MAX>(&data[start..end])
+        }
+        None => {
+            let data: &[f64] = tensor.storage();
+            StridedIter::new(tensor.layout())
+                .map(|idx| data[idx])
+                .reduce(select_float_extremum::<f64, MAX>)
+                .expect(empty_message)
+        }
+    };
+
+    let bytes = Bytes::from_elems(vec![result]);
+    FlexTensor::new(bytes, Layout::contiguous(Shape::from(vec![1])), DType::F64)
 }
 
 fn max_impl<E: Element + bytemuck::Pod + PartialOrd>(tensor: &FlexTensor) -> FlexTensor {
@@ -620,6 +726,10 @@ fn min_impl<E: Element + bytemuck::Pod + PartialOrd>(tensor: &FlexTensor) -> Fle
 
 /// Argmax along a dimension, returning indices as isize (INDEX_DTYPE).
 pub fn argmax(tensor: FlexTensor, dim: usize) -> FlexTensor {
+    assert!(
+        tensor.layout().shape()[dim] > 0,
+        "argmax: dimension {dim} has size 0"
+    );
     assert_dim_fits_isize(tensor.layout().shape()[dim], dim);
     // f32 last-dim fast path: 2-pass SIMD for large rows, 1-pass scalar for small rows
     if tensor.dtype() == DType::F32 && dim == tensor.layout().shape().num_dims() - 1 {
@@ -672,6 +782,10 @@ pub fn argmax(tensor: FlexTensor, dim: usize) -> FlexTensor {
 
 /// Argmin along a dimension, returning indices as isize (INDEX_DTYPE).
 pub fn argmin(tensor: FlexTensor, dim: usize) -> FlexTensor {
+    assert!(
+        tensor.layout().shape()[dim] > 0,
+        "argmin: dimension {dim} has size 0"
+    );
     assert_dim_fits_isize(tensor.layout().shape()[dim], dim);
     // f32 last-dim fast path: 2-pass SIMD for large rows, 1-pass scalar for small rows
     if tensor.dtype() == DType::F32 && dim == tensor.layout().shape().num_dims() - 1 {
@@ -1382,10 +1496,6 @@ where
     );
 
     let dim_size = shape[dim];
-    assert!(
-        dim_size > 0,
-        "mean_dim: cannot take mean of empty dimension"
-    );
     let mut out_shape: Vec<usize> = shape.to_vec();
     out_shape[dim] = 1;
 
@@ -1849,22 +1959,10 @@ fn extremum_dim_f32_last_simd(
     let mut out_shape: Vec<usize> = shape.to_vec();
     out_shape[dim] = 1;
 
-    let reduce_row = |outer: usize| -> f32 {
+    let reduce_row = |outer: usize| {
         let row_start = start + outer * dim_size;
         let row = &data[row_start..row_start + dim_size];
-        let ext = simd_reduce(row);
-        // SIMD max/min may silently drop NaN (architecture-dependent).
-        // If the result is already NaN, we're done. Otherwise, scan to
-        // check for any NaN the SIMD op missed.
-        if ext.is_nan() {
-            return f32::NAN;
-        }
-        for &v in row {
-            if v.is_nan() {
-                return f32::NAN;
-            }
-        }
-        ext
+        simd_reduce(row)
     };
 
     #[cfg(feature = "rayon")]
@@ -2262,9 +2360,65 @@ mod tests {
     use alloc::vec;
     use burn_backend::TensorData;
     use burn_backend::ops::{FloatTensorOps, IntTensorOps};
-    use burn_std::{bf16, f16};
+    use burn_std::{Shape, bf16, f16};
 
-    use crate::{Flex, FlexTensor};
+    use crate::strided_index::StridedIter;
+    use crate::{Flex, FlexTensor, Layout};
+
+    #[test]
+    fn test_layout_covers_storage_once() {
+        fn reference(layout: &Layout, storage_len: usize) -> bool {
+            if storage_len == 0 || layout.num_elements() != storage_len {
+                return false;
+            }
+
+            let mut indices: Vec<_> = StridedIter::new(layout).collect();
+            indices.sort_unstable();
+            indices.into_iter().eq(0..storage_len)
+        }
+
+        let base = Layout::contiguous(Shape::from(vec![2, 3, 4]));
+        let cases = [
+            ("contiguous", base.clone(), 24),
+            ("permuted", base.permute(&[2, 0, 1]), 24),
+            ("flipped", base.flip(&[0, 2]), 24),
+            (
+                "permuted singleton dimension",
+                Layout::contiguous(Shape::from(vec![2, 1, 3])).permute(&[1, 2, 0]),
+                6,
+            ),
+            ("narrowed", base.narrow(1, 1, 1), 24),
+            (
+                "expanded",
+                Layout::new(Shape::from(vec![2, 2]), vec![0, 1], 2),
+                4,
+            ),
+            (
+                "overlapping",
+                Layout::new(Shape::from(vec![2, 2]), vec![1, 1], 0),
+                4,
+            ),
+            (
+                "gapped",
+                Layout::new(Shape::from(vec![2, 2]), vec![3, 1], 0),
+                4,
+            ),
+            (
+                "offset",
+                Layout::new(Shape::from(vec![2, 2]), vec![2, 1], 1),
+                4,
+            ),
+            ("empty", Layout::contiguous(Shape::from(vec![0, 3])), 0),
+        ];
+
+        for (name, layout, storage_len) in cases {
+            assert_eq!(
+                super::layout_covers_storage_once(&layout, storage_len),
+                reference(&layout, storage_len),
+                "{name}"
+            );
+        }
+    }
 
     #[test]
     fn test_mean_f16_overflow_intermediate_sum() {

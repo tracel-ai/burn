@@ -16,38 +16,73 @@ creating a [custom training loop](../custom-training-loop.md) might be what you 
 
 ## Usage
 
-The `SupervisedLearning` struct must be created with the training and validation dataloaders. It provides you with numerous options when it comes to configurations.
+The `SupervisedLearning` struct must be created with the training and validation dataloaders. It
+provides you with numerous options when it comes to configurations.
 
-| Configuration          | Description                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------ |
-| Training Metric        | Register a training metric                                                     |
-| Validation Metric      | Register a validation metric                                                   |
-| Training Metric Plot   | Register a training metric with plotting (requires the metric to be numeric)   |
-| Validation Metric Plot | Register a validation metric with plotting (requires the metric to be numeric) |
-| Metric Logger          | Configure the metric loggers (default is saving them to files)                 |
-| Renderer               | Configure how to render metrics (default is CLI)                               |
-| Grad Accumulation      | Configure the number of steps before applying gradients                        |
-| File Checkpointer      | Configure how the model, optimizer and scheduler states are saved              |
-| Num Epochs             | Set the number of epochs                                                       |
-| Devices                | Set the devices to be used                                                     |
-| Checkpoint             | Restart training from a checkpoint                                             |
-| Application logging    | Configure the application logging installer (default is writing to `experiment.log`)                                   |
-| Training Strategy      | Use a custom training strategy, allowing you to use your own training loop with all the capabilities of the `SupervisedTraining` struct          |
+| Configuration          | Description                                                                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Training Metric        | Register a training metric                                                                                                              |
+| Validation Metric      | Register a validation metric                                                                                                            |
+| Training Metric Plot   | Register a training metric with plotting (requires the metric to be numeric)                                                            |
+| Validation Metric Plot | Register a validation metric with plotting (requires the metric to be numeric)                                                          |
+| Metric Logger          | Configure the metric loggers (default is saving them to files)                                                                          |
+| Renderer               | Configure how to render metrics (default is CLI)                                                                                        |
+| Grad Accumulation      | Configure the number of steps before applying gradients                                                                                 |
+| File Checkpointer      | Configure how the model, optimizer and scheduler states are saved                                                                       |
+| Num Epochs             | Set the number of epochs                                                                                                                |
+| Devices                | Set the devices to be used                                                                                                              |
+| Checkpoint             | Restart training from a checkpoint                                                                                                      |
+| Application logging    | Configure the application logging installer (default is writing to `experiment.log`)                                                    |
+| Training Strategy      | Use a custom training strategy, allowing you to use your own training loop with all the capabilities of the `SupervisedTraining` struct |
 
-When the training is configured to your liking, you can then move forward to running the training. The
-`launch` method requires a learner object providing: the model, the optimizer and the learning rate scheduler. Note
-that the latter can be a simple float if you want it to be constant during training.
+When the training is configured to your liking, you can then move forward to running the training.
+The `launch` method requires a learner object providing: the model, the optimizer and the learning
+rate scheduler. Note that the latter can be a simple float if you want it to be constant during
+training. See the [learning rate scheduler section](./lr-scheduler.md) for the available schedulers.
 
 The `launch` method will start the training and return the trained model once finished.
 
 Again, please refer to the [training section](../basic-workflow/training.md) for a relevant code
 snippet.
 
+## Parameter Groups
+
+It's common to use different learning rates or optimizer settings for different parts of a model.
+Burn's `ParamGroup` routes module parameters by path or ID. Optimizers and learning-rate schedulers
+use the same matching rules but can be configured independently.
+
+```rust,ignore
+let lr_scheduler_base = ComposedLrSchedulerConfig::new()
+    .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
+    .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
+    .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
+let lr_scheduler = lr_scheduler_base.init().unwrap().with_group(
+    ParamGroup::from_predicate("conv"),
+    LinearLrSchedulerConfig::new(1e-6, 1e-3, 14000)
+        .build()
+        .unwrap(),
+);
+
+let optim = AdamWConfig::new()
+    .with_cautious_weight_decay(true)
+    .with_weight_decay(5e-5)
+    .init();
+
+let result = training.launch(Learner::new(
+    model,
+    optim,
+    lr_scheduler,
+));
+```
+
+For group-specific optimizers, matching precedence, gradient clipping, and optimizer state, see
+[Optimizer](./optimizer.md#parameter-groups).
+
 ## Artifacts
 
-When creating a `SupervisedTraining` instance, all the collected data will be saved under the directory provided as
-the argument to the `new` method. Here is an example of the data layout for a model checkpointed to
-the burnpack format, with the accuracy and loss metrics registered:
+When creating a `SupervisedTraining` instance, all the collected data will be saved under the
+directory provided as the argument to the `new` method. Here is an example of the data layout for a
+model checkpointed to the burnpack format, with the accuracy and loss metrics registered:
 
 ```
 ├── experiment.log

@@ -7,6 +7,9 @@ pub mod composed;
 /// Linear learning rate scheduler
 pub mod linear;
 
+/// Learning rate policies
+pub mod module_lr_scheduler;
+
 /// Noam learning rate scheduler
 pub mod noam;
 
@@ -18,6 +21,9 @@ pub mod cosine;
 
 /// Step learning rate scheduler
 pub mod step;
+
+/// Sequential learning rate scheduler
+pub mod sequential;
 
 mod base;
 

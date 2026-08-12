@@ -37,17 +37,25 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 {
     fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
-            LearnerEvent::Start { total_epochs } => {
+            LearnerEvent::Start {
+                total_epochs,
+                starting_epoch,
+            } => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(definitions));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start(total_epochs, None);
+                    logger.start(total_epochs, starting_epoch, None);
                 }
             }
-            LearnerEvent::StartSplit(total_items) => {
+            LearnerEvent::StartSplit {
+                epoch_number,
+                total_items,
+            } => {
+                self.store
+                    .add_event_train(crate::metric::store::Event::StartSplit(epoch_number));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_split("train", total_items);
+                    logger.start_split(Split::Train.into(), total_items);
                 }
             }
             LearnerEvent::ProcessedItem(item) => {
@@ -55,15 +63,18 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_train(&item, &metadata);
-
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
+
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_split(item.progress.items_processed);
                 }
             }
             LearnerEvent::EndSplit(epoch) => {
-                self.metrics.end_epoch_train();
+                let update = self.metrics.end_epoch_train();
+                self.store
+                    .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
+
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
@@ -89,9 +100,14 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
     fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
             LearnerEvent::Start { .. } => {} // no-op
-            LearnerEvent::StartSplit(total_items) => {
+            LearnerEvent::StartSplit {
+                epoch_number,
+                total_items,
+            } => {
+                self.store
+                    .add_event_valid(crate::metric::store::Event::StartSplit(epoch_number));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_split("valid", total_items);
+                    logger.start_split(Split::Valid.into(), total_items);
                 }
             }
             LearnerEvent::ProcessedItem(item) => {
@@ -99,15 +115,18 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_valid(&item, &metadata);
-
                 self.store
                     .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
+
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_split(item.progress.items_processed);
                 }
             }
             LearnerEvent::EndSplit(epoch) => {
-                self.metrics.end_epoch_valid();
+                let update = self.metrics.end_epoch_valid();
+                self.store
+                    .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
+
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,

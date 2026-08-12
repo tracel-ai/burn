@@ -3,8 +3,8 @@ use crate::ddp::strategy::WorkerComponents;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent};
 use crate::single::TrainingLoop;
 use crate::{
-    Learner, LearningCheckpointer, LearningComponentsTypes, SupervisedTrainingEventProcessor,
-    TrainLoader, ValidLoader,
+    Learner, LearnerModel, LearningCheckpointer, SupervisedTrainingEventProcessor, TrainLoader,
+    ValidLoader,
 };
 use burn_core::tensor::Device;
 use std::sync::{Arc, Mutex};
@@ -12,40 +12,34 @@ use std::thread::JoinHandle;
 
 /// A worker runs the model, syncing gradients using collective operations.
 /// Event processing and validation is optional too.
-pub(crate) struct DdpWorker<LC>
-where
-    LC: LearningComponentsTypes + Send + 'static,
-{
+pub(crate) struct DdpWorker<M: LearnerModel> {
     device: Device,
-    learner: Learner<LC>,
-    event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
+    learner: Learner<M>,
+    event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<M>>>,
     components: WorkerComponents,
-    checkpointer: Option<LearningCheckpointer<LC>>,
-    dataloader_train: TrainLoader<LC>,
-    dataloader_valid: Option<ValidLoader<LC>>,
+    checkpointer: Option<LearningCheckpointer<M>>,
+    dataloader_train: TrainLoader<M>,
+    dataloader_valid: Option<ValidLoader<M>>,
     starting_epoch: usize,
     peer_count: usize,
     is_main: bool,
 }
 
-impl<LC> DdpWorker<LC>
-where
-    LC: LearningComponentsTypes + Send + 'static,
-{
+impl<M: LearnerModel> DdpWorker<M> {
     /// Starts a worker that runs the model in a data distributed parallel
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         device: Device,
-        learner: Learner<LC>,
-        event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
+        learner: Learner<M>,
+        event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<M>>>,
         components: WorkerComponents,
-        checkpointer: Option<LearningCheckpointer<LC>>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: Option<ValidLoader<LC>>,
+        checkpointer: Option<LearningCheckpointer<M>>,
+        dataloader_train: TrainLoader<M>,
+        dataloader_valid: Option<ValidLoader<M>>,
         starting_epoch: usize,
         peer_count: usize,
         is_main: bool,
-    ) -> JoinHandle<<LC as LearningComponentsTypes>::Model> {
+    ) -> JoinHandle<M> {
         let worker = Self {
             device,
             learner,
@@ -63,18 +57,18 @@ where
     }
 
     /// Fits the model,
-    pub fn fit(mut self) -> <LC as LearningComponentsTypes>::Model {
+    pub fn fit(mut self) -> M {
         let num_epochs = self.components.num_epochs;
         let interrupter = self.components.interrupter;
 
         // Changed the train epoch to keep the dataloaders
-        let epoch_train = DdpTrainEpoch::<LC>::new(
+        let epoch_train = DdpTrainEpoch::<M>::new(
             self.dataloader_train.clone(),
             self.components.grad_accumulation,
         );
         let epoch_valid = self
             .dataloader_valid
-            .map(|dataloader| DdpValidEpoch::<LC>::new(dataloader));
+            .map(|dataloader| DdpValidEpoch::<M>::new(dataloader));
         self.learner.fork(&self.device);
         self.learner.grad_sharded();
 
@@ -85,7 +79,10 @@ where
                 self.event_processor
                     .lock()
                     .unwrap()
-                    .process_train(LearnerEvent::StartSplit(self.components.train_total_items));
+                    .process_train(LearnerEvent::StartSplit {
+                        epoch_number: epoch,
+                        total_items: self.components.train_total_items,
+                    });
             }
 
             epoch_train.run(
@@ -103,7 +100,9 @@ where
                     .process_train(LearnerEvent::EndSplit(epoch));
             }
 
-            if interrupter.should_stop() {
+            // Workers using early stopping must all reach the epoch barrier below. Validation will
+            // observe the interruption and return promptly on the main worker.
+            if interrupter.should_stop() && self.components.early_stopping.is_none() {
                 break;
             }
 
@@ -113,7 +112,10 @@ where
                     self.event_processor
                         .lock()
                         .unwrap()
-                        .process_valid(LearnerEvent::StartSplit(self.components.valid_total_items));
+                        .process_valid(LearnerEvent::StartSplit {
+                            epoch_number: epoch,
+                            total_items: self.components.valid_total_items,
+                        });
                 }
                 let mut event_processor = self.event_processor.lock().unwrap();
                 runner.run(
@@ -124,6 +126,21 @@ where
                 );
                 event_processor.process_valid(LearnerEvent::EndSplit(epoch));
                 event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            }
+
+            if self.components.early_stopping.is_some() {
+                // Only the main worker runs validation, so every worker waits for its validation
+                // and epoch end events to be queued before draining the event processor. This way
+                // early stopping never reads a missing or stale metric value.
+                self.components.epoch_barrier.wait();
+            }
+
+            if self.checkpointer.is_some() || self.components.early_stopping.is_some() {
+                self.event_processor.lock().unwrap().flush();
+            }
+
+            if interrupter.should_stop() {
+                break;
             }
 
             if let Some(checkpointer) = &mut self.checkpointer {

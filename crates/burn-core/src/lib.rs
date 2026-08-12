@@ -89,5 +89,4 @@ pub mod prelude {
             Tensor, TensorData, cast::ToElement, s,
         },
     };
-    pub use burn_std::device::Device as DeviceOps;
 }

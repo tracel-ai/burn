@@ -41,7 +41,6 @@
 //! autodifferentiation and automatic kernel fusion.
 //!
 //! - WGPU (WebGPU): Cross-Platform GPU Backend
-//! - Candle: Backend using the Candle bindings
 //! - LibTorch: Backend using the LibTorch bindings
 //! - Flex: Pure-Rust CPU backend (std, no_std, WebAssembly)
 //! - Autodiff: Backend decorator that brings backpropagation to any backend
@@ -96,10 +95,9 @@
 //!   - `metal`: Makes available the Metal backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
-//!   - `candle`: Makes available the Candle backend
 //!   - `tch`: Makes available the LibTorch backend
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
-//!   - `ndarray`: Makes available the NdArray backend (legacy - prefer `flex` for new projects)
+//!   - `ndarray`: Makes available the NdArray backend (deprecated - use `flex` instead)
 //! - Backend specifications
 //!   - `accelerate`: If supported, Accelerate will be used
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
@@ -132,7 +130,7 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
-#[cfg(feature = "server")]
+#[cfg(feature = "remote-server")]
 pub use burn_core::tensor::server;
 
 /// Model storage and serialization: the non-generic record system (always available), plus —

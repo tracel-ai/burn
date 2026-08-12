@@ -1,6 +1,6 @@
 use crate::stream::{OperationConverter, RelativeOps};
 use crate::{FusionRuntime, UnfusedOp};
-use burn_ir::{OperationIr, TensorId, TensorStatus};
+use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
 
 use hashbrown::HashMap;
 
@@ -23,6 +23,10 @@ pub struct OperationQueue<R: FusionRuntime> {
     pub(crate) converter: OperationConverter,
     pub(crate) operations: Vec<UnfusedOp<R>>,
     pub(crate) variables: HashMap<TensorId, TensorStatus>,
+    /// Last-use frees of materialized tensors received from another thread,
+    /// run at the next execution boundary instead of interrupting the queue
+    /// (see [`ReadPlan`](crate::stream::ReadPlan)).
+    pub(crate) deferred_frees: Vec<TensorIr>,
 }
 
 impl<R: FusionRuntime> Default for OperationQueue<R> {
@@ -40,6 +44,36 @@ impl<R: FusionRuntime> OperationQueue<R> {
             converter: OperationConverter::default(),
             operations: Vec::new(),
             variables: HashMap::new(),
+            deferred_frees: Vec::new(),
+        }
+    }
+
+    /// Whether any pending operation still references `id`. `variables`
+    /// cannot answer this: it keeps entries for tensors whose queued uses
+    /// were all `ReadOnly` after those ops executed.
+    pub(crate) fn references_tensor(&self, id: TensorId) -> bool {
+        self.global
+            .iter()
+            .any(|op| op.nodes().iter().any(|node| node.id == id))
+    }
+
+    /// Free every deferred tensor no pending operation still references,
+    /// keeping the rest for the next boundary.
+    ///
+    /// Called at execution boundaries, right after the referencing ops ran —
+    /// the earliest legal point to release the memory.
+    pub(crate) fn flush_deferred(&mut self, handles: &mut HandleContainer<R::FusionHandle>) {
+        if self.deferred_frees.is_empty() {
+            return;
+        }
+        let deferred = core::mem::take(&mut self.deferred_frees);
+        for ir in deferred {
+            if self.references_tensor(ir.id) {
+                self.deferred_frees.push(ir);
+            } else {
+                self.variables.remove(&ir.id);
+                handles.free(&ir);
+            }
         }
     }
 

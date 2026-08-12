@@ -2,6 +2,14 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![recursion_limit = "138"]
+// Wiring up the deprecated `NdArray` backend is this crate's job, and the backend registry macros
+// expand it into every dispatch impl, so the warnings land on `macros.rs` rather than on any site
+// we could annotate individually. `allow(deprecated)` is a lint level scoped to this crate, and
+// lint levels never propagate to dependents, so downstream code naming `NdArray` (directly or via
+// our re-export) still gets the warning. The `cfg_attr` keeps this confined to the ndarray-enabled
+// build: `ndarray` is not a default feature, so the default build that CI lints with
+// `--deny warnings` retains full deprecation signal for every other dependency.
+#![cfg_attr(feature = "ndarray", allow(deprecated))]
 
 //! Burn multi-backend dispatch.
 //!
@@ -18,7 +26,7 @@
 //! | `Vulkan`   | `vulkan`   | Vulkan backend via `wgpu` (SPIR-V) |
 //! | `Wgpu`     | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
-//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (legacy - prefer `flex`) |
+//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (deprecated - use `flex`) |
 //! | `LibTorch` | `tch`      | Libtorch backend via `tch` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
@@ -120,4 +128,7 @@ pub mod devices {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
+
+    #[cfg(feature = "remote")]
+    pub use burn_remote::BURN_REMOTE_ALPN;
 }

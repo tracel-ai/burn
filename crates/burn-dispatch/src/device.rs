@@ -5,6 +5,13 @@ use crate::backends::*;
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 
+// Throughput types come from `burn-backend` (which re-exports them from cubecl),
+// so `burn-dispatch` needs no direct `cubecl` dependency.
+#[cfg(feature = "cubecl")]
+use alloc::vec::Vec;
+#[cfg(feature = "cubecl")]
+use burn_backend::cubecl::{ThroughputKey, ThroughputValue};
+
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
 /// Each variant corresponds to a backend that the [`Dispatch`](crate::Dispatch) can dispatch operations to.
@@ -69,6 +76,52 @@ pub enum DispatchDevice {
     /// The [autodiff enabled backend](Autodiff) device.
     #[cfg(feature = "autodiff")]
     Autodiff(AutodiffDevice),
+}
+
+#[cfg(feature = "cubecl")]
+impl DispatchDevice {
+    /// Measure peak throughput for this device against the given `keys`.
+    ///
+    /// Only cubecl-backed devices can measure throughput; other backends
+    /// (ndarray, libtorch, remote, ...) return an empty vector. An autodiff
+    /// device reports the peaks of the device it wraps. Each returned
+    /// [`ThroughputValue`](burn_backend::cubecl::ThroughputValue) corresponds
+    /// positionally to the key at the same index.
+    pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputValue> {
+        // No catch-all arm: a new backend must fail to compile here rather
+        // than silently report no peaks.
+        match self {
+            #[cfg(feature = "cpu")]
+            DispatchDevice::Cpu(device) => burn_cpu::device_throughput(device, keys),
+            #[cfg(feature = "cuda")]
+            DispatchDevice::Cuda(device) => burn_cuda::device_throughput(device, keys),
+            #[cfg(feature = "rocm")]
+            DispatchDevice::Rocm(device) => burn_rocm::device_throughput(device, keys),
+            #[cfg(feature = "wgpu")]
+            DispatchDevice::Wgpu(device) => burn_wgpu::device_throughput(device, keys),
+            #[cfg(feature = "vulkan")]
+            DispatchDevice::Vulkan(device) => burn_wgpu::device_throughput(device, keys),
+            #[cfg(feature = "metal")]
+            DispatchDevice::Metal(device) => burn_wgpu::device_throughput(device, keys),
+            #[cfg(feature = "webgpu")]
+            DispatchDevice::WebGpu(device) => burn_wgpu::device_throughput(device, keys),
+            // Autodiff does not change the hardware, so measure the wrapped device.
+            #[cfg(feature = "autodiff")]
+            DispatchDevice::Autodiff(device) => device.performance_stats(keys),
+
+            // Not cubecl-backed, so there are no kernels to measure.
+            #[cfg(any(feature = "flex", default_backend))]
+            DispatchDevice::Flex(_) => Vec::new(),
+            #[cfg(feature = "ndarray")]
+            DispatchDevice::NdArray(_) => Vec::new(),
+            #[cfg(feature = "tch")]
+            DispatchDevice::LibTorch(_) => Vec::new(),
+
+            // The kernels run on the server, which this local API cannot reach.
+            #[cfg(feature = "remote")]
+            DispatchDevice::Remote(_) => Vec::new(),
+        }
+    }
 }
 
 #[cfg(feature = "autodiff")]
@@ -594,6 +647,10 @@ impl From<RocmDevice> for DispatchDevice {
 
 // A bare `WgpuDevice` maps to the auto-compiler [`DispatchDevice::Wgpu`] variant. To target a
 // specific wgpu specialization (Metal, Vulkan, WebGpu) construct the variant explicitly.
+//
+// The gates form a priority chain (metal, then vulkan, then webgpu) rather than mutually
+// exclusive conditions: cargo unifies features across a workspace, so several specializations
+// can be on at once and exclusive gates would leave the conversion with no impl at all.
 #[cfg(all(
     feature = "wgpu",
     not(any(feature = "metal", feature = "vulkan", feature = "webgpu"))
@@ -604,14 +661,14 @@ impl From<WgpuDevice> for DispatchDevice {
     }
 }
 
-#[cfg(all(feature = "metal", not(any(feature = "vulkan", feature = "webgpu"))))]
+#[cfg(feature = "metal")]
 impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
         DispatchDevice::Metal(device)
     }
 }
 
-#[cfg(all(feature = "vulkan", not(any(feature = "metal", feature = "webgpu"))))]
+#[cfg(all(feature = "vulkan", not(feature = "metal")))]
 impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
         DispatchDevice::Vulkan(device)

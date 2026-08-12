@@ -418,6 +418,29 @@ impl TraceOperationFuser {
                     Some(())
                 })
             }
+            BaseOperationIr::Cat(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let mut tensors = Vec::with_capacity(desc.tensors.len());
+
+                    for tensor in desc.tensors.iter() {
+                        tensors.push(build.input_indexed(tensor)?);
+                    }
+
+                    let output = build.output(&desc.out)?;
+
+                    build.fuse_operation(FuseOp::Cat {
+                        inputs: tensors,
+                        output,
+                        dim: desc.dim,
+                    });
+
+                    Some(())
+                })
+            }
             BaseOperationIr::MaskWhere(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
@@ -803,6 +826,15 @@ impl TraceOperationFuser {
         }
 
         true
+    }
+
+    /// Register an output relayout to NHWC.
+    ///
+    /// This will apply the NHWC relayout to the given [tensor](TensorIr).
+    ///
+    /// The relayout will be applied when the tensor is written to global memory.
+    pub fn output_nhwc_layout(&mut self, tensor: &TensorIr, stride_relayout: Shape) {
+        self.fuser.fuser.output_nhwc_layout(tensor, stride_relayout);
     }
 }
 

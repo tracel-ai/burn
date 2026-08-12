@@ -25,7 +25,7 @@ use burn_backend::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Scalar, ops::unfold::calculate_unfold_windows};
-use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
 
 use burn_backend::distributed::DistributedParams;
 
@@ -1049,6 +1049,83 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<Self>,
+        indices: IntTensor<B>,
+        value: FloatTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        match update {
+            IndexingUpdateOp::Add => Self::float_scatter_add(dim, tensor, indices, value),
+            IndexingUpdateOp::Assign => {
+                #[derive(Debug)]
+                struct ScatterAssign;
+
+                impl<B: Backend> Backward<B, 2> for ScatterAssign {
+                    type State = (usize, IntTensor<B>, Shape, B::Device);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, indices, value_shape, device) = ops.state;
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                let zeros =
+                                    B::float_zeros(value_shape, &device, grad.dtype().into());
+                                B::float_scatter(
+                                    dim,
+                                    grad,
+                                    indices_4lhs.unwrap(),
+                                    zeros,
+                                    IndexingUpdateOp::Assign,
+                                )
+                            },
+                            |grad| B::float_gather(dim, grad, indices_4rhs.unwrap()),
+                        );
+                    }
+                }
+
+                match ScatterAssign
+                    .prepare::<C>([tensor.node, value.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => {
+                        let value_shape = value.primitive.shape();
+                        let device = tensor.primitive.device();
+                        prep.finish(
+                            (dim, indices.clone(), value_shape, device),
+                            B::float_scatter(
+                                dim,
+                                tensor.primitive,
+                                indices,
+                                value.primitive,
+                                IndexingUpdateOp::Assign,
+                            ),
+                        )
+                    }
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter(
+                        dim,
+                        tensor.primitive,
+                        indices,
+                        value.primitive,
+                        IndexingUpdateOp::Assign,
+                    )),
+                }
+            }
+            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn float_scatter_nd(
         data: FloatTensor<Self>,
         indices: IntTensor<B>,
@@ -1527,6 +1604,115 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 indices,
                 value.primitive,
             )),
+        }
+    }
+
+    fn float_select_assign(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: FloatTensor<Self>,
+        update: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        match update {
+            IndexingUpdateOp::Add => Self::float_select_add(tensor, dim, indices, value),
+            IndexingUpdateOp::Assign => {
+                #[derive(Debug)]
+                struct IndexSelectDimAssignReplace;
+
+                #[derive(new, Debug)]
+                struct RetroSelectAssignReplace<B: Backend> {
+                    tensor_id: NodeId,
+                    dim: usize,
+                    indices: IntTensor<B>,
+                    value_id: NodeId,
+                }
+
+                impl<B: Backend> RetroForward for RetroSelectAssignReplace<B> {
+                    fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
+                        let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
+                        let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
+                        let out = B::float_select_assign(
+                            tensor,
+                            self.dim,
+                            self.indices.clone(),
+                            value,
+                            IndexingUpdateOp::Assign,
+                        );
+                        states.save(out_node, out)
+                    }
+                }
+
+                impl<B: Backend> Backward<B, 2> for IndexSelectDimAssignReplace {
+                    type State = (usize, IntTensor<B>, Shape, B::Device);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, indices, value_shape, device) = ops.state;
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                let zeros =
+                                    B::float_zeros(value_shape, &device, grad.dtype().into());
+                                B::float_select_assign(
+                                    grad,
+                                    dim,
+                                    indices_4lhs.unwrap(),
+                                    zeros,
+                                    IndexingUpdateOp::Assign,
+                                )
+                            },
+                            |grad| B::float_select(grad, dim, indices_4rhs.unwrap()),
+                        );
+                    }
+                }
+
+                match IndexSelectDimAssignReplace
+                    .prepare::<C>([tensor.node.clone(), value.node.clone()])
+                    .memory_bound()
+                    .retro_forward(RetroSelectAssignReplace::<B>::new(
+                        tensor.node.id,
+                        dim,
+                        indices.clone(),
+                        value.node.id,
+                    ))
+                    .parents([&tensor, &value])
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => {
+                        let value_shape = value.primitive.shape();
+                        let device = tensor.primitive.device();
+                        prep.finish(
+                            (dim, indices.clone(), value_shape, device),
+                            B::float_select_assign(
+                                tensor.primitive,
+                                dim,
+                                indices,
+                                value.primitive,
+                                IndexingUpdateOp::Assign,
+                            ),
+                        )
+                    }
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_select_assign(
+                        tensor.primitive,
+                        dim,
+                        indices,
+                        value.primitive,
+                        IndexingUpdateOp::Assign,
+                    )),
+                }
+            }
+            other => {
+                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            }
         }
     }
 
@@ -2020,6 +2206,95 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Prod;
+
+        impl<B: Backend> Backward<B, 1> for Prod {
+            // Saves the input and the output product so backward can compute
+            // `grad * prod(x) / x` without recomputing the reduction.
+            type State = (B::FloatTensorPrimitive, B::FloatTensorPrimitive);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, output) = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx_i prod(x) = prod(x) / x_i, so grad_input = grad * output / input,
+                    // broadcast over the input shape (output is a single-element tensor).
+                    //
+                    // This divides by the input, so it produces NaN gradients when the
+                    // input contains zeros. A zero-safe version requires the product of
+                    // all other elements via exclusive cumulative products, same as the
+                    // cumprod limitation tracked in https://github.com/tracel-ai/burn/issues/3864.
+                    let ones = B::float_ones(input.shape(), &input.device(), input.dtype().into());
+                    let grad = B::float_mul(grad, output);
+                    let grad = unsqueeze_like::<B>(grad, ones.shape());
+                    let grad = B::float_mul(ones, grad);
+
+                    B::float_div(grad, input)
+                });
+            }
+        }
+
+        match Prod.prepare::<C>([tensor.node]).compute_bound().stateful() {
+            OpsKind::Tracked(prep) => {
+                let output = B::float_prod(tensor.primitive.clone());
+                prep.finish((tensor.primitive, output.clone()), output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_prod(tensor.primitive)),
+        }
+    }
+
+    fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct ProdDim;
+
+        impl<B: Backend> Backward<B, 1> for ProdDim {
+            // Saves the input and the reduced product (size 1 along `dim`).
+            type State = (B::FloatTensorPrimitive, B::FloatTensorPrimitive);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, output) = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // grad_input = grad * prod_dim(x) / x. The grad and output both keep
+                    // a size-1 reduced dim and broadcast back over the input along `dim`.
+                    //
+                    // Like `float_prod`, this divides by the input and produces NaN
+                    // gradients when the input contains zeros (see
+                    // https://github.com/tracel-ai/burn/issues/3864).
+                    let ones = B::float_ones(input.shape(), &input.device(), input.dtype().into());
+                    let grad = B::float_mul(grad, output);
+                    let grad = B::float_mul(ones, grad);
+
+                    B::float_div(grad, input)
+                });
+            }
+        }
+
+        match ProdDim
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                let output = B::float_prod_dim(tensor.primitive.clone(), dim);
+                prep.finish((tensor.primitive, output.clone()), output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_prod_dim(tensor.primitive, dim)),
+        }
+    }
+
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct CumSum;
@@ -2071,33 +2346,80 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 _checkpointer: &mut Checkpointer,
             ) {
                 let (input, dim) = ops.state;
-                let output = B::float_cumprod(input.clone(), dim);
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // Gradient of cumprod using negative step slicing
-                    // Formula: grad_input[i] = sum_{j>=i}(grad_output[j] * output[j] / input[i])
-                    //        = (1 / input[i]) * sum_{j>=i}(grad_output[j] * output[j])
-                    //        = (1 / input) * reverse_cumsum(grad * output)
+                    // grad_input[i] = sum_{j>=i}(grad[j] * prod_{k<=j, k!=i} input[k])
                     //
-                    // LIMITATION: This produces NaN when input contains zeros.
-                    // A proper zero-safe implementation requires more sophisticated algorithms
-                    // (see PyTorch's cumprod_backward or JAX's associative_scan approach).
-                    // TODO: Implement zero-safe gradient computation.
-                    // See: https://github.com/tracel-ai/burn/issues/3864
+                    // Where input[i] != 0 this reduces to the classic
+                    //   reverse_cumsum(grad * output) / input
+                    // but the division makes it NaN at zeros (#3864). Split each lane
+                    // along `dim` at its FIRST zero (the approach PyTorch's
+                    // cumprod_backward takes):
+                    //
+                    // * before the first zero: every input in the formula is nonzero,
+                    //   so the classic division form is exact;
+                    // * at the first zero: the omitted products keep every other
+                    //   factor, i.e. reverse_cumsum(grad * cumprod(input with that
+                    //   zero replaced by one)) evaluated at that position;
+                    // * after the first zero: every omitted product still contains
+                    //   that zero, so the gradient is exactly zero.
+                    //
+                    // All three regions are computed with cumsum/cumprod and
+                    // elementwise masks, so the whole gradient stays a fixed number
+                    // of parallel kernels, with no data-dependent branching.
 
-                    let grad_times_output = B::float_mul(grad, output.clone());
+                    let ndims = input.shape().num_dims();
+                    let dtype = grad.dtype();
+                    let bool_dtype = get_device_settings::<B>(&grad.device()).bool_dtype;
 
-                    // Create slices to reverse along the specified dimension
-                    let shape = grad_times_output.shape();
-                    let mut slices = vec![Slice::full(); shape.num_dims()];
-                    slices[dim] = Slice::with_step(0, None, -1);
+                    let reverse = |tensor: FloatTensor<B>| {
+                        let mut slices = vec![Slice::full(); ndims];
+                        slices[dim] = Slice::with_step(0, None, -1);
+                        B::float_slice(tensor, &slices)
+                    };
+                    let reverse_cumsum =
+                        |tensor: FloatTensor<B>| reverse(B::float_cumsum(reverse(tensor), dim));
 
-                    // Reverse, cumsum, reverse back using negative step slicing
-                    let grad_reversed = B::float_slice(grad_times_output, &slices);
-                    let grad_cumsum = B::float_cumsum(grad_reversed, dim);
-                    let grad_result = B::float_slice(grad_cumsum, &slices);
+                    // zeros_seen[i] counts zeros in input[0..=i]; comparing against
+                    // 0.5/1.5 sidesteps exact float equality on the running count.
+                    let zero_mask = B::bool_into_float(
+                        B::float_equal_elem(input.clone(), 0.into(), bool_dtype),
+                        dtype.into(),
+                    );
+                    let zeros_seen = B::float_cumsum(zero_mask.clone(), dim);
+                    let before_first = B::bool_into_float(
+                        B::float_lower_elem(zeros_seen.clone(), 0.5.into(), bool_dtype),
+                        dtype.into(),
+                    );
+                    let at_first = B::float_mul(
+                        zero_mask.clone(),
+                        B::bool_into_float(
+                            B::float_lower_elem(zeros_seen, 1.5.into(), bool_dtype),
+                            dtype.into(),
+                        ),
+                    );
 
-                    B::float_div(grad_result, input)
+                    // Replacing only the first zero lets one cumprod serve both
+                    // regions. Masking output_one before the first zero recovers the
+                    // regular cumprod output used by the classic gradient.
+                    let input_one = B::float_add(input.clone(), at_first.clone());
+                    let output_one = B::float_cumprod(input_one, dim);
+                    let output = B::float_mul(output_one.clone(), before_first.clone());
+
+                    // Classic form, with every zero divisor bumped to one. The
+                    // corresponding values are discarded by the region masks.
+                    let input_safe = B::float_add(input, zero_mask);
+                    let classic = B::float_div(
+                        reverse_cumsum(B::float_mul(grad.clone(), output)),
+                        input_safe,
+                    );
+
+                    let omitted = reverse_cumsum(B::float_mul(grad, output_one));
+
+                    B::float_add(
+                        B::float_mul(classic, before_first),
+                        B::float_mul(omitted, at_first),
+                    )
                 });
             }
         }
@@ -3845,9 +4167,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::UnTracked(prep) => prep.finish(B::float_cast(tensor.primitive, dtype)),
         }
     }
-
-    // TODO: Implement float_prod and float_sum
-    // https://github.com/tracel-ai/burn/issues/1458
 
     fn float_unfold(
         tensor: FloatTensor<Self>,

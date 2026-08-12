@@ -5,7 +5,7 @@ use burn_backend::{Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, Devi
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::device::Device;
 use burn_std::rand::{SeedableRng, StdRng};
-use burn_std::stub::Mutex;
+use burn_std::sync::Mutex;
 
 use crate::qtensor::FlexQTensor;
 use crate::tensor::FlexTensor;
@@ -116,6 +116,8 @@ impl BackendTypes for Flex {
     type IntTensorPrimitive = FlexTensor;
     type BoolTensorPrimitive = FlexTensor;
     type QuantizedTensorPrimitive = FlexQTensor;
+
+    type GraphPrimitive = burn_backend::GraphUnsupported;
 }
 
 impl Backend for Flex {
@@ -125,7 +127,7 @@ impl Backend for Flex {
 
     fn seed(_device: &Self::Device, seed: u64) {
         let rng = FlexRng::seed_from_u64(seed);
-        let mut seed_lock = SEED.lock().unwrap();
+        let mut seed_lock = SEED.lock();
         *seed_lock = Some(rng);
     }
 

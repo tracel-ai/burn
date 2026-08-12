@@ -65,12 +65,14 @@ impl<R: FusionRuntime> OperationQueue<R> {
                 if tensor.status == TensorStatus::ReadWrite {
                     self.variables.remove(&tensor.id);
                 };
-                handles.free(tensor)
+                R::free_handle(handles, tensor)
             });
 
         self.global.drain(0..num_drained);
 
         self.reset_relative();
+        // An execution boundary: release frees whose references just ran.
+        self.flush_deferred(handles);
     }
 
     fn reset_relative(&mut self) {

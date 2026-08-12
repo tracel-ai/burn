@@ -19,7 +19,7 @@ fn mask_fill_kernel<T: Numeric, B: Int, N: Size>(
     mask: LinearView<'_, Vector<B, N>>,
     mut output: LinearViewMut<'_, Vector<T, N>>,
     value: InputScalar,
-    #[define(T, B)] _dtypes: [StorageType; 2],
+    #[define(T, B)] _dtypes: [ElemType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

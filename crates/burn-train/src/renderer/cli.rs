@@ -30,8 +30,9 @@ impl MetricsRendererTraining for CliMetricsRenderer {
 }
 
 impl TrainingProgressLogger for CliMetricsRenderer {
-    fn start(&mut self, total_epochs: usize, total_items: Option<usize>) {
-        self.training_progress.global = Progress::new(1, total_epochs, Some("epochs".to_string()));
+    fn start(&mut self, total_epochs: usize, starting_epoch: usize, total_items: Option<usize>) {
+        self.training_progress.global =
+            Progress::new(starting_epoch, total_epochs, Some("epochs".to_string()));
         if let Some(items) = total_items {
             self.training_progress.split = Progress::new(0, items, Some("items".to_string()));
         }

@@ -12,6 +12,8 @@ ignore = [
     "RUSTSEC-2025-0119", # `number_prefix` used by `tokenizers`, only in the examples.
     "RUSTSEC-2025-0141", # `bincode` is no longer maintained.
     "RUSTSEC-2024-0388", # `derivative` dependancy in the DQN example is unmaintained.
+    "RUSTSEC-2026-0194", # `quick-xml` <0.41.0, pinned by polars → object_store 0.13.2; no upgrade path yet.
+    "RUSTSEC-2026-0195", # `quick-xml` <0.41.0, pinned by polars → object_store 0.13.2; no upgrade path yet.
 ] # advisory IDs to ignore e.g. ["RUSTSEC-2019-0001", ...]
 informational_warnings = [
     "unmaintained",

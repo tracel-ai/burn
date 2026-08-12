@@ -1,6 +1,7 @@
 use core::sync::atomic::{AtomicU64, Ordering};
 
 use super::{RouterClient, RouterTensor};
+use crate::CustomOpRegistry;
 use crate::{
     binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
@@ -43,6 +44,9 @@ impl<B: BackendIr> InterpreterContext<B> {
 pub struct TensorInterpreter<B: BackendIr> {
     context: InterpreterContext<B>,
     device: B::Device,
+    /// Handlers for [custom operations](OperationIr::Custom), keyed by id. Shared read-only across
+    /// every session, so executing a custom op is a map lookup plus a call.
+    custom_ops: CustomOpRegistry<B>,
 }
 
 impl<B: BackendIr> core::fmt::Debug for TensorInterpreter<B> {
@@ -54,13 +58,19 @@ impl<B: BackendIr> core::fmt::Debug for TensorInterpreter<B> {
 }
 
 impl<B: BackendIr> TensorInterpreter<B> {
-    /// Create a new interpreter.
+    /// Create a new interpreter without any custom operation handlers.
     pub fn new(device: B::Device) -> Self {
+        Self::with_custom_ops(device, CustomOpRegistry::default())
+    }
+
+    /// Create a new interpreter with the given [custom operation handlers](CustomOpRegistry).
+    pub fn with_custom_ops(device: B::Device, custom_ops: CustomOpRegistry<B>) -> Self {
         Self {
             context: InterpreterContext {
                 handles: HandleContainer::new(),
             },
             device,
+            custom_ops,
         }
     }
 
@@ -273,12 +283,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::float_scatter_add(desc.dim, tensor, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output = B::float_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::ScatterNd(desc) => {
@@ -308,12 +313,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::float_select_add(tensor, desc.dim, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output =
+                        B::float_select_assign(tensor, desc.dim, indices, value, desc.update);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::MaskWhere(desc) => {
@@ -462,12 +463,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::int_scatter_add(desc.dim, tensor, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output = B::int_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::ScatterNd(desc) => {
@@ -497,12 +493,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::int_select_add(tensor, desc.dim, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output =
+                        B::int_select_assign(tensor, desc.dim, indices, value, desc.update);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::MaskWhere(desc) => {
@@ -892,6 +884,18 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
+                NumericOperationIr::TopKWithIndices(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+
+                    let (output, output_idx) = B::float_topk_with_indices(
+                        tensor,
+                        desc.dim,
+                        desc.k,
+                        desc.out_indices.dtype.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
+                }
                 NumericOperationIr::MinDimWithIndices(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
@@ -1110,6 +1114,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
                     let (output, output_idx) = B::int_max_dim_with_indices(tensor, desc.dim);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
+                }
+                NumericOperationIr::TopKWithIndices(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+
+                    let (output, output_idx) = B::int_topk_with_indices(tensor, desc.dim, desc.k);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
@@ -1400,6 +1411,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 }
             },
             OperationIr::Module(op) => match op {
+                ModuleOperationIr::BatchNorm(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let gamma = handles.get_float_tensor::<B>(&desc.gamma);
+                    let beta = handles.get_float_tensor::<B>(&desc.beta);
+                    let mean = handles.get_float_tensor::<B>(&desc.mean);
+                    let variance = handles.get_float_tensor::<B>(&desc.variance);
+                    let output = B::batch_norm(x, gamma, beta, mean, variance, desc.epsilon.elem());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::Embedding(desc) => {
                     let weights = handles.get_float_tensor::<B>(&desc.weights);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
@@ -1743,6 +1763,19 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::adaptive_avg_pool2d_backward(x, grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AdaptiveAvgPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::adaptive_avg_pool3d(x, desc.output_size);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::AdaptiveAvgPool3dBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let grad = handles.get_float_tensor::<B>(&desc.grad);
+
+                    let output = B::adaptive_avg_pool3d_backward(x, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::MaxPool1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
@@ -2072,9 +2105,14 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, result);
                 }
             },
-            OperationIr::Custom(_) => {
-                panic!("Can't execute custom operation here")
-            }
+            OperationIr::Custom(desc) => match self.custom_ops.get(&desc.id) {
+                Some(handler) => handler(handles, desc, &self.device),
+                None => panic!(
+                    "No custom-op handler registered for `{}`. Register one on the server via \
+                     `CustomOpRegistry`/the server builder before starting it.",
+                    desc.id
+                ),
+            },
             OperationIr::Init(_) => {
                 // Nothing to do.
             }

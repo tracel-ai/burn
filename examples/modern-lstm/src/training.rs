@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::dataset::{
     NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH, SequenceBatcher, SequenceDataset,
 };
@@ -27,8 +29,7 @@ pub struct TrainingConfig {
 
 // Create the directory to save the model and model config
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -82,7 +83,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
         let mut valid_loss = 0.0;
 
         // Implement our training loop
-        for batch in dataloader_train.iter() {
+        for batch in dataloader_train.iter().map(Result::unwrap) {
             let output = model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
             train_loss += loss.clone().into_scalar::<f32>() * batch.targets.dims()[0] as f32;
@@ -103,7 +104,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
         let valid_model = model.valid();
 
         // Implement our validation loop
-        for batch in dataloader_valid.iter() {
+        for batch in dataloader_valid.iter().map(Result::unwrap) {
             let output = valid_model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
             valid_loss += loss.clone().into_scalar::<f32>() * batch.targets.dims()[0] as f32;

@@ -11,7 +11,7 @@ use crate::{
     optim::CubeOptimization,
 };
 use burn_fusion::{FuserStatus, OperationFuser};
-use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
+use burn_ir::{BaseOperationIr, NumericOperationIr, OperationIr, ReduceDimOpIr};
 use burn_std::Shape;
 use cubecl::Runtime;
 
@@ -188,6 +188,29 @@ impl<R: Runtime> ReduceFuser<R> {
             }
         };
     }
+
+    /// Build the reduce optimization from the fused operations. The typed
+    /// counterpart of [`OperationFuser::finish`], for callers that compose the
+    /// optimization further (the broadcasted-reduce blocks reuse its info).
+    pub(crate) fn finish_reduce(&mut self) -> ReduceOptimization<R> {
+        let client = R::client(&self.device);
+        let trace = self.fuser.finish();
+        let trace_read_fallback = self.fuser_read_fallback.finish();
+        let trace_write_fallback = self.fuser_write_fallback.finish();
+        let fuse_reduce = self.reduce.as_ref().unwrap();
+
+        ReduceOptimization::new(
+            trace,
+            trace_read_fallback,
+            trace_write_fallback,
+            client,
+            self.device.clone(),
+            self.len(),
+            self.fuser_read_fallback.len(),
+            fuse_reduce.clone(),
+            self.settings,
+        )
+    }
 }
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
@@ -257,6 +280,21 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
                         self.on_elemwise_read(operation);
                     }
                 };
+            } else if let OperationIr::BaseBool(op)
+            | OperationIr::BaseFloat(op)
+            | OperationIr::BaseInt(op) = operation
+            {
+                match op {
+                    BaseOperationIr::AnyDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Any);
+                    }
+                    BaseOperationIr::AllDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::All);
+                    }
+                    _ => {
+                        self.on_elemwise_read(operation);
+                    }
+                }
             } else {
                 self.on_elemwise_read(operation);
             }
@@ -266,25 +304,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
     }
 
     fn finish(&mut self) -> CubeOptimization<R> {
-        let client = R::client(&self.device);
-        let trace = self.fuser.finish();
-        let trace_read_fallback = self.fuser_read_fallback.finish();
-        let trace_write_fallback = self.fuser_write_fallback.finish();
-        let fuse_reduce = self.reduce.as_ref().unwrap();
-
-        let reduce = ReduceOptimization::new(
-            trace,
-            trace_read_fallback,
-            trace_write_fallback,
-            client,
-            self.device.clone(),
-            self.len(),
-            self.fuser_read_fallback.len(),
-            fuse_reduce.clone(),
-            self.settings,
-        );
-
-        CubeOptimization::Reduce(reduce)
+        CubeOptimization::new(self.finish_reduce())
     }
 
     fn reset(&mut self) {

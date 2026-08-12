@@ -16,7 +16,7 @@ fn slice_assign_kernel<E: Numeric, N: Size>(
     value: LinearView<'_, Vector<E, N>>,
     slice_shape: Sequence<FastDivmod<usize>>,
     slice_offsets: Sequence<usize>,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if !value.is_in_bounds(ABSOLUTE_POS) {
         terminate!()
@@ -54,7 +54,7 @@ fn slice_assign_with_steps_kernel<E: Numeric>(
     starts: Sequence<usize>,
     ends: Sequence<usize>,
     steps: Sequence<i32>,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if !value.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

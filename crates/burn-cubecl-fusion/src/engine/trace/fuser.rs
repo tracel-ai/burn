@@ -7,11 +7,10 @@ use super::{
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
-use crate::engine::trace::block::QuantInput;
+use crate::engine::trace::{TensorView, block::QuantInput};
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorIr};
 use burn_std::{DType, Shape};
-use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
 /// It is responsible to create a [trace](FuseTrace) composed of multiple [blocks](super::block::FuseBlock).
@@ -137,6 +136,22 @@ impl TraceFuser {
         src_arg
     }
 
+    /// Register an output relayout to NHWC.
+    ///
+    /// This will apply the NHWC relayout to the given [tensor](TensorIr).
+    ///
+    /// The relayout will be applied when the tensor is written to global memory.
+    pub fn output_nhwc_layout(&mut self, tensor: &TensorIr, permutation: Shape) {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return;
+        }
+
+        self.resources.views.push(TensorView::NhwcStrides {
+            id: tensor.id,
+            stride_relayout: permutation,
+        });
+    }
+
     /// Register an output tensor that won't be automatically synced into global memory.
     ///
     /// It is therefore the responsibility of the operation to write the result to given tensor.
@@ -173,20 +188,16 @@ impl TraceFuser {
         if self.resources.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
         }
-        self.resources.outputs.update(tensor);
 
-        let precision = tensor.dtype.into();
-        let precision_scales = match tensor.dtype {
-            DType::QFloat(scheme) => match scheme.param {
-                QuantParam::F32 => FuseType::F32,
-                QuantParam::F16 => FuseType::F16,
-                QuantParam::BF16 => FuseType::BF16,
-                QuantParam::UE8M0 | QuantParam::UE4M3 => {
-                    unimplemented!("Unsupported fuse precision");
-                }
-            },
+        let (precision, precision_scales) = match tensor.dtype {
+            DType::QFloat(scheme) => (
+                FuseType::from_quant_scheme(scheme)?,
+                FuseType::from_quant_param(scheme.param)?,
+            ),
             _ => return None,
         };
+
+        self.resources.outputs.update(tensor);
 
         let (new_input, q_index) = self.resources.inputs.insert_quant(tensor.clone());
         let input = FuseArg::Input(new_input, precision, LayoutInfo::Unknown);

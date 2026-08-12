@@ -1,18 +1,24 @@
 //! Shared helpers for the connection handlers.
 
-use crate::shared::{RemoteMessage, SessionId};
+use crate::shared::{PROTOCOL_VERSION, RemoteMessage, SessionInit};
 
 /// Decode the single `RemoteMessage::Init` a fresh submit (or fetch) socket opens with.
 ///
 /// The handshake frame must hold exactly one message and it must be an `Init`; anything else is
 /// a protocol error.
-pub(super) fn parse_init_handshake(bytes: &[u8]) -> Result<(SessionId, u32), String> {
+pub(crate) fn parse_init_handshake(bytes: &[u8]) -> Result<SessionInit, String> {
     let mut messages = rmp_serde::from_slice::<Vec<RemoteMessage>>(bytes)
         .map_err(|err| format!("Failed to decode init handshake: {err:?}"))?;
 
     match messages.pop() {
-        Some(RemoteMessage::Init(id, device_index)) if messages.is_empty() => {
-            Ok((id, device_index))
+        Some(RemoteMessage::Init(init)) if messages.is_empty() => {
+            if init.version != PROTOCOL_VERSION {
+                return Err(format!(
+                    "Unsupported Burn Remote protocol version {} (expected {PROTOCOL_VERSION})",
+                    init.version
+                ));
+            }
+            Ok(init)
         }
         other => Err(format!(
             "Init handshake expected a single RemoteMessage::Init, got {other:?}"
@@ -23,6 +29,7 @@ pub(super) fn parse_init_handshake(bytes: &[u8]) -> Result<(SessionId, u32), Str
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shared::SessionId;
 
     fn encode(messages: &[RemoteMessage]) -> Vec<u8> {
         rmp_serde::to_vec(messages).unwrap()
@@ -31,8 +38,10 @@ mod tests {
     #[test]
     fn handshake_accepts_a_single_init() {
         let id = SessionId::new();
-        let bytes = encode(&[RemoteMessage::Init(id, 3)]);
-        assert_eq!(parse_init_handshake(&bytes).unwrap(), (id, 3));
+        let bytes = encode(&[RemoteMessage::Init(SessionInit::new(id, 3, vec![]))]);
+        let init = parse_init_handshake(&bytes).unwrap();
+        assert_eq!(init.session_id, id);
+        assert_eq!(init.device_index, 3);
     }
 
     #[test]
@@ -43,7 +52,10 @@ mod tests {
     #[test]
     fn handshake_rejects_more_than_one_message() {
         let id = SessionId::new();
-        let bytes = encode(&[RemoteMessage::Init(id, 0), RemoteMessage::Close(id)]);
+        let bytes = encode(&[
+            RemoteMessage::Init(SessionInit::new(id, 0, vec![])),
+            RemoteMessage::Close(id),
+        ]);
         assert!(parse_init_handshake(&bytes).is_err());
     }
 

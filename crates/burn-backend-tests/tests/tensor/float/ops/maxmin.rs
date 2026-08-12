@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{ElementConversion, TensorData};
 
 #[test]
 fn test_max_dim_2d() {
@@ -268,42 +268,213 @@ fn test_max_abs_dim_2d_dim_1() {
     output.into_data().assert_eq(&expected, false);
 }
 
-// NaN-propagation tests below. Only run when the `flex` backend feature
-// is active, because flex is the only burn backend that currently
-// propagates NaN from min/max (matching PyTorch/NumPy/JAX/TF). ndarray
-// and the cubecl backends follow IEEE 754 min/max and drop NaN. The
-// positive-gate form (rather than excluding specific backends) is used
-// because the default-feature CI build selects a backend transitively
-// without setting any of its identifying feature flags on
-// burn-backend-tests, so a negative gate would still run the test on a
-// NaN-dropping backend. See issue #4814.
-#[cfg(feature = "flex")]
 #[test]
-fn test_max_dim_nan_propagation() {
-    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
-    let data = tensor.max_dim(1).into_data();
-    let values = data.as_slice::<FloatElem>().unwrap();
-    assert!(values[0].is_nan());
-}
+fn test_whole_max_min_finite_and_infinite_values() {
+    let tensor = TestTensor::<1>::from([f32::NEG_INFINITY, -2.0, 7.0, 7.0, f32::INFINITY]);
 
-#[cfg(feature = "flex")]
-#[test]
-fn test_min_dim_nan_propagation() {
-    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
-    let data = tensor.min_dim(1).into_data();
-    let values = data.as_slice::<FloatElem>().unwrap();
-    assert!(values[0].is_nan());
-}
-
-#[cfg(feature = "flex")]
-#[test]
-fn test_max_dim_with_indices_nan_propagation() {
-    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
-    let (values, indices) = tensor.max_dim_with_indices(1);
-    let vdata = values.into_data();
-    let slice = vdata.as_slice::<FloatElem>().unwrap();
-    assert!(slice[0].is_nan());
-    indices
+    tensor
+        .clone()
+        .max()
         .into_data()
-        .assert_eq(&TensorData::from([[1]]), false);
+        .assert_eq(&TensorData::from([f32::INFINITY]), false);
+    tensor
+        .min()
+        .into_data()
+        .assert_eq(&TensorData::from([f32::NEG_INFINITY]), false);
+}
+
+#[test]
+fn test_whole_max_min_integer_control() {
+    let tensor = TestTensor::<1>::from([3.0, -2.0, 7.0, 1.0]).int();
+
+    tensor
+        .clone()
+        .max()
+        .into_data()
+        .assert_eq(&TensorData::from([7]), false);
+    tensor
+        .min()
+        .into_data()
+        .assert_eq(&TensorData::from([-2]), false);
+}
+
+#[test]
+fn test_whole_max_min_nan_propagation_by_position() {
+    for values in [
+        [f32::NAN, 1.0, 2.0],
+        [1.0, f32::NAN, 2.0],
+        [1.0, 2.0, f32::NAN],
+    ] {
+        let tensor = TestTensor::<1>::from(values);
+
+        let max = tensor.clone().max().into_data();
+        assert!(max.as_slice::<FloatElem>().unwrap()[0].is_nan());
+
+        let min = tensor.min().into_data();
+        assert!(min.as_slice::<FloatElem>().unwrap()[0].is_nan());
+    }
+}
+
+#[test]
+fn test_whole_max_min_nan_non_contiguous_view() {
+    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 2.0], [3.0, 4.0, 5.0]])
+        .narrow(0, 0, 1)
+        .swap_dims(0, 1);
+
+    let max = tensor.clone().max().into_data();
+    assert!(max.as_slice::<FloatElem>().unwrap()[0].is_nan());
+
+    let min = tensor.min().into_data();
+    assert!(min.as_slice::<FloatElem>().unwrap()[0].is_nan());
+}
+
+#[test]
+fn test_whole_max_min_ignore_nan_outside_logical_view() {
+    let tensor = TestTensor::<2>::from([[f32::NAN, 1.0, 2.0], [3.0, 4.0, 5.0]])
+        .narrow(0, 1, 1)
+        .swap_dims(0, 1);
+
+    tensor
+        .clone()
+        .max()
+        .into_data()
+        .assert_eq(&TensorData::from([5.0]), false);
+    tensor
+        .min()
+        .into_data()
+        .assert_eq(&TensorData::from([3.0]), false);
+}
+
+#[test]
+fn test_whole_max_min_expanded_view_uses_only_logical_elements() {
+    let tensor = TestTensor::<2>::from([[f32::NAN, 1.0], [2.0, 3.0]])
+        .narrow(0, 1, 1)
+        .expand([2, 2]);
+
+    tensor
+        .clone()
+        .max()
+        .into_data()
+        .assert_eq(&TensorData::from([3.0]), false);
+    tensor
+        .min()
+        .into_data()
+        .assert_eq(&TensorData::from([2.0]), false);
+}
+
+#[test]
+fn test_whole_max_abs_nan_propagation() {
+    let tensor = TestTensor::<1>::from([-3.0, f32::NAN, 2.0]);
+    let output = tensor.max_abs().into_data();
+    assert!(output.as_slice::<FloatElem>().unwrap()[0].is_nan());
+}
+
+#[test]
+fn test_max_abs_dim_nan_propagation() {
+    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, -3.0], [1.0, -4.0, 3.0]]);
+    let output = tensor.max_abs_dim(1).into_data();
+    let values = output.as_slice::<FloatElem>().unwrap();
+
+    assert!(values[0].is_nan());
+    assert_eq!(values[1], 4.0f32.elem::<FloatElem>());
+}
+
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[test]
+fn test_whole_max_min_nan_f64_cpu_backends() {
+    let tensor = TestTensor::<1>::from([1.0, f32::NAN, 2.0]).cast(burn_tensor::DType::F64);
+
+    assert!(tensor.clone().max().into_data().as_slice::<f64>().unwrap()[0].is_nan());
+    assert!(tensor.min().into_data().as_slice::<f64>().unwrap()[0].is_nan());
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn test_whole_max_min_nan_flex_half_dtypes() {
+    for dtype in [burn_tensor::DType::F16, burn_tensor::DType::BF16] {
+        let tensor = TestTensor::<1>::from([1.0, f32::NAN, 2.0]).cast(dtype);
+
+        for output in [tensor.clone().max(), tensor.min()] {
+            let output = output.into_data().convert::<f32>();
+            assert!(output.as_slice::<f32>().unwrap()[0].is_nan());
+        }
+    }
+}
+
+// All burn backends should propagate NaN from min/max. See issue #4814.
+#[test]
+fn test_max_min_dim_nan_propagation() {
+    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
+
+    for output in [tensor.clone().max_dim(1), tensor.min_dim(1)] {
+        let data = output.into_data();
+        assert!(data.as_slice::<FloatElem>().unwrap()[0].is_nan());
+    }
+}
+
+#[test]
+fn test_max_min_dim_with_indices_nan_propagation() {
+    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, -3.0]]);
+
+    for (values, indices) in [
+        tensor.clone().max_dim_with_indices(1),
+        tensor.min_dim_with_indices(1),
+    ] {
+        let values = values.into_data();
+        assert!(values.as_slice::<FloatElem>().unwrap()[0].is_nan());
+        indices
+            .into_data()
+            .assert_eq(&TensorData::from([[1]]), false);
+    }
+}
+
+// Unlike `sum` and `prod`, the extrema have no identity to return for an empty input: there is no
+// value below `i32::MIN` for an int tensor, and `argmax` would have to name an element that does
+// not exist. numpy raises `ValueError` and torch raises `IndexError` here.
+#[test]
+#[should_panic]
+fn test_max_empty_should_panic() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let _ = tensor.max().into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_min_empty_should_panic() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let _ = tensor.min().into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_max_dim_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.max_dim(1).into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_min_dim_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.min_dim(1).into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_argmax_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.argmax(1).into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_argmin_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.argmin(1).into_data();
 }

@@ -294,7 +294,7 @@ macro_rules! bench_backend {
 }
 
 // Generate benchmarks for each backend
-bench_backend!(Device::flex(), ndarray_backend, "NdArray Backend (CPU)");
+bench_backend!(Device::flex(), flex_backend, "Flex Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
 bench_backend!(

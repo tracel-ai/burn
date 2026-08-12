@@ -15,10 +15,15 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "cubecl-common/default"]
+default = ["std", "cubecl-common/default", "cubecl-environment/default"]
 doc = ["default"]
-std = ["cubecl-common/std", "num-traits/std", "rand/std"]
-tracing = ["cubecl-common/tracing"]
+std = [
+    "cubecl-common/std",
+    "cubecl-environment/std",
+    "num-traits/std",
+    "rand/std",
+]
+tracing = ["cubecl-common/tracing", "cubecl-environment/tracing"]
 
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
@@ -45,6 +50,9 @@ cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
     "shared-bytes",
     "fp8",
+] }
+cubecl-environment = { workspace = true, default-features = false, features = [
+    "shared-bytes",
 ] }
 cubecl-zspace = { workspace = true, default-features = false }
 # Enable extra-platforms for portable-atomic support on targets without native atomics (e.g., thumbv6m)

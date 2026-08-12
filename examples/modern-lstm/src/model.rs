@@ -1,7 +1,8 @@
+use burn::nn::LstmState;
 use burn::{
     nn::{
         Dropout, DropoutConfig, Initializer, LayerNorm, LayerNormConfig, Linear, LinearConfig,
-        LstmState, Sigmoid, Tanh,
+        Sigmoid, Tanh,
     },
     prelude::*,
 };
@@ -66,7 +67,9 @@ impl LstmCellConfig {
             .clone()
             .unwrap()
             .val()
-            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias.clone());
+            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias.clone())
+            .detach()
+            .require_grad();
         weight_ih.bias = weight_ih.bias.map(|p| p.map(|_t| bias));
 
         let mut weight_hh = LinearConfig::new(self.hidden_size, 4 * self.hidden_size)
@@ -77,7 +80,9 @@ impl LstmCellConfig {
             .clone()
             .unwrap()
             .val()
-            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias);
+            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias)
+            .detach()
+            .require_grad();
         weight_hh.bias = weight_hh.bias.map(|p| p.map(|_t| bias));
 
         LstmCell {
@@ -136,15 +141,12 @@ impl LstmCell {
 
         let h_t = self.dropout.forward(h_t);
 
-        LstmState::new(h_t, c_t)
+        LstmState::new(c_t, h_t)
     }
 
     // Initialize cell state and hidden state if provided or with zeros
     pub fn init_state(&self, batch_size: usize, device: &Device) -> LstmState<2> {
-        let cell = Tensor::zeros([batch_size, self.hidden_size], device);
-        let hidden = Tensor::zeros([batch_size, self.hidden_size], device);
-
-        LstmState::new(cell, hidden)
+        LstmState::initial([batch_size, self.hidden_size], device)
     }
 }
 
@@ -330,7 +332,6 @@ impl LstmNetwork {
     /// Returns:
     ///     Output tensor of shape (batch_size, output_size)
     pub fn forward(&self, x: Tensor<3>, states: Option<Vec<LstmState<2>>>) -> Tensor<2> {
-        let seq_length = x.dims()[1];
         // Forward direction
         let (mut output, _states) = self.stacked_lstm.forward(x.clone(), states);
 
@@ -350,10 +351,36 @@ impl LstmNetwork {
         // Apply dropout before final layer
         output = self.dropout.forward(output);
         // Use final timestep output for prediction
-        self.fc.forward(
-            output
-                .slice(s![.., seq_length - 1..seq_length, ..])
-                .squeeze_dim::<2>(1),
-        )
+        self.fc.forward(output.slice_dim(1, -1).squeeze_dim::<2>(1))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gate_biases_stay_trainable() {
+        let device = Device::default().autodiff();
+        let cell = LstmCellConfig::new(3, 4, 0.0).init(&device);
+
+        assert!(
+            cell.weight_ih
+                .bias
+                .as_ref()
+                .unwrap()
+                .val()
+                .is_require_grad(),
+            "weight_ih bias is frozen"
+        );
+        assert!(
+            cell.weight_hh
+                .bias
+                .as_ref()
+                .unwrap()
+                .val()
+                .is_require_grad(),
+            "weight_hh bias is frozen"
+        );
     }
 }

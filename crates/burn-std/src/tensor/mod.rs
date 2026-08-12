@@ -2,6 +2,8 @@
 pub mod container;
 /// Tensor data type definitions.
 pub mod dtype;
+/// Batched matmul transformation utilities.
+pub mod matmul;
 /// Quantization data representation.
 pub mod quantization;
 /// Tensor shape utilities.
@@ -10,6 +12,7 @@ pub mod shape;
 pub mod slice;
 
 pub use dtype::*;
+pub use matmul::*;
 pub use quantization::*;
 pub use shape::*;
 pub use slice::*;

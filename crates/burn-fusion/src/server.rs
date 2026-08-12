@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use crate::{
     FusionBackend, FusionRuntime, UnfusedOp,
-    stream::{MultiStream, StreamId},
+    stream::{MultiStream, ReadPlan, StreamId},
 };
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
-use burn_std::{CommunicationId, stub::RwLock};
+use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
+use burn_std::{CommunicationId, sync::RwLock};
 use hashbrown::HashSet;
 
 pub(crate) struct FusionUtilities {
@@ -38,6 +38,30 @@ where
             .register(stream, repr, operation, &mut self.handles)
     }
 
+    /// Register a `Drop` that originates from a thread other than the tensor's home stream.
+    ///
+    /// A foreign drop must neither enqueue into the pending segment (the block DAG could reorder
+    /// the free ahead of a pending read) nor cut it by draining (see
+    /// [`ReadPlan`](crate::stream::ReadPlan)). A materialized tensor bypasses the queue entirely;
+    /// otherwise only the queue can order the drop after its producer, so fall back to
+    /// drain-then-enqueue.
+    pub fn register_foreign_drop(
+        &mut self,
+        stream: StreamId,
+        ir: TensorIr,
+        operation: UnfusedOp<R>,
+    ) {
+        if self
+            .streams
+            .foreign_drop(stream, ir.clone(), &mut self.handles)
+        {
+            return;
+        }
+        self.streams.drain(&mut self.handles, stream);
+        self.streams
+            .register(stream, OperationIr::Drop(ir), operation, &mut self.handles);
+    }
+
     pub fn tag_shared_view(&mut self, src_stream: StreamId, src: TensorId, dst: TensorId) {
         self.streams
             .tag_shared_view(src_stream, src, dst, &mut self.handles)
@@ -47,13 +71,34 @@ where
         self.streams.drain(&mut self.handles, id)
     }
 
+    /// Ready `id`'s stream for reading `tensor` and return the IR the handle
+    /// lookup must use.
+    ///
+    /// A `DeferFree` read goes through a `ReadOnly` view; its free runs at
+    /// the stream's next execution boundary. See [`ReadPlan`].
+    fn prepare_read(&mut self, tensor: &TensorIr, id: StreamId) -> TensorIr {
+        match self.streams.read_plan(id, tensor, &self.handles) {
+            ReadPlan::Drain => {
+                self.drain_stream(id);
+                tensor.clone()
+            }
+            ReadPlan::Direct => tensor.clone(),
+            ReadPlan::DeferFree => {
+                self.streams.defer_free(id, tensor.clone());
+                TensorIr {
+                    status: TensorStatus::ReadOnly,
+                    ..tensor.clone()
+                }
+            }
+        }
+    }
+
     pub fn read_float<B>(&mut self, tensor: TensorIr, id: StreamId) -> B::FloatTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_stream(id);
+        let tensor = self.prepare_read(&tensor, id);
         let tensor_float = self.handles.get_float_tensor::<B>(&tensor);
         self.streams.mark_read(id, &tensor, &self.handles);
         tensor_float
@@ -63,9 +108,8 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_stream(id);
+        let tensor = self.prepare_read(&tensor, id);
         let tensor_int = self.handles.get_int_tensor::<B>(&tensor);
         self.streams.mark_read(id, &tensor, &self.handles);
         tensor_int
@@ -75,9 +119,8 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_stream(id);
+        let tensor = self.prepare_read(&tensor, id);
         let tensor_bool = self.handles.get_bool_tensor::<B>(&tensor);
         self.streams.mark_read(id, &tensor, &self.handles);
         tensor_bool
@@ -91,9 +134,8 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_stream(id);
+        let tensor = self.prepare_read(&tensor, id);
         let tensor_q = self.handles.get_quantized_tensor::<B>(&tensor);
         self.streams.mark_read(id, &tensor, &self.handles);
         tensor_q

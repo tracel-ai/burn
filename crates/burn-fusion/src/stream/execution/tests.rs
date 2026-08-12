@@ -391,7 +391,9 @@ fn should_support_overlapping_optimizations() {
 
     stream.sync();
     stream.assert_number_of_operations(0);
-    stream.assert_number_of_executions(6);
+    // The sync executes a single plan covering the whole remaining segment: the
+    // fused pair composed with the un-fused trailing operation.
+    stream.assert_number_of_executions(5);
     stream.assert_plan(
         plan_id_1,
         ExecutionPlan {
@@ -399,7 +401,6 @@ fn should_support_overlapping_optimizations() {
             triggers: vec![
                 ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
-                ExecutionTrigger::OnSync,
             ],
             optimization: BlockOptimization {
                 strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 2)),
@@ -410,11 +411,19 @@ fn should_support_overlapping_optimizations() {
     stream.assert_plan(
         plan_id_4,
         ExecutionPlan {
-            operations: vec![operation_1()],
+            operations: vec![operation_1(), operation_2(), operation_1()],
             triggers: vec![ExecutionTrigger::OnSync],
             optimization: BlockOptimization {
-                strategy: ExecutionStrategy::operations(1),
-                ordering: vec![0],
+                strategy: ExecutionStrategy::Composed(vec![
+                    Box::new(ExecutionStrategy::optimization(TestOptimization::new(
+                        builder_id_1,
+                        2,
+                    ))),
+                    Box::new(ExecutionStrategy::Operations {
+                        ordering: Arc::new(vec![2]),
+                    }),
+                ]),
+                ordering: vec![0, 1, 2],
             },
         },
     );
@@ -435,6 +444,70 @@ fn should_support_overlapping_optimizations() {
 
     stream.add(operation_3());
     stream.assert_last_executed(plan_id_5);
+}
+
+/// A plan discovered at a sync point must cover the whole segment and be reusable on
+/// the next identical pass without re-exploring.
+///
+/// This is the shape of an autoregressive inference step: the graph defers past the
+/// fusable prefix because some fuser is still open, and the step ends on a sync. The
+/// search leaves the still-open tail out of its optimization (in lazy mode the tail
+/// seeds the next round), but at a sync there is no next round: the tail is folded
+/// into the plan as un-fused operations in a composed strategy. The plan then matches
+/// the whole segment, so every subsequent identical step executes it directly instead
+/// of re-running the whole exploration.
+#[test]
+fn should_reuse_sync_plan_on_next_pass() {
+    let plan_id = 0;
+
+    let pair_builder = TestOptimizationBuilder::new(0, vec![operation_1(), operation_2()]);
+    // A builder that wants a longer sequence: it stays open past the tail op, which is
+    // what defers the whole segment until the sync.
+    let hungry_builder = TestOptimizationBuilder::new(
+        1,
+        vec![operation_1(), operation_2(), operation_3(), operation_1()],
+    );
+    let mut stream = TestStream::new(vec![Box::new(pair_builder), Box::new(hungry_builder)]);
+
+    // First pass: everything defers, the sync explores once and executes one plan
+    // covering the whole segment.
+    stream.add(operation_1());
+    stream.add(operation_2());
+    stream.add(operation_3());
+    stream.assert_number_of_executions(0);
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(1);
+    stream.assert_last_executed(plan_id);
+    stream.assert_number_of_explorations(1);
+    stream.assert_plan(
+        plan_id,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2(), operation_3()],
+            triggers: vec![ExecutionTrigger::OnSync],
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::Composed(vec![
+                    Box::new(ExecutionStrategy::optimization(TestOptimization::new(0, 2))),
+                    Box::new(ExecutionStrategy::Operations {
+                        ordering: Arc::new(vec![2]),
+                    }),
+                ]),
+                ordering: vec![0, 1, 2],
+            },
+        },
+    );
+
+    // Second pass: the identical stream ends at the same sync; the cached plan
+    // matches the whole segment and executes without any re-exploration.
+    stream.add(operation_1());
+    stream.add(operation_2());
+    stream.add(operation_3());
+    stream.assert_number_of_executions(1);
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(2);
+    stream.assert_last_executed(plan_id);
+    stream.assert_number_of_explorations(1);
 }
 
 impl TestStream {
@@ -490,6 +563,16 @@ impl TestStream {
     /// Assert the number of operations queued.
     fn assert_number_of_operations(&self, number: usize) {
         assert_eq!(self.operations.len(), number);
+    }
+
+    /// Assert the number of optimizations built since the start of the stream;
+    /// reusing a cached plan does not count.
+    fn assert_number_of_explorations(&self, number: usize) {
+        assert_eq!(
+            self.processor.num_explorations(),
+            number,
+            "Number of explorations match"
+        );
     }
 }
 

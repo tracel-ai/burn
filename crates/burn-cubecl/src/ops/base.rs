@@ -41,13 +41,17 @@ pub(crate) async fn into_data<R: CubeRuntime>(
     let shape = tensor.meta.shape().clone();
     let strides = tensor.meta.strides().clone();
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
-    let bytes = tensor
-        .client
-        .read_lazy_async(binding)
-        .await
-        .map_err(|err| ExecutionError::WithContext {
-            reason: format!("{err}"),
-        })?;
+    // Under an async runtime (e.g. a remote server), a lazy read defers the device→host
+    // copy to first access, where a blocking read would run on — and starve — an executor
+    // worker. Read eagerly there so the copy happens inside this awaited future. On a
+    // sync/threaded runtime the lazy read keeps the streaming optimization.
+    let read = match burn_std::runtime_kind() {
+        burn_std::RuntimeKind::Async => tensor.client.read_one_tensor_async(binding).await,
+        _ => tensor.client.read_lazy_async(binding).await,
+    };
+    let bytes = read.map_err(|err| ExecutionError::WithContext {
+        reason: format!("{err}"),
+    })?;
 
     Ok(TensorData::from_bytes(
         bytes,
@@ -166,7 +170,8 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
     }
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
-        && let QuantStore::PackedU32(packed_dim) = &mut scheme.store
+        && let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+            &mut scheme.store
     {
         let rank = tensor.meta.num_dims();
         let new_pos = axes
@@ -269,6 +274,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     // Extra check to ensure block scales must be properly handled once they're added
     if tensor.qparams.is_some() {
         match tensor.scheme().level {
+            QuantLevel::BlockTensor { .. } => todo!(),
             QuantLevel::Tensor => {}
             QuantLevel::Block(_) => todo!(),
         }
@@ -351,16 +357,6 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     let n_new_dims = shape.num_dims().saturating_sub(curr_shape.num_dims());
     let is_unsqueeze = n_new_dims > 0 && shape[n_new_dims..] == **curr_shape;
 
-    if !is_unsqueeze
-        && matches!(
-            scheme.value,
-            QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
-        )
-    {
-        // FIXME
-        todo!("Reshape with sub-byte values is not supported")
-    }
-
     // Check valid reshapes
     if let ReshapeAction::UpdateStrides { .. } = &action_values {
         match analysis_values {
@@ -393,6 +389,9 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     let shape_last = *shape.last().unwrap();
 
     let shape_scales = match scheme.level {
+        QuantLevel::BlockTensor { .. } => {
+            unimplemented!("two-level quantization is not supported yet")
+        }
         QuantLevel::Tensor => scales.meta.shape().clone(), // always [1], invariant under reshape
         QuantLevel::Block(block_size)
             if block_size.len() == 1 && shape_last < (block_size[0] as usize) =>
@@ -440,6 +439,19 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
         }
         // Any action to recompute
         (ReshapeAction::Recompute, _) | (_, ReshapeAction::Recompute) => {
+            // Rewriting the buffer would have to repack values that share a
+            // storage element; a metadata-only reshape leaves the packing alone.
+            if !is_unsqueeze
+                && matches!(
+                    scheme.value,
+                    QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
+                )
+            {
+                todo!(
+                    "Reshape with sub-byte values is not supported when the buffer must be recomputed"
+                )
+            }
+
             if let QuantLevel::Block(_) = scheme.level
                 && shape_scales.num_elements() > 1
             {

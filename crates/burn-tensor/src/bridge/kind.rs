@@ -278,6 +278,17 @@ impl BridgeTensor {
         }
     }
 
+    /// Whether the tensor's buffer can be mutated in place (see
+    /// [`TensorMetadata::can_mut`]).
+    pub fn can_mut(&self) -> bool {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::Int(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::Float(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.can_mut(),
+        }
+    }
+
     /// Returns the shape of the tensor.
     pub fn shape(&self) -> burn_std::Shape {
         match self.as_variant() {
@@ -312,6 +323,16 @@ impl BridgeTensor {
         match self.as_variant() {
             BridgeTensorVariant::Float(tensor) => tensor,
             _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    /// The float primitive when the tensor holds one; `None` for the other
+    /// kinds, a packed (quantized) tensor included.
+    #[cfg(feature = "autodiff")]
+    pub(crate) fn try_as_float(&self) -> Option<&DispatchTensor> {
+        match self.as_variant() {
+            BridgeTensorVariant::Float(tensor) => Some(tensor),
+            _ => None,
         }
     }
 

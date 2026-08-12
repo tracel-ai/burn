@@ -1,27 +1,26 @@
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, TrainingItem};
 use crate::{
-    InferenceStep, Learner, LearningComponentsTypes, SupervisedTrainingEventProcessor, TrainLoader,
+    InferenceStep, Learner, LearnerModel, SupervisedTrainingEventProcessor, TrainLoader,
     ValidLoader,
 };
 use burn_core::data::dataloader::Progress;
-use burn_core::module::AutodiffModule;
 use burn_optim::GradientsAccumulator;
 
 /// A validation epoch.
 #[derive(new)]
-pub struct SingleDeviceValidEpoch<LC: LearningComponentsTypes> {
-    dataloader: ValidLoader<LC>,
+pub struct SingleDeviceValidEpoch<M: LearnerModel> {
+    dataloader: ValidLoader<M>,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct SingleDeviceTrainEpoch<LC: LearningComponentsTypes> {
-    dataloader: TrainLoader<LC>,
+pub struct SingleDeviceTrainEpoch<M: LearnerModel> {
+    dataloader: TrainLoader<M>,
     grad_accumulation: Option<usize>,
 }
 
-impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
+impl<M: LearnerModel> SingleDeviceValidEpoch<M> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -30,9 +29,9 @@ impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        learner: &Learner<LC>,
+        learner: &Learner<M>,
         global_progress: &Progress,
-        processor: &mut SupervisedTrainingEventProcessor<LC>,
+        processor: &mut SupervisedTrainingEventProcessor<M>,
         interrupter: &Interrupter,
     ) {
         let epoch = global_progress.items_processed;
@@ -43,10 +42,17 @@ impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
         let mut iteration = 0;
 
         while let Some(item) = iterator.next() {
+            let item = match item {
+                Ok(item) => item,
+                Err(err) => {
+                    interrupter.stop(Some(&format!("dataset error during validation: {err}")));
+                    break;
+                }
+            };
             let progress = iterator.progress();
             iteration += 1;
 
-            let item = model.step(item);
+            let item = InferenceStep::step(&model, item);
             let item = TrainingItem::new(item, progress, Some(iteration), None);
 
             processor.process_valid(LearnerEvent::ProcessedItem(item));
@@ -58,7 +64,7 @@ impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
     }
 }
 
-impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
+impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -73,9 +79,9 @@ impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
     /// The trained model and the optimizer.
     pub fn run(
         &self,
-        learner: &mut Learner<LC>,
+        learner: &mut Learner<M>,
         global_progress: &Progress,
-        processor: &mut SupervisedTrainingEventProcessor<LC>,
+        processor: &mut SupervisedTrainingEventProcessor<M>,
         interrupter: &Interrupter,
     ) {
         let epoch = global_progress.items_processed;
@@ -88,6 +94,13 @@ impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
         let mut accumulation_current = 0;
 
         while let Some(item) = iterator.next() {
+            let item = match item {
+                Ok(item) => item,
+                Err(err) => {
+                    interrupter.stop(Some(&format!("dataset error during training: {err}")));
+                    break;
+                }
+            };
             iteration += 1;
             learner.lr_step();
             log::info!("Iteration {iteration}");

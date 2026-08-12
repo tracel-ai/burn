@@ -87,8 +87,8 @@ impl Optimizer for AdamW {
         } else if self.cautious_weight_decay {
             // Cautious weight decay.
             // See: https://arxiv.org/abs/2510.12402
-            let tensor_pos = tensor.clone().greater_equal_elem(0.0);
-            let grad_pos = momentum_state.moment_1.clone().greater_equal_elem(0.0);
+            let tensor_pos = tensor.clone().greater_equal_scalar(0.0);
+            let grad_pos = momentum_state.moment_1.clone().greater_equal_scalar(0.0);
             let differ = tensor_pos.not_equal(grad_pos);
 
             // Zero out the decay where the decay is counter to the update direction.
@@ -114,6 +114,11 @@ impl Optimizer for AdamW {
 
 impl AdamWConfig {
     /// Build an [`AdamW`] from the config.
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
     pub fn build(&self) -> AdamW {
         AdamW {
             momentum: AdaptiveMomentumW {

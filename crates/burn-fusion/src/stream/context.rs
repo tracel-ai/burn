@@ -208,6 +208,15 @@ impl RelativeOps for OperationIr {
 impl RelativeOps for ModuleOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
+            ModuleOperationIr::BatchNorm(desc) => ModuleOperationIr::BatchNorm(BatchNormOpIr {
+                x: desc.x.to_relative(converter),
+                gamma: desc.gamma.to_relative(converter),
+                beta: desc.beta.to_relative(converter),
+                mean: desc.mean.to_relative(converter),
+                variance: desc.variance.to_relative(converter),
+                epsilon: desc.epsilon.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             ModuleOperationIr::Embedding(desc) => ModuleOperationIr::Embedding(EmbeddingOpIr {
                 weights: desc.weights.to_relative(converter),
                 indices: desc.indices.to_relative(converter),
@@ -465,6 +474,20 @@ impl RelativeOps for ModuleOperationIr {
             }
             ModuleOperationIr::AdaptiveAvgPool2dBackward(desc) => {
                 ModuleOperationIr::AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::AdaptiveAvgPool3d(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool3d(AdaptiveAvgPool3dOpIr {
+                    x: desc.x.to_relative(converter),
+                    output_size: desc.output_size,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool3dBackward(AdaptiveAvgPool3dBackwardOpIr {
                     x: desc.x.to_relative(converter),
                     grad: desc.grad.to_relative(converter),
                     out: desc.out.to_relative(converter),
@@ -1053,6 +1076,11 @@ impl RelativeOps for CustomOpIr {
                 .iter()
                 .map(|x| x.to_relative(converter))
                 .collect(),
+            scalars: self
+                .scalars
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
         }
     }
 }
@@ -1228,6 +1256,15 @@ impl RelativeOps for NumericOperationIr {
                 NumericOperationIr::MaxDimWithIndices(ReduceDimWithIndicesOpIr {
                     tensor: desc.tensor.to_relative(converter),
                     dim: desc.dim,
+                    out: desc.out.to_relative(converter),
+                    out_indices: desc.out_indices.to_relative(converter),
+                })
+            }
+            NumericOperationIr::TopKWithIndices(desc) => {
+                NumericOperationIr::TopKWithIndices(TopKWithIndicesOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    dim: desc.dim,
+                    k: desc.k,
                     out: desc.out.to_relative(converter),
                     out_indices: desc.out_indices.to_relative(converter),
                 })
@@ -1609,10 +1646,9 @@ impl RelativeOps for TensorId {
 
 impl RelativeOps for ScalarIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        if matches!(self, ScalarIr::Bool(_)) {
-            todo!("Unsupported dtype ({self:?}) for scalar")
-        }
-
+        // Every scalar variant (including `Bool`) is stashed verbatim and replaced by a positional
+        // `UInt` placeholder; replay rebinds it by index from `GraphBindings::scalars`, so the
+        // concrete type is irrelevant to relativization.
         let id = ScalarId {
             value: converter.scalars.len() as u64,
         };
@@ -1768,5 +1804,21 @@ mod tests_ir {
 
         assert_eq!(scalar1_local, ScalarIr::UInt(0));
         assert_eq!(scalar2_local, ScalarIr::UInt(1));
+    }
+
+    #[test]
+    fn scalar_ir_bool_to_relative() {
+        // A `Bool` scalar used to `todo!()`-panic here, which crashed any custom op carrying a bool
+        // argument the moment it was fused into a cached graph. It must relativize like every other
+        // scalar: replaced by a positional `UInt` placeholder, with the concrete value stashed so
+        // replay can rebind it from `GraphBindings::scalars`.
+        let mut converter = OperationConverter::default();
+        let relative = ScalarIr::Bool(true).to_relative(&mut converter);
+
+        assert_eq!(relative, ScalarIr::UInt(0));
+        assert_eq!(
+            converter.scalars.get(&ScalarId { value: 0 }),
+            Some(&ScalarIr::Bool(true))
+        );
     }
 }

@@ -117,6 +117,25 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
 
+    /// Lift a handle for backend `B` into the equivalent handle for `Autodiff<B>`.
+    ///
+    /// An already-tracked float (`Autodiff`) becomes the `Float` handle of `Autodiff<B>`; int/bool/
+    /// quantized handles are re-tagged unchanged (those primitives are shared between `B` and
+    /// `Autodiff<B>`). An untracked `Float` handle is invalid here (under autodiff, float tensors
+    /// arrive tracked), so it panics.
+    #[cfg(feature = "autodiff")]
+    pub fn into_autodiff(self) -> BackendTensor<Autodiff<B>> {
+        match self {
+            BackendTensor::Autodiff(tensor) => BackendTensor::Float(tensor),
+            BackendTensor::Int(tensor) => BackendTensor::Int(tensor),
+            BackendTensor::Bool(tensor) => BackendTensor::Bool(tensor),
+            BackendTensor::Quantized(tensor) => BackendTensor::Quantized(tensor),
+            BackendTensor::Float(_) => {
+                unreachable!("an untracked float handle can't be lifted to Autodiff<B>")
+            }
+        }
+    }
+
     /// Returns the tensor primitive kind name.
     pub fn name(&self) -> &'static str {
         match self {
@@ -161,6 +180,17 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.shape(),
+        }
+    }
+
+    fn can_mut(&self) -> bool {
+        match self {
+            BackendTensor::Float(tensor) => tensor.can_mut(),
+            BackendTensor::Int(tensor) => tensor.can_mut(),
+            BackendTensor::Bool(tensor) => tensor.can_mut(),
+            BackendTensor::Quantized(tensor) => tensor.can_mut(),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(tensor) => tensor.can_mut(),
         }
     }
 }
@@ -331,6 +361,35 @@ impl TensorMetadata for DispatchTensorKind {
             DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
         }
     }
+
+    fn can_mut(&self) -> bool {
+        match self {
+            #[cfg(feature = "cpu")]
+            Self::Cpu(tensor) => tensor.can_mut(),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(tensor) => tensor.can_mut(),
+            #[cfg(feature = "metal")]
+            Self::Metal(tensor) => tensor.can_mut(),
+            #[cfg(feature = "rocm")]
+            Self::Rocm(tensor) => tensor.can_mut(),
+            #[cfg(feature = "vulkan")]
+            Self::Vulkan(tensor) => tensor.can_mut(),
+            #[cfg(feature = "wgpu")]
+            Self::Wgpu(tensor) => tensor.can_mut(),
+            #[cfg(feature = "webgpu")]
+            Self::WebGpu(tensor) => tensor.can_mut(),
+            #[cfg(any(feature = "flex", default_backend))]
+            Self::Flex(tensor) => tensor.can_mut(),
+            #[cfg(feature = "ndarray")]
+            Self::NdArray(tensor) => tensor.can_mut(),
+            #[cfg(feature = "tch")]
+            Self::LibTorch(tensor) => tensor.can_mut(),
+            #[cfg(feature = "remote")]
+            Self::Remote(tensor) => tensor.can_mut(),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(tensor) => tensor.can_mut(),
+        }
+    }
 }
 
 impl TensorMetadata for DispatchTensor {
@@ -340,6 +399,10 @@ impl TensorMetadata for DispatchTensor {
 
     fn shape(&self) -> Shape {
         self.kind.shape()
+    }
+
+    fn can_mut(&self) -> bool {
+        self.kind.can_mut()
     }
 
     type Device = DispatchDevice;
@@ -353,10 +416,19 @@ impl TensorMetadata for DispatchTensor {
         // we can wrap with Autodiff in all cases.
 
         #[cfg(feature = "autodiff")]
-        if let DispatchDevice::Autodiff(device) = &mut device
-            && let Some(checkpointing) = &self.checkpointing
-        {
-            device.checkpointing = *checkpointing;
+        if let Some(checkpointing) = &self.checkpointing {
+            // A packed (quantized) tensor is float-kind data that travels beside
+            // the tape untracked, so its device is the autodiff one: whatever is
+            // built from it — its dequantized form, LoRA factors over it — must
+            // land on the tape.
+            if matches!(self.dtype(), DType::QFloat(_))
+                && !matches!(device, DispatchDevice::Autodiff(_))
+            {
+                device = DispatchDevice::autodiff(device);
+            }
+            if let DispatchDevice::Autodiff(device) = &mut device {
+                device.checkpointing = *checkpointing;
+            }
         }
 
         device

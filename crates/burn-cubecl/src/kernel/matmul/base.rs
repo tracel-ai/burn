@@ -2,7 +2,7 @@ use super::init_matmul_output;
 use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
-use burn_std::QuantLevel;
+use burn_std::{MatmulTransformAnalysis, MatmulTransformPolicy, QuantLevel};
 use cubek::{
     matmul::{
         definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
@@ -36,20 +36,37 @@ impl Default for MatmulStrategy {
 
 /// Launch a matmul kernel using the given strategy.
 pub fn matmul<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
+    mut lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
     strategy: MatmulStrategy,
     out_dtype: DType,
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
+    let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
+
+    // A broadcast-rhs batched matmul that would tile poorly is folded into a
+    // single matmul: `[.., b, m, k] @ [.., 1, k, n]` runs as `[.., 1, b*m, k]`
+    // instead of `b` matmuls that each re-read the whole rhs. Pure metadata —
+    // the launch operands share the handles, the returned tensor keeps the
+    // broadcast shape.
+    let mut out_launch = out.clone();
+    if lhs.qparams.is_none() {
+        let analysis = MatmulTransformAnalysis::from_metadata(&lhs.meta, &rhs.meta, &out.meta);
+        let action = MatmulTransformPolicy::default().action(&analysis);
+        action.apply(&mut lhs.meta);
+        action.apply(&mut out_launch.meta);
+    }
+
     match strategy {
         MatmulStrategy::Cube => {
-            let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
-            launch_matmul(&Default::default(), lhs, rhs, out.clone())?;
+            launch_matmul(&Default::default(), lhs, rhs, out_launch)?;
             Ok(out)
         }
         #[cfg(feature = "autotune")]
-        MatmulStrategy::Autotune => Ok(matmul_autotune(lhs, rhs, out, out_dtype)),
+        MatmulStrategy::Autotune => {
+            matmul_autotune(lhs, rhs, Some(out_launch), out_dtype);
+            Ok(out)
+        }
     }
 }
 

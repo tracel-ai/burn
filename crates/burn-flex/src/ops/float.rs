@@ -31,7 +31,7 @@ impl FloatTensorOps<Flex> for Flex {
         _device: &Device<Flex>,
         dtype: FloatDType,
     ) -> FloatTensor<Flex> {
-        let mut seed = crate::backend::SEED.lock().unwrap();
+        let mut seed = crate::backend::SEED.lock();
         let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
         let data = match dtype {
             FloatDType::F64 => TensorData::random::<f64, _, _>(shape, distribution, &mut rng),
@@ -910,15 +910,6 @@ impl FloatTensorOps<Flex> for Flex {
         } else {
             result
         }
-    }
-
-    fn float_argtopk(
-        _tensor: FloatTensor<Flex>,
-        _dim: usize,
-        _k: usize,
-        _out_dtype: burn_std::IntDType,
-    ) -> IntTensor<Flex> {
-        unimplemented!("float_argtopk not implemented for flex")
     }
 
     fn float_argmin(

@@ -64,6 +64,9 @@ rstest.workspace = true
 thiserror.workspace = true
 rand.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

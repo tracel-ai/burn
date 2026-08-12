@@ -43,12 +43,12 @@ impl FileTrainingProgressLogger {
 }
 
 impl TrainingProgressLogger for FileTrainingProgressLogger {
-    fn start(&mut self, total_epochs: usize, total_items: Option<usize>) {
+    fn start(&mut self, total_epochs: usize, starting_epoch: usize, total_items: Option<usize>) {
         match total_items {
             Some(n) => self.write(&format!(
-                "[Training] start  epochs={total_epochs} total_items={n}"
+                "[Training] start  epochs={total_epochs} total_items={n} starting_epoch={starting_epoch}"
             )),
-            None => self.write(&format!("[Training] start  epochs={total_epochs}")),
+            None => self.write(&format!("[Training] start  epochs={total_epochs} starting_epoch={starting_epoch}")),
         }
     }
 

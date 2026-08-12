@@ -44,7 +44,7 @@ fn deform_im2col_kernel<F: Float>(
     args: &DeformConv2dArgs,
     #[comptime] kernel_h_unroll: Option<usize>,
     #[comptime] kernel_w_unroll: Option<usize>,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     // position shape: [in_channels, batch_size, out_h, out_w]
     // columns shape: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
@@ -142,14 +142,14 @@ pub(crate) fn bilinear_interpolate<F: Float>(
     let stride_y = input.stride(2);
     let stride_x = input.stride(3);
 
-    let mut result = F::new(0.0);
+    let mut result = F::new(0.0_f32);
     if y > -1.0f32 && height as f32 > y && x > -1.0f32 && width as f32 > x {
         let y_low = y.floor();
         let x_low = x.floor();
         let y_high = (y_low + 1.) as usize;
         let x_high = (x_low + 1.) as usize;
 
-        let zero = F::new(0.0);
+        let zero = F::new(0.0_f32);
         let v1: F = if y_low >= 0. && x_low >= 0. {
             input[offset + y_low as usize * stride_y + x_low as usize * stride_x]
         } else {

@@ -18,7 +18,7 @@ fn flip_kernel<E: Numeric, Bool: Int>(
     mut output: LinearViewMut<'_, E>,
     in_shape: Sequence<FastDivmod<usize>>,
     indices: Sequence<InputScalar>,
-    #[define(E, Bool)] _dtypes: [StorageType; 2],
+    #[define(E, Bool)] _dtypes: [ElemType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

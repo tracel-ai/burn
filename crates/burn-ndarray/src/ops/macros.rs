@@ -38,10 +38,17 @@ use burn_backend::ElementConversion;
 pub(crate) use keepdim;
 use ndarray::{Axis, Zip};
 
-use crate::{SharedArray, element::NdArrayElement};
+use crate::{SharedArray, element::NdArrayElement, ops::base::empty_mean};
 
 pub(crate) fn mean_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
-    tensor.mean_axis(Axis(dim)).unwrap().into_shared()
+    // `mean_axis` returns `None` when the reduced axis is empty; `fold_axis` still yields one
+    // element per surviving position, which `mean_axis` cannot.
+    match tensor.mean_axis(Axis(dim)) {
+        Some(mean) => mean.into_shared(),
+        None => tensor
+            .fold_axis(Axis(dim), empty_mean(), |acc, _| *acc)
+            .into_shared(),
+    }
 }
 
 pub(crate) fn sum_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
@@ -89,7 +96,11 @@ pub(crate) fn cummin_dim<E: NdArrayElement + core::cmp::PartialOrd<E>>(
     dim: usize,
 ) -> SharedArray<E> {
     cumulative_with_op(tensor, dim, |c, &p| {
-        if p < *c {
+        // NaN propagation: if p is NaN, it replaces c (NaN propagates forward).
+        // If c is NaN, it stays (first NaN wins, stable).
+        let is_c_nan = (*c).partial_cmp(&*c).is_none();
+        let is_p_nan = p.partial_cmp(&p).is_none();
+        if !is_c_nan && (is_p_nan || p < *c) {
             *c = p;
         }
     })
@@ -100,7 +111,11 @@ pub(crate) fn cummax_dim<E: NdArrayElement + core::cmp::PartialOrd<E>>(
     dim: usize,
 ) -> SharedArray<E> {
     cumulative_with_op(tensor, dim, |c, &p| {
-        if p > *c {
+        // NaN propagation: if p is NaN, it replaces c (NaN propagates forward).
+        // If c is NaN, it stays (first NaN wins, stable).
+        let is_c_nan = (*c).partial_cmp(&*c).is_none();
+        let is_p_nan = p.partial_cmp(&p).is_none();
+        if !is_c_nan && (is_p_nan || p > *c) {
             *c = p;
         }
     })

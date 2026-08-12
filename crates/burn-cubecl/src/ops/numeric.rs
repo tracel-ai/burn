@@ -14,7 +14,10 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearViewMut,
+    calculate_cube_count_elemwise,
+    ir::{ElemType, dialect::math::IsNanOp},
+    prelude::*,
+    std::tensor::layout::linear::LinearViewMut,
 };
 use cubecl::{client::ComputeClient, server::MemoryLayout};
 use cubecl::{server::MemoryLayoutDescriptor, std::FastDivmod};
@@ -57,11 +60,19 @@ pub fn full_device_dtype<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let empty = empty_device_dtype(client, device, shape, dtype);
 
+    fill_device_dtype(empty, value)
+}
+
+/// Fills an existing tensor with `value`
+pub(crate) fn fill_device_dtype<R: CubeRuntime>(
+    tensor: CubeTensor<R>,
+    value: InputScalar,
+) -> CubeTensor<R> {
     #[cube(launch_unchecked, address_type = "dynamic")]
     pub fn full_kernel<C: Numeric, N: Size>(
         mut tensor: LinearViewMut<'_, Vector<C, N>>,
         value: InputScalar,
-        #[define(C)] _dtype: StorageType,
+        #[define(C)] _dtype: ElemType,
     ) {
         if !tensor.is_in_bounds(ABSOLUTE_POS) {
             terminate!();
@@ -70,27 +81,27 @@ pub fn full_device_dtype<R: CubeRuntime>(
         tensor.write(ABSOLUTE_POS, Vector::new(value.get::<C>()));
     }
 
-    let num_elems = empty.meta.num_elements();
-    let vector_size = max_vector_size(&empty);
+    let num_elems = tensor.meta.num_elements();
+    let vector_size = max_vector_size(&tensor);
 
     let working_units = num_elems / vector_size as usize;
-    let cube_dim = CubeDim::new(&empty.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&empty.client, working_units, cube_dim);
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
         full_kernel::launch_unchecked(
-            &empty.client,
+            &tensor.client,
             cube_count,
             cube_dim,
-            address_type!(empty),
+            address_type!(tensor),
             vector_size,
-            empty.clone().into_linear_view(),
+            tensor.clone().into_linear_view(),
             value,
-            dtype_to_storage_type(empty.dtype),
+            dtype_to_storage_type(tensor.dtype),
         );
     }
 
-    empty
+    tensor
 }
 
 /// Creates a tensor filled with zeros
@@ -297,6 +308,48 @@ struct ProdOp;
 struct MaxOp;
 struct MinOp;
 
+// `N: Numeric` can't call the float-only `IsNan` trait after a comptime type check, so emit
+// the same Cube IR operation directly. Callers keep this inside float-only comptime branches.
+#[cube]
+fn numeric_is_nan<N: Numeric>(value: N) -> bool {
+    intrinsic!(|scope| {
+        let is_nan = IsNanOp::new(scope.ctx_mut(), value.read_value(scope));
+        scope.register_with_result(&is_nan).into()
+    })
+}
+
+#[cube]
+fn cumulative_max<N: Numeric>(lhs: N, rhs: N) -> N {
+    let elem_type = elem_type_of::<N>();
+    if comptime!(elem_type.is_float()) {
+        if numeric_is_nan::<N>(lhs) {
+            lhs
+        } else if numeric_is_nan::<N>(rhs) {
+            rhs
+        } else {
+            max(lhs, rhs)
+        }
+    } else {
+        max(lhs, rhs)
+    }
+}
+
+#[cube]
+fn cumulative_min<N: Numeric>(lhs: N, rhs: N) -> N {
+    let elem_type = elem_type_of::<N>();
+    if comptime!(elem_type.is_float()) {
+        if numeric_is_nan::<N>(lhs) {
+            lhs
+        } else if numeric_is_nan::<N>(rhs) {
+            rhs
+        } else {
+            min(lhs, rhs)
+        }
+    } else {
+        min(lhs, rhs)
+    }
+}
+
 // Implement CumulativeOpFamily for each operation
 impl CumulativeOpFamily for SumOp {
     type CumulativeOp<C: Numeric> = Self;
@@ -340,7 +393,7 @@ impl<N: Numeric> CumulativeOp<N> for ProdOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MaxOp {
     fn execute(lhs: N, rhs: N) -> N {
-        max(lhs, rhs)
+        cumulative_max::<N>(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
@@ -351,7 +404,7 @@ impl<N: Numeric> CumulativeOp<N> for MaxOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MinOp {
     fn execute(lhs: N, rhs: N) -> N {
-        min(lhs, rhs)
+        cumulative_min::<N>(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
@@ -378,7 +431,7 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     mut output: LinearViewMut<'_, C>,
     shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

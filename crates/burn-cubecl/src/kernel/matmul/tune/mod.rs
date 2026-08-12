@@ -2,4 +2,7 @@
 mod base;
 
 #[cfg(feature = "autotune")]
+mod bounds;
+
+#[cfg(feature = "autotune")]
 pub use base::matmul_autotune;

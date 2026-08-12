@@ -16,13 +16,13 @@ use crate::{
         },
         trace::{FuseTrace, TraceError, TuneOutput},
     },
-    optim::{elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
+    optim::{FusedOperation, elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
 };
 use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_std::DType;
-use cubecl::{Runtime, client::ComputeClient, ir::StorageType, prelude::*};
+use cubecl::{Runtime, client::ComputeClient, prelude::*};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, VectorizationMode,
     components::instructions::ReduceOperationConfig,
@@ -120,6 +120,8 @@ pub enum ReduceInstruction {
     Max,
     Min,
     MaxAbs,
+    Any,
+    All,
 }
 
 pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
@@ -358,6 +360,12 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             vectorization_mode,
             vector_size_input: config_read.width,
             vector_size_output: config_write.width,
+            // Fused-reduce selection is cached per anchored key, so the
+            // unchecked comptime fast paths are never stable here.
+            unchecked_fast_paths: false,
+            // The fused read runs the trace, which may write materialized
+            // intermediates to global outputs.
+            fuse_on_read: true,
         };
         let problem = ReduceProblem {
             reduce_len: shape[self.reduce.axis],
@@ -366,7 +374,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             dtypes: ReduceDtypes {
                 input: dtype_to_storage_type(self.reduce.op.input.dtype),
                 output: dtype_to_storage_type(self.reduce.op.out.dtype),
-                accumulation: self.reduce.acc.into_elem().into(),
+                accumulation: self.reduce.acc.into_elem(),
             },
             address_type,
             instruction: reduce_instruction2config(&self.reduce.inst),
@@ -456,6 +464,8 @@ pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> Redu
         ReduceInstruction::Max => ReduceOperationConfig::Max,
         ReduceInstruction::Min => ReduceOperationConfig::Min,
         ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
+        ReduceInstruction::Any => ReduceOperationConfig::Any,
+        ReduceInstruction::All => ReduceOperationConfig::All,
     }
 }
 
@@ -497,9 +507,9 @@ pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Siz
     out_vec_axis: usize,
     #[comptime] blueprint: ReduceBlueprint,
     #[comptime] config: ReduceOperationConfig,
-    #[define(In)] _input_dtype: StorageType,
-    #[define(Out)] _output_dtype: StorageType,
-    #[define(Acc)] _acc_dtype: StorageType,
+    #[define(In)] _input_dtype: ElemType,
+    #[define(Out)] _output_dtype: ElemType,
+    #[define(Acc)] _acc_dtype: ElemType,
 ) {
     multi_block_variables_init(&input.config, &mut output.global.variables);
     multi_block_variables_init(&output.config, &mut output.global.variables);
@@ -515,4 +525,32 @@ pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Siz
         blueprint,
         config,
     );
+}
+
+/// Name of the reduce fusion optimization.
+pub const NAME: &str = "Reduce";
+
+impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
+    const NAME: &'static str = self::NAME;
+    type State = ReduceOptimizationState;
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn run(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context, |index| fallback(index))
+    }
+
+    fn to_state(&self) -> Self::State {
+        Self::to_state(self)
+    }
+
+    fn from_state(device: &R::Device, state: Self::State) -> Self {
+        Self::from_state(device, state)
+    }
 }

@@ -14,7 +14,7 @@ fn repeat_dim_kernel<E: Numeric>(
     out_shape: Sequence<FastDivmod<usize>>,
     in_shape: FastDivmod<usize>,
     #[comptime] dim: usize,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();

@@ -6,7 +6,7 @@ use burn_backend::{
     ops::IntTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
-use burn_std::{BoolDType, FloatDType, IntDType, Shape};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape};
 
 impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<B> {
@@ -223,6 +223,25 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_scatter_add(dim, tensor, indices, value)
     }
 
+    fn int_scatter(
+        dim: usize,
+        tensor: IntTensor<B>,
+        indices: IntTensor<B>,
+        value: IntTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        B::int_scatter(dim, tensor, indices, value, update)
+    }
+
+    fn int_scatter_nd(
+        data: IntTensor<B>,
+        indices: IntTensor<B>,
+        values: IntTensor<B>,
+        reduction: IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        B::int_scatter_nd(data, indices, values, reduction)
+    }
+
     fn int_select(tensor: IntTensor<B>, dim: usize, indices: IntTensor<B>) -> IntTensor<B> {
         B::int_select(tensor, dim, indices)
     }
@@ -236,6 +255,16 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_select_add(tensor, dim, indices, value)
     }
 
+    fn int_select_assign(
+        tensor: IntTensor<B>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: IntTensor<B>,
+        update: IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        B::int_select_assign(tensor, dim, indices, value, update)
+    }
+
     fn int_mask_where(
         tensor: IntTensor<B>,
         mask: BoolTensor<B>,
@@ -246,6 +275,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_mask_fill(tensor: IntTensor<B>, mask: BoolTensor<B>, value: Scalar) -> IntTensor<B> {
         B::int_mask_fill(tensor, mask, value)
+    }
+
+    async fn int_mask_select(tensor: IntTensor<B>, mask: BoolTensor<B>) -> IntTensor<B> {
+        B::int_mask_select(tensor, mask).await
     }
 
     fn int_argmax(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {

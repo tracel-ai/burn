@@ -28,7 +28,7 @@ pub trait IrVisitorMut {
     fn visit_range_mut(&mut self, _range: &mut Slice) {}
 }
 
-/// Custom operation in fusion stream, declaring its inputs and outputs.
+/// Custom operation in fusion stream, declaring its inputs, outputs and scalar arguments.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct CustomOpIr {
     /// Unique identifier of the operation.
@@ -37,15 +37,38 @@ pub struct CustomOpIr {
     pub inputs: Vec<TensorIr>,
     /// Output tensors used in the custom operation.
     pub outputs: Vec<TensorIr>,
+    /// Non-tensor scalar arguments, in declaration order.
+    ///
+    /// Carried through fusion's relativization like any other scalar (see the
+    /// `RelativeOps for CustomOpIr` impl), so a cached graph replays with fresh scalar values. The
+    /// remote backend relies on these to ship a custom op's scalar arguments to the server, where
+    /// the registered handler reads them back with [`ScalarIr::elem`].
+    pub scalars: Vec<ScalarIr>,
 }
 
 impl CustomOpIr {
-    /// Create a new custom operation intermediate representation.
+    /// Create a new custom operation intermediate representation (without scalar arguments).
     pub fn new(id: &'static str, inputs: &[TensorIr], outputs: &[TensorIr]) -> Self {
         Self {
             id: id.to_owned(),
             inputs: inputs.to_vec(),
             outputs: outputs.to_vec(),
+            scalars: Vec::new(),
+        }
+    }
+
+    /// Create a new custom operation intermediate representation with scalar arguments.
+    pub fn with_scalars(
+        id: &'static str,
+        inputs: &[TensorIr],
+        outputs: &[TensorIr],
+        scalars: Vec<ScalarIr>,
+    ) -> Self {
+        Self {
+            id: id.to_owned(),
+            inputs: inputs.to_vec(),
+            outputs: outputs.to_vec(),
+            scalars,
         }
     }
 
@@ -77,6 +100,9 @@ impl CustomOpIr {
         }
         for t in self.outputs.iter_mut() {
             v.visit_tensor_mut(t);
+        }
+        for s in self.scalars.iter_mut() {
+            v.visit_scalar_mut(s);
         }
     }
 }
@@ -193,6 +219,9 @@ pub enum FloatOperationIr {
 /// Operation intermediate representation specific to module.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum ModuleOperationIr {
+    /// Batch normalization with explicitly supplied statistics, corresponding
+    /// to [batch_norm](burn_backend::ops::ModuleOps::batch_norm).
+    BatchNorm(BatchNormOpIr),
     /// Operation corresponding to [embedding](burn_backend::ops::ModuleOps::embedding).
     Embedding(EmbeddingOpIr),
     /// Operation corresponding to [embedding_backward](burn_backend::ops::ModuleOps::embedding_backward).
@@ -261,6 +290,12 @@ pub enum ModuleOperationIr {
     /// Operation corresponding to
     /// [adaptive avg pool 2d backward](burn_backend::ops::ModuleOps::adaptive_avg_pool2d_backward).
     AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardOpIr),
+    /// Operation corresponding to
+    /// [adaptive avg pool 3d](burn_backend::ops::ModuleOps::adaptive_avg_pool3d).
+    AdaptiveAvgPool3d(AdaptiveAvgPool3dOpIr),
+    /// Operation corresponding to
+    /// [adaptive avg pool 3d backward](burn_backend::ops::ModuleOps::adaptive_avg_pool3d_backward).
+    AdaptiveAvgPool3dBackward(AdaptiveAvgPool3dBackwardOpIr),
     /// Operation corresponding to
     /// [max pool 1d](burn_backend::ops::ModuleOps::max_pool1d).
     MaxPool1d(MaxPool1dOpIr),
@@ -379,8 +414,8 @@ pub enum BaseOperationIr {
     Select(SelectOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [select assign](burn_backend::ops::FloatTensorOps::float_select_add).
-    /// Int => [select assign](burn_backend::ops::IntTensorOps::int_select_add).
+    /// Float => [select assign](burn_backend::ops::FloatTensorOps::float_select_assign).
+    /// Int => [select assign](burn_backend::ops::IntTensorOps::int_select_assign).
     /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_or).
     SelectAssign(SelectAssignOpIr),
     /// Operation corresponding to:
@@ -628,6 +663,11 @@ pub enum NumericOperationIr {
     /// Float => [topk](burn_backend::ops::FloatTensorOps::float_topk).
     /// Int => [topk](burn_backend::ops::IntTensorOps::int_topk).
     TopK(ReduceDimOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [topk with indices](burn_backend::ops::FloatTensorOps::float_topk_with_indices).
+    /// Int => [topk with indices](burn_backend::ops::IntTensorOps::int_topk_with_indices).
+    TopKWithIndices(TopKWithIndicesOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [argmin](burn_backend::ops::FloatTensorOps::float_argmin).
@@ -1164,6 +1204,18 @@ pub struct ReduceDimWithIndicesOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+/// Like [`ReduceDimWithIndicesOpIr`], but for a top-k: the reduced axis keeps `k` entries
+/// instead of collapsing to 1, so `k` has to be carried explicitly.
+pub struct TopKWithIndicesOpIr {
+    pub tensor: TensorIr,
+    pub dim: usize,
+    pub k: usize,
+    pub out: TensorIr,
+    pub out_indices: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct EmbeddingOpIr {
     pub weights: TensorIr,
     pub indices: TensorIr,
@@ -1176,6 +1228,21 @@ pub struct EmbeddingBackwardOpIr {
     pub weights: TensorIr,
     pub out_grad: TensorIr,
     pub indices: TensorIr,
+    pub out: TensorIr,
+}
+
+/// Batch normalization using explicitly supplied channel statistics.
+///
+/// This operation neither calculates nor updates the supplied statistics.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct BatchNormOpIr {
+    pub x: TensorIr,
+    pub gamma: TensorIr,
+    pub beta: TensorIr,
+    pub mean: TensorIr,
+    pub variance: TensorIr,
+    pub epsilon: ScalarIr,
     pub out: TensorIr,
 }
 
@@ -1723,6 +1790,22 @@ pub struct AdaptiveAvgPool2dBackwardOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct AdaptiveAvgPool3dOpIr {
+    pub x: TensorIr,
+    pub output_size: [usize; 3],
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AdaptiveAvgPool3dBackwardOpIr {
+    pub x: TensorIr,
+    pub grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct MaxPool1dOpIr {
     pub x: TensorIr,
     pub kernel_size: usize,
@@ -1987,7 +2070,7 @@ impl From<InterpolateMode> for InterpolateModeIr {
     fn from(val: InterpolateMode) -> Self {
         match val {
             InterpolateMode::Nearest => Self::Nearest,
-            InterpolateMode::NearestExact => Self::Nearest,
+            InterpolateMode::NearestExact => Self::NearestExact,
             InterpolateMode::Bilinear => Self::Bilinear,
             InterpolateMode::Bicubic => Self::Bicubic,
             InterpolateMode::Lanczos3 => Self::Lanczos3,
@@ -2558,6 +2641,7 @@ impl NumericOperationIr {
             NumericOperationIr::ProdDim(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::Max(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::MaxDimWithIndices(repr) => Box::new([&repr.tensor].into_iter()),
+            NumericOperationIr::TopKWithIndices(repr) => Box::new([&repr.tensor].into_iter()),
             NumericOperationIr::MinDimWithIndices(repr) => Box::new([&repr.tensor].into_iter()),
             NumericOperationIr::Min(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::MaxDim(repr) => Box::new([&repr.input].into_iter()),
@@ -2616,6 +2700,9 @@ impl NumericOperationIr {
             NumericOperationIr::ProdDim(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Max(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::MaxDimWithIndices(repr) => {
+                Box::new([&repr.out, &repr.out_indices].into_iter())
+            }
+            NumericOperationIr::TopKWithIndices(repr) => {
                 Box::new([&repr.out, &repr.out_indices].into_iter())
             }
             NumericOperationIr::MinDimWithIndices(repr) => {
@@ -2752,6 +2839,9 @@ impl NumericOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::MaxDimWithIndices(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::TopKWithIndices(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::MinDimWithIndices(repr) => {
@@ -2969,6 +3059,11 @@ impl NumericOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
             }
             NumericOperationIr::MaxDimWithIndices(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.out_indices);
+            }
+            NumericOperationIr::TopKWithIndices(repr) => {
                 v.visit_tensor_mut(&mut repr.tensor);
                 v.visit_tensor_mut(&mut repr.out);
                 v.visit_tensor_mut(&mut repr.out_indices);
@@ -3647,6 +3742,9 @@ impl BoolOperationIr {
 impl ModuleOperationIr {
     fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         match self {
+            ModuleOperationIr::BatchNorm(repr) => {
+                Box::new([&repr.x, &repr.gamma, &repr.beta, &repr.mean, &repr.variance].into_iter())
+            }
             ModuleOperationIr::Embedding(repr) => {
                 Box::new([&repr.weights, &repr.indices].into_iter())
             }
@@ -3788,6 +3886,10 @@ impl ModuleOperationIr {
             ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
+            ModuleOperationIr::AdaptiveAvgPool3d(repr) => Box::new([&repr.x].into_iter()),
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(repr) => {
+                Box::new([&repr.x, &repr.grad].into_iter())
+            }
             ModuleOperationIr::MaxPool1d(repr) => Box::new([&repr.x].into_iter()),
             ModuleOperationIr::MaxPool1dWithIndices(repr) => Box::new([&repr.x].into_iter()),
             ModuleOperationIr::MaxPool1dWithIndicesBackward(repr) => {
@@ -3865,6 +3967,7 @@ impl ModuleOperationIr {
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         match self {
+            ModuleOperationIr::BatchNorm(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Embedding(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::EmbeddingBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Linear(repr) => Box::new([&repr.out].into_iter()),
@@ -3930,6 +4033,8 @@ impl ModuleOperationIr {
             ModuleOperationIr::AdaptiveAvgPool2d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AdaptiveAvgPool1dBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AdaptiveAvgPool3d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::MaxPool1d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::MaxPool1dWithIndices(repr) => {
                 Box::new([&repr.out, &repr.out_indices].into_iter())
@@ -3978,6 +4083,13 @@ impl ModuleOperationIr {
         let mut output = Vec::new();
 
         match self {
+            ModuleOperationIr::BatchNorm(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.gamma.mark_read_only(nodes, &mut output);
+                repr.beta.mark_read_only(nodes, &mut output);
+                repr.mean.mark_read_only(nodes, &mut output);
+                repr.variance.mark_read_only(nodes, &mut output);
+            }
             ModuleOperationIr::Embedding(repr) => {
                 repr.weights.mark_read_only(nodes, &mut output);
                 repr.indices.mark_read_only(nodes, &mut output);
@@ -4159,6 +4271,13 @@ impl ModuleOperationIr {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.grad.mark_read_only(nodes, &mut output);
             }
+            ModuleOperationIr::AdaptiveAvgPool3d(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.grad.mark_read_only(nodes, &mut output);
+            }
             ModuleOperationIr::MaxPool1d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
             }
@@ -4264,6 +4383,15 @@ impl ModuleOperationIr {
 
     fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
         match self {
+            ModuleOperationIr::BatchNorm(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.gamma);
+                v.visit_tensor_mut(&mut repr.beta);
+                v.visit_tensor_mut(&mut repr.mean);
+                v.visit_tensor_mut(&mut repr.variance);
+                v.visit_scalar_mut(&mut repr.epsilon);
+                v.visit_tensor_mut(&mut repr.out);
+            }
             ModuleOperationIr::Embedding(repr) => {
                 v.visit_tensor_mut(&mut repr.weights);
                 v.visit_tensor_mut(&mut repr.indices);
@@ -4464,6 +4592,15 @@ impl ModuleOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
             }
             ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool3d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(repr) => {
                 v.visit_tensor_mut(&mut repr.x);
                 v.visit_tensor_mut(&mut repr.grad);
                 v.visit_tensor_mut(&mut repr.out);

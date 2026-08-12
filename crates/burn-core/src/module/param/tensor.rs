@@ -1,12 +1,20 @@
-use super::{Param, ParamId, Parameter};
+use super::reparameterization_dyn::{self, DynReparameterization};
+use super::{Param, ParamId, Parameter, Reparameterization};
 use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
     ModuleVisitor,
 };
-use alloc::{format, string::ToString, vec::Vec};
+use alloc::{boxed::Box, format, string::ToString, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
 
-impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {}
+impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
+    fn materialize(self, reparameterization: &dyn DynReparameterization) -> Self {
+        *reparameterization
+            .materialize_dyn(Box::new(self))
+            .downcast::<Tensor<D>>()
+            .expect("Reparameterization should preserve tensor rank")
+    }
+}
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Int> {}
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Bool> {}
 
@@ -115,23 +123,57 @@ impl<const D: usize> Param<Tensor<D>> {
             Param::initialized(ParamId::new(), value.require_grad())
         })
     }
+
+    /// Attach a custom or built-in reparameterization, replacing any existing one.
+    pub(crate) fn with_reparameterization<R>(mut self, reparameterization: R) -> Self
+    where
+        R: Reparameterization,
+    {
+        self.reparameterization = Some(reparameterization_dyn::boxed::<R, D>(reparameterization));
+        self
+    }
 }
 
 impl<const D: usize> Module for Param<Tensor<D>> {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
-        visitor.visit_float(self)
+        match self.reparameterization_dyn() {
+            None => visitor.visit_float(self),
+            Some(reparameterization) => {
+                visitor.visit_float(&self.without_reparameterization());
+                visitor.enter_module(reparameterization.name(), "Reparameterization");
+                reparameterization_dyn::visit(reparameterization, visitor);
+                visitor.exit_module(reparameterization.name(), "Reparameterization");
+            }
+        }
     }
 
-    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
-        mapper.map_float(self)
+    fn map<M: ModuleMapper>(mut self, mapper: &mut M) -> Self {
+        match self.reparameterization.take() {
+            None => mapper.map_float(self),
+            Some(reparameterization) => {
+                let base = mapper.map_float(self);
+                mapper.enter_module(reparameterization.name(), "Reparameterization");
+                let reparameterization = reparameterization_dyn::map(reparameterization, mapper);
+                mapper.exit_module(reparameterization.name(), "Reparameterization");
+                base.with_dyn_reparameterization(Some(reparameterization))
+            }
+        }
     }
 
-    fn to_device(self, device: &Device) -> Self {
-        self.map(|tensor| tensor.to_device(device))
+    fn to_device(mut self, device: &Device) -> Self {
+        let reparameterization = self.reparameterization.take();
+        let base = self.map(|tensor| tensor.to_device(device));
+        match reparameterization {
+            None => base,
+            Some(reparameterization) => {
+                base.with_dyn_reparameterization(Some(reparameterization.to_device_dyn(device)))
+            }
+        }
     }
 
-    fn fork(self, device: &Device) -> Self {
-        self.map(|tensor| {
+    fn fork(mut self, device: &Device) -> Self {
+        let reparameterization = self.reparameterization.take();
+        let base = self.map(|tensor| {
             let is_require_grad = tensor.is_require_grad();
             let mut tensor = tensor.to_device(device).detach();
 
@@ -140,14 +182,24 @@ impl<const D: usize> Module for Param<Tensor<D>> {
             }
 
             tensor
-        })
+        });
+        match reparameterization {
+            None => base,
+            Some(reparameterization) => {
+                base.with_dyn_reparameterization(Some(reparameterization.fork_dyn(device)))
+            }
+        }
     }
 
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
-        let device = self.val().device();
+        let device = self.base().device();
 
         if !devices.contains(&device) {
             devices.push(device)
+        }
+
+        if let Some(reparameterization) = self.reparameterization_dyn() {
+            devices = reparameterization.collect_devices_dyn(devices);
         }
 
         devices
@@ -262,25 +314,28 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
     fn valid(&self) -> Self {
-        // Preserve initialized param `require_grad` state, but reset the inner value's
+        // Preserve initialized param `require_grad` state, but reset the inner value's.
+        // `val()` folds any reparameterization into the base for inference.
         let require_grad = self.require_grad;
         let mut param = Param::initialized(self.id, self.val().inner().set_require_grad(false));
         param.require_grad = require_grad;
         param
     }
 
-    fn from_inner(module: Self) -> Self {
+    fn from_inner(mut module: Self) -> Self {
+        // Keep the reparameterization structure and its parameters on the autodiff backend.
+        let reparameterization = module.reparameterization.take();
         // Reinstate the param's `require_grad` state
         let tensor = Tensor::from_inner(module.val()).set_require_grad(module.require_grad);
-        Param::initialized(module.id, tensor)
+        let base = Param::initialized(module.id, tensor);
+        match reparameterization {
+            None => base,
+            Some(reparameterization) => {
+                base.with_dyn_reparameterization(Some(reparameterization.from_inner_dyn()))
+            }
+        }
     }
 }
-
-// impl<const D: usize, B: AutodiffBackend> HasAutodiffModule
-//     for Param<Tensor<B::InnerBackend, D>>
-// {
-//     type TrainModule = Param<Tensor<D>>;
-// }
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
     fn valid(&self) -> Self {

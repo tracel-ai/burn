@@ -5,6 +5,7 @@ use burn::config::Config;
 use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
 use crate::RecordState;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 
 /// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
 #[derive(Config, Debug)]
@@ -30,14 +31,7 @@ pub struct NoamLrScheduler {
 
 impl NoamLrSchedulerConfig {
     /// Initialize a new [noam](NoamLrScheduler) learning rate scheduler.
-    ///
-    /// # Errors
-    ///
-    /// An error will be returned if any of the following conditions is true:
-    ///
-    /// * `warmup_steps` is 0
-    /// * `model_size` is 0
-    pub fn init(&self) -> Result<NoamLrScheduler, String> {
+    pub(crate) fn build(&self) -> Result<NoamLrScheduler, String> {
         if self.warmup_steps == 0 {
             return Err(
                 "Number of steps before exponential decay starts must be greater than 0".into(),
@@ -53,6 +47,18 @@ impl NoamLrSchedulerConfig {
             factor: self.factor,
             step: 0.0,
         })
+    }
+
+    /// Initializes a [module learning rate scheduler](ModuleLrScheduler).
+    ///
+    /// # Errors
+    ///
+    /// An error will be returned if any of the following conditions is true:
+    ///
+    /// * `warmup_steps` is 0
+    /// * `model_size` is 0
+    pub fn init(&self) -> Result<ModuleLrScheduler, String> {
+        self.build().map(|s| s.into())
     }
 }
 
@@ -70,11 +76,10 @@ impl LrScheduler for NoamLrScheduler {
         LrSchedulerRecord::from_state(&NoamLrSchedulerState { step: self.step })
     }
 
-    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+    fn load_record(&mut self, record: LrSchedulerRecord) {
         if let Some(state) = record.into_state::<NoamLrSchedulerState>() {
             self.step = state.step;
         }
-        self
     }
 }
 
@@ -90,25 +95,25 @@ mod tests {
 
     #[test]
     fn test_config_warmup_steps_invalid() {
-        let r = NoamLrSchedulerConfig::new(0.1).with_warmup_steps(0).init();
+        let r = NoamLrSchedulerConfig::new(0.1).with_warmup_steps(0).build();
         assert!(r.is_err(), "Should return an error");
     }
 
     #[test]
     fn test_config_warmup_steps_valid() {
-        let r = NoamLrSchedulerConfig::new(0.1).with_warmup_steps(1).init();
+        let r = NoamLrSchedulerConfig::new(0.1).with_warmup_steps(1).build();
         assert!(r.is_ok(), "Should return a success value");
     }
 
     #[test]
     fn test_config_model_size_invalid() {
-        let r = NoamLrSchedulerConfig::new(0.1).with_model_size(0).init();
+        let r = NoamLrSchedulerConfig::new(0.1).with_model_size(0).build();
         assert!(r.is_err(), "Should return an error");
     }
 
     #[test]
     fn test_config_model_size_valid() {
-        let r = NoamLrSchedulerConfig::new(0.1).with_model_size(1).init();
+        let r = NoamLrSchedulerConfig::new(0.1).with_model_size(1).build();
         assert!(r.is_ok(), "Should return a success value");
     }
 
@@ -117,7 +122,7 @@ mod tests {
         let warmup_steps = 100;
         let mut scheduler = NoamLrSchedulerConfig::new(10.0)
             .with_warmup_steps(warmup_steps)
-            .init()
+            .build()
             .unwrap();
         let mut lr_current = 0.0;
 

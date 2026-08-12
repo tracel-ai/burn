@@ -294,6 +294,9 @@ fn global_view<E: CubePrimitive>(
         MatmulArg::Normal(_) => View::new::<GlobalInput, Coords1d>(data_buf, data_layout),
         MatmulArg::Quantized { scales, scheme, .. } => {
             let scales_layout = match comptime![scheme.level] {
+                QuantLevel::BlockTensor { .. } => {
+                    unimplemented!("two-level quantization is not supported yet")
+                }
                 QuantLevel::Tensor => GlobalScaleLayout::new_PerTensor(shape),
                 QuantLevel::Block(block_size) => {
                     let block_size = comptime![block_size.as_dim::<2>()];
@@ -327,7 +330,7 @@ fn global_view<E: CubePrimitive>(
 
             // Redefine because of `Numeric` bound, kinda hacky but I can't figure out a way to
             // assert `Vector<T: Numeric>::Scalar: Numeric`
-            let define!(T) = storage_type_of::<E::Scalar>();
+            let define!(T) = elem_type_of::<E::Scalar>();
             let view = create_quant_view_dynamic::<T, E::Size>(
                 data_buf,
                 data_layout,

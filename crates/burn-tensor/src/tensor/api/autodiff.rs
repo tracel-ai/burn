@@ -80,12 +80,14 @@ fn backward_impl(p: &BridgeTensor) -> Gradients {
 
 #[cfg(feature = "autodiff")]
 fn grad_impl(p: &BridgeTensor, grads: &Gradients) -> Option<BridgeTensor> {
-    Dispatch::grad(p.as_float(), grads.as_inner()).map(BridgeTensor::float)
+    // A non-float tensor — a packed base included — records no tape, so there
+    // is no gradient to look up.
+    Dispatch::grad(p.try_as_float()?, grads.as_inner()).map(BridgeTensor::float)
 }
 
 #[cfg(feature = "autodiff")]
 fn grad_remove_impl(p: &BridgeTensor, grads: &mut Gradients) -> Option<BridgeTensor> {
-    Dispatch::grad_remove(p.as_float(), grads.as_inner_mut()).map(BridgeTensor::float)
+    Dispatch::grad_remove(p.try_as_float()?, grads.as_inner_mut()).map(BridgeTensor::float)
 }
 
 #[cfg(feature = "autodiff")]
@@ -97,6 +99,25 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// Returns the inner tensor without the autodiff information.
     pub fn inner(self) -> Tensor<D, K> {
         Tensor::new(K::inner(self.primitive))
+    }
+
+    /// Take the tensor off the autodiff backend, dropping any graph reference
+    /// it carries. A tensor that is not on an autodiff backend is returned as
+    /// is.
+    ///
+    /// Unlike [detach](Tensor::detach), which severs the tensor from the graph
+    /// but leaves it on the autodiff backend, the result lives on the inner
+    /// backend: later operations pay no autodiff dispatch and can never be
+    /// recorded. And unlike [inner](Self::inner), which panics on a tensor
+    /// with no autodiff wrapper, this is safe to call anywhere — batchers,
+    /// metric pipelines, anything that must guarantee a tensor is off the
+    /// tape without knowing where it came from.
+    pub fn no_grad(self) -> Self {
+        if self.device().is_autodiff() {
+            self.inner()
+        } else {
+            self
+        }
     }
 
     /// Convert a tensor to the autodiff backend.

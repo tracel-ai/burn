@@ -70,4 +70,8 @@ impl TensorMetadata for FlexQTensor {
     fn device(&self) -> Self::Device {
         FlexDevice
     }
+
+    fn can_mut(&self) -> bool {
+        self.tensor.is_unique()
+    }
 }

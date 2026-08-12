@@ -1,7 +1,6 @@
-use crate::{
-    CubeBackend, CubeRuntime, kernel::attention::attention_autotune,
-    ops::numeric::empty_device_dtype, tensor::CubeTensor,
-};
+#[cfg(feature = "autotune")]
+use crate::kernel::attention::attention_autotune;
+use crate::{CubeBackend, CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType, Shape,
@@ -55,32 +54,51 @@ pub fn attention<R: CubeRuntime>(
     options: AttentionModuleOptions,
     strategy: AttentionStrategy,
 ) -> Result<CubeTensor<R>, AttentionSetupError> {
-    match strategy {
-        AttentionStrategy::FlashBlackboxAccelerated(strategy) => flash_attention(
-            query,
-            key,
-            value,
-            mask,
-            attn_bias,
-            options,
-            launch::Strategy::BlackboxAccelerated(launch::BlueprintStrategy::Inferred(strategy)),
-        ),
-        AttentionStrategy::FlashUnit => flash_attention(
-            query,
-            key,
-            value,
-            mask,
-            attn_bias,
-            options,
-            launch::Strategy::Unit(launch::BlueprintStrategy::Inferred(())),
-        ),
-        AttentionStrategy::Fallback => Ok(attention_fallback::<CubeBackend<R>>(
-            query, key, value, mask, attn_bias, options,
-        )),
+    // Resolve the flash launch strategy; the non-flash arms answer directly.
+    let flash = match strategy {
+        AttentionStrategy::FlashBlackboxAccelerated(strategy) => {
+            launch::Strategy::BlackboxAccelerated(launch::BlueprintStrategy::Inferred(strategy))
+        }
+        AttentionStrategy::FlashUnit => {
+            launch::Strategy::Unit(launch::BlueprintStrategy::Inferred(()))
+        }
+        AttentionStrategy::Fallback => {
+            return Ok(attention_fallback::<CubeBackend<R>>(
+                query, key, value, mask, attn_bias, options,
+            ));
+        }
         #[cfg(feature = "autotune")]
-        AttentionStrategy::Autotune => Ok(attention_autotune(
+        AttentionStrategy::Autotune => {
+            return Ok(attention_autotune(
+                query, key, value, mask, attn_bias, options,
+            ));
+        }
+    };
+
+    // The flash routines carry hard launch constraints — the accelerated
+    // stage's `seq_q` must divide the problem's, and the tile head dim must
+    // divide the problem's — while attention autotune caches its selection per
+    // *anchored* key: a winner benchmarked on one raw `seq_q` (or `head_dim`)
+    // must still run on the bucket's other raw shapes. So a flash strategy that
+    // can't launch degrades to the fallback here, the same way the matmul
+    // dispatch degrades a constrained routine to the unit kernel; the fallback
+    // (separate kernels, materialized scores) has no such constraint and always
+    // runs. Only an `InvalidConfig` degrades — availability and other errors
+    // surface unchanged. `options` is `Copy`; the tensors are cheap handle
+    // clones, taken only so the originals survive for the fallback.
+    match flash_attention(
+        query.clone(),
+        key.clone(),
+        value.clone(),
+        mask.clone(),
+        attn_bias.clone(),
+        options,
+        flash,
+    ) {
+        Err(AttentionSetupError::InvalidConfig(_)) => Ok(attention_fallback::<CubeBackend<R>>(
             query, key, value, mask, attn_bias, options,
         )),
+        other => other,
     }
 }
 
@@ -117,8 +135,8 @@ pub fn flash_attention<R: CubeRuntime>(
         &dtypes,
         AttentionOptions {
             causal: options.is_causal,
-            accumulator_precision: AccumulatorPrecision::Strict(cubecl::ir::StorageType::Scalar(
-                cubecl::ir::ElemType::Float(cubecl::ir::FloatKind::F32),
+            accumulator_precision: AccumulatorPrecision::Strict(cubecl::ir::ElemType::Float(
+                cubecl::ir::FloatKind::F32,
             )),
         },
     )?;

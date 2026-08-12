@@ -105,12 +105,28 @@ fn test_split_with_zero_split_size_non_zero_tensor() {
 }
 
 #[test]
-#[should_panic(expected = "Given dimension is greater than or equal to the tensor rank.")]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
 fn test_split_invalid_dim() {
     let device = Default::default();
     let tensors = TestTensor::<1>::from_data([0, 1, 2], &device);
 
     let _split_tensors = tensors.split(1, 2);
+}
+
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn test_split_negative_dim_out_of_bounds() {
+    let tensor = TestTensor::<1>::from([0, 1, 2]);
+
+    let _split_tensors = tensor.split(1, -2_i64);
+}
+
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn test_split_with_sizes_negative_dim_out_of_bounds() {
+    let tensor = TestTensor::<1>::from([0, 1, 2]);
+
+    let _split_tensors = tensor.split_with_sizes(vec![1, 2], -2_i64);
 }
 
 #[test]

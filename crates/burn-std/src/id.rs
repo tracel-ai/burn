@@ -1,5 +1,5 @@
 //! # Unique Identifiers
-use crate::rand::gen_random;
+use cubecl_environment::rand::gen_random;
 
 /// Simple ID generator.
 pub struct IdGenerator {}
@@ -13,7 +13,7 @@ impl IdGenerator {
     }
 }
 
-pub use cubecl_common::stream_id::StreamId;
+pub use cubecl_environment::stream::StreamId;
 
 use core::hash::{BuildHasher, Hasher};
 

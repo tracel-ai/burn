@@ -54,7 +54,8 @@ audio = ["burn-dataset?/audio"]
 
 # Backends
 remote = ["burn-tensor/remote"]
-server = ["burn-tensor/server"]
+remote-server = ["burn-tensor/remote-server"]
+remote-websocket = ["burn-tensor/remote-websocket"]
 cuda = ["burn-tensor/cuda"]
 rocm = ["burn-tensor/rocm"]
 flex = ["burn-tensor/flex"]

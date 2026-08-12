@@ -167,9 +167,30 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         kernel::equal(lhs, rhs, out_dtype.into())
     }
 
+    fn int_not_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        kernel::not_equal(lhs, rhs, out_dtype.into())
+    }
+
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
+    }
+
+    fn int_not_equal_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        let dtype = lhs.dtype;
+        kernel::not_equal_elem(
             lhs,
             InputScalar::new(rhs, dtype_to_storage_type(dtype)),
             out_dtype.into(),
@@ -402,6 +423,57 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
             dim,
             Default::default(),
             ReduceOperationConfig::TopK(k),
+        )
+        .unwrap()
+    }
+
+    fn int_topk_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // One pass, rather than the default's TopK followed by ArgTopK: the reduction
+        // already carries both halves, and these kernels are memory bound. Indices take
+        // the input dtype, matching `int_argtopk`.
+        let dtype = tensor.dtype;
+        reduce::reduce_dim_with_indices(
+            tensor,
+            dtype,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::TopK(k),
+        )
+        .unwrap()
+    }
+
+    fn int_max_dim_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Indices take the input dtype, matching `int_argmax`.
+        let dtype = tensor.dtype;
+        reduce::reduce_dim_with_indices(
+            tensor,
+            dtype,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::Max,
+        )
+        .unwrap()
+    }
+
+    fn int_min_dim_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Indices take the input dtype, matching `int_argmin`.
+        let dtype = tensor.dtype;
+        reduce::reduce_dim_with_indices(
+            tensor,
+            dtype,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::Min,
         )
         .unwrap()
     }

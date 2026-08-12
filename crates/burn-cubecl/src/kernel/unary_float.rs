@@ -29,7 +29,7 @@ pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
     input: LinearView<'_, Vector<F, N>>,
     mut output: LinearViewMut<'_, Vector<F, N>>,
     options: &O::Options,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -165,7 +165,7 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::Sign => {
                     let zero = Vector::zero();
                     let one = Vector::one();
-                    let minus_one = Vector::new(F::new(-1.0));
+                    let minus_one = Vector::new(F::new(-1.0_f32));
 
                     let is_positive = input.greater_than(&zero);
                     let is_negative = input.less_than(&zero);

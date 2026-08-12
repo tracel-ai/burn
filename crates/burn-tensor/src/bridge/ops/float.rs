@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::{
     AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata, TensorPrimitive,
-    ops::{FloatTensorOps, QTensorOps, TransactionPrimitive},
+    ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
@@ -146,15 +146,13 @@ impl BasicOps for Float {
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
         // Select assign is ambiguous for QFloat
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::float(Dispatch::float_select_add(
-                tensor.into_float(),
-                dim,
-                indices.into(),
-                values.into_float(),
-            )),
-            other => unimplemented!("Unsupported update op {other:?}"),
-        }
+        BridgeTensor::float(Dispatch::float_select_assign(
+            tensor.into_float(),
+            dim,
+            indices.into(),
+            values.into_float(),
+            update,
+        ))
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
@@ -171,6 +169,29 @@ impl BasicOps for Float {
             mask.into(),
             value,
         ))
+    }
+
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                BridgeTensor::float(Dispatch::float_mask_select(tensor, mask.into()).await)
+            }
+            BridgeKind::QFloat => {
+                // Preserve the quantized kind by composing `argwhere` + `q_select` on the
+                // quantized primitive, mirroring the default backend op (there is no
+                // `q_mask_select`). Using `into_float` here would silently drop quantization.
+                let out_dtype = mask.device_settings().int_dtype;
+                let n = mask.shape().num_elements();
+                let mask = Dispatch::bool_reshape(mask.into(), Shape::new([n]));
+                let indices = Dispatch::bool_argwhere(mask, out_dtype).await; // [count, 1]
+                let count = indices.shape()[0];
+                let indices = Dispatch::int_reshape(indices, Shape::new([count])); // squeeze
+                let tensor = Dispatch::q_reshape(tensor, Shape::new([n]));
+                BridgeTensor::qfloat(Dispatch::q_select(tensor, 0, indices))
+            }
+            _ => panic!("Should be Float primitive kind"),
+        }
     }
 
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
@@ -193,15 +214,13 @@ impl BasicOps for Float {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::float(Dispatch::float_scatter_add(
-                dim,
-                tensor.into_float(),
-                indices.into(),
-                values.into_float(),
-            )),
-            other => unimplemented!("Unsupported update op {other:?}"),
-        }
+        BridgeTensor::float(Dispatch::float_scatter(
+            dim,
+            tensor.into_float(),
+            indices.into(),
+            values.into_float(),
+            update,
+        ))
     }
 
     fn scatter_nd(
@@ -304,13 +323,13 @@ impl BasicOps for Float {
         BridgeTensor::bool(Dispatch::float_not_equal(lhs, rhs.into_float(), bool_dtype))
     }
 
-    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
         BridgeTensor::bool(Dispatch::float_equal_elem(lhs, rhs, bool_dtype))
     }
 
-    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn not_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
         BridgeTensor::bool(Dispatch::float_not_equal_elem(lhs, rhs, bool_dtype))
@@ -704,7 +723,7 @@ impl Ordered for Float {
         BridgeTensor::bool(Dispatch::float_greater(lhs, rhs.into_float(), bool_dtype))
     }
 
-    fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn greater_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
         BridgeTensor::bool(Dispatch::float_greater_elem(lhs, rhs, bool_dtype))
@@ -720,7 +739,7 @@ impl Ordered for Float {
         ))
     }
 
-    fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn greater_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
         BridgeTensor::bool(Dispatch::float_greater_equal_elem(lhs, rhs, bool_dtype))
@@ -732,7 +751,7 @@ impl Ordered for Float {
         BridgeTensor::bool(Dispatch::float_lower(lhs, rhs.into_float(), bool_dtype))
     }
 
-    fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn lower_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
         BridgeTensor::bool(Dispatch::float_lower_elem(lhs, rhs, bool_dtype))
@@ -748,7 +767,7 @@ impl Ordered for Float {
         ))
     }
 
-    fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn lower_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
         BridgeTensor::bool(Dispatch::float_lower_equal_elem(lhs, rhs, bool_dtype))
@@ -819,6 +838,28 @@ impl Ordered for Float {
         match kind {
             BridgeKind::Float => BridgeTensor::float(Dispatch::float_topk(tensor, dim, k)),
             BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_topk(tensor, dim, k)),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn topk_with_indices(
+        tensor: BridgeTensor,
+        dim: usize,
+        k: usize,
+    ) -> (BridgeTensor, BridgeTensor) {
+        let settings = tensor.device_settings();
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let (values, indices) =
+                    Dispatch::float_topk_with_indices(tensor, dim, k, settings.int_dtype);
+                (BridgeTensor::float(values), BridgeTensor::int(indices))
+            }
+            BridgeKind::QFloat => {
+                let (values, indices) =
+                    Dispatch::q_topk_with_indices(tensor, dim, k, settings.int_dtype);
+                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
+            }
             _ => panic!("Should be Float primitive kind"),
         }
     }

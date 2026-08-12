@@ -43,7 +43,9 @@ cubecl = { workspace = true, features = ["wgpu"] }
 
 burn-cubecl = { workspace = true }
 burn-fusion = { workspace = true, optional = true, features = ["default"] }
-burn-backend = { workspace = true }
+burn-backend = { workspace = true, features = [
+    "cubecl-wgpu",
+] }
 
 
 [package.metadata.docs.rs]

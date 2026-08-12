@@ -3,13 +3,13 @@ use crate::engine::codegen::{DynElem, DynSize};
 
 use super::{ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
-use cubecl::quant::scheme::QuantLevel;
+use cubecl::quant::scheme::{QuantLevel, QuantStore};
 use cubecl::{
     intrinsic,
-    ir::Value,
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
+use cubecl::{ir::ExpandValue, prelude::polyfills::set_polyfill};
 use cubek::quantization::layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout};
 use serde::{Deserialize, Serialize};
 
@@ -165,29 +165,50 @@ pub fn read<C: Scalar, N: Size>(
 fn index_offset_with_quant_layout(
     tensor: &GlobalTensor,
     locals: &LocalArgs,
-    index: usize,
+    offset_ref: usize,
     #[comptime] rank: usize,
     #[comptime] scheme: QuantScheme,
 ) -> usize {
-    let (start, end) = (0, rank - 1);
     let num_quants = scheme.num_quants();
+    let packed_axis = comptime![match scheme.store {
+        QuantStore::Native => rank - 1,
+        QuantStore::PackedU32(dim) | QuantStore::PackedNative(dim) => rank - dim - 1,
+    }];
 
-    let offset_ref = index * locals.ref_vector_size;
     let mut offset = 0;
 
     #[unroll]
-    for i in start..end {
-        let ogwl = offset_ref / locals.ref_strides[i];
-        offset += ogwl % tensor.tensor.shape(i) * tensor.tensor.stride(i);
+    for i in 0..rank {
+        let coord = offset_ref / locals.ref_strides[i] % tensor.tensor.shape(i);
+        if comptime![i == packed_axis] {
+            offset += coord / num_quants * tensor.tensor.stride(i);
+        } else {
+            offset += coord * tensor.tensor.stride(i);
+        }
     }
 
-    // Handle packed representation in last dim
-    let ogwl = offset_ref / locals.ref_strides[end];
-    let shape_last = tensor.tensor.shape(end).div_ceil(num_quants);
-    let stride_last = tensor.tensor.stride(end);
-    offset += (ogwl.div_ceil(num_quants)) % shape_last * stride_last;
-
     offset / tensor.tensor.vector_size()
+}
+
+#[cube]
+fn read_quantized_at<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    offset_ref: usize,
+    #[comptime] arg: FuseArg,
+    #[comptime] config: &FuseBlockConfig,
+    #[comptime] scheme: QuantScheme,
+) -> Vector<C, N> {
+    match arg {
+        FuseArg::Input(pos, _precision, _layout) => {
+            let global = inputs.tensors.index(pos);
+            let offset =
+                index_offset_with_quant_layout(global, locals, offset_ref, config.rank, scheme);
+            let val = global.tensor[offset];
+            Vector::cast_from(val)
+        }
+        _ => panic!("Not supported"),
+    }
 }
 
 /// Reads a global quantized tensor at the given position.
@@ -204,17 +225,28 @@ pub fn read_quantized<C: Scalar, N: Size>(
     #[comptime] config: &FuseBlockConfig,
     #[comptime] scheme: QuantScheme,
 ) -> Vector<C, N> {
-    match arg {
-        FuseArg::Input(pos, _precision, _layout) => {
-            let global = inputs.tensors.index(pos);
+    read_quantized_at::<C, N>(
+        inputs,
+        locals,
+        ref_pos * locals.ref_vector_size,
+        arg,
+        config,
+        scheme,
+    )
+}
 
-            let offset =
-                index_offset_with_quant_layout(global, locals, ref_pos, config.rank, scheme);
-            let val = global.tensor[offset];
-            Vector::cast_from(val)
-        }
-        _ => panic!("Not supported"),
-    }
+/// Reads a single packed quantized value for the logical tensor position.
+#[cube]
+pub fn read_quantized_scalar<C: Scalar>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    position: usize,
+    #[comptime] arg: FuseArg,
+    #[comptime] config: &FuseBlockConfig,
+    #[comptime] scheme: QuantScheme,
+) -> C {
+    let value = read_quantized_at::<C, Const<1>>(inputs, locals, position, arg, config, scheme);
+    value.extract(0usize)
 }
 
 /// Reads a global scalar.
@@ -297,6 +329,9 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
     let tensor_len = tensor.tensor.len();
     let rank = config.rank;
     let layout = match level {
+        QuantLevel::BlockTensor { .. } => {
+            unimplemented!("two-level quantization is not supported yet")
+        }
         QuantLevel::Tensor => ScalesLayout::new_PerTensor(PerTensorLayout::new(tensor_len)),
         QuantLevel::Block(block_size) => {
             let block_size = comptime![block_size.to_dim_vec(rank)];
@@ -351,7 +386,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
                     comptime![shape.clone()],
                 );
                 let index = reshaped_index_to_original_index(&tensor.tensor, index, config.rank);
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
             }
         }
         Some(Transform::SwapDims(dim1, dim2)) => {
@@ -363,7 +398,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
             }
         }
         None => {
@@ -373,7 +408,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
             }
         }
     }
@@ -502,10 +537,11 @@ fn write_output_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let idx = offset + i * stride;
-                let val = if comptime![value.vector_size() == config.width] {
+                let vec = value.vector_size();
+                let val = if comptime![vec == config.width] {
                     Vector::cast_from(value.extract(i))
                 } else {
-                    Vector::cast_from(value.extract(i % value.vector_size()))
+                    Vector::cast_from(value.extract(i % value.vector_size().comptime()))
                 };
                 output.tensor[idx] = val;
             }
@@ -531,10 +567,11 @@ fn write_output_aligned<C: Scalar, N: Size>(
                 );
                 let output = outputs.tensors.index_mut(pos);
 
-                let val = if comptime![value.vector_size() == config.width] {
+                let vec = value.vector_size();
+                let val = if comptime![vec == config.width] {
                     Vector::cast_from(value.extract(i))
                 } else {
-                    Vector::cast_from(value.extract(i % value.vector_size()))
+                    Vector::cast_from(value.extract(i % value.vector_size().comptime()))
                 };
                 output.tensor[offset] = val;
             }
@@ -866,7 +903,11 @@ pub(crate) fn reverse_index(
 #[allow(unused_variables)]
 #[cube]
 fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
-    intrinsic!(|scope| { Value::constant(value.into(), C::__expand_as_type(scope)).into() })
+    intrinsic!(|scope| {
+        let val: NativeExpand<C::Scalar> =
+            ExpandValue::constant(value.into(), C::Scalar::elem_type(scope)).into();
+        C::__expand_cast_from(scope, val)
+    })
 }
 
 #[cube]
@@ -874,6 +915,6 @@ fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
 pub(crate) fn set_polyfill_typed<C: CubePrimitive, Dyn: Scalar, DynSize: Size>() {
     intrinsic!(|scope| {
         let elem_type = C::__expand_as_type(scope);
-        set_polyfill::expand::<Dyn, DynSize>(scope, elem_type);
+        scope.register_value_type::<Dyn, DynSize>(elem_type);
     })
 }

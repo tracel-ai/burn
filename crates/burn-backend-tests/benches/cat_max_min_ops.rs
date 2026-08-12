@@ -10,10 +10,11 @@ mod common;
 use common::BencherExt;
 
 use burn_tensor::{Bool, Int, Tensor, TensorData, ops::GridSampleOptions};
-use divan::{AllocProfiler, Bencher};
+use divan::Bencher;
 
+#[cfg(not(feature = "bench-disable-alloc"))]
 #[global_allocator]
-static ALLOC: AllocProfiler = AllocProfiler::system();
+static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Benchmarks for cat, max/min, int power, bool select, grid_sample_2d");

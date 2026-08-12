@@ -9,7 +9,7 @@ use crate::{
 };
 use cubecl::{
     Runtime,
-    ir::{ElemType, FloatKind, StorageType},
+    ir::{ElemType, FloatKind},
     prelude::*,
     server::LaunchError,
 };
@@ -76,9 +76,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                     reduce_count,
                     axis: self.reduce_axis,
                     dtypes: ReduceDtypes {
-                        input: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-                        output: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-                        accumulation: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
+                        input: ElemType::Float(FloatKind::F32),
+                        output: ElemType::Float(FloatKind::F32),
+                        accumulation: ElemType::Float(FloatKind::F32),
                     },
                     address_type,
                     // We assume at least one block.
@@ -88,6 +88,12 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                     vectorization_mode: VectorizationMode::Parallel,
                     vector_size_input: first_config.width,
                     vector_size_output: 1,
+                    // Fused-reduce selection is cached per anchored key, so
+                    // the unchecked comptime fast paths are never stable here.
+                    unchecked_fast_paths: false,
+                    // The fused read runs the trace, which may write
+                    // materialized intermediates to global outputs.
+                    fuse_on_read: true,
                 },
                 BlueprintStrategy::Inferred(UnitStrategy),
             )

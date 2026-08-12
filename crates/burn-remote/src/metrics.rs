@@ -1,31 +1,23 @@
-//! Network-traffic savings metric for the remote backend's op-graph caching (fusion).
+//! Logs op-graph caching (fusion) savings as `[remote ...]` lines, gated behind the runtime log
+//! level (`[remote]` in `burn.toml`, or `BURN_REMOTE_LOG`). A best-effort [`TelemetryProbe`]
+//! subscriber; client and server each run their own, distinguished by a [`MetricSide`] label.
 //!
-//! Each replay of a cached graph carries only its per-invocation bindings instead of the full op
-//! stream a non-fusion peer would re-send every time. A [`TrafficMetrics`] accumulator tracks how
-//! many bytes that saves — and, at `full` log level, how many ops run fused (via cached graphs) vs
-//! unfused (streamed one-by-one) — and logs it via [`log_remote`], when remote logging is enabled
-//! (`[remote]` section in `burn.toml`, or `BURN_REMOTE_LOG`).
-//!
-//! The accumulator is held per endpoint rather than in process globals: the client keeps one in its
-//! per-device service (`RemoteService`) and the server keeps one per session (`SessionHandler`), so
-//! each side measures its own traffic. Both sides see the same byte counts — they serialize and
-//! deserialize the same IR — so one type serves both, distinguished only by a [`MetricSide`] label
-//! in the log lines.
-//!
-//! All work is gated behind the runtime log level, so a disabled metric costs only one config read
-//! and adds nothing to the hot path.
+//! [`TelemetryProbe`]: crate::telemetry::TelemetryProbe
 
 use core::fmt;
-use std::collections::HashMap;
 
-use burn_ir::{GraphBindings, GraphId, OperationIr};
+use burn_ir::GraphId;
 use burn_std::config::config;
 use burn_std::config::log_remote;
 use burn_std::config::remote::RemoteLogLevel;
 
+use crate::telemetry::{
+    OpClass, TelemetryEvent, TelemetryProbe, TelemetrySubscription, TrafficAggregator,
+};
+
 const MIB: u64 = 1024 * 1024;
 
-/// Which side of the connection an accumulator measures, used only to label its log lines.
+/// Which side of the connection a logger reports, used to label its log lines.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum MetricSide {
     /// The client: bytes it would have sent vs. bytes it actually sent.
@@ -43,117 +35,66 @@ impl fmt::Display for MetricSide {
     }
 }
 
-/// What a registered graph is worth, to value its replays.
-struct GraphInfo {
-    /// Serialized size (bytes), re-sent on every replay by a non-fusion peer.
-    bytes: usize,
-    /// Number of operations the graph fuses into a single cached unit.
-    ops: usize,
-}
-
-/// Accumulates the network-traffic savings of op-graph caching for one endpoint.
-///
-/// Not shared and not global: each instance is owned by the single thread that records into it (the
-/// client's device-runner thread, or a server session's worker thread), so it needs no locking or
-/// atomics.
-pub(crate) struct TrafficMetrics {
-    /// Whether this accumulator measures the client or the server end, for log labelling.
+/// A best-effort telemetry subscriber that logs op-graph caching savings.
+pub(crate) struct TelemetryLogger {
     side: MetricSide,
-    /// Per-registered-graph size and op count, to value each replay.
-    graphs: HashMap<GraphId, GraphInfo>,
-    /// Bytes a non-fusion peer would have streamed for the covered work (the serialized graph,
-    /// counted once per replay).
-    baseline: u64,
-    /// Bytes actually moved: each graph once, plus the bindings of every replay.
-    actual: u64,
+    aggregator: TrafficAggregator,
     /// Highest whole-MiB savings already reported, so `Basic` logging emits at most one line per
     /// additional mebibyte saved instead of one per replay.
     logged_mib: u64,
-    /// Ops executed via cached graphs, counted on every graph execution (including replays).
-    fused_ops: u64,
-    /// Ops executed one-by-one, outside any cached graph.
-    unfused_ops: u64,
-    /// Unfused ops seen since the last graph execution — the run of unfused ops immediately
-    /// preceding the next graph. Reset each time a graph executes.
-    unfused_before_graph: u64,
 }
 
-impl TrafficMetrics {
-    /// A fresh accumulator for the given side of the connection.
+impl TelemetryLogger {
     pub(crate) fn new(side: MetricSide) -> Self {
         Self {
             side,
-            graphs: HashMap::new(),
-            baseline: 0,
-            actual: 0,
+            aggregator: TrafficAggregator::default(),
             logged_mib: 0,
-            fused_ops: 0,
-            unfused_ops: 0,
-            unfused_before_graph: 0,
         }
     }
 
-    /// Record one operation executed outside any cached graph (an unfused op).
-    pub(crate) fn record_unfused_op(&mut self) {
-        if level() == RemoteLogLevel::Disabled {
-            return;
-        }
-        self.unfused_ops += 1;
-        self.unfused_before_graph += 1;
+    /// Whether remote logging is configured.
+    pub(crate) fn enabled() -> bool {
+        level() != RemoteLogLevel::Disabled
     }
 
-    /// Record that `graph` was registered once under `id` (the one-time cost of caching it).
-    pub(crate) fn record_registration(&mut self, id: GraphId, graph: &[OperationIr]) {
-        if level() == RemoteLogLevel::Disabled {
-            return;
+    /// Drain and log until the probe's senders are dropped.
+    pub(crate) async fn run(mut self, mut events: TelemetrySubscription) {
+        while let Some(event) = events.recv().await {
+            self.aggregator.apply(&event);
+            match event.as_ref() {
+                TelemetryEvent::GraphRegistered {
+                    graph, ops, bytes, ..
+                } => self.log_registration(*graph, ops.len(), *bytes),
+                TelemetryEvent::GraphExecuted { .. } => self.log_progress(),
+                _ => {}
+            }
         }
+    }
 
-        let bytes = serialized_len(&graph);
-        let ops = graph.len();
-        self.graphs.insert(id, GraphInfo { bytes, ops });
-        self.actual += bytes as u64;
-
+    fn log_registration(&self, graph: GraphId, ops: usize, bytes: usize) {
         let side = self.side;
         log_remote(RemoteLogLevel::Full, || {
-            format!("[remote {side}] registered graph {id:?}: {ops} ops, {bytes} bytes (sent once)")
+            format!(
+                "[remote {side}] registered graph {graph:?}: {ops} ops, {bytes} bytes (sent once)"
+            )
         });
     }
 
-    /// Record a replay of graph `id`: only `bindings` moved instead of the full graph.
-    pub(crate) fn record_execution(&mut self, id: GraphId, bindings: &GraphBindings) {
-        if level() == RemoteLogLevel::Disabled {
-            return;
-        }
-
-        let bindings_size = serialized_len(bindings);
-        let (graph_bytes, graph_ops) = self
-            .graphs
-            .get(&id)
-            .map(|g| (g.bytes, g.ops))
-            .unwrap_or((0, 0));
-
-        self.actual += bindings_size as u64;
-        self.baseline += graph_bytes as u64;
-        self.fused_ops += graph_ops as u64;
-
-        let saved = self.baseline.saturating_sub(self.actual);
-        let saved_pct = percentage(saved, self.baseline);
-
-        // The run of unfused ops leading up to this graph; reset for the next run.
-        let unfused_before = self.unfused_before_graph;
-        self.unfused_before_graph = 0;
-
+    fn log_progress(&mut self) {
+        let snapshot = self.aggregator.snapshot();
+        let saved = snapshot.saved();
+        let saved_pct = percentage(saved, snapshot.baseline);
         let side = self.side;
 
         if level() >= RemoteLogLevel::Full {
-            let total_ops = self.fused_ops + self.unfused_ops;
-            let fused_pct = percentage(self.fused_ops, total_ops);
+            let fused_pct = percentage(snapshot.fused_ops, snapshot.total_ops());
+            let breakdown = format_unfused_by_kind(&self.aggregator.unfused_by_kind());
             log_remote(RemoteLogLevel::Full, || {
                 format!(
-                    "[remote {side}] replayed graph {id:?}: {bindings_size} bytes instead of \
-                     ~{graph_bytes}; cumulative saved {saved} bytes ({saved_pct:.1}% of baseline); \
-                     graph {graph_ops} ops, {unfused_before} unfused before it; \
-                     fused {fused_pct:.1}% of {total_ops} ops total"
+                    "[remote {side}] op-graph caching saved {saved} bytes ({saved_pct:.1}% of \
+                     baseline); fused {fused_pct:.1}% of {} ops total; unfused by kind: [{breakdown}]",
+                    snapshot.total_ops()
                 )
             });
         } else {
@@ -172,14 +113,28 @@ impl TrafficMetrics {
     }
 }
 
+/// The logger's drain loop for `probe`, or `None` when remote logging is off. Spawn it detached.
+pub(crate) fn logger_task(
+    probe: &TelemetryProbe,
+    side: MetricSide,
+) -> Option<impl core::future::Future<Output = ()> + Send + 'static> {
+    if !TelemetryLogger::enabled() {
+        return None;
+    }
+    let subscription = probe.subscribe()?;
+    Some(TelemetryLogger::new(side).run(subscription))
+}
+
 fn level() -> RemoteLogLevel {
     config().remote().logger.level
 }
 
-fn serialized_len<T: serde::Serialize>(value: &T) -> usize {
-    rmp_serde::to_vec(value)
-        .map(|bytes| bytes.len())
-        .unwrap_or(0)
+fn format_unfused_by_kind(entries: &[(OpClass, u64)]) -> String {
+    entries
+        .iter()
+        .map(|(kind, count)| format!("{}={count}", kind.label()))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// `part` as a percentage of `whole`. Zero when `whole` is 0 (nothing measured yet), so the first

@@ -1,9 +1,6 @@
 use std::net::SocketAddr;
 
-use crate::{
-    base::{CommunicationChannel, CommunicationError, Message, ProtocolServer},
-    util::init_logging,
-};
+use crate::base::{CommunicationChannel, CommunicationError, Message, ProtocolServer};
 use axum::{
     Router,
     extract::{
@@ -12,7 +9,31 @@ use axum::{
     },
     routing::get,
 };
-use futures::StreamExt;
+use futures::{
+    SinkExt, StreamExt,
+    stream::{SplitSink, SplitStream},
+};
+use tracing_core::{Level, LevelFilter};
+use tracing_subscriber::{
+    Layer, filter::filter_fn, layer::SubscriberExt, registry, util::SubscriberInitExt,
+};
+
+fn init_logging() {
+    let layer = tracing_subscriber::fmt::layer()
+        .with_filter(LevelFilter::INFO)
+        .with_filter(filter_fn(|m| {
+            if let Some(path) = m.module_path() {
+                // The wgpu crate is logging too much, so we skip `info` level.
+                if path.starts_with("wgpu") && *m.level() >= Level::INFO {
+                    return false;
+                }
+            }
+            true
+        }));
+
+    // If we start multiple servers in the same process, this will fail, it's ok
+    let _ = registry().with(layer).try_init();
+}
 
 #[derive(Clone, Debug)]
 pub struct WsServer {
@@ -154,6 +175,63 @@ impl CommunicationChannel for WsServerChannel {
     }
 }
 
+impl WsServerChannel {
+    /// Split into independently-owned send and receive halves, so a writer task and a reader loop
+    /// can run concurrently over one full-duplex socket.
+    pub fn split(self) -> (WsServerSink, WsServerStream) {
+        let (sink, stream) = self.inner.split();
+        (
+            WsServerSink { inner: sink },
+            WsServerStream { inner: stream },
+        )
+    }
+}
+
+/// Send half of a split [`WsServerChannel`].
+pub struct WsServerSink {
+    inner: SplitSink<WebSocket, ws::Message>,
+}
+
+impl WsServerSink {
+    pub async fn send(&mut self, message: Message) -> Result<(), WsServerError> {
+        self.inner.send(ws::Message::Binary(message.data)).await?;
+        Ok(())
+    }
+
+    pub async fn close(&mut self) -> Result<(), WsServerError> {
+        self.inner
+            .send(ws::Message::Close(Some(ws::CloseFrame {
+                code: 1000, // Normal
+                reason: "Peer is closing".to_string().into(),
+            })))
+            .await?;
+        Ok(())
+    }
+}
+
+/// Receive half of a split [`WsServerChannel`].
+pub struct WsServerStream {
+    inner: SplitStream<WebSocket>,
+}
+
+impl WsServerStream {
+    /// Mirrors [`WsServerChannel::recv`]: surface binary frames, skip keepalive/text frames, and
+    /// treat a close frame or an exhausted stream as a clean end-of-stream.
+    pub async fn recv(&mut self) -> Result<Option<Message>, WsServerError> {
+        loop {
+            match self.inner.next().await {
+                Some(Ok(ws::Message::Binary(data))) => return Ok(Some(Message { data })),
+                Some(Ok(ws::Message::Close(_close_frame))) => return Ok(None),
+                Some(Ok(ws::Message::Ping(_) | ws::Message::Pong(_) | ws::Message::Text(_))) => {
+                    continue;
+                }
+                Some(Err(err)) => return Err(WsServerError::Axum(err)),
+                None => return Ok(None),
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum WsServerError {
     Io(std::io::Error),
@@ -175,3 +253,16 @@ impl From<axum::Error> for WsServerError {
         Self::Axum(err)
     }
 }
+
+impl core::fmt::Display for WsServerError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Io(err) => write!(f, "io error: {err}"),
+            Self::Axum(err) => write!(f, "websocket error: {err}"),
+            Self::UnknownMessage(msg) => write!(f, "unknown message: {msg}"),
+            Self::Other(msg) => write!(f, "{msg}"),
+        }
+    }
+}
+
+impl std::error::Error for WsServerError {}

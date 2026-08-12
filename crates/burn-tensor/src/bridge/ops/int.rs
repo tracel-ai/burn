@@ -85,15 +85,13 @@ impl BasicOps for Int {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::int(Dispatch::int_select_add(
-                tensor.into(),
-                dim,
-                indices.into(),
-                values.into(),
-            )),
-            _ => unimplemented!(),
-        }
+        BridgeTensor::int(Dispatch::int_select_assign(
+            tensor.into(),
+            dim,
+            indices.into(),
+            values.into(),
+            update,
+        ))
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
@@ -108,6 +106,10 @@ impl BasicOps for Int {
         BridgeTensor::int(Dispatch::int_mask_fill(tensor.into(), mask.into(), value))
     }
 
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::int(Dispatch::int_mask_select(tensor.into(), mask.into()).await)
+    }
+
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_gather(dim, tensor.into(), indices.into()))
     }
@@ -119,15 +121,13 @@ impl BasicOps for Int {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::int(Dispatch::int_scatter_add(
-                dim,
-                tensor.into(),
-                indices.into(),
-                values.into(),
-            )),
-            _ => unimplemented!(),
-        }
+        BridgeTensor::int(Dispatch::int_scatter(
+            dim,
+            tensor.into(),
+            indices.into(),
+            values.into(),
+            update,
+        ))
     }
 
     fn scatter_nd(
@@ -181,12 +181,12 @@ impl BasicOps for Int {
         BridgeTensor::int(Dispatch::int_not_equal(lhs.into(), rhs.into(), bool_dtype))
     }
 
-    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::int(Dispatch::int_equal_elem(lhs.into(), rhs, bool_dtype))
     }
 
-    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn not_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::int(Dispatch::int_not_equal_elem(lhs.into(), rhs, bool_dtype))
     }
@@ -287,9 +287,19 @@ impl Numeric for Int {
     }
 
     fn mean(tensor: BridgeTensor) -> BridgeTensor {
+        // A float mean of nothing is `NaN`; an integer has no such value. Checked here rather than
+        // in `int_mean` so a backend that overrides it cannot report an arbitrary number instead.
+        assert!(
+            tensor.shape().num_elements() > 0,
+            "Cannot compute mean of an empty int tensor"
+        );
         BridgeTensor::int(Dispatch::int_mean(tensor.into()))
     }
     fn mean_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        assert!(
+            tensor.shape()[dim] > 0,
+            "Cannot compute mean of an empty axis for an int tensor"
+        );
         BridgeTensor::int(Dispatch::int_mean_dim(tensor.into(), dim))
     }
     fn cumsum(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
@@ -372,7 +382,7 @@ impl Ordered for Int {
         BridgeTensor::int(Dispatch::int_greater(lhs.into(), rhs.into(), bool_dtype))
     }
 
-    fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn greater_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::int_greater_elem(lhs.into(), rhs, bool_dtype))
     }
@@ -386,7 +396,7 @@ impl Ordered for Int {
         ))
     }
 
-    fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn greater_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::int_greater_equal_elem(
             lhs.into(),
@@ -400,7 +410,7 @@ impl Ordered for Int {
         BridgeTensor::bool(Dispatch::int_lower(lhs.into(), rhs.into(), bool_dtype))
     }
 
-    fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn lower_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::int_lower_elem(lhs.into(), rhs, bool_dtype))
     }
@@ -414,7 +424,7 @@ impl Ordered for Int {
         ))
     }
 
-    fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    fn lower_equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::int_lower_equal_elem(lhs.into(), rhs, bool_dtype))
     }
@@ -429,6 +439,15 @@ impl Ordered for Int {
 
     fn topk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_topk(tensor.into(), dim, k))
+    }
+
+    fn topk_with_indices(
+        tensor: BridgeTensor,
+        dim: usize,
+        k: usize,
+    ) -> (BridgeTensor, BridgeTensor) {
+        let (values, indices) = Dispatch::int_topk_with_indices(tensor.into(), dim, k);
+        (BridgeTensor::int(values), BridgeTensor::int(indices))
     }
 
     fn argmin(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
