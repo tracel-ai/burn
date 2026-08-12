@@ -514,19 +514,14 @@ impl TensorMetadata for DispatchTensor {
         #[allow(unused_mut)]
         let mut device = self.kind.device();
 
-        // TODO: should int and bool kinds return an autodiff device?
-        // It would be much easier once there is a single underlying primitive type, which
-        // we can wrap with Autodiff in all cases.
-
         #[cfg(feature = "autodiff")]
         if let Some(checkpointing) = &self.checkpointing {
-            // A packed (quantized) tensor is float-kind data that travels beside
-            // the tape untracked, so its device is the autodiff one: whatever is
-            // built from it — its dequantized form, LoRA factors over it — must
-            // land on the tape.
-            if matches!(self.dtype(), DType::QFloat(_))
-                && !matches!(device, DispatchDevice::Autodiff(_))
-            {
+            // Non-differentiable tensors travel beside the tape as pass-through
+            // primitives. Their checkpointing metadata still associates them with
+            // the autodiff backend, so report that context consistently. This lets
+            // derived floats (masks, one-hot labels, dequantized weights, etc.) mix
+            // with tracked tensors without silently changing backend identity.
+            if !matches!(device, DispatchDevice::Autodiff(_)) {
                 device = DispatchDevice::autodiff(device);
             }
             if let DispatchDevice::Autodiff(device) = &mut device {

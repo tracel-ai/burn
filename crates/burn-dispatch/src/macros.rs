@@ -1247,7 +1247,10 @@ macro_rules! multi_op_arms {
         $( [$Backend:ident, $cfg:meta] ),*
     ) => {{
         let first_input = &first_input!($inputs);
-        let context = dispatch_context!($inputs, $opt_inputs, true);
+        // Int/bool/quantized primitives are pass-through values for Autodiff<B>.
+        // They execute on B while retaining their autodiff association. This is
+        // distinct from an explicitly `base` operation, which rejects that context.
+        let context = dispatch_context!($inputs, $opt_inputs, false);
         let checkpointing = context.checkpointing();
 
         match first_input.kind {
