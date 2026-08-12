@@ -354,10 +354,6 @@ pub enum ModuleOperationIr {
 }
 
 /// Basic operations that can be done on any tensor type.
-/// Inference batch normalization with precomputed running statistics.
-///
-/// This operation neither calculates batch statistics nor updates the supplied
-/// mean and variance.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BaseOperationIr {
     /// Operation corresponding to:
