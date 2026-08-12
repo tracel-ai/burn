@@ -10,9 +10,13 @@
 //! Higher layers (e.g. `burn-core`) bridge between [`Tensor`] entries and their own
 //! tensor/snapshot types.
 //!
-//! Write a pack with [`Writer`], read one with [`Reader`]; both operate on [`Tensor`]
-//! entries that carry the format-level metadata plus a lazy provider of the raw
-//! little-endian bytes.
+//! Write a pack with [`Writer`], read one with [`Reader`]. A [`Reader`] hands back
+//! [`Tensor`] entries carrying the format-level metadata plus the raw little-endian bytes,
+//! read lazily from the source. A [`Writer`] accepts anything implementing [`TensorEntry`];
+//! [`Tensor`] is the implementation for bytes that are already resident. A caller that
+//! knows a tensor's byte length without holding its data (a module snapshot, an ONNX
+//! initializer) can implement [`TensorEntry`] to write a model larger than host memory -
+//! see that trait for the contract.
 //!
 //! ```
 //! use burn_pack::{Bytes, DType, Reader, Tensor, Writer};
@@ -119,7 +123,7 @@ pub use base::{
     TENSOR_ALIGNMENT, aligned_data_section_start,
 };
 pub use reader::Reader;
-pub use tensor::Tensor;
+pub use tensor::{Tensor, TensorEntry};
 pub use writer::Writer;
 
 /// The canonical file extension for burnpack files (without the leading dot).

@@ -306,7 +306,8 @@ impl core::fmt::Debug for TensorSnapshot {
 mod tests {
     use super::*;
     use alloc::string::ToString;
-    use burn_core::tensor::{BoolStore, Device, shape};
+    use burn_core::tensor::quantization::QuantScheme;
+    use burn_core::tensor::{BoolStore, Device, Distribution, shape};
 
     #[test]
     fn tensor_view_float() {
@@ -412,6 +413,43 @@ mod tests {
         );
         let dtype: DType = settings.bool_dtype.into();
         assert_eq!(view_bool.data_len(), 4 * dtype.size()); // 4 elements * 1 byte
+    }
+
+    /// `data_len()` is computed from the cached shape and dtype rather than observed, and
+    /// callers such as the burnpack writer reserve exactly that many bytes before ever
+    /// calling `to_data()`. A disagreement would silently misplace everything written after
+    /// this tensor, so pin the two together for every dtype family.
+    #[test]
+    fn data_len_matches_materialized_bytes() {
+        let device = Device::default();
+
+        let floats = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let ints = Tensor::<2, Int>::from_data([[1, 2], [3, 4]], &device);
+        let bools = Tensor::<2, Bool>::from_data([[true, false], [false, true]], &device);
+        // Quantized is the one case where `data_len()` reconstructs the layout (packed
+        // values, alignment padding, then scales) instead of deriving it from an element
+        // count, so it is the most likely place for the two to drift apart.
+        let quantized = Tensor::<2>::random(shape![32, 32], Distribution::Default, &device)
+            .quantize_dynamic(&QuantScheme::default());
+
+        let path = |name: &str| vec![name.to_string()];
+        let snapshots = [
+            TensorSnapshot::from_float(&floats, path("float"), vec![], ParamId::new()),
+            TensorSnapshot::from_int(&ints, path("int"), vec![], ParamId::new()),
+            TensorSnapshot::from_bool(&bools, path("bool"), vec![], ParamId::new()),
+            TensorSnapshot::from_float(&quantized, path("quantized"), vec![], ParamId::new()),
+        ];
+
+        for snapshot in snapshots {
+            let declared = snapshot.data_len();
+            let actual = snapshot.to_data().unwrap().bytes.len();
+            assert_eq!(
+                declared,
+                actual,
+                "data_len() disagrees with to_data() for {}",
+                snapshot.full_path()
+            );
+        }
     }
 
     #[test]

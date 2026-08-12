@@ -112,7 +112,7 @@ fn param_id_present_and_absent() {
 
 #[test]
 fn empty_pack() {
-    let packed = Writer::new(vec![]).into_bytes().unwrap();
+    let packed = Writer::<Tensor>::new(vec![]).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
     assert!(reader.tensor_names().is_empty());
     assert!(reader.into_tensors().unwrap().is_empty());

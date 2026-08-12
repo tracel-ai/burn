@@ -2,7 +2,7 @@ use super::base::{
     Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, Metadata, Scalar, TENSOR_ALIGNMENT,
     TensorDescriptor, aligned_data_section_start,
 };
-use super::tensor::Tensor;
+use super::tensor::{Tensor, TensorEntry};
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -35,19 +35,23 @@ const fn align_offset(offset: u64, alignment: u64) -> u64 {
 /// so each window starts on an aligned device offset.
 const WRITE_CHUNK_SIZE: usize = 8 * 1024 * 1024;
 
-/// Writer for creating Burnpack files
-pub struct Writer {
+/// Writer for creating Burnpack files.
+///
+/// Generic over the [`TensorEntry`] implementation supplying the tensors; the default,
+/// [`Tensor`], carries bytes that are already resident. See [`TensorEntry`] for how to
+/// supply tensors that materialize one at a time instead.
+pub struct Writer<T: TensorEntry = Tensor> {
     /// Tensors to write
-    pub(crate) tensors: Vec<Tensor>,
+    pub(crate) tensors: Vec<T>,
     /// Metadata key-value pairs
     pub(crate) metadata: BTreeMap<String, String>,
     /// Typed scalars keyed by name
     pub(crate) scalars: BTreeMap<String, Scalar>,
 }
 
-impl Writer {
+impl<T: TensorEntry> Writer<T> {
     /// Create a new writer
-    pub fn new(tensors: Vec<Tensor>) -> Self {
+    pub fn new(tensors: Vec<T>) -> Self {
         Self {
             tensors,
             metadata: BTreeMap::new(),
@@ -200,7 +204,7 @@ impl Writer {
         let mut current_offset = 0u64;
 
         for tensor in &self.tensors {
-            let data_len = tensor.bytes.len() as u64;
+            let data_len = tensor.byte_len() as u64;
 
             // Align the start offset for mmap zero-copy support.
             let aligned_start = align_offset(current_offset, TENSOR_ALIGNMENT);
@@ -216,19 +220,19 @@ impl Writer {
             // descriptor while still writing two data blocks, corrupting the container.
             if tensors
                 .insert(
-                    tensor.name.clone(),
+                    tensor.name().to_string(),
                     TensorDescriptor {
-                        dtype: tensor.dtype,
-                        shape: tensor.shape.iter().map(|&s| s as u64).collect(),
+                        dtype: tensor.dtype(),
+                        shape: tensor.shape().iter().map(|&s| s as u64).collect(),
                         data_offsets: (aligned_start, end),
-                        param_id: tensor.param_id,
+                        param_id: tensor.param_id(),
                     },
                 )
                 .is_some()
             {
                 return Err(Error::ValidationError(format!(
                     "Duplicate tensor name '{}'",
-                    tensor.name
+                    tensor.name()
                 )));
             }
 
@@ -267,72 +271,86 @@ impl Writer {
                 data_offset = aligned_offset;
             }
 
-            Self::write_tensor_data(&data, sink)?;
+            write_tensor_data(&data, sink)?;
             data_offset += data.len();
         }
 
         Ok(())
     }
 
-    /// Stream a single tensor's bytes into `sink`, materializing at most
-    /// [`WRITE_CHUNK_SIZE`] bytes at a time.
+    /// Look up a tensor's aligned offset from the metadata, materialize its bytes, and
+    /// validate that they match the length the descriptor reserved for it.
     ///
-    /// When the backing supports zero-copy windows — device-resident
-    /// ([lazy](burn_std::Bytes) device readback), file, or shared buffers — each
-    /// chunk is taken as a [`Bytes::view`] and read just-in-time, then dropped
-    /// before the next one. A large device tensor is therefore copied to host in
-    /// bounded pieces rather than through one big (pinned) staging buffer, so the
-    /// whole tensor never has to be resident at once.
-    ///
-    /// Backings without a zero-copy window (e.g. a plain heap `Vec`) are already
-    /// host-resident, so [`Bytes::view`] reports it can't window them and the
-    /// remaining bytes are written in a single pass.
-    fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
-        let len = data.len();
-        let mut offset = 0;
-
-        while offset < len {
-            let end = (offset + WRITE_CHUNK_SIZE).min(len);
-            match data.view(offset, end) {
-                Ok(chunk) => {
-                    sink.write(&chunk)?;
-                    offset = end;
-                }
-                // No zero-copy window available (already host-resident): write
-                // whatever remains in one shot. View support is a property of the
-                // backing, so this only ever happens on the first iteration.
-                Err(_) => {
-                    sink.write(&data[offset..])?;
-                    break;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Look up a tensor's aligned offset from the metadata and validate that its
-    /// bytes match the length the descriptor reserved for it.
-    fn resolve_tensor(tensor: Tensor, metadata: &Metadata) -> Result<(usize, Bytes), Error> {
-        let descriptor = metadata.tensors.get(&tensor.name).ok_or_else(|| {
-            Error::IoError(format!(
-                "Internal error: tensor '{}' not found in metadata",
-                tensor.name
-            ))
-        })?;
+    /// The length check is what keeps a lazy entry honest: the descriptor was written from
+    /// [`TensorEntry::byte_len`] long before these bytes existed, so a provider that
+    /// reports one size and produces another would silently corrupt the container.
+    fn resolve_tensor(tensor: T, metadata: &Metadata) -> Result<(usize, Bytes), Error> {
+        // Take the name back out of the metadata rather than off the tensor: it then borrows
+        // `metadata`, so it survives the `into_bytes` move below without being cloned.
+        let (name, descriptor) = metadata
+            .tensors
+            .get_key_value(tensor.name().as_ref())
+            .ok_or_else(|| {
+                Error::IoError(format!(
+                    "Internal error: tensor '{}' not found in metadata",
+                    tensor.name()
+                ))
+            })?;
 
         let (start, end) = descriptor.data_offsets;
         let declared_len = (end - start) as usize;
-        let actual_len = tensor.bytes.len();
+
+        let bytes = tensor.into_bytes()?;
+        let actual_len = bytes.len();
         if actual_len != declared_len {
             return Err(Error::TensorBytesSizeMismatch(format!(
                 "tensor '{}' has inconsistent length (expected {}, got {})",
-                tensor.name, declared_len, actual_len
+                name, declared_len, actual_len
             )));
         }
 
-        Ok((start as usize, tensor.bytes))
+        Ok((start as usize, bytes))
     }
+}
+
+/// Stream a single tensor's bytes into `sink`, materializing at most
+/// [`WRITE_CHUNK_SIZE`] bytes at a time.
+///
+/// When the backing supports zero-copy windows — device-resident
+/// ([lazy](burn_std::Bytes) device readback), file, or shared buffers — each
+/// chunk is taken as a [`Bytes::view`] and read just-in-time, then dropped
+/// before the next one. A large device tensor is therefore copied to host in
+/// bounded pieces rather than through one big (pinned) staging buffer, so the
+/// whole tensor never has to be resident at once.
+///
+/// Backings without a zero-copy window (e.g. a plain heap `Vec`) are already
+/// host-resident, so [`Bytes::view`] reports it can't window them and the
+/// remaining bytes are written in a single pass.
+///
+/// Free-standing rather than a method on [`Writer`]: it does not depend on the entry type,
+/// so this way it is compiled once per [`Sink`] instead of once per (entry type, sink) pair.
+fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
+    let len = data.len();
+    let mut offset = 0;
+
+    while offset < len {
+        let end = (offset + WRITE_CHUNK_SIZE).min(len);
+        match data.view(offset, end) {
+            Ok(chunk) => {
+                sink.write(&chunk)?;
+                offset = end;
+            }
+            // No zero-copy window available (already host-resident): write
+            // whatever remains in one shot. View support is a property of the
+            // backing, so this only ever happens on the first iteration.
+            Err(_) => {
+                sink.write(&data[offset..])?;
+                break;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// The computed on-disk layout of a burnpack container.
