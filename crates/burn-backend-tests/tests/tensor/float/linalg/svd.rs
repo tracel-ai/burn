@@ -587,10 +587,11 @@ fn test_svd_torch_reference() {
 // ---------------------------------------------------------------------
 
 #[test]
-fn test_svd_more_sweeps_improve_accuracy() {
-    // Fixed 16x16 input (dense random draw, seed 42). 1 sweep (16 QR steps)
-    // must not converge yet, 30 sweeps must; the host pipeline is
-    // deterministic so this is stable across backends and runs.
+fn test_svd_converges_with_enough_sweeps() {
+    // Fixed 16x16 input (dense random draw, seed 42). The documented
+    // contract: with a sufficient sweep budget the decomposition converges
+    // (no assertion on the reference pipeline's per-sweep behavior, since a
+    // backend override may ignore `sweeps` entirely and converge in one pass).
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data(
         [
@@ -661,14 +662,8 @@ fn test_svd_more_sweeps_improve_accuracy() {
         ],
         &device,
     );
-    let (u3, s3, vt3) = svd::<2, 1>(tensor.clone(), 1);
     let (u30, s30, vt30) = svd::<2, 1>(tensor.clone(), 30);
-    let err3 = recon_err::<2, 1>(tensor.clone(), u3, &s3, vt3);
     let err30 = recon_err::<2, 1>(tensor, u30, &s30, vt30);
-    assert!(
-        err3 > err30,
-        "more sweeps must improve accuracy: {err3} vs {err30}"
-    );
     assert!(err30 < abs_tol(), "30 sweeps must converge, err {err30}");
 }
 
@@ -785,7 +780,7 @@ fn test_svd_negative_det_2x2() {
     for a in [
         [[1.0f64, 2.0], [3.0, 4.0]],
         [[0.0f64, 1.0], [1.0, 0.0]],
-        [[-3.0f64, 1.0], [2.0, -1.0]],
+        [[1.0f64, 2.0], [2.0, 1.0]],
     ] {
         let tensor = TestTensor::<2>::from_data(a, &device);
         let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
@@ -816,7 +811,7 @@ fn test_svd_zero_m1_orthonormal() {
 
 #[test]
 #[ignore = "stress"]
-fn dbgt_stress() {
+fn stress_svd() {
     use burn_tensor::Distribution;
     let device = Default::default();
     let rel = 2e-4f32;
@@ -1020,7 +1015,7 @@ fn bench_svd_realistic() {
 
 #[test]
 #[ignore = "stress"]
-fn dbgt_find_bad_tall() {
+fn stress_find_bad_tall() {
     use burn_tensor::Distribution;
     let device = Default::default();
     let mut worst = (0.0f32, 0usize);

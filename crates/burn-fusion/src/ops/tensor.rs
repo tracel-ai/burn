@@ -180,6 +180,15 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor.into_data::<B>().await
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(
+        level="trace",
+        skip(tensor),
+        fields(
+            from = ?tensor.client.device(),
+            shape = ?tensor.shape,
+            dtype = ?tensor.dtype
+        )
+    ))]
     async fn float_svd(
         tensor: FloatTensor<Self>,
         sweeps: usize,

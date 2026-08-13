@@ -47,6 +47,7 @@ use burn_std::FloatDType;
 /// - The input tensor has less than 2 dimensions (`D < 2`).
 /// - The input is a quantized tensor with dtype `DType::QFloat`.
 /// - The generic parameters do not satisfy `D - 1 == D1`.
+/// - The input tensor requires gradients (SVD has no autodiff support yet; detach first).
 ///
 /// # Performance Note
 /// The computation is dispatched to the backend through
@@ -56,9 +57,7 @@ use burn_std::FloatDType;
 /// (`into_data` / `from_data`), which is deterministic and
 /// backend-independent, but the bidiagonalization is O(m n^2) scalar math.
 /// It is not competitive with tuned native libraries (e.g. cuSOLVER) for
-/// large matrices; at 128x128 it is within ~3x of them. On fused CUDA this
-/// is still ~200x faster than a tensor-op implementation of the same
-/// algorithm (which pays per-operation dispatch overhead).
+/// large matrices.
 ///
 /// # Numerical Behavior
 /// - If the input tensor has dtype F16 or BF16, it is internally upcast to
@@ -100,6 +99,9 @@ pub fn svd<const D: usize, const D1: usize>(
         &dims,
         original_dtype
     ));
+    if tensor.is_require_grad() {
+        panic!("linalg::svd: gradients are not implemented; detach the input tensor first");
+    }
 
     // Upcast f16/bf16 to f32 (same convention as `det`), cast back at the end.
     let needs_upcast = original_dtype == DType::F16 || original_dtype == DType::BF16;

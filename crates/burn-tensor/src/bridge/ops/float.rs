@@ -36,7 +36,7 @@ pub(crate) fn svd(
     match kind {
         BridgeKind::Float => {
             let (u, s, vt) = crate::try_read_sync(Dispatch::float_svd(tensor, sweeps, swap))
-                .expect("svd: failed to read the input tensor data")
+                .expect("svd: backend execution failed")
                 .expect("svd: backend error while reading the input tensor data");
             (
                 BridgeTensor::float(Dispatch::float_from_data(u, &device)),

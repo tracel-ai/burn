@@ -77,21 +77,22 @@ fn svd_host<F: Float + Copy + Send + Sync>(
     max_sweeps: usize,
     swap: bool,
 ) -> (Vec<F>, Vec<F>, Vec<F>) {
-    // Factor layouts depend on the orientation: without swap U is [m, n] and
-    // Vt is [n, n]; with swap (wide input) U is [n, n] and Vt is [m, n].
-    let (u_len, vt_len) = if swap { (n * n, m * n) } else { (m * n, n * n) };
-    let mut u = vec![F::zero(); batch * u_len];
-    let mut sigma = vec![F::zero(); batch * n];
-    let mut vt = vec![F::zero(); batch * vt_len];
-
     #[cfg(feature = "std")]
     if batch > 1 {
+        // Factor layouts depend on the orientation: without swap U is [m, n]
+        // and Vt is [n, n]; with swap (wide input) U is [n, n] and Vt is [m, n].
+        // Only the parallel path needs the preallocated buffers (it splits
+        // them up front); the serial path returns svd_host_seq's fresh Vecs
+        // directly.
+        let (u_len, vt_len) = if swap { (n * n, m * n) } else { (m * n, n * n) };
         // Thread spawn+join costs ~10-40us; a single 4x4 element is ~3us, so
         // parallelizing tiny batches makes them slower, not faster. Only
         // spawn when the total work is worth it (~64x64 serial is ~120us).
         // ponytail: element-count heuristic; a calibrated cost model could
-        // refine it, but m*n*batch is a solid proxy across shapes.
-        if batch * m * n >= 4096 {
+        // refine it, but m*n*batch is a solid proxy across shapes. The closed
+        // forms (n == 1, 2x2) are allocation-bound: spawning for e.g. 4096
+        // 1x1 elements is a net loss, so they stay serial.
+        if batch * m * n >= 4096 && !(n == 1 || (m == 2 && n == 2)) {
             // available_parallelism is a syscall (~40us); skip it for single
             // matrices where the threaded path is dead anyway.
             let threads = std::thread::available_parallelism()
@@ -100,6 +101,9 @@ fn svd_host<F: Float + Copy + Send + Sync>(
                 .min(batch)
                 .max(1);
             if threads > 1 {
+                let mut u = vec![F::zero(); batch * u_len];
+                let mut sigma = vec![F::zero(); batch * n];
+                let mut vt = vec![F::zero(); batch * vt_len];
                 // Round-robin over single batch elements: thread t handles
                 // elements t, t + threads, ... This uses all cores even when
                 // batch is not a multiple of threads (static contiguous
@@ -154,11 +158,7 @@ fn svd_host<F: Float + Copy + Send + Sync>(
         }
     }
 
-    let (tu, ts, tv) = svd_host_seq(a, m, n, batch, max_sweeps, swap);
-    u.copy_from_slice(&tu);
-    sigma.copy_from_slice(&ts);
-    vt.copy_from_slice(&tv);
-    (u, sigma, vt)
+    svd_host_seq(a, m, n, batch, max_sweeps, swap)
 }
 
 /// Single-threaded per-batch pipeline (shared by the parallel wrapper).
@@ -183,11 +183,19 @@ fn svd_host_seq<F: Float + Copy>(
         if n == 1 {
             // A is [m, 1] (wide inputs were transposed): the single singular
             // value is the column norm and U is the normalized column.
-            let mut s = F::zero();
-            for &t in ab.iter() {
-                s = s + t * t;
-            }
-            let sv = s.sqrt();
+            // Scaled norm (same pattern as bidiag_host): no overflow on
+            // entries up to f32::MAX.
+            let scale = ab.iter().fold(F::zero(), |m, &t| m.max(t.abs()));
+            let sv = if scale == F::zero() {
+                F::zero()
+            } else {
+                let mut s = F::zero();
+                for &t in ab.iter() {
+                    let u = t / scale;
+                    s = s + u * u;
+                }
+                scale * s.sqrt()
+            };
             sigma[b] = sv;
             for i in 0..m {
                 u[b * m * n + i * n] = if sv > F::zero() {
@@ -205,8 +213,11 @@ fn svd_host_seq<F: Float + Copy>(
         }
         if n == 2 && m == 2 {
             let (s0, s1, uu, vv) = svd2x2(ab);
+            // Mask numerical zeros like the general path: values at or below
+            // 10 * eps * sigma_max are returned as 0 (documented contract).
+            let mask = s0 * (F::epsilon() * F::from(10.0).unwrap());
             sigma[b * 2] = s0;
-            sigma[b * 2 + 1] = s1;
+            sigma[b * 2 + 1] = if s1 <= mask { F::zero() } else { s1 };
             u[b * 4..b * 4 + 4].copy_from_slice(&uu);
             vt[b * 4..b * 4 + 4].copy_from_slice(&vv);
             continue;
@@ -248,7 +259,7 @@ fn svd_host_seq<F: Float + Copy>(
                 v1[k1_v + i] = -sr * a0 + cr * b0;
             }
         }
-        let (ub, sb, vtb) = svd_postprocess(&u1t, &v1, &sigma_b, &d_final, m, n, 1, false);
+        let (ub, sb, vtb) = svd_postprocess(&u1t, &v1, &sigma_b, &d_final, m, n, 1);
         u[b * m * n..(b + 1) * m * n].copy_from_slice(&ub);
         sigma[b * n..(b + 1) * n].copy_from_slice(&sb);
         vt[b * n * n..(b + 1) * n * n].copy_from_slice(&vtb);
@@ -294,15 +305,15 @@ pub(crate) fn dbdsqr_host<F: Float + Copy>(
     (sigma, d, givens)
 }
 
-/// Sort the singular values descending, permute the factors, absorb the
-/// diagonal signs into U and apply the wide-input `swap` transposition.
+/// Sort the singular values descending, permute the factors and absorb the
+/// diagonal signs into U.
 ///
 /// Inputs are the transposed factor buffers (columns of U1 as rows of
 /// `u1t`, rows of V1 as rows of `v1t`), the raw diagonal `d` from dbdsqr
 /// (signs are absorbed into U) and the singular values. Output is the final
-/// row-major `(u, sigma, vt)` in the `linalg::svd` layout, with numerical
-/// zeros masked relative to `10 * eps * sigma_max`.
-#[allow(clippy::too_many_arguments)]
+/// row-major `(u, sigma, vt)` in the `linalg::svd` layout (the wide-input
+/// swap is applied by the caller), with numerical zeros masked relative to
+/// `10 * eps * sigma_max`.
 pub(crate) fn svd_postprocess<F: Float + Copy>(
     u1t: &[F],
     v1t: &[F],
@@ -311,7 +322,6 @@ pub(crate) fn svd_postprocess<F: Float + Copy>(
     m: usize,
     n: usize,
     batch: usize,
-    swap: bool,
 ) -> (Vec<F>, Vec<F>, Vec<F>) {
     let mut u = vec![F::zero(); batch * m * n];
     let mut sigma = sigma_in.to_vec();
@@ -359,27 +369,20 @@ pub(crate) fn svd_postprocess<F: Float + Copy>(
             sigma[b * n + i] = sorted[i];
         }
     }
-    if swap {
-        // The SVD was computed on A^T ([n, m]); the factors for the original
-        // wide A = Vt^T S U^T, so return u = Vt^T and vt = U^T (already
-        // permuted consistently with the sorted sigma).
-        let mut uf = vec![F::zero(); batch * n * n];
-        let mut vf = vec![F::zero(); batch * n * m];
-        for b in 0..batch {
-            for i in 0..n {
-                for j in 0..n {
-                    uf[(b * n + i) * n + j] = vt[(b * n + j) * n + i];
-                }
-            }
-            for i in 0..n {
-                for j in 0..m {
-                    vf[(b * n + i) * m + j] = u[b * m * n + j * n + i];
-                }
-            }
-        }
-        (uf, sigma, vf)
+    (u, sigma, vt)
+}
+
+/// Scaled Euclidean norm `sqrt(x^2 + y^2)` without overflow: rescale by the
+/// larger input first so the squares stay finite for entries up to f32::MAX
+/// (a plain `x*x + y*y` overflows past ~1.8e19).
+#[inline]
+fn scaled_norm2<F: Float + Copy>(x: F, y: F) -> F {
+    let scale = x.abs().max(y.abs());
+    if scale == F::zero() {
+        F::zero()
     } else {
-        (u, sigma, vt)
+        let (u, v) = (x / scale, y / scale);
+        scale * (u * u + v * v).sqrt()
     }
 }
 
@@ -403,18 +406,29 @@ fn svd2x2<F: Float + Copy>(a: &[F]) -> (F, F, [F; 4], [F; 4]) {
     let f2 = ct * f + st * h;
     let g2 = -st * e + ct * g;
     let h2 = -st * f + ct * h;
-    let s0 = (e2 * e2 + f2 * f2).sqrt();
-    let s1 = (g2 * g2 + h2 * h2).sqrt();
-    // Degenerate rows (σ = 0) fall back to a unit basis so U/Vt stay orthonormal.
+    let s0 = scaled_norm2(e2, f2);
+    let s1 = scaled_norm2(g2, h2);
+    // Degenerate rows (σ = 0): a zero row is replaced by the surviving row's
+    // orthogonal complement (or a unit basis when both rows are zero), so
+    // Vt stays orthonormal even for rank-deficient inputs.
     let (r0c, r0s) = if s0 > F::zero() {
         (e2 / s0, f2 / s0)
     } else {
-        (F::one(), F::zero())
+        (F::zero(), F::zero())
     };
     let (r1c, r1s) = if s1 > F::zero() {
         (g2 / s1, h2 / s1)
     } else {
-        (F::zero(), F::one())
+        (F::zero(), F::zero())
+    };
+    let (r0c, r0s, r1c, r1s) = if s0 > F::zero() && s1 > F::zero() {
+        (r0c, r0s, r1c, r1s)
+    } else if s0 > F::zero() {
+        (r0c, r0s, -r0s, r0c)
+    } else if s1 > F::zero() {
+        (-r1s, r1c, r1c, r1s)
+    } else {
+        (F::one(), F::zero(), F::zero(), F::one())
     };
     // Vt = diag(1/s0, 1/s1) UᵀA is already the exact right factor: its rows
     // are orthonormal (orthogonal rows, unit norms), and det(Vt) = +/-1 carries
@@ -764,11 +778,15 @@ fn dlas2_smin<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
 /// LAPACK dlas2: no overflow or underflow on the intermediate squares.
 fn dlas2_smax<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
     let t = d1 * d1 + d2 * d2 + e1 * e1;
-    if t.is_finite() {
-        let disc = (t * t - F::from(4.0).unwrap() * d1 * d1 * d2 * d2)
+    let disc = t * t - F::from(4.0).unwrap() * d1 * d1 * d2 * d2;
+    // Fast path only when the discriminant is computable: for f64 entries in
+    // ~[7.7e76, 1.3e154], t is finite but t*t overflows, and max(NaN, 0) = 0
+    // would silently return a wrong (low or inf) result. disc < 0 is normal
+    // (rounding) and clamps to 0; only non-finite values need the scaled path.
+    if t.is_finite() && disc.is_finite() {
+        ((t + disc.max(F::zero()).sqrt()) / F::from(2.0).unwrap())
             .max(F::zero())
-            .sqrt();
-        ((t + disc) / F::from(2.0).unwrap()).max(F::zero()).sqrt()
+            .sqrt()
     } else {
         let scale = d1.abs().max(d2.abs()).max(e1.abs());
         if scale == F::zero() {
