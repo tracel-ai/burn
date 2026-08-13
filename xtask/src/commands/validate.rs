@@ -22,6 +22,7 @@ pub fn handle_command(
     [
         CheckSubCommand::Format,
         CheckSubCommand::Typos,
+        CheckSubCommand::Audit,
         CheckSubCommand::Lint,
     ]
     .iter()
