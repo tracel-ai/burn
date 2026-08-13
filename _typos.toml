@@ -11,6 +11,7 @@ extend-exclude = [
     "*.onnx",
     "*.proto",
     "assets/ModuleSerialization.xml",
+    "*.map", # linker map files
 ]
 
 [default.extend-words]
