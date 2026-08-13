@@ -1260,15 +1260,15 @@ where
     /// // Single dimension slicing - no brackets needed!
     /// let tensor = Tensor::<1, burn_tensor::Int>::arange(0..10, &device);
     /// let slice = tensor.clone().slice(2..8);  // Simple range
-    /// assert_eq!(slice.into_data().try_into_vec::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
+    /// assert_eq!(slice.try_to_vec_as::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
     ///
     /// // Using s! macro for single dimension with step
     /// let slice = tensor.clone().slice(s![0..10;2]);  // Every 2nd element
-    /// assert_eq!(slice.into_data().try_into_vec::<i32>().unwrap(), vec![0, 2, 4, 6, 8]);
+    /// assert_eq!(slice.try_to_vec_as::<i32>().unwrap(), vec![0, 2, 4, 6, 8]);
     ///
     /// // Reverse a dimension with negative step
     /// let slice = tensor.slice(s![..;-1]);  // Reverse entire tensor
-    /// assert_eq!(slice.into_data().try_into_vec::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
+    /// assert_eq!(slice.try_to_vec_as::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
     ///
     /// // Multi-dimensional slicing
     /// let tensor = Tensor::<2>::ones(Shape::new([4, 6]), &device);

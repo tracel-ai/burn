@@ -22,7 +22,7 @@ fn frozen_group_param_unchanged_after_training() {
         .into_data()
         .try_into_vec::<f32>()
         .unwrap();
-    let before_active = model.active.into_data().try_into_vec::<f32>().unwrap();
+    let before_active = model.active.try_to_vec_as::<f32>().unwrap();
 
     let optim = SgdConfig::new().init();
 
