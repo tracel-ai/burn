@@ -54,7 +54,7 @@ macro_rules! avg_pool3d_typed {
             count_include_pad: bool,
             ceil_mode: bool,
         ) -> FlexTensor {
-            avg_pool3d_impl::<$T>(
+            avg_pool3d_impl::<$T, _>(
                 x,
                 kernel_size,
                 stride,
@@ -228,6 +228,43 @@ where
 
     let spatial_out = out_d * out_h * out_w;
     let x_data: &[T] = x.storage();
+    let kernel = |od: usize, oh: usize, ow: usize, x_offset: usize| {
+        let mut max_val = neg_inf;
+        let mut max_idx: i64 = -1;
+
+        for kd in 0..kernel_d {
+            let id = (od * stride_d + kd * dilation_d) as isize - pad_d as isize;
+            if id < 0 || id >= in_d as isize {
+                continue;
+            }
+            let id = id as usize;
+
+            for kh in 0..kernel_h {
+                let ih = (oh * stride_h + kh * dilation_h) as isize - pad_h as isize;
+                if ih < 0 || ih >= in_h as isize {
+                    continue;
+                }
+                let ih = ih as usize;
+
+                for kw in 0..kernel_w {
+                    let iw = (ow * stride_w + kw * dilation_w) as isize - pad_w as isize;
+                    if iw < 0 || iw >= in_w as isize {
+                        continue;
+                    }
+                    let iw = iw as usize;
+
+                    let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
+                    let val = x_data[x_idx];
+
+                    if max_idx < 0 || val > max_val {
+                        max_val = val;
+                        max_idx = (id * in_h * in_w + ih * in_w + iw) as i64;
+                    }
+                }
+            }
+        }
+        (max_val, max_idx)
+    };
 
     let (output, indices) = {
         #[cfg(feature = "rayon")]
@@ -252,43 +289,7 @@ where
                     for oh in 0..out_h {
                         for ow in 0..out_w {
                             let out_idx = out_offset + od * out_h * out_w + oh * out_w + ow;
-                            let mut max_val = neg_inf;
-                            let mut max_idx: i64 = -1;
-
-                            for kd in 0..kernel_d {
-                                let id =
-                                    (od * stride_d + kd * dilation_d) as isize - pad_d as isize;
-                                if id < 0 || id >= in_d as isize {
-                                    continue;
-                                }
-                                let id = id as usize;
-
-                                for kh in 0..kernel_h {
-                                    let ih =
-                                        (oh * stride_h + kh * dilation_h) as isize - pad_h as isize;
-                                    if ih < 0 || ih >= in_h as isize {
-                                        continue;
-                                    }
-                                    let ih = ih as usize;
-
-                                    for kw in 0..kernel_w {
-                                        let iw = (ow * stride_w + kw * dilation_w) as isize
-                                            - pad_w as isize;
-                                        if iw < 0 || iw >= in_w as isize {
-                                            continue;
-                                        }
-                                        let iw = iw as usize;
-
-                                        let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
-                                        let val = x_data[x_idx];
-
-                                        if max_idx < 0 || val > max_val {
-                                            max_val = val;
-                                            max_idx = (id * in_h * in_w + ih * in_w + iw) as i64;
-                                        }
-                                    }
-                                }
-                            }
+                            let (max_val, max_idx) = kernel(od, oh, ow, x_offset);
 
                             unsafe {
                                 out_ptr.write(out_idx, max_val);
@@ -314,45 +315,7 @@ where
                         for oh in 0..out_h {
                             for ow in 0..out_w {
                                 let out_idx = out_offset + od * out_h * out_w + oh * out_w + ow;
-                                let mut max_val = neg_inf;
-                                let mut max_idx: i64 = -1;
-
-                                for kd in 0..kernel_d {
-                                    let id =
-                                        (od * stride_d + kd * dilation_d) as isize - pad_d as isize;
-                                    if id < 0 || id >= in_d as isize {
-                                        continue;
-                                    }
-                                    let id = id as usize;
-
-                                    for kh in 0..kernel_h {
-                                        let ih = (oh * stride_h + kh * dilation_h) as isize
-                                            - pad_h as isize;
-                                        if ih < 0 || ih >= in_h as isize {
-                                            continue;
-                                        }
-                                        let ih = ih as usize;
-
-                                        for kw in 0..kernel_w {
-                                            let iw = (ow * stride_w + kw * dilation_w) as isize
-                                                - pad_w as isize;
-                                            if iw < 0 || iw >= in_w as isize {
-                                                continue;
-                                            }
-                                            let iw = iw as usize;
-
-                                            let x_idx =
-                                                x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            let val = x_data[x_idx];
-
-                                            if max_idx < 0 || val > max_val {
-                                                max_val = val;
-                                                max_idx =
-                                                    (id * in_h * in_w + ih * in_w + iw) as i64;
-                                            }
-                                        }
-                                    }
-                                }
+                                let (max_val, max_idx) = kernel(od, oh, ow, x_offset);
 
                                 output[out_idx] = max_val;
                                 indices[out_idx] = max_idx;
@@ -639,7 +602,8 @@ pub fn avg_pool3d_bf16(
 
 /// Generic 3D average pooling implementation.
 #[allow(clippy::too_many_arguments)]
-fn avg_pool3d_impl<T>(
+#[cfg_attr(feature = "simd", macerator::with_simd)]
+fn avg_pool3d_impl<#[cfg(feature = "simd")] S: macerator::Simd, T, Div>(
     x: FlexTensor,
     kernel_size: [usize; 3],
     stride: [usize; 3],
@@ -648,10 +612,11 @@ fn avg_pool3d_impl<T>(
     ceil_mode: bool,
     dtype: DType,
     zero: T,
-    div_fn: impl Fn(T, usize) -> T + Copy + Send + Sync,
+    div_fn: Div,
 ) -> FlexTensor
 where
     T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
+    Div: Fn(T, usize) -> T + Copy + Send + Sync,
 {
     let x = x.to_contiguous();
     let x_shape = x.layout().shape();
@@ -679,6 +644,57 @@ where
     let x_data: &[T] = x.storage();
     let _kernel_volume = kernel_d * kernel_h * kernel_w;
 
+    let kernel = |od: usize, oh: usize, ow: usize, x_offset: usize| {
+        let mut sum = zero;
+        let mut count = 0usize;
+
+        // Track count for count_include_pad (positions within padded bounds)
+        let mut pad_count = 0usize;
+
+        for kd in 0..kernel_d {
+            let id = (od * stride_d + kd) as isize - pad_d as isize;
+            // Check if within padded bounds (not ceil_mode extension)
+            let id_in_bounds = id >= -(pad_d as isize) && id < (in_d + pad_d) as isize;
+            if !id_in_bounds {
+                continue; // ceil_mode extension - skip entirely
+            }
+            let id_valid = id >= 0 && id < in_d as isize;
+
+            for kh in 0..kernel_h {
+                let ih = (oh * stride_h + kh) as isize - pad_h as isize;
+                let ih_in_bounds = ih >= -(pad_h as isize) && ih < (in_h + pad_h) as isize;
+                if !ih_in_bounds {
+                    continue;
+                }
+                let ih_valid = ih >= 0 && ih < in_h as isize;
+
+                for kw in 0..kernel_w {
+                    let iw = (ow * stride_w + kw) as isize - pad_w as isize;
+                    let iw_in_bounds = iw >= -(pad_w as isize) && iw < (in_w + pad_w) as isize;
+                    if !iw_in_bounds {
+                        continue;
+                    }
+
+                    // Position is within padded bounds
+                    pad_count += 1;
+
+                    let iw_valid = iw >= 0 && iw < in_w as isize;
+                    if !id_valid || !ih_valid || !iw_valid {
+                        continue; // In padding zone - count but don't add
+                    }
+
+                    let id = id as usize;
+                    let ih = ih as usize;
+                    let iw = iw as usize;
+                    let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
+                    sum = T::add(sum, x_data[x_idx]);
+                    count += 1;
+                }
+            }
+        }
+        (sum, count, pad_count)
+    };
+
     let output = {
         #[cfg(feature = "rayon")]
         {
@@ -698,52 +714,7 @@ where
                     for oh in 0..out_h {
                         for ow in 0..out_w {
                             let out_idx = out_offset + od * out_h * out_w + oh * out_w + ow;
-                            let mut sum = zero;
-                            let mut count = 0usize;
-                            let mut pad_count = 0usize;
-
-                            for kd in 0..kernel_d {
-                                let id = (od * stride_d + kd) as isize - pad_d as isize;
-                                let id_in_bounds =
-                                    id >= -(pad_d as isize) && id < (in_d + pad_d) as isize;
-                                if !id_in_bounds {
-                                    continue;
-                                }
-                                let id_valid = id >= 0 && id < in_d as isize;
-
-                                for kh in 0..kernel_h {
-                                    let ih = (oh * stride_h + kh) as isize - pad_h as isize;
-                                    let ih_in_bounds =
-                                        ih >= -(pad_h as isize) && ih < (in_h + pad_h) as isize;
-                                    if !ih_in_bounds {
-                                        continue;
-                                    }
-                                    let ih_valid = ih >= 0 && ih < in_h as isize;
-
-                                    for kw in 0..kernel_w {
-                                        let iw = (ow * stride_w + kw) as isize - pad_w as isize;
-                                        let iw_in_bounds =
-                                            iw >= -(pad_w as isize) && iw < (in_w + pad_w) as isize;
-                                        if !iw_in_bounds {
-                                            continue;
-                                        }
-
-                                        pad_count += 1;
-
-                                        let iw_valid = iw >= 0 && iw < in_w as isize;
-                                        if !id_valid || !ih_valid || !iw_valid {
-                                            continue;
-                                        }
-
-                                        let id = id as usize;
-                                        let ih = ih as usize;
-                                        let iw = iw as usize;
-                                        let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
-                                        sum = T::add(sum, x_data[x_idx]);
-                                        count += 1;
-                                    }
-                                }
-                            }
+                            let (sum, count, pad_count) = kernel(od, oh, ow, x_offset);
 
                             let divisor = if count_include_pad {
                                 pad_count.max(1)
@@ -773,57 +744,7 @@ where
                         for oh in 0..out_h {
                             for ow in 0..out_w {
                                 let out_idx = out_offset + od * out_h * out_w + oh * out_w + ow;
-                                let mut sum = zero;
-                                let mut count = 0usize;
-
-                                // Track count for count_include_pad (positions within padded bounds)
-                                let mut pad_count = 0usize;
-
-                                for kd in 0..kernel_d {
-                                    let id = (od * stride_d + kd) as isize - pad_d as isize;
-                                    // Check if within padded bounds (not ceil_mode extension)
-                                    let id_in_bounds =
-                                        id >= -(pad_d as isize) && id < (in_d + pad_d) as isize;
-                                    if !id_in_bounds {
-                                        continue; // ceil_mode extension - skip entirely
-                                    }
-                                    let id_valid = id >= 0 && id < in_d as isize;
-
-                                    for kh in 0..kernel_h {
-                                        let ih = (oh * stride_h + kh) as isize - pad_h as isize;
-                                        let ih_in_bounds =
-                                            ih >= -(pad_h as isize) && ih < (in_h + pad_h) as isize;
-                                        if !ih_in_bounds {
-                                            continue;
-                                        }
-                                        let ih_valid = ih >= 0 && ih < in_h as isize;
-
-                                        for kw in 0..kernel_w {
-                                            let iw = (ow * stride_w + kw) as isize - pad_w as isize;
-                                            let iw_in_bounds = iw >= -(pad_w as isize)
-                                                && iw < (in_w + pad_w) as isize;
-                                            if !iw_in_bounds {
-                                                continue;
-                                            }
-
-                                            // Position is within padded bounds
-                                            pad_count += 1;
-
-                                            let iw_valid = iw >= 0 && iw < in_w as isize;
-                                            if !id_valid || !ih_valid || !iw_valid {
-                                                continue; // In padding zone - count but don't add
-                                            }
-
-                                            let id = id as usize;
-                                            let ih = ih as usize;
-                                            let iw = iw as usize;
-                                            let x_idx =
-                                                x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            sum = T::add(sum, x_data[x_idx]);
-                                            count += 1;
-                                        }
-                                    }
-                                }
+                                let (sum, count, pad_count) = kernel(od, oh, ow, x_offset);
 
                                 let divisor = if count_include_pad {
                                     pad_count.max(1) // Positions within padded bounds
