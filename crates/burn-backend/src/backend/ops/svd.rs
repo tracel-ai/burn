@@ -67,7 +67,6 @@ pub fn svd_host_data(
 /// results are concatenated in batch order (deterministic, same output).
 /// No-std builds fall back to the single-threaded loop.
 fn svd_host<F: Float + Copy + Send + Sync>(
-
     a: &[F],
     m: usize,
     n: usize,
@@ -77,11 +76,7 @@ fn svd_host<F: Float + Copy + Send + Sync>(
 ) -> (Vec<F>, Vec<F>, Vec<F>) {
     // Factor layouts depend on the orientation: without swap U is [m, n] and
     // Vt is [n, n]; with swap (wide input) U is [n, n] and Vt is [m, n].
-    let (u_len, vt_len) = if swap {
-        (n * n, m * n)
-    } else {
-        (m * n, n * n)
-    };
+    let (u_len, vt_len) = if swap { (n * n, m * n) } else { (m * n, n * n) };
     let mut u = vec![F::zero(); batch * u_len];
     let mut sigma = vec![F::zero(); batch * n];
     let mut vt = vec![F::zero(); batch * vt_len];
@@ -235,16 +230,7 @@ fn svd_host_seq<F: Float + Copy>(
                 v1[k1_v + i] = -sr * a0 + cr * b0;
             }
         }
-        let (ub, sb, vtb) = svd_postprocess(
-            &u1t,
-            &v1,
-            &sigma_b,
-            &d_final,
-            m,
-            n,
-            1,
-            false,
-        );
+        let (ub, sb, vtb) = svd_postprocess(&u1t, &v1, &sigma_b, &d_final, m, n, 1, false);
         u[b * m * n..(b + 1) * m * n].copy_from_slice(&ub);
         sigma[b * n..(b + 1) * n].copy_from_slice(&sb);
         vt[b * n * n..(b + 1) * n * n].copy_from_slice(&vtb);
@@ -337,7 +323,11 @@ pub fn svd_postprocess<F: Float + Copy>(
         for (t, &src) in order.iter().enumerate() {
             let flip = d_b[src] < F::zero();
             for i in 0..m {
-                u[b * m * n + i * n + t] = if flip { -u1t_b[src * m + i] } else { u1t_b[src * m + i] };
+                u[b * m * n + i * n + t] = if flip {
+                    -u1t_b[src * m + i]
+                } else {
+                    u1t_b[src * m + i]
+                };
             }
             for i in 0..n {
                 vt[b * n * n + t * n + i] = v1t_b[src * n + i];

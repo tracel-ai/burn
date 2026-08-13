@@ -35,7 +35,8 @@ impl FloatTensorOps<Self> for Dispatch {
         sweeps: usize,
         swap: bool,
     ) -> Result<(TensorData, TensorData, TensorData), ExecutionError> {
-        unary_float!(tensor, float, |tensor| B::float_svd(tensor, sweeps, swap).await)
+        unary_float!(tensor, float, |tensor| B::float_svd(tensor, sweeps, swap)
+            .await)
     }
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {
