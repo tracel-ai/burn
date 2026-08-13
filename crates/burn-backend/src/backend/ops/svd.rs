@@ -408,24 +408,28 @@ fn svd2x2<F: Float + Copy>(a: &[F]) -> (F, F, [F; 4], [F; 4]) {
     let h2 = -st * f + ct * h;
     let s0 = scaled_norm2(e2, f2);
     let s1 = scaled_norm2(g2, h2);
-    // Degenerate rows (σ = 0): a zero row is replaced by the surviving row's
+    // Degenerate rows (σ at or below the same 10*eps*σmax tolerance used for
+    // the sigma mask): a zero row is replaced by the surviving row's
     // orthogonal complement (or a unit basis when both rows are zero), so
-    // Vt stays orthonormal even for rank-deficient inputs.
-    let (r0c, r0s) = if s0 > F::zero() {
+    // Vt stays orthonormal even for rank-deficient inputs. The tolerance
+    // matters: for exact rank deficiency the zero row is a transcendental
+    // residual (~eps*σmax), never exactly 0.
+    let zero_tol = s0.max(s1) * (F::epsilon() * F::from(10.0).unwrap());
+    let (r0c, r0s) = if s0 > zero_tol {
         (e2 / s0, f2 / s0)
     } else {
         (F::zero(), F::zero())
     };
-    let (r1c, r1s) = if s1 > F::zero() {
+    let (r1c, r1s) = if s1 > zero_tol {
         (g2 / s1, h2 / s1)
     } else {
         (F::zero(), F::zero())
     };
-    let (r0c, r0s, r1c, r1s) = if s0 > F::zero() && s1 > F::zero() {
+    let (r0c, r0s, r1c, r1s) = if s0 > zero_tol && s1 > zero_tol {
         (r0c, r0s, r1c, r1s)
-    } else if s0 > F::zero() {
+    } else if s0 > zero_tol {
         (r0c, r0s, -r0s, r0c)
-    } else if s1 > F::zero() {
+    } else if s1 > zero_tol {
         (-r1s, r1c, r1c, r1s)
     } else {
         (F::one(), F::zero(), F::zero(), F::one())
@@ -1018,6 +1022,47 @@ mod tests {
                 }
             }
             assert!(err < 1e-12, "neg-det 2x2 recon {err} for {a:?}");
+        }
+    }
+
+    #[test]
+    fn test_svd_host_2x2_rank_deficient_orthonormal() {
+        // Rank-deficient 2x2: the zero singular value comes out as a
+        // transcendental residual (~eps * smax), never exactly 0; the
+        // fallback must still replace the degenerate Vt row with an
+        // orthonormal complement (the 10*eps*smax tolerance, same as the
+        // sigma mask).
+        for a in [
+            [1.0f64, 2.0, 2.0, 4.0],
+            [0.0f64, 1.0, 0.0, 0.0],
+            [0.0f64, 0.0, 1.0, 0.0],
+            [1.0f64, 1.0, 2.0, 2.0],
+        ] {
+            let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
+            assert_eq!(s[1], 0.0, "masked sigma for {a:?}");
+            // Vt rows orthonormal: Vt Vt^T = I.
+            let mut ortho = 0.0f64;
+            for i in 0..2 {
+                for j in 0..2 {
+                    let mut acc = 0.0f64;
+                    for k in 0..2 {
+                        acc += vt[i * 2 + k] * vt[j * 2 + k];
+                    }
+                    ortho = ortho.max((acc - if i == j { 1.0 } else { 0.0 }).abs());
+                }
+            }
+            assert!(ortho < 1e-12, "Vt orthonormal for {a:?}, err {ortho}");
+            let mut err = 0.0f64;
+            for i in 0..2 {
+                for j in 0..2 {
+                    let mut acc = 0.0f64;
+                    for k in 0..2 {
+                        acc += u[i * 2 + k] * s[k] * vt[k * 2 + j];
+                    }
+                    err = err.max((a[i * 2 + j] - acc).abs());
+                }
+            }
+            assert!(err < 1e-12, "rank-def 2x2 recon {err} for {a:?}");
         }
     }
 
