@@ -73,7 +73,7 @@ macro_rules! avg_pool3d_typed {
 macro_rules! adaptive_avg_pool3d_typed {
     ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(x: FlexTensor, output_size: [usize; 3]) -> FlexTensor {
-            adaptive_avg_pool3d_impl::<$T>(x, output_size, $dtype, $zero, $div_fn)
+            adaptive_avg_pool3d_impl::<$T, _>(x, output_size, $dtype, $zero, $div_fn)
         }
     };
 }
@@ -193,6 +193,33 @@ pub fn max_pool3d_with_indices_bf16(
     (convert_f32_to_bf16(&output_f32), indices)
 }
 
+#[inline]
+fn valid_range_maxpool(
+    out: usize,
+    kernel: usize,
+    stride: usize,
+    pad: usize,
+    dilation: usize,
+    input: usize,
+) -> (usize, usize) {
+    let out = out as isize;
+    let kernel = kernel as isize;
+    let stride = stride as isize;
+    let pad = pad as isize;
+    let dilation = dilation as isize;
+    let input = input as isize;
+
+    let p = pad - out * stride;
+    let start = if p > 0 { (p - 1) / dilation + 1 } else { 0 };
+    let start = start.max(0).min(kernel);
+
+    let c = input + pad - out * stride;
+    let end = if c > 0 { (c - 1) / dilation + 1 } else { 0 };
+    let end = end.max(0).min(kernel).max(start);
+
+    (start as usize, end as usize)
+}
+
 /// Generic 3D max pooling with indices implementation.
 #[allow(clippy::too_many_arguments)]
 fn max_pool3d_with_indices_impl<T>(
@@ -229,40 +256,40 @@ where
     let spatial_out = out_d * out_h * out_w;
     let x_data: &[T] = x.storage();
     let kernel = |od: usize, oh: usize, ow: usize, x_offset: usize| {
+        let (kd_start, kd_end) =
+            valid_range_maxpool(od, kernel_d, stride_d, pad_d, dilation_d, in_d);
+        let (kh_start, kh_end) =
+            valid_range_maxpool(oh, kernel_h, stride_h, pad_h, dilation_h, in_h);
+        let (kw_start, kw_end) =
+            valid_range_maxpool(ow, kernel_w, stride_w, pad_w, dilation_w, in_w);
+
         let mut max_val = neg_inf;
         let mut max_idx: i64 = -1;
 
-        for kd in 0..kernel_d {
-            let id = (od * stride_d + kd * dilation_d) as isize - pad_d as isize;
-            if id < 0 || id >= in_d as isize {
-                continue;
-            }
-            let id = id as usize;
+        for kd in kd_start..kd_end {
+            // These subtractions are safe because valid_range guarantees no underflow.
+            let id = od * stride_d + kd * dilation_d - pad_d;
+            let id_base = id * in_h * in_w;
 
-            for kh in 0..kernel_h {
-                let ih = (oh * stride_h + kh * dilation_h) as isize - pad_h as isize;
-                if ih < 0 || ih >= in_h as isize {
-                    continue;
-                }
-                let ih = ih as usize;
+            for kh in kh_start..kh_end {
+                let ih = oh * stride_h + kh * dilation_h - pad_h;
+                let ih_base = ih * in_w;
 
-                for kw in 0..kernel_w {
-                    let iw = (ow * stride_w + kw * dilation_w) as isize - pad_w as isize;
-                    if iw < 0 || iw >= in_w as isize {
-                        continue;
-                    }
-                    let iw = iw as usize;
+                for kw in kw_start..kw_end {
+                    let iw = ow * stride_w + kw * dilation_w - pad_w;
 
-                    let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
+                    let x_idx = x_offset + id_base + ih_base + iw;
                     let val = x_data[x_idx];
 
-                    if max_idx < 0 || val > max_val {
+                    // The only remaining conditional is the max comparison itself.
+                    if val > max_val {
                         max_val = val;
-                        max_idx = (id * in_h * in_w + ih * in_w + iw) as i64;
+                        max_idx = (id_base + ih_base + iw) as i64;
                     }
                 }
             }
         }
+
         (max_val, max_idx)
     };
 
@@ -599,6 +626,40 @@ pub fn avg_pool3d_bf16(
     );
     convert_f32_to_bf16(&result_f32)
 }
+#[inline(always)]
+fn padded_len_avgpool(out: usize, kernel: usize, stride: usize, pad: usize, input: usize) -> usize {
+    let out = out as isize;
+    let kernel = kernel as isize;
+    let stride = stride as isize;
+    let pad = pad as isize;
+    let input = input as isize;
+
+    let start = 0isize;
+    let end = (input + 2 * pad - out * stride).max(0).min(kernel);
+
+    (end - start).max(0) as usize
+}
+
+#[inline(always)]
+fn valid_range_avgpool(
+    out: usize,
+    kernel: usize,
+    stride: usize,
+    pad: usize,
+    input: usize,
+) -> (usize, usize) {
+    let out = out as isize;
+    let kernel = kernel as isize;
+    let stride = stride as isize;
+    let pad = pad as isize;
+    let input = input as isize;
+
+    let start = (pad - out * stride).max(0).min(kernel);
+    let end = (input + pad - out * stride).max(0).min(kernel);
+    let end = end.max(start);
+
+    (start as usize, end as usize)
+}
 
 /// Generic 3D average pooling implementation.
 #[allow(clippy::too_many_arguments)]
@@ -645,53 +706,35 @@ where
     let _kernel_volume = kernel_d * kernel_h * kernel_w;
 
     let kernel = |od: usize, oh: usize, ow: usize, x_offset: usize| {
+        let pd_len = padded_len_avgpool(od, kernel_d, stride_d, pad_d, in_d);
+        let ph_len = padded_len_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
+        let pw_len = padded_len_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+
+        let pad_count = pd_len * ph_len * pw_len;
+
+        let (kd_start, kd_end) = valid_range_avgpool(od, kernel_d, stride_d, pad_d, in_d);
+        let (kh_start, kh_end) = valid_range_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
+        let (kw_start, kw_end) = valid_range_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+
+        let count = (kd_end - kd_start) * (kh_end - kh_start) * (kw_end - kw_start);
+
         let mut sum = zero;
-        let mut count = 0usize;
 
-        // Track count for count_include_pad (positions within padded bounds)
-        let mut pad_count = 0usize;
+        for kd in kd_start..kd_end {
+            let id = od * stride_d + kd - pad_d; // safe: valid range guarantees no underflow
+            let id_base = id * in_h * in_w;
 
-        for kd in 0..kernel_d {
-            let id = (od * stride_d + kd) as isize - pad_d as isize;
-            // Check if within padded bounds (not ceil_mode extension)
-            let id_in_bounds = id >= -(pad_d as isize) && id < (in_d + pad_d) as isize;
-            if !id_in_bounds {
-                continue; // ceil_mode extension - skip entirely
-            }
-            let id_valid = id >= 0 && id < in_d as isize;
+            for kh in kh_start..kh_end {
+                let ih = oh * stride_h + kh - pad_h;
+                let ih_base = ih * in_w;
 
-            for kh in 0..kernel_h {
-                let ih = (oh * stride_h + kh) as isize - pad_h as isize;
-                let ih_in_bounds = ih >= -(pad_h as isize) && ih < (in_h + pad_h) as isize;
-                if !ih_in_bounds {
-                    continue;
-                }
-                let ih_valid = ih >= 0 && ih < in_h as isize;
-
-                for kw in 0..kernel_w {
-                    let iw = (ow * stride_w + kw) as isize - pad_w as isize;
-                    let iw_in_bounds = iw >= -(pad_w as isize) && iw < (in_w + pad_w) as isize;
-                    if !iw_in_bounds {
-                        continue;
-                    }
-
-                    // Position is within padded bounds
-                    pad_count += 1;
-
-                    let iw_valid = iw >= 0 && iw < in_w as isize;
-                    if !id_valid || !ih_valid || !iw_valid {
-                        continue; // In padding zone - count but don't add
-                    }
-
-                    let id = id as usize;
-                    let ih = ih as usize;
-                    let iw = iw as usize;
-                    let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
-                    sum = T::add(sum, x_data[x_idx]);
-                    count += 1;
+                for kw in kw_start..kw_end {
+                    let iw = ow * stride_w + kw - pad_w;
+                    sum = T::add(sum, x_data[x_offset + id_base + ih_base + iw]);
                 }
             }
         }
+
         (sum, count, pad_count)
     };
 
@@ -923,15 +966,17 @@ pub fn adaptive_avg_pool3d_backward_bf16(x: FlexTensor, grad: FlexTensor) -> Fle
 }
 
 /// Generic 3D adaptive average pooling implementation.
-fn adaptive_avg_pool3d_impl<T>(
+#[cfg_attr(feature = "simd", macerator::with_simd)]
+fn adaptive_avg_pool3d_impl<#[cfg(feature = "simd")] S: macerator::Simd, T, Div>(
     x: FlexTensor,
     output_size: [usize; 3],
     dtype: DType,
     zero: T,
-    div_fn: impl Fn(T, usize) -> T + Copy + Send + Sync,
+    div_fn: Div,
 ) -> FlexTensor
 where
     T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
+    Div: Fn(T, usize) -> T + Copy + Send + Sync,
 {
     let x = x.to_contiguous();
     let x_shape = x.layout().shape();
