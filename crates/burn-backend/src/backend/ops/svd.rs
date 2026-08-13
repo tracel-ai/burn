@@ -4,8 +4,8 @@
 //! This is the reference implementation backing the default
 //! [`FloatTensorOps::float_svd`](super::tensor::FloatTensorOps#method.float_svd):
 //! pure scalar math over tensor data, deterministic and identical on every
-//! backend. Backends with a native SVD (e.g. tch) or a fused GPU kernel
-//! (cubecl) override the trait method; this module stays the correctness
+//! backend. Backends may override the trait method with a native SVD (tch)
+//! or a fused GPU kernel (cubecl); this module stays the correctness
 //! reference and the no-kernel fallback.
 use alloc::vec;
 use alloc::vec::Vec;
@@ -15,8 +15,11 @@ use num_traits::float::Float;
 /// Run the full host pipeline over tensor data and return the three factors
 /// as data. Layout and dims follow the `swap` convention of
 /// `crates/burn-tensor`'s `linalg::svd` (see `svd_host`).
-pub fn svd_host_data(
-    data: &TensorData,
+///
+/// Consumes the data so the input can be converted to a plain vector without
+/// copying (the backend transfers are already owned by the caller).
+pub(crate) fn svd_host_data(
+    data: TensorData,
     sweeps: usize,
     swap: bool,
 ) -> (TensorData, TensorData, TensorData) {
@@ -41,7 +44,7 @@ pub fn svd_host_data(
     }
 
     if data.dtype == DType::F64 {
-        let a = data.to_vec::<f64>().unwrap();
+        let a = data.into_vec::<f64>().unwrap();
         let (u, s, vt) = svd_host::<f64>(&a, m, n, batch, sweeps, swap);
         (
             TensorData::new(u, du),
@@ -49,7 +52,7 @@ pub fn svd_host_data(
             TensorData::new(vt, dv),
         )
     } else {
-        let a = data.to_vec::<f32>().unwrap();
+        let a = data.into_vec::<f32>().unwrap();
         let (u, s, vt) = svd_host::<f32>(&a, m, n, batch, sweeps, swap);
         (
             TensorData::new(u, du),
@@ -83,64 +86,71 @@ fn svd_host<F: Float + Copy + Send + Sync>(
 
     #[cfg(feature = "std")]
     if batch > 1 {
-        // available_parallelism is a syscall (~40us); skip it for single
-        // matrices where the threaded path is dead anyway.
-        let threads = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(1)
-            .min(batch)
-            .max(1);
-        if threads > 1 {
-            // Each thread fills its own [b0, b1) slice of the output buffers:
-            // disjoint ranges, no synchronization needed beyond the join.
-            // Split the buffers once up front so every spawned closure holds
-            // only its own slices (no shared &mut borrows).
-            let chunk = batch.div_ceil(threads);
-            let mut u_slices: Vec<&mut [F]> = Vec::with_capacity(threads);
-            let mut sigma_slices: Vec<&mut [F]> = Vec::with_capacity(threads);
-            let mut vt_slices: Vec<&mut [F]> = Vec::with_capacity(threads);
-            let mut offsets = Vec::with_capacity(threads);
-            let mut counts = Vec::with_capacity(threads);
-            let mut rest_u = u.as_mut_slice();
-            let mut rest_s = sigma.as_mut_slice();
-            let mut rest_v = vt.as_mut_slice();
-            for t in 0..threads {
-                let b0 = t * chunk;
-                let b1 = (b0 + chunk).min(batch);
-                if b0 >= b1 {
-                    break;
+        // Thread spawn+join costs ~10-40us; a single 4x4 element is ~3us, so
+        // parallelizing tiny batches makes them slower, not faster. Only
+        // spawn when the total work is worth it (~64x64 serial is ~120us).
+        // ponytail: element-count heuristic; a calibrated cost model could
+        // refine it, but m*n*batch is a solid proxy across shapes.
+        if batch * m * n >= 4096 {
+            // available_parallelism is a syscall (~40us); skip it for single
+            // matrices where the threaded path is dead anyway.
+            let threads = std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1)
+                .min(batch)
+                .max(1);
+            if threads > 1 {
+                // Round-robin over single batch elements: thread t handles
+                // elements t, t + threads, ... This uses all cores even when
+                // batch is not a multiple of threads (static contiguous
+                // chunks would leave cores idle), and a slow (pathological)
+                // element only delays its own thread, never a whole chunk.
+                // Slices are split up front so every spawned closure holds
+                // only its own &mut borrows; output order is still batch
+                // order (each element writes its own disjoint slices).
+                let mut u_lists: Vec<Vec<&mut [F]>> = (0..threads).map(|_| Vec::new()).collect();
+                let mut s_lists: Vec<Vec<&mut [F]>> = (0..threads).map(|_| Vec::new()).collect();
+                let mut v_lists: Vec<Vec<&mut [F]>> = (0..threads).map(|_| Vec::new()).collect();
+                {
+                    let mut rest_u = u.as_mut_slice();
+                    let mut rest_s = sigma.as_mut_slice();
+                    let mut rest_v = vt.as_mut_slice();
+                    for b in 0..batch {
+                        let (u_part, r) = rest_u.split_at_mut(u_len);
+                        let (s_part, r2) = rest_s.split_at_mut(n);
+                        let (v_part, r3) = rest_v.split_at_mut(vt_len);
+                        u_lists[b % threads].push(u_part);
+                        s_lists[b % threads].push(s_part);
+                        v_lists[b % threads].push(v_part);
+                        rest_u = r;
+                        rest_s = r2;
+                        rest_v = r3;
+                    }
                 }
-                let n_b = b1 - b0;
-                let (u_part, r) = rest_u.split_at_mut(n_b * u_len);
-                let (s_part, r2) = rest_s.split_at_mut(n_b * n);
-                let (v_part, r3) = rest_v.split_at_mut(n_b * vt_len);
-                u_slices.push(u_part);
-                sigma_slices.push(s_part);
-                vt_slices.push(v_part);
-                rest_u = r;
-                rest_s = r2;
-                rest_v = r3;
-                offsets.push(b0);
-                counts.push(n_b);
+                std::thread::scope(|scope| {
+                    for (t, (u_list, (s_list, v_list))) in u_lists
+                        .into_iter()
+                        .zip(s_lists.into_iter().zip(v_lists))
+                        .enumerate()
+                    {
+                        scope.spawn(move || {
+                            for (k, (u_part, (s_part, v_part))) in u_list
+                                .into_iter()
+                                .zip(s_list.into_iter().zip(v_list))
+                                .enumerate()
+                            {
+                                let b = t + k * threads;
+                                let a_slice = &a[b * m * n..(b + 1) * m * n];
+                                let (tu, ts, tv) = svd_host_seq(a_slice, m, n, 1, max_sweeps, swap);
+                                u_part.copy_from_slice(&tu);
+                                s_part.copy_from_slice(&ts);
+                                v_part.copy_from_slice(&tv);
+                            }
+                        });
+                    }
+                });
+                return (u, sigma, vt);
             }
-            std::thread::scope(|scope| {
-                let mut us = u_slices.into_iter();
-                let mut ss = sigma_slices.into_iter();
-                let mut vs = vt_slices.into_iter();
-                for (&b0, &n_b) in offsets.iter().zip(counts.iter()) {
-                    let u_part = us.next().unwrap();
-                    let s_part = ss.next().unwrap();
-                    let v_part = vs.next().unwrap();
-                    let a_slice = &a[b0 * m * n..(b0 + n_b) * m * n];
-                    scope.spawn(move || {
-                        let (tu, ts, tv) = svd_host_seq(a_slice, m, n, n_b, max_sweeps, swap);
-                        u_part.copy_from_slice(&tu);
-                        s_part.copy_from_slice(&ts);
-                        v_part.copy_from_slice(&tv);
-                    });
-                }
-            });
-            return (u, sigma, vt);
         }
     }
 
@@ -180,7 +190,15 @@ fn svd_host_seq<F: Float + Copy>(
             let sv = s.sqrt();
             sigma[b] = sv;
             for i in 0..m {
-                u[b * m * n + i * n] = if sv > F::zero() { ab[i] / sv } else { F::one() };
+                u[b * m * n + i * n] = if sv > F::zero() {
+                    ab[i] / sv
+                } else if i == 0 {
+                    // Zero column: keep U orthonormal with a unit basis vector
+                    // instead of an all-ones column of norm sqrt(m).
+                    F::one()
+                } else {
+                    F::zero()
+                };
             }
             vt[b] = F::one();
             continue;
@@ -264,7 +282,7 @@ fn svd_host_seq<F: Float + Copy>(
 /// final diagonal (signs are absorbed into U by the caller) and the Givens
 /// rotations `(k, cosl, sinl, cosr, sinr)` in application order so the
 /// caller can rebuild the singular vectors.
-pub fn dbdsqr_host<F: Float + Copy>(
+pub(crate) fn dbdsqr_host<F: Float + Copy>(
     d: &[F],
     e: &[F],
     max_sweeps: usize,
@@ -285,7 +303,7 @@ pub fn dbdsqr_host<F: Float + Copy>(
 /// row-major `(u, sigma, vt)` in the `linalg::svd` layout, with numerical
 /// zeros masked relative to `10 * eps * sigma_max`.
 #[allow(clippy::too_many_arguments)]
-pub fn svd_postprocess<F: Float + Copy>(
+pub(crate) fn svd_postprocess<F: Float + Copy>(
     u1t: &[F],
     v1t: &[F],
     sigma_in: &[F],
@@ -309,7 +327,9 @@ pub fn svd_postprocess<F: Float + Copy>(
         let zero_tol = smax * (F::epsilon() * F::from(10.0).unwrap());
         order.clear();
         order.extend(0..n);
-        order.sort_by(|&i, &j| {
+        // Indices are compared by value only, so stability is irrelevant;
+        // sort_unstable avoids the O(n) scratch allocation of stable sort.
+        order.sort_unstable_by(|&i, &j| {
             sigma_b[j]
                 .partial_cmp(&sigma_b[i])
                 .unwrap_or(core::cmp::Ordering::Equal)
@@ -396,13 +416,10 @@ fn svd2x2<F: Float + Copy>(a: &[F]) -> (F, F, [F; 4], [F; 4]) {
     } else {
         (F::zero(), F::one())
     };
-    // The rows of UᵀA are orthogonal up to sign; fix the handedness of Vt.
-    let det = r0c * r1s - r0s * r1c;
-    let (r1c, r1s) = if det < F::zero() {
-        (-r1c, -r1s)
-    } else {
-        (r1c, r1s)
-    };
+    // Vt = diag(1/s0, 1/s1) UᵀA is already the exact right factor: its rows
+    // are orthonormal (orthogonal rows, unit norms), and det(Vt) = +/-1 carries
+    // the sign of det(A). Both signs are valid SVDs, so no handedness fix is
+    // needed (a previous det < 0 negation of row 1 broke reconstruction).
     let u = [ct, -st, st, ct];
     let vt = [r0c, r0s, r1c, r1s];
     if s0 >= s1 {
@@ -663,19 +680,30 @@ fn dbdsqr<F: Float + Copy>(
             m = ll;
             continue;
         }
-        // Wilkinson-style shift from the bottom 2x2 block of B^T B. For f32
-        // inputs the closed form carries ~1e-5 error, which exceeds the
-        // deflation threshold (10 eps) and stalls 2x2 blocks on rounding
-        // boundaries; computing the shift in f64 keeps it exact.
+        // Wilkinson-style shift from the bottom 2x2 block of B^T B. LAPACK
+        // dbdsqr uses the SMALLER root (DLAS2 SSMIN) as the shift: the larger
+        // root also converges, but loses relative accuracy on smaller singular
+        // values at extreme dynamic range (errors scale with eps * smax, not
+        // eps * sigma, for sigma far below smax). For f32 inputs the closed
+        // form carries ~1e-5 error, which exceeds the deflation threshold
+        // (10 eps) and stalls 2x2 blocks on rounding boundaries; computing
+        // the shift in f64 keeps it exact.
         let shift = if core::mem::size_of::<F>() == 4 {
             let d1 = d[m - 2].to_f64().unwrap();
             let e1 = e[m - 2].to_f64().unwrap();
             let d2 = d[m - 1].to_f64().unwrap();
             let t = d1 * d1 + d2 * d2 + e1 * e1;
             let disc = (t * t - 4.0 * d1 * d1 * d2 * d2).max(0.0).sqrt();
-            F::from(((t + disc) / 2.0).max(0.0).sqrt()).unwrap()
+            let smax = ((t + disc) / 2.0).max(0.0).sqrt();
+            let smin = if smax > 0.0 {
+                // |d1 d2| / smax, factored so the product cannot overflow.
+                d1.abs() * (d2.abs() / smax)
+            } else {
+                0.0
+            };
+            F::from(smin).unwrap()
         } else {
-            dlas2_smax(d[m - 2], e[m - 2], d[m - 1])
+            dlas2_smin(d[m - 2], e[m - 2], d[m - 1])
         };
         // One QR sweep over the block. The starting value is the first column
         // of (B - shift I) scaled for stability; with d[ll] exactly zero the
@@ -717,7 +745,20 @@ fn dbdsqr<F: Float + Copy>(
 
 /// A single Givens rotation produced by [`dbdsqr_host`]: the pivot column
 /// pair and the four rotation coefficients (cosl, sinl, cosr, sinr).
-pub type GivensRotation<F> = (usize, F, F, F, F);
+pub(crate) type GivensRotation<F> = (usize, F, F, F, F);
+
+/// Smaller singular value of the 2x2 block [[d1, e1], [0, d2]], the LAPACK
+/// dbdsqr shift. SSMIN = |d1 d2| / SSMAX is exact (the roots of the trailing
+/// 2x2 of B^T B multiply to d1^2 d2^2), and dividing after scaling keeps both
+/// the product and the quotient free of overflow/underflow.
+fn dlas2_smin<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
+    let smax = dlas2_smax(d1, e1, d2);
+    if smax == F::zero() {
+        F::zero()
+    } else {
+        (d1 * (d2 / smax)).abs()
+    }
+}
 
 /// Largest singular value of the 2x2 block [[d1, e1], [0, d2]]. Scaled like
 /// LAPACK dlas2: no overflow or underflow on the intermediate squares.
@@ -938,6 +979,28 @@ mod tests {
             }
         }
         assert!(err < 1e-12, "2x2 recon {err}");
+
+        // Negative determinant: the right factor must still reconstruct A.
+        // (A regression test: a previous "handedness fix" negated Vt row 1
+        // without U column 1, breaking every det < 0 input.)
+        for a in [
+            [1.0f64, 2.0, 3.0, 4.0],
+            [0.0f64, 1.0, 1.0, 0.0],
+            [-3.0f64, 1.0, 2.0, -1.0],
+        ] {
+            let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
+            let mut err = 0.0f64;
+            for i in 0..2 {
+                for j in 0..2 {
+                    let mut acc = 0.0f64;
+                    for k in 0..2 {
+                        acc += u[i * 2 + k] * s[k] * vt[k * 2 + j];
+                    }
+                    err = err.max((a[i * 2 + j] - acc).abs());
+                }
+            }
+            assert!(err < 1e-12, "neg-det 2x2 recon {err} for {a:?}");
+        }
     }
 
     #[test]
@@ -958,5 +1021,27 @@ mod tests {
             }
         }
         assert!(err < 1e-12, "batch2 recon {err}");
+    }
+
+    #[test]
+    fn test_svd_host_zero_m1_orthonormal() {
+        // Zero m x 1 matrix: U must stay orthonormal (unit basis), not an
+        // all-ones column of norm sqrt(m).
+        let (m, n) = (5usize, 1usize);
+        let a = [0.0f64; 5];
+        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
+        assert_eq!(s[0], 0.0);
+        let norm: f64 = u.iter().map(|x| x * x).sum();
+        assert!((norm - 1.0).abs() < 1e-15, "U column norm {norm}");
+        assert_eq!(vt[0], 1.0);
+        // Non-zero column keeps the normalized-column form.
+        let a = [0.0f64, 3.0, 0.0, 4.0, 0.0];
+        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
+        assert!((s[0] - 5.0).abs() < 1e-15);
+        let mut err = 0.0f64;
+        for i in 0..m {
+            err = err.max((a[i] - u[i * n] * s[0] * vt[0]).abs());
+        }
+        assert!(err < 1e-15, "m1 recon {err}");
     }
 }

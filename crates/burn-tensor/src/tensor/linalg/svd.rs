@@ -50,8 +50,8 @@ use burn_std::FloatDType;
 ///
 /// # Performance Note
 /// The computation is dispatched to the backend through
-/// `FloatTensorOps::float_svd`. Backends with a native or fused
-/// implementation (e.g. tch, cubecl) override it; the default implementation
+/// `FloatTensorOps::float_svd`, which backends may override with a native or
+/// fused implementation (none ship one yet). The default implementation
 /// runs the reference pipeline on the host over the tensor data
 /// (`into_data` / `from_data`), which is deterministic and
 /// backend-independent, but the bidiagonalization is O(m n^2) scalar math.
@@ -152,13 +152,12 @@ pub fn svd<const D: usize, const D1: usize>(
     // not supported" while other kernels are still queued. No-op on eager
     // backends such as ndarray.
     let _ = device.sync();
-    // Dispatch to the backend through the bridge: backends with a native or
-    // fused SVD (e.g. tch, cubecl) override `FloatTensorOps::float_svd`; the
-    // default implementation runs the reference host pipeline on the pulled
-    // data, which keeps this deterministic and backend-independent. The
-    // backend returns the factors already sorted, masked, permuted and
-    // swapped; its dims follow the orientation (swap -> u is [..., n, n],
-    // vt is [..., m, n]).
+    // Dispatch to the backend through the bridge: `FloatTensorOps::float_svd`
+    // may be overridden by a backend with a native or fused SVD; the default
+    // implementation runs the reference host pipeline on the pulled data,
+    // which keeps this deterministic and backend-independent. The backend
+    // returns the factors already sorted, masked, permuted and swapped; its
+    // dims follow the orientation (swap -> u is [..., n, n], vt is [..., m, n]).
     let (u, s, vt) = crate::ops::svd(a.primitive, sweeps, swap);
     let result = (
         Tensor::<D>::new(u),

@@ -10,13 +10,12 @@ pub(crate) mod argwhere;
 pub(crate) mod cat;
 pub(crate) mod repeat_dim;
 pub(crate) mod sort;
-pub mod svd;
+pub(crate) mod svd;
 
 pub use activation::*;
 pub use bool_tensor::*;
 pub use int_tensor::*;
 pub use modules::*;
 pub use qtensor::*;
-pub use svd::*;
 pub use tensor::*;
 pub use transaction::*;

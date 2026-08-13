@@ -675,13 +675,21 @@ fn test_svd_more_sweeps_improve_accuracy() {
 #[test]
 fn test_svd_f16_dtype_roundtrip() {
     // f16/bf16 inputs are upcast to f32 internally (like `det`); the factors
-    // come back in the input dtype.
+    // come back in the input dtype and must still reconstruct the input
+    // within half-precision tolerance (the upcast -> compute -> cast-back
+    // path must not lose more precision than the dtype itself carries).
     let device = Default::default();
     let tensor = TestTensor::<3>::random([2, 3, 3], Distribution::Default, &device);
     let (u, s, vt) = svd::<3, 2>(tensor.clone(), 10);
     assert_eq!(tensor.dtype(), u.dtype());
     assert_eq!(tensor.dtype(), s.dtype());
     assert_eq!(tensor.dtype(), vt.dtype());
+    let err = recon_err::<3, 2>(tensor.clone(), u, &s, vt);
+    assert!(
+        err < abs_tol(),
+        "half-precision reconstruction err {err} (dtype {:?})",
+        tensor.dtype()
+    );
 }
 
 #[test]
@@ -751,6 +759,59 @@ fn test_svd_empty_matrix() {
     assert_eq!(u.dims(), [3, 0]);
     assert_eq!(s.dims(), [0]);
     assert_eq!(vt.dims(), [0, 0]);
+}
+
+#[test]
+fn test_svd_empty_batch() {
+    // Zero batch dimension with a non-empty matrix: factors keep the batch
+    // dim (S must not collapse to [1, ..]).
+    let device = Default::default();
+    let a = TestTensor::<3>::from_data(
+        burn_tensor::TensorData::new(Vec::<f32>::new(), [0, 3, 4]),
+        &device,
+    );
+    let (u, s, vt) = svd::<3, 2>(a, 15);
+    assert_eq!(u.dims(), [0, 3, 3]);
+    assert_eq!(s.dims(), [0, 3]);
+    assert_eq!(vt.dims(), [0, 3, 4]);
+}
+
+#[test]
+fn test_svd_negative_det_2x2() {
+    // det < 0 inputs must still reconstruct exactly (regression: a previous
+    // handedness fix in the 2x2 closed form negated Vt row 1 without U
+    // column 1, breaking every negative-determinant matrix).
+    let device = Default::default();
+    for a in [
+        [[1.0f64, 2.0], [3.0, 4.0]],
+        [[0.0f64, 1.0], [1.0, 0.0]],
+        [[-3.0f64, 1.0], [2.0, -1.0]],
+    ] {
+        let tensor = TestTensor::<2>::from_data(a, &device);
+        let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
+        assert_reconstruction::<2, 1>(tensor, u, &s, vt);
+    }
+}
+
+#[test]
+fn test_svd_zero_m1_orthonormal() {
+    // Zero m x 1 matrix: U stays orthonormal (unit basis), Vt = [1].
+    let device = Default::default();
+    let a = TestTensor::<2>::from_data(
+        burn_tensor::TensorData::new(vec![0.0f32; 5], [5, 1]),
+        &device,
+    );
+    let (u, s, vt) = svd::<2, 1>(a, 15);
+    let sv: Vec<f32> = to_f32_vec(s);
+    assert_eq!(sv[0], 0.0);
+    let uv: Vec<f32> = to_f32_vec(u);
+    let norm: f32 = uv.iter().map(|x| x * x).sum();
+    assert!(
+        (norm - 1.0).abs() < 1e-4,
+        "U column must be a unit basis, norm {norm}"
+    );
+    let vv: Vec<f32> = to_f32_vec(vt);
+    assert_eq!(vv[0], 1.0);
 }
 
 #[test]
