@@ -45,8 +45,8 @@ pub enum CiTestType {
     GcpWgpuRunner,
 }
 
-#[derive(strum::Display)]
-enum TestBackend {
+#[derive(Debug, Clone, ValueEnum, PartialEq, strum::Display)]
+pub(crate) enum TestBackend {
     #[strum(to_string = "cuda")]
     Cuda,
     #[strum(to_string = "metal")]
@@ -71,7 +71,7 @@ fn set_burn_device(device: &str) {
     }
 }
 
-fn handle_backend_tests(
+pub(crate) fn handle_backend_tests(
     args: TestCmdArgs,
     backend: TestBackend,
     context: Context,
