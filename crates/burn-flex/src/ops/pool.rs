@@ -663,6 +663,7 @@ fn valid_range_avgpool(
 
 /// Generic 3D average pooling implementation.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::extra_unused_type_parameters)]
 #[cfg_attr(feature = "simd", macerator::with_simd)]
 fn avg_pool3d_impl<#[cfg(feature = "simd")] S: macerator::Simd, T, Div>(
     x: FlexTensor,
@@ -966,6 +967,7 @@ pub fn adaptive_avg_pool3d_backward_bf16(x: FlexTensor, grad: FlexTensor) -> Fle
 }
 
 /// Generic 3D adaptive average pooling implementation.
+#[allow(clippy::extra_unused_type_parameters)]
 #[cfg_attr(feature = "simd", macerator::with_simd)]
 fn adaptive_avg_pool3d_impl<#[cfg(feature = "simd")] S: macerator::Simd, T, Div>(
     x: FlexTensor,
