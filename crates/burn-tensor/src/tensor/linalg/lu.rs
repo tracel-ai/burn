@@ -442,7 +442,6 @@ fn apply_permutations_to_tensor<const D: usize>(
     let piv_data: Vec<f32> = piv
         .try_into_data_as::<f32>()
         .unwrap()
-        .unwrap()
         .try_into_vec()
         .unwrap();
 

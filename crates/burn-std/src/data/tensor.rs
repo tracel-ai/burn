@@ -11,15 +11,15 @@ use core::ops::{Index, IndexMut};
 use rand::Rng;
 use thiserror::Error;
 
+use crate::Scalar;
 use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::tensor::ravel_index;
 use crate::{
-    BoolStore, Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Shape, bf16,
-    f16,
+    BoolStore, Bytes, ExecutionError, QuantLevel, QuantMode, QuantScheme, QuantValue,
+    QuantizedBytes, Shape, bf16, f16,
 };
-use crate::{Scalar, WithOkOrPanic};
 
 use serde::{Deserialize, Serialize};
 
@@ -48,6 +48,28 @@ pub enum DataError {
 
         /// The target/expected DType.
         target: DType,
+    },
+}
+
+/// An error that can occur while reading host data from a tensor.
+#[derive(Debug, Error)]
+pub enum TensorReadError {
+    /// Tensor execution failed while reading the data from the device.
+    #[error(transparent)]
+    Execution(#[from] ExecutionError),
+
+    /// The resulting [`TensorData`] could not satisfy the requested data operation.
+    #[error(transparent)]
+    Data(#[from] DataError),
+
+    /// The tensor shape does not satisfy the read operation's element-count requirement.
+    #[error("Expected {expected} tensor element(s), but got {actual}")]
+    InvalidShape {
+        /// The required number of elements.
+        expected: usize,
+
+        /// The actual number of elements.
+        actual: usize,
     },
 }
 
@@ -204,8 +226,10 @@ impl TensorData {
     ///
     /// # Panics
     /// If the view [`DType`] is not compatible with the [`TensorData`].
+    #[track_caller]
     pub fn view<E: Element>(&self) -> TensorDataView<'_, E> {
-        self.try_view().ok_or_panic()
+        self.try_view()
+            .unwrap_or_else(|err| panic!("Failed to create TensorData view: {err}"))
     }
 
     /// Returns a [`TensorDataViewMut<E>`] of the [`TensorData`].
@@ -258,8 +282,10 @@ impl TensorData {
     ///
     /// # Panics
     /// If the view [`DType`] is not compatible with the [`TensorData`].
+    #[track_caller]
     pub fn mut_view<E: Element>(&mut self) -> TensorDataViewMut<'_, E> {
-        self.try_mut_view().ok_or_panic()
+        self.try_mut_view()
+            .unwrap_or_else(|err| panic!("Failed to create mutable TensorData view: {err}"))
     }
 
     /// Returns the immutable slice view of the tensor data.
@@ -625,15 +651,19 @@ impl TensorData {
     }
 
     /// Converts the data to a different element type.
+    #[track_caller]
     pub fn convert<E: Element>(self) -> Self {
         // TODO: deprecate?
-        self.try_cast_as::<E>().ok_or_panic()
+        self.try_cast_as::<E>()
+            .unwrap_or_else(|err| panic!("Failed to convert TensorData: {err}"))
     }
 
     /// Converts the data to a different element type.
+    #[track_caller]
     pub fn convert_dtype(self, dtype: DType) -> Self {
         // TODO: deprecate?
-        self.try_cast(dtype).ok_or_panic()
+        self.try_cast(dtype)
+            .unwrap_or_else(|err| panic!("Failed to convert TensorData to {dtype:?}: {err}"))
     }
 
     /// Convert the data to a new dtype.
@@ -1116,7 +1146,7 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
 
     fn index(&self, index: &[I]) -> &Self::Output {
         let o = self.ravel_index(index);
-        &self.data.as_slice::<E>().ok_or_panic()[o]
+        &self.data.as_slice::<E>().unwrap()[o]
     }
 }
 
@@ -1212,7 +1242,7 @@ where
 
     fn index(&self, index: &[I]) -> &Self::Output {
         let o = self.ravel_index::<I>(index);
-        &self.data.as_slice::<E>().ok_or_panic()[o]
+        &self.data.as_slice::<E>().unwrap()[o]
     }
 }
 
@@ -1223,7 +1253,7 @@ where
 {
     fn index_mut(&mut self, index: &[I]) -> &mut Self::Output {
         let o = self.ravel_index::<I>(index);
-        &mut self.data.as_mut_slice::<E>().ok_or_panic()[o]
+        &mut self.data.as_mut_slice::<E>().unwrap()[o]
     }
 }
 
@@ -1243,7 +1273,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::try_from_rng(&mut SysRng).ok_or_panic(),
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
 
         assert_eq!(data.rank(), 3);
@@ -1255,11 +1285,11 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::try_from_rng(&mut SysRng).ok_or_panic(),
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
 
         let expected = data.iter::<f32>().collect::<Vec<f32>>();
-        let actual = data.try_into_vec::<f32>().ok_or_panic();
+        let actual = data.try_into_vec::<f32>().unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -1271,10 +1301,10 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::try_from_rng(&mut SysRng).ok_or_panic(),
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
 
-        data.try_into_vec::<i32>().ok_or_panic();
+        data.try_into_vec::<i32>().unwrap();
     }
 
     #[test]
@@ -1284,11 +1314,11 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::try_from_rng(&mut SysRng).ok_or_panic(),
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
 
         assert_eq!(num_elements, data.bytes.len() / 4); // f32 stored as u8s
-        assert_eq!(num_elements, data.as_slice::<f32>().ok_or_panic().len());
+        assert_eq!(num_elements, data.as_slice::<f32>().unwrap().len());
     }
 
     #[test]
@@ -1320,12 +1350,7 @@ mod tests {
         fn test_precision<E: Element>() {
             let data = TensorData::new((0..32).collect(), [32]);
             let self1 = data.clone().convert::<E>();
-            for (i, val) in self1
-                .try_into_vec::<E>()
-                .ok_or_panic()
-                .into_iter()
-                .enumerate()
-            {
+            for (i, val) in self1.try_into_vec::<E>().unwrap().into_iter().enumerate() {
                 assert_eq!(i as u32, val.elem::<u32>())
             }
         }
@@ -1392,8 +1417,8 @@ mod tests {
                 64
             ]
         );
-        let serialized = serde_json::to_string(&data).ok_or_panic();
-        let deserialized: TensorData = serde_json::from_str(&serialized).ok_or_panic();
+        let serialized = serde_json::to_string(&data).unwrap();
+        let deserialized: TensorData = serde_json::from_str(&serialized).unwrap();
         assert_eq!(data, deserialized);
     }
 
@@ -1406,10 +1431,10 @@ mod tests {
         "dtype": "F32"
     }"#;
 
-        let data: TensorData = serde_json::from_str(serialized).ok_or_panic();
+        let data: TensorData = serde_json::from_str(serialized).unwrap();
         assert_eq!(data.shape, shape![2, 3]);
         assert_eq!(
-            data.as_slice::<f32>().ok_or_panic(),
+            data.as_slice::<f32>().unwrap(),
             &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
         );
     }
@@ -1419,8 +1444,8 @@ mod tests {
         // Ensure the new Shape serializes identically to how Vec<usize> used to,
         // i.e. as a flat JSON array, not as an object like `{"dims": [2, 3]}`.
         let data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], [2, 3]);
-        let serialized = serde_json::to_string(&data).ok_or_panic();
-        let json: serde_json::Value = serde_json::from_str(&serialized).ok_or_panic();
+        let serialized = serde_json::to_string(&data).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&serialized).unwrap();
         assert_eq!(json["shape"], serde_json::json!([2, 3]));
     }
 
@@ -1502,19 +1527,13 @@ mod tests {
         let data = TensorData::from([0.0f32, 1.0, 2.5]);
 
         // Same-dtype copy.
-        assert_eq!(
-            data.try_to_vec_as::<f32>().ok_or_panic(),
-            vec![0.0f32, 1.0, 2.5]
-        );
+        assert_eq!(data.try_to_vec_as::<f32>().unwrap(), vec![0.0f32, 1.0, 2.5]);
 
         // Widening cast (different element size).
-        assert_eq!(
-            data.try_to_vec_as::<f64>().ok_or_panic(),
-            vec![0.0f64, 1.0, 2.5]
-        );
+        assert_eq!(data.try_to_vec_as::<f64>().unwrap(), vec![0.0f64, 1.0, 2.5]);
 
         // Float to int cast (same element size) truncates.
-        assert_eq!(data.try_to_vec_as::<i32>().ok_or_panic(), vec![0i32, 1, 2]);
+        assert_eq!(data.try_to_vec_as::<i32>().unwrap(), vec![0i32, 1, 2]);
 
         // The source data is borrowed, not consumed.
         data.assert_eq(&TensorData::from([0.0f32, 1.0, 2.5]), true);
@@ -1526,20 +1545,17 @@ mod tests {
 
         // Same-dtype conversion.
         assert_eq!(
-            data.clone().try_into_vec_as::<i32>().ok_or_panic(),
+            data.clone().try_into_vec_as::<i32>().unwrap(),
             vec![0i32, 1, 2, 3]
         );
 
         // Int to float cast.
         assert_eq!(
-            data.clone().try_into_vec_as::<f32>().ok_or_panic(),
+            data.clone().try_into_vec_as::<f32>().unwrap(),
             vec![0.0f32, 1.0, 2.0, 3.0]
         );
 
         // Narrowing int cast.
-        assert_eq!(
-            data.try_into_vec_as::<u8>().ok_or_panic(),
-            vec![0u8, 1, 2, 3]
-        );
+        assert_eq!(data.try_into_vec_as::<u8>().unwrap(), vec![0u8, 1, 2, 3]);
     }
 }

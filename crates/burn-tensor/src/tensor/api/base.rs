@@ -11,7 +11,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_std::{DataError, ExecutionError, WithOkOrPanic};
+use burn_std::{ExecutionError, TensorReadError};
 use burn_std::{SliceOps, sync::RwLock};
 use core::iter::ExactSizeIterator;
 use core::iter::repeat;
@@ -1978,6 +1978,7 @@ where
     ///
     /// # Panics
     /// Panics on failure.
+    #[track_caller]
     pub fn into_data(self) -> TensorData {
         self.try_into_data().expect(
             "Error while reading data: use `try_into_data` instead to catch the error at runtime",
@@ -2012,6 +2013,7 @@ where
     ///
     /// # Panics
     /// Panics on failure.
+    #[track_caller]
     pub fn to_data(&self) -> TensorData {
         self.try_to_data().expect(
             "Error while reading data: use `try_to_data` instead to catch the error at runtime",
@@ -2054,30 +2056,32 @@ where
     /// The new data.
     ///
     /// # Panics
-    /// On data conversion error.
+    /// If tensor execution or data conversion fails.
+    #[track_caller]
     pub fn to_data_as<E: Element>(&self) -> TensorData {
-        self.to_data().convert::<E>()
+        self.try_to_data_as::<E>()
+            .unwrap_or_else(|err| panic!("Failed to read tensor data: {err}"))
     }
 
     /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
     ///
     /// By contract, this will yield the same result as
-    /// `tensor.to_data().try_convert::<E>()`.
+    /// `tensor.try_to_data()?.try_cast_as::<E>()`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// # Returns
-    /// `Ok(data)`, or an error on data conversion errors.
-    pub fn try_to_data_as<E: Element>(&self) -> Result<TensorData, DataError> {
-        self.to_data().try_cast_as::<E>()
+    /// `Ok(data)`, or an error when execution or data conversion fails.
+    pub fn try_to_data_as<E: Element>(&self) -> Result<TensorData, TensorReadError> {
+        Ok(self.try_to_data()?.try_cast_as::<E>()?)
     }
 
     /// Converts the current `Tensor` into `Vec<E>`; converts the dtype.
     ///
     /// By contract, this will yield the same result as
     /// `tensor.try_to_data_as::<E>()?.try_to_vec::<E>()`.
-    pub fn try_to_vec_as<E: Element>(&self) -> Result<Vec<E>, DataError> {
-        self.try_to_data_as::<E>()?.try_to_vec()
+    pub fn try_to_vec_as<E: Element>(&self) -> Result<Vec<E>, TensorReadError> {
+        Ok(self.try_to_data_as::<E>()?.try_to_vec()?)
     }
 
     /// Copies the current `Tensor` into `TensorData`; converts the dtype.
@@ -2090,22 +2094,24 @@ where
     /// The new data.
     ///
     /// # Panics
-    /// On data conversion error.
+    /// If tensor execution or data conversion fails.
+    #[track_caller]
     pub fn to_data_dtype(&self, dtype: DType) -> TensorData {
-        self.try_to_data_dtype(dtype).ok_or_panic()
+        self.try_to_data_dtype(dtype)
+            .unwrap_or_else(|err| panic!("Failed to read tensor data as {dtype:?}: {err}"))
     }
 
     /// Copies the current `Tensor` into `TensorData`; converts the dtype.
     ///
     /// By contract, this will yield the same result as
-    /// `tensor.to_data().try_cast(dtype)`.
+    /// `tensor.try_to_data()?.try_cast(dtype)`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// # Returns
-    /// `Ok(data)`, or an error on data conversion errors.
-    pub fn try_to_data_dtype(&self, dtype: DType) -> Result<TensorData, DataError> {
-        self.to_data().try_cast(dtype)
+    /// `Ok(data)`, or an error when execution or data conversion fails.
+    pub fn try_to_data_dtype(&self, dtype: DType) -> Result<TensorData, TensorReadError> {
+        Ok(self.try_to_data()?.try_cast(dtype)?)
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
@@ -2118,35 +2124,32 @@ where
     /// The new data.
     ///
     /// # Panics
-    /// On data conversion error.
+    /// If tensor execution or data conversion fails.
+    #[track_caller]
     pub fn into_data_as<E: Element>(self) -> TensorData {
-        self.try_into_data_as::<E>().ok_or_panic().ok_or_panic()
+        self.try_into_data_as::<E>()
+            .unwrap_or_else(|err| panic!("Failed to read tensor data: {err}"))
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
     ///
     /// By contract, this will yield the same result as
-    /// `tensor.try_into_data()?.try_cast_as::<E>(dtype)`.
+    /// `tensor.try_into_data()?.try_cast_as::<E>()`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// # Returns
-    /// Nested result, `Ok(Ok(data))` on success;
-    /// `Err(ExecutionError)` on transaction errors,
-    /// `Ok(Err(DataError))` on dtype errors,
-    pub fn try_into_data_as<E: Element>(
-        self,
-    ) -> Result<Result<TensorData, DataError>, ExecutionError> {
-        self.try_into_data().map(|d| d.try_cast_as::<E>())
+    /// `Ok(data)` on success, or an error when execution or data conversion fails.
+    pub fn try_into_data_as<E: Element>(self) -> Result<TensorData, TensorReadError> {
+        Ok(self.try_into_data()?.try_cast_as::<E>()?)
     }
 
     /// Converts the current `Tensor` into `Vec<E>`; converts the dtype.
     ///
     /// By contract, this will yield the same result as
     /// `tensor.try_into_data_as::<E>()?.try_to_vec::<E>()`.
-    pub fn try_into_vec_as<E: Element>(self) -> Result<Result<Vec<E>, DataError>, ExecutionError> {
-        self.try_into_data_as::<E>()
-            .map(|dr| dr?.try_into_vec::<E>())
+    pub fn try_into_vec_as<E: Element>(self) -> Result<Vec<E>, TensorReadError> {
+        Ok(self.try_into_data_as::<E>()?.try_into_vec::<E>()?)
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
@@ -2159,9 +2162,11 @@ where
     /// The new data.
     ///
     /// # Panics
-    /// On data conversion error.
+    /// If tensor execution or data conversion fails.
+    #[track_caller]
     pub fn into_data_dtype(self, dtype: DType) -> TensorData {
-        self.try_into_data_dtype(dtype).ok_or_panic().ok_or_panic()
+        self.try_into_data_dtype(dtype)
+            .unwrap_or_else(|err| panic!("Failed to read tensor data as {dtype:?}: {err}"))
     }
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
@@ -2172,12 +2177,9 @@ where
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// # Returns
-    /// `Ok(data)`, or an error on data conversion errors.
-    pub fn try_into_data_dtype(
-        self,
-        dtype: DType,
-    ) -> Result<Result<TensorData, DataError>, ExecutionError> {
-        self.try_into_data().map(|d| d.try_cast(dtype))
+    /// `Ok(data)`, or an error when execution or data conversion fails.
+    pub fn try_into_data_dtype(self, dtype: DType) -> Result<TensorData, TensorReadError> {
+        Ok(self.try_into_data()?.try_cast(dtype)?)
     }
 
     /// Create a tensor from the given data on the given device.
@@ -2867,6 +2869,7 @@ where
     /// let scalar: f32 = tensor.into_scalar();
     /// println!("{scalar}");
     /// ```
+    #[track_caller]
     pub fn into_scalar<E: Element>(self) -> E {
         self.try_into_scalar::<E>().expect(
             "Error while reading data: use `try_into_scalar` instead to catch the error at runtime",
@@ -2876,36 +2879,66 @@ where
     /// Convert the tensor into a scalar and returns any error that might have occurred since the
     /// last time the device was synchronized.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// - If the tensor doesn't have one element.
-    /// - If the backend fails to read the tensor data synchronously.
+    /// Returns an error if the tensor doesn't contain exactly one element, the backend fails to
+    /// read its data, or the data can't be converted to `E`.
     ///
     /// # Returns
     ///
     /// The scalar value of the tensor.
-    pub fn try_into_scalar<E: Element>(self) -> Result<E, ExecutionError> {
-        check!(TensorCheck::into_scalar::<D>(&self.shape()));
+    pub fn try_into_scalar<E: Element>(self) -> Result<E, TensorReadError> {
         let data = self.try_into_data()?;
         Self::_unpack_scalar::<E>(data)
     }
 
-    /// Convert the tensor into a scalar.
+    /// Convert the tensor into a scalar asynchronously.
     ///
     /// # Panics
     ///
-    /// If the tensor doesn't have one element.
+    /// Panics if the tensor doesn't contain exactly one element or its data can't be converted
+    /// to `E`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to read the tensor data.
     pub async fn into_scalar_async<E: Element>(self) -> Result<E, ExecutionError> {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
+        let data = self.into_data_async().await?;
+        Ok(Self::_unpack_scalar::<E>(data)
+            .unwrap_or_else(|err| panic!("Failed to convert tensor data to a scalar: {err}")))
+    }
+
+    /// Try to convert the tensor into a scalar asynchronously.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tensor doesn't contain exactly one element, the backend fails to
+    /// read its data, or the data can't be converted to `E`.
+    pub async fn try_into_scalar_async<E: Element>(self) -> Result<E, TensorReadError> {
         let data = self.into_data_async().await?;
         Self::_unpack_scalar::<E>(data)
     }
 
-    fn _unpack_scalar<E: Element>(data: TensorData) -> Result<E, ExecutionError> {
-        Ok(data
-            .iter::<E>()
-            .next()
-            .unwrap_or_else(|| panic!("Internal Shape Error: {:?}", data.shape)))
+    fn _unpack_scalar<E: Element>(data: TensorData) -> Result<E, TensorReadError> {
+        let actual = data.shape.num_elements();
+        if actual != 1 {
+            return Err(TensorReadError::InvalidShape {
+                expected: 1,
+                actual,
+            });
+        }
+
+        let mut values = data.try_into_vec_as::<E>()?;
+        let actual = values.len();
+        if actual != 1 {
+            return Err(TensorReadError::InvalidShape {
+                expected: 1,
+                actual,
+            });
+        }
+
+        Ok(values.pop().expect("scalar element count was validated"))
     }
 
     /// Broadcast the tensor to the given shape.
@@ -3551,6 +3584,26 @@ mod tests {
     use crate::Slice;
 
     use crate::s;
+
+    #[test]
+    fn scalar_read_returns_shape_error() {
+        let error = Tensor::<1>::_unpack_scalar::<f32>(TensorData::from([1.0, 2.0])).unwrap_err();
+
+        assert!(matches!(
+            error,
+            TensorReadError::InvalidShape {
+                expected: 1,
+                actual: 2
+            }
+        ));
+    }
+
+    #[test]
+    fn scalar_read_converts_to_requested_element() {
+        let scalar = Tensor::<1>::_unpack_scalar::<f32>(TensorData::from([3i32])).unwrap();
+
+        assert_eq!(scalar, 3.0);
+    }
 
     #[test]
     fn slice_range_single_dim_leading() {

@@ -15,10 +15,6 @@ extern crate alloc;
 /// Id module contains types for unique identifiers.
 pub mod id;
 
-/// Cleaner panic errors than .unwrap().
-pub mod result_ext;
-pub use result_ext::*;
-
 /// Tensor utilities.
 pub mod tensor;
 pub use tensor::*;
