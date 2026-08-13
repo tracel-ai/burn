@@ -18,8 +18,12 @@ fn should_support_sign_ops_float_negative_zero() {
     // dropping that branch silently changes the result for negative zero.
     let tensor = TestTensor::<2>::from([[-0.0, 0.0]]);
 
-    let output = tensor.sign();
-    let expected = TensorData::from([[0.0, 0.0]]);
+    let output = tensor.sign().into_data().convert::<f32>();
+    let output = output.as_slice::<f32>().unwrap();
 
-    output.into_data().assert_eq(&expected, false);
+    // `assert_eq` on `TensorData` uses ordinary float equality, where `-0.0 == 0.0`,
+    // so it would not catch a regression that returns negative zero here. Compare
+    // the raw bit patterns instead to actually enforce the +0.0 guarantee.
+    assert_eq!(output[0].to_bits(), 0.0f32.to_bits());
+    assert_eq!(output[1].to_bits(), 0.0f32.to_bits());
 }
