@@ -1973,11 +1973,14 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     ///
-    /// # Results
-    /// data on success.
+    /// # Returns
+    ///
+    /// The tensor data.
     ///
     /// # Panics
-    /// Panics on failure.
+    ///
+    /// Panics if the backend fails to read the tensor data or the platform doesn't support
+    /// synchronous readback.
     #[track_caller]
     pub fn into_data(self) -> TensorData {
         self.try_into_data().expect(
@@ -1994,8 +1997,13 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     ///
-    /// # Results
-    /// `Ok(data)` on success, `Err(error)` on failure
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to read the tensor data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
         try_into_data_sync_impl(self.primitive, K::KIND)
     }
@@ -2008,11 +2016,14 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     ///
-    /// # Results
-    /// data on success.
+    /// # Returns
+    ///
+    /// The tensor data.
     ///
     /// # Panics
-    /// Panics on failure.
+    ///
+    /// Panics if the backend fails to read the tensor data or the platform doesn't support
+    /// synchronous readback.
     #[track_caller]
     pub fn to_data(&self) -> TensorData {
         self.try_to_data().expect(
@@ -2028,8 +2039,13 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     ///
-    /// # Results
-    /// `Ok(data)` on success, `Err(error)` on failure
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to read the tensor data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_to_data(&self) -> Result<TensorData, ExecutionError> {
         self.clone().try_into_data()
     }
