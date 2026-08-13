@@ -26,6 +26,15 @@ impl Reparameterization for LoraAdapter {
 
     fn materialize<const D: usize>(&self, base: Tensor<D>) -> Tensor<D> {
         let delta = self.delta().reshape(base.shape());
+        // The factors set the precision the compose runs at. A dense base was
+        // matched to them when they were built; a packed base dequantizes to
+        // the device default, which is not theirs whenever the model computes
+        // at another precision.
+        let base = if base.dtype() != delta.dtype() {
+            base.dequantize().cast(delta.dtype())
+        } else {
+            base
+        };
         base + delta
     }
 }
