@@ -90,16 +90,8 @@ impl Metric for CharErrorRate {
             let target_lengths_tensor = target_mask.int().sum_dim(1);
 
             (
-                output_lengths_tensor
-                    .into_data()
-                    .convert::<i32>()
-                    .try_into_vec()
-                    .unwrap(),
-                target_lengths_tensor
-                    .into_data()
-                    .convert::<i32>()
-                    .try_into_vec()
-                    .unwrap(),
+                output_lengths_tensor.try_to_vec_as::<i32>().unwrap(),
+                target_lengths_tensor.try_to_vec_as::<i32>().unwrap(),
             )
         } else {
             // If there's no padding, all sequences have the full length.
@@ -109,8 +101,8 @@ impl Metric for CharErrorRate {
             )
         };
 
-        let outputs_data = outputs.to_data().convert::<i32>().try_into_vec().unwrap();
-        let targets_data = targets.to_data().convert::<i32>().try_into_vec().unwrap();
+        let outputs_data: Vec<i32> = outputs.try_to_vec_as().unwrap();
+        let targets_data: Vec<i32> = targets.try_to_vec_as().unwrap();
 
         let total_edit_distance: usize = (0..batch_size)
             .map(|i| {

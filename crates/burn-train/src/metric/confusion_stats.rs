@@ -36,8 +36,7 @@ impl Debug for ConfusionStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let to_vec = |tensor_data: Tensor<1>| {
             tensor_data
-                .to_data()
-                .try_into_vec::<f32>()
+                .try_to_vec_as::<f32>()
                 .expect("A vector representation of the input Tensor is expected")
         };
         let ratio_of_support_vec =

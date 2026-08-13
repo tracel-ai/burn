@@ -563,12 +563,7 @@ mod pytorch_comparison_tests {
             .assert_approx_eq::<f32>(&TensorData::from([4.4491f32]), tol());
 
         let grads = loss.sum().backward();
-        let grad = logits
-            .grad(&grads)
-            .unwrap()
-            .into_data()
-            .try_into_vec::<f32>()
-            .unwrap();
+        let grad = logits.grad(&grads).unwrap().try_to_vec_as::<f32>().unwrap();
 
         // Spot-check first, middle, and last (t, u) positions against torchaudio
         assert_grad(&grad, 0, 0, 0, 4, 3, 3, &[-0.2041, -0.2246, 0.4287]);
@@ -595,12 +590,7 @@ mod pytorch_comparison_tests {
             .assert_approx_eq::<f32>(&TensorData::from([7.9356f32, 7.2033]), tol());
 
         let grads = loss.sum().backward();
-        let grad = logits
-            .grad(&grads)
-            .unwrap()
-            .into_data()
-            .try_into_vec::<f32>()
-            .unwrap();
+        let grad = logits.grad(&grads).unwrap().try_to_vec_as::<f32>().unwrap();
 
         // Spot-check: first position of each sample, and last position
         assert_grad(&grad, 0, 0, 0, 5, 4, 4, &[-0.3161, -0.3113, 0.2796, 0.3479]);
@@ -722,12 +712,7 @@ mod pytorch_comparison_tests {
             .assert_approx_eq::<f32>(&TensorData::from([15.1389f32]), tol());
 
         let grads = loss.backward();
-        let g = logits
-            .grad(&grads)
-            .unwrap()
-            .into_data()
-            .try_into_vec::<f32>()
-            .unwrap();
+        let g = logits.grad(&grads).unwrap().try_to_vec_as::<f32>().unwrap();
         TensorData::from(&g[..4]).assert_approx_eq::<f32>(
             &TensorData::from([-0.3161f32, -0.3113, 0.2796, 0.3479]),
             tol(),
@@ -752,12 +737,7 @@ mod pytorch_comparison_tests {
 
         // Gradients should be half the sum-reduction gradients (mean over batch of 2)
         let grads = loss.backward();
-        let g = logits
-            .grad(&grads)
-            .unwrap()
-            .into_data()
-            .try_into_vec::<f32>()
-            .unwrap();
+        let g = logits.grad(&grads).unwrap().try_to_vec_as::<f32>().unwrap();
         TensorData::from(&g[..4]).assert_approx_eq::<f32>(
             &TensorData::from([-0.1581f32, -0.1557, 0.1398, 0.1739]),
             tol(),
