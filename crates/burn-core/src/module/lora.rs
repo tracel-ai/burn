@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn qlora_builds_factors_at_the_configured_dtype() {
+    fn qlora_composes_packed_base_at_the_configured_factor_dtype() {
         use crate::module::Quantizer;
         use burn_tensor::DType;
         use burn_tensor::quantization::{Calibration, QuantLevel, QuantParam, QuantValue};
@@ -328,9 +328,8 @@ mod tests {
         assert_eq!(adapter.a.val().dtype(), DType::F16);
         assert_eq!(adapter.b.val().dtype(), DType::F16);
 
-        // The compose settles on the factors' dtype: the base dequantizes to
-        // the device default and is cast before the add, rather than meeting
-        // the delta in an elementwise op that does not promote.
+        // Mixed QFloat/Float addition dequantizes the packed base directly to
+        // the factors' dtype.
         assert_eq!(weight.val().dtype(), DType::F16);
     }
 
