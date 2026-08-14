@@ -10,7 +10,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
-use burn_std::{Bytes, Shape, bf16, f16};
+use burn_std::{Bytes, ElementAdd, Shape, bf16, f16};
 
 use crate::{FlexTensor, Layout};
 
@@ -45,7 +45,7 @@ macro_rules! max_pool3d_with_indices_typed {
 
 /// Generates avg_pool3d typed dispatchers.
 macro_rules! avg_pool3d_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr, $div_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(
             x: FlexTensor,
             kernel_size: [usize; 3],
@@ -63,7 +63,6 @@ macro_rules! avg_pool3d_typed {
                 ceil_mode,
                 $dtype,
                 $zero,
-                $add_fn,
                 $div_fn,
             )
         }
@@ -72,30 +71,22 @@ macro_rules! avg_pool3d_typed {
 
 /// Generates adaptive_avg_pool3d typed dispatchers.
 macro_rules! adaptive_avg_pool3d_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr, $div_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(x: FlexTensor, output_size: [usize; 3]) -> FlexTensor {
-            adaptive_avg_pool3d_impl::<$T>(x, output_size, $dtype, $zero, $add_fn, $div_fn)
+            adaptive_avg_pool3d_impl::<$T>(x, output_size, $dtype, $zero, $div_fn)
         }
     };
 }
 
 /// Generates max_pool3d_backward typed dispatchers.
 macro_rules! max_pool3d_backward_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr) => {
         pub fn $fn_name(x: FlexTensor, grad: FlexTensor, indices: FlexTensor) -> FlexTensor {
             match indices.dtype() {
-                DType::I64 => {
-                    max_pool3d_backward_impl::<$T, i64>(x, grad, indices, $dtype, $zero, $add_fn)
-                }
-                DType::I32 => {
-                    max_pool3d_backward_impl::<$T, i32>(x, grad, indices, $dtype, $zero, $add_fn)
-                }
-                DType::I16 => {
-                    max_pool3d_backward_impl::<$T, i16>(x, grad, indices, $dtype, $zero, $add_fn)
-                }
-                DType::I8 => {
-                    max_pool3d_backward_impl::<$T, i8>(x, grad, indices, $dtype, $zero, $add_fn)
-                }
+                DType::I64 => max_pool3d_backward_impl::<$T, i64>(x, grad, indices, $dtype, $zero),
+                DType::I32 => max_pool3d_backward_impl::<$T, i32>(x, grad, indices, $dtype, $zero),
+                DType::I16 => max_pool3d_backward_impl::<$T, i16>(x, grad, indices, $dtype, $zero),
+                DType::I8 => max_pool3d_backward_impl::<$T, i8>(x, grad, indices, $dtype, $zero),
                 other => panic!("max_pool3d_backward: unsupported index dtype {other:?}",),
             }
         }
@@ -104,7 +95,7 @@ macro_rules! max_pool3d_backward_typed {
 
 /// Generates avg_pool3d_backward typed dispatchers.
 macro_rules! avg_pool3d_backward_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr, $div_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(
             x: FlexTensor,
             grad: FlexTensor,
@@ -122,7 +113,6 @@ macro_rules! avg_pool3d_backward_typed {
                 count_include_pad,
                 $dtype,
                 $zero,
-                $add_fn,
                 $div_fn,
             )
         }
@@ -131,9 +121,9 @@ macro_rules! avg_pool3d_backward_typed {
 
 /// Generates adaptive_avg_pool3d_backward typed dispatchers.
 macro_rules! adaptive_avg_pool3d_backward_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr, $div_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(x: FlexTensor, grad: FlexTensor) -> FlexTensor {
-            adaptive_avg_pool3d_backward_impl::<$T>(x, grad, $dtype, $zero, $add_fn, $div_fn)
+            adaptive_avg_pool3d_backward_impl::<$T>(x, grad, $dtype, $zero, $div_fn)
         }
     };
 }
@@ -615,28 +605,15 @@ pub fn max_pool1d_f32(
 // Avg Pool 3D - core implementation
 // ============================================================================
 
-avg_pool3d_typed!(
-    avg_pool3d_f32,
-    f32,
-    DType::F32,
-    0.0f32,
-    |a, b| a + b,
-    |sum, count| sum / count as f32
-);
-avg_pool3d_typed!(
-    avg_pool3d_f64,
-    f64,
-    DType::F64,
-    0.0f64,
-    |a, b| a + b,
-    |sum, count| sum / count as f64
-);
+avg_pool3d_typed!(avg_pool3d_f32, f32, DType::F32, 0.0f32, |sum, count| sum
+    / count as f32);
+avg_pool3d_typed!(avg_pool3d_f64, f64, DType::F64, 0.0f64, |sum, count| sum
+    / count as f64);
 avg_pool3d_typed!(
     avg_pool3d_f16,
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     |sum: f16, count| f16::from_f32(sum.to_f32() / count as f32)
 );
 
@@ -671,11 +648,10 @@ fn avg_pool3d_impl<T>(
     ceil_mode: bool,
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
-    div_fn: fn(T, usize) -> T,
+    div_fn: impl Fn(T, usize) -> T + Copy + Send + Sync,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
 {
     let x = x.to_contiguous();
     let x_shape = x.layout().shape();
@@ -763,7 +739,7 @@ where
                                         let ih = ih as usize;
                                         let iw = iw as usize;
                                         let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
-                                        sum = add_fn(sum, x_data[x_idx]);
+                                        sum = T::add(sum, x_data[x_idx]);
                                         count += 1;
                                     }
                                 }
@@ -843,7 +819,7 @@ where
                                             let iw = iw as usize;
                                             let x_idx =
                                                 x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            sum = add_fn(sum, x_data[x_idx]);
+                                            sum = T::add(sum, x_data[x_idx]);
                                             count += 1;
                                         }
                                     }
@@ -995,7 +971,6 @@ adaptive_avg_pool3d_typed!(
     f32,
     DType::F32,
     0.0f32,
-    |a, b| a + b,
     |sum, count| sum / count as f32
 );
 adaptive_avg_pool3d_typed!(
@@ -1003,7 +978,6 @@ adaptive_avg_pool3d_typed!(
     f64,
     DType::F64,
     0.0f64,
-    |a, b| a + b,
     |sum, count| sum / count as f64
 );
 adaptive_avg_pool3d_typed!(
@@ -1011,7 +985,6 @@ adaptive_avg_pool3d_typed!(
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     |sum: f16, count| f16::from_f32(sum.to_f32() / count as f32)
 );
 
@@ -1034,11 +1007,10 @@ fn adaptive_avg_pool3d_impl<T>(
     output_size: [usize; 3],
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
-    div_fn: fn(T, usize) -> T,
+    div_fn: impl Fn(T, usize) -> T + Copy + Send + Sync,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
 {
     let x = x.to_contiguous();
     let x_shape = x.layout().shape();
@@ -1089,7 +1061,7 @@ where
                                         for iw in w_start..w_end {
                                             let x_idx =
                                                 x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            sum = add_fn(sum, x_data[x_idx]);
+                                            sum = T::add(sum, x_data[x_idx]);
                                             count += 1;
                                         }
                                     }
@@ -1135,7 +1107,7 @@ where
                                         for iw in w_start..w_end {
                                             let x_idx =
                                                 x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            sum = add_fn(sum, x_data[x_idx]);
+                                            sum = T::add(sum, x_data[x_idx]);
                                             count += 1;
                                         }
                                     }
@@ -1245,17 +1217,9 @@ pub fn max_pool2d_backward_bf16(
     convert_f32_to_bf16(&result_f32)
 }
 
-max_pool3d_backward_typed!(max_pool3d_backward_f32, f32, DType::F32, 0.0f32, |a, b| a
-    + b);
-max_pool3d_backward_typed!(max_pool3d_backward_f64, f64, DType::F64, 0.0f64, |a, b| a
-    + b);
-max_pool3d_backward_typed!(
-    max_pool3d_backward_f16,
-    f16,
-    DType::F16,
-    f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32())
-);
+max_pool3d_backward_typed!(max_pool3d_backward_f32, f32, DType::F32, 0.0f32);
+max_pool3d_backward_typed!(max_pool3d_backward_f64, f64, DType::F64, 0.0f64);
+max_pool3d_backward_typed!(max_pool3d_backward_f16, f16, DType::F16, f16::from_f32(0.0));
 
 /// Generic max pool 3D backward implementation.
 fn max_pool3d_backward_impl<T, I>(
@@ -1264,10 +1228,9 @@ fn max_pool3d_backward_impl<T, I>(
     indices: FlexTensor,
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
     I: bytemuck::Pod + Copy + Send + Sync + Element,
 {
     let x_shape = x.layout().shape();
@@ -1302,7 +1265,7 @@ where
                 let idx = indices_data[grad_offset + i].elem::<i64>();
                 if idx >= 0 {
                     let input_idx = out_offset + idx as usize;
-                    output[input_idx] = add_fn(output[input_idx], grad_data[grad_offset + i]);
+                    output[input_idx] = T::add(output[input_idx], grad_data[grad_offset + i]);
                 }
             }
         }
@@ -1409,7 +1372,6 @@ avg_pool3d_backward_typed!(
     f32,
     DType::F32,
     0.0f32,
-    |a, b| a + b,
     |val, count| val / count as f32
 );
 avg_pool3d_backward_typed!(
@@ -1417,7 +1379,6 @@ avg_pool3d_backward_typed!(
     f64,
     DType::F64,
     0.0f64,
-    |a, b| a + b,
     |val, count| val / count as f64
 );
 avg_pool3d_backward_typed!(
@@ -1425,7 +1386,6 @@ avg_pool3d_backward_typed!(
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     |val: f16, count| f16::from_f32(val.to_f32() / count as f32)
 );
 
@@ -1440,11 +1400,10 @@ fn avg_pool3d_backward_impl<T>(
     count_include_pad: bool,
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
-    div_fn: fn(T, usize) -> T,
+    div_fn: impl Fn(T, usize) -> T,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
 {
     let x_shape = x.layout().shape();
     let grad = grad.to_contiguous();
@@ -1532,7 +1491,7 @@ where
                                     let iw = iw as usize;
 
                                     let input_idx = out_offset + id * in_h * in_w + ih * in_w + iw;
-                                    output[input_idx] = add_fn(output[input_idx], distributed);
+                                    output[input_idx] = T::add(output[input_idx], distributed);
                                 }
                             }
                         }
@@ -1587,7 +1546,6 @@ adaptive_avg_pool3d_backward_typed!(
     f32,
     DType::F32,
     0.0f32,
-    |a, b| a + b,
     |val, count| val / count as f32
 );
 adaptive_avg_pool3d_backward_typed!(
@@ -1595,7 +1553,6 @@ adaptive_avg_pool3d_backward_typed!(
     f64,
     DType::F64,
     0.0f64,
-    |a, b| a + b,
     |val, count| val / count as f64
 );
 adaptive_avg_pool3d_backward_typed!(
@@ -1603,7 +1560,6 @@ adaptive_avg_pool3d_backward_typed!(
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     |val: f16, count| f16::from_f32(val.to_f32() / count as f32)
 );
 
@@ -1613,11 +1569,10 @@ fn adaptive_avg_pool3d_backward_impl<T>(
     grad: FlexTensor,
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
-    div_fn: fn(T, usize) -> T,
+    div_fn: impl Fn(T, usize) -> T,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
 {
     let x_shape = x.layout().shape();
     let grad = grad.to_contiguous();
@@ -1666,7 +1621,7 @@ where
                             for ih in h_start..h_end {
                                 for iw in w_start..w_end {
                                     let input_idx = out_offset + id * in_h * in_w + ih * in_w + iw;
-                                    output[input_idx] = add_fn(output[input_idx], distributed);
+                                    output[input_idx] = T::add(output[input_idx], distributed);
                                 }
                             }
                         }

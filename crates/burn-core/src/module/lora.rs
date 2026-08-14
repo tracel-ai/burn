@@ -78,13 +78,20 @@ impl Reparameterizer for Lora {
         if self.param_group.matches(&id, Some(path)) {
             // Standard LoRA init: A ~ N(0, std) and B = 0, so the initial delta (and the model output)
             // is unchanged when the adapter is first attached.
+            //
+            // Built under a persistent-allocation window, as `Param::from_data` places its
+            // value: the factors are parameters, alive as long as the module they attach to,
+            // and this is the code that knows it. A caller sizing or capping the dynamic
+            // pools around a prepared model must not find its trainable weights living there.
             let std = self.init_std.unwrap_or(1.0 / rank as f64);
-            let a = Tensor::<2>::random([d_in, rank], Distribution::Normal(0.0, std), &device);
-            let b = Tensor::<2>::zeros([rank, d_out], &device);
-            let (a, b) = match dtype {
-                Some(dtype) => (a.cast(dtype), b.cast(dtype)),
-                None => (a, b),
-            };
+            let (a, b) = device.memory_persistent_allocations((), |_| {
+                let a = Tensor::<2>::random([d_in, rank], Distribution::Normal(0.0, std), &device);
+                let b = Tensor::<2>::zeros([rank, d_out], &device);
+                match dtype {
+                    Some(dtype) => (a.cast(dtype), b.cast(dtype)),
+                    None => (a, b),
+                }
+            });
 
             let adapter = LoraAdapter {
                 a: Param::from_tensor(a),

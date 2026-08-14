@@ -557,29 +557,36 @@ impl FloatTensorOps<Flex> for Flex {
         )
     }
 
+    // Uses `copysign` rather than a `> 0.0` / `< 0.0` branch chain. The branch
+    // chain is compiled into a lookup from a `[2 x float]` constant pool at -O2
+    // and above, and some backends (notably Xtensa) have no instruction
+    // selection pattern for a PC-relative reference to a constant pool, so the
+    // whole crate fails to compile for those targets. One scalar constant
+    // leaves the pool with nothing to hold.
+    //
+    // The zero branch is load bearing: `copysign(1.0, -0.0)` is `-1.0`, not
+    // `0.0`, so negative zero must be caught before it reaches there. `-0.0 ==
+    // 0.0` under IEEE 754, so one comparison covers both signed zeros, matching
+    // the previous fall-through.
     fn float_sign(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
         unary::unary_op(
             tensor,
             |x: f32| {
                 if x.is_nan() {
                     x
-                } else if x > 0.0 {
-                    1.0
-                } else if x < 0.0 {
-                    -1.0
-                } else {
+                } else if x == 0.0 {
                     0.0
+                } else {
+                    libm::copysignf(1.0, x)
                 }
             },
             |x: f64| {
                 if x.is_nan() {
                     x
-                } else if x > 0.0 {
-                    1.0
-                } else if x < 0.0 {
-                    -1.0
-                } else {
+                } else if x == 0.0 {
                     0.0
+                } else {
+                    libm::copysign(1.0, x)
                 }
             },
         )
