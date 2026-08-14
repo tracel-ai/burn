@@ -74,6 +74,15 @@ ir = ["burn-ir"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 fusion = ["burn-tensor/fusion"]
+simd = ["burn-tensor/simd"]
+rayon = ["burn-tensor/rayon"]
+x86-v4 = ["burn-tensor/x86-v4"]
+apple-amx = ["burn-tensor/apple-amx"]
+accelerate = ["burn-tensor/accelerate"]
+blas-netlib = ["burn-tensor/blas-netlib"]
+openblas = ["burn-tensor/openblas"]
+openblas-system = ["burn-tensor/openblas-system"]
+template = ["burn-tensor/template"]
 
 # Backend extensions
 # burn-dispatch features are enabled from burn-tensor, we just re-export the public types

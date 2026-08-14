@@ -30,7 +30,6 @@ default = [
     "burn-train?/default",
     "burn-nn/default",
     "burn-optim?/default",
-    "burn-autodiff?/default",
     "burn-vision?/default",
 ]
 doc = [
@@ -41,14 +40,12 @@ doc = [
     "burn-store?/std",
     "burn-nn/doc",
     "burn-optim?/doc",
-    "burn-autodiff?/std",
 ]
 std = [
     "burn-core/std",
     "burn-store?/std",
     "burn-nn/std",
     "burn-optim?/std",
-    "burn-autodiff?/std",
 ]
 tracing = [
     "cubecl?/tracing",
@@ -96,38 +93,38 @@ optim = ["burn-optim", "autodiff"]
 
 # Backend
 ir = ["burn-core/ir"]
-autodiff = ["burn-core/autodiff", "burn-autodiff"]
+autodiff = ["burn-core/autodiff"]
 fusion = ["ir", "burn-core/fusion", "burn-vision?/fusion"]
 
 ## Backend features
-accelerate = ["burn-ndarray?/blas-accelerate"]
+accelerate = ["burn-core/accelerate"]
 autotune = ["burn-core/autotune"]
 autotune-checks = ["burn-core/autotune-checks"]
-blas-netlib = ["burn-ndarray?/blas-netlib"]
-openblas = ["burn-ndarray?/blas-openblas"]
-openblas-system = ["burn-ndarray?/blas-openblas-system"]
-simd = ["burn-ndarray?/simd", "burn-flex?/simd"]
+blas-netlib = ["burn-core/blas-netlib"]
+openblas = ["burn-core/openblas"]
+openblas-system = ["burn-core/openblas-system"]
+simd = ["burn-core/simd"]
+rayon = ["burn-core/rayon"]
 
-# burn-flex opt-in CPU codegen paths.
-x86-v4 = ["burn-flex?/x86-v4"]
-apple-amx = ["burn-flex?/apple-amx"]
+# Opt-in CPU codegen paths.
+x86-v4 = ["burn-core/x86-v4"]
+apple-amx = ["burn-core/apple-amx"]
 
-template = ["burn-wgpu?/template"]
-router = ["burn-router", "ir"]
+template = ["burn-core/template"]
 remote = ["burn-core/remote"]
 remote-server = ["burn-core/remote-server"]
 remote-websocket = ["burn-core/remote-websocket"]
 
-cuda = ["burn-cuda", "burn-core/cuda", "burn-vision?/cuda"]
-rocm = ["burn-rocm", "burn-core/rocm", "burn-vision?/rocm"]
-flex = ["burn-flex", "burn-core/flex", "burn-vision?/flex"]
-ndarray = ["burn-ndarray", "burn-core/ndarray"]
-tch = ["burn-tch", "burn-core/tch", "burn-vision?/tch"]
+cuda = ["burn-core/cuda", "burn-vision?/cuda"]
+rocm = ["burn-core/rocm", "burn-vision?/rocm"]
+flex = ["burn-core/flex", "burn-vision?/flex"]
+ndarray = ["burn-core/ndarray"]
+tch = ["burn-core/tch", "burn-vision?/tch"]
 vulkan = ["wgpu", "burn-core/vulkan", "burn-vision?/vulkan"]
 webgpu = ["wgpu", "burn-core/webgpu", "burn-vision?/webgpu"]
 metal = ["wgpu", "burn-core/metal", "burn-vision?/metal"]
-wgpu = ["burn-wgpu", "burn-core/wgpu", "burn-vision?/wgpu"]
-cpu = ["burn-cpu", "burn-core/cpu", "burn-vision?/cpu"]
+wgpu = ["burn-core/wgpu", "burn-vision?/wgpu"]
+cpu = ["burn-core/cpu", "burn-vision?/cpu"]
 
 # Backend extensions
 extension = ["burn-core/extension"]
@@ -146,16 +143,7 @@ burn-rl = { workspace = true, optional = true }
 burn-vision = { workspace = true, optional = true }
 burn-std = { workspace = true }
 
-# Backends
-# TODO: clean up from root; backends should be exposed from the extension
-burn-cuda = { workspace = true, optional = true }
-burn-cpu = { workspace = true, optional = true }
-burn-rocm = { workspace = true, optional = true }
-burn-flex = { workspace = true, optional = true }
-burn-ndarray = { workspace = true, optional = true }
-burn-router = { workspace = true, optional = true }
-burn-tch = { workspace = true, optional = true }
-burn-wgpu = { workspace = true, optional = true }
-burn-autodiff = { workspace = true, optional = true }
+# Backends are pulled in through the dispatch chain
+# (burn-core -> burn-tensor -> burn-dispatch), not from here.
 
 cubecl = { workspace = true, optional = true }
