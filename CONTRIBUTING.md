@@ -60,8 +60,10 @@ Do not use "AI generated" as a justification for low-quality code.
    and guides for common tasks.
 3. **Keep it focused.** One PR should address one concern. If you spot an unrelated issue while
    working, open a separate PR for it.
-4. **Run validation.** Run `cargo run-checks` before submitting. This runs formatting, linting, and
-   the full test suite. All checks must pass.
+4. **Run validation.** Run `cargo run-checks` before submitting. This runs formatting, typo and
+   dependency audit checks, linting, a quick host no-std check, and the backend tests with Flex. If
+   your changes target another backend, select it with `cargo run-checks --backend <backend>`. All
+   checks must pass.
 
 ### Code Quality Standards
 

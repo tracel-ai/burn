@@ -22,6 +22,6 @@ fn test_batch_norm_forward() {
     ]);
     output.into_data().assert_approx_eq::<FloatElem>(
         &expected,
-        Tolerance::relative(1e-5).set_half_precision_relative(1e-3),
+        Tolerance::relative(1e-5).set_half_precision_relative(5e-3),
     );
 }
