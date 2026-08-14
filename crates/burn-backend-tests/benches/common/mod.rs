@@ -7,6 +7,7 @@
 use std::cell::Cell;
 use std::panic::{self, AssertUnwindSafe, Location};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use burn_tensor::Element;
 use ctor::ctor;
@@ -24,6 +25,22 @@ fn init_device_settings() {
                 .int_dtype(<IntElem as Element>::dtype()),
         )
         .unwrap();
+}
+
+/// Runs divan with modified defaults: 600 samples and a limit of 6 seconds per benchmark, instead of 100 samples uncapped.
+pub fn bench_main() {
+    #[cfg(not(feature = "bench-disable-alloc"))]
+    println!("Memory allocation tracking enabled");
+    println!();
+    divan::Divan::default()
+        // Divan defaults to 100 samples, which is usually not enough to get stable results run-to-run
+        .sample_count(600)
+        // stops benchmarks after 5 seconds, even if less samples have been collected.
+        // long benchmarks are less susceptible to run-to-run differences anyways
+        .max_time(Duration::from_secs(5))
+        .config_with_args()
+        .main();
+    report_failures();
 }
 
 /// Block until all outstanding ops on the default device complete.
@@ -101,7 +118,7 @@ pub fn try_setup<T>(f: impl FnOnce() -> T) -> Option<T> {
 }
 
 /// Print a summary of benches that panicked during this run, if any. Call from `main()` after
-/// `divan::main()`.
+/// `common::divan_setup();`.
 pub fn report_failures() {
     let failures = FAILURES.lock().unwrap();
     if failures.is_empty() {

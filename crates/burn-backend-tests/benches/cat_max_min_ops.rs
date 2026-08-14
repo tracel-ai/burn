@@ -18,10 +18,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Benchmarks for cat, max/min, int power, bool select, grid_sample_2d");
-    println!("Memory allocation tracking enabled");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 // === Helpers ===

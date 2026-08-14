@@ -18,10 +18,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Integer Operations Benchmarks");
-    println!("Memory allocation tracking enabled");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 fn make_int_tensor(shape: &[usize]) -> Option<Tensor<2, Int>> {
