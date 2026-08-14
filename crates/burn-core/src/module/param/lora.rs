@@ -31,7 +31,7 @@ impl Reparameterization for LoraAdapter {
         // the device default, which is not theirs whenever the model computes
         // at another precision.
         let base = if base.dtype() != delta.dtype() {
-            base.dequantize().cast(delta.dtype())
+            base.dequantize()
         } else {
             base
         };
