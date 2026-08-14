@@ -423,7 +423,7 @@ mod tests {
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
         let rnn = config.init(&device);
 
-        let gate_to_data = |gate: GateController| gate.input_transform.weight.to_data();
+        let gate_to_data = |gate: GateController| gate.input_transform.weight.val().to_data();
 
         gate_to_data(rnn.gate).assert_within_range::<FT>(0.elem()..1.elem());
     }

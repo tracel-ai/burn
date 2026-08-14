@@ -157,7 +157,7 @@ fn partial_load_from_pytorch_model() {
     let mut model = Net::new(&device);
 
     // Save initial fc1 weights for comparison
-    let _initial_fc1_weight = model.fc1.weight.to_data();
+    let _initial_fc1_weight = model.fc1.weight.val().to_data();
 
     let result = model.load_from(&mut store).unwrap();
 

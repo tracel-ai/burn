@@ -115,7 +115,7 @@ fn checkpoint_restores_model_weights() {
         .weight
         .val()
         .into_data()
-        .to_vec::<f32>()
+        .try_into_vec::<f32>()
         .unwrap();
 
     // Load the checkpoint into a fresh learner
@@ -135,7 +135,12 @@ fn checkpoint_restores_model_weights() {
     let fresh = make_learner(&device);
     let restored = checkpointer.load_checkpoint(fresh, 1);
 
-    let restored_weights = restored.model().weight.try_to_vec_as::<f32>().unwrap();
+    let restored_weights = restored
+        .model()
+        .weight
+        .val()
+        .try_to_vec_as::<f32>()
+        .unwrap();
 
     assert_eq!(
         trained_weights, restored_weights,

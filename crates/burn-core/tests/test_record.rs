@@ -30,8 +30,8 @@ impl Layer {
 
     fn values(&self) -> (Vec<f32>, Vec<f32>) {
         (
-            self.weight.try_to_vec_as().unwrap(),
-            self.bias.try_to_vec_as().unwrap(),
+            self.weight.val().try_to_vec_as().unwrap(),
+            self.bias.val().try_to_vec_as().unwrap(),
         )
     }
 }

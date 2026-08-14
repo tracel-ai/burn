@@ -16,8 +16,8 @@ fn frozen_group_param_unchanged_after_training() {
     let device = Device::flex().autodiff();
     let model = TwoLayerModel::new(&device);
 
-    let before_frozen = model.frozen.weight.try_to_vec_as::<f32>().unwrap();
-    let before_active = model.active.try_to_vec_as::<f32>().unwrap();
+    let before_frozen = model.frozen.weight.val().try_to_vec_as::<f32>().unwrap();
+    let before_active = model.active.val().try_to_vec_as::<f32>().unwrap();
 
     let optim = SgdConfig::new().init();
 
@@ -37,8 +37,14 @@ fn frozen_group_param_unchanged_after_training() {
         .with_application_logger(None)
         .launch(Learner::new(model, optim, scheduler));
 
-    let after_frozen = result.model.frozen.weight.try_to_vec_as::<f32>().unwrap();
-    let after_active = result.model.active.try_to_vec_as::<f32>().unwrap();
+    let after_frozen = result
+        .model
+        .frozen
+        .weight
+        .val()
+        .try_to_vec_as::<f32>()
+        .unwrap();
+    let after_active = result.model.active.val().try_to_vec_as::<f32>().unwrap();
 
     assert_eq!(
         before_frozen, after_frozen,

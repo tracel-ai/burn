@@ -340,14 +340,14 @@ mod tests {
 
         // Create snapshots with root-level paths (single-element path, no nested modules)
         let weight_snapshot = crate::TensorSnapshot::from_data(
-            weight.to_data(),
+            weight.val().to_data(),
             vec!["weight".to_string()], // root-level parameter name
             vec![],                     // no container
             ParamId::new(),
         );
 
         let bias_snapshot = crate::TensorSnapshot::from_data(
-            bias.to_data(),
+            bias.val().to_data(),
             vec!["bias".to_string()], // root-level parameter name
             vec![],                   // no container
             ParamId::new(),
@@ -372,8 +372,8 @@ mod tests {
         applier.exit_module("bias", "");
 
         // Verify values were loaded
-        let weight_data = weight_loaded.try_to_vec_as::<f32>().unwrap();
-        let bias_data = bias_loaded.try_to_vec_as::<f32>().unwrap();
+        let weight_data = weight_loaded.val().try_to_vec_as::<f32>().unwrap();
+        let bias_data = bias_loaded.val().try_to_vec_as::<f32>().unwrap();
 
         assert_eq!(weight_data, vec![1.0, 2.0, 3.0, 4.0]);
         assert_eq!(bias_data, vec![5.0, 6.0]);
@@ -432,7 +432,7 @@ mod tests {
         );
 
         // Verify data values are correct
-        let loaded_data = loaded.try_to_vec_as::<f64>().unwrap();
+        let loaded_data = loaded.val().try_to_vec_as::<f64>().unwrap();
         assert_eq!(loaded_data, vec![1.0, 2.0, 3.0, 4.0]);
 
         // Verify applier result

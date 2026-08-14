@@ -48,8 +48,8 @@ fn pytorch_to_burn_adapter_linear_transpose() {
     assert!(!result.applied.is_empty());
 
     // Verify the linear weights are the same after round-trip
-    let weight1 = model.linear.weight.to_data();
-    let weight2 = model2.linear.weight.to_data();
+    let weight1 = model.linear.weight.val().to_data();
+    let weight2 = model2.linear.weight.val().to_data();
 
     assert_eq!(weight1.shape, weight2.shape);
     let data1 = weight1.try_to_vec::<f32>().unwrap();
@@ -107,10 +107,10 @@ fn pytorch_to_burn_adapter_norm_rename() {
     assert!(!result.applied.is_empty());
 
     // Verify data is preserved
-    let gamma1 = model.norm_gamma.try_to_vec_as::<f32>().unwrap();
-    let gamma2 = model2.norm_gamma.try_to_vec_as::<f32>().unwrap();
-    let beta1 = model.norm_beta.try_to_vec_as::<f32>().unwrap();
-    let beta2 = model2.norm_beta.try_to_vec_as::<f32>().unwrap();
+    let gamma1 = model.norm_gamma.val().try_to_vec_as::<f32>().unwrap();
+    let gamma2 = model2.norm_gamma.val().try_to_vec_as::<f32>().unwrap();
+    let beta1 = model.norm_beta.val().try_to_vec_as::<f32>().unwrap();
+    let beta2 = model2.norm_beta.val().try_to_vec_as::<f32>().unwrap();
 
     assert_eq!(gamma1, gamma2);
     assert_eq!(beta1, beta2);
@@ -140,8 +140,8 @@ fn no_adapter_preserves_original() {
     assert!(!result.applied.is_empty());
 
     // Verify data is exactly the same
-    let weight1 = model.linear.weight.to_data();
-    let weight2 = model2.linear.weight.to_data();
+    let weight1 = model.linear.weight.val().to_data();
+    let weight2 = model2.linear.weight.val().to_data();
 
     assert_eq!(weight1.shape, weight2.shape);
     assert_eq!(
@@ -238,10 +238,11 @@ fn half_precision_adapter_round_trip() {
     assert!(!result.applied.is_empty());
 
     // Verify values are close (F32 -> F16 -> F32 has rounding)
-    let w1 = model.linear.weight.try_to_vec_as::<f32>().unwrap();
+    let w1 = model.linear.weight.val().try_to_vec_as::<f32>().unwrap();
     let w2 = model2
         .linear
         .weight
+        .val()
         .to_data()
         .try_into_vec::<f32>()
         .unwrap();

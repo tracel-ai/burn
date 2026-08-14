@@ -470,8 +470,8 @@ mod tests {
 
     fn weights(model: &Tiny) -> (Vec<f32>, Vec<f32>) {
         (
-            model.weight.try_to_vec_as().unwrap(),
-            model.bias.try_to_vec_as().unwrap(),
+            model.weight.val().try_to_vec_as().unwrap(),
+            model.bias.val().try_to_vec_as().unwrap(),
         )
     }
 
@@ -566,10 +566,13 @@ mod tests {
         let loaded = partial.unwrap();
         // weight/bias were loaded; gamma kept its (zero) initialization.
         assert_eq!(
-            loaded.weight.try_to_vec_as::<f32>().unwrap(),
+            loaded.weight.val().try_to_vec_as::<f32>().unwrap(),
             vec![1.0, 2.0, 3.0, 4.0]
         );
-        assert_eq!(loaded.gamma.try_to_vec_as::<f32>().unwrap(), vec![0.0, 0.0]);
+        assert_eq!(
+            loaded.gamma.val().try_to_vec_as::<f32>().unwrap(),
+            vec![0.0, 0.0]
+        );
     }
 
     /// Build a `Tiny` whose parameters are zero-valued and carry the given dtype.
@@ -606,7 +609,7 @@ mod tests {
         assert_eq!(loaded.bias.val().dtype(), DType::F64);
         // Values survive the cast.
         assert_eq!(
-            loaded.weight.try_to_vec_as::<f64>().unwrap(),
+            loaded.weight.val().try_to_vec_as::<f64>().unwrap(),
             vec![1.0, 2.0, 3.0, 4.0]
         );
     }
@@ -667,11 +670,11 @@ mod tests {
             .try_load_record(record.validate(false))
             .unwrap();
         assert_eq!(
-            loaded.weight.try_to_vec_as::<f32>().unwrap(),
+            loaded.weight.val().try_to_vec_as::<f32>().unwrap(),
             vec![1.0, 2.0, 3.0, 4.0]
         );
         assert_eq!(
-            loaded.bias.try_to_vec_as::<f32>().unwrap(),
+            loaded.bias.val().try_to_vec_as::<f32>().unwrap(),
             vec![0.0, 0.0, 0.0]
         );
     }
@@ -719,7 +722,7 @@ mod tests {
         let loaded = ColLike::new(0.0, &device).load_record(record);
         assert_eq!(loaded.weight.val().dims(), [2, 3]);
         assert_eq!(
-            loaded.weight.try_to_vec_as::<f32>().unwrap(),
+            loaded.weight.val().try_to_vec_as::<f32>().unwrap(),
             vec![1.0; 6],
             "the recorded values must land, mapped back to the live form"
         );

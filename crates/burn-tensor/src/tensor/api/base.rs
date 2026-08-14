@@ -2062,138 +2062,188 @@ where
         into_data_async_impl(self.primitive.clone(), K::KIND)
     }
 
-    /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
+    /// Copies the tensor data to host memory and converts it to the dtype represented by `E`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// See: [`Tensor::try_to_data_as`].
     ///
     /// # Returns
-    /// The new data.
+    /// A `TensorData` with dtype `E::dtype()`.
     ///
     /// # Panics
-    /// If tensor execution or data conversion fails.
+    ///
+    /// Panics if synchronous readback isn't supported, tensor execution or storage access fails,
+    /// or the data can't be converted to `E`.
     #[track_caller]
     pub fn to_data_as<E: Element>(&self) -> TensorData {
         self.try_to_data_as::<E>()
             .unwrap_or_else(|err| panic!("Failed to read tensor data: {err}"))
     }
 
-    /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
+    /// Copies the tensor data to host memory and converts it to the dtype represented by `E`.
     ///
     /// By contract, this will yield the same result as
     /// `tensor.try_to_data()?.try_cast_as::<E>()`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// # Returns
-    /// `Ok(data)`, or an error when execution or data conversion fails.
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_to_data_as<E: Element>(&self) -> Result<TensorData, TensorReadError> {
         Ok(self.try_to_data()?.try_cast_as::<E>()?)
     }
 
-    /// Converts the current `Tensor` into `Vec<E>`; converts the dtype.
+    /// Copies the tensor data to a host [`Vec<E>`], converting the dtype when necessary.
     ///
     /// By contract, this will yield the same result as
     /// `tensor.try_to_data_as::<E>()?.try_to_vec::<E>()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_to_vec_as<E: Element>(&self) -> Result<Vec<E>, TensorReadError> {
         Ok(self.try_to_data_as::<E>()?.try_to_vec()?)
     }
 
-    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    /// Copies the tensor data to host memory and converts it to `dtype`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// See: [`Tensor::try_to_data_dtype`].
     ///
     /// # Returns
-    /// The new data.
+    /// A `TensorData` with the requested `dtype`.
     ///
     /// # Panics
-    /// If tensor execution or data conversion fails.
+    ///
+    /// Panics if synchronous readback isn't supported, tensor execution or storage access fails,
+    /// or the data can't be converted to `dtype`.
     #[track_caller]
     pub fn to_data_dtype(&self, dtype: DType) -> TensorData {
         self.try_to_data_dtype(dtype)
             .unwrap_or_else(|err| panic!("Failed to read tensor data as {dtype:?}: {err}"))
     }
 
-    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    /// Copies the tensor data to host memory and converts it to `dtype`.
     ///
     /// By contract, this will yield the same result as
     /// `tensor.try_to_data()?.try_cast(dtype)`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// # Returns
-    /// `Ok(data)`, or an error when execution or data conversion fails.
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `dtype`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_to_data_dtype(&self, dtype: DType) -> Result<TensorData, TensorReadError> {
         Ok(self.try_to_data()?.try_cast(dtype)?)
     }
 
-    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    /// Reads the tensor data into host memory and converts it to the dtype represented by `E`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// See: [`Tensor::try_into_data_as`].
     ///
     /// # Returns
-    /// The new data.
+    /// A `TensorData` with dtype `E::dtype()`.
     ///
     /// # Panics
-    /// If tensor execution or data conversion fails.
+    ///
+    /// Panics if synchronous readback isn't supported, tensor execution or storage access fails,
+    /// or the data can't be converted to `E`.
     #[track_caller]
     pub fn into_data_as<E: Element>(self) -> TensorData {
         self.try_into_data_as::<E>()
             .unwrap_or_else(|err| panic!("Failed to read tensor data: {err}"))
     }
 
-    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    /// Reads the tensor data into host memory and converts it to the dtype represented by `E`.
     ///
     /// By contract, this will yield the same result as
     /// `tensor.try_into_data()?.try_cast_as::<E>()`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// # Returns
-    /// `Ok(data)` on success, or an error when execution or data conversion fails.
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_into_data_as<E: Element>(self) -> Result<TensorData, TensorReadError> {
         Ok(self.try_into_data()?.try_cast_as::<E>()?)
     }
 
-    /// Converts the current `Tensor` into `Vec<E>`; converts the dtype.
+    /// Reads the tensor data into a host [`Vec<E>`], converting the dtype when necessary.
     ///
     /// By contract, this will yield the same result as
-    /// `tensor.try_into_data_as::<E>()?.try_to_vec::<E>()`.
+    /// `tensor.try_into_data_as::<E>()?.try_into_vec::<E>()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_into_vec_as<E: Element>(self) -> Result<Vec<E>, TensorReadError> {
         Ok(self.try_into_data_as::<E>()?.try_into_vec::<E>()?)
     }
 
-    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    /// Reads the tensor data into host memory and converts it to `dtype`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
     /// See: [`Tensor::try_into_data_dtype`].
     ///
     /// # Returns
-    /// The new data.
+    /// A `TensorData` with the requested `dtype`.
     ///
     /// # Panics
-    /// If tensor execution or data conversion fails.
+    ///
+    /// Panics if synchronous readback isn't supported, tensor execution or storage access fails,
+    /// or the data can't be converted to `dtype`.
     #[track_caller]
     pub fn into_data_dtype(self, dtype: DType) -> TensorData {
         self.try_into_data_dtype(dtype)
             .unwrap_or_else(|err| panic!("Failed to read tensor data as {dtype:?}: {err}"))
     }
 
-    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    /// Reads the tensor data into host memory and converts it to `dtype`.
     ///
     /// By contract, this will yield the same result as
     /// `tensor.try_into_data()?.try_cast(dtype)`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     ///
-    /// # Returns
-    /// `Ok(data)`, or an error when execution or data conversion fails.
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `dtype`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_into_data_dtype(self, dtype: DType) -> Result<TensorData, TensorReadError> {
         Ok(self.try_into_data()?.try_cast(dtype)?)
     }
@@ -2867,8 +2917,9 @@ where
     ///
     /// # Panics
     ///
-    /// - If the tensor doesn't have one element.
-    /// - If the backend fails to read the tensor data synchronously.
+    /// - If the tensor doesn't have exactly one element.
+    /// - If synchronous readback isn't supported or the backend fails to read the tensor data.
+    /// - If the data can't be converted to `E`.
     ///
     /// # Returns
     ///
@@ -2892,13 +2943,17 @@ where
         )
     }
 
-    /// Convert the tensor into a scalar and returns any error that might have occurred since the
+    /// Converts the tensor into a scalar and returns any error that occurred since the
     /// last time the device was synchronized.
     ///
     /// # Errors
     ///
     /// Returns an error if the tensor doesn't contain exactly one element, the backend fails to
     /// read its data, or the data can't be converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     ///
     /// # Returns
     ///
