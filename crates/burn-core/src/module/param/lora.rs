@@ -26,12 +26,11 @@ impl Reparameterization for LoraAdapter {
 
     fn materialize<const D: usize>(&self, base: Tensor<D>) -> Tensor<D> {
         let delta = self.delta().reshape(base.shape());
-        // The factors set the precision the compose runs at. A dense base was
-        // matched to them when they were built; a packed base dequantizes to
-        // the device default, which is not theirs whenever the model computes
-        // at another precision.
-        let base = if base.dtype() != delta.dtype() {
-            base.dequantize()
+        // Compose at the factors' dtype: cast a mismatched dense base, but leave
+        // a packed base untouched so mixed addition dequantizes it directly to
+        // the delta's dtype rather than through the device default.
+        let base = if base.dtype().is_float() && base.dtype() != delta.dtype() {
+            base.cast(delta.dtype())
         } else {
             base
         };
@@ -46,5 +45,27 @@ impl LoraAdapter {
     /// (optimizer-updated) factors and keeps them as autodiff leaves for backpropagation.
     pub fn delta(&self) -> Tensor<2> {
         self.a.val().matmul(self.b.val()).mul_scalar(self.scale)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_device;
+    use burn_tensor::DType;
+
+    #[test]
+    fn materialize_casts_a_dense_base_to_the_factor_dtype() {
+        let device = test_device();
+        let base = Tensor::<2>::ones([4, 4], (&device, DType::F32));
+        let adapter = LoraAdapter {
+            a: Param::from_tensor(Tensor::<2>::ones([4, 2], (&device, DType::F16))),
+            b: Param::from_tensor(Tensor::<2>::zeros([2, 4], (&device, DType::F16))),
+            scale: 1.0,
+        };
+
+        let materialized = adapter.materialize(base);
+
+        assert_eq!(materialized.dtype(), DType::F16);
     }
 }
