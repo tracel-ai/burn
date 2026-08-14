@@ -18,6 +18,11 @@ pub struct Lora {
     pub alpha: f64,
     /// Standard deviation used to initialize the `A` factor. Defaults to `1 / rank`.
     pub init_std: Option<f64>,
+    /// Precision the factors are built at. Defaults to the base weight's own
+    /// float dtype; a *quantized* base has none, so a model that computes in
+    /// half precision over a packed base must say so here — the factors meet
+    /// its activations and gradients in elementwise ops that do not promote.
+    pub dtype: Option<FloatDType>,
     /// The parameter group on which to apply the LoRA.
     pub param_group: ParamGroup,
 }
@@ -29,6 +34,7 @@ impl Lora {
             rank,
             alpha,
             init_std: None,
+            dtype: None,
             param_group: ParamGroup::all(),
         }
     }
@@ -36,6 +42,12 @@ impl Lora {
     /// Set the parameter group on which to apply LoRA adapters.
     pub fn set_param_group(mut self, group: ParamGroup) -> Self {
         self.param_group = group;
+        self
+    }
+
+    /// Set the precision the adapter factors are built at.
+    pub fn set_dtype(mut self, dtype: FloatDType) -> Self {
+        self.dtype = Some(dtype);
         self
     }
 }
@@ -67,10 +79,13 @@ impl Reparameterizer for Lora {
         // are built at the base's precision: a half-precision checkpoint would
         // otherwise get f32 adapters and fail that op on any backend that does
         // not promote silently. A *quantized* base is dequantized before it
-        // composes, so its packed dtype says nothing about theirs — they stay at
-        // the default there.
+        // composes, so its packed dtype says nothing about theirs — there the
+        // configured `dtype` is the only source, and without one they stay at
+        // the default.
         let base_dtype = tensor.dtype();
-        let dtype = base_dtype.is_float().then(|| FloatDType::from(base_dtype));
+        let dtype = self
+            .dtype
+            .or_else(|| base_dtype.is_float().then(|| FloatDType::from(base_dtype)));
 
         // Freeze the base weight; only the adapter factors will be trained.
         let base = Param::from_mapped_value(id, tensor.set_require_grad(false), mapper);
@@ -285,6 +300,38 @@ mod tests {
         let composed = weight.val();
         assert_eq!(composed.dims(), [8, 8]);
         assert_eq!(composed.into_data().shape, original.into_data().shape);
+    }
+
+    #[test]
+    fn qlora_builds_factors_at_the_configured_dtype() {
+        use crate::module::Quantizer;
+        use burn_tensor::DType;
+        use burn_tensor::quantization::{Calibration, QuantLevel, QuantParam, QuantValue};
+
+        let device = test_device();
+        let scheme = device
+            .settings()
+            .quantization
+            .scheme
+            .with_value(QuantValue::Q8S)
+            .with_level(QuantLevel::Tensor)
+            .with_param(QuantParam::F32);
+        let quantizer = Quantizer::new(Calibration::MinMax, scheme);
+
+        // A packed base carries no float dtype, so the configured one is the
+        // only source the factors have.
+        let qlora = QLora::new(Lora::new(2, 4.0).set_dtype(FloatDType::F16), quantizer);
+        let model = SimpleLinear::new(8, 8, &device).apply_qlora(qlora);
+
+        let weight = &model.weight;
+        let adapter = weight.adapter().expect("adapter should be attached");
+        assert_eq!(adapter.a.val().dtype(), DType::F16);
+        assert_eq!(adapter.b.val().dtype(), DType::F16);
+
+        // The compose settles on the factors' dtype: the base dequantizes to
+        // the device default and is cast before the add, rather than meeting
+        // the delta in an elementwise op that does not promote.
+        assert_eq!(weight.val().dtype(), DType::F16);
     }
 
     #[test]
