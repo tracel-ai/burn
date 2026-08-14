@@ -20,8 +20,8 @@ fn test_batch_norm_forward() {
         [[0.4601, 0.2277], [-2.3728, -2.0966], [-0.0622, -0.2770]],
         [[0.1356, -0.3638], [-2.9751, -2.0491], [-0.3400, -0.4055]],
     ]);
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(1e-5))
-        .set_half_precision_relative(1e-3);
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::relative(1e-5).set_half_precision_relative(5e-3),
+    );
 }

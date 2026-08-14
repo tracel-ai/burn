@@ -267,7 +267,7 @@ pub(crate) fn conv_transpose2d<E: NdArrayElement>(
             let oc = k % out_channels;
             let g = (k / out_channels) % options.groups;
 
-            let output = unsafe_shared_out.get();
+            let mut output = unsafe_shared_out.get();
 
             let oc_out = oc + (out_channels * g);
             let ic_start = g * (in_channels / options.groups);
@@ -517,7 +517,7 @@ pub(crate) fn conv_transpose3d<E: NdArrayElement>(
             let oc = k % out_channels;
             let g = (k / out_channels) % options.groups;
 
-            let output = unsafe_shared_out.get();
+            let mut output = unsafe_shared_out.get();
 
             let oc_out = oc + (out_channels * g);
             let ic_start = g * (in_channels / options.groups);

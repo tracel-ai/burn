@@ -1,154 +1,79 @@
 use tracel_xtask::prelude::*;
+use tracel_xtask::utils::process::run_process;
 
-use crate::commands::{
-    build::BurnBuildCmdArgs,
-    test::{BurnTestCmdArgs, CiTestType},
-};
+use crate::NO_STD_CRATES;
+use crate::commands::test::TestBackend;
+
+#[derive(clap::Args)]
+pub struct BurnValidateCmdArgs {
+    /// Backend used by burn-backend-tests.
+    #[arg(long, value_enum, default_value_t = TestBackend::Flex)]
+    backend: TestBackend,
+}
 
 pub fn handle_command(
-    args: &ValidateCmdArgs,
+    args: BurnValidateCmdArgs,
     env: Environment,
     context: Context,
 ) -> anyhow::Result<()> {
     let target = Target::Workspace;
-    let exclude = vec![];
-    let only = vec![];
 
-    if context == Context::NoStd || context == Context::All {
-        // =================
-        // no-std validation
-        // =================
-        info!("Run validation for no-std execution environment...");
-
-        #[cfg(target_os = "linux")]
-        {
-            // build
-            super::build::handle_command(
-                BurnBuildCmdArgs {
-                    target: target.clone(),
-                    exclude: exclude.clone(),
-                    only: only.clone(),
-                    ci: true,
-                    release: args.release,
-                    features: args.features.clone(),
-                    no_default_features: args.no_default_features,
-                },
-                env.clone(),
-                Context::NoStd,
-            )?;
-
-            // tests
-            super::test::handle_command(
-                BurnTestCmdArgs {
-                    target: target.clone(),
-                    exclude: exclude.clone(),
-                    only: only.clone(),
-                    threads: None,
-                    jobs: None,
-                    command: Some(TestSubCommand::All),
-                    ci: CiTestType::GithubRunner,
-                    features: None,
-                    no_default_features: false,
-                    force: false,
-                    no_capture: false,
-                    release: args.release,
-                    test: None,
-                    miri: false,
-                },
-                env.clone(),
-                Context::NoStd,
-            )?;
-        }
-    }
-
-    if context == Context::Std || context == Context::All {
-        // ==============
-        // std validation
-        // ==============
-        info!("Run validation for std execution environment...");
-
-        // checks
-        [
-            CheckSubCommand::Audit,
-            CheckSubCommand::Format,
-            CheckSubCommand::Lint,
-            CheckSubCommand::Typos,
-        ]
-        .iter()
-        .try_for_each(|c| {
-            base_commands::check::handle_command(
-                CheckCmdArgs {
-                    target: target.clone(),
-                    exclude: exclude.clone(),
-                    only: only.clone(),
-                    command: Some(c.clone()),
-                    ignore_audit: args.ignore_audit,
-                    features: args.features.clone(),
-                    no_default_features: args.no_default_features,
-                    ignore_typos: args.ignore_typos,
-                },
-                env.clone(),
-                context.clone(),
-            )
-        })?;
-
-        // build
-        super::build::handle_command(
-            BurnBuildCmdArgs {
+    // Keep the cheapest checks first so local validation fails quickly.
+    [
+        CheckSubCommand::Format,
+        CheckSubCommand::Typos,
+        CheckSubCommand::Audit,
+        CheckSubCommand::Lint,
+    ]
+    .iter()
+    .try_for_each(|command| {
+        base_commands::check::handle_command(
+            CheckCmdArgs {
                 target: target.clone(),
-                exclude: exclude.clone(),
-                only: only.clone(),
-                ci: true,
-                release: args.release,
-                features: args.features.clone(),
-                no_default_features: args.no_default_features,
-            },
-            env.clone(),
-            Context::Std,
-        )?;
-
-        // tests
-        super::test::handle_command(
-            BurnTestCmdArgs {
-                target: target.clone(),
-                exclude: exclude.clone(),
-                only: only.clone(),
-                threads: None,
-                jobs: None,
-                command: Some(TestSubCommand::All),
-                // NOTE: this will only run `CiTestType::Backends` (burn-backend-tests)
-                // for local sanity checks this is a quick approach to validating after no-std tests + cargo build
-                ci: CiTestType::GithubRunner,
-                features: None,
+                exclude: vec![],
+                only: vec![],
+                command: Some(command.clone()),
+                ignore_audit: false,
+                features: vec![],
                 no_default_features: false,
-                release: args.release,
-                test: None,
-                force: false,
-                no_capture: false,
-                miri: false,
+                ignore_typos: false,
             },
             env.clone(),
-            Context::Std,
-        )?;
+            context.clone(),
+        )
+    })?;
 
-        // documentation
-        [DocSubCommand::Build, DocSubCommand::Tests]
-            .iter()
-            .try_for_each(|c| {
-                super::doc::handle_command(
-                    DocCmdArgs {
-                        target: target.clone(),
-                        exclude: exclude.clone(),
-                        only: only.clone(),
-                        command: Some(c.clone()),
-                        features: args.features.clone(),
-                        no_default_features: args.no_default_features,
-                    },
-                    env.clone(),
-                    context.clone(),
-                )
-            })?;
-    }
+    check_no_std()?;
+
+    super::test::handle_backend_tests(
+        TestCmdArgs {
+            target,
+            exclude: vec![],
+            only: vec![],
+            threads: None,
+            jobs: None,
+            command: Some(TestSubCommand::All),
+            features: None,
+            no_default_features: false,
+            force: false,
+            no_capture: false,
+            release: true,
+            test: None,
+            miri: false,
+        },
+        args.backend,
+        Context::Std,
+    )?;
 
     Ok(())
+}
+
+/// Check no-std compatibility on the host without compiling the full embedded target matrix.
+fn check_no_std() -> anyhow::Result<()> {
+    let mut args = vec!["check", "--no-default-features", "--color", "always"];
+    for package in NO_STD_CRATES {
+        args.extend(["-p", package]);
+    }
+
+    run_process("cargo", &args, None, None, "Quick no-std check failed")
 }
