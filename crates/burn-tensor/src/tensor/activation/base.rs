@@ -226,9 +226,33 @@ $$
 #[cfg_attr(not(doc), doc = "`softplus(x_i) = log(1 + exp(beta * x_i)) / beta`")]
 ///
 /// The SoftPlus function is a smooth approximation of the ReLU function.
-pub fn softplus<const D: usize>(tensor: Tensor<D>, beta: f64) -> Tensor<D> {
-    let tensor = (tensor.mul_scalar(beta).exp() + 1).log();
-    tensor.div_scalar(beta)
+///
+/// # Arguments
+/// - `threshold`: the value of `beta * x` above which the result is taken to be `x` directly
+///   rather than evaluated. This is what keeps `exp` from overflowing: the naive form returns
+///   `inf` in the forward pass and `NaN` in the backward pass from `beta * x > ~88` upwards in
+///   `f32`. Pass `20.0` unless you have a reason not to, matching the default of
+///   `torch.nn.functional.softplus`. Values in `[20, 80]` are all equivalent in exact
+///   arithmetic; a `threshold` above `~88` cannot prevent the overflow it exists to prevent,
+///   and one below `~20` starts to visibly round the curve near the origin.
+pub fn softplus<const D: usize>(tensor: Tensor<D>, beta: f64, threshold: f64) -> Tensor<D> {
+    let scaled = tensor.clone().mul_scalar(beta);
+
+    // The saturated elements are masked out below, but they are still evaluated here, so the
+    // input to `exp` is clamped to keep them finite. Letting them reach `inf` would leave the
+    // discarded branch contributing `inf * 0 = NaN` to the backward pass.
+    //
+    // `log1p` rather than `log(1 + ..)` keeps the opposite tail: for `beta * x < ~-16` the
+    // `1 + exp(beta * x)` intermediate rounds to exactly `1.0` in `f32` and the result
+    // underflows to zero.
+    let softplus = scaled
+        .clone()
+        .clamp_max(threshold)
+        .exp()
+        .log1p()
+        .div_scalar(beta);
+
+    softplus.mask_where(scaled.greater_elem(threshold), tensor)
 }
 
 /// Applies the "quiet softmax" function on the input tensor along the given dimension.
@@ -392,7 +416,7 @@ $$
     doc = "`mish(x) = x * tanh(softplus(x)) = tanh(log(1 + exp(x)))`"
 )]
 pub fn mish<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    tensor.clone().mul(softplus(tensor, 1.0).tanh())
+    tensor.clone().mul(softplus(tensor, 1.0, 20.0).tanh())
 }
 
 /// Applies the tanh function element-wise.

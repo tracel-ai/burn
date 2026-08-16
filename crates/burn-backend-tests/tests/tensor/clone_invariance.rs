@@ -430,7 +430,7 @@ mod float {
     );
     clone_invariance_test!(
         unary: Softplus,
-        ops_float: |tensor: TestTensor<2>| softplus(tensor, 1.0)
+        ops_float: |tensor: TestTensor<2>| softplus(tensor, 1.0, 20.0)
     );
     clone_invariance_test!(
         unary: Tanh,

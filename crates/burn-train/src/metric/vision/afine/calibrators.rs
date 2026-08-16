@@ -164,7 +164,7 @@ impl AfineAdapter {
         ref_nr: Tensor<2>,
         xref_fr: Tensor<2>,
     ) -> Tensor<2> {
-        let k_pos = softplus(self.k.val(), 1.0).reshape([1, 1]);
+        let k_pos = softplus(self.k.val(), 1.0, 20.0).reshape([1, 1]);
         let weight = (k_pos * (ref_nr - x_nr.clone())).exp();
         weight * x_nr + xref_fr
     }

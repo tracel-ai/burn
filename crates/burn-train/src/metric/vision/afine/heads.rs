@@ -256,8 +256,8 @@ impl AfineDHead {
         // sums to ~1 across all 13 levels and both terms. We keep
         // `w_sum` as a tensor and broadcast-divide so the autodiff graph
         // stays intact for any future training-mode caller.
-        let alpha_sp = softplus(self.alpha.val(), 1.0);
-        let beta_sp = softplus(self.beta.val(), 1.0);
+        let alpha_sp = softplus(self.alpha.val(), 1.0, 20.0);
+        let beta_sp = softplus(self.beta.val(), 1.0, 20.0);
         let w_sum = (alpha_sp.clone().sum() + beta_sp.clone().sum())
             .add_scalar(EPS)
             .reshape([1, 1, 1]);
