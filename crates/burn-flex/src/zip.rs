@@ -11,6 +11,15 @@
 //! loop-invariant. Callers then specialize the inner loop on that
 //! stride pair (contiguous/contiguous, contiguous/broadcast, general
 //! strided) and the compiler autovectorizes it.
+//!
+//! Two traversals are built on the nest: [`zip_map`], which allocates a
+//! fresh output, and [`zip_apply_inplace`], which writes back into an
+//! operand that [`ZipNest::lhs_is_dense_from_zero`] says it can reuse.
+//! The in-place form matters because a broadcast op whose dense operand
+//! is uniquely owned — every step of an eager chain like `a * b + c * d`
+//! — would otherwise pay for a full-size output buffer and the page
+//! faults from first-touching it, which at multi-megabyte sizes costs
+//! several times the arithmetic itself.
 
 use crate::layout::Layout;
 use alloc::vec::Vec;
@@ -45,6 +54,34 @@ impl ZipNest {
     pub fn inner(&self) -> (usize, isize, isize) {
         let d = self.ndim - 1;
         (self.shape[d], self.lhs_strides[d], self.rhs_strides[d])
+    }
+
+    /// True when the lhs side walks storage densely in row-major order
+    /// from index 0 — every collapsed stride equals the product of the
+    /// sizes below it, and the start offset is 0.
+    ///
+    /// That is exactly the condition for the lhs buffer to double as the
+    /// *destination* of an in-place op: run `k` of [`Self::for_each_run`]
+    /// then reports an `lhs_base` equal to the output position it is
+    /// producing, so each of the `numel` slots is written exactly once.
+    /// Note this is weaker than [`Layout::is_contiguous`], which rejects
+    /// a size-1 dim carrying a stride of 0 (what `expand`/`swap_dims`
+    /// leave behind); the collapse squeezes those dims away first.
+    pub fn lhs_is_dense_from_zero(&self) -> bool {
+        if self.lhs_offset != 0 {
+            return false;
+        }
+        let mut expected = 1isize;
+        for d in (0..self.ndim).rev() {
+            if self.lhs_strides[d] != expected {
+                return false;
+            }
+            match expected.checked_mul(self.shape[d] as isize) {
+                Some(next) => expected = next,
+                None => return false,
+            }
+        }
+        true
     }
 
     /// Call `f(lhs_base, rhs_base)` once per innermost run, in
@@ -227,6 +264,62 @@ where
     Some(out)
 }
 
+/// Apply `op` over a collapsed nest *in place*, writing the result back
+/// into the lhs buffer instead of allocating an output.
+///
+/// The caller must have checked [`ZipNest::lhs_is_dense_from_zero`] (so
+/// `dst` is written exactly once per element) and that the tensor owning
+/// `dst` is uniquely referenced (so no other view observes the mutation,
+/// and `dst` cannot alias `src`).
+///
+/// `op` receives `(dst_value, src_value)`. Callers that write into the
+/// *right* operand pass a flipped closure and a nest built with the
+/// operands swapped, so the original operand order is preserved.
+///
+/// Like [`zip_map`], the inner loop is specialized on the collapsed
+/// innermost src stride — contiguous, broadcast-scalar, or general
+/// strided — and monomorphized per call site so LLVM autovectorizes it.
+pub(crate) fn zip_apply_inplace<E, F>(nest: &ZipNest, dst: &mut [E], src: &[E], op: F)
+where
+    E: Copy,
+    F: Fn(E, E) -> E,
+{
+    debug_assert!(
+        nest.lhs_is_dense_from_zero(),
+        "zip_apply_inplace: destination must be dense from index 0"
+    );
+    if nest.ndim == 0 {
+        // All dims were size 1: a single element.
+        dst[0] = op(dst[0], src[nest.rhs_offset]);
+        return;
+    }
+    if nest.shape[..nest.ndim].contains(&0) {
+        // Empty tensor; `for_each_run` must not be entered.
+        return;
+    }
+
+    let (len, l_st, r_st) = nest.inner();
+    debug_assert_eq!(l_st, 1, "dense destination implies a contiguous inner run");
+    match r_st {
+        1 => nest.for_each_run(|lb, rb| {
+            for (d, &s) in dst[lb..lb + len].iter_mut().zip(&src[rb..rb + len]) {
+                *d = op(*d, s);
+            }
+        }),
+        0 => nest.for_each_run(|lb, rb| {
+            let s = src[rb];
+            for d in dst[lb..lb + len].iter_mut() {
+                *d = op(*d, s);
+            }
+        }),
+        _ => nest.for_each_run(|lb, rb| {
+            for (i, d) in dst[lb..lb + len].iter_mut().enumerate() {
+                *d = op(*d, src[rb + i * r_st as usize]);
+            }
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,6 +444,148 @@ mod tests {
         let r = Layout::contiguous(Shape::from(vec![1, 1]));
         let got = zip_map(&[3.0f32], &l, &[4.0f32], &r, |a, b| a * b).unwrap();
         assert_eq!(got, vec![12.0]);
+    }
+
+    /// Run `zip_apply_inplace` over `dst`, given that `dst_layout` is
+    /// the dense side. Returns `None` if the nest declines the pair.
+    fn apply_inplace<E: Copy>(
+        dst: &mut [E],
+        dst_layout: &Layout,
+        src: &[E],
+        src_layout: &Layout,
+        op: impl Fn(E, E) -> E,
+    ) -> Option<()> {
+        let nest = collapse_for_zip(dst_layout, src_layout)?;
+        if !nest.lhs_is_dense_from_zero() {
+            return None;
+        }
+        zip_apply_inplace(&nest, dst, src, op);
+        Some(())
+    }
+
+    #[test]
+    fn test_dense_from_zero_accepts_size_one_dim_with_stride_zero() {
+        // What `expand`/`swap_dims` leave behind: a size-1 dim carrying
+        // stride 0. `Layout::is_contiguous` rejects this, but the dim is
+        // squeezed by the collapse, so the walk is still dense.
+        let l = Layout::new(Shape::from(vec![2, 1, 4]), vec![4, 0, 1], 0);
+        assert!(!l.is_contiguous());
+        let r = broadcast_layout(&[1, 1, 4], &[2, 1, 4]);
+        assert!(collapse_for_zip(&l, &r).unwrap().lhs_is_dense_from_zero());
+    }
+
+    #[test]
+    fn test_dense_from_zero_rejects_broadcast_offset_and_transpose() {
+        let full = [2usize, 3, 4];
+        let dense = Layout::contiguous(Shape::from(full.to_vec()));
+        // A broadcast destination would write some slots many times.
+        let bcast = broadcast_layout(&[1, 3, 4], &full);
+        assert!(
+            !collapse_for_zip(&bcast, &dense)
+                .unwrap()
+                .lhs_is_dense_from_zero()
+        );
+        // A non-zero start offset means run 0 doesn't begin at slot 0.
+        let offset = Layout::contiguous(Shape::from(vec![4, 6])).narrow(0, 1, 2);
+        let other = Layout::contiguous(Shape::from(vec![2, 6]));
+        assert!(
+            !collapse_for_zip(&offset, &other)
+                .unwrap()
+                .lhs_is_dense_from_zero()
+        );
+        // A transposed destination is not row-major.
+        let t = Layout::contiguous(Shape::from(vec![3, 4])).transpose(0, 1);
+        let c = Layout::contiguous(Shape::from(vec![4, 3]));
+        assert!(!collapse_for_zip(&t, &c).unwrap().lhs_is_dense_from_zero());
+    }
+
+    #[test]
+    fn test_zip_apply_inplace_matches_zip_map_broadcast_shapes() {
+        // Same shape matrix as the `zip_map` broadcast test: the
+        // in-place traversal must produce byte-identical results to the
+        // allocating one, in both operand orders.
+        let s = 5;
+        let n = 7;
+        let full = [2usize, s, n];
+        let dense: Vec<f32> = (0..2 * s * n).map(|i| i as f32 * 0.5 + 1.0).collect();
+        let dense_layout = Layout::contiguous(Shape::from(full.to_vec()));
+        let cases: Vec<(Vec<usize>, usize)> = vec![
+            (vec![1, s, 1], s),
+            (vec![1, s, n], s * n),
+            (vec![2, 1, 1], 2),
+            (vec![1, 1, 1], 1),
+            (vec![2, s, 1], 2 * s),
+        ];
+        for (bshape, belems) in cases {
+            let bdata: Vec<f32> = (0..belems).map(|i| i as f32 - 3.0).collect();
+            let blayout = broadcast_layout(&bshape, &full);
+
+            // Dense operand on the left: `dense - broadcast`.
+            let want = zip_map(&dense, &dense_layout, &bdata, &blayout, |a, b| a - b).unwrap();
+            let mut got = dense.clone();
+            apply_inplace(&mut got, &dense_layout, &bdata, &blayout, |d, s| d - s)
+                .expect("dense lhs must be reusable");
+            assert_eq!(got, want, "dense-lhs {bshape:?}");
+
+            // Dense operand on the right: `broadcast - dense`, written
+            // into the dense operand with the closure flipped, which is
+            // what `binary_op_typed`'s swapped branch does.
+            let want = zip_map(&bdata, &blayout, &dense, &dense_layout, |a, b| a - b).unwrap();
+            let mut got = dense.clone();
+            apply_inplace(&mut got, &dense_layout, &bdata, &blayout, |d, s| s - d)
+                .expect("dense rhs must be reusable");
+            assert_eq!(got, want, "dense-rhs {bshape:?}");
+        }
+    }
+
+    #[test]
+    fn test_zip_apply_inplace_general_strided_source() {
+        // Transposed source: the collapsed inner src stride is neither
+        // contiguous nor broadcast, exercising the general arm.
+        let dst_layout = Layout::contiguous(Shape::from(vec![4, 3]));
+        let src_layout = Layout::contiguous(Shape::from(vec![3, 4])).transpose(0, 1);
+        let src: Vec<i32> = (0..12).collect();
+        let dst: Vec<i32> = (100..112).collect();
+
+        let want = zip_map(&dst, &dst_layout, &src, &src_layout, |a, b| a + b).unwrap();
+        let mut got = dst.clone();
+        apply_inplace(&mut got, &dst_layout, &src, &src_layout, |d, s| d + s).unwrap();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn test_zip_apply_inplace_single_element_and_empty() {
+        let l = Layout::contiguous(Shape::from(vec![1, 1]));
+        let mut dst = [3.0f32];
+        apply_inplace(&mut dst, &l, &[4.0f32], &l, |d, s| d * s).unwrap();
+        assert_eq!(dst, [12.0]);
+
+        // Empty tensors must not enter the run odometer.
+        let e = Layout::contiguous(Shape::from(vec![0, 3]));
+        apply_inplace::<f32>(&mut [], &e, &[], &e, |d, s| d + s).unwrap();
+    }
+
+    #[test]
+    fn test_zip_apply_inplace_leaves_trailing_storage_untouched() {
+        // A dense-from-zero view over a longer buffer: only the first
+        // `numel` slots may be written.
+        let mut data: Vec<f32> = (0..24).map(|i| i as f32).collect();
+        let dst_layout = Layout::new(Shape::from(vec![2, 6]), vec![6, 1], 0);
+        let src_layout = broadcast_layout(&[2, 1], &[2, 6]);
+        apply_inplace(
+            &mut data,
+            &dst_layout,
+            &[10.0, 20.0],
+            &src_layout,
+            |d, s| d + s,
+        )
+        .unwrap();
+
+        let mut want: Vec<f32> = (0..24).map(|i| i as f32).collect();
+        for (i, w) in want.iter_mut().enumerate().take(12) {
+            *w += if i < 6 { 10.0 } else { 20.0 };
+        }
+        assert_eq!(data, want);
     }
 
     #[test]

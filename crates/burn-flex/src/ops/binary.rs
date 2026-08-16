@@ -47,11 +47,11 @@ where
 
     match dtype {
         DType::F32 => binary_op_f32(lhs, rhs, f32_op, simd_hint),
-        DType::F64 => binary_op_typed(lhs, &rhs, f64_op),
-        DType::F16 => binary_op_typed(lhs, &rhs, |a: f16, b: f16| {
+        DType::F64 => binary_op_typed(lhs, rhs, f64_op),
+        DType::F16 => binary_op_typed(lhs, rhs, |a: f16, b: f16| {
             f16::from_f32(f32_op(a.to_f32(), b.to_f32()))
         }),
-        DType::BF16 => binary_op_typed(lhs, &rhs, |a: bf16, b: bf16| {
+        DType::BF16 => binary_op_typed(lhs, rhs, |a: bf16, b: bf16| {
             bf16::from_f32(f32_op(a.to_f32(), b.to_f32()))
         }),
         _ => panic!("binary_op: unsupported dtype {:?}", dtype),
@@ -117,13 +117,16 @@ where
     }
 
     // Broadcast operands fall through to `binary_op_typed`, whose
-    // collapsed loop nest (`zip::zip_map`) handles every stride pattern
-    // in a single pass. Hand-written `SharedRow`/`PerRowScalar` fast
-    // paths used to live here; they were measurably *slower* than the
-    // nest (see the module docs on `zip.rs`) because they copy the
-    // dense operand and then make a second read-modify-write pass,
-    // while the nest reads both operands and writes the output once.
-    binary_op_typed(lhs, &rhs, op)
+    // collapsed loop nest handles every stride pattern in a single pass
+    // — reusing a uniquely owned operand as the destination when it can
+    // (`zip::zip_apply_inplace`) and allocating only when neither side
+    // is reusable (`zip::zip_map`). Hand-written `SharedRow`/
+    // `PerRowScalar` fast paths used to live here; they were measurably
+    // *slower* than the nest (see the module docs on `zip.rs`) because
+    // they copy the dense operand and then make a second
+    // read-modify-write pass, while the nest reads both operands and
+    // writes the output once.
+    binary_op_typed(lhs, rhs, op)
 }
 
 /// Fallback when SIMD is disabled.
@@ -137,17 +140,15 @@ fn binary_op_f32<Op>(
 where
     Op: Fn(f32, f32) -> f32,
 {
-    binary_op_typed(lhs, &rhs, op)
+    binary_op_typed(lhs, rhs, op)
 }
 
 /// Binary operation with in-place optimization for Pod types.
-pub(crate) fn binary_op_typed<E, Op>(mut lhs: FlexTensor, rhs: &FlexTensor, op: Op) -> FlexTensor
+pub(crate) fn binary_op_typed<E, Op>(mut lhs: FlexTensor, mut rhs: FlexTensor, op: Op) -> FlexTensor
 where
     E: Element + bytemuck::Pod,
     Op: Fn(E, E) -> E,
 {
-    let rhs_storage: &[E] = rhs.storage();
-
     // In-place fast path: lhs unique, contiguous at offset 0, rhs contiguous
     if lhs.is_unique()
         && let (Some((0, l_end)), Some((r_start, r_end))) = (
@@ -155,18 +156,49 @@ where
             rhs.layout().contiguous_offsets(),
         )
     {
-        let lhs_storage: &mut [E] = lhs.storage_mut();
+        let rhs_storage: &[E] = rhs.storage();
         let r_slice = &rhs_storage[r_start..r_end];
+        let lhs_storage: &mut [E] = lhs.storage_mut();
         for (l, &r) in lhs_storage[..l_end].iter_mut().zip(r_slice) {
             *l = op(*l, r);
         }
         return lhs;
     }
 
+    // Broadcast/strided in-place: when one operand is uniquely owned and
+    // the collapsed nest walks it densely from storage index 0, the nest
+    // can write straight into it instead of allocating a full-size
+    // output. Without this, every broadcast op against a unique operand
+    // — which is what an eager expression chain like `a * b + c * d`
+    // produces at each step — pays for an output buffer and the page
+    // faults that come with first-touching it.
+    //
+    // lhs is tried first so the common `a op= b` orientation keeps its
+    // operand order; the rhs attempt flips the closure to compensate.
+    if lhs.is_unique()
+        && let Some(nest) = crate::zip::collapse_for_zip(lhs.layout(), rhs.layout())
+        && nest.lhs_is_dense_from_zero()
+    {
+        let rhs_storage: &[E] = rhs.storage();
+        let lhs_storage: &mut [E] = lhs.storage_mut();
+        crate::zip::zip_apply_inplace(&nest, lhs_storage, rhs_storage, |l, r| op(l, r));
+        return lhs;
+    }
+    if rhs.is_unique()
+        && let Some(nest) = crate::zip::collapse_for_zip(rhs.layout(), lhs.layout())
+        && nest.lhs_is_dense_from_zero()
+    {
+        let lhs_storage: &[E] = lhs.storage();
+        let rhs_storage: &mut [E] = rhs.storage_mut();
+        crate::zip::zip_apply_inplace(&nest, rhs_storage, lhs_storage, |r, l| op(l, r));
+        return rhs;
+    }
+
     // Allocating path
     let shape = lhs.layout().shape().clone();
     let dtype = lhs.dtype();
     let lhs_storage: &[E] = lhs.storage();
+    let rhs_storage: &[E] = rhs.storage();
 
     let result: Vec<E> = match (
         lhs.layout().contiguous_offsets(),
@@ -334,16 +366,16 @@ where
     let dtype = lhs.dtype();
 
     match dtype {
-        DType::I64 => binary_op_typed(lhs, &rhs, op),
-        DType::I32 => binary_op_typed(lhs, &rhs, |a: i32, b: i32| op(a as i64, b as i64) as i32),
-        DType::I16 => binary_op_typed(lhs, &rhs, |a: i16, b: i16| op(a as i64, b as i64) as i16),
-        DType::I8 => binary_op_typed(lhs, &rhs, |a: i8, b: i8| op(a as i64, b as i64) as i8),
+        DType::I64 => binary_op_typed(lhs, rhs, op),
+        DType::I32 => binary_op_typed(lhs, rhs, |a: i32, b: i32| op(a as i64, b as i64) as i32),
+        DType::I16 => binary_op_typed(lhs, rhs, |a: i16, b: i16| op(a as i64, b as i64) as i16),
+        DType::I8 => binary_op_typed(lhs, rhs, |a: i8, b: i8| op(a as i64, b as i64) as i8),
         // u64 values > i64::MAX wrap to negative i64. This is correct for
         // add/sub/mul/bitwise (two's complement). Div/rem are handled at the call site.
-        DType::U64 => binary_op_typed(lhs, &rhs, |a: u64, b: u64| op(a as i64, b as i64) as u64),
-        DType::U32 => binary_op_typed(lhs, &rhs, |a: u32, b: u32| op(a as i64, b as i64) as u32),
-        DType::U16 => binary_op_typed(lhs, &rhs, |a: u16, b: u16| op(a as i64, b as i64) as u16),
-        DType::U8 => binary_op_typed(lhs, &rhs, |a: u8, b: u8| op(a as i64, b as i64) as u8),
+        DType::U64 => binary_op_typed(lhs, rhs, |a: u64, b: u64| op(a as i64, b as i64) as u64),
+        DType::U32 => binary_op_typed(lhs, rhs, |a: u32, b: u32| op(a as i64, b as i64) as u32),
+        DType::U16 => binary_op_typed(lhs, rhs, |a: u16, b: u16| op(a as i64, b as i64) as u16),
+        DType::U8 => binary_op_typed(lhs, rhs, |a: u8, b: u8| op(a as i64, b as i64) as u8),
         _ => panic!("int_binary_op: unsupported dtype {:?}", dtype),
     }
 }

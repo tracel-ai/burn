@@ -121,6 +121,15 @@ fn try_zip_cmp_f32(lhs: &FlexTensor, rhs: &FlexTensor, op: simd::CmpOp) -> Optio
         return None; // single element; not worth a SIMD dispatch
     }
     let (len, l_st, r_st) = nest.inner();
+    // Reject unsupported inner stride pairs *before* allocating the
+    // output. A positive-stride transpose (inner pair `(N, 1)`) lands in
+    // the general arm, and the caller then computes the real result
+    // through `compare_typed`/`zip_map` anyway — zero-filling `numel`
+    // bytes first would add a full-size allocation and memory pass to
+    // every such fallback.
+    if !matches!((l_st, r_st), (1, 1) | (1, 0) | (0, 1)) {
+        return None;
+    }
     let lhs_storage: &[f32] = lhs.storage();
     let rhs_storage: &[f32] = rhs.storage();
     let mut out = vec![0u8; numel];
@@ -153,7 +162,7 @@ fn try_zip_cmp_f32(lhs: &FlexTensor, rhs: &FlexTensor, op: simd::CmpOp) -> Optio
             );
             pos += len;
         }),
-        _ => return None,
+        _ => unreachable!("unsupported inner stride pairs are rejected above"),
     }
     debug_assert_eq!(pos, numel);
     Some(out)

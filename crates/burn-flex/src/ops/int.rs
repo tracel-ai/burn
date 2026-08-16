@@ -407,7 +407,7 @@ impl IntTensorOps<Flex> for Flex {
         // U64 values > i64::MAX produce wrong results through i64 cast
         if lhs.dtype() == DType::U64 {
             let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
-            return binary_op_typed(lhs, &rhs, |a: u64, b: u64| a / b);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a / b);
         }
         int_binary_op(lhs, rhs, |a, b| a / b)
     }
@@ -423,7 +423,7 @@ impl IntTensorOps<Flex> for Flex {
         // U64 values > i64::MAX produce wrong results through i64 cast
         if lhs.dtype() == DType::U64 {
             let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
-            return binary_op_typed(lhs, &rhs, |a: u64, b: u64| a % b);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
         int_binary_op(lhs, rhs, |a, b| ((a % b) + b) % b)

@@ -1047,30 +1047,34 @@ mod tests {
 
     #[test]
     fn test_rsub_inplace_f32_long() {
-        // Long enough to exercise both the SIMD body and the scalar
-        // tail on every lane width (100 = 6*16 + 4).
-        let mut a: Vec<f32> = (0..100).map(|i| i as f32).collect();
-        let b: Vec<f32> = (0..100).map(|i| (3 * i) as f32).collect();
+        // Not a multiple of any lane width, so both the SIMD body and
+        // the scalar tail run on 4-, 8- and 16-lane targets alike
+        // (101 = 25*4 + 1 = 12*8 + 5 = 6*16 + 5).
+        let mut a: Vec<f32> = (0..101).map(|i| i as f32).collect();
+        let b: Vec<f32> = (0..101).map(|i| (3 * i) as f32).collect();
         rsub_inplace_f32(&mut a, &b);
-        let expected: Vec<f32> = (0..100).map(|i| (2 * i) as f32).collect();
+        let expected: Vec<f32> = (0..101).map(|i| (2 * i) as f32).collect();
         assert_eq!(a, expected);
     }
 
     #[test]
     fn test_rdiv_inplace_f32() {
-        // dst = src / dst, i.e. a[i] = b[i] / a[i].
-        let mut a = [2.0f32, 4.0, 5.0, 8.0];
-        let b = [10.0f32, 20.0, 30.0, 40.0];
+        // dst = src / dst, i.e. a[i] = b[i] / a[i]. Length 5 so the
+        // scalar tail runs even on a four-lane target.
+        let mut a = [2.0f32, 4.0, 5.0, 8.0, 10.0];
+        let b = [10.0f32, 20.0, 30.0, 40.0, 70.0];
         rdiv_inplace_f32(&mut a, &b);
-        assert_eq!(a, [5.0, 5.0, 6.0, 5.0]);
+        assert_eq!(a, [5.0, 5.0, 6.0, 5.0, 7.0]);
     }
 
     #[test]
     fn test_rdiv_inplace_f32_long() {
-        let mut a: Vec<f32> = (1..=100).map(|i| i as f32).collect();
-        let b: Vec<f32> = (1..=100).map(|i| (i * i) as f32).collect();
+        // 101 for the same reason as the rsub case above; the result is
+        // deliberately not the input, so a no-op kernel can't pass.
+        let mut a: Vec<f32> = (1..=101).map(|i| i as f32).collect();
+        let b: Vec<f32> = (1..=101).map(|i| (2 * i * i) as f32).collect();
         rdiv_inplace_f32(&mut a, &b);
-        let expected: Vec<f32> = (1..=100).map(|i| i as f32).collect();
+        let expected: Vec<f32> = (1..=101).map(|i| (2 * i) as f32).collect();
         assert_eq!(a, expected);
     }
 
