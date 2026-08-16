@@ -4,7 +4,7 @@ use burn_dispatch::Dispatch;
 use crate::check::TensorCheck;
 use crate::check::unwrap_dim_index;
 use crate::ops::BridgeTensor;
-use crate::{AsIndex, Tensor, check, s};
+use crate::{AsIndex, DType, Tensor, check, s};
 
 /// Applies the rectified linear unit function element-wise
 /// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
@@ -213,6 +213,20 @@ pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D
     Tensor::new(softmin_impl(tensor.primitive, dim))
 }
 
+/// Largest argument for which `exp` is still finite in the given float dtype, rounded down.
+///
+/// `f32`, `flex32` and `bf16` all carry `f32`'s exponent range, so they share a bound.
+fn max_finite_exp_arg(dtype: DType) -> f64 {
+    match dtype {
+        // ln(f16::MAX) = ln(65504) ~= 11.09
+        DType::F16 => 11.0,
+        // ln(f64::MAX) ~= 709.78
+        DType::F64 => 709.0,
+        // ln(f32::MAX) ~= 88.72
+        _ => 88.0,
+    }
+}
+
 /// Applies the SoftPlus function element-wise.
 ///
 #[cfg_attr(
@@ -232,10 +246,16 @@ $$
 ///   rather than evaluated. This is what keeps `exp` from overflowing: the naive form returns
 ///   `inf` in the forward pass and `NaN` in the backward pass from `beta * x > ~88` upwards in
 ///   `f32`. Pass `20.0` unless you have a reason not to, matching the default of
-///   `torch.nn.functional.softplus`. Values in `[20, 80]` are all equivalent in exact
-///   arithmetic; a `threshold` above `~88` cannot prevent the overflow it exists to prevent,
-///   and one below `~20` starts to visibly round the curve near the origin.
+///   `torch.nn.functional.softplus`. Values below `~20` start to visibly round the curve near
+///   the origin. A `threshold` too large for the dtype to evaluate is lowered to the largest
+///   one that dtype supports, since the two are indistinguishable at that magnitude anyway.
 pub fn softplus<const D: usize>(tensor: Tensor<D>, beta: f64, threshold: f64) -> Tensor<D> {
+    // `exp` saturates once its argument passes `ln(MAX)` for the dtype, which is only ~11.09
+    // in `f16` — far below the `f32`-oriented default of 20, so the requested threshold alone
+    // does not always keep `exp` in range. Substituting the identity earlier is safe: softplus
+    // and the identity already agree to within the dtype's precision at that magnitude.
+    let threshold = threshold.min(max_finite_exp_arg(tensor.dtype()));
+
     let scaled = tensor.clone().mul_scalar(beta);
 
     // The saturated elements are masked out below, but they are still evaluated here, so the
