@@ -181,7 +181,7 @@ where
     {
         let rhs_storage: &[E] = rhs.storage();
         let lhs_storage: &mut [E] = lhs.storage_mut();
-        crate::zip::zip_apply_inplace(&nest, lhs_storage, rhs_storage, |l, r| op(l, r));
+        crate::zip::zip_apply_inplace(&nest, lhs_storage, rhs_storage, &op);
         return lhs;
     }
     if rhs.is_unique()
