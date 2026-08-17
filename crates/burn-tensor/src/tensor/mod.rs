@@ -6,13 +6,13 @@ pub use api::*;
 
 // Re-exported types
 pub use burn_std::{
-    BoolDType, BoolStore, DType, DataError, FloatDType, IndexingUpdateOp, IntDType, TensorData,
-    Tolerance, distribution::*, element::*, indexing::*, s, shape::*, slice::*,
+    BoolDType, BoolStore, ComplexDType, DType, DataError, FloatDType, IndexingUpdateOp, IntDType,
+    TensorData, Tolerance, distribution::*, element::*, indexing::*, s, shape::*, slice::*,
 };
 
 /// The tensor kind module.
 pub mod kind;
-pub use kind::{Bool, Float, Int};
+pub use kind::{Bool, Complex, Float, Int};
 
 /// The activation module.
 pub mod activation;

@@ -886,6 +886,7 @@ dependencies = [
  "cubek",
  "divan",
  "num-traits",
+ "paste",
  "proc-macro2",
  "quote",
  "rand 0.10.2",
@@ -1263,6 +1264,8 @@ dependencies = [
  "half",
  "hashbrown 0.16.1",
  "indicatif 0.18.6",
+ "ndarray 0.17.2",
+ "num-complex",
  "num-traits",
  "paste",
  "portable-atomic-util",
@@ -1274,6 +1277,7 @@ dependencies = [
  "serial_test",
  "smallvec",
  "spin 0.11.1",
+ "tch",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
@@ -1312,6 +1316,7 @@ name = "burn-tch"
 version = "0.22.0-pre.2"
 dependencies = [
  "burn-backend",
+ "bytemuck",
  "cc",
  "libc",
  "log",

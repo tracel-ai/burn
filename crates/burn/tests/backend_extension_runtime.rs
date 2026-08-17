@@ -110,7 +110,7 @@ mod multi_backend_autodiff {
     }
 
     #[test]
-    fn autodiff_float_input_dispatches_to_each_concrete_backend() {
+    fn autodiff_input_dispatches_to_each_concrete_backend() {
         assert_double(Device::ndarray().autodiff());
         assert_double(Device::flex().autodiff());
     }

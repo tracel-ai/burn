@@ -18,7 +18,8 @@ workspace = true
 default = ["std"]
 doc = ["default"]
 std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std", "dep:oneshot"]
-
+ndarray = ["burn-std/ndarray"]
+tch = ["burn-std/tch"]
 tracing = ["burn-std/tracing", "cubecl/tracing"]
 
 # For DTypeUsage de/serialization

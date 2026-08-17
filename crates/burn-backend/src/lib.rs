@@ -16,10 +16,10 @@ pub use backend::*;
 // Re-exported types
 pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
 pub use burn_std::{
-    AllocationProperty, BoolDType, BoolStore, Bytes, DType, DataError, DeviceHandle, Distribution,
-    DistributionSampler, DistributionSamplerKind, Element, ElementAdd, ElementConversion,
-    ElementEq, ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar, SplitPolicy,
-    TensorData, Tolerance, bf16, distribution, element, f16, stream::StreamId,
+    AllocationProperty, BoolDType, BoolStore, Bytes, ComplexDType, ComplexScalar, DType, DataError,
+    DeviceHandle, Distribution, DistributionSampler, DistributionSamplerKind, Element, ElementAdd,
+    ElementConversion, ElementEq, ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar,
+    SplitPolicy, TensorData, Tolerance, bf16, distribution, element, f16, stream::StreamId,
 };
 
 /// Shape definition.
@@ -69,22 +69,12 @@ mod cube_wgpu {
     impl DeviceOps for WgpuDevice {
         #[cfg(not(any(feature = "cubecl-metal", feature = "cubecl-vulkan")))]
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U32),
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U32))
         }
 
         #[cfg(any(feature = "cubecl-metal", feature = "cubecl-vulkan"))]
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U8))
         }
     }
 }
@@ -97,12 +87,7 @@ mod cube_cuda {
 
     impl DeviceOps for CudaDevice {
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U8))
         }
     }
 }
@@ -115,12 +100,7 @@ mod cube_cpu {
 
     impl DeviceOps for CpuDevice {
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U8))
         }
     }
 }
@@ -133,12 +113,7 @@ mod cube_hip {
 
     impl DeviceOps for AmdDevice {
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                Default::default(),
-            )
+            DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::U8))
         }
     }
 }

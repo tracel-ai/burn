@@ -39,6 +39,8 @@ mod macros;
 
 /// Dispatch backend module.
 pub mod backend;
+/// Dispatch complex backend module.
+pub mod complex;
 /// Dispatch device module.
 pub mod device;
 mod ops;

@@ -34,6 +34,8 @@ impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
 
+    type ComplexTensorPrimitive = B::ComplexTensorPrimitive;
+
     // A replayed graph would skip re-recording the autodiff tape, so capture
     // is not supported under autodiff.
     type GraphPrimitive = burn_backend::GraphUnsupported;

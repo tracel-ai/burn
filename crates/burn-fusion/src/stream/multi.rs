@@ -396,7 +396,7 @@ mod tests {
     };
     use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, Shape};
     use burn_ir::{FloatOperationIr, TensorIr, TensorStatus, UnaryOpIr};
-    use burn_std::{BoolDType, FloatDType, IntDType, device::Device};
+    use burn_std::{BoolDType, DType::Complex32, FloatDType, IntDType, device::Device};
 
     #[derive(Debug)]
     struct TestRuntime;
@@ -419,7 +419,8 @@ mod tests {
 
     impl DeviceOps for TestDevice {
         fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::with_dtypes(FloatDType::F32, IntDType::I32, BoolDType::Native)
+            DeviceSettings::new(FloatDType::F32, IntDType::I32, BoolDType::Native)
+                .with_complex(Complex32)
         }
     }
 

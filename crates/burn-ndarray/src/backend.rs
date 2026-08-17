@@ -3,7 +3,9 @@ use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps};
+use burn_backend::{
+    Backend, BackendTypes, DType, DeviceId, DeviceOps, UnimplementedTensorPrimitive,
+};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::sync::Mutex;
 use burn_std::{BoolStore, DeviceSettings, QuantConfig};
@@ -22,15 +24,11 @@ pub enum NdArrayDevice {
 impl DeviceOps for NdArrayDevice {
     fn defaults(&self) -> DeviceSettings {
         // E = f32, I = i64
-        DeviceSettings::new(
-            DType::F32,
-            DType::I64,
-            DType::Bool(BoolStore::Native),
-            QuantConfig::new(
+        DeviceSettings::new(DType::F32, DType::I64, DType::Bool(BoolStore::Native))
+            .with_quantization(QuantConfig::new(
                 QuantScheme::default().with_store(QuantStore::Native),
                 Default::default(),
-            ),
-        )
+            ))
     }
 }
 
@@ -61,6 +59,7 @@ impl BackendTypes for NdArray {
     type IntTensorPrimitive = NdArrayTensor;
     type BoolTensorPrimitive = NdArrayTensor;
     type QuantizedTensorPrimitive = NdArrayQTensor;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<NdArrayDevice>;
 
     type GraphPrimitive = burn_backend::GraphUnsupported;
 }
@@ -93,6 +92,8 @@ impl Backend for NdArray {
             | DType::U32
             | DType::U16
             | DType::U8
+            | DType::Complex32
+            | DType::Complex64
             | DType::Bool(BoolStore::Native) => burn_backend::DTypeUsage::general(),
             DType::F16 | DType::BF16 | DType::Bool(_) => burn_backend::DTypeUsageSet::empty(),
             DType::QFloat(scheme) => {

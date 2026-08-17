@@ -76,8 +76,7 @@ impl Step for RootStep {
         self.node.distributed_params.clone()
     }
 }
-
-impl<B: Backend> AutodiffTensor<B> {
+impl<B: BackendTypes> AutodiffTensor<B> {
     /// Create a new leaf tensor.
     pub fn new(primitive: B::FloatTensorPrimitive) -> Self {
         let id = NodeId::new();
@@ -98,7 +97,8 @@ impl<B: Backend> AutodiffTensor<B> {
             node: node.clone(),
         }
     }
-
+}
+impl<B: Backend> AutodiffTensor<B> {
     pub fn is_tracked(&self) -> bool {
         !self.node.requirement.is_none()
     }

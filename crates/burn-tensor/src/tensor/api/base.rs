@@ -1,8 +1,9 @@
 #![allow(clippy::single_range_in_vec_init)]
-use crate::check::{unwrap_dim_index, unwrap_shape_reshape};
+use crate::bridge::Complex;
+use crate::check::unwrap_dim_index;
+use crate::check::unwrap_shape_reshape;
 use crate::kind::Basic;
 use crate::ops::BridgeTensor;
-
 use burn_backend::Scalar;
 
 use alloc::vec::Vec;
@@ -11,6 +12,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
+use burn_std::ComplexScalar;
 use burn_std::ExecutionError;
 use burn_std::{SliceOps, sync::RwLock};
 use core::iter::ExactSizeIterator;
@@ -2938,6 +2940,8 @@ impl DataIterFmt {
                 burn_std::BoolStore::U32 => fmt_elem(self.next_elem::<u32>().to_bool()),
             },
             DType::QFloat(_) => todo!(), // unreachable but we should fix that
+            DType::Complex64 => fmt_elem(self.next_elem::<ComplexScalar<f64>>()),
+            DType::Complex32 => fmt_elem(self.next_elem::<ComplexScalar<f32>>()),
         }
     }
 
@@ -3141,6 +3145,7 @@ async fn into_data_async_impl(
         Kind::Float => <crate::Float as BasicOps>::into_data_async(primitive).await,
         Kind::Int => <crate::Int as BasicOps>::into_data_async(primitive).await,
         Kind::Bool => <crate::Bool as BasicOps>::into_data_async(primitive).await,
+        Kind::Complex => <Complex as BasicOps>::into_data_async(primitive).await,
     }
 }
 
@@ -3150,6 +3155,7 @@ fn slice_bridge_by_kind(p: BridgeTensor, slices: &[Slice], kind: crate::ops::Kin
         Kind::Float => <crate::Float as BasicOps>::slice(p, slices),
         Kind::Int => <crate::Int as BasicOps>::slice(p, slices),
         Kind::Bool => <crate::Bool as BasicOps>::slice(p, slices),
+        Kind::Complex => <Complex as BasicOps>::slice(p, slices),
     }
 }
 
@@ -3361,6 +3367,9 @@ fn display_fmt_impl(
         crate::ops::Kind::Float => <crate::Float as crate::ops::BasicOps>::device(primitive),
         crate::ops::Kind::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
         crate::ops::Kind::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
+        crate::ops::Kind::Complex => {
+            <crate::bridge::Complex as crate::ops::BasicOps>::device(primitive)
+        }
     };
     writeln!(f, "  device:  {:?},", device)?;
     writeln!(f, "  kind:  {:?},", kind_name)?;

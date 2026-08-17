@@ -12,7 +12,7 @@ If you have an idea that isn't covered by an existing issue, open one first to d
 This helps align expectations and avoids wasted effort on both sides.
 
 For questions, discussions, or just to say hello, join us on
-[Discord](https://discord.gg/uPEBbYYDB6). The [Contributor Book](https://burn.dev/contributor-book/)
+[Discord](https://discord.gg/uPEBbYYDB6). The [Contributor Book](https://burn.dev/books/contributor/)
 covers architecture, environment setup, and guides for common tasks.
 
 ## Pull Requests

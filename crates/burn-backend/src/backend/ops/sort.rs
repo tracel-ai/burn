@@ -30,7 +30,7 @@ macro_rules! sort_dispatch_dtype {
                     DType::U32 => $fn::<u32, $index_ty>($data, $($args),*),
                     DType::U16 => $fn::<u16, $index_ty>($data, $($args),*),
                     DType::U8 => $fn::<u8, $index_ty>($data, $($args),*),
-                    DType::Bool(_) | DType::QFloat(_) => {
+                    DType::Bool(_) | DType::QFloat(_)| DType::Complex32|DType::Complex64 => {
                         unimplemented!("not supported for sorting operations")
                     }
                 }
@@ -64,7 +64,7 @@ macro_rules! sort_dispatch_dtype {
             DType::U32 => $fn::<u32>($data, $($args),*),
             DType::U16 => $fn::<u16>($data, $($args),*),
             DType::U8 => $fn::<u8>($data, $($args),*),
-            DType::Bool(_) | DType::QFloat(_) => {
+            DType::Bool(_) | DType::QFloat(_)|DType::Complex32|DType::Complex64 => {
                 unimplemented!("not supported for sorting operations")
             }
         }

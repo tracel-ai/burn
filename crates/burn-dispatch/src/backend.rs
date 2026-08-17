@@ -163,6 +163,7 @@ impl BackendTypes for Dispatch {
     type QuantizedTensorPrimitive = DispatchTensor;
 
     type GraphPrimitive = DispatchGraph;
+    type ComplexTensorPrimitive = DispatchTensor;
 }
 
 impl Backend for Dispatch {
@@ -210,6 +211,24 @@ impl Backend for Dispatch {
         }
     }
 
+    fn memory_persistent_allocations<
+        Output: Send,
+        Input: Send,
+        Func: Fn(Input) -> Output + Send,
+    >(
+        device: &Self::Device,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        dispatch_device!(device, |device| B::memory_persistent_allocations(
+            device, input, func
+        ))
+    }
+
+    fn memory_cleanup(device: &Self::Device) {
+        dispatch_device!(device, |device| B::memory_cleanup(device))
+    }
+
     fn device_count(type_id: u16) -> usize {
         let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
         match dispatch_id {
@@ -239,22 +258,8 @@ impl Backend for Dispatch {
         }
     }
 
-    fn memory_persistent_allocations<
-        Output: Send,
-        Input: Send,
-        Func: Fn(Input) -> Output + Send,
-    >(
-        device: &Self::Device,
-        input: Input,
-        func: Func,
-    ) -> Output {
-        dispatch_device!(device, |device| B::memory_persistent_allocations(
-            device, input, func
-        ))
-    }
-
-    fn memory_cleanup(device: &Self::Device) {
-        dispatch_device!(device, |device| B::memory_cleanup(device))
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -262,10 +267,6 @@ impl Backend for Dispatch {
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
     {
         dispatch_device!(device, |device| B::staging(data, device))
-    }
-
-    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
-        dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
 
     fn flush(device: &Self::Device) {

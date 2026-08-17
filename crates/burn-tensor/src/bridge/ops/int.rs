@@ -309,10 +309,6 @@ impl Numeric for Int {
         BridgeTensor::int(Dispatch::int_cumprod(tensor.into(), dim))
     }
 
-    fn abs(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::int(Dispatch::int_abs(tensor.into()))
-    }
-
     fn powi(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_powi(lhs.into(), rhs.into()))
     }
@@ -352,6 +348,9 @@ impl Numeric for Int {
 }
 
 impl Ordered for Int {
+    fn abs(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::int(Dispatch::int_abs(tensor.into()))
+    }
     fn sort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_sort(tensor.into(), dim, descending))
     }

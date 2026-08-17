@@ -988,6 +988,12 @@ impl From<DType> for FuseType {
             DType::F64 => Self::F64,
             DType::QFloat(scheme) => Self::from_quant_scheme(scheme)
                 .unwrap_or_else(|| unimplemented!("Unsupported precision for fusion")),
+            DType::Complex64 => {
+                unimplemented!("Fusion support for complex numbers not yet implemented")
+            }
+            DType::Complex32 => {
+                unimplemented!("Fusion support for complex numbers not yet implemented")
+            }
         }
     }
 }

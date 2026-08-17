@@ -10,6 +10,48 @@ pub enum TensorPrimitive<B: BackendTypes> {
     QFloat(B::QuantizedTensorPrimitive),
 }
 
+/// a Placeholder primitive for tensor types that are not yet supported by a backend.
+#[derive(Clone)]
+pub struct UnimplementedTensorPrimitive<D> {
+    _device: core::marker::PhantomData<D>,
+}
+
+impl<D> UnimplementedTensorPrimitive<D> {
+    /// Stub to make it compatible with backend decorators
+    pub fn primitive(&self) -> ! {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
+    }
+}
+
+impl<D: DeviceOps> TensorMetadata for UnimplementedTensorPrimitive<D> {
+    type Device = D;
+    /// Stub method that panics with a message indicating that the given tensor type is not yet supported for the backend associated with the device.
+    fn device(&self) -> Self::Device {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
+    }
+    fn dtype(&self) -> DType {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
+    }
+
+    fn shape(&self) -> Shape {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
+    }
+
+    fn can_mut(&self) -> bool {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<D>())
+    }
+}
+
+impl<D> core::fmt::Debug for UnimplementedTensorPrimitive<D> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "placeholder tensor primitive for {}",
+            core::any::type_name::<D>()
+        )
+    }
+}
+
 impl<B: Backend> TensorPrimitive<B> {
     /// Returns the full tensor representation.
     pub fn tensor(self) -> B::FloatTensorPrimitive {

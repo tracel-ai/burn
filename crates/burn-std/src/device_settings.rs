@@ -6,7 +6,7 @@ use cubecl_environment::backtrace::BackTrace;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{BoolDType, DType, FloatDType, IntDType, QuantConfig};
+use crate::{BoolDType, ComplexDType, DType, FloatDType, IntDType, QuantConfig};
 
 /// Settings controlling the default data types for a specific device.
 ///
@@ -25,6 +25,8 @@ pub struct DeviceSettings {
     pub int_dtype: IntDType,
     /// Default bool data type.
     pub bool_dtype: BoolDType,
+    /// Default complex data type.
+    complex_dtype: Option<ComplexDType>,
     /// Quantization configuration.
     pub quantization: QuantConfig,
 }
@@ -35,23 +37,41 @@ impl DeviceSettings {
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
         bool_dtype: impl Into<BoolDType>,
-        quantization: QuantConfig,
     ) -> Self {
         Self {
             float_dtype: float_dtype.into(),
             int_dtype: int_dtype.into(),
             bool_dtype: bool_dtype.into(),
-            quantization,
+            complex_dtype: None,
+            quantization: Default::default(),
         }
     }
 
-    /// Creates a new [`DeviceSettings`] from any types convertible into the dtype kinds.
-    pub fn with_dtypes(
-        float_dtype: impl Into<FloatDType>,
-        int_dtype: impl Into<IntDType>,
-        bool_dtype: impl Into<BoolDType>,
-    ) -> Self {
-        Self::new(float_dtype, int_dtype, bool_dtype, Default::default())
+    /// Returns a new [`DeviceSettings`] with the complex dtype if supported.
+    pub fn with_complex(mut self, complex_dtype: impl TryInto<ComplexDType>) -> Self {
+        self.complex_dtype = complex_dtype.try_into().ok();
+        self
+    }
+
+    /// Returns a new [`DeviceSettings`] with the complex dtype if supported.
+    pub fn with_quantization(mut self, quantization: QuantConfig) -> Self {
+        self.quantization = quantization;
+        self
+    }
+
+    /// Returns the complex data type of the device.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the device does not support complex data types.
+    pub fn complex_dtype(&self) -> ComplexDType {
+        self.complex_dtype
+            .expect("This device does not support complex data types")
+    }
+
+    /// Returns the complex data type of the device, if supported.
+    pub fn get_complex_dtype(&self) -> Option<ComplexDType> {
+        self.complex_dtype
     }
 }
 

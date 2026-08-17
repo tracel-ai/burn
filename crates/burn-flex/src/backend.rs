@@ -45,15 +45,12 @@ impl Device for FlexDevice {
 
 impl DeviceOps for FlexDevice {
     fn defaults(&self) -> DeviceSettings {
-        DeviceSettings::new(
-            DType::F32,
-            DType::I32,
-            DType::Bool(BoolStore::Native),
-            QuantConfig::new(
+        DeviceSettings::new(DType::F32, DType::I32, DType::Bool(BoolStore::Native))
+            .with_complex(Some(DType::Complex32))
+            .with_quantization(QuantConfig::new(
                 QuantScheme::default().with_store(QuantStore::Native),
                 Default::default(),
-            ),
-        )
+            ))
     }
 }
 
@@ -116,6 +113,7 @@ impl BackendTypes for Flex {
     type IntTensorPrimitive = FlexTensor;
     type BoolTensorPrimitive = FlexTensor;
     type QuantizedTensorPrimitive = FlexQTensor;
+    type ComplexTensorPrimitive = FlexTensor;
 
     type GraphPrimitive = burn_backend::GraphUnsupported;
 }

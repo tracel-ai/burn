@@ -1,6 +1,8 @@
 mod autodiff;
 mod base;
 mod bool;
+
+mod complex;
 mod float;
 mod int;
 mod math;
@@ -9,6 +11,7 @@ mod ordered;
 
 pub(crate) use autodiff::*;
 pub(crate) use base::*;
+pub(crate) use complex::*;
 pub(crate) use math::*;
 pub(crate) use numeric::*;
 pub(crate) use ordered::*;

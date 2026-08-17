@@ -2,6 +2,8 @@ use core::mem::size_of;
 
 use crate::{bf16, f16};
 
+use crate::ComplexScalar;
+
 /// A generic trait for converting a value to a number.
 /// Adapted from num_traits::ToPrimitive to support [bool].
 ///
@@ -131,6 +133,15 @@ pub trait ToElement {
     fn to_bool(&self) -> bool {
         ToElement::to_bool(&self.to_u64())
     }
+
+    /// Converts the value of `self` to an `Complex<f32>`. If the element is itself not complex, the
+    /// imaginary component will be initialized to zero. Overflows may map to positive
+    /// or negative infinity.
+    fn to_complex32(&self) -> ComplexScalar<f32>;
+    /// Converts the value of `self` to an `Complex<f64>`. If the element is itself not complex, the
+    /// imaginary component will be initialized to zero. Overflows may map to positive
+    /// or negative infinity.
+    fn to_complex64(&self) -> ComplexScalar<f64>;
 }
 
 macro_rules! impl_to_element_int_to_int {
@@ -206,6 +217,14 @@ macro_rules! impl_to_element_int {
             #[inline]
             fn to_bool(&self) -> bool {
                 *self != 0
+            }
+            #[inline]
+            fn to_complex32(&self) -> ComplexScalar<f32> {
+                ComplexScalar::<f32>::new(self.to_f32(), 0.0)
+            }
+            #[inline]
+            fn to_complex64(&self) -> ComplexScalar<f64> {
+                ComplexScalar::<f64>::new(self.to_f64(), 0.0)
             }
         }
     };
@@ -290,6 +309,14 @@ macro_rules! impl_to_element_uint {
             #[inline]
             fn to_bool(&self) -> bool {
                 *self != 0
+            }
+            #[inline]
+            fn to_complex32(&self) -> ComplexScalar<f32> {
+                ComplexScalar::<f32>::new(self.to_f32(), 0.0)
+            }
+            #[inline]
+            fn to_complex64(&self) -> ComplexScalar<f64> {
+                ComplexScalar::<f64>::new(self.to_f64(), 0.0)
             }
         }
     };
@@ -408,6 +435,14 @@ macro_rules! impl_to_element_float {
             fn to_bool(&self) -> bool {
                 *self != 0.0
             }
+            #[inline]
+            fn to_complex32(&self) -> ComplexScalar<f32> {
+                ComplexScalar::<f32>::new(self.to_f32(), 0.0)
+            }
+            #[inline]
+            fn to_complex64(&self) -> ComplexScalar<f64> {
+                ComplexScalar::<f64>::new(self.to_f64(), 0.0)
+            }
         }
     };
 }
@@ -464,6 +499,15 @@ impl ToElement for f16 {
     fn to_bool(&self) -> bool {
         *self != f16::from_f32_const(0.0)
     }
+
+    #[inline]
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.to_f32(), 0.0)
+    }
+    #[inline]
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.to_f64(), 0.0)
+    }
 }
 
 impl ToElement for bf16 {
@@ -515,6 +559,15 @@ impl ToElement for bf16 {
     fn to_bool(&self) -> bool {
         *self != bf16::from_f32_const(0.0)
     }
+
+    #[inline]
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.to_f32(), 0.0)
+    }
+    #[inline]
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.to_f64(), 0.0)
+    }
 }
 
 impl ToElement for crate::flex32 {
@@ -562,6 +615,14 @@ impl ToElement for crate::flex32 {
     fn to_bool(&self) -> bool {
         *self != crate::flex32::from_f32(0.0)
     }
+    #[inline]
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.to_f32(), 0.0)
+    }
+    #[inline]
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.to_f64(), 0.0)
+    }
 }
 
 impl ToElement for bool {
@@ -608,6 +669,14 @@ impl ToElement for bool {
     #[inline]
     fn to_bool(&self) -> bool {
         *self
+    }
+    #[inline]
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.to_f32(), 0.0)
+    }
+    #[inline]
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.to_f64(), 0.0)
     }
 }
 

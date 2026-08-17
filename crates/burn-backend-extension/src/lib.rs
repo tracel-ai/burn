@@ -178,6 +178,7 @@ enum TensorKind {
     Float,
     Int,
     Bool,
+    Complex,
     Quantized,
 }
 
@@ -248,18 +249,21 @@ impl TensorKind {
                     "Float" => Some(Self::Float),
                     "Int" => Some(Self::Int),
                     "Bool" => Some(Self::Bool),
+                    "Complex" => Some(Self::Complex),
                     "Quantized" => Some(Self::Quantized),
 
                     // Full tensor types
                     "FloatTensor" => Some(Self::Float),
                     "IntTensor" => Some(Self::Int),
                     "BoolTensor" => Some(Self::Bool),
+                    "ComplexTensor" => Some(Self::Complex),
                     "QuantizedTensor" => Some(Self::Quantized),
 
                     // Associated primitive types
                     "FloatTensorPrimitive" => Some(Self::Float),
                     "IntTensorPrimitive" => Some(Self::Int),
                     "BoolTensorPrimitive" => Some(Self::Bool),
+                    "ComplexTensorPrimitive" => Some(Self::Complex),
                     "QuantizedTensorPrimitive" => Some(Self::Quantized),
 
                     _ => None,
@@ -282,6 +286,7 @@ impl TensorKind {
             Self::Float => quote! { burn::backend::tensor::FloatTensor<Self> },
             Self::Int => quote! { burn::backend::tensor::IntTensor<Self> },
             Self::Bool => quote! { burn::backend::tensor::BoolTensor<Self> },
+            Self::Complex => quote! { burn::backend::tensor::ComplexTensor<Self> },
             Self::Quantized => quote! { burn::backend::tensor::QuantizedTensor<Self> },
         }
     }
@@ -291,6 +296,7 @@ impl TensorKind {
             Self::Float => format_ident!("Float"),
             Self::Int => format_ident!("Int"),
             Self::Bool => format_ident!("Bool"),
+            Self::Complex => format_ident!("Complex"),
             Self::Quantized => format_ident!("Quantized"),
         }
     }
@@ -909,6 +915,7 @@ fn gen_output_wrap(op: &Operation, b_ident: &Ident, is_ad: bool) -> TokenStream2
                         ),
                         burn::backend::BackendTensor::Int(t) => burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Int(t)),
                         burn::backend::BackendTensor::Bool(t) => burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Bool(t)),
+                        burn::backend::BackendTensor::Complex(t) => burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Complex(t)),
                         burn::backend::BackendTensor::Quantized(t) => burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Quantized(t)),
                         #[allow(unreachable_patterns)]
                         _ => unreachable!("unexpected output tensor variant"),

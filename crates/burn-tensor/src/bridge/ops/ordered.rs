@@ -13,6 +13,25 @@ use crate::{bridge::Numeric, ops::BridgeTensor};
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
 pub(crate) trait Ordered: Numeric {
+    /// Calculate absolute value on all elements of a tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to apply abs to.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with absolute values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For calculating abs of the elements of a tensor, users should prefer the [`Tensor::abs`](crate::Tensor::abs)
+    /// function, which is more high-level and designed for public use.
+    fn abs(tensor: BridgeTensor) -> BridgeTensor;
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).

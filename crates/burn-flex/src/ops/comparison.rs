@@ -308,7 +308,7 @@ where
     compare_elem_typed(lhs, rhs, out_dtype, cmp)
 }
 
-fn compare_typed<E, Cmp>(
+pub(crate) fn compare_typed<E, Cmp>(
     lhs: FlexTensor,
     rhs: &FlexTensor,
     out_dtype: BoolDType,
@@ -356,7 +356,12 @@ where
     make_bool_tensor(result, shape, out_dtype)
 }
 
-fn compare_elem_typed<E, Cmp>(lhs: FlexTensor, rhs: E, out_dtype: BoolDType, cmp: Cmp) -> FlexTensor
+pub(crate) fn compare_elem_typed<E, Cmp>(
+    lhs: FlexTensor,
+    rhs: E,
+    out_dtype: BoolDType,
+    cmp: Cmp,
+) -> FlexTensor
 where
     E: Element + Pod + Copy,
     Cmp: Fn(E, E) -> bool,
@@ -861,12 +866,12 @@ pub fn all_bool_dim(tensor: FlexTensor, dim: usize, out_dtype: BoolDType) -> Fle
 // Helpers for any/all
 // ============================================================================
 
-fn bool_scalar(val: bool, out_dtype: BoolDType) -> FlexTensor {
+pub(crate) fn bool_scalar(val: bool, out_dtype: BoolDType) -> FlexTensor {
     let byte: u8 = if val { 1 } else { 0 };
     make_bool_tensor(alloc::vec![byte], Shape::from(alloc::vec![1]), out_dtype)
 }
 
-fn iter_elements<'a, E: Element + Pod + 'a>(
+pub(crate) fn iter_elements<'a, E: Element + Pod + 'a>(
     tensor: &'a FlexTensor,
 ) -> Box<dyn Iterator<Item = E> + 'a> {
     let data: &[E] = tensor.storage();
@@ -917,7 +922,7 @@ fn reduce_bool_dim_with(
 }
 
 /// Reduce along a dimension producing a bool tensor (for float any/all_dim).
-fn reduce_bool_dim(
+pub(crate) fn reduce_bool_dim(
     tensor: &FlexTensor,
     dim: usize,
     init: bool,
@@ -948,6 +953,20 @@ fn reduce_bool_dim(
             let data: &[bf16] = tensor.storage();
             reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
                 data[idx].to_f32() != 0.0
+            })
+        }
+        DType::Complex32 => {
+            let data: &[burn_std::ComplexScalar<f32>] = tensor.storage();
+            reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
+                let c = data[idx];
+                c.real != 0.0 || c.imag != 0.0
+            })
+        }
+        DType::Complex64 => {
+            let data: &[burn_std::ComplexScalar<f64>] = tensor.storage();
+            reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
+                let c = data[idx];
+                c.real != 0.0 || c.imag != 0.0
             })
         }
         _ => panic!("reduce_bool_dim: unsupported dtype {:?}", tensor.dtype()),

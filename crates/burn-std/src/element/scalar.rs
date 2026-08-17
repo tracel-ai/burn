@@ -5,7 +5,7 @@ use num_traits::ToPrimitive;
 #[allow(unused_imports)]
 use num_traits::Float;
 
-use crate::{Element, ElementConversion};
+use crate::{ComplexScalar, Element, ElementConversion};
 
 /// A scalar element.
 #[derive(Clone, Copy, Debug)]
@@ -15,6 +15,7 @@ pub enum Scalar {
     Int(i64),
     UInt(u64),
     Bool(bool),
+    Complex(ComplexScalar<f64>),
 }
 
 impl Scalar {
@@ -37,6 +38,8 @@ impl Scalar {
                 }
                 _ => unreachable!(),
             }
+        } else if dtype.is_complex() {
+            Self::Complex(value.elem())
         } else {
             unimplemented!("Scalar not supported for {dtype:?}")
         }
@@ -49,6 +52,7 @@ impl Scalar {
             Self::Int(x) => x.elem(),
             Self::UInt(x) => x.elem(),
             Self::Bool(x) => x.elem(),
+            Self::Complex(x) => x.elem(),
         }
     }
 
@@ -58,6 +62,18 @@ impl Scalar {
             Scalar::Float(x) => (x.floor() == *x).then(|| Self::Int(x.to_i64().unwrap())),
             Scalar::Int(_) | Scalar::UInt(_) => Some(*self),
             Scalar::Bool(x) => Some(Scalar::Int(*x as i64)),
+            Scalar::Complex(_) => None,
+        }
+    }
+
+    /// Converts the scalar to a complex scalar.
+    pub fn to_complex(self) -> Self {
+        match self {
+            Scalar::Float(x) => Scalar::Complex(ComplexScalar::new(x, 0.0)),
+            Scalar::Int(x) => Scalar::Complex(ComplexScalar::new(x as f64, 0.0)),
+            Scalar::UInt(x) => Scalar::Complex(ComplexScalar::new(x as f64, 0.0)),
+            Scalar::Bool(x) => Scalar::Complex(ComplexScalar::new(x as u8 as f64, 0.0)),
+            Scalar::Complex(_) => self,
         }
     }
 }
@@ -78,6 +94,7 @@ impl_from_scalar! {
     f64  => Float, f32  => Float, f16  => Float, bf16 => Float,
     i64  => Int, i32  => Int, i16  => Int, i8 => Int,
     u64  => UInt, u32  => UInt, u16  => UInt, u8 => UInt, bool => Bool,
+    ComplexScalar<f64> => Complex, ComplexScalar<f32> => Complex
 }
 
 // CubeCL requirement
@@ -88,6 +105,7 @@ impl ToPrimitive for Scalar {
             Scalar::UInt(x) => x.to_i64(),
             Scalar::Int(x) => Some(*x),
             Scalar::Bool(x) => Some(*x as i64),
+            Scalar::Complex(x) => x.real.to_i64(),
         }
     }
 
@@ -97,6 +115,7 @@ impl ToPrimitive for Scalar {
             Scalar::UInt(x) => Some(*x),
             Scalar::Int(x) => x.to_u64(),
             Scalar::Bool(x) => Some(*x as u64),
+            Scalar::Complex(x) => x.real.to_u64(),
         }
     }
 
@@ -106,6 +125,7 @@ impl ToPrimitive for Scalar {
             Scalar::UInt(x) => x.to_f64(),
             Scalar::Int(x) => x.to_f64(),
             Scalar::Bool(x) => (*x as u8).to_f64(),
+            Scalar::Complex(x) => x.real.to_f64(),
         }
     }
 }
