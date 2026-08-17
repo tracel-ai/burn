@@ -111,6 +111,8 @@
 //!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
+//!   - `capture`: Makes the non-executing graph capture backend available.
+//!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `server`: Enables the remote server.
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!

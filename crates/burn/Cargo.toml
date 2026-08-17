@@ -95,7 +95,7 @@ rl = ["dep:burn-rl", "burn-train?/rl"]
 optim = ["burn-optim", "autodiff"]
 
 # Backend
-ir = ["burn-ir"]
+ir = ["burn-core/ir"]
 autodiff = ["burn-core/autodiff", "burn-autodiff"]
 fusion = ["ir", "burn-core/fusion", "burn-vision?/fusion"]
 
@@ -131,6 +131,7 @@ cpu = ["burn-cpu", "burn-core/cpu", "burn-vision?/cpu"]
 
 # Backend extensions
 extension = ["burn-core/extension"]
+capture = ["extension", "ir", "burn-dispatch/capture"]
 
 [dependencies]
 
@@ -155,7 +156,6 @@ burn-ndarray = { workspace = true, optional = true }
 burn-router = { workspace = true, optional = true }
 burn-tch = { workspace = true, optional = true }
 burn-wgpu = { workspace = true, optional = true }
-burn-ir = { workspace = true, optional = true }
 burn-autodiff = { workspace = true, optional = true }
 burn-dispatch = { workspace = true, optional = true }
 
