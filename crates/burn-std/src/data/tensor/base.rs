@@ -774,7 +774,9 @@ mod tests {
     }
 
     #[test]
-    fn try_view_propagates_materialization_failure() {
+    fn try_view_propagates_storage_access_failure() {
+        use alloc::boxed::Box;
+
         #[derive(Debug)]
         struct FailingController;
 
