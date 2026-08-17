@@ -915,19 +915,13 @@ mod tests {
         let data = TensorData::from([0.0f32, 1.0, 2.5]);
 
         // Same-dtype copy.
-        assert_eq!(
-            data.try_into_vec_as::<f32>().unwrap(),
-            vec![0.0f32, 1.0, 2.5]
-        );
+        assert_eq!(data.try_to_vec_as::<f32>().unwrap(), vec![0.0f32, 1.0, 2.5]);
 
         // Widening cast (different element size).
-        assert_eq!(
-            data.try_into_vec_as::<f64>().unwrap(),
-            vec![0.0f64, 1.0, 2.5]
-        );
+        assert_eq!(data.try_to_vec_as::<f64>().unwrap(), vec![0.0f64, 1.0, 2.5]);
 
         // Float to int cast (same element size) truncates.
-        assert_eq!(data.try_into_vec_as::<i32>().unwrap(), vec![0i32, 1, 2]);
+        assert_eq!(data.try_to_vec_as::<i32>().unwrap(), vec![0i32, 1, 2]);
 
         // The source data is borrowed, not consumed.
         data.assert_eq(&TensorData::from([0.0f32, 1.0, 2.5]), true);
