@@ -7,8 +7,8 @@
 //! unread until the snapshot is materialized.
 
 use alloc::borrow::Cow;
-use alloc::rc::Rc;
 use alloc::string::{String, ToString};
+use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -72,7 +72,7 @@ impl From<PackTensor> for TensorSnapshot {
 
         let bytes = tensor.bytes;
         let shape_for_closure = shape.clone();
-        let data_fn = Rc::new(move || {
+        let data_fn = Arc::new(move || {
             Ok(TensorData::from_bytes(
                 bytes.clone(),
                 shape_for_closure.clone(),
@@ -121,7 +121,7 @@ mod tests {
 
         let failing = |error: TensorSnapshotError| {
             TensorSnapshot::from_closure(
-                Rc::new(move || Err(error.clone())),
+                Arc::new(move || Err(error.clone())),
                 DType::F32,
                 shape![1],
                 vec!["weight".to_string()],
@@ -156,15 +156,16 @@ mod tests {
     /// looks wrong) fails here instead of silently restoring the old peak memory.
     #[test]
     fn writing_snapshots_materializes_each_one_once_and_only_while_writing() {
-        let calls = Rc::new(core::cell::Cell::new(0usize));
+        use core::sync::atomic::{AtomicUsize, Ordering};
+        let calls = Arc::new(AtomicUsize::new(0));
 
         let snapshots: Vec<TensorSnapshot> = (0..3)
             .map(|i| {
                 let calls = calls.clone();
                 let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0]);
                 TensorSnapshot::from_closure(
-                    Rc::new(move || {
-                        calls.set(calls.get() + 1);
+                    Arc::new(move || {
+                        calls.fetch_add(1, Ordering::Relaxed);
                         Ok(data.clone())
                     }),
                     DType::F32,
@@ -179,10 +180,14 @@ mod tests {
         // Planning reads only the cached metadata.
         let size = burn_pack::Writer::new(snapshots.clone()).size().unwrap();
         assert!(size > 0);
-        assert_eq!(calls.get(), 0, "laying out the container materialized data");
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            0,
+            "laying out the container materialized data"
+        );
 
         // Writing draws from each snapshot exactly once.
         burn_pack::Writer::new(snapshots).into_bytes().unwrap();
-        assert_eq!(calls.get(), 3);
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
     }
 }

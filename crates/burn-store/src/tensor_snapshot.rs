@@ -1,6 +1,6 @@
-use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::string::ToString;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
 use burn_core::tensor::quantization::{QuantParam, params_shape};
@@ -50,7 +50,7 @@ impl core::error::Error for TensorSnapshotError {}
 /// which is particularly useful for serialization formats that need metadata upfront.
 pub struct TensorSnapshot {
     /// Function to get tensor data when needed (Rc allows cloning)
-    data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
+    data_fn: Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync>,
     /// Data type of the tensor (cached for efficient access)
     pub dtype: DType,
     /// Shape of the tensor (cached for efficient access)
@@ -75,7 +75,7 @@ impl TensorSnapshot {
         let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            data_fn: Arc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -95,7 +95,7 @@ impl TensorSnapshot {
         let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            data_fn: Arc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -115,7 +115,7 @@ impl TensorSnapshot {
         let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            data_fn: Arc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -202,7 +202,7 @@ impl TensorSnapshot {
     /// Create a TensorSnapshot from a closure that produces TensorData
     /// This is used internally for lazy loading
     pub fn from_closure(
-        data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
+        data_fn: Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync>,
         dtype: DType,
         shape: Shape,
         path_stack: Vec<String>,
@@ -229,7 +229,7 @@ impl TensorSnapshot {
         let dtype = data.dtype;
         let shape = data.shape.clone();
         Self {
-            data_fn: Rc::new(move || Ok(data.clone())),
+            data_fn: Arc::new(move || Ok(data.clone())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -285,7 +285,9 @@ impl TensorSnapshot {
     }
 
     /// Clone the data function for lazy composition
-    pub fn clone_data_fn(&self) -> Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>> {
+    pub fn clone_data_fn(
+        &self,
+    ) -> Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync> {
         self.data_fn.clone()
     }
 }
@@ -484,7 +486,7 @@ mod tests {
         // Q4 in u32 words: 8 values per storage element, packed along the last dimension.
         let scheme = QuantScheme::default().with_value(QuantValue::Q4S);
         let snapshot = TensorSnapshot::from_closure(
-            Rc::new(|| Err(TensorSnapshotError::DataError("formula-only".to_string()))),
+            Arc::new(|| Err(TensorSnapshotError::DataError("formula-only".to_string()))),
             DType::QFloat(scheme),
             shape![3, 3],
             vec!["packed".to_string()],
@@ -543,7 +545,7 @@ mod tests {
         let shape = data.shape.clone();
 
         let snapshot = TensorSnapshot::from_closure(
-            Rc::new(move || Ok(data.clone())),
+            Arc::new(move || Ok(data.clone())),
             dtype,
             shape.clone(),
             vec!["model".to_string(), "layer".to_string()],
@@ -587,14 +589,24 @@ mod tests {
         assert_eq!(materialized.shape, original_shape);
     }
 
+    /// `data_fn` is an `Arc<dyn Fn + Send + Sync>` rather than an `Rc` so that snapshots can
+    /// back a deferred [`burn_pack::Tensor`], whose byte provider must be `Send` because
+    /// records containing one cross threads through burn-train's `Checkpoint: Send`.
+    /// Reverting the closure to `Rc`, or capturing something like a `Cell`, fails here.
+    #[test]
+    fn snapshot_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<TensorSnapshot>();
+    }
+
     #[test]
     #[cfg(feature = "std")]
     fn panic_catching_in_to_data() {
-        use alloc::rc::Rc;
+        use alloc::sync::Arc;
 
         // Create a TensorSnapshot with a closure that panics
         let snapshot = TensorSnapshot {
-            data_fn: Rc::new(|| panic!("Test panic in data_fn")),
+            data_fn: Arc::new(|| panic!("Test panic in data_fn")),
             dtype: DType::F32,
             shape: shape![2, 2],
             path_stack: Some(vec!["test".to_string()]),
@@ -616,11 +628,11 @@ mod tests {
 
     #[test]
     fn error_propagation_in_closure() {
-        use alloc::rc::Rc;
+        use alloc::sync::Arc;
 
         // Create a snapshot with a closure that returns an error
         let snapshot = TensorSnapshot::from_closure(
-            Rc::new(|| Err(TensorSnapshotError::IoError("Simulated IO error".into()))),
+            Arc::new(|| Err(TensorSnapshotError::IoError("Simulated IO error".into()))),
             DType::F32,
             shape![2, 2],
             vec!["error_test".into()],
