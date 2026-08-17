@@ -16,7 +16,19 @@ pub struct GraphIr {
 }
 
 impl GraphIr {
-    /// Normalize an operation sequence and classify its boundary in first-use order.
+    /// Normalize an operation sequence and classify its tensor boundary in first-use order.
+    ///
+    /// Inputs are tensors that aren't produced by a compute operation: external data and results
+    /// from an earlier graph, including outputs of [`OperationIr::Init`]. Initializer handles are
+    /// registered out of band, so they remain graph inputs even though an initialization operation
+    /// produces them.
+    ///
+    /// Outputs are tensors produced by compute operations that survive the graph. Tensors consumed
+    /// in place (`ReadWrite`) or explicitly dropped within the graph are excluded.
+    ///
+    /// Intermediate tensors that are both produced and consumed within the graph appear in neither
+    /// boundary. Input and output identifiers retain their first-use and production order,
+    /// respectively, making construction deterministic.
     pub fn new(operations: Vec<OperationIr>) -> Self {
         let mut referenced = Vec::new();
         let mut referenced_set = HashSet::new();

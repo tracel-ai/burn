@@ -387,21 +387,9 @@ impl<R: RouterChannel> RouterGraphExecution<R> {
         }
     }
 }
-
-/// Precompute the graph's boundary as `(input relative ids, surviving-output relative ids)`.
+// Estimate the % of serialized bytes that caching this op-graph saves per replay.
 ///
-/// - **Inputs** are tensors that aren't produced by a *compute* op: external data and prior-block
-///   results read by the graph, plus `Init`/`from_data` outputs (whose handle is registered
-///   out-of-band, so they're really inputs even though an `Init` op "produces" them).
-/// - **Outputs** are compute-produced tensors that survive — neither consumed in place
-///   (`ReadWrite` anywhere) nor dropped within the graph. This mirrors the fusion engine's own
-///   `drain_queue` freeing logic, keeping client-side handle state consistent with the unfused path.
-///
-/// Intermediate tensors (compute-produced and consumed/dropped here) are in neither list — the
-/// replay owns their ids — so a replay only ever touches the boundary.
-/// Estimate the % of serialized bytes that caching this op-graph saves per replay.
-///
-/// Dependency-free structural estimate (reuses [`classify_boundary`]): the baseline is the whole
+/// Dependency-free structural estimate (using [`GraphIr`] for boundary classification): the baseline is the whole
 /// relative graph's bytes (op overhead + each tensor's id/dtype/status + its dims); the per-replay
 /// bindings are just the boundary `(relative id, concrete id)` pairs plus the distinct dim table.
 /// Scalars/ranges travel in both and cancel in the ratio. Returns 0..=100.
