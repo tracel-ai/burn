@@ -30,8 +30,10 @@ assert_eq!(reader.into_tensors().unwrap()[0].shape.to_vec(), vec![2, 2]);
 ```
 
 Use `Writer::write_to_file` / `Reader::from_file` for disk I/O (the default `std` feature; disable
-it for no-std targets). `write_to_file` is all-or-nothing: the container is built alongside the
-destination and renamed into place once complete, so a failed write never leaves a truncated file.
+it for no-std targets). `write_to_file` is all-or-nothing against process-level failure: the
+container is built alongside the destination and renamed into place once complete, so a save that
+fails or dies never leaves a truncated file. Surviving power loss additionally requires the syncs
+that only Unix provides; see the API docs.
 
 ## Writing models larger than memory
 

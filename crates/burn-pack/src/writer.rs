@@ -145,13 +145,18 @@ impl Writer {
     /// hands back a different length than it declared) is an ordinary error, and it must not
     /// leave a truncated file where a valid one used to be.
     ///
-    /// The guarantee covers process-level failure (a returned error, a panic, the process
-    /// dying) and, on Unix, power loss too: the data is synced before the rename and the
-    /// directory after it, so a crash mid-save leaves the old container and a crash after
-    /// `Ok` leaves the new one - never a mixture, and never a lost save. Elsewhere the
-    /// directory sync is unavailable, so power loss immediately after a successful save can
-    /// revert the destination to the old container, possibly with the finished scratch file
-    /// back beside it.
+    /// That much holds everywhere, for failure at the process level: a returned error, a
+    /// panic, the process being killed. The rename is a single call, so it either took
+    /// effect or it did not, and neither outcome is a partial file.
+    ///
+    /// Power loss is narrower, and Unix-only. There the data is synced before the rename and
+    /// the parent directory after it, so a crash mid-save leaves the old container and a
+    /// crash after `Ok` leaves the new one - never a mixture, and never a lost save.
+    /// Elsewhere both halves are missing: the directory sync is unavailable, and the replace
+    /// carries no documented atomicity guarantee (Windows `MoveFileEx` is not specified as a
+    /// single metadata transaction when it replaces an existing file). After power loss the
+    /// destination may hold the old container or the new one, and the finished scratch file
+    /// may still be beside it.
     ///
     /// Building alongside the destination has four consequences:
     ///
