@@ -9,18 +9,17 @@ mod error;
 mod exporter;
 mod lower;
 mod model;
+mod resolved;
 mod shape;
 mod validate;
 
 pub use error::ExportError;
-pub use exporter::{ExportInput, ExportValues, OnnxExporter};
+pub use exporter::{ExportInput, ExportValues, OnnxExporter, Opset};
 pub use lower::{
     MAX_EMBEDDED_PROTOBUF_BYTES, ONNX_IR_VERSION, ONNX_OPSET_VERSION, export_graph,
     export_graph_with_bindings, export_graph_with_values,
 };
 pub use model::OnnxModel;
-pub use shape::{
-    AxisSpec, DynamicAxis, InputSpec, PairedTraceShapeResolver, ResolvedExportGraph, ResolvedShape,
-    ShapeExpr, ShapeResolver, StaticShapeResolver,
-};
+pub use resolved::{DynamicAxis, ResolvedExportGraph, ResolvedShape, ShapeExpr};
+pub use shape::{AxisSpec, InputSpec};
 pub use validate::GraphStructureValidator;

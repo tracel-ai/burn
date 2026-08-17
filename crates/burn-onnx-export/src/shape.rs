@@ -1,6 +1,11 @@
-use burn_ir::{BaseOperationIr, GraphIr, OperationIr, TensorId};
+use burn_ir::{
+    BaseOperationIr, GraphIr, ModuleOperationIr, NumericOperationIr, OperationIr, TensorId,
+};
 
-use crate::{ExportError, GraphStructureValidator};
+use crate::{
+    DynamicAxis, ExportError, GraphStructureValidator, ResolvedExportGraph, ResolvedShape,
+    ShapeExpr,
+};
 
 /// Annotation for one runtime input axis.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,62 +42,16 @@ impl AxisSpec {
     }
 }
 
-/// Symbolic axis attached to a captured runtime input.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DynamicAxis {
-    /// Runtime input tensor.
-    pub tensor: TensorId,
-    /// Axis within the input tensor.
-    pub axis: usize,
-    /// ONNX symbolic dimension name.
-    pub symbol: String,
-}
-
-/// An explicit ONNX-compatible dimension expression.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ShapeExpr {
-    /// Constant dimension.
-    Static(usize),
-    /// Dimension of a declared runtime input.
-    InputDim { input: TensorId, axis: usize },
-    /// Dimension of an intermediate/source tensor.
-    TensorDim { tensor: TensorId, axis: usize },
-    /// Element-count-preserving inferred dimension (`-1` in ONNX reshape).
-    Infer,
-}
-
-/// Resolved shape operand for an operation output.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedShape {
-    /// Operation index in [`GraphIr::operations`].
-    pub operation: usize,
-    /// Output tensor receiving the shape.
-    pub tensor: TensorId,
-    /// Dimension expressions in axis order.
-    pub dimensions: Vec<ShapeExpr>,
-}
-
-/// Graph plus every explicit shape expression needed during ONNX lowering.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ResolvedExportGraph {
-    /// Validated captured graph.
-    pub graph: GraphIr,
-    /// Resolved shape-sensitive operands.
-    pub shapes: Vec<ResolvedShape>,
-    /// Symbolic dimensions declared on runtime graph inputs.
-    pub dynamic_axes: Vec<DynamicAxis>,
-}
-
 /// Replaceable shape-resolution stage used before ONNX lowering.
-pub trait ShapeResolver {
+pub(crate) trait ShapeResolver {
     /// Resolve shape-sensitive operands in a captured graph.
     fn resolve(&self) -> Result<ResolvedExportGraph, ExportError>;
 }
 
 /// Resolves every captured reshape dimension as a constant.
-pub struct StaticShapeResolver<'a> {
+pub(crate) struct StaticShapeResolver<'a> {
     /// Captured graph.
-    pub graph: &'a GraphIr,
+    pub(crate) graph: &'a GraphIr,
 }
 
 impl ShapeResolver for StaticShapeResolver<'_> {
@@ -117,18 +76,19 @@ impl ShapeResolver for StaticShapeResolver<'_> {
 }
 
 /// Conservative shape resolver using two structurally validated captures.
-pub struct PairedTraceShapeResolver<'a> {
+pub(crate) struct PairedTraceShapeResolver<'a> {
     /// Primary capture.
-    pub sample: &'a GraphIr,
+    pub(crate) sample: &'a GraphIr,
     /// Capture produced with validation input dimensions.
-    pub validation: &'a GraphIr,
+    pub(crate) validation: &'a GraphIr,
     /// Explicit dynamic input annotations.
-    pub inputs: &'a [InputSpec],
+    pub(crate) inputs: &'a [InputSpec],
 }
 
 impl ShapeResolver for PairedTraceShapeResolver<'_> {
     fn resolve(&self) -> Result<ResolvedExportGraph, ExportError> {
         GraphStructureValidator::validate(self.sample, self.validation)?;
+        validate_shape_sensitive_operations(self.sample, self.validation)?;
         let sample_shapes = boundary_shapes(self.sample, &self.sample.inputs)?;
         let validation_shapes = boundary_shapes(self.validation, &self.validation.inputs)?;
         validate_input_specs(self.inputs, &sample_shapes, &validation_shapes)?;
@@ -314,6 +274,109 @@ impl ShapeResolver for PairedTraceShapeResolver<'_> {
     }
 }
 
+/// Reject varying shape operands that the paired resolver cannot represent.
+///
+/// Structural validation deliberately ignores these values. Every ignored
+/// operand must be handled here so lowering can never silently embed a value
+/// taken only from the sample capture.
+fn validate_shape_sensitive_operations(
+    sample: &GraphIr,
+    validation: &GraphIr,
+) -> Result<(), ExportError> {
+    for (index, (sample, validation)) in sample
+        .operations
+        .iter()
+        .zip(&validation.operations)
+        .enumerate()
+    {
+        match (sample, validation) {
+            (
+                OperationIr::NumericFloat(_, NumericOperationIr::Full(sample))
+                | OperationIr::NumericInt(_, NumericOperationIr::Full(sample)),
+                OperationIr::NumericFloat(_, NumericOperationIr::Full(validation))
+                | OperationIr::NumericInt(_, NumericOperationIr::Full(validation)),
+            ) if sample.out.shape != validation.out.shape => {
+                let axis = first_different_dimension(&sample.out.shape, &validation.out.shape);
+                return Err(ExportError::DynamicShapeLost {
+                    tensor: sample.out.id,
+                    axis,
+                    reason: format!(
+                        "operation {index} creates a tensor with a varying shape, but dynamic Full shapes are not resolved"
+                    ),
+                });
+            }
+            (
+                OperationIr::Module(ModuleOperationIr::Interpolate(sample)),
+                OperationIr::Module(ModuleOperationIr::Interpolate(validation)),
+            ) if sample.output_size != validation.output_size => {
+                let offset = sample
+                    .output_size
+                    .iter()
+                    .zip(validation.output_size)
+                    .position(|(sample, validation)| *sample != validation)
+                    .unwrap_or(0);
+                let axis = sample.out.shape.num_dims().saturating_sub(2) + offset;
+                return Err(ExportError::DynamicShapeLost {
+                    tensor: sample.out.id,
+                    axis,
+                    reason: format!("operation {index} has a varying interpolation output size"),
+                });
+            }
+            (
+                OperationIr::BaseFloat(BaseOperationIr::Slice(sample))
+                | OperationIr::BaseInt(BaseOperationIr::Slice(sample))
+                | OperationIr::BaseBool(BaseOperationIr::Slice(sample)),
+                OperationIr::BaseFloat(BaseOperationIr::Slice(validation))
+                | OperationIr::BaseInt(BaseOperationIr::Slice(validation))
+                | OperationIr::BaseBool(BaseOperationIr::Slice(validation)),
+            ) if sample.ranges != validation.ranges => {
+                let axis = sample
+                    .ranges
+                    .iter()
+                    .zip(&validation.ranges)
+                    .position(|(sample, validation)| sample != validation)
+                    .unwrap_or(0);
+                return Err(ExportError::DynamicShapeLost {
+                    tensor: sample.out.id,
+                    axis,
+                    reason: format!("operation {index} has varying slice bounds"),
+                });
+            }
+            (
+                OperationIr::BaseFloat(BaseOperationIr::SliceAssign(sample))
+                | OperationIr::BaseInt(BaseOperationIr::SliceAssign(sample)),
+                OperationIr::BaseFloat(BaseOperationIr::SliceAssign(validation))
+                | OperationIr::BaseInt(BaseOperationIr::SliceAssign(validation)),
+            ) if sample.ranges != validation.ranges => {
+                let axis = sample
+                    .ranges
+                    .iter()
+                    .zip(&validation.ranges)
+                    .position(|(sample, validation)| sample != validation)
+                    .unwrap_or(0);
+                return Err(ExportError::DynamicShapeLost {
+                    tensor: sample.out.id,
+                    axis,
+                    reason: format!("operation {index} has varying slice-assignment bounds"),
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn first_different_dimension(
+    sample: &burn_backend::Shape,
+    validation: &burn_backend::Shape,
+) -> usize {
+    sample
+        .iter()
+        .zip(validation.iter())
+        .position(|(sample, validation)| sample != validation)
+        .unwrap_or_else(|| sample.num_dims().min(validation.num_dims()))
+}
+
 pub(crate) fn validate_input_specs(
     specs: &[InputSpec],
     sample_shapes: &[Vec<usize>],
@@ -430,7 +493,10 @@ fn tensor(graph: &GraphIr, id: TensorId) -> Option<&burn_ir::TensorIr> {
 mod tests {
     use super::*;
     use burn_backend::{DType, Shape};
-    use burn_ir::{ShapeOpIr, TensorIr};
+    use burn_ir::{
+        FullOpIr, InterpolateModeIr, InterpolateOpIr, InterpolateOptionsIr, ScalarIr, ShapeOpIr,
+        TensorIr,
+    };
 
     fn tensor(id: u64, shape: &[usize]) -> TensorIr {
         TensorIr::uninit(
@@ -542,6 +608,77 @@ mod tests {
             })
             .resolve(),
             Err(ExportError::DynamicShapeLost { .. })
+        ));
+    }
+
+    #[test]
+    fn paired_resolver_rejects_unresolved_dynamic_full_shape() {
+        let sample = GraphIr::new(vec![OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Full(FullOpIr {
+                out: tensor(1, &[2, 3]),
+                value: ScalarIr::Float(0.0),
+            }),
+        )]);
+        let validation = GraphIr::new(vec![OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Full(FullOpIr {
+                out: tensor(11, &[5, 3]),
+                value: ScalarIr::Float(0.0),
+            }),
+        )]);
+
+        GraphStructureValidator::validate(&sample, &validation).unwrap();
+        assert!(matches!(
+            (PairedTraceShapeResolver {
+                sample: &sample,
+                validation: &validation,
+                inputs: &[],
+            })
+            .resolve(),
+            Err(ExportError::DynamicShapeLost {
+                tensor,
+                axis: 0,
+                ..
+            }) if tensor == TensorId::new(1)
+        ));
+    }
+
+    #[test]
+    fn paired_resolver_rejects_varying_interpolation_size() {
+        let sample = GraphIr::new(vec![OperationIr::Module(ModuleOperationIr::Interpolate(
+            InterpolateOpIr {
+                x: tensor(1, &[1, 1, 4, 4]),
+                output_size: [8, 8],
+                options: InterpolateOptionsIr {
+                    mode: InterpolateModeIr::Nearest,
+                    align_corners: false,
+                },
+                out: tensor(2, &[1, 1, 8, 8]),
+            },
+        ))]);
+        let validation = GraphIr::new(vec![OperationIr::Module(ModuleOperationIr::Interpolate(
+            InterpolateOpIr {
+                x: tensor(11, &[1, 1, 5, 5]),
+                output_size: [10, 10],
+                options: InterpolateOptionsIr {
+                    mode: InterpolateModeIr::Nearest,
+                    align_corners: false,
+                },
+                out: tensor(12, &[1, 1, 10, 10]),
+            },
+        ))]);
+
+        GraphStructureValidator::validate(&sample, &validation).unwrap();
+        assert!(matches!(
+            (PairedTraceShapeResolver {
+                sample: &sample,
+                validation: &validation,
+                inputs: &[],
+            })
+            .resolve(),
+            Err(ExportError::DynamicShapeLost { tensor, axis: 2, .. })
+                if tensor == TensorId::new(2)
         ));
     }
 

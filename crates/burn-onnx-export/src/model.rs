@@ -1,4 +1,4 @@
-use std::{fs, ops::Deref, path::Path};
+use std::{fs, path::Path};
 
 use crate::ExportError;
 
@@ -37,14 +37,6 @@ impl OnnxModel {
 
 impl AsRef<[u8]> for OnnxModel {
     fn as_ref(&self) -> &[u8] {
-        self.as_bytes()
-    }
-}
-
-impl Deref for OnnxModel {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
         self.as_bytes()
     }
 }

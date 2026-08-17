@@ -101,7 +101,7 @@ fn checker_accepts_exported_forward() {
     let model = OnnxExporter::new()
         .export(&module, input, AddModule::forward)
         .unwrap();
-    check_model(python, &model);
+    check_model(python, model.as_bytes());
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn checker_accepts_dynamic_reshape() {
     let model = OnnxExporter::new()
         .export_dynamic(&Flatten, sample, validation, &specs, Flatten::forward)
         .unwrap();
-    check_model(python, &model);
+    check_model(python, model.as_bytes());
 }
 
 #[test]
@@ -129,7 +129,7 @@ fn checker_accepts_interpolate() {
     let model = OnnxExporter::new()
         .export(&Resize, input, Resize::forward)
         .unwrap();
-    check_model(python, &model);
+    check_model(python, model.as_bytes());
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn checker_accepts_cat() {
     let model = OnnxExporter::new()
         .export(&Cat, input, Cat::forward)
         .unwrap();
-    check_model(python, &model);
+    check_model(python, model.as_bytes());
 }
 
 #[test]
@@ -152,5 +152,5 @@ fn checker_accepts_resnet18() {
     let model = OnnxExporter::new()
         .export(&module, input, ResNet18::forward)
         .unwrap();
-    check_model(python, &model);
+    check_model(python, model.as_bytes());
 }

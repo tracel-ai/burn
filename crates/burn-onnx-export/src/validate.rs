@@ -1,14 +1,28 @@
 use burn_backend::Shape;
-use burn_ir::{GraphIr, IrVisitorMut, OperationIr, TensorId, TensorIr};
+use burn_ir::{
+    BaseOperationIr, GraphIr, IrVisitorMut, ModuleOperationIr, OperationIr, TensorId, TensorIr,
+};
 use hashbrown::{HashMap, HashSet};
 
 use crate::ExportError;
 
-/// Validates that captures at different shapes have identical topology.
+/// Validates that two captures have compatible computation structure.
+///
+/// This validator is used before paired-trace shape resolution. It establishes
+/// that operations from independent captures can be compared by position even
+/// though their tensor IDs and concrete dimensions differ. It checks boundary
+/// ordering, operation ordering and variants, tensor connectivity, the number
+/// and ordering of tensor inputs and outputs, dtype, rank, tensor status, and
+/// non-shape operation attributes.
+///
+/// It does not validate initialized tensor values, ONNX operator support, or
+/// prove relationships between dynamic dimensions. Shape-sensitive operands
+/// are ignored here and must subsequently be resolved or rejected by a
+/// shape resolver.
 pub struct GraphStructureValidator;
 
 impl GraphStructureValidator {
-    /// Compare operation variants, arity, dtypes, boundaries, and non-shape attributes.
+    /// Compare two captures and return their first structural mismatch.
     pub fn validate(sample: &GraphIr, validation: &GraphIr) -> Result<(), ExportError> {
         validate_boundaries(sample, "sample")?;
         validate_boundaries(validation, "validation")?;
@@ -28,7 +42,7 @@ impl GraphStructureValidator {
             return Err(ExportError::DynamicGraphMismatch {
                 operation: 0,
                 reason: format!(
-                    "boundary arity differs (inputs {} != {}, outputs {} != {})",
+                    "number of graph inputs or outputs differs (inputs {} != {}, outputs {} != {})",
                     sample.inputs.len(),
                     validation.inputs.len(),
                     sample.outputs.len(),
@@ -54,8 +68,7 @@ impl GraphStructureValidator {
             if lhs != rhs {
                 return Err(ExportError::DynamicGraphMismatch {
                     operation: index,
-                    reason: "operation kind, tensor arity/dtype, or static attributes differ"
-                        .into(),
+                    reason: "operation variant, tensor inputs or outputs, dtype, rank, tensor status, or non-shape attributes differ".into(),
                 });
             }
         }
@@ -98,9 +111,9 @@ fn validate_boundaries(graph: &GraphIr, trace: &str) -> Result<(), ExportError> 
 /// since differing dimension values are expected for dynamic-shape captures.
 ///
 /// The operation order, operation variants, tensor connectivity, boundary
-/// positions, tensor rank/status/dtype, and all non-shape operation attributes
+/// positions, tensor rank, status, dtype, and all non-shape operation attributes
 /// remain unchanged. Shape-sensitive values are compared later by a
-/// `ShapeResolver` rather than by this structural representation.
+/// shape resolver rather than by this structural representation.
 fn normalize_structure(graph: &GraphIr) -> GraphIr {
     let mut ids = HashMap::new();
     let mut next = 0;
@@ -110,6 +123,7 @@ fn normalize_structure(graph: &GraphIr) -> GraphIr {
             ids: &mut ids,
             next: &mut next,
         });
+        erase_shape_sensitive_attributes(operation);
     }
     let map_boundary = |boundary: &[TensorId]| {
         boundary
@@ -121,6 +135,36 @@ fn normalize_structure(graph: &GraphIr) -> GraphIr {
         inputs: map_boundary(&graph.inputs),
         outputs: map_boundary(&graph.outputs),
         operations,
+    }
+}
+
+/// Remove operands whose values are allowed to vary between shape traces.
+///
+/// The shape resolver is responsible for either producing an explicit runtime
+/// expression for these operands or returning `DynamicShapeLost`.
+fn erase_shape_sensitive_attributes(operation: &mut OperationIr) {
+    match operation {
+        OperationIr::BaseFloat(operation)
+        | OperationIr::BaseInt(operation)
+        | OperationIr::BaseBool(operation) => match operation {
+            BaseOperationIr::Slice(operation) => {
+                for range in &mut operation.ranges {
+                    range.start = 0;
+                    range.end = None;
+                }
+            }
+            BaseOperationIr::SliceAssign(operation) => {
+                for range in &mut operation.ranges {
+                    range.start = 0;
+                    range.end = None;
+                }
+            }
+            _ => {}
+        },
+        OperationIr::Module(ModuleOperationIr::Interpolate(operation)) => {
+            operation.output_size = [0; 2];
+        }
+        _ => {}
     }
 }
 

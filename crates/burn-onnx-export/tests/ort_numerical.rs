@@ -163,7 +163,7 @@ fn add_matches_burn() {
         .export(&module, input, AddModule::forward)
         .unwrap();
 
-    let actual = run_ort(&model, [2], input_values);
+    let actual = run_ort(model.as_bytes(), [2], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
 }
 
@@ -182,7 +182,7 @@ fn small_mlp_matches_burn() {
         .export(&module, input, Mlp::forward)
         .unwrap();
 
-    let actual = run_ort(&model, [2, 4], input_values);
+    let actual = run_ort(model.as_bytes(), [2, 4], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
 }
 
@@ -207,7 +207,7 @@ fn dynamic_reshape_matches_burn_at_third_shape() {
     let third_values = (0..84).map(|value| value as f32).collect::<Vec<_>>();
     let third = Tensor::<3>::from_data(TensorData::new(third_values.clone(), [7, 3, 4]), &device);
     let expected = module.forward(third).into_data();
-    let actual = run_ort(&model, [7, 3, 4], third_values);
+    let actual = run_ort(model.as_bytes(), [7, 3, 4], third_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
 }
 
@@ -227,7 +227,7 @@ fn small_cnn_matches_burn() {
         .export(&module, input, SmallCnn::forward)
         .unwrap();
 
-    let actual = run_ort(&model, [1, 1, 5, 5], input_values);
+    let actual = run_ort(model.as_bytes(), [1, 1, 5, 5], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
 }
 
@@ -242,7 +242,7 @@ fn interpolate_matches_burn() {
     let model = OnnxExporter::new()
         .export(&BilinearResize, input, BilinearResize::forward)
         .unwrap();
-    let actual = run_ort(&model, [1, 1, 3, 4], input_values.clone());
+    let actual = run_ort(model.as_bytes(), [1, 1, 3, 4], input_values.clone());
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
 
     let input =
@@ -251,7 +251,7 @@ fn interpolate_matches_burn() {
     let model = OnnxExporter::new()
         .export(&NearestResize, input, NearestResize::forward)
         .unwrap();
-    let actual = run_ort(&model, [1, 1, 3, 4], input_values);
+    let actual = run_ort(model.as_bytes(), [1, 1, 3, 4], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 }
 
@@ -265,7 +265,7 @@ fn full_matches_burn() {
         .export(&AddFull, input, AddFull::forward)
         .unwrap();
 
-    let actual = run_ort(&model, [2, 3], input_values);
+    let actual = run_ort(model.as_bytes(), [2, 3], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 }
 
@@ -280,7 +280,7 @@ fn constant_pad_matches_burn() {
         .export(&ConstantPad, input, ConstantPad::forward)
         .unwrap();
 
-    let actual = run_ort(&model, [1, 1, 2, 3], input_values);
+    let actual = run_ort(model.as_bytes(), [1, 1, 2, 3], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 }
 
@@ -305,7 +305,7 @@ fn cat_matches_burn() {
 
     let mut session = Session::builder()
         .unwrap()
-        .commit_from_memory(&model)
+        .commit_from_memory(model.as_bytes())
         .unwrap();
     let outputs = session
         .run(ort::inputs![
@@ -335,7 +335,7 @@ fn neg_matches_burn() {
         .export(&Neg, input, Neg::forward)
         .unwrap();
 
-    let actual = run_ort(&model, [2, 3], input_values);
+    let actual = run_ort(model.as_bytes(), [2, 3], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 }
 
@@ -365,7 +365,7 @@ fn dynamic_small_cnn_matches_burn_at_third_shape() {
     let third =
         Tensor::<4>::from_data(TensorData::new(third_values.clone(), [3, 1, 9, 9]), &device);
     let expected = module.forward(third).into_data();
-    let actual = run_ort(&model, [3, 1, 9, 9], third_values);
+    let actual = run_ort(model.as_bytes(), [3, 1, 9, 9], third_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(RTOL, ATOL));
 }
 
@@ -385,7 +385,7 @@ fn resnet18_matches_burn() {
         .export(&module, input, ResNet18::forward)
         .unwrap();
 
-    let model_proto = ModelProto::parse_from_bytes(&model).unwrap();
+    let model_proto = ModelProto::parse_from_bytes(model.as_bytes()).unwrap();
     let batch_norm_count = model_proto
         .graph
         .node
@@ -394,6 +394,6 @@ fn resnet18_matches_burn() {
         .count();
     assert_eq!(batch_norm_count, 20);
 
-    let actual = run_ort(&model, [1, 3, 64, 64], input_values);
+    let actual = run_ort(model.as_bytes(), [1, 3, 64, 64], input_values);
     actual.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(1.0e-3, 1.0e-5));
 }

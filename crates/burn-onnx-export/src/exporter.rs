@@ -8,42 +8,76 @@ use burn_tensor::{Bool, Device, Float, Int, Tensor};
 use hashbrown::{HashMap, HashSet};
 
 use crate::{
-    ExportError, InputSpec, OnnxModel, PairedTraceShapeResolver, ShapeResolver,
-    StaticShapeResolver, export_graph_with_bindings, shape::validate_input_specs,
+    ExportError, InputSpec, OnnxModel,
+    lower::export_graph_with_bindings_and_opset,
+    shape::{PairedTraceShapeResolver, ShapeResolver, StaticShapeResolver, validate_input_specs},
 };
 
-/// Collects tensor IDs from values accepted or returned by a forward function.
+/// ONNX operator-set versions supported by the exporter.
 ///
-/// Implementations are provided for capture tensors, vectors, and tuples.
-pub trait ExportValues {
-    /// Append contained tensor IDs in declaration order.
-    fn collect_tensor_ids(&self, ids: &mut Vec<TensorId>);
+/// Operator schemas and attributes change between operator sets, so this is a
+/// capability selection rather than an arbitrary integer written to the model.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Opset {
+    /// ONNX operator set 18.
+    #[default]
+    V18,
+}
 
-    /// Return all contained tensor IDs in declaration order.
-    fn tensor_ids(&self) -> Vec<TensorId> {
-        let mut ids = Vec::new();
-        self.collect_tensor_ids(&mut ids);
-        ids
+impl Opset {
+    /// Return the numeric ONNX operator-set version.
+    pub const fn version(self) -> i64 {
+        match self {
+            Self::V18 => 18,
+        }
     }
 }
+
+mod sealed {
+    use super::*;
+
+    #[doc(hidden)]
+    pub trait SealedExportValues {
+        fn collect_tensor_ids(&self, ids: &mut Vec<TensorId>);
+
+        fn tensor_ids(&self) -> Vec<TensorId> {
+            let mut ids = Vec::new();
+            self.collect_tensor_ids(&mut ids);
+            ids
+        }
+    }
+
+    #[doc(hidden)]
+    pub trait SealedExportInput: SealedExportValues + Sized {
+        fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>);
+
+        fn to_capture_device(self, device: &Device) -> Self;
+
+        fn input_shapes(&self) -> Vec<Vec<usize>> {
+            let mut shapes = Vec::new();
+            self.collect_input_shapes(&mut shapes);
+            shapes
+        }
+    }
+}
+
+/// Values accepted or returned by an exported forward function.
+///
+/// This trait is sealed. The exporter supports Burn tensors, vectors, and
+/// tuples for which this crate provides implementations.
+pub trait ExportValues: sealed::SealedExportValues {}
+
+impl<T: sealed::SealedExportValues> ExportValues for T {}
 
 /// Runtime input values which can be moved to the private capture device.
-pub trait ExportInput: ExportValues + Sized {
-    /// Append tensor shapes in the same flattened order as [`ExportValues`].
-    fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>);
+///
+/// This trait is sealed to the input forms supported by the exporter.
+pub trait ExportInput: ExportValues + sealed::SealedExportInput {}
 
-    /// Move all contained tensors to the capture device.
-    fn to_capture_device(self, device: &Device) -> Self;
+impl<T: sealed::SealedExportInput> ExportInput for T {}
 
-    /// Return tensor shapes in declaration order without executing a forward pass.
-    fn input_shapes(&self) -> Vec<Vec<usize>> {
-        let mut shapes = Vec::new();
-        self.collect_input_shapes(&mut shapes);
-        shapes
-    }
-}
-
-impl ExportValues for RouterTensor<CaptureClient> {
+impl sealed::SealedExportValues for RouterTensor<CaptureClient> {
     fn collect_tensor_ids(&self, ids: &mut Vec<TensorId>) {
         ids.push(self.id());
     }
@@ -51,7 +85,7 @@ impl ExportValues for RouterTensor<CaptureClient> {
 
 macro_rules! impl_tensor_value {
     ($kind:ty) => {
-        impl<const D: usize> ExportValues for Tensor<D, $kind> {
+        impl<const D: usize> sealed::SealedExportValues for Tensor<D, $kind> {
             fn collect_tensor_ids(&self, ids: &mut Vec<TensorId>) {
                 let primitive = self
                     .clone()
@@ -61,7 +95,7 @@ macro_rules! impl_tensor_value {
             }
         }
 
-        impl<const D: usize> ExportInput for Tensor<D, $kind> {
+        impl<const D: usize> sealed::SealedExportInput for Tensor<D, $kind> {
             fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>) {
                 shapes.push(self.dims().to_vec());
             }
@@ -77,7 +111,7 @@ impl_tensor_value!(Float);
 impl_tensor_value!(Int);
 impl_tensor_value!(Bool);
 
-impl<T: ExportValues> ExportValues for Vec<T> {
+impl<T: ExportValues> sealed::SealedExportValues for Vec<T> {
     fn collect_tensor_ids(&self, ids: &mut Vec<TensorId>) {
         for value in self {
             value.collect_tensor_ids(ids);
@@ -85,7 +119,7 @@ impl<T: ExportValues> ExportValues for Vec<T> {
     }
 }
 
-impl<T: ExportInput> ExportInput for Vec<T> {
+impl<T: ExportInput> sealed::SealedExportInput for Vec<T> {
     fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>) {
         for value in self {
             value.collect_input_shapes(shapes);
@@ -101,14 +135,14 @@ impl<T: ExportInput> ExportInput for Vec<T> {
 
 macro_rules! impl_export_tuple {
     ($($name:ident),+) => {
-        impl<$($name: ExportValues),+> ExportValues for ($($name,)+) {
+        impl<$($name: ExportValues),+> sealed::SealedExportValues for ($($name,)+) {
             #[allow(non_snake_case)]
             fn collect_tensor_ids(&self, ids: &mut Vec<TensorId>) {
                 let ($($name,)+) = self;
                 $($name.collect_tensor_ids(ids);)+
             }
         }
-        impl<$($name: ExportInput),+> ExportInput for ($($name,)+) {
+        impl<$($name: ExportInput),+> sealed::SealedExportInput for ($($name,)+) {
             #[allow(non_snake_case)]
             fn collect_input_shapes(&self, shapes: &mut Vec<Vec<usize>>) {
                 let ($($name,)+) = self;
@@ -186,17 +220,30 @@ impl ModuleVisitor for ParameterNameVisitor {
 /// inputs onto a private capture device. It then invokes the supplied forward
 /// closure, identifies runtime boundaries, classifies other initialized values
 /// as parameters, and emits an embedded-weight ONNX protobuf.
-#[derive(Default)]
-pub struct OnnxExporter;
+#[derive(Clone, Debug, Default)]
+pub struct OnnxExporter {
+    opset: Opset,
+}
 
 impl OnnxExporter {
     /// Create an ONNX exporter.
     pub const fn new() -> Self {
-        Self
+        Self { opset: Opset::V18 }
     }
 
-    /// Create an exporter and its isolated capture device.
-    pub fn capture() -> (Device, GraphCapture) {
+    /// Select the ONNX operator set used for lowering.
+    pub const fn opset(mut self, opset: Opset) -> Self {
+        self.opset = opset;
+        self
+    }
+
+    /// Return the selected ONNX operator set.
+    pub const fn selected_opset(&self) -> Opset {
+        self.opset
+    }
+
+    /// Create an isolated capture device for one forward pass.
+    fn capture() -> (Device, GraphCapture) {
         let (device, capture) = CaptureDevice::capture();
         (Device::new(device), capture)
     }
@@ -219,13 +266,13 @@ impl OnnxExporter {
             graph: &captured.captured.graph,
         }
         .resolve()?;
-        export_graph_with_bindings(
+        export_graph_with_bindings_and_opset(
             &resolved,
             &captured.captured.values,
             &captured.input_ids,
             &captured.parameter_names,
+            self.opset,
         )
-        .map(OnnxModel::new)
     }
 
     /// Capture two shapes, validate their structure, and export symbolic input axes.
@@ -258,13 +305,13 @@ impl OnnxExporter {
             inputs: input_specs,
         }
         .resolve()?;
-        export_graph_with_bindings(
+        export_graph_with_bindings_and_opset(
             &resolved,
             &sample.captured.values,
             &sample.input_ids,
             &sample.parameter_names,
+            self.opset,
         )
-        .map(OnnxModel::new)
     }
 
     fn capture_forward<M, I, O, F>(
@@ -398,6 +445,17 @@ mod tests {
     }
 
     #[test]
+    fn exporter_uses_typed_opset_configuration() {
+        let exporter = OnnxExporter::new().opset(Opset::V18);
+
+        assert_eq!(exporter.selected_opset(), Opset::V18);
+        assert_eq!(
+            exporter.selected_opset().version(),
+            crate::ONNX_OPSET_VERSION
+        );
+    }
+
+    #[test]
     fn captures_forward_and_embeds_module_value() {
         let device = Device::default();
         let exporter = OnnxExporter::new();
@@ -409,7 +467,7 @@ mod tests {
         let bytes = exporter
             .export(&module, input, |module, input| input + module.weight.val())
             .unwrap();
-        let model = ModelProto::parse_from_bytes(&bytes).unwrap();
+        let model = ModelProto::parse_from_bytes(bytes.as_bytes()).unwrap();
         assert_eq!(model.graph.node[0].op_type, "Add");
         assert_eq!(model.graph.input.len(), 1);
         assert_eq!(model.graph.output.len(), 1);
@@ -456,7 +514,7 @@ mod tests {
                 module.second.forward(module.activation.forward(hidden))
             })
             .unwrap();
-        let model = ModelProto::parse_from_bytes(&bytes).unwrap();
+        let model = ModelProto::parse_from_bytes(bytes.as_bytes()).unwrap();
         let operations: Vec<_> = model
             .graph
             .node
