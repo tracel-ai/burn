@@ -298,7 +298,7 @@ mod verification {
         let shape = weight.shape();
 
         // Test 1: Sum should be finite (not NaN or Inf)
-        let sum: f32 = weight.clone().sum().try_to_vec_as().unwrap()[0];
+        let sum: f32 = weight.clone().sum().try_into_vec_as().unwrap()[0];
         assert!(
             sum.is_finite(),
             "Operation failed: sum is not finite ({})",
@@ -308,7 +308,7 @@ mod verification {
         // Test 2: Matrix multiply with itself transposed (W @ W.T)
         let transposed = weight.clone().transpose();
         let matmul_result = weight.clone().matmul(transposed);
-        let matmul_sum: f32 = matmul_result.sum().try_to_vec_as().unwrap()[0];
+        let matmul_sum: f32 = matmul_result.sum().try_into_vec_as().unwrap()[0];
         assert!(
             matmul_sum.is_finite(),
             "Matmul failed: result sum is not finite ({})",
@@ -317,7 +317,7 @@ mod verification {
 
         // Test 3: Element-wise operations
         let doubled = weight.clone() * 2.0;
-        let doubled_sum: f32 = doubled.sum().try_to_vec_as().unwrap()[0];
+        let doubled_sum: f32 = doubled.sum().try_into_vec_as().unwrap()[0];
         assert!(
             (doubled_sum - sum * 2.0).abs() < 1e-3,
             "Element-wise op failed: doubled_sum ({}) != sum*2 ({})",
@@ -371,8 +371,8 @@ mod verification {
             );
 
             // Check values match (using sum as a proxy)
-            let sum_zc: f32 = weight_zc.clone().sum().try_to_vec_as().unwrap()[0];
-            let sum_copy: f32 = weight_copy.clone().sum().try_to_vec_as().unwrap()[0];
+            let sum_zc: f32 = weight_zc.clone().sum().try_into_vec_as().unwrap()[0];
+            let sum_copy: f32 = weight_copy.clone().sum().try_into_vec_as().unwrap()[0];
             assert!(
                 (sum_zc - sum_copy).abs() < 1e-6,
                 "Layer {} weight sums don't match: zero-copy={}, copy={}",

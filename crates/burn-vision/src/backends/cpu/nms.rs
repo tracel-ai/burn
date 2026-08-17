@@ -22,8 +22,8 @@ pub fn nms(
     }
 
     // Get raw data
-    let boxes_vec: Vec<f32> = boxes.try_to_vec_as().unwrap();
-    let scores_vec: Vec<f32> = scores.try_to_vec_as().unwrap();
+    let boxes_vec: Vec<f32> = boxes.try_into_vec_as().unwrap();
+    let scores_vec: Vec<f32> = scores.try_into_vec_as().unwrap();
 
     let indices_data = dispatch_int_dtype!(out_dtype, |I| {
         let keep = nms_vec::<I>(boxes_vec, scores_vec, options);

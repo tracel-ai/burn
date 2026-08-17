@@ -162,7 +162,7 @@ mod tests {
     }
 
     fn data(t: &Tensor<1>) -> Vec<f32> {
-        t.clone().try_to_vec_as().unwrap()
+        t.clone().try_into_vec_as().unwrap()
     }
 
     #[derive(RecordState, Clone, Debug)]

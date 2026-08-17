@@ -49,7 +49,10 @@ async fn executes_over_iroh_session_stream() {
     let device = Device::new(remote);
 
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
-    assert_eq!(output.try_to_vec_as::<f32>().unwrap(), vec![2.0, 4.0, 6.0]);
+    assert_eq!(
+        output.try_into_vec_as::<f32>().unwrap(),
+        vec![2.0, 4.0, 6.0]
+    );
 
     router.shutdown().await.unwrap();
 }
@@ -75,7 +78,7 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
     let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &source);
     let transferred = tensor.to_device(&target);
     assert_eq!(
-        transferred.try_to_vec_as::<f32>().unwrap(),
+        transferred.try_into_vec_as::<f32>().unwrap(),
         vec![3.0, 5.0, 7.0]
     );
 
@@ -118,7 +121,10 @@ fn synchronous_client_round_trip() {
     let device = Device::new(remote);
 
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
-    assert_eq!(output.try_to_vec_as::<f32>().unwrap(), vec![2.0, 4.0, 6.0]);
+    assert_eq!(
+        output.try_into_vec_as::<f32>().unwrap(),
+        vec![2.0, 4.0, 6.0]
+    );
 
     server_runtime.block_on(router.shutdown()).unwrap();
 }

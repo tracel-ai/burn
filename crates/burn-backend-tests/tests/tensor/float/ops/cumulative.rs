@@ -207,7 +207,7 @@ fn test_cummin_nan_propagation() {
 
     let output = tensor.cummin(0);
 
-    let data: Vec<FloatElem> = output.try_to_vec_as().unwrap();
+    let data: Vec<FloatElem> = output.try_into_vec_as().unwrap();
     assert_eq!(data[0], 3.0.elem::<FloatElem>());
     assert!(data[1].is_nan());
     assert!(data[2].is_nan());
@@ -220,7 +220,7 @@ fn test_cummax_nan_propagation() {
 
     let output = tensor.cummax(0);
 
-    let data: Vec<FloatElem> = output.try_to_vec_as().unwrap();
+    let data: Vec<FloatElem> = output.try_into_vec_as().unwrap();
     assert_eq!(data[0], 1.0.elem::<FloatElem>());
     assert!(data[1].is_nan());
     assert!(data[2].is_nan());
@@ -233,7 +233,7 @@ fn test_cummin_and_cummax_nan_at_start() {
     let tensor = TestTensor::<1>::from([f32::NAN, 1.0, 2.0]);
 
     for output in [tensor.clone().cummin(0), tensor.cummax(0)] {
-        let data: Vec<FloatElem> = output.try_to_vec_as().unwrap();
+        let data: Vec<FloatElem> = output.try_into_vec_as().unwrap();
         assert!(data[0].is_nan());
         assert!(data[1].is_nan());
         assert!(data[2].is_nan());

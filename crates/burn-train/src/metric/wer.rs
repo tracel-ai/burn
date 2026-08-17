@@ -60,11 +60,11 @@ impl Metric for WordErrorRate {
 
         let outputs_data = outputs
             .to_data()
-            .try_to_vec_as::<i32>()
+            .try_into_vec_as::<i32>()
             .expect("Failed to convert outputs to Vec");
         let targets_data = targets
             .to_data()
-            .try_to_vec_as::<i32>()
+            .try_into_vec_as::<i32>()
             .expect("Failed to convert targets to Vec");
 
         let pad_token = self.pad_token.map(|p| p as i32);

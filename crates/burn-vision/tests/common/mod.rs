@@ -92,7 +92,7 @@ pub fn test_image(name: &str, device: &Device, luma: bool) -> Tensor<3> {
 pub fn save_test_image(name: &str, tensor: Tensor<3>, luma: bool) {
     let file = PathBuf::from("tests/images").join(name);
     let [h, w, _] = tensor.shape().dims();
-    let data = tensor.try_to_vec_as::<f32>().unwrap();
+    let data = tensor.try_into_vec_as::<f32>().unwrap();
     if luma {
         let image = ImageBuffer::<Luma<f32>, _>::from_raw(w as u32, h as u32, data).unwrap();
         DynamicImage::from(image).to_luma8().save(file).unwrap();

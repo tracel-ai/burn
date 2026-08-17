@@ -274,6 +274,6 @@ fn should_select_2d_dim0_empty_indices() {
     let output = tensor.select(0, indices);
 
     assert_eq!(output.dims(), [0, 2]);
-    let out: Vec<FloatElem> = output.try_to_vec_as().unwrap();
+    let out: Vec<FloatElem> = output.try_into_vec_as().unwrap();
     assert!(out.is_empty());
 }

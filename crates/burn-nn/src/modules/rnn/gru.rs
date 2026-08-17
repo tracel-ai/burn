@@ -838,7 +838,7 @@ mod tests {
         let output = gru.forward(input, None);
 
         // Verify output values are within the clip range
-        let output_data: Vec<f32> = output.try_to_vec_as().unwrap();
+        let output_data: Vec<f32> = output.try_into_vec_as().unwrap();
         for val in output_data {
             assert!(
                 val >= -clip_value as f32 && val <= clip_value as f32,
@@ -864,7 +864,7 @@ mod tests {
         let (output, state) = bigru.forward(input, None);
 
         // Verify output values are within the clip range
-        let output_data: Vec<f32> = output.try_to_vec_as().unwrap();
+        let output_data: Vec<f32> = output.try_into_vec_as().unwrap();
         for val in output_data {
             assert!(
                 val >= -clip_value as f32 && val <= clip_value as f32,
@@ -876,7 +876,7 @@ mod tests {
         }
 
         // Verify state values are within the clip range
-        let state_data: Vec<f32> = state.try_to_vec_as().unwrap();
+        let state_data: Vec<f32> = state.try_into_vec_as().unwrap();
         for val in state_data {
             assert!(
                 val >= -clip_value as f32 && val <= clip_value as f32,
