@@ -45,13 +45,12 @@ tensors and can collect their statistics, such as the min and max value when usi
 
 ```rust , ignore
 # use burn::module::Quantizer;
-# use burn::tensor::quantization::{Calibration, QuantLevel, QuantParam, QuantScheme, QuantValue};
+# use burn::tensor::quantization::{Calibration, QuantScheme, QuantValue, ScaleDtype};
 #
 // Quantization config
 let scheme = QuantScheme::default()
-    .with_level(QuantLevel::Block(32))
-    .with_value(QuantValue::Q4F)
-    .with_param(QuantParam::F16);
+    .per_block([32], ScaleDtype::F16)
+    .with_value(QuantValue::Q4F);
 let mut quantizer = Quantizer {
     calibration: Calibration::MinMax,
     scheme,
@@ -80,12 +79,25 @@ values, storage format, granularity, and how the values are scaled.
 
 ```rust
 let scheme = QuantScheme::default()
-    .with_mode(QuantMode::Symmetric)         // Quantization mode
-    .with_level(QuantLevel::block([2, 16]))  // Granularity (per-tensor or per-block)
-    .with_value(QuantValue::Q8S)             // Data type of quantized values, independent of how they're stored
-    .with_store(QuantStore::Native)          // Storage format for quantized values
-    .with_param(QuantParam::F16);            // Precision for quantization parameters
+    .with_mode(QuantMode::Symmetric)          // Quantization mode
+    .per_block([2, 16], ScaleDtype::F16)      // One scale per block of values, stored as f16
+    .with_value(QuantValue::Q8S)              // Data type of quantized values, independent of how they're stored
+    .with_store(QuantStore::Native);          // Storage format for quantized values
 ```
+
+A scheme carries up to two scale levels, each set in any order and each owning the type its scales
+are stored in. `per_tensor` is one scale for the whole tensor, which is also what a scheme with no
+level set resolves to; `per_block` is one scale per block of values.
+
+```rust
+// Block scales in ue4m3, normalized by a single per-tensor f32 scale.
+let scheme = QuantScheme::default()
+    .per_block([16], ScaleDtype::UE4M3)
+    .per_tensor(ScaleDtype::F32);
+```
+
+Two levels exist so the block scales can live in a narrow type: the per-tensor scale absorbs the
+tensor's dynamic range, and the block type only has to cover the spread between blocks.
 
 #### Quantization Mode
 
@@ -93,12 +105,15 @@ let scheme = QuantScheme::default()
 | :---------- | :------------------------------------------- |
 | `Symmetric` | Values are scaled symmetrically around zero. |
 
-#### Quantization Level
+#### Scale Levels
 
-| Level                          | Description                                                                                                  |
-| :----------------------------- | :----------------------------------------------------------------------------------------------------------- |
-| `Tensor`                       | A single quantization parameter set for the entire tensor.                                                   |
-| `Block(block_size: BlockSize)` | Tensor divided into blocks (1D, 2D, or higher) defined by block_size, each with its own quantization params. |
+| Level                        | Description                                                                                     |
+| :--------------------------- | :---------------------------------------------------------------------------------------------- |
+| `per_tensor(dtype)`          | A single scale for the entire tensor.                                                           |
+| `per_block(block, dtype)`    | Tensor divided into blocks (1D, 2D, or higher) defined by `block`, each with its own scale.     |
+
+Setting both nests the blocks inside the tensor: the per-tensor scale is the factor the block
+scales are relative to, and it has to be `F32`.
 
 #### Quantization Value
 
@@ -124,16 +139,16 @@ let scheme = QuantScheme::default()
 
 Native storage is not supported for sub-byte quantization values.
 
-#### Quantization Parameters Precision
+#### Scale Data Type
 
-| Param   | Description                                                                            |
+| Dtype   | Description                                                                            |
 | :------ | :------------------------------------------------------------------------------------- |
 | `F32`   | Full floating-point precision.                                                         |
 | `F16`   | Half-precision floating point.                                                         |
 | `BF16`  | Brain float 16-bit precision.                                                          |
 | `UE4M3` | 8-bit floating point (4 exponent, 3 mantissa). Currently supported on CPU backends only. |
 
-A narrower parameter type stores less per block, but it also has a much smaller range. `UE4M3`
+A narrower scale type stores less per block, but it also has a much smaller range. `UE4M3`
 cannot represent a value below `2^-9`, so a scale smaller than that rounds to zero and the block
 is lost. Scales stay in range when the quantized values are large enough, which in practice means
 it is not a drop-in replacement for `F32` on small-magnitude weights.
