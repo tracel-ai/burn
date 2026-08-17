@@ -2,7 +2,7 @@ use super::base::{
     Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, Metadata, Scalar, TENSOR_ALIGNMENT,
     TensorDescriptor, aligned_data_section_start,
 };
-use super::tensor::{Tensor, TensorEntry};
+use super::tensor::Tensor;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -41,21 +41,21 @@ type Descriptors = (BTreeMap<String, TensorDescriptor>, Vec<Placement>, usize);
 
 /// Writer for creating Burnpack files.
 ///
-/// Generic over the [`TensorEntry`] implementation supplying the tensors; the default,
-/// [`Tensor`], carries bytes that are already resident. See [`TensorEntry`] for how to
-/// supply tensors that materialize one at a time instead.
-pub struct Writer<T: TensorEntry = Tensor> {
+/// Takes the tensors to write, each carrying bytes that are either already resident or
+/// produced on demand ([`Tensor::deferred`]). Deferred tensors are drawn one at a time
+/// during the write, so a model need not fit in memory to be saved.
+pub struct Writer {
     /// Tensors to write
-    pub(crate) tensors: Vec<T>,
+    pub(crate) tensors: Vec<Tensor>,
     /// Metadata key-value pairs
     pub(crate) metadata: BTreeMap<String, String>,
     /// Typed scalars keyed by name
     pub(crate) scalars: BTreeMap<String, Scalar>,
 }
 
-impl<T: TensorEntry> Writer<T> {
+impl Writer {
     /// Create a new writer
-    pub fn new(tensors: Vec<T>) -> Self {
+    pub fn new(tensors: Vec<Tensor>) -> Self {
         Self {
             tensors,
             metadata: BTreeMap::new(),
@@ -93,7 +93,7 @@ impl<T: TensorEntry> Writer<T> {
     /// - Custom allocators
     /// - Pinned memory for GPU transfers
     ///
-    /// On failure the buffer's contents are unspecified: a [`TensorEntry`] produces its bytes
+    /// On failure the buffer's contents are unspecified: a deferred [`Tensor`] produces its bytes
     /// during the write, so an entry that fails partway leaves everything before it already
     /// copied in. Callers reusing a buffer across writes cannot treat an error as "nothing
     /// happened". [`write_to_file`](Self::write_to_file) has no such caveat.
@@ -140,7 +140,7 @@ impl<T: TensorEntry> Writer<T> {
     ///
     /// The container is written to a scratch sibling of `path` and renamed into place only
     /// once every byte is on disk, so `path` either ends up holding a complete container or
-    /// is left exactly as it was. This matters for lazy [`TensorEntry`] implementations,
+    /// is left exactly as it was. This matters for deferred tensors,
     /// whose bytes are produced during the write: a provider that fails partway through (or
     /// hands back a different length than it declared) is an ordinary error, and it must not
     /// leave a truncated file where a valid one used to be.
@@ -234,15 +234,12 @@ impl<T: TensorEntry> Writer<T> {
         let mut current_offset = 0u64;
 
         for tensor in &self.tensors {
-            // Read every accessor exactly once. The write pass works from the `Placement`
-            // recorded here rather than calling back into the entry, so an implementation
-            // whose accessors are not stable still cannot desynchronize the two passes.
-            let name = tensor.name().into_owned();
-            let dtype = tensor.dtype();
-            let shape = tensor.shape();
+            let name = &tensor.name;
+            let dtype = tensor.dtype;
+            let shape = &tensor.shape;
             let data_len = tensor.byte_len() as u64;
 
-            Self::check_byte_len(&name, dtype, shape, data_len)?;
+            Self::check_byte_len(name, dtype, shape, data_len)?;
 
             // Align the start offset for mmap zero-copy support.
             let aligned_start = align_offset(current_offset, TENSOR_ALIGNMENT);
@@ -263,7 +260,7 @@ impl<T: TensorEntry> Writer<T> {
                         dtype,
                         shape: shape.iter().map(|&s| s as u64).collect(),
                         data_offsets: (aligned_start, end),
-                        param_id: tensor.param_id(),
+                        param_id: tensor.param_id,
                     },
                 )
                 .is_some()
@@ -275,7 +272,7 @@ impl<T: TensorEntry> Writer<T> {
             }
 
             placements.push(Placement {
-                name,
+                name: name.clone(),
                 offset: aligned_start as usize,
                 len: data_len as usize,
             });
@@ -295,7 +292,7 @@ impl<T: TensorEntry> Writer<T> {
     /// Quantized data is the deliberate exception: values are bit-packed and the scales are
     /// appended inline, so its length is not `num_elements * dtype.size()`. That layout
     /// contract belongs to the quantization layer, and burn-pack deliberately does not
-    /// reimplement it - which is why [`TensorEntry::byte_len`] exists as a method the
+    /// reimplement it - which is why [`Tensor::deferred`] takes a byte length the
     /// producer supplies rather than something derived here.
     fn check_byte_len(name: &str, dtype: DType, shape: &Shape, data_len: u64) -> Result<(), Error> {
         if matches!(dtype, DType::QFloat(_)) {
@@ -360,9 +357,9 @@ impl<T: TensorEntry> Writer<T> {
     /// Materialize one tensor's bytes and check they fill exactly the space reserved for it.
     ///
     /// The length check is what keeps a lazy entry honest: the offset table was committed
-    /// from [`TensorEntry::byte_len`] long before these bytes existed, so a provider that
+    /// from [`Tensor::byte_len`] long before these bytes existed, so a provider that
     /// reports one size and produces another would misplace every tensor after it.
-    fn materialize(tensor: T, placement: &Placement) -> Result<Bytes, Error> {
+    fn materialize(tensor: Tensor, placement: &Placement) -> Result<Bytes, Error> {
         // Name the tensor on the way out. `into_bytes` runs mid-write, so its failures arrive
         // interleaved with the writer's own disk errors; without this, a device readback that
         // fails on one tensor of eight hundred is indistinguishable from a full disk.
@@ -393,7 +390,7 @@ struct Placement {
     name: String,
     /// Aligned start, relative to the beginning of the data section.
     offset: usize,
-    /// Bytes reserved, from [`TensorEntry::byte_len`].
+    /// Bytes reserved, from [`Tensor::byte_len`].
     len: usize,
 }
 

@@ -3,8 +3,8 @@
 //!
 //! This is the path a codegen tool takes when it holds weights read out of some other format
 //! and wants a `.bpk` out of them. Being an integration test, it also pins the surface such a
-//! crate actually sees: the `burn_pack` re-export, the `TensorEntry` impl on `TensorSnapshot`,
-//! and the `From<burn_pack::Tensor>` conversion back.
+//! crate actually sees: the `burn_pack` re-export, the deferred `From<TensorSnapshot>`
+//! conversion, and the `From<burn_pack::Tensor>` conversion back.
 
 // Needs `std` as well as `burnpack`: the file round trip below goes through burn-pack's
 // `write_to_file` / `from_file`, which that crate gates on its own `std` feature.
@@ -14,7 +14,7 @@ use burn_core::module::ParamId;
 use burn_core::tensor::quantization::{QuantScheme, QuantValue};
 use burn_core::tensor::{Distribution, Tensor, shape};
 use burn_store::TensorSnapshot;
-use burn_store::burn_pack::{Reader, Writer};
+use burn_store::burn_pack::{Reader, Tensor as PackTensor, Writer};
 
 fn snapshot(name: &str, values: [[f32; 2]; 2]) -> TensorSnapshot {
     let device = Default::default();
@@ -37,9 +37,9 @@ fn snapshots_write_and_read_back_without_a_module() {
         snapshot("decoder.weight", [[5.0, 6.0], [7.0, 8.0]]),
     ];
 
-    // `TensorSnapshot: TensorEntry`, so the writer takes them as-is and materializes each one
-    // only when it reaches that tensor.
-    Writer::new(snapshots)
+    // Each snapshot becomes a deferred tensor, materialized only when the writer
+    // reaches it.
+    Writer::new(snapshots.into_iter().map(PackTensor::from).collect())
         .with_metadata("producer", "direct-writer-test")
         .write_to_file(&path)
         .unwrap();
@@ -79,7 +79,9 @@ fn quantized_snapshot_writes_and_reads_back() {
     let snapshot =
         TensorSnapshot::from_float(&tensor, vec!["weight".to_string()], vec![], ParamId::new());
 
-    let packed = Writer::new(vec![snapshot]).into_bytes().unwrap();
+    let packed = Writer::new(vec![PackTensor::from(snapshot)])
+        .into_bytes()
+        .unwrap();
 
     let restored = Reader::from_bytes(packed).unwrap().into_tensors().unwrap();
     assert_eq!(restored.len(), 1);

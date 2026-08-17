@@ -112,7 +112,7 @@ fn param_id_present_and_absent() {
 
 #[test]
 fn empty_pack() {
-    let packed = Writer::<Tensor>::new(vec![]).into_bytes().unwrap();
+    let packed = Writer::new(vec![]).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
     assert!(reader.tensor_names().is_empty());
     assert!(reader.into_tensors().unwrap().is_empty());
@@ -151,8 +151,8 @@ fn dtype_and_byte_len_preserved() {
         assert_eq!(t.dtype, *dtype, "dtype preserved for t{i}");
         assert_eq!(t.shape.to_vec(), vec![n]);
         assert_eq!(t.byte_len(), n * elem, "byte_len preserved for t{i}");
-        let materialized: &[u8] = &t.bytes;
-        assert_eq!(materialized, &vec![i as u8 + 1; n * elem][..]);
+        let materialized = t.clone().into_bytes().unwrap();
+        assert_eq!(&materialized[..], &vec![i as u8 + 1; n * elem][..]);
     }
 }
 
@@ -203,9 +203,9 @@ fn shared_tensor_chunked_write_round_trip() {
     let read = reader.into_tensors().unwrap();
 
     assert_eq!(read.len(), 1);
-    let materialized: &[u8] = &read[0].bytes;
+    let materialized = read.into_iter().next().unwrap().into_bytes().unwrap();
     assert_eq!(materialized.len(), len);
-    assert_eq!(materialized, &data[..]);
+    assert_eq!(&materialized[..], &data[..]);
 }
 
 #[test]

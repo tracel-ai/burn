@@ -35,23 +35,24 @@ destination and renamed into place once complete, so a failed write never leaves
 
 ## Writing models larger than memory
 
-`Writer::new` takes anything implementing `TensorEntry`, not just `Tensor`. The writer lays out the
-whole container from the metadata accessors alone, before any I/O and without calling
-`into_bytes()`, then draws the bytes once per tensor in write order, dropping each tensor's before
-asking for the next. An implementation that materializes inside `into_bytes` therefore holds one
-tensor at a time:
+A tensor's bytes need not exist yet. `Tensor::deferred` describes one by its length plus a provider
+that yields the data on demand, so the writer can lay out the whole container before any I/O and
+then draw the bytes one tensor at a time, dropping each before asking for the next:
 
 ```rust,ignore
-impl TensorEntry for MyWeight {
-    fn byte_len(&self) -> usize { self.rows * self.cols * 4 }   // no data needed
-    fn into_bytes(self) -> Result<Bytes, Error> { self.read_from_device() }  // called once, in order
-    // name / dtype / shape / param_id ...
-}
+let tensor = Tensor::deferred(
+    name,
+    DType::F32,
+    shape,
+    None,
+    rows * cols * 4,              // length, without the data
+    move || weight.read_from_device(),  // called once, when the writer reaches it
+);
 ```
 
 Paired with `write_to_file`, peak host memory is bounded by the largest single tensor rather than
-by the whole model. `burn-store` implements this for `TensorSnapshot`, so saving a `Module` gets it
-for free.
+by the whole model. `burn-store` converts a `TensorSnapshot` into one of these, so saving a
+`Module` gets it for free.
 
 See the [docs](https://docs.rs/burn-pack) for the format layout and the full API.
 

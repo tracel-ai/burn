@@ -207,14 +207,12 @@ impl ModuleRecord {
             .into_iter()
             .map(|t| {
                 let id = t.param_id.map(ParamId::from).unwrap_or_else(ParamId::new);
-                let data = TensorData::from_bytes(t.bytes, t.shape, t.dtype);
-                RecordTensor {
-                    path: t.name,
-                    id,
-                    data,
-                }
+                let (path, shape, dtype) = (t.name.clone(), t.shape.clone(), t.dtype);
+                // Infallible for reader-produced tensors, which are always resident.
+                let data = TensorData::from_bytes(t.into_bytes()?, shape, dtype);
+                Ok(RecordTensor { path, id, data })
             })
-            .collect();
+            .collect::<Result<Vec<_>, RecordError>>()?;
         Ok(Self::from_tensors(tensors))
     }
 

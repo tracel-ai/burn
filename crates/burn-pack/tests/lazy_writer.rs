@@ -1,32 +1,36 @@
-//! Writing a container from tensor entries that materialize their bytes on demand.
+//! Writing a container from tensors that produce their bytes on demand.
 
 mod common;
 
-use std::borrow::Cow;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
-use burn_pack::{Bytes, DType, Error, Reader, Shape, Tensor, TensorEntry, Writer};
+use burn_pack::{Bytes, DType, Error, Reader, Shape, Tensor, Writer};
 use common::f32_tensor;
 
 /// Records every materialization, in the order it happened.
-type Log = Rc<RefCell<Vec<String>>>;
+///
+/// `Arc<Mutex<_>>` rather than `Rc<RefCell<_>>` because a deferred tensor's provider must be
+/// `Send + Sync`: records holding one cross threads through burn-train's async checkpointer.
+type Log = Arc<Mutex<Vec<String>>>;
 
-/// A tensor entry that reports its byte length up front but only hands over the bytes when
-/// the writer asks for them, logging each time it does.
+/// A tensor whose bytes are produced on demand, with every knob the tests need to bend.
+///
+/// Built into a [`Tensor`] by [`build`](Self::build); the fields stay reachable until then so
+/// a test can contradict one of them (declare a length the shape cannot justify, produce
+/// fewer values than declared) and watch the writer catch it.
 struct LazyEntry {
     name: String,
     /// `F32` unless a test overrides it; the payload stays f32 either way, since the writer
     /// never interprets the bytes.
     dtype: DType,
     shape: Shape,
-    /// The values handed over by [`TensorEntry::into_bytes`]. Normally matches `shape`; the
-    /// mid-write guard test shortens it so the entry produces less than it promised.
+    /// The values the provider hands over. Normally matches `shape`; the mid-write guard test
+    /// shortens it so the tensor produces less than it promised.
     values: Vec<f32>,
-    /// Byte length as reported to the writer. Normally matches both `shape` and `values`;
-    /// the plan-time guard test overrides it alone.
+    /// Byte length as declared to the writer. Normally matches both `shape` and `values`; the
+    /// plan-time guard test overrides it alone.
     declared_len: usize,
-    /// Set by the failure test to make [`TensorEntry::into_bytes`] error.
+    /// Set by the failure tests to make the provider error.
     fails: bool,
     log: Log,
 }
@@ -49,36 +53,27 @@ impl LazyEntry {
             log: log.clone(),
         }
     }
-}
 
-impl TensorEntry for LazyEntry {
-    fn name(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.name)
-    }
+    fn build(self) -> Tensor {
+        let Self {
+            name,
+            dtype,
+            shape,
+            values,
+            declared_len,
+            fails,
+            log,
+        } = self;
 
-    fn dtype(&self) -> DType {
-        self.dtype
-    }
-
-    fn shape(&self) -> &Shape {
-        &self.shape
-    }
-
-    fn param_id(&self) -> Option<u64> {
-        None
-    }
-
-    fn byte_len(&self) -> usize {
-        self.declared_len
-    }
-
-    fn into_bytes(self) -> Result<Bytes, Error> {
-        self.log.borrow_mut().push(self.name.clone());
-        if self.fails {
-            return Err(Error::IoError("device read failed".to_string()));
-        }
-        let raw: Vec<u8> = self.values.iter().flat_map(|v| v.to_le_bytes()).collect();
-        Ok(Bytes::from_bytes_vec(raw))
+        let logged = name.clone();
+        Tensor::deferred(name, dtype, shape, None, declared_len, move || {
+            log.lock().unwrap().push(logged.clone());
+            if fails {
+                return Err(Error::IoError("device read failed".to_string()));
+            }
+            let raw: Vec<u8> = values.iter().flat_map(|v| v.to_le_bytes()).collect();
+            Ok(Bytes::from_bytes_vec(raw))
+        })
     }
 }
 
@@ -90,35 +85,43 @@ fn entries(log: &Log) -> Vec<LazyEntry> {
     ]
 }
 
+fn build(entries: Vec<LazyEntry>) -> Vec<Tensor> {
+    entries.into_iter().map(LazyEntry::build).collect()
+}
+
+fn materialized(log: &Log) -> Vec<String> {
+    log.lock().unwrap().clone()
+}
+
 #[test]
 fn planning_the_layout_materializes_nothing() {
-    let log: Log = Rc::default();
-    let writer = Writer::new(entries(&log));
+    let log = Log::default();
+    let writer = Writer::new(build(entries(&log)));
 
     // `size()` builds the descriptors and the whole offset table.
     let size = writer.size().unwrap();
     assert!(size > 0);
 
     assert!(
-        log.borrow().is_empty(),
+        materialized(&log).is_empty(),
         "computing the layout must not touch any tensor's bytes, materialized: {:?}",
-        log.borrow()
+        materialized(&log)
     );
 }
 
 #[test]
 fn each_tensor_materializes_once_in_write_order() {
-    let log: Log = Rc::default();
-    Writer::new(entries(&log)).into_bytes().unwrap();
+    let log = Log::default();
+    Writer::new(build(entries(&log))).into_bytes().unwrap();
 
-    assert_eq!(log.borrow().as_slice(), ["a", "b", "c"]);
+    assert_eq!(materialized(&log), ["a", "b", "c"]);
 }
 
 /// Byte-for-byte equality with the eager path is the strongest correctness statement
-/// available here: it pins the lazy writer to behaviour `round_trip.rs` already covers.
+/// available here: it pins the deferred writer to behaviour `round_trip.rs` already covers.
 #[test]
-fn lazy_and_eager_entries_produce_identical_containers() {
-    let log: Log = Rc::default();
+fn deferred_and_resident_tensors_produce_identical_containers() {
+    let log = Log::default();
     let lazy = entries(&log);
 
     let eager: Vec<Tensor> = lazy
@@ -126,7 +129,7 @@ fn lazy_and_eager_entries_produce_identical_containers() {
         .map(|e| f32_tensor(&e.name, &e.values, &e.shape.to_vec(), None))
         .collect();
 
-    let from_lazy = Writer::new(lazy).into_bytes().unwrap();
+    let from_lazy = Writer::new(build(lazy)).into_bytes().unwrap();
     let from_eager = Writer::new(eager).into_bytes().unwrap();
 
     assert_eq!(&from_lazy[..], &from_eager[..]);
@@ -136,12 +139,12 @@ fn lazy_and_eager_entries_produce_identical_containers() {
 /// before any I/O happens, because the two are checked against each other directly.
 #[test]
 fn declared_length_that_contradicts_the_shape_is_rejected_before_writing() {
-    let log: Log = Rc::default();
+    let log = Log::default();
     let mut entry = LazyEntry::new("a", [2, 2], 1.0, &log);
-    // A 2x2 f32 tensor needs 16 bytes, whatever the entry claims.
+    // A 2x2 f32 tensor needs 16 bytes, whatever the tensor claims.
     entry.declared_len = 8;
 
-    let err = Writer::new(vec![entry]).into_bytes().unwrap_err();
+    let err = Writer::new(vec![entry.build()]).into_bytes().unwrap_err();
     match err {
         Error::ValidationError(msg) => {
             assert!(
@@ -153,20 +156,20 @@ fn declared_length_that_contradicts_the_shape_is_rejected_before_writing() {
         other => panic!("expected ValidationError, got {other:?}"),
     }
     assert!(
-        log.borrow().is_empty(),
-        "planning rejected the entry, so nothing should have been materialized"
+        materialized(&log).is_empty(),
+        "planning rejected the tensor, so nothing should have been materialized"
     );
 }
 
-/// Quantized entries are exempt from the plan-time shape check: their length is not
+/// Quantized tensors are exempt from the plan-time shape check: their length is not
 /// `num_elements * dtype.size()` (packed values, inline scales), so a `byte_len` that would
 /// be rejected for any other dtype must be accepted for `QFloat` - the exemption is what
-/// makes [`TensorEntry::byte_len`] usable for quantized data at all.
+/// makes [`Tensor::deferred`]'s explicit byte length usable for quantized data at all.
 #[test]
 fn a_quantized_byte_len_is_not_shape_checked_at_plan_time() {
     use burn_std::QuantScheme;
 
-    let log: Log = Rc::default();
+    let log = Log::default();
     let mut entry = LazyEntry::new("q", [3], 1.0, &log);
     entry.dtype = DType::QFloat(QuantScheme::default());
     // 3 elements could never need 8 bytes under `num_elements * size()` arithmetic; for
@@ -175,7 +178,7 @@ fn a_quantized_byte_len_is_not_shape_checked_at_plan_time() {
     entry.values.truncate(2);
     entry.declared_len = 8;
 
-    Writer::new(vec![entry]).into_bytes().unwrap();
+    Writer::new(vec![entry.build()]).into_bytes().unwrap();
 }
 
 /// A `byte_len` consistent with the shape but a provider that produces something else slips
@@ -183,12 +186,12 @@ fn a_quantized_byte_len_is_not_shape_checked_at_plan_time() {
 /// only guard quantized tensors get, since their length is not a product of shape and dtype.
 #[test]
 fn provider_that_produces_a_different_length_is_rejected_mid_write() {
-    let log: Log = Rc::default();
+    let log = Log::default();
     let mut entry = LazyEntry::new("a", [2, 2], 1.0, &log);
     // `declared_len` stays 16 and agrees with the shape; the bytes do not.
     entry.values.truncate(2);
 
-    let err = Writer::new(vec![entry]).into_bytes().unwrap_err();
+    let err = Writer::new(vec![entry.build()]).into_bytes().unwrap_err();
     match err {
         Error::TensorBytesSizeMismatch(msg) => {
             assert!(msg.contains("expected 16"), "unexpected message: {msg}");
@@ -200,11 +203,11 @@ fn provider_that_produces_a_different_length_is_rejected_mid_write() {
 
 #[test]
 fn a_failing_provider_aborts_the_write() {
-    let log: Log = Rc::default();
+    let log = Log::default();
     let mut entry = LazyEntry::new("a", [1], 1.0, &log);
     entry.fails = true;
 
-    let err = Writer::new(vec![entry]).into_bytes().unwrap_err();
+    let err = Writer::new(vec![entry.build()]).into_bytes().unwrap_err();
     // The name prefix is the writer's `in_tensor` annotation: a provider failure arrives
     // mid-write, and without it the user cannot tell which of many tensors failed.
     assert!(
@@ -213,18 +216,20 @@ fn a_failing_provider_aborts_the_write() {
     );
 }
 
-/// Planning rejects an inconsistent entry before the scratch file is even created, so a
+/// Planning rejects an inconsistent tensor before the scratch file is even created, so a
 /// plan-time failure touches the disk not at all.
 #[test]
 fn a_plan_time_rejection_creates_no_file() {
     let dir = tempfile::tempdir().unwrap();
     let dest = dir.path().join("model.bpk");
 
-    let log: Log = Rc::default();
+    let log = Log::default();
     let mut entry = LazyEntry::new("a", [2, 2], 1.0, &log);
     entry.declared_len = 8;
 
-    Writer::new(vec![entry]).write_to_file(&dest).unwrap_err();
+    Writer::new(vec![entry.build()])
+        .write_to_file(&dest)
+        .unwrap_err();
 
     assert_eq!(
         std::fs::read_dir(dir.path()).unwrap().count(),
@@ -233,19 +238,21 @@ fn a_plan_time_rejection_creates_no_file() {
     );
 }
 
-/// A lazy provider runs during the write, so its failure has to leave the destination as it
-/// was rather than truncated. Failing on the *last* tensor means the earlier ones were
+/// A deferred provider runs during the write, so its failure has to leave the destination as
+/// it was rather than truncated. Failing on the *last* tensor means the earlier ones were
 /// already streamed out, which is exactly the case a plain `File::create` would corrupt.
 #[test]
 fn a_failing_provider_leaves_no_file_behind() {
     let dir = tempfile::tempdir().unwrap();
     let dest = dir.path().join("model.bpk");
 
-    let log: Log = Rc::default();
+    let log = Log::default();
     let mut entries = entries(&log);
     entries.last_mut().unwrap().fails = true;
 
-    Writer::new(entries).write_to_file(&dest).unwrap_err();
+    Writer::new(build(entries))
+        .write_to_file(&dest)
+        .unwrap_err();
 
     assert!(!dest.exists(), "destination should not have been created");
     assert_eq!(
@@ -261,13 +268,17 @@ fn a_failed_write_leaves_an_existing_file_intact() {
     let dest = dir.path().join("model.bpk");
 
     // A valid container already at the destination.
-    let log: Log = Rc::default();
-    Writer::new(entries(&log)).write_to_file(&dest).unwrap();
+    let log = Log::default();
+    Writer::new(build(entries(&log)))
+        .write_to_file(&dest)
+        .unwrap();
     let original = std::fs::read(&dest).unwrap();
 
     let mut entries = entries(&log);
     entries.last_mut().unwrap().fails = true;
-    Writer::new(entries).write_to_file(&dest).unwrap_err();
+    Writer::new(build(entries))
+        .write_to_file(&dest)
+        .unwrap_err();
 
     assert_eq!(
         std::fs::read(&dest).unwrap(),
@@ -285,8 +296,10 @@ fn a_failed_rename_leaves_no_scratch_file() {
     // A directory cannot be replaced by a rename, so persist fails after a complete write.
     std::fs::create_dir(&dest).unwrap();
 
-    let log: Log = Rc::default();
-    Writer::new(entries(&log)).write_to_file(&dest).unwrap_err();
+    let log = Log::default();
+    Writer::new(build(entries(&log)))
+        .write_to_file(&dest)
+        .unwrap_err();
 
     assert!(dest.is_dir(), "the destination should be untouched");
     assert_eq!(
@@ -301,11 +314,13 @@ fn a_successful_write_replaces_an_existing_file() {
     let dir = tempfile::tempdir().unwrap();
     let dest = dir.path().join("model.bpk");
 
-    let log: Log = Rc::default();
-    Writer::new(vec![LazyEntry::new("old", [4], 1.0, &log)])
+    let log = Log::default();
+    Writer::new(vec![LazyEntry::new("old", [4], 1.0, &log).build()])
         .write_to_file(&dest)
         .unwrap();
-    Writer::new(entries(&log)).write_to_file(&dest).unwrap();
+    Writer::new(build(entries(&log)))
+        .write_to_file(&dest)
+        .unwrap();
 
     let names: Vec<String> = Reader::from_file(&dest)
         .unwrap()

@@ -1,66 +1,61 @@
 //! Bridge between [`TensorSnapshot`] (burn-core) and the tensor-agnostic burnpack format
 //! entries, used by [`BurnpackStore`](crate::BurnpackStore).
 //!
-//! Both directions are trait impls on [`TensorSnapshot`], and both stay lazy. Saving goes
-//! through [`TensorEntry`], which defers each snapshot until the writer reaches it; loading
-//! goes through `From<PackTensor>`, which leaves a reader's (possibly file-backed) bytes
-//! unread until the snapshot is materialized.
+//! Both directions stay lazy, and both are conversions on [`TensorSnapshot`]. Saving goes
+//! through [`From<TensorSnapshot>`], which builds a deferred [`PackTensor`] holding the
+//! snapshot until the writer reaches it; loading goes through [`From<PackTensor>`], which
+//! leaves a reader's (possibly file-backed) bytes unread until the snapshot is materialized.
 
-use alloc::borrow::Cow;
 use alloc::string::{String, ToString};
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use burn_pack::{Bytes, DType, Error as PackError, Shape, Tensor as PackTensor, TensorEntry};
+use burn_pack::{Error as PackError, Tensor as PackTensor};
 
 use super::{TensorSnapshot, TensorSnapshotError};
 use burn_core::module::ParamId;
 use burn_core::tensor::TensorData;
 
-/// Lets a [`Writer`](burn_pack::Writer) consume snapshots without materializing them.
+/// Turns a snapshot into a [`PackTensor`] that materializes only when written.
 ///
 /// [`TensorSnapshot::data_len`] derives the byte length from the snapshot's cached shape and
-/// dtype, so the writer can lay out the whole container (descriptors, offsets, total size)
-/// without calling `to_data()` on anything. Each snapshot is then materialized only once the
-/// writer reaches its slot in the data section, and dropped before the next one is produced.
-impl TensorEntry for TensorSnapshot {
-    fn name(&self) -> Cow<'_, str> {
-        // Owned: the full path is joined from the path stack, so there is nothing to borrow.
-        Cow::Owned(self.full_path())
-    }
+/// dtype, so [`Writer`](burn_pack::Writer) can lay out the whole container (descriptors,
+/// offsets, total size) without calling `to_data()` on anything. Each snapshot is then
+/// materialized only once the writer reaches its slot in the data section, and dropped
+/// before the next one is produced.
+impl From<TensorSnapshot> for PackTensor {
+    fn from(snapshot: TensorSnapshot) -> Self {
+        let (dtype, shape) = (snapshot.dtype, snapshot.shape.clone());
+        let param_id = snapshot.tensor_id.map(|id| id.val());
 
-    fn dtype(&self) -> DType {
-        self.dtype
-    }
-
-    fn shape(&self) -> &Shape {
-        &self.shape
-    }
-
-    fn param_id(&self) -> Option<u64> {
-        self.tensor_id.map(|id| id.val())
-    }
-
-    fn byte_len(&self) -> usize {
-        self.data_len()
-    }
-
-    fn into_bytes(self) -> Result<Bytes, PackError> {
-        self.to_data().map(|data| data.bytes).map_err(|e| match e {
-            // Only a genuine read failure is an I/O error. Materialization also fails when the
-            // backend panics reading a tensor back from the device, and calling that an I/O
-            // error sends the reader looking at their disk: it arrives mid-write, alongside
-            // the writer's own file errors, and reads exactly like one of them.
-            TensorSnapshotError::IoError(message) => PackError::IoError(message),
-            other => PackError::ValidationError(other.to_string()),
-        })
+        PackTensor::deferred(
+            snapshot.full_path(),
+            dtype,
+            shape,
+            param_id,
+            snapshot.data_len(),
+            move || {
+                snapshot
+                    .to_data()
+                    .map(|data| data.bytes)
+                    .map_err(|e| match e {
+                        // Only a genuine read failure is an I/O error. Materialization also fails
+                        // when the backend panics reading a tensor back from the device, and
+                        // calling that an I/O error sends the reader looking at their disk: it
+                        // arrives mid-write, alongside the writer's own file errors, and reads
+                        // exactly like one of them.
+                        TensorSnapshotError::IoError(message) => PackError::IoError(message),
+                        other => PackError::ValidationError(other.to_string()),
+                    })
+            },
+        )
     }
 }
 
 /// Turns a reader's [`PackTensor`] entry into a lazy [`TensorSnapshot`].
 ///
-/// The counterpart to the [`TensorEntry`] impl above, and lazy in the same way: the tensor's
+/// The counterpart to the impl above, and lazy in the same way: the tensor's
 /// [`burn_pack::Bytes`] may be file-backed (from [`burn_pack::Reader::from_file`]), in which
 /// case the data is only read from disk when the snapshot is materialized.
 impl From<PackTensor> for TensorSnapshot {
@@ -70,11 +65,16 @@ impl From<PackTensor> for TensorSnapshot {
         let path_stack: Vec<String> = tensor.name.split('.').map(|s| s.to_string()).collect();
         let tensor_id = tensor.param_id.map(ParamId::from).unwrap_or_default();
 
-        let bytes = tensor.bytes;
         let shape_for_closure = shape.clone();
         let data_fn = Arc::new(move || {
+            // Cloning is cheap: a resident tensor's `Bytes` are refcounted, so this shares
+            // the reader's buffer rather than copying it.
+            let bytes = tensor
+                .clone()
+                .into_bytes()
+                .map_err(|e| TensorSnapshotError::IoError(e.to_string()))?;
             Ok(TensorData::from_bytes(
-                bytes.clone(),
+                bytes,
                 shape_for_closure.clone(),
                 dtype,
             ))
@@ -88,10 +88,10 @@ impl From<PackTensor> for TensorSnapshot {
 mod tests {
     use super::*;
     use alloc::string::ToString;
-    use burn_core::tensor::{Tensor, shape};
+    use burn_core::tensor::{DType, Tensor, shape};
 
     #[test]
-    fn entry_exposes_snapshot_metadata() {
+    fn deferred_tensor_carries_the_snapshot_metadata() {
         let device = Default::default();
         let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
         let id = ParamId::new();
@@ -102,11 +102,16 @@ mod tests {
             id,
         );
 
-        assert_eq!(TensorEntry::name(&snapshot), "encoder.weight");
-        assert_eq!(TensorEntry::shape(&snapshot), &shape![2, 2]);
-        assert_eq!(TensorEntry::dtype(&snapshot), DType::F32);
-        assert_eq!(TensorEntry::byte_len(&snapshot), 16);
-        assert_eq!(snapshot.param_id(), Some(id.val()));
+        let packed = PackTensor::from(snapshot);
+        assert_eq!(packed.name, "encoder.weight");
+        assert_eq!(packed.shape, shape![2, 2]);
+        assert_eq!(packed.dtype, DType::F32);
+        assert_eq!(packed.param_id, Some(id.val()));
+        assert_eq!(packed.byte_len(), 16);
+        assert!(
+            !packed.is_resident(),
+            "a snapshot must convert to a deferred tensor, not a materialized one"
+        );
     }
 
     /// A materialization failure must reach the caller with its class and its tensor intact:
@@ -131,7 +136,7 @@ mod tests {
         };
 
         let io = TensorSnapshotError::IoError("read failed".to_string());
-        let err = burn_pack::Writer::new(vec![failing(io)])
+        let err = burn_pack::Writer::new(vec![PackTensor::from(failing(io))])
             .into_bytes()
             .unwrap_err();
         assert!(
@@ -140,7 +145,7 @@ mod tests {
         );
 
         let panic = TensorSnapshotError::PanicError("device readback panicked".to_string());
-        let err = burn_pack::Writer::new(vec![failing(panic)])
+        let err = burn_pack::Writer::new(vec![PackTensor::from(failing(panic))])
             .into_bytes()
             .unwrap_err();
         assert!(
@@ -149,7 +154,7 @@ mod tests {
         );
     }
 
-    /// The whole point of the [`TensorEntry`] impl is that the writer can lay out a container
+    /// The whole point of the deferred conversion is that the writer can lay out a container
     /// without materializing anything, then draw one tensor at a time. burn-pack has its own
     /// tests for that, but against a test double: this one pins the shipped path, so that
     /// wiring `byte_len` to `to_data().bytes.len()` (the obvious "fix" if `data_len` ever
@@ -178,7 +183,15 @@ mod tests {
             .collect();
 
         // Planning reads only the cached metadata.
-        let size = burn_pack::Writer::new(snapshots.clone()).size().unwrap();
+        let size = burn_pack::Writer::new(
+            snapshots
+                .clone()
+                .into_iter()
+                .map(PackTensor::from)
+                .collect(),
+        )
+        .size()
+        .unwrap();
         assert!(size > 0);
         assert_eq!(
             calls.load(Ordering::Relaxed),
@@ -187,7 +200,9 @@ mod tests {
         );
 
         // Writing draws from each snapshot exactly once.
-        burn_pack::Writer::new(snapshots).into_bytes().unwrap();
+        burn_pack::Writer::new(snapshots.into_iter().map(PackTensor::from).collect())
+            .into_bytes()
+            .unwrap();
         assert_eq!(calls.load(Ordering::Relaxed), 3);
     }
 }

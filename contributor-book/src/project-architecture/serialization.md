@@ -54,22 +54,23 @@ A pack is read back with `burn_pack::Reader`, which yields `burn_pack::Tensor` e
 map. Tensor bytes stay lazy: a file-backed reader only touches the disk when an entry's data is
 actually used.
 
-A pack is written with `burn_pack::Writer`, which is symmetric about this. It accepts any
-`burn_pack::TensorEntry`, a trait pairing the format-level metadata with a `byte_len()` that must be
-answerable without the data. The writer reads those accessors only while planning, to compute every descriptor
-and offset, before any I/O, then draws `into_bytes()` once per tensor in write order, dropping each
-tensor's bytes before requesting the next. `Tensor` implements the trait for data that is already
-resident; `burn-store` implements it for `TensorSnapshot`, deferring each `to_data()` (and so each
-device readback) until the writer reaches that tensor. Paired with `Writer::write_to_file`, which
-streams to disk, saving a large module costs one tensor of host memory at a time rather than the
-whole set. The in-memory sinks (`into_bytes`, `write_into`) still build the container as a whole.
+A pack is written with `burn_pack::Writer`, which is symmetric about this, because laziness is a
+property of `Tensor` rather than of the writer's input. `Tensor::new` carries bytes that are already
+resident; `Tensor::deferred` carries a byte length plus a provider that yields the data on demand.
+The writer reads only the metadata while planning, to compute every descriptor and offset before any
+I/O, then calls each provider once in write order, dropping each tensor's bytes before requesting
+the next. `burn-store` converts a `TensorSnapshot` into a deferred tensor, so each `to_data()` (and
+so each device readback) waits until the writer reaches that tensor. Paired with
+`Writer::write_to_file`, which streams to disk, saving a large module costs one tensor of host
+memory at a time rather than the whole set. The in-memory sinks (`into_bytes`, `write_into`) still
+build the container as a whole.
 
-Because the offset table is committed from `byte_len()` before the bytes exist, a length that turns
-out to be wrong would misplace every later tensor. Two checks prevent that: planning rejects a
-`byte_len()` that disagrees with the entry's own shape and dtype, and the write pass rejects bytes
-whose length differs from what was reserved. Quantized tensors are exempt from the first, since
-their packed values and inline scales are not a product of shape and dtype; that exception is why
-`byte_len()` is a trait method rather than something the writer derives.
+Because the offset table is committed from the declared length before the bytes exist, a length that
+turns out to be wrong would misplace every later tensor. Two checks prevent that: planning rejects a
+length that disagrees with the tensor's own shape and dtype, and the write pass rejects bytes whose
+length differs from what was reserved. Quantized tensors are exempt from the first, since their
+packed values and inline scales are not a product of shape and dtype; that exception is why
+`Tensor::deferred` takes an explicit length rather than deriving one.
 
 `Writer::write_to_file` builds the container in a scratch file beside the destination and renames it
 into place only once it is complete. Because a lazy entry's bytes are produced mid-write, provider

@@ -12,7 +12,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_core::tensor::Bytes;
-use burn_pack::{Error as PackError, Reader, Writer};
+use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
 
 /// Store mode for BurnpackStore
 enum StoreMode {
@@ -368,9 +368,10 @@ impl ModuleStore for BurnpackStore {
         // Collect snapshots from module with adapter
         let snapshots = module.collect(self.filter.clone(), Some(self.to_adapter.clone()), false);
 
-        // Snapshots go to the writer as-is: nothing is materialized here, each snapshot's
+        // Nothing is materialized here: each snapshot becomes a deferred tensor whose
         // `to_data()` runs when the writer reaches it in the data section.
-        let mut writer = Writer::new(snapshots);
+        let tensors = snapshots.into_iter().map(PackTensor::from).collect();
+        let mut writer = Writer::new(tensors);
 
         // Add metadata using builder pattern
         for (key, value) in &self.metadata {
