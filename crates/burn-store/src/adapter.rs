@@ -11,8 +11,14 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
-use alloc::sync::Arc;
 use alloc::vec;
+
+// Matches the pointer [`DataFn`](crate::DataFn) uses: `alloc::sync` needs atomic CAS, and a
+// target without it has no threads to share a snapshot across.
+#[cfg(not(target_has_atomic = "ptr"))]
+use alloc::rc::Rc as Arc;
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
 
 use burn_core::tensor::shape;
 use burn_core::tensor::{DType, TensorData};

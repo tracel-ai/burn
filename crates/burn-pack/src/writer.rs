@@ -329,8 +329,8 @@ impl Writer {
     /// tensors so every tensor lands at its planned offset.
     ///
     /// `placements` was built by walking `self.tensors` in this same order, so zipping the
-    /// two pairs each entry with its own offset by construction. Offsets are never recovered
-    /// from the entry a second time, which is what keeps the plan and the write in step.
+    /// two pairs each tensor with its own offset by construction, with no lookup to get out
+    /// of step.
     fn write_tensors(self, placements: &[Placement], sink: &mut impl Sink) -> Result<(), Error> {
         // The zip below would silently drop tensors if the two ever diverged in length, and
         // that is a corrupt container; one integer comparison per write buys a loud abort
@@ -380,13 +380,10 @@ impl Writer {
     }
 }
 
-/// Where one tensor's bytes belong in the data section, recorded during planning.
-///
-/// Planning and writing are separate passes over the same `Vec<T>`, and only the first may
-/// touch the entries' accessors. Carrying the result forward means the second pass needs
-/// nothing from the entry but its bytes.
+/// Where one tensor's bytes belong in the data section, computed during planning and
+/// carried forward so the write pass needs nothing from the tensor but its bytes.
 struct Placement {
-    /// The tensor's name, for error messages after the entry has been consumed.
+    /// The tensor's name, for error messages after the tensor has been consumed.
     name: String,
     /// Aligned start, relative to the beginning of the data section.
     offset: usize,
@@ -408,8 +405,6 @@ struct Placement {
 /// host-resident, so [`Bytes::view`] reports it can't window them and the
 /// remaining bytes are written in a single pass.
 ///
-/// Free-standing rather than a method on [`Writer`]: it does not depend on the entry type,
-/// so this way it is compiled once per [`Sink`] instead of once per (entry type, sink) pair.
 fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
     let len = data.len();
     let mut offset = 0;

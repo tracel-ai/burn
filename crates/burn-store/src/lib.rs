@@ -93,7 +93,7 @@ pub use applier::Applier;
 pub use apply_result::{ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
-pub use tensor_snapshot::{TensorSnapshot, TensorSnapshotError};
+pub use tensor_snapshot::{DataFn, DataSource, TensorSnapshot, TensorSnapshotError};
 pub use traits::{ModuleSnapshot, ModuleStore};
 
 #[cfg(feature = "std")]

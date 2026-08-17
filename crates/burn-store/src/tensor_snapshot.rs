@@ -1,11 +1,49 @@
 use alloc::string::String;
 use alloc::string::ToString;
-use alloc::sync::Arc;
 use alloc::vec::Vec;
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+// `alloc::sync` needs atomic CAS. A target without it has no threads to share a snapshot
+// across, so reference counting need not be atomic; the `Send + Sync` bound on [`DataFn`]
+// still type-checks, it just buys nothing there.
+#[cfg(not(target_has_atomic = "ptr"))]
+use alloc::rc::Rc as Arc;
 use burn_core::module::ParamId;
 use burn_core::tensor::quantization::{QuantParam, params_shape};
 use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
 use half::f16;
+
+/// What a closure passed to [`TensorSnapshot::data_fn`] must satisfy.
+///
+/// `Send + Sync` on targets with threads, so a snapshot can back a deferred
+/// `burn_pack::Tensor`, whose provider must be `Send`: records holding one cross threads
+/// through burn-train's async checkpointer. A target without atomic CAS has no threads and no
+/// `alloc::sync`, so neither bound applies or can be met there.
+#[cfg(target_has_atomic = "ptr")]
+pub trait DataSource:
+    Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync + 'static
+{
+}
+#[cfg(target_has_atomic = "ptr")]
+impl<T> DataSource for T where
+    T: Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync + 'static
+{
+}
+
+#[cfg(not(target_has_atomic = "ptr"))]
+pub trait DataSource: Fn() -> Result<TensorData, TensorSnapshotError> + 'static {}
+#[cfg(not(target_has_atomic = "ptr"))]
+impl<T> DataSource for T where T: Fn() -> Result<TensorData, TensorSnapshotError> + 'static {}
+
+/// Lazily produces a [`TensorSnapshot`]'s data, shared so that cloning a snapshot is cheap.
+///
+/// Build one with [`TensorSnapshot::data_fn`] rather than naming the pointer type, which
+/// varies with the target's atomic support.
+#[cfg(target_has_atomic = "ptr")]
+pub type DataFn = Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync>;
+#[cfg(not(target_has_atomic = "ptr"))]
+pub type DataFn = Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>;
 
 /// Returns the byte size of a quantization parameter type.
 // TODO: Add `size_bytes()` method to `QuantParam` in cubecl and use it here.
@@ -49,8 +87,8 @@ impl core::error::Error for TensorSnapshotError {}
 /// The dtype and shape are cached for efficient access without requiring data materialization,
 /// which is particularly useful for serialization formats that need metadata upfront.
 pub struct TensorSnapshot {
-    /// Function to get tensor data when needed (Rc allows cloning)
-    data_fn: Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync>,
+    /// Produces the tensor data when needed. Shared, so cloning a snapshot is cheap.
+    data_fn: DataFn,
     /// Data type of the tensor (cached for efficient access)
     pub dtype: DType,
     /// Shape of the tensor (cached for efficient access)
@@ -127,7 +165,7 @@ impl TensorSnapshot {
     /// Convert to TensorData (this is where actual data copy happens)
     #[cfg(feature = "std")]
     pub fn to_data(&self) -> Result<TensorData, TensorSnapshotError> {
-        // Use AssertUnwindSafe since we're working with Rc which is not UnwindSafe
+        // Use AssertUnwindSafe: the shared `data_fn` pointer is not UnwindSafe
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.data_fn)())).unwrap_or_else(
             |_| {
                 Err(TensorSnapshotError::PanicError(
@@ -202,7 +240,7 @@ impl TensorSnapshot {
     /// Create a TensorSnapshot from a closure that produces TensorData
     /// This is used internally for lazy loading
     pub fn from_closure(
-        data_fn: Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync>,
+        data_fn: DataFn,
         dtype: DType,
         shape: Shape,
         path_stack: Vec<String>,
@@ -285,10 +323,16 @@ impl TensorSnapshot {
     }
 
     /// Clone the data function for lazy composition
-    pub fn clone_data_fn(
-        &self,
-    ) -> Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync> {
+    pub fn clone_data_fn(&self) -> DataFn {
         self.data_fn.clone()
+    }
+
+    /// Wrap a closure into the shared form [`from_closure`](Self::from_closure) takes.
+    ///
+    /// Use this rather than constructing the pointer directly: [`DataFn`] is `Arc`-based only
+    /// on targets with atomic CAS, and `Rc`-based elsewhere.
+    pub fn data_fn(f: impl DataSource) -> DataFn {
+        Arc::new(f)
     }
 }
 
@@ -592,8 +636,10 @@ mod tests {
     /// `data_fn` is an `Arc<dyn Fn + Send + Sync>` rather than an `Rc` so that snapshots can
     /// back a deferred [`burn_pack::Tensor`], whose byte provider must be `Send` because
     /// records containing one cross threads through burn-train's `Checkpoint: Send`.
-    /// Reverting the closure to `Rc`, or capturing something like a `Cell`, fails here.
+    /// Reverting the closure to a plain `Rc`, or capturing something like a `Cell`, fails
+    /// here.
     #[test]
+    #[cfg(target_has_atomic = "ptr")]
     fn snapshot_is_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<TensorSnapshot>();

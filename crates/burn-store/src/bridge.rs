@@ -7,7 +7,6 @@
 //! leaves a reader's (possibly file-backed) bytes unread until the snapshot is materialized.
 
 use alloc::string::{String, ToString};
-use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -65,19 +64,11 @@ impl From<PackTensor> for TensorSnapshot {
         let path_stack: Vec<String> = tensor.name.split('.').map(|s| s.to_string()).collect();
         let tensor_id = tensor.param_id.map(ParamId::from).unwrap_or_default();
 
-        let shape_for_closure = shape.clone();
-        let data_fn = Arc::new(move || {
-            // Cloning is cheap: a resident tensor's `Bytes` are refcounted, so this shares
-            // the reader's buffer rather than copying it.
+        let data_fn = TensorSnapshot::data_fn(move || {
             let bytes = tensor
-                .clone()
-                .into_bytes()
+                .bytes()
                 .map_err(|e| TensorSnapshotError::IoError(e.to_string()))?;
-            Ok(TensorData::from_bytes(
-                bytes,
-                shape_for_closure.clone(),
-                dtype,
-            ))
+            Ok(TensorData::from_bytes(bytes, tensor.shape.clone(), dtype))
         });
 
         TensorSnapshot::from_closure(data_fn, dtype, shape, path_stack, vec![], tensor_id)
@@ -88,6 +79,8 @@ impl From<PackTensor> for TensorSnapshot {
 mod tests {
     use super::*;
     use alloc::string::ToString;
+    // Tests only build for std targets, so the atomic pointer is always available here.
+    use alloc::sync::Arc;
     use burn_core::tensor::{DType, Tensor, shape};
 
     #[test]
@@ -107,11 +100,9 @@ mod tests {
         assert_eq!(packed.shape, shape![2, 2]);
         assert_eq!(packed.dtype, DType::F32);
         assert_eq!(packed.param_id, Some(id.val()));
+        // That the conversion defers rather than materializes is pinned behaviourally by
+        // `writing_snapshots_materializes_each_one_once_and_only_while_writing` below.
         assert_eq!(packed.byte_len(), 16);
-        assert!(
-            !packed.is_resident(),
-            "a snapshot must convert to a deferred tensor, not a materialized one"
-        );
     }
 
     /// A materialization failure must reach the caller with its class and its tensor intact:

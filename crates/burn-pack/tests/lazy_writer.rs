@@ -85,7 +85,7 @@ fn entries(log: &Log) -> Vec<LazyEntry> {
     ]
 }
 
-fn build(entries: Vec<LazyEntry>) -> Vec<Tensor> {
+fn deferred_tensors(entries: Vec<LazyEntry>) -> Vec<Tensor> {
     entries.into_iter().map(LazyEntry::build).collect()
 }
 
@@ -96,7 +96,7 @@ fn materialized(log: &Log) -> Vec<String> {
 #[test]
 fn planning_the_layout_materializes_nothing() {
     let log = Log::default();
-    let writer = Writer::new(build(entries(&log)));
+    let writer = Writer::new(deferred_tensors(entries(&log)));
 
     // `size()` builds the descriptors and the whole offset table.
     let size = writer.size().unwrap();
@@ -112,7 +112,9 @@ fn planning_the_layout_materializes_nothing() {
 #[test]
 fn each_tensor_materializes_once_in_write_order() {
     let log = Log::default();
-    Writer::new(build(entries(&log))).into_bytes().unwrap();
+    Writer::new(deferred_tensors(entries(&log)))
+        .into_bytes()
+        .unwrap();
 
     assert_eq!(materialized(&log), ["a", "b", "c"]);
 }
@@ -129,7 +131,7 @@ fn deferred_and_resident_tensors_produce_identical_containers() {
         .map(|e| f32_tensor(&e.name, &e.values, &e.shape.to_vec(), None))
         .collect();
 
-    let from_lazy = Writer::new(build(lazy)).into_bytes().unwrap();
+    let from_lazy = Writer::new(deferred_tensors(lazy)).into_bytes().unwrap();
     let from_eager = Writer::new(eager).into_bytes().unwrap();
 
     assert_eq!(&from_lazy[..], &from_eager[..]);
@@ -250,7 +252,7 @@ fn a_failing_provider_leaves_no_file_behind() {
     let mut entries = entries(&log);
     entries.last_mut().unwrap().fails = true;
 
-    Writer::new(build(entries))
+    Writer::new(deferred_tensors(entries))
         .write_to_file(&dest)
         .unwrap_err();
 
@@ -269,14 +271,14 @@ fn a_failed_write_leaves_an_existing_file_intact() {
 
     // A valid container already at the destination.
     let log = Log::default();
-    Writer::new(build(entries(&log)))
+    Writer::new(deferred_tensors(entries(&log)))
         .write_to_file(&dest)
         .unwrap();
     let original = std::fs::read(&dest).unwrap();
 
     let mut entries = entries(&log);
     entries.last_mut().unwrap().fails = true;
-    Writer::new(build(entries))
+    Writer::new(deferred_tensors(entries))
         .write_to_file(&dest)
         .unwrap_err();
 
@@ -297,7 +299,7 @@ fn a_failed_rename_leaves_no_scratch_file() {
     std::fs::create_dir(&dest).unwrap();
 
     let log = Log::default();
-    Writer::new(build(entries(&log)))
+    Writer::new(deferred_tensors(entries(&log)))
         .write_to_file(&dest)
         .unwrap_err();
 
@@ -318,7 +320,7 @@ fn a_successful_write_replaces_an_existing_file() {
     Writer::new(vec![LazyEntry::new("old", [4], 1.0, &log).build()])
         .write_to_file(&dest)
         .unwrap();
-    Writer::new(build(entries(&log)))
+    Writer::new(deferred_tensors(entries(&log)))
         .write_to_file(&dest)
         .unwrap();
 

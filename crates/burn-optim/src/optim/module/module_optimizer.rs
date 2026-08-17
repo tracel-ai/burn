@@ -274,13 +274,11 @@ impl ModuleOptimizer {
             let id = tensor
                 .param_id
                 .expect("Optimizer record tensors should carry a parameter id.");
-            let (name, shape, dtype) = (tensor.name.clone(), tensor.shape.clone(), tensor.dtype);
-            // Infallible: record tensors are always resident.
-            let bytes = tensor.into_bytes().expect("record tensors are resident");
-            let data = TensorData::from_bytes(bytes, shape, dtype);
+            let bytes = tensor.bytes().expect("record tensors are resident");
+            let data = TensorData::from_bytes(bytes, tensor.shape, tensor.dtype);
             // Fall back to inferring rank from a tensor shape if no `__rank` scalar was present.
             ranks.entry(id).or_insert(data.shape.len());
-            source.insert_tensor(name, data);
+            source.insert_tensor(tensor.name, data);
         }
 
         let mut states = HashMap::new();

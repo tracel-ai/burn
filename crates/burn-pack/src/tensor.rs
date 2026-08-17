@@ -10,24 +10,54 @@
 //! save a model without holding all of it in memory.
 
 use alloc::string::String;
+
+#[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
+// `alloc::sync` needs atomic CAS. A target without it has no threads to share a tensor
+// across, so reference counting need not be atomic; the `Send + Sync` bound below still
+// type-checks, it just buys nothing there.
+#[cfg(not(target_has_atomic = "ptr"))]
+use alloc::rc::Rc as Arc;
 
 use burn_std::{Bytes, DType, Shape};
 
 use crate::base::Error;
 
-/// Produces a deferred tensor's bytes when the writer reaches it.
+/// What a deferred tensor's byte provider must satisfy.
 ///
-/// `Send + Sync` because a [`Tensor`] must stay so: records holding one cross threads through
-/// burn-train's async checkpointer. `Arc` rather than `Box<dyn FnOnce>` so [`Tensor`] stays
-/// [`Clone`], which the reader-facing API relies on.
+/// `Send` on targets with threads, because a [`Tensor`] must stay `Send`: an optimizer record
+/// holds a `Vec` of them and crosses threads through burn-train's async checkpointer, whose
+/// `Checkpoint` bound is `Send`. `Sync` follows from sharing the provider in an `Arc`
+/// (`Arc<T>: Send` requires `T: Send + Sync`), and that sharing is what keeps [`Tensor`]
+/// [`Clone`]. A target without atomic CAS has no threads and no `alloc::sync`, so neither
+/// bound applies or can be met there.
+#[cfg(target_has_atomic = "ptr")]
+pub trait ByteSource: Fn() -> Result<Bytes, Error> + Send + Sync + 'static {}
+#[cfg(target_has_atomic = "ptr")]
+impl<T> ByteSource for T where T: Fn() -> Result<Bytes, Error> + Send + Sync + 'static {}
+
+#[cfg(not(target_has_atomic = "ptr"))]
+pub trait ByteSource: Fn() -> Result<Bytes, Error> + 'static {}
+#[cfg(not(target_has_atomic = "ptr"))]
+impl<T> ByteSource for T where T: Fn() -> Result<Bytes, Error> + 'static {}
+
+/// Shared handle to a [`ByteSource`], kept behind a pointer so [`Tensor`] stays [`Clone`].
+#[cfg(target_has_atomic = "ptr")]
 type Provider = Arc<dyn Fn() -> Result<Bytes, Error> + Send + Sync>;
+#[cfg(not(target_has_atomic = "ptr"))]
+type Provider = Arc<dyn Fn() -> Result<Bytes, Error>>;
 
 /// Where a tensor's bytes come from.
 ///
 /// The distinction is invisible to readers of the container: both variants describe the same
 /// `byte_len` bytes at the same offset. It matters only to the writer, which plans the whole
 /// container from lengths alone and then draws the data one tensor at a time.
+///
+/// [`Bytes`] is itself already lazy about the *copy* - a file-backed or device-backed buffer
+/// reports its length without materializing and only reads on access - so `Resident` bytes
+/// are not necessarily in host memory. `Deferred` defers a step earlier: the call that would
+/// produce the `Bytes` at all. Converting a whole model eagerly would submit every device
+/// readback up front even if each returned a lazy buffer, which is what this avoids.
 #[derive(Clone)]
 enum Source {
     /// Bytes already in hand.
@@ -83,10 +113,11 @@ impl Tensor {
     ///
     /// `byte_len` must equal the length of the [`Bytes`] `provider` eventually returns, since
     /// [`Writer`](crate::Writer) reserves exactly that much space in the data section before
-    /// calling it. Two checks enforce it, because getting it wrong would misplace every later
-    /// tensor: one while planning, against `shape` and `dtype` (skipped for quantized data,
-    /// whose length is not a product of the two), and one while writing, against the bytes
-    /// actually produced.
+    /// calling it. Getting it wrong would misplace every later tensor, so it is checked twice:
+    /// while planning, against `shape` and `dtype`, and while writing, against the bytes
+    /// actually produced. Quantized data is exempt from the first, its length being packed
+    /// values plus inline scales rather than a product of the two, so there the write-time
+    /// check is the only guard.
     ///
     /// `provider` runs at most once per write, when the writer reaches this tensor, and its
     /// result is dropped before the next tensor's is requested. Producing the data there -
@@ -98,7 +129,7 @@ impl Tensor {
         shape: impl Into<Shape>,
         param_id: Option<u64>,
         byte_len: usize,
-        provider: impl Fn() -> Result<Bytes, Error> + Send + Sync + 'static,
+        provider: impl ByteSource,
     ) -> Self {
         Self {
             name,
@@ -120,9 +151,18 @@ impl Tensor {
         }
     }
 
-    /// Whether the bytes are already in memory, as opposed to produced on demand.
-    pub fn is_resident(&self) -> bool {
-        matches!(self.source, Source::Resident(_))
+    /// The tensor's raw little-endian bytes, producing them if deferred.
+    ///
+    ///
+    /// Leaves the tensor intact, so the metadata stays reachable afterwards. Resident bytes
+    /// are cloned, which is a refcount bump for the shared and file-backed buffers a
+    /// [`Reader`](crate::Reader) hands out but a copy for a plain heap buffer; prefer
+    /// [`into_bytes`](Self::into_bytes) where the tensor is no longer needed.
+    pub fn bytes(&self) -> Result<Bytes, Error> {
+        match &self.source {
+            Source::Resident(bytes) => Ok(bytes.clone()),
+            Source::Deferred { provider, .. } => provider(),
+        }
     }
 
     /// Take the tensor's raw little-endian bytes, producing them if deferred.
