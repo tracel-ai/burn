@@ -6,7 +6,9 @@ use cubecl::{
     ir::{ElemType, FloatKind, UIntKind},
     prelude::*,
 };
-use cubek::quantization::{dequantize::dequantize_symmetric_packed_value_at, scheme::QuantMode};
+use cubek::quantization::{
+    dequantize::dequantize_symmetric_packed_value_at, scale::Scales, scheme::QuantMode,
+};
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -1003,15 +1005,9 @@ fn dequantize<C: Float, N: Size>(
             other => panic!("{other:?} doesn't support native packing"),
         },
     }];
-    let param_ty = comptime![match scheme.param {
-        cubecl::quant::scheme::QuantParam::F32 => ElemType::Float(FloatKind::F32),
-        cubecl::quant::scheme::QuantParam::F16 => ElemType::Float(FloatKind::F16),
-        cubecl::quant::scheme::QuantParam::BF16 => ElemType::Float(FloatKind::BF16),
-        cubecl::quant::scheme::QuantParam::UE8M0 => ElemType::Float(FloatKind::UE8M0),
-        cubecl::quant::scheme::QuantParam::UE4M3 => ElemType::Float(FloatKind::E4M3),
-    }];
+    let scale_ty = comptime![ElemType::from_scale_dtype(scheme.scale_dtype())];
     let define!(QStoreType) = quant_ty;
-    let define!(QParamType) = param_ty;
+    let define!(QScaleType) = scale_ty;
     let size!(NumQuant) = scheme.num_quants();
 
     let tensor_pos = comptime!(match input {
@@ -1026,8 +1022,10 @@ fn dequantize<C: Float, N: Size>(
     let num_quants = scheme.num_quants();
 
     set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
-    let scales =
-        input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
+    let grid =
+        input_as_scales_view::<QScaleType, Const<1>>(inputs, pos, tensor_pos, scheme, config);
+    // A two-level scheme never reaches a fused kernel, so there is no per-tensor scale to apply.
+    let scales = Scales::<QScaleType>::new(&grid, ComptimeOption::new_None());
 
     let mut vector = Vector::empty();
     let packed_dim = comptime![match scheme.store {
@@ -1044,7 +1042,7 @@ fn dequantize<C: Float, N: Size>(
         let result = dequantize_symmetric_packed_value_at::<
             C,
             NumQuant,
-            QParamType,
+            QScaleType,
             QStoreType,
             QStoreSize,
         >(write_pos * num_quants, input, &scales, scheme);
@@ -1094,7 +1092,7 @@ fn dequantize<C: Float, N: Size>(
             let result = dequantize_symmetric_packed_value_at::<
                 C,
                 NumQuant,
-                QParamType,
+                QScaleType,
                 QStoreType,
                 Const<1>,
             >(logical_position, input, &scales, scheme);

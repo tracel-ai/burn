@@ -79,7 +79,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let precision_scales = params.dtype.into();
 
                     let global_shape = tensor_global.shape.clone();
-                    let shape_params = params_shape(&global_shape, scheme.level);
+                    let shape_params = params_shape(&global_shape, &scheme);
                     plan.handle_inputs
                         .push(HandleInput::QuantValues(QuantValuesHandleInput {
                             relative_id: tensor_relative.id,

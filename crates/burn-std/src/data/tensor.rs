@@ -13,8 +13,7 @@ use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
-    BoolStore, Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Shape, bf16,
-    f16,
+    BoolStore, Bytes, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Shape, bf16, f16,
 };
 
 use serde::{Deserialize, Serialize};
@@ -74,11 +73,12 @@ impl TensorData {
         shape: S,
         scheme: QuantScheme,
         qparams: &[f32],
+        global: Option<f32>,
     ) -> Self {
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
 
-        let q_bytes = QuantizedBytes::new(value, scheme, qparams);
+        let q_bytes = QuantizedBytes::new(value, scheme, qparams, global);
 
         Self {
             bytes: q_bytes.bytes,
@@ -297,7 +297,6 @@ impl TensorData {
                 ),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::Q8F
@@ -326,19 +325,12 @@ impl TensorData {
                         )
                     }
                     QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
                         ..
                     } => {
                         unimplemented!("Not yet implemented for iteration");
-                    }
-                    QuantScheme {
-                        level: QuantLevel::BlockTensor { .. },
-                        ..
-                    } => {
-                        unimplemented!("two-level quantization is not supported yet")
                     }
                 },
             }
@@ -747,7 +739,6 @@ impl core::fmt::Display for TensorData {
             DType::Bool(BoolStore::U32) => format!("{:?}", self.as_slice::<u32>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     value:
                         QuantValue::Q8F
@@ -762,7 +753,6 @@ impl core::fmt::Display for TensorData {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 },
                 QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
@@ -770,12 +760,6 @@ impl core::fmt::Display for TensorData {
                     } => {
                         unimplemented!("Can't format yet");
                     }
-                QuantScheme {
-                    level: QuantLevel::BlockTensor { .. },
-                    ..
-                } => {
-                    unimplemented!("two-level quantization is not supported yet")
-                }
             },
         };
         f.write_str(fmt.as_str())

@@ -5,6 +5,7 @@ pub use parameters::*;
 pub use scheme::*;
 
 pub use burn_std::quantization::{
-    BlockSize, Calibration, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme,
-    QuantStore, QuantValue, QuantizedBytes, scale_to_param,
+    BlockScale, BlockSize, Calibration, QuantMode, QuantPropagation, QuantScheme, QuantStore,
+    QuantValue, QuantizedBytes, ScaleDtype, global_scale_dtype, levels_supported, scale_to_dtype,
+    validate_levels,
 };

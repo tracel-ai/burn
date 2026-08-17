@@ -7,7 +7,7 @@ use crate::engine::codegen::{
 use cubecl::{
     intrinsic,
     prelude::*,
-    quant::scheme::{QuantLevel, QuantScheme},
+    quant::scheme::QuantScheme,
     std::{
         FastDivmod,
         quant::{
@@ -293,12 +293,13 @@ fn global_view<E: CubePrimitive>(
     match comptime![arg.clone()] {
         MatmulArg::Normal(_) => View::new::<GlobalInput, Coords1d>(data_buf, data_layout),
         MatmulArg::Quantized { scales, scheme, .. } => {
-            let scales_layout = match comptime![scheme.level] {
-                QuantLevel::BlockTensor { .. } => {
-                    unimplemented!("two-level quantization is not supported yet")
-                }
-                QuantLevel::Tensor => GlobalScaleLayout::new_PerTensor(shape),
-                QuantLevel::Block(block_size) => {
+            comptime!(assert!(
+                burn_std::quantization::global_scale_dtype(&scheme).is_none(),
+                "two-level quantization is not supported in fused matmul yet"
+            ));
+            let scales_layout = match comptime![scheme.block_size()] {
+                None => GlobalScaleLayout::new_PerTensor(shape),
+                Some(block_size) => {
                     let block_size = comptime![block_size.as_dim::<2>()];
 
                     let scales_arg = comptime![MatmulArg::Normal(scales.clone())];
@@ -469,9 +470,9 @@ fn create_quant_view<E: Numeric, N: Size, Q: Scalar, S: Scalar>(
         View::new::<GlobalInput, Coords1d>(data_buf, data_layout);
     let scales_view: View<S, BatchedCoords> =
         View::new::<GlobalInput, Coords1d>(scales_buf, scales_layout);
-    // No per-tensor scale on top of the block scales: two-level schemes are rejected where the
-    // scale layout is built, so there is never a second factor to fold in here.
-    QuantizedView::new(data_view, scales_view, ComptimeOption::new_None(), scheme).view()
+    // One binding: two-level schemes are rejected where the scale layout is built, so there is
+    // never a per-tensor scale to fold in here.
+    QuantizedView::new(data_view, scales_view, scheme).view()
 }
 
 #[derive(CubeType)]
