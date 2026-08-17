@@ -6,7 +6,7 @@ use burn_backend::{
     quantization::{
         BlockSize, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
         QuantizationParametersPrimitive, QuantizedBytes, global_scale_dtype, params_shape,
-        scale_to_dtype, validate_levels,
+        scale_to_dtype,
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -26,7 +26,6 @@ impl QTensorOps<Self> for NdArray {
     fn q_from_data(data: TensorData, _device: &NdArrayDevice) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => {
-                validate_levels(&scheme);
                 let shape = data.shape.clone();
                 let num_elements = data.num_elements();
                 let q_bytes = QuantizedBytes {
@@ -82,7 +81,6 @@ impl QTensorOps<Self> for NdArray {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        validate_levels(scheme);
         let shape = tensor.shape();
         let data_f = tensor.into_data();
         let scales = qparams.scales.into_data().convert::<f32>();

@@ -109,6 +109,13 @@ fn normalize_scales<B: Backend>(
     scales: B::FloatTensorPrimitive,
     block_dtype: ScaleDtype,
 ) -> (B::FloatTensorPrimitive, B::FloatTensorPrimitive) {
+    // Dividing by the block dtype's maximum is what lands the largest block scale exactly on it,
+    // so a dtype whose maximum reaches f32's range drives the per-tensor scale subnormal instead.
+    assert!(
+        block_dtype.max_representable() <= burn_std::f16::MAX.to_f32(),
+        "block scales in {block_dtype:?} reach f32's range, which a per-tensor scale cannot absorb"
+    );
+
     let dtype = scales.dtype().into();
     let scales_f32 = B::float_cast(scales, FloatDType::F32);
 

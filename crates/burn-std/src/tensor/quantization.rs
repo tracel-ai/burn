@@ -105,36 +105,26 @@ pub struct QParamTensor {
     pub dtype: DType,
 }
 
-/// Panic unless the scheme's levels are ones a backend can quantize against.
-pub fn validate_levels(scheme: &QuantScheme) {
-    if let Some(problem) = level_problem(scheme) {
-        panic!("{problem}, got {scheme:?}");
-    }
-}
-
-/// Whether the scheme's levels are ones a backend can quantize against.
+/// Whether a backend can quantize against this scheme's scales.
 ///
-/// A backend reporting what it supports wants this rather than [`validate_levels`], so that an
-/// unsupported scheme is declined where it is chosen instead of panicking at the first quantize.
-pub fn levels_supported(scheme: &QuantScheme) -> bool {
-    level_problem(scheme).is_none()
-}
-
-fn level_problem(scheme: &QuantScheme) -> Option<&'static str> {
-    let block = scheme.block_scale()?;
-    let global = global_scale_dtype(scheme)?;
-
-    if global != ScaleDtype::F32 {
-        // Any precision the per-tensor scale loses becomes a mismatch on every block.
-        return Some("a two-level scheme currently requires an f32 per-tensor scale");
+/// A backend answers `supports_dtype` with this, so an unsupported scheme is declined where it is
+/// chosen rather than at the first quantize. Each condition is asserted again where it is relied
+/// on, so bypassing this reports the specific rule rather than this general one.
+pub fn quantizable(scheme: &QuantScheme) -> bool {
+    // Quantizing divides by the scale it will store, which needs the round-up rule.
+    if scheme.scale_dtype().round_up(1.0).is_none() {
+        return false;
     }
 
-    if block.dtype.max_representable() > crate::f16::MAX.to_f32() {
-        // Block scales reaching close to f32's range drive the per-tensor scale subnormal.
-        return Some("a two-level scheme needs block scales narrower than f32");
+    match (scheme.block_scale(), global_scale_dtype(scheme)) {
+        (Some(block), Some(global)) => {
+            // The per-tensor scale is the largest block scale over the block dtype's maximum, so a
+            // block dtype reaching f32's range drives it subnormal. Any precision the per-tensor
+            // scale itself loses becomes a mismatch applied to every block.
+            block.dtype.max_representable() <= crate::f16::MAX.to_f32() && global == ScaleDtype::F32
+        }
+        _ => true,
     }
-
-    None
 }
 
 /// The dtype of the per-tensor scale block scales are normalized against, for a two-level scheme.
@@ -204,7 +194,13 @@ impl QuantizedBytes {
         // Last, so a reader can peel it off the end before the block scales it normalizes.
         match (global_scale_dtype(&scheme), global) {
             (Some(dtype), Some(global)) => {
-                validate_levels(&scheme);
+                // Encoding the per-tensor scale narrower would round it, and the block scales were
+                // normalized against the unrounded one.
+                assert_eq!(
+                    dtype,
+                    ScaleDtype::F32,
+                    "a two-level scheme stores its per-tensor scale as f32, got {scheme:?}"
+                );
                 let global_bytes = encode_scales(&[global], dtype);
                 bytes.extend_from_byte_slice_aligned(global_bytes.as_slice(), QPARAM_ALIGN);
             }
@@ -615,15 +611,51 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "needs block scales narrower than f32")]
-    fn two_level_scheme_with_f32_block_scales_is_rejected() {
+    #[should_panic(expected = "stores its per-tensor scale as f32")]
+    fn a_narrower_per_tensor_scale_is_rejected() {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([4], ScaleDtype::F32)
-            .per_tensor(ScaleDtype::F32);
+            .per_block([4], ScaleDtype::UE4M3)
+            .per_tensor(ScaleDtype::F16);
 
         QuantizedBytes::new(vec![0i8; 8], scheme, &[0.5, 0.125], Some(3.0));
+    }
+
+    /// What a backend answers `supports_dtype` with, so a scheme it declines here is one no path
+    /// reaches: each of these panics further in, where the rule is relied on.
+    #[test]
+    fn quantizable_declines_what_no_backend_can_store() {
+        assert!(quantizable(&QuantScheme::default()));
+        assert!(quantizable(
+            &QuantScheme::default().per_block([4], ScaleDtype::F16)
+        ));
+        assert!(quantizable(
+            &QuantScheme::default()
+                .per_block([4], ScaleDtype::UE4M3)
+                .per_tensor(ScaleDtype::F32)
+        ));
+
+        // No round-up rule, so quantizing cannot store the scale it divides by.
+        assert!(!quantizable(
+            &QuantScheme::default().per_block([4], ScaleDtype::UE8M0)
+        ));
+        assert!(!quantizable(
+            &QuantScheme::default().per_tensor(ScaleDtype::UE8M0)
+        ));
+
+        // Block scales reaching f32's range leave the per-tensor scale subnormal, and a narrower
+        // per-tensor scale rounds away precision every block was normalized against.
+        assert!(!quantizable(
+            &QuantScheme::default()
+                .per_block([4], ScaleDtype::F32)
+                .per_tensor(ScaleDtype::F32)
+        ));
+        assert!(!quantizable(
+            &QuantScheme::default()
+                .per_block([4], ScaleDtype::UE4M3)
+                .per_tensor(ScaleDtype::BF16)
+        ));
     }
 
     /// `scale_size` is what the readers use to locate the scales in the buffer, so an encoding

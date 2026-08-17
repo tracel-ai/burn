@@ -5,7 +5,6 @@ use burn_backend::{
     quantization::{
         QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
         QuantizationParametersPrimitive, ScaleDtype, global_scale_dtype, params_shape,
-        validate_levels,
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
@@ -75,8 +74,6 @@ fn new_quantized<R: CubeRuntime>(
     data: Option<Bytes>,
     alloc_kind: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
-    validate_levels(&scheme);
-
     let client = R::client(device);
     let shape: Shape = shape.into();
     let mut shape_value: Shape = shape.clone();
@@ -125,8 +122,15 @@ fn new_quantized<R: CubeRuntime>(
         MemoryLayoutDescriptor::new(alloc_kind, scales_shape.clone(), scales_dtype.size());
 
     let global_shape = Shape::new([1]);
-    // validate_levels above guarantees any per-tensor scale over blocks is f32.
-    let global_dtype = global_scale_dtype(&scheme).map(|_| DType::F32);
+    let global_dtype = global_scale_dtype(&scheme).map(|dtype| {
+        // The region is f32-sized and the kernels bind it as f32.
+        assert_eq!(
+            dtype,
+            ScaleDtype::F32,
+            "a two-level scheme binds its per-tensor scale as f32, got {scheme:?}"
+        );
+        DType::F32
+    });
     let global_desc = global_dtype
         .map(|dtype| MemoryLayoutDescriptor::new(alloc_kind, global_shape.clone(), dtype.size()));
 

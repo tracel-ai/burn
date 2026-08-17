@@ -4,7 +4,7 @@ use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
     TensorData,
 };
-use burn_std::{BoolStore, DType, quantization::levels_supported};
+use burn_std::{BoolStore, DType, quantization::quantizable};
 use cubecl::{
     client::ComputeClient,
     features::{MmaConfig, TypeUsage},
@@ -25,7 +25,7 @@ fn qfloat_params_usable<R: CubeRuntime>(client: &ComputeClient<R>, dtype: DType)
         return true;
     };
 
-    levels_supported(&scheme)
+    quantizable(&scheme)
         && client
             .properties()
             .type_usage(ElemType::from_scale_dtype(scheme.scale_dtype()))

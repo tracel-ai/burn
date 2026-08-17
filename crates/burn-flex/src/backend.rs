@@ -156,7 +156,7 @@ impl Backend for Flex {
             }
             DType::Bool(burn_std::BoolStore::U32) => DTypeUsageSet::empty(),
             // Quantized types: storage only for now
-            DType::QFloat(scheme) if burn_std::quantization::levels_supported(&scheme) => {
+            DType::QFloat(scheme) if burn_std::quantization::quantizable(&scheme) => {
                 DTypeUsage::Storage.into()
             }
             DType::QFloat(_) => DTypeUsageSet::empty(),

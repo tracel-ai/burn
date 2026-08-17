@@ -1,9 +1,7 @@
 use crate::rand::NdArrayRng;
 use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
-use burn_backend::quantization::{
-    QuantMode, QuantScheme, QuantStore, QuantValue, levels_supported,
-};
+use burn_backend::quantization::{QuantMode, QuantScheme, QuantStore, QuantValue, quantizable};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
@@ -116,7 +114,7 @@ impl Backend for NdArray {
                         store: QuantStore::Native,
                         ..
                     // The value and store alone do not say which levels `quantize` will accept.
-                    } if levels_supported(&scheme) => burn_backend::DTypeUsage::general(),
+                    } if quantizable(&scheme) => burn_backend::DTypeUsage::general(),
                     _scheme => burn_backend::DTypeUsageSet::empty(),
                 }
             }
