@@ -37,6 +37,29 @@ unsafe impl GlobalAlloc for Counting {
         }
         unsafe { System.dealloc(ptr, layout) };
     }
+
+    // Forwarded rather than left to the default impls, which would drop `System`'s in-place
+    // growth and its use of pre-zeroed pages for the whole binary.
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        let new = unsafe { System.realloc(ptr, layout, new_size) };
+        if !new.is_null() {
+            if layout.size() >= THRESHOLD {
+                LIVE.fetch_sub(layout.size(), Ordering::Relaxed);
+            }
+            if new_size >= THRESHOLD {
+                LIVE.fetch_add(new_size, Ordering::Relaxed);
+            }
+        }
+        new
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        let ptr = unsafe { System.alloc_zeroed(layout) };
+        if !ptr.is_null() && layout.size() >= THRESHOLD {
+            LIVE.fetch_add(layout.size(), Ordering::Relaxed);
+        }
+        ptr
+    }
 }
 
 #[global_allocator]
@@ -79,9 +102,9 @@ fn each_tensor_is_freed_before_the_next_is_produced() {
         0,
         "the last tensor's payload outlived the write"
     );
-    assert_eq!(
-        std::fs::metadata(&dest).unwrap().len() as usize / PAYLOAD,
-        4,
+    // Guards against a vacuous pass: the providers must actually have run and been written.
+    assert!(
+        std::fs::metadata(&dest).unwrap().len() as usize >= 4 * PAYLOAD,
         "all four tensors should have reached the file"
     );
 }

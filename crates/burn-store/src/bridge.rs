@@ -65,11 +65,9 @@ impl From<PackTensor> for TensorSnapshot {
         let tensor_id = tensor.param_id.map(ParamId::from).unwrap_or_default();
 
         let data_fn = TensorSnapshot::data_fn(move || {
-            let bytes = tensor.bytes().map_err(|e| match e {
-                // Same reasoning as the save direction above, in reverse: only a genuine read
-                // failure is an I/O error. A malformed container or a length that disagrees
-                // with its descriptor is a data problem, and reporting it as I/O sends the
-                // reader looking at their disk.
+            // Classified as in the save direction above, in reverse: here the non-I/O cases
+            // are a malformed container or a length disagreeing with its descriptor.
+            let bytes = tensor.to_bytes().map_err(|e| match e {
                 PackError::IoError(message) => TensorSnapshotError::IoError(message),
                 other => TensorSnapshotError::DataError(other.to_string()),
             })?;

@@ -274,10 +274,8 @@ impl ModuleOptimizer {
             let id = tensor
                 .param_id
                 .expect("Optimizer record tensors should carry a parameter id.");
-            // Hoist the metadata so the bytes can be moved out rather than cloned: these
-            // tensors carry plain heap buffers, which `bytes()` would deep-copy.
-            let (name, shape, dtype) = (tensor.name.clone(), tensor.shape.clone(), tensor.dtype);
-            let bytes = tensor.into_bytes().expect("record tensors are resident");
+            let (name, dtype, shape, _, bytes) =
+                tensor.into_parts().expect("record tensors are resident");
             let data = TensorData::from_bytes(bytes, shape, dtype);
             // Fall back to inferring rank from a tensor shape if no `__rank` scalar was present.
             ranks.entry(id).or_insert(data.shape.len());

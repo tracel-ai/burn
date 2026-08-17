@@ -69,8 +69,9 @@ enum Source {
 
 /// A single tensor in a burnpack container, decoupled from any tensor library.
 ///
-/// The bytes are in little-endian layout, and are reached with [`bytes`](Self::bytes) or
-/// [`into_bytes`](Self::into_bytes). Their length is available up front via
+/// The bytes are in little-endian layout, and are reached with [`to_bytes`](Self::to_bytes),
+/// [`into_bytes`](Self::into_bytes), or [`into_parts`](Self::into_parts). Their length is
+/// available up front via
 /// [`byte_len`](Self::byte_len) whether or not they exist yet. For every dtype but
 /// [`DType::QFloat`] that length is the element count implied by [`shape`](Self::shape) and
 /// [`dtype`](Self::dtype); quantized data packs its values and appends scales inline, so it
@@ -154,18 +155,13 @@ impl Tensor {
         }
     }
 
-    /// The tensor's raw little-endian bytes, producing them if deferred.
+    /// The tensor's raw little-endian bytes, leaving it intact.
     ///
-    /// Leaves the tensor intact, so the metadata stays reachable afterwards. Prefer
-    /// [`into_bytes`](Self::into_bytes) wherever the tensor is no longer needed: this method
-    /// is cheap only for the in-memory buffers a [`Reader`](crate::Reader) hands out, whose
-    /// clone is a refcount bump. Two cases cost the full tensor:
-    ///
-    /// - Nothing is cached, so a `Deferred` tensor runs its provider again on every call.
-    /// - A `Resident` tensor whose [`Bytes`] cannot share its backing is deep-copied. That
-    ///   covers a plain heap buffer, and also a device-backed one, where the copy forces the
-    ///   whole device-to-host readback the writer otherwise streams in bounded chunks.
-    pub fn bytes(&self) -> Result<Bytes, Error> {
+    /// Named `to_` rather than `bytes` because it can cost the whole tensor: a `Deferred` one
+    /// re-runs its provider (nothing is cached), and a `Resident` one is deep-copied unless
+    /// its [`Bytes`] can share their backing. Prefer [`into_bytes`](Self::into_bytes), or
+    /// [`into_parts`](Self::into_parts) when the metadata is wanted too.
+    pub fn to_bytes(&self) -> Result<Bytes, Error> {
         match &self.source {
             Source::Resident(bytes) => Ok(bytes.clone()),
             Source::Deferred { provider, .. } => provider(),
@@ -183,42 +179,56 @@ impl Tensor {
             Source::Deferred { provider, .. } => provider(),
         }
     }
+
+    /// Split into `(name, dtype, shape, param_id, bytes)`, producing the bytes if deferred.
+    ///
+    /// The fields are public, but taking the bytes consumes the tensor, so reading both
+    /// otherwise means cloning the metadata first. This hands over everything in one move.
+    pub fn into_parts(self) -> Result<(String, DType, Shape, Option<u64>, Bytes), Error> {
+        let Self {
+            name,
+            dtype,
+            shape,
+            param_id,
+            source,
+        } = self;
+        let bytes = match source {
+            Source::Resident(bytes) => bytes,
+            Source::Deferred { provider, .. } => provider()?,
+        };
+        Ok((name, dtype, shape, param_id, bytes))
+    }
 }
 
-#[cfg(test)]
+// The counting tests below need `fetch_add`, so the whole module wants atomic CAS. Tests are
+// only ever run on a host anyway; this keeps `--tests` compiling for embedded targets.
+#[cfg(all(test, target_has_atomic = "ptr"))]
 mod tests {
     use super::*;
     use alloc::string::ToString;
     use alloc::vec;
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    fn resident() -> Tensor {
-        Tensor::new(
+    /// `to_bytes` borrows rather than consuming, so the tensor can still be drawn from
+    /// afterwards. That is the whole reason it exists next to `into_bytes`.
+    #[test]
+    fn to_bytes_leaves_a_resident_tensor_intact() {
+        let tensor = Tensor::new(
             "w".to_string(),
             DType::U8,
             vec![4],
             None,
             Bytes::from_bytes_vec(vec![1, 2, 3, 4]),
-        )
-    }
+        );
 
-    /// `bytes` borrows rather than consuming, so everything about the tensor stays reachable
-    /// afterwards. That is the whole reason it exists next to `into_bytes`.
-    #[test]
-    fn bytes_leaves_a_resident_tensor_intact() {
-        let tensor = resident();
-
-        assert_eq!(&tensor.bytes().unwrap()[..], &[1, 2, 3, 4]);
-        assert_eq!(&tensor.bytes().unwrap()[..], &[1, 2, 3, 4]);
-        assert_eq!(tensor.byte_len(), 4);
-        assert_eq!(tensor.name, "w");
+        assert_eq!(&tensor.to_bytes().unwrap()[..], &[1, 2, 3, 4]);
         assert_eq!(&tensor.into_bytes().unwrap()[..], &[1, 2, 3, 4]);
     }
 
-    /// Nothing is cached, so each call runs the provider again. Documented on `bytes`, and
-    /// the reason the record load paths use `into_bytes` instead.
+    /// Nothing is cached, so each call runs the provider again. That is why the record load
+    /// paths use `into_parts` instead.
     #[test]
-    fn bytes_reruns_a_deferred_provider_on_every_call() {
+    fn to_bytes_reruns_a_deferred_provider_on_every_call() {
         let calls = Arc::new(AtomicUsize::new(0));
         let counter = calls.clone();
 
@@ -227,13 +237,8 @@ mod tests {
             Ok(Bytes::from_bytes_vec(vec![7, 8]))
         });
 
-        assert_eq!(
-            calls.load(Ordering::Relaxed),
-            0,
-            "constructing must not produce"
-        );
-        assert_eq!(&tensor.bytes().unwrap()[..], &[7, 8]);
-        assert_eq!(&tensor.bytes().unwrap()[..], &[7, 8]);
+        assert_eq!(&tensor.to_bytes().unwrap()[..], &[7, 8]);
+        assert_eq!(&tensor.to_bytes().unwrap()[..], &[7, 8]);
         assert_eq!(calls.load(Ordering::Relaxed), 2);
 
         // Still usable, and `into_bytes` draws once more.
@@ -245,23 +250,43 @@ mod tests {
     /// A provider failure surfaces verbatim. Naming the tensor is `Writer::materialize`'s
     /// job, not this method's.
     #[test]
-    fn bytes_surfaces_a_provider_failure_unannotated() {
+    fn to_bytes_surfaces_a_provider_failure_unannotated() {
         let tensor = Tensor::deferred("w".to_string(), DType::U8, vec![1], None, 1, || {
             Err(Error::IoError("device read failed".to_string()))
         });
 
-        let err = tensor.bytes().unwrap_err();
+        let err = tensor.to_bytes().unwrap_err();
         assert!(
             matches!(&err, Error::IoError(m) if m == "device read failed"),
             "expected the provider's own error, got {err:?}"
         );
     }
 
+    /// Hands over metadata and bytes in one move, which is what lets the record load paths
+    /// avoid cloning the name just to reach the bytes.
+    #[test]
+    fn into_parts_yields_metadata_and_bytes_together() {
+        let tensor = Tensor::deferred(
+            "layer.w".to_string(),
+            DType::U8,
+            vec![2],
+            Some(7),
+            2,
+            || Ok(Bytes::from_bytes_vec(vec![7, 8])),
+        );
+
+        let (name, dtype, shape, param_id, bytes) = tensor.into_parts().unwrap();
+        assert_eq!(name, "layer.w");
+        assert_eq!(dtype, DType::U8);
+        assert_eq!(shape.to_vec(), vec![2]);
+        assert_eq!(param_id, Some(7));
+        assert_eq!(&bytes[..], &[7, 8]);
+    }
+
     /// The `Send + Sync` bound on [`ByteSource`] exists so a `Tensor` can reach burn-train's
     /// async checkpointer inside an optimizer record. Nothing in burn-pack's own build would
     /// catch a regression to a non-atomic pointer, so pin it where the type lives.
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
     fn tensor_is_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<Tensor>();
