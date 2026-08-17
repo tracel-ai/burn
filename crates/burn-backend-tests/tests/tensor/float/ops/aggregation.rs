@@ -643,3 +643,95 @@ fn test_should_mean_overflow_intermediate_sum() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([511.5]), Tolerance::default());
 }
+
+// Reducing zero elements returns the identity of the folded operation. The extrema have no
+// identity; those cases live in `maxmin.rs`.
+#[test]
+fn test_should_sum_empty() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([0.0]), false);
+}
+
+#[test]
+fn test_should_prod_empty() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.prod();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([1.0]), false);
+}
+
+#[test]
+fn test_should_mean_empty_is_nan() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.mean().into_data();
+
+    let values = output.as_slice::<FloatElem>().unwrap();
+    assert_eq!(values.len(), 1);
+    assert!(values[0].is_nan(), "mean of an empty tensor should be NaN");
+}
+
+// Shape [3, 0]: the reduced axis is empty but the output is not, so an identity has to be written
+// per surviving position. This is the case that had no viable autotune candidate.
+#[test]
+fn test_should_sum_dim_empty_axis() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.sum_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[0.0], [0.0], [0.0]]), false);
+}
+
+#[test]
+fn test_should_prod_dim_empty_axis() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.prod_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1.0], [1.0], [1.0]]), false);
+}
+
+#[test]
+fn test_should_mean_dim_empty_axis_is_nan() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.mean_dim(1).into_data();
+
+    let values = output.as_slice::<FloatElem>().unwrap();
+    assert_eq!(values.len(), 3);
+    assert!(values.iter().all(|v| v.is_nan()));
+}
+
+// Shape [0, 3]: the reduced axis is non-empty, but every output position is eliminated by the
+// zero-length outer axis, so the result is empty rather than an identity.
+#[test]
+fn test_should_sum_dim_empty_tensor_non_empty_axis() {
+    let tensor = TestTensor::<2>::empty([0, 3], &Default::default());
+
+    let output = tensor.sum_dim(1);
+
+    assert_eq!(output.dims(), [0, 1]);
+}
+
+// Rejected even though the output would have been empty anyway: emptiness of the output depends on
+// the *other* axis, so accepting this while rejecting [3, 0] would make the same operation succeed
+// or fail based on an unrelated dimension.
+#[test]
+#[should_panic]
+fn test_should_max_dim_empty_axis_empty_output() {
+    let tensor = TestTensor::<2>::empty([0, 0], &Default::default());
+
+    let _ = tensor.max_dim(1).into_data();
+}

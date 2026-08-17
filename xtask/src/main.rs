@@ -30,7 +30,6 @@ const NO_STD_CRATES: &[&str] = &[
     Dependencies,
     Fix,
     Publish,
-    Validate,
     Vulnerabilities
 )]
 pub enum Command {
@@ -43,6 +42,8 @@ pub enum Command {
     Remote(commands::remote::RemoteCmdArgs),
     /// Test Burn.
     Test(commands::test::BurnTestCmdArgs),
+    /// Run the fast checks expected before opening a pull request.
+    Validate(commands::validate::BurnValidateCmdArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -71,7 +72,7 @@ fn main() -> anyhow::Result<()> {
             commands::test::handle_command(cmd_args, environment, args.context)
         }
         Command::Validate(cmd_args) => {
-            commands::validate::handle_command(&cmd_args, environment, args.context)
+            commands::validate::handle_command(cmd_args, environment, args.context)
         }
         _ => dispatch_base_commands(args, environment),
     }?;

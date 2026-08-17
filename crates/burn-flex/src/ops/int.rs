@@ -407,7 +407,7 @@ impl IntTensorOps<Flex> for Flex {
         // U64 values > i64::MAX produce wrong results through i64 cast
         if lhs.dtype() == DType::U64 {
             let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
-            return binary_op_typed(lhs, &rhs, |a: u64, b: u64| a / b);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a / b);
         }
         int_binary_op(lhs, rhs, |a, b| a / b)
     }
@@ -423,7 +423,7 @@ impl IntTensorOps<Flex> for Flex {
         // U64 values > i64::MAX produce wrong results through i64 cast
         if lhs.dtype() == DType::U64 {
             let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
-            return binary_op_typed(lhs, &rhs, |a: u64, b: u64| a % b);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
         int_binary_op(lhs, rhs, |a, b| ((a % b) + b) % b)
@@ -684,97 +684,148 @@ impl IntTensorOps<Flex> for Flex {
 
         // Helper macro to convert between types
         macro_rules! cast_impl {
-            ($src_type:ty, $dst_type:ty, $dst_dtype:expr) => {{
-                let src: &[$src_type] = tensor.storage();
-                let dst: Vec<$dst_type> = src.iter().map(|&x| x as $dst_type).collect();
-                FlexTensor::new(
-                    Bytes::from_elems(dst),
-                    Layout::contiguous(shape),
-                    $dst_dtype,
-                )
+            ($storage:ident, $dst_type:ty) => {{
+                Some(Bytes::from_elems(
+                    $storage
+                        .iter()
+                        .map(|&x| x as $dst_type)
+                        .collect::<Vec<$dst_type>>(),
+                ))
             }};
         }
 
         // Match source dtype to target dtype
-        match (tensor.dtype(), target_dtype) {
+        let bytes = match tensor.dtype() {
             // From I64
-            (DType::I64, DType::I32) => cast_impl!(i64, i32, DType::I32),
-            (DType::I64, DType::I16) => cast_impl!(i64, i16, DType::I16),
-            (DType::I64, DType::I8) => cast_impl!(i64, i8, DType::I8),
-            (DType::I64, DType::U64) => cast_impl!(i64, u64, DType::U64),
-            (DType::I64, DType::U32) => cast_impl!(i64, u32, DType::U32),
-            (DType::I64, DType::U16) => cast_impl!(i64, u16, DType::U16),
-            (DType::I64, DType::U8) => cast_impl!(i64, u8, DType::U8),
+            DType::I64 => {
+                let storage: &[i64] = tensor.storage();
+                match target_dtype {
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From I32
-            (DType::I32, DType::I64) => cast_impl!(i32, i64, DType::I64),
-            (DType::I32, DType::I16) => cast_impl!(i32, i16, DType::I16),
-            (DType::I32, DType::I8) => cast_impl!(i32, i8, DType::I8),
-            (DType::I32, DType::U64) => cast_impl!(i32, u64, DType::U64),
-            (DType::I32, DType::U32) => cast_impl!(i32, u32, DType::U32),
-            (DType::I32, DType::U16) => cast_impl!(i32, u16, DType::U16),
-            (DType::I32, DType::U8) => cast_impl!(i32, u8, DType::U8),
+            DType::I32 => {
+                let storage: &[i32] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From I16
-            (DType::I16, DType::I64) => cast_impl!(i16, i64, DType::I64),
-            (DType::I16, DType::I32) => cast_impl!(i16, i32, DType::I32),
-            (DType::I16, DType::I8) => cast_impl!(i16, i8, DType::I8),
-            (DType::I16, DType::U64) => cast_impl!(i16, u64, DType::U64),
-            (DType::I16, DType::U32) => cast_impl!(i16, u32, DType::U32),
-            (DType::I16, DType::U16) => cast_impl!(i16, u16, DType::U16),
-            (DType::I16, DType::U8) => cast_impl!(i16, u8, DType::U8),
+            DType::I16 => {
+                let storage: &[i16] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From I8
-            (DType::I8, DType::I64) => cast_impl!(i8, i64, DType::I64),
-            (DType::I8, DType::I32) => cast_impl!(i8, i32, DType::I32),
-            (DType::I8, DType::I16) => cast_impl!(i8, i16, DType::I16),
-            (DType::I8, DType::U64) => cast_impl!(i8, u64, DType::U64),
-            (DType::I8, DType::U32) => cast_impl!(i8, u32, DType::U32),
-            (DType::I8, DType::U16) => cast_impl!(i8, u16, DType::U16),
-            (DType::I8, DType::U8) => cast_impl!(i8, u8, DType::U8),
+            DType::I8 => {
+                let storage: &[i8] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From U64
-            (DType::U64, DType::I64) => cast_impl!(u64, i64, DType::I64),
-            (DType::U64, DType::I32) => cast_impl!(u64, i32, DType::I32),
-            (DType::U64, DType::I16) => cast_impl!(u64, i16, DType::I16),
-            (DType::U64, DType::I8) => cast_impl!(u64, i8, DType::I8),
-            (DType::U64, DType::U32) => cast_impl!(u64, u32, DType::U32),
-            (DType::U64, DType::U16) => cast_impl!(u64, u16, DType::U16),
-            (DType::U64, DType::U8) => cast_impl!(u64, u8, DType::U8),
+            DType::U64 => {
+                let storage: &[u64] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From U32
-            (DType::U32, DType::I64) => cast_impl!(u32, i64, DType::I64),
-            (DType::U32, DType::I32) => cast_impl!(u32, i32, DType::I32),
-            (DType::U32, DType::I16) => cast_impl!(u32, i16, DType::I16),
-            (DType::U32, DType::I8) => cast_impl!(u32, i8, DType::I8),
-            (DType::U32, DType::U64) => cast_impl!(u32, u64, DType::U64),
-            (DType::U32, DType::U16) => cast_impl!(u32, u16, DType::U16),
-            (DType::U32, DType::U8) => cast_impl!(u32, u8, DType::U8),
+            DType::U32 => {
+                let storage: &[u32] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From U16
-            (DType::U16, DType::I64) => cast_impl!(u16, i64, DType::I64),
-            (DType::U16, DType::I32) => cast_impl!(u16, i32, DType::I32),
-            (DType::U16, DType::I16) => cast_impl!(u16, i16, DType::I16),
-            (DType::U16, DType::I8) => cast_impl!(u16, i8, DType::I8),
-            (DType::U16, DType::U64) => cast_impl!(u16, u64, DType::U64),
-            (DType::U16, DType::U32) => cast_impl!(u16, u32, DType::U32),
-            (DType::U16, DType::U8) => cast_impl!(u16, u8, DType::U8),
+            DType::U16 => {
+                let storage: &[u16] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From U8
-            (DType::U8, DType::I64) => cast_impl!(u8, i64, DType::I64),
-            (DType::U8, DType::I32) => cast_impl!(u8, i32, DType::I32),
-            (DType::U8, DType::I16) => cast_impl!(u8, i16, DType::I16),
-            (DType::U8, DType::I8) => cast_impl!(u8, i8, DType::I8),
-            (DType::U8, DType::U64) => cast_impl!(u8, u64, DType::U64),
-            (DType::U8, DType::U32) => cast_impl!(u8, u32, DType::U32),
-            (DType::U8, DType::U16) => cast_impl!(u8, u16, DType::U16),
+            DType::U8 => {
+                let storage: &[u8] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    _ => None,
+                }
+            }
 
-            _ => panic!(
+            _ => None,
+        };
+        let Some(bytes) = bytes else {
+            panic!(
                 "int_cast: unsupported conversion from {:?} to {:?}",
                 tensor.dtype(),
                 target_dtype
-            ),
-        }
+            )
+        };
+        FlexTensor::new(bytes, Layout::contiguous(shape), target_dtype)
     }
 
     fn int_unfold(

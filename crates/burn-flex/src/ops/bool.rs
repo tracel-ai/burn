@@ -501,21 +501,54 @@ fn bool_binary_op_simd(lhs: FlexTensor, rhs: FlexTensor, op: BoolBinaryOp) -> Fl
             out
         }
         _ => {
-            let lhs_iter = StridedIter::new(lhs.layout());
-            let rhs_iter = StridedIter::new(rhs.layout());
-            match op {
-                BoolBinaryOp::And => lhs_iter
-                    .zip(rhs_iter)
-                    .map(|(li, ri)| lhs_storage[li] & rhs_storage[ri])
-                    .collect(),
-                BoolBinaryOp::Or => lhs_iter
-                    .zip(rhs_iter)
-                    .map(|(li, ri)| lhs_storage[li] | rhs_storage[ri])
-                    .collect(),
-                BoolBinaryOp::Xor => lhs_iter
-                    .zip(rhs_iter)
-                    .map(|(li, ri)| lhs_storage[li] ^ rhs_storage[ri])
-                    .collect(),
+            // Strided/broadcast fallback: collapsed loop nest with an
+            // autovectorized bitwise inner loop. Separate zip_map calls
+            // per op keep the closures monomorphized. StridedIter only
+            // remains for layouts the nest can't handle (negative
+            // strides, rank > 8).
+            let zipped = match op {
+                BoolBinaryOp::And => crate::zip::zip_map(
+                    lhs_storage,
+                    lhs.layout(),
+                    rhs_storage,
+                    rhs.layout(),
+                    |a, b| a & b,
+                ),
+                BoolBinaryOp::Or => crate::zip::zip_map(
+                    lhs_storage,
+                    lhs.layout(),
+                    rhs_storage,
+                    rhs.layout(),
+                    |a, b| a | b,
+                ),
+                BoolBinaryOp::Xor => crate::zip::zip_map(
+                    lhs_storage,
+                    lhs.layout(),
+                    rhs_storage,
+                    rhs.layout(),
+                    |a, b| a ^ b,
+                ),
+            };
+            match zipped {
+                Some(result) => result,
+                None => {
+                    let lhs_iter = StridedIter::new(lhs.layout());
+                    let rhs_iter = StridedIter::new(rhs.layout());
+                    match op {
+                        BoolBinaryOp::And => lhs_iter
+                            .zip(rhs_iter)
+                            .map(|(li, ri)| lhs_storage[li] & rhs_storage[ri])
+                            .collect(),
+                        BoolBinaryOp::Or => lhs_iter
+                            .zip(rhs_iter)
+                            .map(|(li, ri)| lhs_storage[li] | rhs_storage[ri])
+                            .collect(),
+                        BoolBinaryOp::Xor => lhs_iter
+                            .zip(rhs_iter)
+                            .map(|(li, ri)| lhs_storage[li] ^ rhs_storage[ri])
+                            .collect(),
+                    }
+                }
             }
         }
     };

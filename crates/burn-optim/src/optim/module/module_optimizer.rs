@@ -542,7 +542,7 @@ mod tests {
     }
 
     fn sgd() -> ModuleOptimizer {
-        ModuleOptimizer::from(SgdConfig::new().init())
+        SgdConfig::new().init()
     }
 
     /// to_record / load_record must fully preserve a stateful optimizer's internal state so that

@@ -118,7 +118,7 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for PowOp {
     #[allow(unused)]
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         intrinsic!(|scope| {
-            let elem = T::__expand_as_type(scope).elem_type();
+            let elem = T::elem_type(scope);
 
             if let cubecl::ir::ElemType::Float(kind) = elem {
                 match kind {
@@ -194,7 +194,7 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
     input: LinearView<'_, Vector<C, N>>,
     scalar: InputScalar,
     mut output: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -211,7 +211,7 @@ pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
     lhs: LinearView<'_, Vector<C, N>>,
     rhs: LinearView<'_, Vector<C, N>>,
     mut out: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -233,6 +233,12 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
     let shape_out = broadcast_shape(&[&lhs, &rhs]);
     let dtype = lhs.dtype;
+
+    // A zero-sized broadcast output has no elements to compute, and the in-place/kernel paths
+    // below assume a non-empty output. Return the empty output directly.
+    if shape_out.num_elements() == 0 {
+        return empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
+    }
 
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();

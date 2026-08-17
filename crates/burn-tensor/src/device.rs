@@ -306,6 +306,11 @@ impl Device {
 
     /// Default NdArray (CPU) device.
     #[cfg(feature = "ndarray")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-ndarray is deprecated and will be removed in a future release. Use `Device::flex()` for pure-Rust CPU execution instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn ndarray() -> Self {
         Self::new(burn_dispatch::devices::NdArrayDevice::default())
     }
@@ -817,6 +822,8 @@ fn mode_label(mode: &ThroughputMode) -> &'static str {
         ThroughputMode::ComputeDirect { .. } => "compute-direct",
         ThroughputMode::ComputeCmma { .. } => "compute-cmma",
         ThroughputMode::Memory => "memory",
+        ThroughputMode::MemoryRead => "memory-read",
+        ThroughputMode::MemoryWorkingSet { .. } => "memory-working-set",
         ThroughputMode::Launch => "launch",
     }
 }
@@ -836,7 +843,10 @@ impl core::fmt::Display for ThroughputStat {
             ThroughputMode::ComputeDirect { dtype } | ThroughputMode::ComputeCmma { dtype, .. } => {
                 alloc::format!("{dtype}")
             }
-            ThroughputMode::Memory | ThroughputMode::Launch => alloc::string::String::new(),
+            ThroughputMode::Memory
+            | ThroughputMode::MemoryRead
+            | ThroughputMode::MemoryWorkingSet { .. }
+            | ThroughputMode::Launch => alloc::string::String::new(),
         };
 
         let value = self.value.format(&self.key);

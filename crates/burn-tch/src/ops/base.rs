@@ -650,15 +650,22 @@ impl TchOps {
     }
 
     pub fn swap_dims(tensor: TchTensor, dim1: usize, dim2: usize) -> TchTensor {
+        // `transpose` returns a view sharing the parent's buffer, so the child
+        // must inherit the parent's storage handle. `TchTensor::new` would mint a
+        // fresh `Arc` for still-shared memory and `can_mut()` would then approve
+        // an in-place op that writes over the parent.
+        let storage = tensor.storage.clone();
         let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
-        TchTensor::new(tensor)
+        TchTensor::from_existing(tensor, storage)
     }
 
     pub fn permute(tensor: TchTensor, axes: &[usize]) -> TchTensor {
+        // A view over the parent's buffer — see `swap_dims`.
+        let storage = tensor.storage.clone();
         let tensor = tensor
             .tensor
             .permute(axes.iter().map(|x| *x as i64).collect::<Vec<_>>());
-        TchTensor::new(tensor)
+        TchTensor::from_existing(tensor, storage)
     }
 
     pub fn flip(tensor: TchTensor, axes: &[usize]) -> TchTensor {

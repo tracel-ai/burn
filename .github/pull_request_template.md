@@ -2,8 +2,11 @@
 
 ### Checklist
 
-- [ ] Confirmed that `cargo run-checks` command has been executed.
+- [ ] Confirmed that `cargo run-checks` has been executed.
 - [ ] Made sure the book is up to date with changes in this PR.
+
+> `cargo run-checks` tests with `Flex` by default. Use `cargo run-checks --backend <backend>` when
+> targeting another backend. Consider running additional tests relevant to the crates changed.
 
 ### Related Issues/PRs
 

@@ -29,7 +29,7 @@ pub(crate) fn unary_numeric<T: Numeric, N: Size, O: NumericUnaryOpFamily>(
     input: LinearView<'_, Vector<T, N>>,
     mut output: LinearViewMut<'_, Vector<T, N>>,
     options: &O::Options,
-    #[define(T)] _dtype: StorageType,
+    #[define(T)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

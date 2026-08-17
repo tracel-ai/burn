@@ -9,7 +9,7 @@ use crate::{
 };
 use cubecl::{
     Runtime,
-    ir::{ElemType, FloatKind, StorageType},
+    ir::{ElemType, FloatKind},
     prelude::*,
     server::LaunchError,
 };
@@ -76,9 +76,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                     reduce_count,
                     axis: self.reduce_axis,
                     dtypes: ReduceDtypes {
-                        input: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-                        output: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-                        accumulation: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
+                        input: ElemType::Float(FloatKind::F32),
+                        output: ElemType::Float(FloatKind::F32),
+                        accumulation: ElemType::Float(FloatKind::F32),
                     },
                     address_type,
                     // We assume at least one block.

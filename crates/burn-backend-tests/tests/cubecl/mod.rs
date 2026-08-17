@@ -2,6 +2,7 @@ pub use super::*;
 
 mod avg_pool2d;
 mod bernoulli;
+mod broadcast;
 mod cast;
 mod cat;
 mod clamp;

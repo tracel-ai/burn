@@ -38,10 +38,17 @@ use burn_backend::ElementConversion;
 pub(crate) use keepdim;
 use ndarray::{Axis, Zip};
 
-use crate::{SharedArray, element::NdArrayElement};
+use crate::{SharedArray, element::NdArrayElement, ops::base::empty_mean};
 
 pub(crate) fn mean_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
-    tensor.mean_axis(Axis(dim)).unwrap().into_shared()
+    // `mean_axis` returns `None` when the reduced axis is empty; `fold_axis` still yields one
+    // element per surviving position, which `mean_axis` cannot.
+    match tensor.mean_axis(Axis(dim)) {
+        Some(mean) => mean.into_shared(),
+        None => tensor
+            .fold_axis(Axis(dim), empty_mean(), |acc, _| *acc)
+            .into_shared(),
+    }
 }
 
 pub(crate) fn sum_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {

@@ -1547,6 +1547,27 @@ pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String,
     Ok(tensors)
 }
 
+fn extract_tensors<'a>(
+    obj: &'a Object,
+    path: &mut Vec<&'a str>,
+    tensors: &mut HashMap<String, TensorSnapshot>,
+) {
+    match obj {
+        Object::Dict(dict) => {
+            for (key, value) in dict {
+                path.push(key);
+                extract_tensors(value, path, tensors);
+                path.pop();
+            }
+        }
+        Object::TorchParam(snapshot) => {
+            // Only allocate the string here when we actually insert
+            tensors.insert(path.join("."), snapshot.clone());
+        }
+        _ => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1569,26 +1590,5 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, PickleError::InvalidData(msg) if msg.contains("exceeded 1M nodes")));
-    }
-}
-
-fn extract_tensors<'a>(
-    obj: &'a Object,
-    path: &mut Vec<&'a str>,
-    tensors: &mut HashMap<String, TensorSnapshot>,
-) {
-    match obj {
-        Object::Dict(dict) => {
-            for (key, value) in dict {
-                path.push(key);
-                extract_tensors(value, path, tensors);
-                path.pop();
-            }
-        }
-        Object::TorchParam(snapshot) => {
-            // Only allocate the string here when we actually insert
-            tensors.insert(path.join("."), snapshot.clone());
-        }
-        _ => {}
     }
 }

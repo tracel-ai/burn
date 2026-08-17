@@ -64,6 +64,7 @@ pub type TestDevice = burn_core::backend::CpuDevice;
 pub type TestDevice = burn_core::backend::FlexDevice;
 
 pub use burn_core::tensor::Tensor;
+#[allow(unused)]
 pub type TestTensorInt<const D: usize> = Tensor<D, Int>;
 #[allow(unused)]
 pub type TestTensorBool<const D: usize> = Tensor<D, Bool>;
