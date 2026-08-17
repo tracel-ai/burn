@@ -101,8 +101,8 @@ impl Metric for CharErrorRate {
             )
         };
 
-        let outputs_data: Vec<i32> = outputs.try_into_vec_as().unwrap();
-        let targets_data: Vec<i32> = targets.try_into_vec_as().unwrap();
+        let outputs_data: Vec<i32> = outputs.try_to_vec_as().unwrap();
+        let targets_data: Vec<i32> = targets.try_to_vec_as().unwrap();
 
         let total_edit_distance: usize = (0..batch_size)
             .map(|i| {
