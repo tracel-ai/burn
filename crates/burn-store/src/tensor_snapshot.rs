@@ -5,8 +5,8 @@ use alloc::vec::Vec;
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
 // `alloc::sync` needs atomic CAS. A target without it has no threads to share a snapshot
-// across, so reference counting need not be atomic; the `Send + Sync` bound on [`DataFn`]
-// still type-checks, it just buys nothing there.
+// across, so neither the atomic pointer nor the `Send + Sync` bound on [`DataSource`] is
+// needed there, and both are dropped below.
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::rc::Rc as Arc;
 use burn_core::module::ParamId;
@@ -31,6 +31,7 @@ impl<T> DataSource for T where
 {
 }
 
+/// Without atomic CAS there are no threads, so the bound is just the closure itself.
 #[cfg(not(target_has_atomic = "ptr"))]
 pub trait DataSource: Fn() -> Result<TensorData, TensorSnapshotError> + 'static {}
 #[cfg(not(target_has_atomic = "ptr"))]

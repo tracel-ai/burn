@@ -13,13 +13,6 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
 
-// Matches the pointer [`DataFn`](crate::DataFn) uses: `alloc::sync` needs atomic CAS, and a
-// target without it has no threads to share a snapshot across.
-#[cfg(not(target_has_atomic = "ptr"))]
-use alloc::rc::Rc as Arc;
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
 use burn_core::tensor::shape;
 use burn_core::tensor::{DType, TensorData};
 use hashbrown::HashSet;
@@ -295,7 +288,7 @@ impl ModuleAdapter for HalfPrecisionAdapter {
 
         let original_data_fn = snapshot.clone_data_fn();
 
-        let cast_data_fn = Arc::new(move || {
+        let cast_data_fn = TensorSnapshot::data_fn(move || {
             let data = original_data_fn()?;
             Ok(data.convert_dtype(target_dtype))
         });
@@ -374,7 +367,7 @@ impl ModuleAdapter for FloatCastAdapter {
         let original_data_fn = snapshot.clone_data_fn();
         let target = self.target;
 
-        let cast_data_fn = Arc::new(move || {
+        let cast_data_fn = TensorSnapshot::data_fn(move || {
             let data = original_data_fn()?;
             Ok(data.convert_dtype(target))
         });
@@ -558,7 +551,7 @@ fn transpose_2d_tensor(snapshot: &TensorSnapshot) -> TensorSnapshot {
     let transposed_shape = shape![snapshot.shape[1], snapshot.shape[0]];
 
     // Create a lazy closure that transposes when called
-    let transposed_data_fn = Arc::new(move || {
+    let transposed_data_fn = TensorSnapshot::data_fn(move || {
         let data = original_data_fn()?;
         Ok(transpose_tensor_data(data))
     });

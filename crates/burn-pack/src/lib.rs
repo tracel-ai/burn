@@ -13,7 +13,7 @@
 //! Write a pack with [`Writer`], read one with [`Reader`]; both operate on [`Tensor`]
 //! entries carrying the format-level metadata plus the raw little-endian bytes.
 //!
-//! A tensor's bytes need not be resident. A [`Reader`] reads them from the source only when
+//! A tensor's bytes need not exist yet. A [`Reader`] reads them from the source only when
 //! they are accessed, and a caller that knows a tensor's length without holding its data (a
 //! module snapshot, an ONNX initializer) can build one with [`Tensor::deferred`] to write a
 //! model larger than host memory to a file - see that constructor for the contract.
@@ -123,7 +123,7 @@ pub use base::{
     TENSOR_ALIGNMENT, aligned_data_section_start,
 };
 pub use reader::Reader;
-pub use tensor::Tensor;
+pub use tensor::{ByteSource, Tensor};
 pub use writer::Writer;
 
 /// The canonical file extension for burnpack files (without the leading dot).

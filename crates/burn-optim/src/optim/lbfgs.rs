@@ -562,9 +562,11 @@ impl LBFGS {
         let device = Device::default();
         let mut source = StateSource::new(record.scalars);
         for tensor in record.tensors {
-            let bytes = tensor.bytes().expect("record tensors are resident");
-            let data = TensorData::from_bytes(bytes, tensor.shape, tensor.dtype);
-            source.insert_tensor(tensor.name, data);
+            // Hoist the metadata so the bytes can be moved out rather than cloned: these
+            // tensors carry plain heap buffers, which `bytes()` would deep-copy.
+            let (name, shape, dtype) = (tensor.name.clone(), tensor.shape.clone(), tensor.dtype);
+            let bytes = tensor.into_bytes().expect("record tensors are resident");
+            source.insert_tensor(name, TensorData::from_bytes(bytes, shape, dtype));
         }
         if let Some(state) = LBFGSState::state_unflatten("", &mut source, &device) {
             self.state = state;

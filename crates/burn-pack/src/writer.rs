@@ -404,7 +404,6 @@ struct Placement {
 /// Backings without a zero-copy window (e.g. a plain heap `Vec`) are already
 /// host-resident, so [`Bytes::view`] reports it can't window them and the
 /// remaining bytes are written in a single pass.
-///
 fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
     let len = data.len();
     let mut offset = 0;
