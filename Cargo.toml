@@ -222,11 +222,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.2", default-feat
 
 ### For the cubecl feat/quant-scale-levels and cubek feat/quant-two-level-scheme branches. ###
 # cubek's branch pins this cubecl revision, and both sides have to agree on one.
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "2d058e53a691645ec1d964beb69ddac0601e27e1" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "2d058e53a691645ec1d964beb69ddac0601e27e1" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "2d058e53a691645ec1d964beb69ddac0601e27e1" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "2d058e53a691645ec1d964beb69ddac0601e27e1" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "e60610d775a9e2193974ebd6521685ebd2d639ad" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6906371fe870ed609beaa9860f8692ac5cce8202" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6906371fe870ed609beaa9860f8692ac5cce8202" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6906371fe870ed609beaa9860f8692ac5cce8202" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6906371fe870ed609beaa9860f8692ac5cce8202" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "c755c40271c5f6aafb9a9037e1e5ce24e21f254b" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
