@@ -1,11 +1,11 @@
-pub use burn_std::{BlockGrid, QPARAM_ALIGN, params_shape};
+pub use burn_std::{BlockLayout, QPARAM_ALIGN, params_shape};
 use burn_std::{FloatDType, QuantScheme, ScaleDtype, Shape, quantization::global_scale_dtype};
 
 use super::{Calibration, QuantizationParametersPrimitive};
 use crate::{Backend, TensorMetadata, get_device_settings};
 
-/// One value per block of `scheme`'s grid: `tensor` viewed as `[g0, b0, g1, b1, ...]`, every
-/// block axis folded by `reduce`, and the result in the grid's shape ([`params_shape`]).
+/// One value per block: `tensor` viewed as `[n0, b0, n1, b1, ...]`, every block axis folded by
+/// `reduce`, and the result shaped as the block scales are ([`params_shape`]).
 ///
 /// A block is a rectangle, not a run of elements: `[2, 2]` on a `[2, 4]` tensor holds
 /// `[a, b, e, f]`, so chunking the flat storage would only be right for a block that spans the

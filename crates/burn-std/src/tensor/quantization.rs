@@ -145,34 +145,29 @@ pub fn params_shape(data_shape: &Shape, scheme: &QuantScheme) -> Shape {
     }
 }
 
-/// The grid of blocks a block scheme lays over a tensor: which block a row-major element index
-/// falls in. A block is a rectangle, so its members are a run of the flat storage only when it
-/// spans the trailing dimension; anything walking values against block scales asks here.
+/// Which block each element of a tensor falls in, for a block scheme. A block is a rectangle, so
+/// its members are a run of the flat storage only when it spans the trailing dimension; anything
+/// walking values against block scales asks here rather than chunking.
 #[derive(Debug, Clone)]
-pub struct BlockGrid {
+pub struct BlockLayout {
     shape: Shape,
     block: Vec<u8>,
-    grid: Shape,
+    blocks: Shape,
 }
 
-impl BlockGrid {
-    /// The grid `block` lays over a tensor of `shape`.
+impl BlockLayout {
+    /// How `block` tiles a tensor of `shape`.
     pub fn new(shape: &Shape, block: &BlockSize) -> Self {
         Self {
             shape: shape.clone(),
             block: block.to_dim_vec(shape.num_dims()),
-            grid: Shape::from(block.num_blocks(shape.as_slice())),
+            blocks: Shape::from(block.num_blocks(shape.as_slice())),
         }
     }
 
-    /// The grid's shape, one scale per block: [`params_shape`] for a block scheme.
-    pub fn grid(&self) -> &Shape {
-        &self.grid
-    }
-
-    /// How many blocks the grid holds.
+    /// How many blocks the tensor holds, which is how many block scales it has.
     pub fn num_blocks(&self) -> usize {
-        self.grid.num_elements()
+        self.blocks.num_elements()
     }
 
     /// Whether every dimension is a whole number of blocks.
@@ -191,7 +186,7 @@ impl BlockGrid {
             let coordinate = index % self.shape[dim];
             index /= self.shape[dim];
             block += coordinate / self.block[dim] as usize * stride;
-            stride *= self.grid[dim];
+            stride *= self.blocks[dim];
         }
         block
     }
@@ -211,7 +206,7 @@ pub struct QuantizedBytes {
     pub bytes: Bytes,
     /// The quantization scheme.
     pub scheme: QuantScheme,
-    /// The shape of the quantized tensor. The block grid, and so the scale count, follows from
+    /// The shape of the quantized tensor. The block count, and so the scale count, follows from
     /// it per axis: a block that does not span the trailing dimension is not a run of elements.
     pub shape: Shape,
 }

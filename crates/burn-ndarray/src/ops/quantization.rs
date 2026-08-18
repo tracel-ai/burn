@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use num_traits::{Float, PrimInt};
 
 use burn_backend::Shape;
-use burn_backend::quantization::{BlockGrid, BlockSize, QuantValue};
+use burn_backend::quantization::{BlockLayout, BlockSize, QuantValue};
 
 // NOTE: this mainly serves as a simple reference implementation.
 // The de/quantization ops should be refactored to use ndarray.
@@ -22,7 +22,7 @@ impl QuantizationStrategy {
         match self {
             QuantizationStrategy::PerTensorSymmetric(strategy) => strategy.quantize(values),
             QuantizationStrategy::PerBlockSymmetric(strategy, block_size) => {
-                let blocks = block_grid(shape, block_size, strategy.len());
+                let blocks = block_layout(shape, block_size, strategy.len());
                 values
                     .iter()
                     .enumerate()
@@ -37,7 +37,7 @@ impl QuantizationStrategy {
         match self {
             QuantizationStrategy::PerTensorSymmetric(strategy) => strategy.dequantize(values),
             QuantizationStrategy::PerBlockSymmetric(strategy, block_size) => {
-                let blocks = block_grid(shape, block_size, strategy.len());
+                let blocks = block_layout(shape, block_size, strategy.len());
                 values
                     .iter()
                     .enumerate()
@@ -48,16 +48,16 @@ impl QuantizationStrategy {
     }
 }
 
-/// The block grid over `shape`, checked against the number of per-block strategies.
-fn block_grid(shape: &Shape, block_size: &BlockSize, num_blocks: usize) -> BlockGrid {
-    let grid = BlockGrid::new(shape, block_size);
+/// The blocks over `shape`, checked against the number of per-block strategies.
+fn block_layout(shape: &Shape, block_size: &BlockSize, num_blocks: usize) -> BlockLayout {
+    let layout = BlockLayout::new(shape, block_size);
     assert_eq!(
-        grid.num_blocks(),
+        layout.num_blocks(),
         num_blocks,
         "Invalid per-block quantization: {num_blocks} blocks for a {shape:?} tensor with \
          {block_size:?} blocks"
     );
-    grid
+    layout
 }
 
 /// Quantization scheme to convert elements of a higher precision data type `E` to a lower precision
