@@ -141,7 +141,7 @@ pub fn global_scale_dtype(scheme: &QuantScheme) -> Option<ScaleDtype> {
 pub fn params_shape(data_shape: &Shape, scheme: &QuantScheme) -> Shape {
     match scheme.block_size() {
         None => Shape::new([1]),
-        Some(block_size) => Shape::from(block_size.grid(data_shape.as_slice())),
+        Some(block_size) => Shape::from(block_size.num_blocks(data_shape.as_slice())),
     }
 }
 
@@ -161,7 +161,7 @@ impl BlockGrid {
         Self {
             shape: shape.clone(),
             block: block.to_dim_vec(shape.num_dims()),
-            grid: Shape::from(block.grid(shape.as_slice())),
+            grid: Shape::from(block.num_blocks(shape.as_slice())),
         }
     }
 
