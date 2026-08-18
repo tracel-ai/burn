@@ -4,14 +4,27 @@ use burn_backend::Slice;
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 
-/// An ordered operation graph with an explicitly classified tensor boundary.
+/// An ordered operation graph with an explicit tensor boundary.
+///
+/// [`GraphIr::new`] infers the dependency boundary from the operations. Producers that expose a
+/// narrower logical boundary, such as graph capture, may provide explicit `inputs` and `outputs`
+/// after validating them against [`GraphIr::classify`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GraphIr {
     /// Operations in execution order.
     pub operations: Vec<OperationIr>,
-    /// Tensors read by the graph but not produced by a compute operation.
+    /// Ordered tensor IDs exposed as graph inputs.
     pub inputs: Vec<TensorId>,
-    /// Compute-produced tensors which survive the graph.
+    /// Ordered tensor IDs exposed as graph outputs.
+    pub outputs: Vec<TensorId>,
+}
+
+/// Tensor boundary inferred from an operation sequence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GraphBoundary {
+    /// Tensors referenced by the graph but not produced by a compute operation.
+    pub inputs: Vec<TensorId>,
+    /// Compute-produced tensors that are not consumed in place or explicitly dropped.
     pub outputs: Vec<TensorId>,
 }
 
@@ -26,17 +39,30 @@ impl GraphIr {
     /// Outputs are tensors produced by compute operations that survive the graph. Tensors consumed
     /// in place (`ReadWrite`) or explicitly dropped within the graph are excluded.
     ///
-    /// Intermediate tensors that are both produced and consumed within the graph appear in neither
-    /// boundary. Input and output identifiers retain their first-use and production order,
-    /// respectively, making construction deterministic.
+    /// Intermediate tensors that are produced and then consumed in place or explicitly dropped
+    /// appear in neither boundary. Input and output identifiers retain their first-use and
+    /// production order, respectively, making construction deterministic.
     pub fn new(operations: Vec<OperationIr>) -> Self {
+        let boundary = Self::classify(&operations);
+        Self {
+            operations,
+            inputs: boundary.inputs,
+            outputs: boundary.outputs,
+        }
+    }
+
+    /// Classify the dependency boundary of an operation sequence without cloning it.
+    ///
+    /// This applies the same rules as [`GraphIr::new`] and is useful to validate an explicitly
+    /// declared logical boundary or to estimate graph binding costs.
+    pub fn classify(operations: &[OperationIr]) -> GraphBoundary {
         let mut referenced = Vec::new();
         let mut referenced_set = HashSet::new();
         let mut produced = Vec::new();
         let mut produced_set = HashSet::new();
         let mut consumed = HashSet::new();
 
-        for operation in &operations {
+        for operation in operations {
             if let OperationIr::Drop(tensor) = operation {
                 consumed.insert(tensor.id);
             }
@@ -65,11 +91,7 @@ impl GraphIr {
             .into_iter()
             .filter(|id| !consumed.contains(id))
             .collect();
-        Self {
-            operations,
-            inputs,
-            outputs,
-        }
+        GraphBoundary { inputs, outputs }
     }
 
     /// Number of operations in the graph.
@@ -156,5 +178,22 @@ mod tests {
             &[tensor(8)],
         ))];
         assert_eq!(GraphIr::new(operations.clone()), GraphIr::new(operations));
+    }
+
+    #[test]
+    fn borrowed_classification_matches_graph_construction() {
+        let operations = vec![
+            OperationIr::Custom(CustomOpIr::new(
+                "first",
+                &[tensor(4), tensor(2)],
+                &[tensor(8)],
+            )),
+            OperationIr::Custom(CustomOpIr::new("second", &[tensor(8)], &[tensor(9)])),
+        ];
+        let boundary = GraphIr::classify(&operations);
+        let graph = GraphIr::new(operations);
+
+        assert_eq!(boundary.inputs, graph.inputs);
+        assert_eq!(boundary.outputs, graph.outputs);
     }
 }

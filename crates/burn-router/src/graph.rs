@@ -12,15 +12,17 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 use burn_backend::Slice;
-use burn_ir::{BackendIr, GraphBindings, IrVisitorMut, OperationIr, ScalarIr, TensorId, TensorIr};
+use burn_ir::{
+    BackendIr, GraphBindings, GraphIr, IrVisitorMut, OperationIr, ScalarIr, TensorId, TensorIr,
+};
 use hashbrown::HashMap;
 
 use crate::TensorInterpreter;
 
-/// Server-allocated ids for a replay's intermediate tensors carry this high bit so they can never
-/// collide with client-allocated ids (whose monotonic counter never reaches `1 << 63`). The bit is
-/// purely server-internal: intermediates are produced and freed within a single replay and are
-/// never referenced by the client.
+/// Router-allocated ids for a replay's intermediate tensors carry this high bit so they can never
+/// collide with client-allocated ids (whose monotonic counter never reaches `1 << 63`). Executing
+/// servers keep these ids internal, while non-executing consumers such as graph capture may expose
+/// them as opaque ids in the bound concrete graph.
 const INTERMEDIATE_ID_BIT: u64 = 1 << 63;
 static INTERMEDIATE_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -37,26 +39,43 @@ fn alloc_intermediate_id() -> TensorId {
 /// after releasing it, so the lock never spans the backend dispatch.
 #[derive(Clone, Debug)]
 pub struct Graph {
-    ops: Arc<Vec<OperationIr>>,
+    graph: Arc<GraphIr>,
 }
 
 impl Graph {
     /// Wrap a relative op-graph so it can be replayed.
     pub fn new(ops: Vec<OperationIr>) -> Self {
-        Self { ops: Arc::new(ops) }
+        Self {
+            graph: Arc::new(GraphIr::new(ops)),
+        }
     }
 
     /// Number of operations in the graph.
     pub fn len(&self) -> usize {
-        self.ops.len()
+        self.graph.len()
     }
 
     /// Whether the graph has no operations.
     pub fn is_empty(&self) -> bool {
-        self.ops.is_empty()
+        self.graph.is_empty()
     }
 
-    /// Bind the relative graph to one invocation and return concrete operations.
+    /// Return the relative operation sequence.
+    pub fn operations(&self) -> &[OperationIr] {
+        &self.graph.operations
+    }
+
+    /// Return the relative input boundary.
+    pub fn inputs(&self) -> &[TensorId] {
+        &self.graph.inputs
+    }
+
+    /// Return the relative output boundary.
+    pub fn outputs(&self) -> &[TensorId] {
+        &self.graph.outputs
+    }
+
+    /// Bind the relative graph to one invocation and return a concrete graph.
     ///
     /// The graph is in relative form: its tensor ids are positional, shape dims are relative ids,
     /// and scalars/ranges are placeholders. `bindings` arrive packaged the way the replay uses
@@ -69,19 +88,19 @@ impl Graph {
     ///   correct shapes too, without being sent);
     /// - substitute scalar placeholders and restore concrete slice ranges;
     ///
-    /// The returned operations can be executed by a router server or inspected by a non-executing
-    /// consumer such as graph capture. Binding itself performs no tensor computation.
-    pub fn bind_operations(&self, bindings: GraphBindings) -> Vec<OperationIr> {
-        let mut operations = Vec::with_capacity(self.ops.len());
+    /// The returned graph can be inspected by a non-executing consumer such as graph capture.
+    /// Binding itself performs no tensor computation.
+    pub fn bind(&self, bindings: GraphBindings) -> GraphIr {
+        let mut operations = Vec::with_capacity(self.graph.operations.len());
         self.for_each_bound_operation(bindings, |operation| operations.push(operation));
-        operations
+        GraphIr::new(operations)
     }
 
     /// Visit each operation after binding it to a concrete invocation.
     ///
     /// Keeping the shared traversal callback-based lets executing router servers stream bound
     /// operations directly into their interpreter without first allocating a second operation
-    /// vector. Non-executing consumers use [`bind_operations`](Self::bind_operations) to collect
+    /// vector. Non-executing consumers use [`bind`](Self::bind) to collect
     /// the same traversal.
     fn for_each_bound_operation(
         &self,
@@ -96,7 +115,7 @@ impl Graph {
         } = bindings;
         // The boundary map *is* the working id table — seeded here, intermediates added on demand.
         let mut ids: HashMap<TensorId, TensorId> = tensors.into_iter().collect();
-        for op in self.ops.iter() {
+        for op in self.graph.operations.iter() {
             let mut op = op.clone();
             let mut visitor = BindingVisitor {
                 ids: &mut ids,
@@ -111,7 +130,7 @@ impl Graph {
 
     /// Replay the graph against `interpreter` after binding it to concrete tensors.
     ///
-    /// This is the executing counterpart of [`bind_operations`](Self::bind_operations): it hands
+    /// This is the executing counterpart of [`bind`](Self::bind): it hands
     /// each bound operation to [`TensorInterpreter::register_op`] in its original order.
     pub fn replay<B: BackendIr>(
         &self,
@@ -176,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn bind_operations_resolves_tensors_shapes_scalars_and_ranges() {
+    fn bind_resolves_tensors_shapes_scalars_and_ranges() {
         let relative_input = tensor(0, [0, 1]);
         let relative_intermediate = tensor(1, [0, 1]);
         let relative_output = tensor(2, [0, 1]);
@@ -197,7 +216,7 @@ mod tests {
         let concrete_output = TensorId::new(102);
         let concrete_range = Slice::new(2, Some(8), 2);
 
-        let operations = graph.bind_operations(GraphBindings {
+        let bound = graph.bind(GraphBindings {
             tensors: vec![
                 (relative_input.id, concrete_input),
                 (relative_output.id, concrete_output),
@@ -206,6 +225,7 @@ mod tests {
             scalars: vec![ScalarIr::Int(12)],
             ranges: vec![concrete_range],
         });
+        let operations = &bound.operations;
 
         let OperationIr::BaseFloat(BaseOperationIr::Slice(slice)) = &operations[0] else {
             panic!("expected bound slice")
@@ -220,6 +240,8 @@ mod tests {
         assert_ne!(slice.out.id, relative_intermediate.id);
         assert_eq!(custom.outputs[0].id, concrete_output);
         assert_eq!(custom.scalars, [ScalarIr::Int(12)]);
+        assert_eq!(bound.inputs, [concrete_input]);
+        assert!(bound.outputs.contains(&concrete_output));
     }
 
     #[test]
@@ -249,15 +271,15 @@ mod tests {
             ranges: vec![],
         };
 
-        let first = graph.bind_operations(bind(10, 12));
-        let second = graph.bind_operations(bind(20, 22));
-        let OperationIr::Custom(first_head) = &first[0] else {
+        let first = graph.bind(bind(10, 12));
+        let second = graph.bind(bind(20, 22));
+        let OperationIr::Custom(first_head) = &first.operations[0] else {
             unreachable!()
         };
-        let OperationIr::Custom(first_tail) = &first[1] else {
+        let OperationIr::Custom(first_tail) = &first.operations[1] else {
             unreachable!()
         };
-        let OperationIr::Custom(second_head) = &second[0] else {
+        let OperationIr::Custom(second_head) = &second.operations[0] else {
             unreachable!()
         };
         assert_eq!(first_head.outputs[0].id, first_tail.inputs[0].id);

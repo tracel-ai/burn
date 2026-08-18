@@ -1,13 +1,15 @@
 //! Non-executing router channel used to capture Burn operation graphs.
 
-use alloc::{boxed::Box, format, string::String, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
 use core::sync::atomic::{AtomicU64, Ordering};
 
 use burn_backend::{
     BoolStore, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, DeviceSettings,
     ExecutionError, Shape, TensorData,
 };
-use burn_ir::{GraphBindings, GraphId, GraphIr, IrVisitorMut, OperationIr, TensorId, TensorIr};
+use burn_ir::{
+    GraphBindings, GraphId, GraphIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus,
+};
 use burn_std::{device::Device, future::DynFut};
 use hashbrown::{HashMap, HashSet};
 use spin::Mutex;
@@ -47,13 +49,14 @@ impl CaptureDevice {
     /// [`CaptureScope::complete`], declaring both the runtime input and requested output tensor
     /// IDs. A fresh session is installed before the closure runs and is always unregistered
     /// afterward, including while unwinding from a panic. Only one scope may be active on a capture
-    /// device at a time.
+    /// device at a time. Calling `complete` closes the session immediately, so the closure must not
+    /// perform more tensor operations before returning the completion token.
     pub fn capture_scope(
         &self,
         capture: impl FnOnce(CaptureScope) -> CompletedCaptureScope,
     ) -> Result<CapturedGraph, CaptureError> {
         let session = Arc::new(CaptureSession::default());
-        let client = CaptureClient::new(*self, session);
+        let client = CaptureClient::new(*self, session.clone());
         // Bind this reusable device to the new session client for exactly this scope. BackendRouter
         // operations call `get_client`, which now finds this client instead of trying the channel's
         // intentionally unsupported unscoped initialization path.
@@ -63,7 +66,7 @@ impl CaptureDevice {
             client,
             _registration: registration,
         };
-        guard.complete(capture(CaptureScope { _private: () }))
+        guard.complete(capture(CaptureScope { session }))
     }
 }
 
@@ -114,7 +117,7 @@ pub struct CapturedGraph {
     /// Ordered operation graph with caller-declared boundaries.
     pub graph: GraphIr,
     /// Concrete values supplied through tensor initialization, keyed by tensor ID.
-    pub values: HashMap<TensorId, TensorData>,
+    pub values: BTreeMap<TensorId, TensorData>,
 }
 
 /// Token passed to a [`CaptureDevice::capture_scope`] closure.
@@ -124,8 +127,9 @@ pub struct CapturedGraph {
 /// explicit graph boundaries.
 #[derive(Debug)]
 pub struct CaptureScope {
-    // Prevents callers from constructing `CaptureScope`
-    _private: (),
+    // The scope owns the authority to close its session. Keeping this private prevents callers
+    // from manufacturing completion tokens detached from the active router registration.
+    session: Arc<CaptureSession>,
 }
 
 impl CaptureScope {
@@ -133,15 +137,17 @@ impl CaptureScope {
     ///
     /// Module parameters and other initialized constants should not be listed as runtime inputs;
     /// their retained tensor values remain available in [`CapturedGraph::values`].
+    /// The active session is closed before this returns; subsequent operations through tensors or
+    /// the capture device are rejected even if the closure has not returned yet.
     pub fn complete(
         self,
         inputs: impl IntoIterator<Item = TensorId>,
         outputs: impl IntoIterator<Item = TensorId>,
     ) -> CompletedCaptureScope {
-        CompletedCaptureScope {
-            inputs: inputs.into_iter().collect(),
-            outputs: outputs.into_iter().collect(),
-        }
+        let inputs = inputs.into_iter().collect();
+        let outputs = outputs.into_iter().collect();
+        self.session.state.lock().close();
+        CompletedCaptureScope { inputs, outputs }
     }
 }
 
@@ -155,7 +161,7 @@ pub struct CompletedCaptureScope {
     outputs: Vec<TensorId>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct CaptureSession {
     state: Mutex<CaptureState>,
 }
@@ -205,6 +211,32 @@ impl CaptureScopeGuard {
                 });
             }
         }
+
+        let inferred = GraphIr::classify(&state.operations);
+        for &id in &inputs {
+            if !inferred.inputs.contains(&id) && !state.values.contains_key(&id) {
+                return Err(CaptureError::InvalidInput { tensor: id });
+            }
+        }
+        for &id in &inferred.inputs {
+            if !inputs.contains(&id) && !state.values.contains_key(&id) {
+                return Err(CaptureError::UndeclaredInput { tensor: id });
+            }
+        }
+        for &id in &outputs {
+            // Returning a graph input directly is valid. A computed output, however, must not have
+            // been consumed in place or explicitly dropped according to boundary classification.
+            let consumed = state.operations.iter().any(|operation| {
+                matches!(operation, OperationIr::Drop(tensor) if tensor.id == id)
+                    || operation
+                        .nodes()
+                        .into_iter()
+                        .any(|tensor| tensor.id == id && tensor.status == TensorStatus::ReadWrite)
+            });
+            if consumed || (!inferred.inputs.contains(&id) && !inferred.outputs.contains(&id)) {
+                return Err(CaptureError::InvalidOutput { tensor: id });
+            }
+        }
         let operations = core::mem::take(&mut state.operations);
         let values = core::mem::take(&mut state.values);
         let captured = CapturedGraph {
@@ -217,6 +249,14 @@ impl CaptureScopeGuard {
         };
         drop(state);
         Ok(captured)
+    }
+}
+
+impl Drop for CaptureScopeGuard {
+    fn drop(&mut self) {
+        // Also close scopes that unwind before returning a completion token. Tensor handles can
+        // retain a clone of the session client after the router registration itself is removed.
+        self.client.state().lock().close();
     }
 }
 
@@ -241,6 +281,21 @@ pub enum CaptureError {
         /// Repeated tensor ID.
         tensor: TensorId,
     },
+    /// A tensor dependency was neither initialized nor declared as a runtime input.
+    UndeclaredInput {
+        /// Tensor read by the graph without an available source.
+        tensor: TensorId,
+    },
+    /// A declared input is produced within the graph rather than supplied externally.
+    InvalidInput {
+        /// Invalid input tensor ID.
+        tensor: TensorId,
+    },
+    /// A declared output is consumed in place or otherwise cannot survive the graph.
+    InvalidOutput {
+        /// Invalid output tensor ID.
+        tensor: TensorId,
+    },
 }
 
 impl core::fmt::Display for CaptureError {
@@ -253,6 +308,18 @@ impl core::fmt::Display for CaptureError {
             }
             Self::DuplicateBoundary { boundary, tensor } => {
                 write!(f, "duplicate graph {boundary} tensor {tensor}")
+            }
+            Self::UndeclaredInput { tensor } => {
+                write!(f, "graph reads undeclared input tensor {tensor}")
+            }
+            Self::InvalidInput { tensor } => {
+                write!(
+                    f,
+                    "graph input tensor {tensor} is produced within the graph"
+                )
+            }
+            Self::InvalidOutput { tensor } => {
+                write!(f, "graph output tensor {tensor} does not survive the graph")
             }
         }
     }
@@ -298,7 +365,10 @@ impl RouterChannel for CaptureChannel {
     }
 }
 
-/// Identity bridge for initialized values moved between capture devices.
+/// Bridge that rejects movement between independent capture devices.
+///
+/// A captured tensor belongs to one scoped session and cannot be materialized in another. Concrete
+/// backends still move initialized values onto capture through dispatch's one-way conversion path.
 pub struct CaptureBridge;
 
 impl MultiBackendBridge for CaptureBridge {
@@ -306,43 +376,58 @@ impl MultiBackendBridge for CaptureBridge {
     type Device = CaptureDevice;
 
     fn change_backend_float(
-        tensor: TensorData,
+        _tensor: TensorData,
         _shape: Shape,
         _target: &Self::Device,
     ) -> TensorData {
-        tensor
+        panic!("moving tensors between capture devices is not supported")
     }
-    fn change_backend_int(tensor: TensorData, _shape: Shape, _target: &Self::Device) -> TensorData {
-        tensor
+    fn change_backend_int(
+        _tensor: TensorData,
+        _shape: Shape,
+        _target: &Self::Device,
+    ) -> TensorData {
+        panic!("moving tensors between capture devices is not supported")
     }
     fn change_backend_bool(
-        tensor: TensorData,
+        _tensor: TensorData,
         _shape: Shape,
         _target: &Self::Device,
     ) -> TensorData {
-        tensor
+        panic!("moving tensors between capture devices is not supported")
     }
 }
 
+#[derive(Debug)]
 struct CaptureState {
     operations: Vec<OperationIr>,
-    values: HashMap<TensorId, TensorData>,
+    values: BTreeMap<TensorId, TensorData>,
     graphs: HashMap<GraphId, Graph>,
     aliases: HashMap<TensorId, TensorId>,
+    closed: bool,
 }
 
 impl Default for CaptureState {
     fn default() -> Self {
         Self {
             operations: Vec::new(),
-            values: HashMap::new(),
+            values: BTreeMap::new(),
             graphs: HashMap::new(),
             aliases: HashMap::new(),
+            closed: false,
         }
     }
 }
 
 impl CaptureState {
+    fn close(&mut self) {
+        self.closed = true;
+    }
+
+    fn assert_open(&self) {
+        assert!(!self.closed, "capture scope is already complete");
+    }
+
     /// Resolve a fusion alias to the tensor ID that owns the computation or initializer.
     fn resolve_alias(&self, mut id: TensorId) -> TensorId {
         while let Some(source) = self.aliases.get(&id) {
@@ -364,6 +449,7 @@ impl CaptureState {
         if matches!(op, OperationIr::Drop(_)) {
             return;
         }
+        self.assert_open();
         op.visit_mut(&mut AliasVisitor {
             aliases: &self.aliases,
         });
@@ -422,23 +508,34 @@ impl RouterClient for CaptureClient {
     fn flush(&self) {}
 
     fn create_empty_handle(&self) -> TensorId {
+        self.state().lock().assert_open();
         TensorId::new(TENSOR_COUNTER.fetch_add(1, Ordering::Relaxed))
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
-        let id = self.create_empty_handle();
+        let mut state = self.state().lock();
+        state.assert_open();
+        let id = TensorId::new(TENSOR_COUNTER.fetch_add(1, Ordering::Relaxed));
         let shape = data.shape.clone();
         let dtype = data.dtype;
-        self.state().lock().values.insert(id, data);
+        state.values.insert(id, data);
+        drop(state);
         RouterTensor::new(id, shape, dtype, self.clone())
     }
 
     fn device(&self) -> Self::Device {
         self.device
     }
-    fn seed(&self, _seed: u64) {}
-    fn dtype_usage(&self, _dtype: DType) -> DTypeUsageSet {
-        DTypeUsage::general()
+
+    fn seed(&self, _seed: u64) {
+        panic!("seeding is not supported during graph capture")
+    }
+
+    fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet {
+        match dtype {
+            DType::F32 | DType::I64 | DType::Bool(BoolStore::U8) => DTypeUsage::general(),
+            _ => DTypeUsageSet::empty(),
+        }
     }
 
     fn register_and_execute_graph(
@@ -448,10 +545,10 @@ impl RouterClient for CaptureClient {
         bindings: GraphBindings,
     ) {
         let graph = Graph::new(relative_graph);
-        let operations = graph.bind_operations(bindings);
+        let bound = graph.bind(bindings);
         let mut state = self.state().lock();
         state.graphs.insert(graph_id, graph);
-        for operation in operations {
+        for operation in bound.operations {
             state.register_op(operation);
         }
     }
@@ -464,23 +561,29 @@ impl RouterClient for CaptureClient {
             .get(&graph_id)
             .cloned()
             .unwrap_or_else(|| panic!("capture graph {graph_id:?} was not registered"));
-        let operations = graph.bind_operations(bindings);
+        let bound = graph.bind(bindings);
         let mut state = self.state().lock();
-        for operation in operations {
+        for operation in bound.operations {
             state.register_op(operation);
         }
     }
 
     fn register_alias(&self, new_id: TensorId, src_id: TensorId) {
         let mut state = self.state().lock();
+        state.assert_open();
         let source = state.resolve_alias(src_id);
-        state.aliases.insert(new_id, source);
+        if source != new_id {
+            state.aliases.insert(new_id, source);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
+    #[cfg(feature = "std")]
+    use burn_backend::Backend;
     use burn_backend::ops::FloatTensorOps;
     use burn_ir::{CustomOpIr, ScalarIr};
     use burn_router::get_client;
@@ -554,8 +657,9 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "std")]
     #[test]
-    fn late_tensor_drops_stay_in_the_completed_session() {
+    fn escaped_tensors_cannot_record_after_their_scope_completes() {
         let device = CaptureDevice::default();
         let mut escaped_output = None;
         let first = device
@@ -575,11 +679,51 @@ mod tests {
 
         let next = device
             .capture_scope(|scope| {
-                drop(escaped_output.take());
-                scope.complete([], [])
+                let fresh = CaptureBackend::float_from_data(TensorData::from([3.0f32]), &device);
+                let fresh_id = fresh.id();
+                let stale = escaped_output.take().unwrap();
+                let operation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    CaptureBackend::float_add(stale, fresh)
+                }));
+
+                assert!(operation.is_err());
+                scope.complete([fresh_id], [])
             })
             .unwrap();
-        assert!(next.graph.operations.is_empty());
+        assert_eq!(next.graph.operations.len(), 1);
+        assert!(matches!(next.graph.operations[0], OperationIr::Init(_)));
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn completing_scope_immediately_rejects_more_operations() {
+        let device = CaptureDevice::default();
+        let captured = device
+            .capture_scope(|scope| {
+                let client = get_client::<CaptureChannel>(&device);
+                let completed = scope.complete([], []);
+                let tensor_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    CaptureBackend::float_from_data(TensorData::from([1.0f32]), &device)
+                }));
+                let handle = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    client.create_empty_handle()
+                }));
+                let operation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    client.register_op(OperationIr::Custom(CustomOpIr::new(
+                        "late",
+                        &[],
+                        &[tensor(99_000, [1])],
+                    )))
+                }));
+
+                assert!(tensor_result.is_err());
+                assert!(handle.is_err());
+                assert!(operation.is_err());
+                completed
+            })
+            .unwrap();
+
+        assert!(captured.graph.operations.is_empty());
     }
 
     #[test]
@@ -596,6 +740,7 @@ mod tests {
         assert!(second.graph.operations.is_empty());
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn tensor_operations_require_an_active_scope() {
         let device = CaptureDevice::default();
@@ -635,14 +780,27 @@ mod tests {
         assert!(outer.is_ok());
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn panicking_scope_releases_its_router_registration() {
         let device = CaptureDevice::default();
+        let mut escaped = None;
         let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = device.capture_scope(|_| -> CompletedCaptureScope { panic!("capture failed") });
+            let _ = device.capture_scope(|_| -> CompletedCaptureScope {
+                escaped = Some(CaptureBackend::float_from_data(
+                    TensorData::from([1.0f32]),
+                    &device,
+                ));
+                panic!("capture failed")
+            });
         }));
 
         assert!(panic.is_err());
+        let stale = escaped.unwrap();
+        let operation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            CaptureBackend::float_neg(stale)
+        }));
+        assert!(operation.is_err());
         assert!(device.capture_scope(|scope| scope.complete([], [])).is_ok());
     }
 
@@ -694,6 +852,114 @@ mod tests {
             captured,
             Err(CaptureError::DuplicateBoundary { tensor, .. }) if Some(tensor) == duplicate
         ));
+    }
+
+    #[test]
+    fn dangling_graph_input_is_reported() {
+        let device = CaptureDevice::default();
+        let captured = device.capture_scope(|scope| {
+            let client = get_client::<CaptureChannel>(&device);
+            let missing = tensor(90_000, [1]);
+            let output_id = client.create_empty_handle();
+            client.register_op(OperationIr::Custom(CustomOpIr::new(
+                "dangling",
+                &[missing],
+                &[tensor(output_id.value(), [1])],
+            )));
+            scope.complete([], [output_id])
+        });
+
+        assert!(matches!(
+            captured,
+            Err(CaptureError::UndeclaredInput { .. })
+        ));
+    }
+
+    #[test]
+    fn graph_produced_tensor_cannot_be_declared_as_input() {
+        let device = CaptureDevice::default();
+        let captured = device.capture_scope(|scope| {
+            let client = get_client::<CaptureChannel>(&device);
+            let input = client.register_tensor_data(TensorData::from([1.0f32]));
+            let output_id = client.create_empty_handle();
+            client.register_op(OperationIr::Custom(CustomOpIr::new(
+                "produce",
+                &[input.into_ir()],
+                &[tensor(output_id.value(), [1])],
+            )));
+            scope.complete([output_id], [output_id])
+        });
+
+        assert!(matches!(captured, Err(CaptureError::InvalidInput { .. })));
+    }
+
+    #[test]
+    fn read_write_tensor_cannot_be_declared_as_output() {
+        let device = CaptureDevice::default();
+        let captured = device.capture_scope(|scope| {
+            let client = get_client::<CaptureChannel>(&device);
+            let input = client.register_tensor_data(TensorData::from([1.0f32]));
+            let input_id = input.id();
+            let mut input = input.into_ir();
+            input.status = TensorStatus::ReadWrite;
+            let output_id = client.create_empty_handle();
+            client.register_op(OperationIr::Custom(CustomOpIr::new(
+                "consume_in_place",
+                &[input],
+                &[tensor(output_id.value(), [1])],
+            )));
+            scope.complete([input_id], [input_id])
+        });
+
+        assert!(matches!(captured, Err(CaptureError::InvalidOutput { .. })));
+    }
+
+    #[test]
+    fn capture_reports_only_conservative_dtype_support() {
+        let device = CaptureDevice::default();
+        let captured = device.capture_scope(|scope| {
+            let client = get_client::<CaptureChannel>(&device);
+            assert_eq!(client.dtype_usage(DType::F32), DTypeUsage::general());
+            assert_eq!(client.dtype_usage(DType::I64), DTypeUsage::general());
+            assert_eq!(
+                client.dtype_usage(DType::Bool(BoolStore::U8)),
+                DTypeUsage::general()
+            );
+            assert!(client.dtype_usage(DType::F64).is_empty());
+            assert!(client.dtype_usage(DType::BF16).is_empty());
+            scope.complete([], [])
+        });
+
+        assert!(captured.is_ok());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn seeding_capture_device_is_rejected() {
+        let device = CaptureDevice::default();
+        let captured = device.capture_scope(|scope| {
+            let seeded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                CaptureBackend::seed(&device, 42)
+            }));
+            assert!(seeded.is_err());
+            scope.complete([], [])
+        });
+
+        assert!(captured.is_ok());
+    }
+
+    #[test]
+    fn self_alias_is_ignored() {
+        let device = CaptureDevice::default();
+        let captured = device.capture_scope(|scope| {
+            let client = get_client::<CaptureChannel>(&device);
+            let id = client.create_empty_handle();
+            client.register_alias(id, id);
+            assert_eq!(client.state().lock().resolve_alias(id), id);
+            scope.complete([], [])
+        });
+
+        assert!(captured.is_ok());
     }
 
     #[test]

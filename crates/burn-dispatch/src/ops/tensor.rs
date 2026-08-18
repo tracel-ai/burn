@@ -744,7 +744,7 @@ impl FloatTensorOps<Self> for Dispatch {
 #[cfg(all(test, feature = "capture", any(feature = "flex", default_backend)))]
 mod tests {
     use super::*;
-    use burn_backend::ops::IntTensorOps;
+    use burn_backend::ops::{BoolTensorOps, IntTensorOps};
     use burn_capture::CaptureDevice;
 
     #[test]
@@ -774,5 +774,52 @@ mod tests {
             })
             .unwrap();
         assert_eq!(graph.values.len(), 2);
+    }
+
+    #[test]
+    fn tensors_cannot_move_between_capture_devices() {
+        let source_device = DispatchDevice::Flex(Default::default());
+        let first = CaptureDevice::default();
+        let second = CaptureDevice::default();
+        let first_dispatch = DispatchDevice::Capture(first);
+        let second_dispatch = DispatchDevice::Capture(second);
+        let float = Dispatch::float_from_data(TensorData::from([1.0f32]), &source_device);
+        let int = Dispatch::int_from_data(TensorData::from([1i64]), &source_device);
+        let bool = Dispatch::bool_from_data(TensorData::from([true]), &source_device);
+
+        let first_graph = first
+            .capture_scope(|first_scope| {
+                let float = Dispatch::float_to_device(float, &first_dispatch);
+                let int = Dispatch::int_to_device(int, &first_dispatch);
+                let bool = Dispatch::bool_to_device(bool, &first_dispatch);
+
+                let second_graph = second
+                    .capture_scope(|second_scope| {
+                        let float_result =
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                Dispatch::float_to_device(float, &second_dispatch)
+                            }));
+                        let int_result =
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                Dispatch::int_to_device(int, &second_dispatch)
+                            }));
+                        let bool_result =
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                Dispatch::bool_to_device(bool, &second_dispatch)
+                            }));
+
+                        assert!(float_result.is_err());
+                        assert!(int_result.is_err());
+                        assert!(bool_result.is_err());
+                        second_scope.complete([], [])
+                    })
+                    .unwrap();
+                assert!(second_graph.values.is_empty());
+
+                first_scope.complete([], [])
+            })
+            .unwrap();
+
+        assert_eq!(first_graph.values.len(), 3);
     }
 }

@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 
 use burn_std::config::config;
 
-use crate::{BackendRouter, RouterChannel, RouterClient, RouterTensor, get_client};
+use crate::{BackendRouter, Graph, RouterChannel, RouterClient, RouterTensor, get_client};
 
 static GRAPH_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -344,20 +344,14 @@ impl<R: RouterChannel> Operation<RouterFusionRuntime<R>> for CustomOperation<R> 
 
 /// A reusable group of operations, registered once on the backend and thereafter invoked by id.
 ///
-/// The recorded [`graph`](Vec<OperationIr>) is in *relative* form (positional tensor ids, relative
+/// The recorded [`graph`](Graph) is in *relative* form (positional tensor ids, relative
 /// shape-dim ids, scalar placeholders), which is invariant across invocations — that is what lets
 /// the backend cache it and the client reuse it. On each [`execute`](Optimization::execute) only
 /// the concrete bindings are computed from the [`Context`] and sent; the (large) graph itself
 /// travels only on the first invocation.
 pub struct RouterGraphExecution<R: RouterChannel> {
-    graph: GraphIr,
+    graph: Graph,
     device: R::Device,
-    /// Relative ids of the graph's boundary, precomputed once from the (static) graph so each
-    /// replay is O(boundary) instead of re-scanning every tensor. Inputs are tensors not produced
-    /// by a compute op (external data / prior results, incl. `Init`/`from_data` outputs); outputs
-    /// are compute-produced tensors that survive (neither consumed in place nor dropped here).
-    input_ids: Vec<TensorId>,
-    output_ids: Vec<TensorId>,
     /// Backend-side id, assigned and registered on the first execution and reused afterwards.
     graph_id: Option<GraphId>,
     _p: PhantomData<R>,
@@ -369,30 +363,26 @@ pub struct RouterGraphExecution<R: RouterChannel> {
 /// graph re-registers itself on first use.
 #[derive(Serialize, Deserialize)]
 pub struct RouterGraphExecutionState {
-    graph: GraphIr,
+    operations: Vec<OperationIr>,
 }
 
 impl<R: RouterChannel> RouterGraphExecution<R> {
     fn new(graph: Vec<OperationIr>, device: R::Device) -> Self {
-        let graph = GraphIr::new(graph);
-        let input_ids = graph.inputs.clone();
-        let output_ids = graph.outputs.clone();
         Self {
-            graph,
+            graph: Graph::new(graph),
             device,
-            input_ids,
-            output_ids,
             graph_id: None,
             _p: PhantomData,
         }
     }
 }
-// Estimate the % of serialized bytes that caching this op-graph saves per replay.
+
+/// Estimate the percentage of serialized bytes that graph caching saves per replay.
 ///
-/// Dependency-free structural estimate (using [`GraphIr`] for boundary classification): the baseline is the whole
-/// relative graph's bytes (op overhead + each tensor's id/dtype/status + its dims); the per-replay
-/// bindings are just the boundary `(relative id, concrete id)` pairs plus the distinct dim table.
-/// Scalars/ranges travel in both and cancel in the ratio. Returns 0..=100.
+/// This dependency-free structural estimate uses [`GraphIr`] for boundary classification. The
+/// baseline is the whole relative graph's bytes (operation overhead plus each tensor's
+/// id/dtype/status and dimensions); each replay sends only boundary ID pairs and distinct dims.
+/// Scalars and ranges travel in both forms and cancel in the ratio. Returns `0..=100`.
 fn estimate_saved_pct(ops: &[OperationIr]) -> u64 {
     if ops.is_empty() {
         return 0;
@@ -415,9 +405,9 @@ fn estimate_saved_pct(ops: &[OperationIr]) -> u64 {
         }
     }
 
-    let graph = GraphIr::new(ops.to_vec());
-    let bindings =
-        (graph.inputs.len() + graph.outputs.len()) as u64 * PAIR + dims.len() as u64 * PER_DIM;
+    let boundary = GraphIr::classify(ops);
+    let bindings = (boundary.inputs.len() + boundary.outputs.len()) as u64 * PAIR
+        + dims.len() as u64 * PER_DIM;
 
     let saved = baseline.saturating_sub(bindings);
     (saved * 100 / baseline).min(100)
@@ -454,9 +444,9 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecu
         // Intermediates are never touched here: the replay owns their ids and derives their shapes
         // from the shape table below.
         let mut tensors: Vec<(TensorId, TensorId)> =
-            Vec::with_capacity(self.input_ids.len() + self.output_ids.len());
+            Vec::with_capacity(self.graph.inputs().len() + self.graph.outputs().len());
 
-        for &input_id in &self.input_ids {
+        for &input_id in self.graph.inputs() {
             let global_id = match context.tensors.get(&input_id) {
                 Some(global) => global.id,
                 None => continue,
@@ -466,7 +456,7 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecu
             }
         }
 
-        for &output_id in &self.output_ids {
+        for &output_id in self.graph.outputs() {
             // Extract owned metadata first so the `context.tensors` borrow ends before we touch
             // `context.handles`.
             let output = context
@@ -516,18 +506,18 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecu
             None => {
                 let id = next_graph_id();
                 self.graph_id = Some(id);
-                client.register_and_execute_graph(id, self.graph.operations.clone(), bindings);
+                client.register_and_execute_graph(id, self.graph.operations().to_vec(), bindings);
             }
         };
     }
 
     fn to_state(&self) -> RouterGraphExecutionState {
         RouterGraphExecutionState {
-            graph: self.graph.clone(),
+            operations: self.graph.operations().to_vec(),
         }
     }
 
     fn from_state(device: &R::Device, state: RouterGraphExecutionState) -> Self {
-        Self::new(state.graph.operations, device.clone())
+        Self::new(state.operations, device.clone())
     }
 }
