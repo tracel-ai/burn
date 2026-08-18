@@ -740,3 +740,39 @@ impl FloatTensorOps<Self> for Dispatch {
         binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_hypot(lhs, rhs) => Float)
     }
 }
+
+#[cfg(all(test, feature = "capture", any(feature = "flex", default_backend)))]
+mod tests {
+    use super::*;
+    use burn_backend::ops::IntTensorOps;
+    use burn_capture::CaptureDevice;
+
+    #[test]
+    fn capture_tensor_movement_is_one_way() {
+        let source_device = DispatchDevice::Flex(Default::default());
+        let concrete_capture_device = CaptureDevice::default();
+        let capture_device = DispatchDevice::Capture(concrete_capture_device.clone());
+        let float = Dispatch::float_from_data(TensorData::from([1.0f32, 2.0]), &source_device);
+        let int = Dispatch::int_from_data(TensorData::from([1i64, 2]), &source_device);
+
+        let graph = concrete_capture_device
+            .capture_scope(|scope| {
+                let captured_float = Dispatch::float_to_device(float, &capture_device);
+                let captured_float = Dispatch::float_to_device(captured_float, &capture_device);
+                let captured_int = Dispatch::int_to_device(int, &capture_device);
+                let captured_int = Dispatch::int_to_device(captured_int, &capture_device);
+                let float_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    Dispatch::float_to_device(captured_float, &source_device)
+                }));
+                let int_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    Dispatch::int_to_device(captured_int, &source_device)
+                }));
+
+                assert!(float_result.is_err());
+                assert!(int_result.is_err());
+                scope.complete([], [])
+            })
+            .unwrap();
+        assert_eq!(graph.values.len(), 2);
+    }
+}

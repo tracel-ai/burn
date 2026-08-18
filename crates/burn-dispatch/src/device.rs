@@ -737,3 +737,18 @@ impl From<CaptureDevice> for DispatchDevice {
         DispatchDevice::Capture(device)
     }
 }
+
+#[cfg(all(test, feature = "capture"))]
+mod tests {
+    use super::*;
+    use burn_backend::Device;
+
+    #[test]
+    fn capture_device_id_round_trips_through_dispatch() {
+        let capture_device = CaptureDevice::default();
+        let device = DispatchDevice::Capture(capture_device);
+        let restored = DispatchDevice::from_id(device.to_id());
+
+        assert_eq!(restored, device);
+    }
+}

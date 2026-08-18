@@ -56,7 +56,7 @@ impl Graph {
         self.ops.is_empty()
     }
 
-    /// Replay the graph against `interpreter`, rebinding the relative form to concrete tensors.
+    /// Bind the relative graph to one invocation and return concrete operations.
     ///
     /// The graph is in relative form: its tensor ids are positional, shape dims are relative ids,
     /// and scalars/ranges are placeholders. `bindings` arrive packaged the way the replay uses
@@ -69,12 +69,24 @@ impl Graph {
     ///   correct shapes too, without being sent);
     /// - substitute scalar placeholders and restore concrete slice ranges;
     ///
-    /// then hand the rebound op to the unchanged [`TensorInterpreter::register_op`], reproducing the
-    /// exact sequence of global ops the client would have streamed op-by-op.
-    pub fn replay<B: BackendIr>(
+    /// The returned operations can be executed by a router server or inspected by a non-executing
+    /// consumer such as graph capture. Binding itself performs no tensor computation.
+    pub fn bind_operations(&self, bindings: GraphBindings) -> Vec<OperationIr> {
+        let mut operations = Vec::with_capacity(self.ops.len());
+        self.for_each_bound_operation(bindings, |operation| operations.push(operation));
+        operations
+    }
+
+    /// Visit each operation after binding it to a concrete invocation.
+    ///
+    /// Keeping the shared traversal callback-based lets executing router servers stream bound
+    /// operations directly into their interpreter without first allocating a second operation
+    /// vector. Non-executing consumers use [`bind_operations`](Self::bind_operations) to collect
+    /// the same traversal.
+    fn for_each_bound_operation(
         &self,
-        interpreter: &mut TensorInterpreter<B>,
         bindings: GraphBindings,
+        mut visit: impl FnMut(OperationIr),
     ) {
         let GraphBindings {
             tensors,
@@ -86,20 +98,32 @@ impl Graph {
         let mut ids: HashMap<TensorId, TensorId> = tensors.into_iter().collect();
         for op in self.ops.iter() {
             let mut op = op.clone();
-            let mut visitor = ReplayVisitor {
+            let mut visitor = BindingVisitor {
                 ids: &mut ids,
                 shapes: &shapes,
                 scalars: &scalars,
                 ranges: &ranges,
             };
             op.visit_mut(&mut visitor);
-            interpreter.register_op(op);
+            visit(op);
         }
+    }
+
+    /// Replay the graph against `interpreter` after binding it to concrete tensors.
+    ///
+    /// This is the executing counterpart of [`bind_operations`](Self::bind_operations): it hands
+    /// each bound operation to [`TensorInterpreter::register_op`] in its original order.
+    pub fn replay<B: BackendIr>(
+        &self,
+        interpreter: &mut TensorInterpreter<B>,
+        bindings: GraphBindings,
+    ) {
+        self.for_each_bound_operation(bindings, |operation| interpreter.register_op(operation));
     }
 }
 
-/// Rebinds a relative op's tensors, scalars, and ranges to their concrete values during replay.
-struct ReplayVisitor<'a> {
+/// Binds a relative op's tensors, scalars, and ranges to their invocation values.
+struct BindingVisitor<'a> {
     /// The working id table; intermediates are allocated on demand and memoized here so all
     /// references to one intermediate agree. Persists across ops within a replay.
     ids: &'a mut HashMap<TensorId, TensorId>,
@@ -108,7 +132,7 @@ struct ReplayVisitor<'a> {
     ranges: &'a [Slice],
 }
 
-impl IrVisitorMut for ReplayVisitor<'_> {
+impl IrVisitorMut for BindingVisitor<'_> {
     fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
         tensor.id = *self
             .ids
@@ -133,5 +157,110 @@ impl IrVisitorMut for ReplayVisitor<'_> {
         if let Some(concrete) = self.ranges.get(range.start as usize) {
             *range = *concrete;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::{DType, Shape, Slice};
+    use burn_ir::{BaseOperationIr, CustomOpIr, ScalarIr, SliceOpIr, TensorStatus};
+
+    fn tensor(id: u64, shape: [usize; 2]) -> TensorIr {
+        TensorIr {
+            id: TensorId::new(id),
+            shape: Shape::new(shape),
+            status: TensorStatus::NotInit,
+            dtype: DType::F32,
+        }
+    }
+
+    #[test]
+    fn bind_operations_resolves_tensors_shapes_scalars_and_ranges() {
+        let relative_input = tensor(0, [0, 1]);
+        let relative_intermediate = tensor(1, [0, 1]);
+        let relative_output = tensor(2, [0, 1]);
+        let graph = Graph::new(vec![
+            OperationIr::BaseFloat(BaseOperationIr::Slice(SliceOpIr {
+                tensor: relative_input.clone(),
+                ranges: vec![Slice::new(0, None, 1)],
+                out: relative_intermediate.clone(),
+            })),
+            OperationIr::Custom(CustomOpIr::with_scalars(
+                "bound",
+                core::slice::from_ref(&relative_intermediate),
+                core::slice::from_ref(&relative_output),
+                vec![ScalarIr::UInt(0)],
+            )),
+        ]);
+        let concrete_input = TensorId::new(100);
+        let concrete_output = TensorId::new(102);
+        let concrete_range = Slice::new(2, Some(8), 2);
+
+        let operations = graph.bind_operations(GraphBindings {
+            tensors: vec![
+                (relative_input.id, concrete_input),
+                (relative_output.id, concrete_output),
+            ],
+            shapes: vec![4, 8],
+            scalars: vec![ScalarIr::Int(12)],
+            ranges: vec![concrete_range],
+        });
+
+        let OperationIr::BaseFloat(BaseOperationIr::Slice(slice)) = &operations[0] else {
+            panic!("expected bound slice")
+        };
+        let OperationIr::Custom(custom) = &operations[1] else {
+            panic!("expected bound custom operation")
+        };
+        assert_eq!(slice.tensor.id, concrete_input);
+        assert_eq!(slice.tensor.shape, Shape::new([4, 8]));
+        assert_eq!(slice.ranges, [concrete_range]);
+        assert_eq!(slice.out.id, custom.inputs[0].id);
+        assert_ne!(slice.out.id, relative_intermediate.id);
+        assert_eq!(custom.outputs[0].id, concrete_output);
+        assert_eq!(custom.scalars, [ScalarIr::Int(12)]);
+    }
+
+    #[test]
+    fn each_binding_allocates_fresh_intermediate_ids() {
+        let relative_input = tensor(0, [0, 0]);
+        let relative_intermediate = tensor(1, [0, 0]);
+        let relative_output = tensor(2, [0, 0]);
+        let graph = Graph::new(vec![
+            OperationIr::Custom(CustomOpIr::new(
+                "first",
+                core::slice::from_ref(&relative_input),
+                core::slice::from_ref(&relative_intermediate),
+            )),
+            OperationIr::Custom(CustomOpIr::new(
+                "second",
+                &[relative_intermediate],
+                core::slice::from_ref(&relative_output),
+            )),
+        ]);
+        let bind = |input, output| GraphBindings {
+            tensors: vec![
+                (relative_input.id, TensorId::new(input)),
+                (relative_output.id, TensorId::new(output)),
+            ],
+            shapes: vec![2],
+            scalars: vec![],
+            ranges: vec![],
+        };
+
+        let first = graph.bind_operations(bind(10, 12));
+        let second = graph.bind_operations(bind(20, 22));
+        let OperationIr::Custom(first_head) = &first[0] else {
+            unreachable!()
+        };
+        let OperationIr::Custom(first_tail) = &first[1] else {
+            unreachable!()
+        };
+        let OperationIr::Custom(second_head) = &second[0] else {
+            unreachable!()
+        };
+        assert_eq!(first_head.outputs[0].id, first_tail.inputs[0].id);
+        assert_ne!(first_head.outputs[0].id, second_head.outputs[0].id);
     }
 }
