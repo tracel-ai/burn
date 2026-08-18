@@ -131,7 +131,7 @@ cpu = ["burn-cpu", "burn-core/cpu", "burn-vision?/cpu"]
 
 # Backend extensions
 extension = ["burn-core/extension"]
-capture = ["extension", "ir", "burn-core/capture"]
+capture = ["burn-core/capture"]
 
 [dependencies]
 
