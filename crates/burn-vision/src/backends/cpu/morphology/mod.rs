@@ -73,7 +73,7 @@ fn morph_impl<B: Element>(
         DType::F32 | DType::Flex32 => {
             morph_typed::<B, f32>(data, shape, kernel, op, iter, btype, bvalue)
         }
-        DType::F16 | DType::BF16 => morph_typed::<B, f32>(
+        DType::F16 | DType::BF16 | DType::E4M3 | DType::E5M2 => morph_typed::<B, f32>(
             data.convert::<f32>(),
             shape,
             kernel,

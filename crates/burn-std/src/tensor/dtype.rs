@@ -1,5 +1,6 @@
 //! Tensor data type.
 
+use cubecl_common::{e4m3, e5m2};
 use serde::{Deserialize, Serialize};
 
 use crate::tensor::quantization::{QuantScheme, QuantStore, QuantValue};
@@ -13,6 +14,10 @@ pub enum DType {
     Flex32,
     F16,
     BF16,
+    // Q8F,
+    // Q8S,
+    E4M3,
+    E5M2,
     I64,
     I32,
     I16,
@@ -40,6 +45,8 @@ impl DType {
             DType::Flex32 => core::mem::size_of::<f32>(),
             DType::F16 => core::mem::size_of::<f16>(),
             DType::BF16 => core::mem::size_of::<bf16>(),
+            DType::E4M3 => core::mem::size_of::<i8>(),
+            DType::E5M2 => core::mem::size_of::<i8>(),
             DType::I64 => core::mem::size_of::<i64>(),
             DType::I32 => core::mem::size_of::<i32>(),
             DType::I16 => core::mem::size_of::<i16>(),
@@ -78,7 +85,13 @@ impl DType {
     pub fn is_float(&self) -> bool {
         matches!(
             self,
-            DType::F64 | DType::F32 | DType::Flex32 | DType::F16 | DType::BF16
+            DType::F64
+                | DType::F32
+                | DType::Flex32
+                | DType::F16
+                | DType::BF16
+                | DType::E5M2
+                | DType::E4M3
         )
     }
     /// Returns true if the data type is a signed integer type.
@@ -117,6 +130,8 @@ impl DType {
             DType::Flex32 => "flex32",
             DType::F16 => "f16",
             DType::BF16 => "bf16",
+            DType::E4M3 => "e4m3",
+            DType::E5M2 => "e5m2",
             DType::I64 => "i64",
             DType::I32 => "i32",
             DType::I16 => "i16",
@@ -143,6 +158,8 @@ pub enum FloatDType {
     Flex32,
     F16,
     BF16,
+    E4M3,
+    E5M2,
 }
 
 /// Numerical precision properties for a floating-point dtype.
@@ -200,6 +217,18 @@ impl FloatDType {
                 min: bf16::MIN.to_f64_const(),
                 min_positive: bf16::MIN_POSITIVE.to_f64_const(), // ~1.175e-38
             },
+            FloatDType::E4M3 => FloatInfo {
+                epsilon: e4m3::EPSILON.to_f64(),
+                max: e4m3::MAX.to_f64(),
+                min: e4m3::MIN.to_f64(),
+                min_positive: e4m3::MIN_POSITIVE.to_f64(),
+            },
+            FloatDType::E5M2 => FloatInfo {
+                epsilon: e5m2::EPSILON.to_f64(),
+                max: e5m2::MAX.to_f64(),
+                min: e5m2::MIN.to_f64(),
+                min_positive: e5m2::MIN_POSITIVE.to_f64(),
+            },
         }
     }
 }
@@ -225,6 +254,8 @@ impl From<FloatDType> for DType {
             FloatDType::Flex32 => DType::Flex32,
             FloatDType::F16 => DType::F16,
             FloatDType::BF16 => DType::BF16,
+            FloatDType::E4M3 => DType::E4M3,
+            FloatDType::E5M2 => DType::E5M2,
         }
     }
 }

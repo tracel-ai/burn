@@ -7,7 +7,7 @@ use burn_backend::{
     ops::{BoolTensorOps, IntTensorOps},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
-use burn_std::{Bytes, FloatDType, IntDType, Shape, Slice, bf16, f16};
+use burn_std::{Bytes, FloatDType, IntDType, Shape, Slice, bf16, e4m3, e5m2, f16};
 
 use crate::{Flex, FlexTensor, Layout};
 
@@ -115,6 +115,24 @@ impl BoolTensorOps<Flex> for Flex {
                 let one = bf16::from_f32(1.0);
                 let zero = bf16::from_f32(0.0);
                 let data: Vec<bf16> = bools
+                    .iter()
+                    .map(|&x| if x != 0 { one } else { zero })
+                    .collect();
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }
+            FloatDType::E4M3 => {
+                let one = e4m3::from_f32(1.0);
+                let zero = e4m3::from_f32(0.0);
+                let data: Vec<e4m3> = bools
+                    .iter()
+                    .map(|&x| if x != 0 { one } else { zero })
+                    .collect();
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }
+            FloatDType::E5M2 => {
+                let one = e5m2::from_f32(1.0);
+                let zero = e5m2::from_f32(0.0);
+                let data: Vec<e5m2> = bools
                     .iter()
                     .map(|&x| if x != 0 { one } else { zero })
                     .collect();

@@ -6,7 +6,7 @@ use burn_backend::{
     ops::IntTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
-use burn_std::{Bytes, IntDType, Shape, Slice, bf16, f16};
+use burn_std::{Bytes, IntDType, Shape, Slice, bf16, e4m3, e5m2, f16};
 use num_traits::ToPrimitive;
 
 use crate::Layout;
@@ -480,6 +480,14 @@ impl IntTensorOps<Flex> for Flex {
             }
             FloatDType::BF16 => {
                 let data: Vec<bf16> = read_ints!(|x| bf16::from_f32(x as f32));
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }
+            FloatDType::E4M3 => {
+                let data: Vec<e4m3> = read_ints!(|x| e4m3::from_f32(x as f32));
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }
+            FloatDType::E5M2 => {
+                let data: Vec<e5m2> = read_ints!(|x| e5m2::from_f32(x as f32));
                 FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
             }
         }
