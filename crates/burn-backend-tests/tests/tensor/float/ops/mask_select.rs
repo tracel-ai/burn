@@ -65,7 +65,7 @@ fn test_mask_select_empty() {
 
     assert_eq!(output.shape(), Shape::new([0]));
     // Read the data back to force execution on lazy backends (shape alone is metadata-only).
-    let out: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+    let out: Vec<FloatElem> = output.try_into_vec_as().unwrap();
     assert!(out.is_empty());
 }
 

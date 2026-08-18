@@ -1203,7 +1203,7 @@ mod tests {
         let indices = FlexTensor::from_data(TensorData::new(vec![3i32, 0, 2], [3]));
 
         let result = gather::<f32>(tensor, 0, indices);
-        let data: Vec<f32> = result.into_data().to_vec().unwrap();
+        let data: Vec<f32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![40.0, 10.0, 30.0]);
     }
 
@@ -1216,7 +1216,7 @@ mod tests {
         let indices = FlexTensor::from_data(TensorData::new(vec![2i32, 0], [2]));
 
         let result = select::<f32>(tensor, 0, indices);
-        let data: Vec<f32> = result.into_data().to_vec().unwrap();
+        let data: Vec<f32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![5.0, 6.0, 1.0, 2.0]);
     }
 
@@ -1236,7 +1236,7 @@ mod tests {
 
         let result = select::<f32>(tensor, 0, indices);
         assert_eq!(result.layout().shape().to_vec(), vec![num_idx, cols]);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         for (i, &row_idx) in idx.iter().enumerate() {
             let expected_start = row_idx as usize * cols;
