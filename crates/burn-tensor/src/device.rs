@@ -281,7 +281,7 @@ impl Device {
     /// [`Device::capture_scope`] to delimit each capture and declare its graph boundaries.
     #[cfg(feature = "capture")]
     pub fn capture() -> Self {
-        Self::new(burn_dispatch::devices::CaptureDevice::default())
+        Self::new(DispatchDevice::capture())
     }
 
     /// Capture the operations performed by `capture` on this device.

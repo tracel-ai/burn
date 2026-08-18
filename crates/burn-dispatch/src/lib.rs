@@ -103,8 +103,13 @@ pub mod backends {
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
 
+    /// Public graph-capture API types.
     #[cfg(feature = "capture")]
-    pub use burn_capture as capture;
+    pub mod capture {
+        pub use burn_capture::{
+            CaptureBackend, CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope,
+        };
+    }
     #[cfg(feature = "capture")]
     pub use burn_capture::CaptureBackend as Capture;
 
@@ -133,9 +138,6 @@ pub mod devices {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
-
-    #[cfg(feature = "capture")]
-    pub use burn_capture::CaptureDevice;
 
     #[cfg(feature = "remote")]
     pub use burn_remote::BURN_REMOTE_ALPN;

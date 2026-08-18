@@ -131,7 +131,7 @@ cpu = ["burn-cpu", "burn-core/cpu", "burn-vision?/cpu"]
 
 # Backend extensions
 extension = ["burn-core/extension"]
-capture = ["extension", "ir", "burn-dispatch/capture"]
+capture = ["extension", "ir", "burn-core/capture"]
 
 [dependencies]
 
@@ -157,6 +157,5 @@ burn-router = { workspace = true, optional = true }
 burn-tch = { workspace = true, optional = true }
 burn-wgpu = { workspace = true, optional = true }
 burn-autodiff = { workspace = true, optional = true }
-burn-dispatch = { workspace = true, optional = true }
 
 cubecl = { workspace = true, optional = true }

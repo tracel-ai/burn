@@ -67,6 +67,7 @@ wgpu = ["burn-tensor/wgpu"]
 metal = ["burn-tensor/metal"]
 cpu = ["burn-tensor/cpu"]
 autodiff = ["burn-tensor/autodiff"]
+capture = ["burn-tensor/capture"]
 ir = ["burn-ir"]
 
 # Backend features

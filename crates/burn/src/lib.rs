@@ -150,6 +150,21 @@ pub mod nn {
 
 pub use burn_std::config::{BurnConfig, config as runtime_config};
 
+#[cfg(all(test, feature = "capture"))]
+mod capture_tests {
+    use crate::tensor::Device;
+
+    #[test]
+    fn capture_feature_exposes_the_user_facing_device_api() {
+        let device = Device::capture();
+        let captured = device
+            .capture_scope(|scope| scope.complete([], []))
+            .unwrap();
+
+        assert!(captured.graph.operations.is_empty());
+    }
+}
+
 /// Optimizers module.
 #[cfg(feature = "optim")]
 pub mod optim {

@@ -751,7 +751,7 @@ mod tests {
     fn capture_tensor_movement_is_one_way() {
         let source_device = DispatchDevice::Flex(Default::default());
         let concrete_capture_device = CaptureDevice::default();
-        let capture_device = DispatchDevice::Capture(concrete_capture_device.clone());
+        let capture_device = DispatchDevice::Capture(concrete_capture_device);
         let float = Dispatch::float_from_data(TensorData::from([1.0f32, 2.0]), &source_device);
         let int = Dispatch::int_from_data(TensorData::from([1i64, 2]), &source_device);
 
