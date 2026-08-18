@@ -12,7 +12,7 @@ use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
 #[cfg(feature = "capture")]
 pub use burn_dispatch::backends::capture::{
-    CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope,
+    CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope, TensorId,
 };
 
 #[cfg(feature = "remote-websocket")]
@@ -289,7 +289,8 @@ impl Device {
     /// The closure receives a [`CaptureScope`] and must return the token produced by
     /// [`CaptureScope::complete`], containing the ordered runtime input and output tensor IDs.
     /// Requiring this return value prevents a capture from being finalized without an explicit
-    /// boundary declaration. The device can be reused for later, independent scopes.
+    /// boundary declaration. Completing the scope immediately rejects further tensor operations;
+    /// the device can then be reused for later, independent scopes after the closure returns.
     ///
     /// Returns [`CaptureError::InvalidDevice`] if this is not a capture device, and
     /// [`CaptureError::AlreadyActive`] if another scope is active on the same device.
@@ -1191,6 +1192,22 @@ mod capture_tests {
         let result = device.capture_scope(|scope| scope.complete([], []));
 
         assert!(matches!(result, Err(CaptureError::InvalidDevice)));
+    }
+
+    #[test]
+    fn capture_device_reports_recordable_dtype_support() {
+        let device = Device::capture();
+
+        let captured = device.capture_scope(|scope| {
+            assert!(device.supports_dtype(FloatDType::F32));
+            assert!(device.supports_dtype(FloatDType::F64));
+            assert!(device.supports_dtype(FloatDType::BF16));
+            assert!(device.supports_dtype(IntDType::I32));
+            assert!(device.supports_dtype(BoolDType::Native));
+            scope.complete([], [])
+        });
+
+        assert!(captured.is_ok());
     }
 }
 

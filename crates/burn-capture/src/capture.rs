@@ -533,8 +533,11 @@ impl RouterClient for CaptureClient {
 
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet {
         match dtype {
-            DType::F32 | DType::I64 | DType::Bool(BoolStore::U8) => DTypeUsage::general(),
-            _ => DTypeUsageSet::empty(),
+            // Capture records these operations without executing dtype-specific kernels. The
+            // router's quantized operations are not implemented yet, so quantized tensors remain
+            // the only dtype family that capture cannot represent through the backend API.
+            DType::QFloat(_) => DTypeUsageSet::empty(),
+            _ => DTypeUsage::general(),
         }
     }
 
@@ -915,18 +918,41 @@ mod tests {
     }
 
     #[test]
-    fn capture_reports_only_conservative_dtype_support() {
+    fn capture_supports_every_non_quantized_dtype() {
         let device = CaptureDevice::default();
         let captured = device.capture_scope(|scope| {
             let client = get_client::<CaptureChannel>(&device);
-            assert_eq!(client.dtype_usage(DType::F32), DTypeUsage::general());
-            assert_eq!(client.dtype_usage(DType::I64), DTypeUsage::general());
-            assert_eq!(
-                client.dtype_usage(DType::Bool(BoolStore::U8)),
-                DTypeUsage::general()
+            for dtype in [
+                DType::F64,
+                DType::F32,
+                DType::Flex32,
+                DType::F16,
+                DType::BF16,
+                DType::I64,
+                DType::I32,
+                DType::I16,
+                DType::I8,
+                DType::U64,
+                DType::U32,
+                DType::U16,
+                DType::U8,
+                DType::Bool(BoolStore::Native),
+                DType::Bool(BoolStore::U8),
+                DType::Bool(BoolStore::U32),
+            ] {
+                assert_eq!(
+                    client.dtype_usage(dtype),
+                    DTypeUsage::general(),
+                    "{dtype:?}"
+                );
+            }
+            assert!(
+                client
+                    .dtype_usage(DType::QFloat(
+                        burn_backend::quantization::QuantScheme::default()
+                    ))
+                    .is_empty()
             );
-            assert!(client.dtype_usage(DType::F64).is_empty());
-            assert!(client.dtype_usage(DType::BF16).is_empty());
             scope.complete([], [])
         });
 

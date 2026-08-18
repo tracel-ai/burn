@@ -108,6 +108,7 @@ pub mod backends {
     pub mod capture {
         pub use burn_capture::{
             CaptureBackend, CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope,
+            TensorId,
         };
     }
     #[cfg(feature = "capture")]

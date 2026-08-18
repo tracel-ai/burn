@@ -8,4 +8,5 @@ extern crate alloc;
 
 mod capture;
 
+pub use burn_ir::TensorId;
 pub use capture::*;
