@@ -282,7 +282,7 @@ where
                     let val = x_data[x_idx];
 
                     // The only remaining conditional is the max comparison itself.
-                    if val > max_val {
+                    if max_idx < 0 || val > max_val {
                         max_val = val;
                         max_idx = (id_base + ih_base + iw) as i64;
                     }
