@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 pub use burn_std::{BlockLayout, QPARAM_ALIGN, params_shape};
 use burn_std::{FloatDType, QuantScheme, ScaleDtype, Shape, quantization::global_scale_dtype};
 
