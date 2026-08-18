@@ -36,8 +36,8 @@ pub fn infer(artifact_dir: &str, device: Device) {
 
     // Display the predicted vs expected values
     let results = df![
-        "predicted" => &predicted.to_vec::<f32>().unwrap(),
-        "expected" => &expected.to_vec::<f32>().unwrap(),
+        "predicted" => &predicted.try_into_vec::<f32>().unwrap(),
+        "expected" => &expected.try_into_vec::<f32>().unwrap(),
     ]
     .unwrap();
     println!("{}", results.head(Some(10)));

@@ -1800,7 +1800,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![c_out, c_in, kw]));
         let options = ConvOptions::new([stride], [0], [1], 1);
         let result = conv1d_f32(x, weight, None, &options);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         assert_eq!(out.len(), c_out * out_w);
 
@@ -1844,7 +1844,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![c_out, c_in, kw]));
         let options = ConvOptions::new([stride], [0], [1], 1);
         let result = conv1d_f32(x, weight, None, &options);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         for co in 0..c_out {
             for o in 0..out_w {
@@ -1884,7 +1884,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![c_out, c_in, kw]));
         let options = ConvOptions::new([stride], [0], [1], 1);
         let result = conv1d_f64(x, weight, None, &options);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
 
         for co in 0..c_out {
             for o in 0..out_w {
@@ -1926,7 +1926,7 @@ mod tests {
         let bias = FlexTensor::from_data(TensorData::new(bias_data.clone(), vec![c_out]));
         let options = ConvOptions::new([stride], [0], [1], 1);
         let result = conv1d_f32(x, weight, Some(bias), &options);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         for co in 0..c_out {
             for o in 0..out_w {
@@ -1954,7 +1954,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
         let result = conv2d_f64(x, weight, None, &options);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(
             out,
             vec![14.0, 18.0, 22.0, 30.0, 34.0, 38.0, 46.0, 50.0, 54.0]
@@ -1969,7 +1969,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
         let result = conv2d_f16(x, weight, None, &options);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
         let expected = vec![14.0, 18.0, 22.0, 30.0, 34.0, 38.0, 46.0, 50.0, 54.0];
         for (a, e) in out.iter().zip(expected.iter()) {
             assert!((a.to_f32() - e).abs() < 0.5);
@@ -1984,7 +1984,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
         let result = conv2d_bf16(x, weight, None, &options);
-        let out: Vec<bf16> = result.into_data().to_vec().unwrap();
+        let out: Vec<bf16> = result.into_data().try_into_vec().unwrap();
         let expected = vec![14.0, 18.0, 22.0, 30.0, 34.0, 38.0, 46.0, 50.0, 54.0];
         for (a, e) in out.iter().zip(expected.iter()) {
             assert!((a.to_f32() - e).abs() < 0.5);
@@ -2124,7 +2124,7 @@ mod tests {
             "output shape mismatch"
         );
 
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out.len(), expected.len());
         for (i, (a, e)) in out.iter().zip(expected.iter()).enumerate() {
             assert!(
@@ -2197,7 +2197,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![4, 1, 3, 3]));
         let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 4);
         let result = conv2d_f64(x, weight, None, &options);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
 
         // Verify against a naive f64 reference for one element (center of channel 2).
         let b = 0usize;
@@ -2235,7 +2235,7 @@ mod tests {
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 4);
         let result = conv2d_f16(x, weight, None, &options);
         assert_eq!(result.layout().shape().to_vec(), vec![1, 4, 1, 1]);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
 
         // Depthwise: out[c] = sum over (kh, kw) of x[c, kh, kw] * w[c, 0, kh, kw].
         // The input per-channel is 4 elements (2x2) and the kernel is 2x2, so
@@ -2270,7 +2270,7 @@ mod tests {
         let result = conv1d_f32(x, weight, None, &options);
         let out_w = in_w;
         assert_eq!(result.layout().shape().to_vec(), vec![1, channels, out_w]);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         // Naive reference.
         for c in 0..channels {
@@ -2318,7 +2318,7 @@ mod tests {
             result.layout().shape().to_vec(),
             vec![batch, channels, out_w]
         );
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         // Naive reference.
         for b in 0..batch {
@@ -2471,7 +2471,7 @@ mod tests {
             "output shape mismatch"
         );
 
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out.len(), expected.len());
         for (i, (a, e)) in out.iter().zip(expected.iter()).enumerate() {
             assert!(
@@ -2531,7 +2531,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![4, 3, 3, 3]));
         let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
         let result = conv2d_f64(x, weight, None, &options);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
 
         // Verify against a naive reference for one element (center of channel 2).
         let b = 0usize;
@@ -2584,8 +2584,8 @@ mod tests {
         assert_eq!(result_f16.layout().shape().to_vec(), vec![1, 4, 4, 4]);
         assert_eq!(result_f32.layout().shape().to_vec(), vec![1, 4, 4, 4]);
 
-        let out_f16: Vec<f16> = result_f16.into_data().to_vec().unwrap();
-        let out_f32: Vec<f32> = result_f32.into_data().to_vec().unwrap();
+        let out_f16: Vec<f16> = result_f16.into_data().try_into_vec().unwrap();
+        let out_f32: Vec<f32> = result_f32.into_data().try_into_vec().unwrap();
         assert_eq!(out_f16.len(), out_f32.len());
 
         // f16 has ~11 bits of mantissa (~0.1% relative precision). With
@@ -2710,7 +2710,7 @@ mod tests {
             result.layout().shape().to_vec(),
             vec![batch, channels_out, out_w]
         );
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         for b in 0..batch {
             for co in 0..channels_out {

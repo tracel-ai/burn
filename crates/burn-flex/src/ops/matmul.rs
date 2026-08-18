@@ -850,7 +850,7 @@ mod tests {
         let rhs = FlexTensor::from_data(TensorData::new(vec![5.0f64, 6.0, 7.0, 8.0], [2, 2]));
 
         let result = Flex::float_matmul(lhs, rhs);
-        let values: Vec<f64> = result.into_data().to_vec().unwrap();
+        let values: Vec<f64> = result.into_data().try_into_vec().unwrap();
 
         assert_eq!(values, vec![19.0, 22.0, 43.0, 50.0]);
     }
@@ -872,7 +872,7 @@ mod tests {
         let rhs = FlexTensor::from_data(TensorData::new(rhs_vals, [2, 2]));
 
         let result = Flex::float_matmul(lhs, rhs);
-        let values: Vec<f16> = result.into_data().to_vec().unwrap();
+        let values: Vec<f16> = result.into_data().try_into_vec().unwrap();
 
         let expected = [19.0f32, 22.0, 43.0, 50.0];
         for (a, e) in values.iter().zip(expected.iter()) {
@@ -897,7 +897,7 @@ mod tests {
         let rhs = FlexTensor::from_data(TensorData::new(rhs_vals, [2, 2]));
 
         let result = Flex::float_matmul(lhs, rhs);
-        let values: Vec<bf16> = result.into_data().to_vec().unwrap();
+        let values: Vec<bf16> = result.into_data().try_into_vec().unwrap();
 
         let expected = [19.0f32, 22.0, 43.0, 50.0];
         for (a, e) in values.iter().zip(expected.iter()) {
@@ -922,8 +922,8 @@ mod tests {
             .to_contiguous();
         let expected = Flex::float_matmul(q2, k2);
 
-        let values: Vec<f64> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f64> = expected.into_data().to_vec().unwrap();
+        let values: Vec<f64> = result.into_data().try_into_vec().unwrap();
+        let expected: Vec<f64> = expected.into_data().try_into_vec().unwrap();
         assert_eq!(values, expected);
     }
 
@@ -969,8 +969,8 @@ mod tests {
             .to_contiguous();
         let expected = Flex::float_matmul(q2, k2);
 
-        let values: Vec<f16> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f16> = expected.into_data().to_vec().unwrap();
+        let values: Vec<f16> = result.into_data().try_into_vec().unwrap();
+        let expected: Vec<f16> = expected.into_data().try_into_vec().unwrap();
         assert_eq!(values, expected);
     }
 }

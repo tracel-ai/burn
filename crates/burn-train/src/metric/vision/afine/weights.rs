@@ -113,7 +113,7 @@ fn read_scalar_value<P: AsRef<Path>>(
         .map_err(|e| log::warn!("Failed to read '{top_level_key}.{field_name}' tensor data: {e:?}"))
         .ok()?;
     let values = data
-        .to_vec::<f32>()
+        .try_to_vec::<f32>()
         .map_err(|e| log::warn!("Failed to convert '{top_level_key}.{field_name}' to f32: {e:?}"))
         .ok()?;
     values.first().copied()
