@@ -31,8 +31,9 @@ fn reduce_blocks<B: Backend>(
         split.push(extent);
     }
     let mut blocks = B::float_reshape(tensor, Shape::from(split.clone()));
-    // Reductions keep their axis at size 1, so the block axes stay where they were.
-    for axis in (1..split.len()).step_by(2) {
+    // Reductions keep their axis at size 1, so the block axes stay where they were; an axis
+    // already at 1 has nothing to fold and would only cost a launch.
+    for axis in (1..split.len()).step_by(2).filter(|&axis| split[axis] > 1) {
         blocks = reduce(blocks, axis);
     }
     B::float_reshape(blocks, params_shape(&shape, scheme))
