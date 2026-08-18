@@ -1,8 +1,42 @@
+pub use burn_std::{BlockGrid, QPARAM_ALIGN, params_shape};
 use burn_std::{FloatDType, QuantScheme, ScaleDtype, Shape, quantization::global_scale_dtype};
-pub use burn_std::{QPARAM_ALIGN, params_shape};
 
 use super::{Calibration, QuantizationParametersPrimitive};
 use crate::{Backend, TensorMetadata, get_device_settings};
+
+/// One value per block of `scheme`'s grid: `tensor` viewed as `[g0, b0, g1, b1, ...]`, every
+/// block axis folded by `reduce`, and the result in the grid's shape ([`params_shape`]).
+///
+/// A block is a rectangle, not a run of elements: `[2, 2]` on a `[2, 4]` tensor holds
+/// `[a, b, e, f]`, so chunking the flat storage would only be right for a block that spans the
+/// trailing dimension.
+fn reduce_blocks<B: Backend>(
+    tensor: B::FloatTensorPrimitive,
+    scheme: &QuantScheme,
+    reduce: impl Fn(B::FloatTensorPrimitive, usize) -> B::FloatTensorPrimitive,
+) -> B::FloatTensorPrimitive {
+    let shape = tensor.shape();
+    let block = scheme
+        .block_size()
+        .expect("only a block scheme has blocks to reduce");
+    let block = block.to_dim_vec(shape.num_dims());
+    let mut split = Vec::with_capacity(2 * shape.num_dims());
+    for (&dim, &extent) in shape.iter().zip(&block) {
+        let extent = extent as usize;
+        assert!(
+            dim.is_multiple_of(extent),
+            "Tensor {shape:?} must be evenly divisible by block size {block:?}"
+        );
+        split.push(dim / extent);
+        split.push(extent);
+    }
+    let mut blocks = B::float_reshape(tensor, Shape::from(split.clone()));
+    // Reductions keep their axis at size 1, so the block axes stay where they were.
+    for axis in (1..split.len()).step_by(2) {
+        blocks = reduce(blocks, axis);
+    }
+    B::float_reshape(blocks, params_shape(&shape, scheme))
+}
 
 /// Compute the quantization range mapping.
 pub fn compute_range<B: Backend>(
@@ -13,27 +47,10 @@ pub fn compute_range<B: Backend>(
     match calibration {
         Calibration::MinMax => match scheme.block_size() {
             None => (B::float_min(tensor.clone()), B::float_max(tensor)),
-            Some(block_size) => {
-                let block_elems = block_size.num_elements();
-                let shape = tensor.shape();
-                let numel = shape.num_elements();
-
-                assert_eq!(
-                    numel % block_elems,
-                    0,
-                    "Tensor {shape:?} must be evenly divisible by block size {block_elems}"
-                );
-
-                let num_blocks = numel / block_elems;
-
-                let params_shape = params_shape(&shape, scheme);
-
-                let blocks = B::float_reshape(tensor, Shape::new([num_blocks, block_elems]));
-                let blocks_min =
-                    B::float_reshape(B::float_min_dim(blocks.clone(), 1), params_shape.clone());
-                let blocks_max = B::float_reshape(B::float_max_dim(blocks, 1), params_shape);
-                (blocks_min, blocks_max)
-            }
+            Some(_) => (
+                reduce_blocks::<B>(tensor.clone(), scheme, B::float_min_dim),
+                reduce_blocks::<B>(tensor, scheme, B::float_max_dim),
+            ),
         },
         Calibration::AbsMean => {
             // gamma = mean(|W|) per tensor or block — symmetric range [-gamma, +gamma]
@@ -44,25 +61,7 @@ pub fn compute_range<B: Backend>(
             );
             let gamma = match scheme.block_size() {
                 None => B::float_mean(B::float_abs(tensor)),
-                Some(block_size) => {
-                    let block_elems = block_size.num_elements();
-                    let shape = tensor.shape();
-                    let numel = shape.num_elements();
-
-                    assert_eq!(
-                        numel % block_elems,
-                        0,
-                        "Tensor {shape:?} must be evenly divisible by block size {block_elems}"
-                    );
-
-                    let num_blocks = numel / block_elems;
-                    let params_shape = params_shape(&shape, scheme);
-                    let blocks = B::float_reshape(
-                        B::float_abs(tensor),
-                        Shape::new([num_blocks, block_elems]),
-                    );
-                    B::float_reshape(B::float_mean_dim(blocks, 1), params_shape)
-                }
+                Some(_) => reduce_blocks::<B>(B::float_abs(tensor), scheme, B::float_mean_dim),
             };
             let neg_gamma = B::float_neg(gamma.clone());
             (neg_gamma, gamma)

@@ -252,7 +252,7 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        // The kernel reads this at the scheme's param width, not the tensor's actual dtype.
+        // The kernel reads this at the scheme's scale dtype, not the tensor's actual dtype.
         if let Some(global) = &qparams.global {
             assert_eq!(
                 global.dtype,

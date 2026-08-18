@@ -1,7 +1,8 @@
 use alloc::vec::Vec;
 use num_traits::{Float, PrimInt};
 
-use burn_backend::quantization::{BlockSize, QuantValue};
+use burn_backend::Shape;
+use burn_backend::quantization::{BlockGrid, BlockSize, QuantValue};
 
 // NOTE: this mainly serves as a simple reference implementation.
 // The de/quantization ops should be refactored to use ndarray.
@@ -16,49 +17,47 @@ pub enum QuantizationStrategy {
 }
 
 impl QuantizationStrategy {
-    /// Quantize the values to a lower precision data type.
-    pub fn quantize(&self, values: &[f32]) -> Vec<i8> {
+    /// Quantize the values of a tensor of `shape`, laid out row-major, to a lower precision.
+    pub fn quantize(&self, values: &[f32], shape: &Shape) -> Vec<i8> {
         match self {
             QuantizationStrategy::PerTensorSymmetric(strategy) => strategy.quantize(values),
             QuantizationStrategy::PerBlockSymmetric(strategy, block_size) => {
-                let block_elems = block_size.num_elements();
-                let num_blocks = strategy.len();
-                let numel = values.len();
-                assert_eq!(
-                    numel / block_elems,
-                    num_blocks,
-                    "Invalid per-block quantization with num blocks {num_blocks} and {numel} values"
-                );
+                let blocks = block_grid(shape, block_size, strategy.len());
                 values
-                    .chunks(block_elems)
+                    .iter()
                     .enumerate()
-                    .flat_map(|(block_id, block)| strategy[block_id].quantize(block))
+                    .map(|(index, &value)| strategy[blocks.block_of(index)].quantize_one(value))
                     .collect()
             }
         }
     }
 
-    /// Dequantize the values to a higher precision data type.
-    pub fn dequantize(&self, values: &[i8]) -> Vec<f32> {
+    /// Dequantize the values of a tensor of `shape`, laid out row-major, to a higher precision.
+    pub fn dequantize(&self, values: &[i8], shape: &Shape) -> Vec<f32> {
         match self {
             QuantizationStrategy::PerTensorSymmetric(strategy) => strategy.dequantize(values),
             QuantizationStrategy::PerBlockSymmetric(strategy, block_size) => {
-                let block_elems = block_size.num_elements();
-                let num_blocks = strategy.len();
-                let numel = values.len();
-                assert_eq!(
-                    numel / block_elems,
-                    num_blocks,
-                    "Invalid per-block quantization with block size {block_elems}, num blocks {num_blocks} and {numel} values"
-                );
+                let blocks = block_grid(shape, block_size, strategy.len());
                 values
-                    .chunks(block_elems)
+                    .iter()
                     .enumerate()
-                    .flat_map(|(block_id, block)| strategy[block_id].dequantize(block))
+                    .map(|(index, &value)| strategy[blocks.block_of(index)].dequantize_one(value))
                     .collect()
             }
         }
     }
+}
+
+/// The block grid over `shape`, checked against the number of per-block strategies.
+fn block_grid(shape: &Shape, block_size: &BlockSize, num_blocks: usize) -> BlockGrid {
+    let grid = BlockGrid::new(shape, block_size);
+    assert_eq!(
+        grid.num_blocks(),
+        num_blocks,
+        "Invalid per-block quantization: {num_blocks} blocks for a {shape:?} tensor with \
+         {block_size:?} blocks"
+    );
+    grid
 }
 
 /// Quantization scheme to convert elements of a higher precision data type `E` to a lower precision
@@ -191,7 +190,7 @@ mod tests {
             BlockSize::new([4]),
         );
 
-        let q: Vec<i8> = strategy.quantize(&x);
+        let q: Vec<i8> = strategy.quantize(&x, &Shape::new([8]));
         assert_eq!(q, expected_q);
 
         let d = symmetric.dequantize(&expected_q);
@@ -206,7 +205,7 @@ mod tests {
             value: QuantValue::Q8S,
         });
 
-        let output = strategy.dequantize(&[-127i8, -77, -26, 25, 76, 127]);
+        let output = strategy.dequantize(&[-127i8, -77, -26, 25, 76, 127], &Shape::new([2, 3]));
 
         let output = TensorData::new(output, [2, 3]);
 

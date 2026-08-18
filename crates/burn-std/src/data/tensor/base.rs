@@ -151,7 +151,7 @@ impl TensorData {
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
 
-        let q_bytes = QuantizedBytes::new(value, scheme, qparams, global);
+        let q_bytes = QuantizedBytes::new(value, shape.clone(), scheme, qparams, global);
 
         Self {
             bytes: q_bytes.bytes,

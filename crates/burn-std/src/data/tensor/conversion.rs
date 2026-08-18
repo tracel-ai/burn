@@ -188,7 +188,7 @@ impl TensorData {
                         let q_bytes = QuantizedBytes {
                             bytes: self.bytes.clone(),
                             scheme,
-                            num_elements: self.num_elements(),
+                            shape: self.shape.clone(),
                         };
                         let (values, _) = q_bytes.into_vec_i8();
 

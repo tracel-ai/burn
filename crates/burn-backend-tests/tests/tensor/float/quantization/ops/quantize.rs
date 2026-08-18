@@ -15,9 +15,9 @@ fn get_q_params(data: TensorData) -> DecodedScales {
         unreachable!()
     };
     let q_bytes = QuantizedBytes {
+        shape: data.shape.clone(),
         bytes: data.into_bytes(),
         scheme,
-        num_elements,
     };
     q_bytes.into_vec_i8().1
 }
@@ -162,6 +162,48 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
         &input.into_data(),
         Tolerance::absolute(1e-1).set_relative(1e-2),
     );
+}
+
+/// A block that does not span the trailing dimension is a rectangle, not a run of the flat
+/// storage. Each `[2, 4]` block here holds one magnitude, so its scale is that magnitude over
+/// 127; chunking the flat storage in eights would instead pair the two blocks of a row and give
+/// both the larger scale. Four wide, so a packed store still keeps one word inside one block.
+#[test]
+fn should_quantize_blocks_that_do_not_span_the_trailing_dim() {
+    let device = Default::default();
+
+    let input = TestTensor::<2>::from_data(
+        [
+            [1.0, 1.0, 1.0, 1.0, 10.0, 10.0, 10.0, 10.0],
+            [1.0, 1.0, 1.0, 1.0, 10.0, 10.0, 10.0, 10.0],
+            [100.0, 100.0, 100.0, 100.0, 1000.0, 1000.0, 1000.0, 1000.0],
+            [100.0, 100.0, 100.0, 100.0, 1000.0, 1000.0, 1000.0, 1000.0],
+        ],
+        &device,
+    );
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([2, 4], ScaleDtype::F32);
+
+    let quantized = input.clone().quantize_dynamic(&scheme);
+
+    let scales = get_q_params(quantized.to_data()).block;
+    let expected = [1.0f32, 10.0, 100.0, 1000.0].map(|magnitude| magnitude / 127.0);
+    TensorData::new(scales, [2, 2]).assert_approx_eq::<f32>(
+        &TensorData::new(expected.to_vec(), [2, 2]),
+        Tolerance::relative(1e-3),
+    );
+
+    // Every block is uniform, so a right grid reconstructs it exactly and a wrong one is off by
+    // the ratio between the two magnitudes it merged.
+    quantized
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&input.into_data(), Tolerance::relative(1e-2));
 }
 
 /// Bit equality rather than a tolerance: both paths reconstruct from the same stored scales, so

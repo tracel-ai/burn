@@ -19,7 +19,7 @@ use crate::{
     execute_with_numeric_dtype, slice,
 };
 
-use super::quantization::{Quantization, QuantizationStrategy, SymmetricQuantization};
+use super::quantization::{QuantizationStrategy, SymmetricQuantization};
 use super::{NdArrayMathOps, NdArrayOps};
 
 impl QTensorOps<Self> for NdArray {
@@ -27,11 +27,10 @@ impl QTensorOps<Self> for NdArray {
         match data.dtype {
             DType::QFloat(scheme) => {
                 let shape = data.shape.clone();
-                let num_elements = data.num_elements();
                 let q_bytes = QuantizedBytes {
+                    shape: shape.clone(),
                     bytes: data.into_bytes(),
                     scheme,
-                    num_elements,
                 };
 
                 match scheme {
@@ -125,7 +124,7 @@ impl QTensorOps<Self> for NdArray {
                 let strategy = QuantizationStrategy::PerTensorSymmetric(
                     SymmetricQuantization::init(scales, scheme.value),
                 );
-                let values = strategy.quantize(data_f.as_slice().unwrap());
+                let values = strategy.quantize(data_f.as_slice().unwrap(), &shape);
                 (
                     TensorData::quantized(values, shape.clone(), *scheme, &[scales], None),
                     vec![scales],
@@ -166,11 +165,10 @@ impl QTensorOps<Self> for NdArray {
             (_, scheme) => unimplemented!("Quantization not supported for scheme {scheme:?}"),
         };
 
-        let num_elements = data.num_elements();
         let q_bytes = QuantizedBytes {
+            shape: data.shape.clone(),
             bytes: data.into_bytes(),
             scheme: *scheme,
-            num_elements,
         };
         let (values, _) = q_bytes.into_vec_i8();
         let data = TensorData::new(values, shape);
@@ -529,7 +527,7 @@ fn quantize_per_block(
         .map(|&s| (SymmetricQuantization::init(multiplier * s, scheme.value), s))
         .unzip();
     let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, block);
-    let values = strategy.quantize(data_f);
+    let values = strategy.quantize(data_f, &shape);
     (
         TensorData::quantized(values, shape, *scheme, scales, global),
         qparams,
@@ -545,33 +543,8 @@ fn dequantize<Q: QuantElement>(
     global: Option<f32>,
     dtype: DType,
 ) -> TensorData {
-    let q_bytes = QuantizedBytes::new(data, scheme, qparams, global);
+    let q_bytes = QuantizedBytes::new(data, shape.clone(), scheme, qparams, global);
     let (values, _qparams) = q_bytes.into_vec_i8();
-    let values = match strategy {
-        QuantizationStrategy::PerTensorSymmetric(quant) => quant.dequantize(&values),
-        QuantizationStrategy::PerBlockSymmetric(quant, block_size) => {
-            let block_size = block_size.to_dim_vec(shape.num_dims());
-            let qparams_shape = params_shape(&shape, &scheme);
-
-            values
-                .into_iter()
-                .enumerate()
-                .map(|(index, value)| {
-                    let mut index = index;
-                    let mut qparam_index = 0;
-                    let mut qparam_stride = 1;
-
-                    for dim in (0..shape.num_dims()).rev() {
-                        let coordinate = index % shape[dim];
-                        index /= shape[dim];
-                        qparam_index += coordinate / block_size[dim] as usize * qparam_stride;
-                        qparam_stride *= qparams_shape[dim];
-                    }
-
-                    quant[qparam_index].dequantize_one(value)
-                })
-                .collect()
-        }
-    };
+    let values = strategy.dequantize(&values, &shape);
     TensorData::new(values, shape).convert_dtype(dtype)
 }

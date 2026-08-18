@@ -9,8 +9,8 @@ use burn_backend::{
     DType, ExecutionError, FloatDType, TensorData, TensorMetadata,
     ops::{IntTensorOps, QTensorOps},
     quantization::{
-        QuantScheme, QuantStore, QuantizationParametersPrimitive, QuantizedBytes, ScaleDtype,
-        global_scale_dtype, scale_to_dtype,
+        BlockGrid, BlockSize, QuantScheme, QuantStore, QuantizationParametersPrimitive,
+        QuantizedBytes, ScaleDtype, global_scale_dtype, scale_to_dtype,
     },
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -19,11 +19,24 @@ use burn_std::{Bytes, Shape, Slice, bf16, f16};
 use super::float_storage_as_f32;
 use crate::{Flex, FlexQTensor, FlexTensor, Layout};
 
-fn assert_block_divides(len: usize, block_elems: usize) {
+/// The block grid over `shape`, which must be a whole number of blocks along every axis.
+fn block_grid(shape: &Shape, block: &BlockSize) -> BlockGrid {
+    let grid = BlockGrid::new(shape, block);
     debug_assert!(
-        len.is_multiple_of(block_elems),
-        "tensor length {len} not divisible by block size {block_elems}"
+        grid.divides(),
+        "tensor {shape:?} is not a whole number of {block:?} blocks"
     );
+    grid
+}
+
+/// The largest magnitude in each block of `values`, laid out as `grid`.
+fn block_max_abs(values: &[f32], grid: &BlockGrid) -> Vec<f32> {
+    let mut peaks = alloc::vec![0.0f32; grid.num_blocks()];
+    for (index, &x) in values.iter().enumerate() {
+        let peak = &mut peaks[grid.block_of(index)];
+        *peak = peak.max(x.abs());
+    }
+    peaks
 }
 
 impl QTensorOps<Flex> for Flex {
@@ -34,12 +47,11 @@ impl QTensorOps<Flex> for Flex {
         };
 
         let shape = data.shape.clone();
-        let num_elements = data.num_elements();
 
         let q_bytes = QuantizedBytes {
+            shape: shape.clone(),
             bytes: data.into_bytes(),
             scheme,
-            num_elements,
         };
 
         let (values, qparams) = q_bytes.into_vec_i8();
@@ -61,13 +73,10 @@ impl QTensorOps<Flex> for Flex {
 
         let (quantized, scales, global) = match (scheme.block_size(), global_scale_dtype(scheme)) {
             (Some(block), Some(global_dtype)) => {
-                let block_elems = block.num_elements();
-                assert_block_divides(float_data.len(), block_elems);
-                let num_blocks = float_data.len() / block_elems;
-
-                let raw: Vec<f32> = float_data
-                    .chunks(block_elems)
-                    .map(|block| block_max_abs_scale(block, range))
+                let grid = block_grid(&shape, &block);
+                let raw: Vec<f32> = block_max_abs(&float_data, &grid)
+                    .into_iter()
+                    .map(|alpha| 2.0 * alpha / range)
                     .collect();
                 let peak = raw.iter().copied().fold(0.0f32, f32::max);
 
@@ -76,17 +85,18 @@ impl QTensorOps<Flex> for Flex {
                     global_dtype,
                 );
 
-                let mut scales = Vec::with_capacity(num_blocks);
-                let mut quantized = Vec::with_capacity(float_data.len());
-                for (block, &raw) in float_data.chunks(block_elems).zip(raw.iter()) {
-                    let scale = validated_scale(raw / global, scheme.scale_dtype());
-                    let inv_scale = 1.0 / (global * scale);
-                    scales.push(scale);
-
-                    for &x in block {
-                        quantized.push((x * inv_scale).round().clamp(a, b) as i8);
-                    }
-                }
+                let scales: Vec<f32> = raw
+                    .iter()
+                    .map(|&raw| validated_scale(raw / global, scheme.scale_dtype()))
+                    .collect();
+                let quantized = float_data
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &x)| {
+                        let inv_scale = 1.0 / (global * scales[grid.block_of(index)]);
+                        (x * inv_scale).round().clamp(a, b) as i8
+                    })
+                    .collect();
 
                 (quantized, scales, Some(global))
             }
@@ -106,23 +116,19 @@ impl QTensorOps<Flex> for Flex {
                 (quantized, alloc::vec![scale], None)
             }
             (Some(block_size), None) => {
-                let block_elems = block_size.num_elements();
-                assert_block_divides(float_data.len(), block_elems);
-                let num_blocks = float_data.len() / block_elems;
-                let mut scales = Vec::with_capacity(num_blocks);
-                let mut quantized = Vec::with_capacity(float_data.len());
-
-                for block in float_data.chunks(block_elems) {
-                    let scale =
-                        validated_scale(block_max_abs_scale(block, range), scheme.scale_dtype());
-                    let inv_scale = 1.0 / scale;
-                    scales.push(scale);
-
-                    // Quantize this block
-                    for &x in block {
-                        quantized.push((x * inv_scale).round().clamp(a, b) as i8);
-                    }
-                }
+                let grid = block_grid(&shape, &block_size);
+                let scales: Vec<f32> = block_max_abs(&float_data, &grid)
+                    .into_iter()
+                    .map(|alpha| validated_scale(2.0 * alpha / range, scheme.scale_dtype()))
+                    .collect();
+                let quantized = float_data
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &x)| {
+                        let inv_scale = 1.0 / scales[grid.block_of(index)];
+                        (x * inv_scale).round().clamp(a, b) as i8
+                    })
+                    .collect();
 
                 (quantized, scales, None)
             }
@@ -174,17 +180,16 @@ impl QTensorOps<Flex> for Flex {
                     .collect::<Vec<i8>>()
             }
             Some(block_size) => {
-                let block_elems = block_size.num_elements();
-                assert_block_divides(float_data.len(), block_elems);
+                let grid = block_grid(&shape, &block_size);
                 let multiplier = global.unwrap_or(1.0);
-                let mut quantized = Vec::with_capacity(float_data.len());
-                for (block, &scale) in float_data.chunks(block_elems).zip(scales.iter()) {
-                    let inv_scale = 1.0 / (multiplier * scale);
-                    for &x in block {
-                        quantized.push((x * inv_scale).round().clamp(a, b) as i8);
-                    }
-                }
-                quantized
+                float_data
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &x)| {
+                        let inv_scale = 1.0 / (multiplier * scales[grid.block_of(index)]);
+                        (x * inv_scale).round().clamp(a, b) as i8
+                    })
+                    .collect()
             }
         };
 
@@ -209,14 +214,13 @@ impl QTensorOps<Flex> for Flex {
                     .collect::<Vec<f32>>()
             }
             Some(block_size) => {
-                let block_elems = block_size.num_elements();
+                let grid = BlockGrid::new(&shape, &block_size);
                 let multiplier = tensor.global.unwrap_or(1.0);
                 q_data
-                    .chunks(block_elems)
-                    .zip(tensor.scales.iter())
-                    .flat_map(|(block, &scale)| {
-                        let scale = multiplier * scale;
-                        block.iter().map(move |&x_q| scale * x_q as f32)
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &x_q)| {
+                        multiplier * tensor.scales[grid.block_of(index)] * x_q as f32
                     })
                     .collect::<Vec<f32>>()
             }
@@ -247,7 +251,8 @@ impl QTensorOps<Flex> for Flex {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Flex>, shape: Shape) -> QuantizedTensor<Flex> {
-        block_safe_layout_op(tensor, |t| t.reshape(shape))
+        let scheme = tensor.scheme;
+        block_safe_layout_op(tensor, scheme, |t| t.reshape(shape))
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Flex>) -> Result<TensorData, ExecutionError> {
@@ -270,19 +275,25 @@ impl QTensorOps<Flex> for Flex {
         dim1: usize,
         dim2: usize,
     ) -> QuantizedTensor<Flex> {
-        block_safe_layout_op(tensor, |t| t.transpose(dim1, dim2))
+        let mut scheme = tensor.scheme;
+        scheme.swap_block_dims(tensor.tensor.shape().num_dims(), dim1, dim2);
+        block_safe_layout_op(tensor, scheme, |t| t.transpose(dim1, dim2))
     }
 
     fn q_permute(tensor: QuantizedTensor<Flex>, axes: &[usize]) -> QuantizedTensor<Flex> {
-        block_safe_layout_op(tensor, |t| t.permute(axes))
+        let mut scheme = tensor.scheme;
+        scheme.permute_block_dims(tensor.tensor.shape().num_dims(), axes);
+        block_safe_layout_op(tensor, scheme, |t| t.permute(axes))
     }
 
     fn q_flip(tensor: QuantizedTensor<Flex>, axes: &[usize]) -> QuantizedTensor<Flex> {
-        block_safe_layout_op(tensor, |t| crate::ops::flip::flip(t, axes))
+        let scheme = tensor.scheme;
+        block_safe_layout_op(tensor, scheme, |t| crate::ops::flip::flip(t, axes))
     }
 
     fn q_expand(tensor: QuantizedTensor<Flex>, shape: Shape) -> QuantizedTensor<Flex> {
-        block_safe_layout_op(tensor, |t| crate::ops::expand::expand(t, shape))
+        let scheme = tensor.scheme;
+        block_safe_layout_op(tensor, scheme, |t| crate::ops::expand::expand(t, shape))
     }
 
     fn q_select(
@@ -307,7 +318,8 @@ impl QTensorOps<Flex> for Flex {
     }
 
     fn q_slice(tensor: QuantizedTensor<Flex>, slices: &[Slice]) -> QuantizedTensor<Flex> {
-        block_safe_layout_op(tensor, |t| crate::ops::slice::slice(t, slices))
+        let scheme = tensor.scheme;
+        block_safe_layout_op(tensor, scheme, |t| crate::ops::slice::slice(t, slices))
     }
 
     fn q_argmax(
@@ -358,11 +370,12 @@ impl QTensorOps<Flex> for Flex {
     }
 }
 
-/// Apply a layout operation to a quantized tensor.
-/// For block-quantized tensors, dequantizes and requantizes to preserve
-/// correct scale-to-block mapping.
+/// Apply a layout operation to a quantized tensor. A block-quantized tensor is dequantized,
+/// moved, and requantized under `scheme`, which the caller has already rewritten to follow the
+/// move (a permuted tensor's blocks are permuted with it, as every other backend keeps them).
 fn block_safe_layout_op(
     qtensor: FlexQTensor,
+    scheme: QuantScheme,
     op: impl FnOnce(FlexTensor) -> FlexTensor,
 ) -> FlexQTensor {
     match qtensor.scheme.block_size() {
@@ -373,7 +386,6 @@ fn block_safe_layout_op(
             qtensor.global,
         ),
         Some(_) => {
-            let scheme = qtensor.scheme;
             let float_tensor = Flex::dequantize(qtensor, FloatDType::F32);
             let result = op(float_tensor);
             Flex::quantize_dynamic(result, &scheme)
@@ -387,15 +399,15 @@ fn block_max_abs_scale(block: &[f32], range: f32) -> f32 {
     2.0 * alpha / range
 }
 
-/// Only an exactly zero scale is replaced: the param's subnormals carry real information for a
-/// small tensor, and the replacement goes back through the param because `f32::MIN_POSITIVE`
+/// Only an exactly zero scale is replaced: the dtype's subnormals carry real information for a
+/// small tensor, and the replacement goes back through the dtype because `f32::MIN_POSITIVE`
 /// would itself encode to zero in a narrow one.
-fn validated_scale(scale: f32, param: ScaleDtype) -> f32 {
-    let scale = scale_to_dtype(scale, param);
+fn validated_scale(scale: f32, dtype: ScaleDtype) -> f32 {
+    let scale = scale_to_dtype(scale, dtype);
     if scale > 0.0 && scale.is_finite() {
         scale
     } else {
-        scale_to_dtype(f32::MIN_POSITIVE, param)
+        scale_to_dtype(f32::MIN_POSITIVE, dtype)
     }
 }
 

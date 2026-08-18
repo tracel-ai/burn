@@ -145,6 +145,58 @@ pub fn params_shape(data_shape: &Shape, scheme: &QuantScheme) -> Shape {
     }
 }
 
+/// The grid of blocks a block scheme lays over a tensor: which block a row-major element index
+/// falls in. A block is a rectangle, so its members are a run of the flat storage only when it
+/// spans the trailing dimension; anything walking values against block scales asks here.
+#[derive(Debug, Clone)]
+pub struct BlockGrid {
+    shape: Shape,
+    block: Vec<u8>,
+    grid: Shape,
+}
+
+impl BlockGrid {
+    /// The grid `block` lays over a tensor of `shape`.
+    pub fn new(shape: &Shape, block: &BlockSize) -> Self {
+        Self {
+            shape: shape.clone(),
+            block: block.to_dim_vec(shape.num_dims()),
+            grid: Shape::from(block.grid(shape.as_slice())),
+        }
+    }
+
+    /// The grid's shape, one scale per block: [`params_shape`] for a block scheme.
+    pub fn grid(&self) -> &Shape {
+        &self.grid
+    }
+
+    /// How many blocks the grid holds.
+    pub fn num_blocks(&self) -> usize {
+        self.grid.num_elements()
+    }
+
+    /// Whether every dimension is a whole number of blocks.
+    pub fn divides(&self) -> bool {
+        self.shape
+            .iter()
+            .zip(&self.block)
+            .all(|(&dim, &extent)| dim.is_multiple_of(extent as usize))
+    }
+
+    /// The row-major index of the block holding row-major element `index`.
+    pub fn block_of(&self, mut index: usize) -> usize {
+        let mut block = 0;
+        let mut stride = 1;
+        for dim in (0..self.shape.num_dims()).rev() {
+            let coordinate = index % self.shape[dim];
+            index /= self.shape[dim];
+            block += coordinate / self.block[dim] as usize * stride;
+            stride *= self.grid[dim];
+        }
+        block
+    }
+}
+
 /// Quantized data bytes representation.
 ///
 /// # Notes
@@ -159,8 +211,9 @@ pub struct QuantizedBytes {
     pub bytes: Bytes,
     /// The quantization scheme.
     pub scheme: QuantScheme,
-    /// The number of quantized elements.
-    pub num_elements: usize,
+    /// The shape of the quantized tensor. The block grid, and so the scale count, follows from
+    /// it per axis: a block that does not span the trailing dimension is not a run of elements.
+    pub shape: Shape,
 }
 
 impl QuantizedBytes {
@@ -170,11 +223,18 @@ impl QuantizedBytes {
     /// one-level one.
     pub fn new<E: bytemuck::CheckedBitPattern + bytemuck::NoUninit>(
         value: Vec<E>,
+        shape: impl Into<Shape>,
         scheme: QuantScheme,
         scales: &[f32],
         global: Option<f32>,
     ) -> Self {
-        let num_elements = value.len();
+        let shape = shape.into();
+        assert_eq!(
+            value.len(),
+            shape.num_elements(),
+            "{} quantized values do not fill a tensor of shape {shape:?}",
+            value.len()
+        );
         // Only used for 8-bit quantization data comparison in tests
         if TypeId::of::<E>() != TypeId::of::<i8>() {
             panic!("Invalid quantized type");
@@ -212,8 +272,13 @@ impl QuantizedBytes {
         Self {
             bytes,
             scheme,
-            num_elements,
+            shape,
         }
+    }
+
+    /// The number of quantized elements.
+    pub fn num_elements(&self) -> usize {
+        self.shape.num_elements()
     }
 
     /// Returns the int8 quantized values with the quantization parameters.
@@ -255,11 +320,7 @@ impl QuantizedBytes {
     /// Returns the values in i8 and a newly allocated vector containing the
     /// quantization parameter bytes.
     fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
-        // Rounded up, so a trailing partial block still gets its scale.
-        let num_params = self
-            .scheme
-            .block_size()
-            .map_or(1, |block| self.num_elements.div_ceil(block.num_elements()));
+        let num_params = params_shape(&self.shape, &self.scheme).num_elements();
         let scale_bytes =
             scale_size(self.scheme.scale_dtype()) * num_params + global_scale_size(&self.scheme);
 
@@ -282,7 +343,7 @@ impl QuantizedBytes {
                     let qparams = self.bytes[split_at..].to_vec();
                     let values = bytemuck::cast_slice::<_, u32>(&self.bytes[..split_at]);
                     // Sub-byte values are unpacked as i8s for value equality tests
-                    let values = unpack_q_to_i8s(values, self.num_elements, &self.scheme.value);
+                    let values = unpack_q_to_i8s(values, self.num_elements(), &self.scheme.value);
                     (values, qparams)
                 }
                 QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
@@ -525,6 +586,7 @@ mod tests {
 
         let q_bytes = QuantizedBytes::new(
             values.clone(),
+            [2, 3],
             QuantScheme::default()
                 .with_value(QuantValue::Q8S)
                 .with_store(QuantStore::Native),
@@ -586,7 +648,7 @@ mod tests {
             .per_block([4], ScaleDtype::UE4M3)
             .per_tensor(ScaleDtype::F32);
 
-        let q_bytes = QuantizedBytes::new(values.clone(), scheme, &block_scales, Some(global));
+        let q_bytes = QuantizedBytes::new(values.clone(), [8], scheme, &block_scales, Some(global));
 
         // 8 values, one byte per UE4M3 block scale, a 4 byte f32 per-tensor scale.
         assert_eq!(q_bytes.bytes.len(), 8 + 2 + 4);
@@ -607,7 +669,7 @@ mod tests {
             .per_block([4], ScaleDtype::F32)
             .per_tensor(ScaleDtype::F32);
 
-        QuantizedBytes::new(vec![0i8; 8], scheme, &[0.5, 0.125], None);
+        QuantizedBytes::new(vec![0i8; 8], [8], scheme, &[0.5, 0.125], None);
     }
 
     #[test]
@@ -619,7 +681,7 @@ mod tests {
             .per_block([4], ScaleDtype::UE4M3)
             .per_tensor(ScaleDtype::F16);
 
-        QuantizedBytes::new(vec![0i8; 8], scheme, &[0.5, 0.125], Some(3.0));
+        QuantizedBytes::new(vec![0i8; 8], [8], scheme, &[0.5, 0.125], Some(3.0));
     }
 
     /// What a backend answers `supports_dtype` with, so a scheme it declines here is one no path
@@ -687,6 +749,7 @@ mod tests {
 
         let q_bytes = QuantizedBytes::new(
             values.clone(),
+            [8],
             QuantScheme::default()
                 .with_value(QuantValue::Q8S)
                 .with_store(QuantStore::Native)
