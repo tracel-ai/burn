@@ -453,6 +453,7 @@ fn f_copy_data<T: TchElement>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ops::TchOps;
     use burn_backend::ops::FloatTensorOps;
     use burn_backend::{Backend, quantization::QuantScheme, read_sync};
 
@@ -553,6 +554,53 @@ mod tests {
         let out = read_sync(B::float_into_data(tensor_3)).unwrap();
 
         out.assert_eq(&TensorData::from([[3.0], [3.0]]), false);
+    }
+
+    #[test]
+    fn view_ops_preserve_parent_storage() {
+        // Regression for #5375: a view op must inherit its parent's storage
+        // handle, so `can_mut()` still sees the buffer as shared. Building the
+        // child with `TchTensor::new` mints a fresh `Arc` for aliased memory and
+        // `can_mut()` wrongly approves writing over the parent.
+        let device = Default::default();
+        let parent: TchTensor =
+            B::float_from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        for (name, view) in [
+            ("permute", TchOps::permute(parent.clone(), &[1, 0])),
+            ("swap_dims", TchOps::swap_dims(parent.clone(), 0, 1)),
+        ] {
+            assert!(
+                !view.can_mut(),
+                "{name} lost the parent alias: can_mut() is true for a view whose \
+                 parent is still alive, so an in-place op would write over shared \
+                 memory"
+            );
+        }
+
+        // `flip` is intentionally not in the list above: unlike NumPy's, libtorch's
+        // `flip` allocates instead of returning a view, so the child owns its
+        // buffer and `can_mut()` is correctly true.
+        let flipped = TchOps::flip(parent.clone(), &[0]);
+        assert!(flipped.can_mut(), "flip is expected to allocate, not alias");
+    }
+
+    #[test]
+    fn bool_and_over_permuted_alias_does_not_panic() {
+        // Regression for #5375: `x & xᵀ` is the attention-mask pattern burn-import
+        // generates. With the alias lost, `bool_and` takes libtorch's in-place
+        // `logical_and_` over overlapping memory and libtorch's overlap assert
+        // aborts the op.
+        use burn_backend::ops::BoolTensorOps;
+
+        let device = Default::default();
+        let mask = B::bool_from_data(TensorData::from([[true, false], [true, true]]), &device);
+        let permuted = TchOps::permute(mask.clone(), &[1, 0]);
+
+        let out = B::bool_and(mask, permuted);
+
+        let data = read_sync(B::bool_into_data(out)).unwrap();
+        data.assert_eq(&TensorData::from([[true, false], [false, true]]), false);
     }
 }
 

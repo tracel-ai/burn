@@ -1010,7 +1010,7 @@ mod tests {
         assert_eq!(result.shape.to_vec(), vec![1, 3]);
         // Must have exactly 3 f32s = 12 bytes, not 24
         assert_eq!(result.bytes.len(), 3 * core::mem::size_of::<f32>());
-        let values: Vec<f32> = result.to_vec().unwrap();
+        let values: Vec<f32> = result.try_into_vec().unwrap();
         assert_eq!(values, vec![1.0, 2.0, 3.0]);
     }
 }

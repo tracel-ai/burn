@@ -11,7 +11,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_std::ExecutionError;
+use burn_std::{ExecutionError, TensorReadError};
 use burn_std::{SliceOps, sync::RwLock};
 use core::iter::ExactSizeIterator;
 use core::iter::repeat;
@@ -19,16 +19,19 @@ use core::marker::PhantomData;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
+use crate::ops::{BasicOps, Kind};
 use crate::{AsIndex, Device, Slice, SliceArg, wrap_index};
 use crate::{Bool, ElementConversion, Float, Int, Shape, TensorData, check};
 use crate::{DType, Element};
 use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
+use core::future::Future;
 use serde::{Serialize, Serializer};
 
 /// A tensor with a given backend, shape and data type.
 ///
 /// # Indexing
+///
 /// Indexing a tensor can be done using [`slice`](Tensor::slice) for all tensor types
 /// or [`select`](Tensor::select) for numeric types.
 ///
@@ -1257,15 +1260,15 @@ where
     /// // Single dimension slicing - no brackets needed!
     /// let tensor = Tensor::<1, burn_tensor::Int>::arange(0..10, &device);
     /// let slice = tensor.clone().slice(2..8);  // Simple range
-    /// assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
+    /// assert_eq!(slice.try_into_vec_as::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
     ///
     /// // Using s! macro for single dimension with step
     /// let slice = tensor.clone().slice(s![0..10;2]);  // Every 2nd element
-    /// assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![0, 2, 4, 6, 8]);
+    /// assert_eq!(slice.try_into_vec_as::<i32>().unwrap(), vec![0, 2, 4, 6, 8]);
     ///
     /// // Reverse a dimension with negative step
     /// let slice = tensor.slice(s![..;-1]);  // Reverse entire tensor
-    /// assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
+    /// assert_eq!(slice.try_into_vec_as::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
     ///
     /// // Multi-dimensional slicing
     /// let tensor = Tensor::<2>::ones(Shape::new([4, 6]), &device);
@@ -1969,8 +1972,20 @@ where
     /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
+    ///
+    /// # Returns
+    ///
+    /// The tensor data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the backend fails to read the tensor data or the platform doesn't support
+    /// synchronous readback.
+    #[track_caller]
     pub fn into_data(self) -> TensorData {
-        into_data_sync_impl(self.primitive, K::KIND)
+        self.try_into_data().expect(
+            "Error while reading data: use `try_into_data` instead to catch the error at runtime",
+        )
     }
 
     /// Converts the data of the current tensor and returns any error that might have occurred since the
@@ -1981,6 +1996,14 @@ where
     /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to read the tensor data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
     pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
         try_into_data_sync_impl(self.primitive, K::KIND)
     }
@@ -1992,22 +2015,237 @@ where
     /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
+    ///
+    /// # Returns
+    ///
+    /// The tensor data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the backend fails to read the tensor data or the platform doesn't support
+    /// synchronous readback.
+    #[track_caller]
     pub fn to_data(&self) -> TensorData {
-        self.clone().into_data()
+        self.try_to_data().expect(
+            "Error while reading data: use `try_to_data` instead to catch the error at runtime",
+        )
+    }
+
+    /// Converts the data of the current tensor.
+    ///
+    /// # Note
+    ///
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
+    /// tensors at once. This may improve laziness, especially if executed on a different
+    /// thread in native environments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to read the tensor data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
+    pub fn try_to_data(&self) -> Result<TensorData, ExecutionError> {
+        self.clone().try_into_data()
     }
 
     /// Returns the data of the current tensor.
     pub fn into_data_async(
         self,
-    ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
         into_data_async_impl(self.primitive, K::KIND)
     }
 
     /// Returns the data of the current tensor.
-    pub fn to_data_async(
-        &self,
-    ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
+    pub fn to_data_async(&self) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
         into_data_async_impl(self.primitive.clone(), K::KIND)
+    }
+
+    /// Copies the tensor data to host memory and converts it to the dtype represented by `E`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`Tensor::try_to_data_as`].
+    ///
+    /// # Returns
+    /// A `TensorData` with dtype `E::dtype()`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if synchronous readback isn't supported, tensor execution or storage access fails,
+    /// or the data can't be converted to `E`.
+    #[track_caller]
+    pub fn to_data_as<E: Element>(&self) -> TensorData {
+        self.try_to_data_as::<E>()
+            .unwrap_or_else(|err| panic!("Failed to read tensor data: {err}"))
+    }
+
+    /// Copies the tensor data to host memory and converts it to the dtype represented by `E`.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_to_data()?.try_cast_as::<E>()`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
+    pub fn try_to_data_as<E: Element>(&self) -> Result<TensorData, TensorReadError> {
+        Ok(self.try_to_data()?.try_cast_as::<E>()?)
+    }
+
+    /// Copies the tensor data to a host [`Vec<E>`], converting the dtype when necessary.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_to_data_as::<E>()?.try_to_vec::<E>()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
+    pub fn try_to_vec_as<E: Element>(&self) -> Result<Vec<E>, TensorReadError> {
+        Ok(self.try_to_data_as::<E>()?.try_to_vec()?)
+    }
+
+    /// Copies the tensor data to host memory and converts it to `dtype`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`Tensor::try_to_data_dtype`].
+    ///
+    /// # Returns
+    /// A `TensorData` with the requested `dtype`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if synchronous readback isn't supported, tensor execution or storage access fails,
+    /// or the data can't be converted to `dtype`.
+    #[track_caller]
+    pub fn to_data_dtype(&self, dtype: DType) -> TensorData {
+        self.try_to_data_dtype(dtype)
+            .unwrap_or_else(|err| panic!("Failed to read tensor data as {dtype:?}: {err}"))
+    }
+
+    /// Copies the tensor data to host memory and converts it to `dtype`.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_to_data()?.try_cast(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `dtype`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
+    pub fn try_to_data_dtype(&self, dtype: DType) -> Result<TensorData, TensorReadError> {
+        Ok(self.try_to_data()?.try_cast(dtype)?)
+    }
+
+    /// Reads the tensor data into host memory and converts it to the dtype represented by `E`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`Tensor::try_into_data_as`].
+    ///
+    /// # Returns
+    /// A `TensorData` with dtype `E::dtype()`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if synchronous readback isn't supported, tensor execution or storage access fails,
+    /// or the data can't be converted to `E`.
+    #[track_caller]
+    pub fn into_data_as<E: Element>(self) -> TensorData {
+        self.try_into_data_as::<E>()
+            .unwrap_or_else(|err| panic!("Failed to read tensor data: {err}"))
+    }
+
+    /// Reads the tensor data into host memory and converts it to the dtype represented by `E`.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_into_data()?.try_cast_as::<E>()`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
+    pub fn try_into_data_as<E: Element>(self) -> Result<TensorData, TensorReadError> {
+        Ok(self.try_into_data()?.try_cast_as::<E>()?)
+    }
+
+    /// Reads the tensor data into a host [`Vec<E>`], converting the dtype when necessary.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_into_data_as::<E>()?.try_into_vec::<E>()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `E`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
+    pub fn try_into_vec_as<E: Element>(self) -> Result<Vec<E>, TensorReadError> {
+        Ok(self.try_into_data_as::<E>()?.try_into_vec::<E>()?)
+    }
+
+    /// Reads the tensor data into host memory and converts it to `dtype`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// See: [`Tensor::try_into_data_dtype`].
+    ///
+    /// # Returns
+    /// A `TensorData` with the requested `dtype`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if synchronous readback isn't supported, tensor execution or storage access fails,
+    /// or the data can't be converted to `dtype`.
+    #[track_caller]
+    pub fn into_data_dtype(self, dtype: DType) -> TensorData {
+        self.try_into_data_dtype(dtype)
+            .unwrap_or_else(|err| panic!("Failed to read tensor data as {dtype:?}: {err}"))
+    }
+
+    /// Reads the tensor data into host memory and converts it to `dtype`.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.try_into_data()?.try_cast(dtype)`.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor execution or storage access fails, or the data can't be
+    /// converted to `dtype`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform doesn't support synchronous readback.
+    pub fn try_into_data_dtype(self, dtype: DType) -> Result<TensorData, TensorReadError> {
+        Ok(self.try_into_data()?.try_cast(dtype)?)
     }
 
     /// Create a tensor from the given data on the given device.
@@ -2679,8 +2917,9 @@ where
     ///
     /// # Panics
     ///
-    /// - If the tensor doesn't have one element.
-    /// - If the backend fails to read the tensor data synchronously.
+    /// - If the tensor doesn't have exactly one element.
+    /// - If synchronous readback isn't supported or the backend fails to read the tensor data.
+    /// - If the data can't be converted to `E`.
     ///
     /// # Returns
     ///
@@ -2697,50 +2936,80 @@ where
     /// let scalar: f32 = tensor.into_scalar();
     /// println!("{scalar}");
     /// ```
+    #[track_caller]
     pub fn into_scalar<E: Element>(self) -> E {
-        check!(TensorCheck::into_scalar::<D>(&self.shape()));
-
-        let err_msg =
-            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
-
-        let data = self.into_data();
-        data.iter::<E>().next().expect(err_msg)
+        self.try_into_scalar::<E>().expect(
+            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime",
+        )
     }
 
-    /// Convert the tensor into a scalar and returns any error that might have occurred since the
+    /// Converts the tensor into a scalar and returns any error that occurred since the
     /// last time the device was synchronized.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tensor doesn't contain exactly one element, the backend fails to
+    /// read its data, or the data can't be converted to `E`.
     ///
     /// # Panics
     ///
-    /// - If the tensor doesn't have one element.
-    /// - If the backend fails to read the tensor data synchronously.
+    /// Panics if the platform doesn't support synchronous readback.
     ///
     /// # Returns
     ///
     /// The scalar value of the tensor.
-    pub fn try_into_scalar<E: Element>(self) -> Result<E, ExecutionError> {
-        check!(TensorCheck::into_scalar::<D>(&self.shape()));
-
-        let err_msg =
-            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
-
+    pub fn try_into_scalar<E: Element>(self) -> Result<E, TensorReadError> {
         let data = self.try_into_data()?;
-        Ok(data.iter::<E>().next().expect(err_msg))
+        Self::_unpack_scalar::<E>(data)
     }
 
-    /// Convert the tensor into a scalar.
+    /// Convert the tensor into a scalar asynchronously.
     ///
     /// # Panics
     ///
-    /// If the tensor doesn't have one element.
+    /// Panics if the tensor doesn't contain exactly one element or its data can't be converted
+    /// to `E`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backend fails to read the tensor data.
     pub async fn into_scalar_async<E: Element>(self) -> Result<E, ExecutionError> {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
-
-        let err_msg =
-            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
-
         let data = self.into_data_async().await?;
-        Ok(data.iter::<E>().next().expect(err_msg))
+        Ok(Self::_unpack_scalar::<E>(data)
+            .unwrap_or_else(|err| panic!("Failed to convert tensor data to a scalar: {err}")))
+    }
+
+    /// Try to convert the tensor into a scalar asynchronously.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tensor doesn't contain exactly one element, the backend fails to
+    /// read its data, or the data can't be converted to `E`.
+    pub async fn try_into_scalar_async<E: Element>(self) -> Result<E, TensorReadError> {
+        let data = self.into_data_async().await?;
+        Self::_unpack_scalar::<E>(data)
+    }
+
+    fn _unpack_scalar<E: Element>(data: TensorData) -> Result<E, TensorReadError> {
+        let actual = data.shape.num_elements();
+        if actual != 1 {
+            return Err(TensorReadError::InvalidShape {
+                expected: 1,
+                actual,
+            });
+        }
+
+        let mut values = data.try_into_vec_as::<E>()?;
+        let actual = values.len();
+        if actual != 1 {
+            return Err(TensorReadError::InvalidShape {
+                expected: 1,
+                actual,
+            });
+        }
+
+        Ok(values.pop().expect("scalar element count was validated"))
     }
 
     /// Broadcast the tensor to the given shape.
@@ -3134,29 +3403,27 @@ where
 /// state-machine code lives here, compiled once inside `burn-tensor`.
 async fn into_data_async_impl(
     primitive: BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
 ) -> Result<TensorData, ExecutionError> {
-    use crate::ops::{BasicOps, Kind};
     match kind {
-        Kind::Float => <crate::Float as BasicOps>::into_data_async(primitive).await,
-        Kind::Int => <crate::Int as BasicOps>::into_data_async(primitive).await,
-        Kind::Bool => <crate::Bool as BasicOps>::into_data_async(primitive).await,
+        Kind::Float => <Float as BasicOps>::into_data_async(primitive).await,
+        Kind::Int => <Int as BasicOps>::into_data_async(primitive).await,
+        Kind::Bool => <Bool as BasicOps>::into_data_async(primitive).await,
     }
 }
 
-fn slice_bridge_by_kind(p: BridgeTensor, slices: &[Slice], kind: crate::ops::Kind) -> BridgeTensor {
-    use crate::ops::{BasicOps, Kind};
+fn slice_bridge_by_kind(p: BridgeTensor, slices: &[Slice], kind: Kind) -> BridgeTensor {
     match kind {
-        Kind::Float => <crate::Float as BasicOps>::slice(p, slices),
-        Kind::Int => <crate::Int as BasicOps>::slice(p, slices),
-        Kind::Bool => <crate::Bool as BasicOps>::slice(p, slices),
+        Kind::Float => <Float as BasicOps>::slice(p, slices),
+        Kind::Int => <Int as BasicOps>::slice(p, slices),
+        Kind::Bool => <Bool as BasicOps>::slice(p, slices),
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_inner(
     primitive: &BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3195,7 +3462,7 @@ fn push_newline_indent_impl(acc: &mut String, indent: usize) {
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_outer(
     primitive: &BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3229,7 +3496,7 @@ fn display_fmt_outer(
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_recursive(
     primitive: &BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3326,7 +3593,7 @@ fn display_fmt_recursive(
 
 fn display_fmt_impl(
     primitive: &BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
     kind_name: &str,
     f: &mut core::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
@@ -3358,9 +3625,9 @@ fn display_fmt_impl(
     }
     writeln!(f, "  shape:  {},", primitive.shape())?;
     let device = match kind {
-        crate::ops::Kind::Float => <crate::Float as crate::ops::BasicOps>::device(primitive),
-        crate::ops::Kind::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
-        crate::ops::Kind::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
+        Kind::Float => <Float as BasicOps>::device(primitive),
+        Kind::Int => <Int as BasicOps>::device(primitive),
+        Kind::Bool => <Bool as BasicOps>::device(primitive),
     };
     writeln!(f, "  device:  {:?},", device)?;
     writeln!(f, "  kind:  {:?},", kind_name)?;
@@ -3371,7 +3638,7 @@ fn display_fmt_impl(
 
 fn try_into_data_sync_impl(
     primitive: BridgeTensor,
-    kind: crate::ops::Kind,
+    kind: Kind,
 ) -> Result<TensorData, ExecutionError> {
     crate::try_read_sync(into_data_async_impl(primitive, kind)).expect(
         "Failed to read tensor data synchronously.
@@ -3380,17 +3647,34 @@ fn try_into_data_sync_impl(
     )
 }
 
-fn into_data_sync_impl(primitive: BridgeTensor, kind: crate::ops::Kind) -> TensorData {
-    try_into_data_sync_impl(primitive, kind).expect(
-        "Error while reading data: use `try_into_data` instead to catch the error at runtime",
-    )
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
     use burn_std::SliceOps;
 
-    use crate::{Shape, s};
+    use crate::Slice;
+
+    use crate::s;
+
+    #[test]
+    fn scalar_read_returns_shape_error() {
+        let error = Tensor::<1>::_unpack_scalar::<f32>(TensorData::from([1.0, 2.0])).unwrap_err();
+
+        assert!(matches!(
+            error,
+            TensorReadError::InvalidShape {
+                expected: 1,
+                actual: 2
+            }
+        ));
+    }
+
+    #[test]
+    fn scalar_read_converts_to_requested_element() {
+        let scalar = Tensor::<1>::_unpack_scalar::<f32>(TensorData::from([3i32])).unwrap();
+
+        assert_eq!(scalar, 3.0);
+    }
 
     #[test]
     fn slice_range_single_dim_leading() {
@@ -3427,8 +3711,6 @@ mod tests {
 
     #[test]
     fn test_negative_slice_indices() {
-        use crate::Slice;
-
         // Test negative indices conversion
         let slice: Slice = (-3..-1).into();
         assert_eq!(slice.start, -3);

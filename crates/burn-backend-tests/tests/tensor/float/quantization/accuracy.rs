@@ -72,7 +72,7 @@ fn relative_error(original: &[f32], dequantized: &[f32]) -> f32 {
 
 /// Read a tensor back as `f32`, whatever float type the backend is built with.
 fn to_f32(tensor: TestTensor<2>) -> Vec<f32> {
-    tensor.into_data().convert::<f32>().to_vec::<f32>().unwrap()
+    tensor.try_into_vec_as().unwrap()
 }
 
 /// Quantize with `scheme`, dequantize, and report the relative error.

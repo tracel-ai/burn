@@ -58,7 +58,7 @@ fn run<B: Element, I: ElementOrdered, Stats: StatsOp<Label = I>>(
     stats: impl Fn() -> Stats,
 ) -> (TensorData, Stats) {
     let [height, width] = img.shape.dims();
-    let img = img.into_vec::<B>().unwrap();
+    let img = img.try_into_vec::<B>().unwrap();
 
     let mut stats = stats();
 

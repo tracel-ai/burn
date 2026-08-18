@@ -199,7 +199,7 @@ mod tests {
         let data = rt
             .block_on(<RemoteBackend as FloatTensorOps<RemoteBackend>>::float_into_data(out))
             .unwrap();
-        let values: Vec<f32> = data.to_vec().unwrap();
+        let values: Vec<f32> = data.try_to_vec().unwrap();
         assert_eq!(values, vec![6.0, 12.0, 18.0]);
 
         rt.shutdown_background();
@@ -292,7 +292,7 @@ mod tests {
         let data = rt
             .block_on(<RemoteBackend as FloatTensorOps<RemoteBackend>>::float_into_data(out))
             .unwrap();
-        let values: Vec<f32> = data.to_vec().unwrap();
+        let values: Vec<f32> = data.try_to_vec().unwrap();
         assert_eq!(values, vec![6.0, 12.0, 18.0]);
 
         rt.block_on(router.shutdown()).unwrap();
@@ -654,7 +654,7 @@ mod fusion_tests {
             let data = burn_std::reader::try_read_sync(B::float_into_data(d))
                 .expect("remote read should resolve synchronously")
                 .expect("read should succeed");
-            out.push(data.to_vec::<f32>().unwrap());
+            out.push(data.try_to_vec::<f32>().unwrap());
         }
         out
     }
@@ -762,7 +762,7 @@ mod fusion_tests {
             .expect("remote read should resolve synchronously")
             .expect("read should succeed");
 
-            let values = data.to_vec::<f32>().unwrap();
+            let values = data.try_to_vec::<f32>().unwrap();
             let expected = [1.0f32.exp(), 2.0f32.exp(), 3.0f32.exp()];
             for (a, e) in values.iter().zip(expected.iter()) {
                 assert!((a - e).abs() < 1e-4, "iter {i}: {a} vs {e}");
@@ -826,7 +826,7 @@ mod fusion_tests {
             >>::float_into_data(made))
             .expect("remote read should resolve synchronously")
             .expect("read should succeed");
-            let values = data.to_vec::<f32>().unwrap();
+            let values = data.try_to_vec::<f32>().unwrap();
             assert_eq!(values, vec![1.0, 2.0, 3.0], "iter {i}");
         }
 
@@ -894,7 +894,7 @@ mod fusion_tests {
                     .expect("remote read should resolve synchronously")
                     .expect("read should succeed");
 
-            let values = data.to_vec::<f32>().unwrap();
+            let values = data.try_to_vec::<f32>().unwrap();
             // a=[1,2,3], b=[4,5,6], c=[7,8,9]; t = log(exp(a)+b) + c
             let expected: Vec<f32> = (0..3)
                 .map(|k| {
@@ -979,7 +979,7 @@ mod fusion_tests {
                 burn_std::reader::try_read_sync(<B as FloatTensorOps<B>>::float_into_data(exp))
                     .expect("remote read should resolve synchronously")
                     .expect("read should succeed");
-            let exp_values = exp_data.to_vec::<f32>().unwrap();
+            let exp_values = exp_data.try_to_vec::<f32>().unwrap();
             let exp_expected = [1.0f32.exp(), 2.0f32.exp(), 3.0f32.exp()];
             for (g, e) in exp_values.iter().zip(exp_expected.iter()) {
                 assert!((g - e).abs() < 1e-3, "iter {i} (exp): {g} vs {e}");
@@ -992,7 +992,7 @@ mod fusion_tests {
                 burn_std::reader::try_read_sync(<B as FloatTensorOps<B>>::float_into_data(log))
                     .expect("remote read should resolve synchronously")
                     .expect("read should succeed");
-            let log_values = log_data.to_vec::<f32>().unwrap();
+            let log_values = log_data.try_to_vec::<f32>().unwrap();
             let log_expected = [1.0f32.ln(), 2.0f32.ln(), 3.0f32.ln()];
             for (g, e) in log_values.iter().zip(log_expected.iter()) {
                 assert!((g - e).abs() < 1e-3, "iter {i} (log): {g} vs {e}");
