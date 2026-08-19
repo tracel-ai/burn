@@ -8,7 +8,6 @@ use burn_tensor::quantization::{
 use burn_tensor::{DType, Element, TensorData};
 
 fn get_q_params(data: TensorData) -> DecodedScales {
-    let num_elements = data.num_elements();
     let scheme = if let DType::QFloat(scheme) = data.dtype {
         scheme
     } else {

@@ -112,6 +112,11 @@ tensor's dynamic range, and the block type only has to cover the spread between 
 | `per_tensor(dtype)`          | A single scale for the entire tensor.                                                           |
 | `per_block(block, dtype)`    | Tensor divided into blocks (1D, 2D, or higher) defined by `block`, each with its own scale.     |
 
+Block dimensions are relative to the tensor rank and describe per-axis rectangles, not flat chunks
+of contiguous values. For example, `[16]` divides the trailing dimension into groups of 16, while
+`[2, 16]` divides the final two dimensions into rectangular blocks. Dynamic calibration currently
+requires every affected tensor dimension to be evenly divisible by its block extent.
+
 Setting both nests the blocks inside the tensor: the per-tensor scale is the factor the block
 scales are relative to, and it has to be `F32`.
 
@@ -134,7 +139,7 @@ scales are relative to, and it has to be `F32`.
 | Store               | Description                                                                                                                                       |
 | :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Native`            | Each quantized value is stored directly in a native format, which doesn't require packing and unpacking.                                          |
-| `PackedNative(dim)` | Multiple quantized values packed into a 32-bit integer. Argument is the dimension the tensor is packed on, starting from the innermost dimension. |
+| `PackedNative(dim)` | Multiple quantized values packed into a natively supported representation. Argument is the dimension the tensor is packed on, starting from the innermost dimension. |
 | `PackedU32(dim)`    | Multiple quantized values packed into a 32-bit integer. Argument is the dimension the tensor is packed on, starting from the innermost dimension. |
 
 Native storage is not supported for sub-byte quantization values.
@@ -148,7 +153,9 @@ Native storage is not supported for sub-byte quantization values.
 | `BF16`  | Brain float 16-bit precision.                                                          |
 | `UE4M3` | 8-bit floating point (4 exponent, 3 mantissa). Currently supported on CPU backends only. |
 
-A narrower scale type stores less per block, but it also has a much smaller range. `UE4M3`
-cannot represent a value below `2^-9`, so a scale smaller than that rounds to zero and the block
-is lost. Scales stay in range when the quantized values are large enough, which in practice means
-it is not a drop-in replacement for `F32` on small-magnitude weights.
+A narrower scale type stores less per block, but it also has a much smaller range. The smallest
+positive `UE4M3` value is `2^-9`; Burn rounds a smaller positive scale up to `2^-9` rather than
+down to zero. The resulting scale can nevertheless be so coarse that the block's values quantize
+to zero. A two-level scheme lets the per-tensor `F32` scale carry the absolute magnitude, but the
+differences between block scales can still exceed `UE4M3`'s range and make smaller blocks
+quantize too coarsely.
