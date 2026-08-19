@@ -65,6 +65,10 @@ impl QTensorOps<Self> for NdArray {
                             | QuantValue::E4M3
                             | QuantValue::E5M2,
                         ..
+                    }
+                    | QuantScheme {
+                        mode: QuantMode::Lookup,
+                        ..
                     } => unimplemented!("from_data not supported for scheme {scheme:?}"),
                 }
             }

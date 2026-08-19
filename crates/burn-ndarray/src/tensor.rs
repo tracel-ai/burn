@@ -730,6 +730,9 @@ impl NdArrayQTensor {
                     .collect(),
                 block_size,
             ),
+            (QuantMode::Lookup, _) => {
+                unimplemented!("lookup quantization is not supported by the ndarray backend")
+            }
         }
     }
 }

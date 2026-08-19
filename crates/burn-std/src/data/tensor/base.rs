@@ -508,6 +508,12 @@ impl core::fmt::Display for TensorData {
                     } => {
                         unimplemented!("Can't format yet");
                     }
+                QuantScheme {
+                    mode: QuantMode::Lookup,
+                    ..
+                } => {
+                    format!("<lookup-quantized> {scheme:?}")
+                }
             },
         };
         f.write_str(fmt.as_str())
