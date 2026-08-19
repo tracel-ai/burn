@@ -1,4 +1,6 @@
 use burn_ir::{HandleContainer, TensorStatus};
+use burn_std::config::{fusion::FusionLogLevel, log_fusion};
+use std::sync::Arc;
 
 use crate::{
     FusionRuntime, UnfusedOp,
@@ -22,6 +24,35 @@ impl<R: FusionRuntime> OperationQueue<R> {
         stream_id: StreamId,
     ) {
         let plan = store.get_mut_unchecked(id);
+
+        // A cached plan may name relative shape ids this stream never assigned — the id space
+        // depends on how many *distinct* dimension values the producing stream carried, and a
+        // block's reference layout can name an id none of the plan's own operations do. Matching
+        // on operations therefore does not imply the plan fits. When it does not, run the very
+        // same operations in submission order instead: always a legal order, just unfused.
+        let assigned = self.converter.num_relative_shapes();
+        if let Some(max_id) = plan.optimization.strategy.max_relative_shape_id()
+            && max_id >= assigned
+        {
+            let len = plan.optimization.ordering.len();
+            log_fusion(FusionLogLevel::Medium, || {
+                format!(
+                    "[plan] #{id} needs relative shape id {max_id} but the stream assigned \
+                     {assigned}; running its {len} operations unfused"
+                )
+            });
+
+            let ordering: Vec<usize> = (0..len).collect();
+            let mut fallback = BlockOptimization::new(
+                ExecutionStrategy::Operations {
+                    ordering: Arc::new(ordering.clone()),
+                },
+                ordering,
+            );
+            self.execute_block_optimization(&mut fallback, handles, stream_id);
+            return;
+        }
+
         self.execute_block_optimization(&mut plan.optimization, handles, stream_id);
     }
 

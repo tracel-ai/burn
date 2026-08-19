@@ -28,6 +28,23 @@ pub(crate) enum ExecutionStrategy<O> {
     Composed(Vec<Box<Self>>),
 }
 
+impl<O: crate::NumOperations> ExecutionStrategy<O> {
+    /// The highest relative shape id any optimization in this strategy names.
+    ///
+    /// See [`NumOperations::max_relative_shape_id`](crate::NumOperations::max_relative_shape_id)
+    /// for why a cached plan carries this constraint.
+    pub(crate) fn max_relative_shape_id(&self) -> Option<usize> {
+        match self {
+            Self::Optimization { opt, .. } => opt.max_relative_shape_id(),
+            Self::Operations { .. } => None,
+            Self::Composed(items) => items
+                .iter()
+                .filter_map(|item| item.max_relative_shape_id())
+                .max(),
+        }
+    }
+}
+
 /// The trigger that indicates when to stop exploring.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExecutionTrigger {

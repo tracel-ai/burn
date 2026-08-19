@@ -215,6 +215,20 @@ pub trait NumOperations: core::fmt::Debug {
     }
     /// The name of the optimization.
     fn name(&self) -> &'static str;
+    /// The highest relative shape id this optimization names, if it names any.
+    ///
+    /// Relative shape ids are handed out per *distinct dimension value*, in order of first
+    /// appearance, so how many exist depends on the stream that produced them. An optimization
+    /// can reference an id through a block's reference layout without any of its own operations
+    /// carrying that id, which means matching on operations alone does not guarantee the ids it
+    /// needs will exist when it is replayed. A plan is therefore only valid on a stream that has
+    /// assigned at least this many ids; see
+    /// [`Context::shapes_relative2global`](crate::stream::Context).
+    ///
+    /// `None` means the optimization names no relative shape, so it fits any stream.
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        None
+    }
 }
 
 /// The optimization created from a [fuser](OperationFuser).

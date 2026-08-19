@@ -81,8 +81,15 @@ impl<O: core::fmt::Debug> Policy<O> {
             );
         }
 
-        if let Some((id, _length)) = self.found {
-            return Action::Execute(id);
+        if let Some((id, length)) = self.found {
+            // A plan covering `length` operations cannot be applied to a shorter
+            // segment: the executor walks the plan's ordering against the queue
+            // and would index past its end. The segment can end up shorter than
+            // the plan that was found for it when it is drained between the two,
+            // so this is checked rather than assumed.
+            if length <= operations.len() {
+                return Action::Execute(id);
+            }
         }
 
         match mode {
