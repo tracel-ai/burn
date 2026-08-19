@@ -1,6 +1,6 @@
 use super::*;
-use burn_tensor::signal::hamming_window;
-use burn_tensor::{DType, TensorData, Tolerance};
+use burn_core::tensor::{DType, TensorData, Tolerance};
+use burn_signal::hamming_window;
 
 #[test]
 fn should_support_hamming_window_periodic() {

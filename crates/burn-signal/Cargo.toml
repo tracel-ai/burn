@@ -1,0 +1,69 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "Signal processing operations for Burn tensors"
+documentation = "https://docs.rs/burn-signal"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "signal", "audio"]
+license.workspace = true
+name = "burn-signal"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-signal"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["burn-core/default", "flex", "fusion", "std"]
+std = ["burn-core/std", "burn-std/std", "burn-fusion?/std", "burn-autodiff?/std"]
+tracing = ["burn-core/tracing", "burn-fusion?/tracing", "burn-autodiff?/tracing"]
+autodiff = ["burn-core/autodiff", "burn-autodiff"]
+autotune = ["burn-core/autotune", "burn-cubecl?/autotune"]
+
+cubecl-backend = ["burn-cubecl"]
+fusion = ["burn-fusion", "burn-core/fusion", "burn-core/ir"]
+
+cuda = ["cubecl-backend", "burn-core/cuda"]
+rocm = ["cubecl-backend", "burn-core/rocm"]
+wgpu = ["cubecl-backend", "burn-core/wgpu"]
+vulkan = ["cubecl-backend", "burn-core/vulkan"]
+webgpu = ["cubecl-backend", "burn-core/webgpu"]
+metal = ["cubecl-backend", "burn-core/metal"]
+cpu = ["cubecl-backend", "burn-core/cpu"]
+flex = ["burn-core/flex", "burn-flex"]
+ndarray = ["burn-core/ndarray"]
+tch = ["burn-core/tch", "burn-tch", "dep:tch"]
+remote-websocket = ["remote", "burn-core/remote-websocket"]
+# Enable the remote transport integration test and its server dependencies.
+remote-tests = ["autodiff", "remote-websocket", "burn-remote/server", "burn-remote/websocket", "dep:tokio"]
+remote = ["burn-core/remote", "router"]
+capture = ["burn-core/capture", "router"]
+bench-disable-alloc = []
+router = ["burn-router", "burn-core/ir"]
+
+[dependencies]
+burn-core = { workspace = true, features = ["extension"] }
+burn-cubecl = { workspace = true, optional = true, default-features = false, features = ["fft"] }
+burn-fusion = { workspace = true, optional = true, default-features = false }
+burn-router = { workspace = true, optional = true, default-features = false }
+burn-std = { workspace = true }
+burn-autodiff = { workspace = true, optional = true }
+burn-flex = { workspace = true, optional = true, features = ["fft"] }
+burn-tch = { workspace = true, optional = true }
+tch = { workspace = true, optional = true }
+
+burn-remote = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["rt-multi-thread"] }
+
+[dev-dependencies]
+divan = "0.1"
+ctor = "0.10.1"
+
+[package.metadata.docs.rs]
+features = ["default", "autodiff"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[[bench]]
+name = "fft_ops"
+harness = false

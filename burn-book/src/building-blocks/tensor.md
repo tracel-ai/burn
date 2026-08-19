@@ -588,7 +588,16 @@ cargo run -p burn-tensor --example einsum --features flex,autodiff
 
 ## Signal Processing Functions
 
-Signal-processing helpers live in `burn::tensor::signal` and operate on real-valued float tensors.
+Signal-processing helpers live in the `burn-signal` extension crate and operate on real-valued
+float tensors. Enable Burn's optional `signal` feature to use `burn::signal`; the compatibility
+path `burn::tensor::signal` exports the same functions. The direct `burn_tensor::signal` and
+`burn_core::tensor::signal` paths have been removed.
+
+FFT operations use the `SignalOps` backend extension. Windows and STFT/ISTFT
+compose tensor operations. Enable `autodiff` to differentiate through FFTs. Remote servers and
+captured-graph interpreters must register `burn_signal::register_fft_ops` in their custom-operation
+registry (with the `router` feature enabled).
+
 FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is `Some(size)`, the
 input is truncated or zero-padded to `size` and the output has `size / 2 + 1` frequency bins.
 Non-power-of-two sizes panic at the public API boundary; general arbitrary-size DFT support
@@ -598,6 +607,7 @@ Non-power-of-two sizes panic at the public API boundary; general arbitrary-size 
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `signal::rfft(tensor, dim, n)`                        | `torch.fft.rfft(tensor, n, dim)`                                                  |
 | `signal::irfft(re, im, dim, n)`                       | `torch.fft.irfft(complex, n, dim)`                                                |
+| `signal::cfft(re, im, dim, n)`                        | `torch.fft.fft(complex, n, dim)`                                                 |
 | `signal::stft(signal, window, options)`               | `torch.stft(signal, n_fft, hop_length, win_length, window, center)`               |
 | `signal::istft(stft_matrix, window, length, options)` | `torch.istft(stft_matrix, n_fft, hop_length, win_length, window, center, length)` |
 | `signal::blackman_window(size, periodic, options)`    | `torch.blackman_window(size, periodic)`                                           |

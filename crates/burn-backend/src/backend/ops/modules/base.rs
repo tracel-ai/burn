@@ -1081,35 +1081,4 @@ pub trait ModuleOps<B: Backend> {
             "ctc_loss_backward called on a backend whose has_ctc_loss_backward() returns false"
         )
     }
-
-    /// Real-valued FFT with optional size parameter.
-    ///
-    /// When `n` is `None`, the signal must be a power of two along `dim`, and the output has
-    /// `signal_len / 2 + 1` frequency bins.
-    ///
-    /// When `n` is `Some(size)`, `size` must also be a power of two. The signal is truncated
-    /// or zero-padded to `size` and the output has `size / 2 + 1` frequency bins. Non-power-
-    /// of-two sizes are currently rejected at the public API boundary; true arbitrary-`n` DFT
-    /// support (Bluestein's algorithm) is tracked as a follow-up.
-    ///
-    /// Returns two tensors: the real part and the imaginary part.
-    fn rfft(
-        signal: FloatTensor<B>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> (FloatTensor<B>, FloatTensor<B>);
-
-    /// Inverse real-valued FFT with optional output size.
-    ///
-    /// When `n` is `None`, the reconstructed signal length `2 * (spectrum_size - 1)` must be
-    /// a power of two.
-    ///
-    /// When `n` is `Some(size)`, `size` must also be a power of two. Output has exactly
-    /// `size` samples.
-    fn irfft(
-        spectrum_re: FloatTensor<B>,
-        spectrum_im: FloatTensor<B>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> FloatTensor<B>;
 }

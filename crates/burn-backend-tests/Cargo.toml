@@ -149,10 +149,6 @@ name = "deform_conv_ops"
 harness = false
 
 [[bench]]
-name = "fft_ops"
-harness = false
-
-[[bench]]
 name = "gather_scatter_ops"
 harness = false
 

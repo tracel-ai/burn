@@ -2,17 +2,15 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo bench --bench fft_ops
+//! cargo bench -p burn-signal --bench fft_ops
 //! ```
 
 #[path = "common/mod.rs"]
 mod common;
 use common::BencherExt;
 
-use burn_tensor::{
-    Tensor, TensorData,
-    signal::{irfft, rfft},
-};
+use burn_core::tensor::{Tensor, TensorData};
+use burn_signal::{irfft, rfft};
 use divan::Bencher;
 
 #[cfg(not(feature = "bench-disable-alloc"))]
