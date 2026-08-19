@@ -48,7 +48,7 @@ fn morph_impl<B: Element>(
 ) -> TensorData {
     let [kh, kw] = kernel.shape.dims();
 
-    let kernel = kernel.into_vec::<B>().unwrap();
+    let kernel = kernel.try_into_vec::<B>().unwrap();
     let is_rect = kernel.iter().all(|it| it.to_bool());
     let anchor = opts.anchor.unwrap_or(Point::new(kw / 2, kh / 2));
     let iter = opts.iterations;

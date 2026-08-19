@@ -89,8 +89,7 @@ impl DispatchDevice {
     /// Only cubecl-backed devices can measure throughput; other backends
     /// (ndarray, libtorch, remote, ...) return an empty vector. An autodiff
     /// device reports the peaks of the device it wraps. Each returned
-    /// [`ThroughputValue`](burn_backend::cubecl::ThroughputValue) corresponds
-    /// positionally to the key at the same index.
+    /// [`ThroughputValue`] corresponds positionally to the key at the same index.
     pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputValue> {
         // No catch-all arm: a new backend must fail to compile here rather
         // than silently report no peaks.

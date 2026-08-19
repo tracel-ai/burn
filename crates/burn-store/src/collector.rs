@@ -295,12 +295,12 @@ mod tests {
         let weight_data = collector.tensors[0]
             .to_data()
             .unwrap()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
         let bias_data = collector.tensors[1]
             .to_data()
             .unwrap()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
 
         assert_eq!(weight_data, vec![1.0, 2.0, 3.0, 4.0]);
