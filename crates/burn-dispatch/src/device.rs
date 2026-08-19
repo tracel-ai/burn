@@ -154,6 +154,11 @@ impl AutodiffDevice {
     pub fn inner(self) -> DispatchDevice {
         *self.inner
     }
+
+    /// Returns the gradient checkpointing strategy.
+    pub fn checkpointing_strategy(&self) -> CheckpointingStrategy {
+        self.checkpointing
+    }
 }
 
 #[cfg(feature = "autodiff")]
@@ -227,7 +232,11 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Capture(device) => f.debug_tuple("Capture").field(device).finish(),
             #[cfg(feature = "autodiff")]
             // Format without `AutodiffDevice` wrapper
-            Self::Autodiff(device) => f.debug_tuple("Autodiff").field(&device.inner).finish(),
+            Self::Autodiff(device) => f
+                .debug_struct("Autodiff")
+                .field("device", &device.inner)
+                .field("checkpointing", &device.checkpointing)
+                .finish(),
         }
     }
 }
@@ -369,7 +378,9 @@ impl PartialEq for DispatchDevice {
         match (self, other) {
             // If both are Autodiff, compare the inner devices
             #[cfg(feature = "autodiff")]
-            (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => a == b,
+            (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => {
+                a.inner.as_ref() == b.inner.as_ref()
+            }
             // If one is Autodiff, compare it to the raw device
             #[cfg(feature = "autodiff")]
             (DispatchDevice::Autodiff(a), b) => a.inner.as_ref() == b,
