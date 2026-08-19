@@ -27,9 +27,9 @@ burn-ir = { workspace = true }
 burn-router = { workspace = true }
 burn-std = { workspace = true }
 hashbrown = { workspace = true }
+portable-atomic = { workspace = true }
 spin = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]
-

@@ -6,8 +6,6 @@
 //! client's cached optimization — it turns a recurring computation (e.g. a model block per step)
 //! into one registration plus cheap replays.
 
-use core::sync::atomic::{AtomicU64, Ordering};
-
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
@@ -16,6 +14,7 @@ use burn_ir::{
     BackendIr, GraphBindings, GraphIr, IrVisitorMut, OperationIr, ScalarIr, TensorId, TensorIr,
 };
 use hashbrown::HashMap;
+use portable_atomic::{AtomicU64, Ordering};
 
 use crate::TensorInterpreter;
 

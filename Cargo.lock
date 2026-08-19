@@ -894,6 +894,7 @@ dependencies = [
  "burn-router",
  "burn-std",
  "hashbrown 0.16.1",
+ "portable-atomic",
  "spin 0.11.1",
 ]
 
@@ -1247,6 +1248,7 @@ dependencies = [
  "burn-std",
  "hashbrown 0.16.1",
  "log",
+ "portable-atomic",
  "serde",
  "spin 0.11.1",
 ]

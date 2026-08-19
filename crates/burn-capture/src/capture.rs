@@ -1,8 +1,6 @@
 //! Non-executing router channel used to capture Burn operation graphs.
 
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
-use core::sync::atomic::{AtomicU64, Ordering};
-
 use burn_backend::{
     BoolStore, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, DeviceSettings,
     ExecutionError, Shape, TensorData,
@@ -12,6 +10,7 @@ use burn_ir::{
 };
 use burn_std::{device::Device, future::DynFut};
 use hashbrown::{HashMap, HashSet};
+use portable_atomic::{AtomicU64, Ordering};
 use spin::Mutex;
 
 use burn_router::{
