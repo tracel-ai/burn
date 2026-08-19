@@ -585,6 +585,28 @@ mod tests {
         assert!(!module.weight.require_grad); // stateful
     }
 
+    /// `valid` on a module already on the inner backend returns it unchanged rather than
+    /// panicking.
+    #[test]
+    fn valid_is_idempotent() {
+        let device = test_device().autodiff();
+        let module = SimpleLinear::new(4, 4, &device).valid();
+
+        let module = module.valid();
+
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.weight.val().device().is_autodiff());
+    }
+
+    #[test]
+    fn valid_on_a_plain_device_module_is_no_op() {
+        let module = SimpleLinear::new(4, 4, &test_device());
+
+        let module = module.valid();
+
+        assert!(!module.weight.val().device().is_autodiff());
+    }
+
     #[test]
     fn freeze_group_freezes_only_selected_params() {
         let device = test_device().autodiff();
