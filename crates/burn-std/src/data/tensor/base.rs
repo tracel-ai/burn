@@ -1,6 +1,7 @@
 use core::f32;
 
 use alloc::format;
+use alloc::vec;
 use alloc::vec::Vec;
 use bytemuck::checked::CheckedCastError;
 use rand::Rng;
@@ -127,6 +128,16 @@ mod shape_inner {
 }
 
 impl TensorData {
+    /// Returns the rank (the number of dimensions).
+    pub fn rank(&self) -> usize {
+        self.shape.rank()
+    }
+
+    /// Returns the total number of elements of the tensor data.
+    pub fn num_elements(&self) -> usize {
+        self.shape.num_elements()
+    }
+
     /// Creates a new tensor data structure.
     pub fn new<E: Element, S: Into<Shape>>(value: Vec<E>, shape: S) -> Self {
         // Ensure shape is valid
@@ -182,7 +193,7 @@ impl TensorData {
 
     // Check that the input vector contains a correct number of elements
     fn check_data_len<E: Element>(data: &[E], shape: &Shape) {
-        let expected_data_len = numel(shape);
+        let expected_data_len = shape.num_elements();
         let num_data = data.len();
         assert_eq!(
             expected_data_len, num_data,
@@ -237,16 +248,6 @@ impl TensorData {
         }
     }
 
-    /// Returns the rank (the number of dimensions).
-    pub fn rank(&self) -> usize {
-        self.shape.len()
-    }
-
-    /// Returns the total number of elements of the tensor data.
-    pub fn num_elements(&self) -> usize {
-        numel(&self.shape)
-    }
-
     /// Populates the data with random values.
     pub fn random<E: Element, R: Rng, S: Into<Shape>>(
         shape: S,
@@ -254,62 +255,116 @@ impl TensorData {
         rng: &mut R,
     ) -> Self {
         let shape = shape.into();
-        let num_elements = numel(&shape);
-        let mut data = Vec::with_capacity(num_elements);
+        let data = (0..shape.num_elements())
+            .map(|_| E::random(distribution, rng))
+            .collect();
 
-        for _ in 0..num_elements {
-            data.push(E::random(distribution, rng));
-        }
+        Self::new(data, shape)
+    }
 
-        TensorData::new(data, shape)
+    /// Populates the data with random values.
+    pub fn try_random_dtype<R: Rng, S: Into<Shape>>(
+        shape: S,
+        distribution: Distribution,
+        rng: &mut R,
+        dtype: DType,
+    ) -> Result<Self, DataError> {
+        Ok(match dtype {
+            DType::F64 => Self::random::<f64, _, _>(shape, distribution, rng),
+            DType::F32 | DType::Flex32 => Self::random::<f32, _, _>(shape, distribution, rng),
+            DType::F16 => Self::random::<f16, _, _>(shape, distribution, rng),
+            DType::BF16 => Self::random::<bf16, _, _>(shape, distribution, rng),
+            DType::I64 => Self::random::<i64, _, _>(shape, distribution, rng),
+            DType::I32 => Self::random::<i32, _, _>(shape, distribution, rng),
+            DType::I16 => Self::random::<i16, _, _>(shape, distribution, rng),
+            DType::I8 => Self::random::<i8, _, _>(shape, distribution, rng),
+            DType::U64 => Self::random::<u64, _, _>(shape, distribution, rng),
+            DType::U32 => Self::random::<u32, _, _>(shape, distribution, rng),
+            DType::U16 => Self::random::<u16, _, _>(shape, distribution, rng),
+            DType::U8 => Self::random::<u8, _, _>(shape, distribution, rng),
+            DType::Bool(BoolStore::Native) => Self::random::<bool, _, _>(shape, distribution, rng),
+            DType::Bool(BoolStore::U8) => Self::random::<u8, _, _>(shape, distribution, rng)
+                .unchecked_cast(DType::Bool(BoolStore::U8)),
+            DType::Bool(BoolStore::U32) => Self::random::<u32, _, _>(shape, distribution, rng)
+                .unchecked_cast(DType::Bool(BoolStore::U32)),
+            DType::QFloat(_) => {
+                return Err(DataError::UnsupportedConversion {
+                    from: DType::F64,
+                    to: dtype,
+                });
+            }
+        })
     }
 
     /// Populates the data with zeros.
-    pub fn zeros<E: Element, S: Into<Shape>>(shape: S) -> TensorData {
-        let shape = shape.into();
-        let num_elements = numel(&shape);
-        let mut data = Vec::<E>::with_capacity(num_elements);
+    pub fn zeros<E: Element, S: Into<Shape>>(shape: S) -> Self {
+        Self::full(shape, 0.elem::<E>())
+    }
 
-        for _ in 0..num_elements {
-            data.push(0.elem());
-        }
+    /// Populate the data with zeros of the target dtype.
+    ///
+    /// # Returns
+    ///
+    /// Returns a [`TensorData`] populated with zeros of the target dtype;
+    /// or an error if the data cannot be populated with zeros of the target dtype.
+    pub fn try_zeros_dtype<S: Into<Shape>>(shape: S, dtype: DType) -> Result<Self, DataError> {
+        Self::try_full_dtype(shape, 0, dtype)
+    }
 
-        TensorData::new(data, shape)
+    /// Populate the data with zeros of the target dtype.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the data cannot be populated with zeros of the target dtype.
+    pub fn zeros_dtype<S: Into<Shape>>(shape: S, dtype: DType) -> Self {
+        Self::try_zeros_dtype(shape, dtype)
+            .unwrap_or_else(|err| panic!("Failed to create tensor data: {}", err))
     }
 
     /// Populates the data with ones.
-    pub fn ones<E: Element, S: Into<Shape>>(shape: S) -> TensorData {
-        let shape = shape.into();
-        let num_elements = numel(&shape);
-        let mut data = Vec::<E>::with_capacity(num_elements);
+    pub fn ones<E: Element, S: Into<Shape>>(shape: S) -> Self {
+        Self::full(shape, 1.elem::<E>())
+    }
 
-        for _ in 0..num_elements {
-            data.push(1.elem());
-        }
+    /// Populate the data with ones of the target dtype.
+    ///
+    /// # Returns
+    ///
+    /// Returns a [`TensorData`] populated with ones of the target dtype;
+    /// or an error if the data cannot be populated with ones of the target dtype.
+    pub fn try_ones_dtype<S: Into<Shape>>(shape: S, dtype: DType) -> Result<Self, DataError> {
+        Self::try_full_dtype(shape, 1, dtype)
+    }
 
-        TensorData::new(data, shape)
+    /// Populate the data with ones of the target dtype.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the data cannot be populated with ones of the target dtype.
+    pub fn ones_dtype<S: Into<Shape>>(shape: S, dtype: DType) -> Self {
+        Self::try_ones_dtype(shape, dtype)
+            .unwrap_or_else(|err| panic!("Failed to create tensor data: {}", err))
     }
 
     /// Populates the data with the given value
-    pub fn full<E: Element, S: Into<Shape>>(shape: S, fill_value: E) -> TensorData {
+    pub fn full<E: Element, S: Into<Shape>>(shape: S, fill_value: E) -> Self {
         let shape = shape.into();
-        let num_elements = numel(&shape);
-        let mut data = Vec::<E>::with_capacity(num_elements);
-        for _ in 0..num_elements {
-            data.push(fill_value)
-        }
-
-        TensorData::new(data, shape)
+        let data: Vec<E> = vec![fill_value; shape.num_elements()];
+        Self::new(data, shape)
     }
 
     /// Populates the data with the given value
-    pub fn full_dtype<E: Into<Scalar>, S: Into<Shape>>(
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing the populated `TensorData` if successful, or a `DataError` if the conversion fails.
+    pub fn try_full_dtype<E: Into<Scalar>, S: Into<Shape>>(
         shape: S,
         fill_value: E,
         dtype: DType,
-    ) -> TensorData {
+    ) -> Result<Self, DataError> {
         let fill_value = fill_value.into();
-        match dtype {
+        Ok(match dtype {
             DType::F64 => Self::full::<f64, _>(shape, fill_value.elem()),
             DType::F32 | DType::Flex32 => Self::full::<f32, _>(shape, fill_value.elem()),
             DType::F16 => Self::full::<f16, _>(shape, fill_value.elem()),
@@ -323,25 +378,36 @@ impl TensorData {
             DType::U16 => Self::full::<u16, _>(shape, fill_value.elem()),
             DType::U8 => Self::full::<u8, _>(shape, fill_value.elem()),
             DType::Bool(BoolStore::Native) => Self::full::<bool, _>(shape, fill_value.elem()),
-            DType::Bool(BoolStore::U8) => {
-                Self::full::<u8, _>(shape, fill_value.elem()).into_bool_u8()
+            DType::Bool(BoolStore::U8) => Self::full::<u8, _>(shape, fill_value.elem())
+                .unchecked_cast(DType::Bool(BoolStore::U8)),
+            DType::Bool(BoolStore::U32) => Self::full::<u32, _>(shape, fill_value.elem())
+                .unchecked_cast(DType::Bool(BoolStore::U32)),
+            DType::QFloat(_) => {
+                return Err(DataError::UnsupportedConversion {
+                    from: fill_value.dtype(),
+                    to: dtype,
+                });
             }
-            DType::Bool(BoolStore::U32) => {
-                Self::full::<u32, _>(shape, fill_value.elem()).into_bool_u32()
-            }
-            DType::QFloat(_) => unreachable!(),
-        }
+        })
+    }
+
+    /// Populates the data with the given value
+    ///
+    /// # Panics
+    ///
+    /// Panics if the conversion fails.
+    pub fn full_dtype<E: Into<Scalar>, S: Into<Shape>>(
+        shape: S,
+        fill_value: E,
+        dtype: DType,
+    ) -> Self {
+        Self::try_full_dtype(shape, fill_value, dtype)
+            .unwrap_or_else(|err| panic!("Failed to create tensor data: {}", err))
     }
 
     // Unchecked, used to overwrite the dtype
-    pub(super) fn into_bool_u8(mut self) -> Self {
-        self.dtype = DType::Bool(BoolStore::U8);
-        self
-    }
-
-    // Unchecked, used to overwrite the dtype
-    pub(super) fn into_bool_u32(mut self) -> Self {
-        self.dtype = DType::Bool(BoolStore::U32);
+    pub(super) fn unchecked_cast(mut self, dtype: DType) -> Self {
+        self.dtype = dtype;
         self
     }
 
@@ -354,10 +420,6 @@ impl TensorData {
     pub fn into_bytes(self) -> Bytes {
         self.bytes
     }
-}
-
-fn numel(shape: &[usize]) -> usize {
-    shape.iter().product()
 }
 
 impl<E: Element, const A: usize> From<[E; A]> for TensorData {
@@ -945,5 +1007,175 @@ mod tests {
 
         // Narrowing int cast.
         assert_eq!(data.try_into_vec_as::<u8>().unwrap(), vec![0u8, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_try_random_dtype() {
+        fn check<E: Element + PartialEq>(dtype: DType) {
+            let data = TensorData::try_random_dtype(
+                &[2, 2],
+                Distribution::Bernoulli(0.5),
+                &mut StdRng::seed_from_u64(0),
+                dtype,
+            )
+            .unwrap();
+            assert_eq!(data.shape.dims(), [2, 2]);
+            let _vec = data.try_into_vec::<E>().unwrap();
+        }
+
+        check::<f32>(DType::F32);
+        check::<f64>(DType::F64);
+        check::<f16>(DType::F16);
+        check::<bf16>(DType::BF16);
+
+        check::<i64>(DType::I64);
+        check::<i32>(DType::I32);
+        check::<i16>(DType::I16);
+        check::<i8>(DType::I8);
+
+        check::<u64>(DType::U64);
+        check::<u32>(DType::U32);
+        check::<u16>(DType::U16);
+        check::<u8>(DType::U8);
+
+        check::<bool>(DType::Bool(BoolStore::Native));
+        check::<u8>(DType::Bool(BoolStore::U8));
+        check::<u32>(DType::Bool(BoolStore::U32));
+
+        {
+            assert_eq!(
+                TensorData::try_random_dtype(
+                    &[2, 2],
+                    Distribution::Bernoulli(0.5),
+                    &mut StdRng::seed_from_u64(0),
+                    DType::QFloat(Default::default())
+                )
+                .unwrap_err(),
+                DataError::UnsupportedConversion {
+                    from: DType::F64,
+                    to: DType::QFloat(Default::default()),
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn test_zeros() {
+        fn check<E: Element + PartialEq>() {
+            let data = TensorData::zeros::<E, _>(&[2, 2]);
+            assert_eq!(data.shape.dims(), [2, 2]);
+            assert_eq!(&data.try_into_vec::<E>().unwrap(), &vec![0.elem::<E>(); 4]);
+        }
+
+        check::<f32>();
+        check::<f64>();
+
+        check::<i64>();
+        check::<i32>();
+        check::<i16>();
+        check::<i8>();
+
+        check::<u64>();
+        check::<u32>();
+        check::<u16>();
+        check::<u8>();
+
+        check::<bool>();
+    }
+
+    #[test]
+    fn test_try_zeros_dtype() {
+        fn check<E: Element + PartialEq>(dtype: DType) {
+            let data = TensorData::try_zeros_dtype(&[2, 2], dtype).unwrap();
+            assert_eq!(data.shape.dims(), [2, 2]);
+            assert_eq!(&data.try_into_vec::<E>().unwrap(), &vec![0.elem::<E>(); 4]);
+        }
+
+        check::<f32>(DType::F32);
+        check::<f64>(DType::F64);
+        check::<f16>(DType::F16);
+        check::<bf16>(DType::BF16);
+
+        check::<i64>(DType::I64);
+        check::<i32>(DType::I32);
+        check::<i16>(DType::I16);
+        check::<i8>(DType::I8);
+
+        check::<u64>(DType::U64);
+        check::<u32>(DType::U32);
+        check::<u16>(DType::U16);
+        check::<u8>(DType::U8);
+
+        check::<bool>(DType::Bool(BoolStore::Native));
+        check::<u8>(DType::Bool(BoolStore::U8));
+        check::<u32>(DType::Bool(BoolStore::U32));
+
+        assert_eq!(
+            TensorData::try_zeros_dtype(&[2, 2], DType::QFloat(Default::default())).unwrap_err(),
+            DataError::UnsupportedConversion {
+                from: DType::I64,
+                to: DType::QFloat(Default::default()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_ones() {
+        fn check<E: Element + PartialEq>() {
+            let data = TensorData::ones::<E, _>(&[2, 2]);
+            assert_eq!(data.shape.dims(), [2, 2]);
+            assert_eq!(&data.try_into_vec::<E>().unwrap(), &vec![1.elem::<E>(); 4]);
+        }
+
+        check::<f32>();
+        check::<f64>();
+
+        check::<i64>();
+        check::<i32>();
+        check::<i16>();
+        check::<i8>();
+
+        check::<u64>();
+        check::<u32>();
+        check::<u16>();
+        check::<u8>();
+
+        check::<bool>();
+    }
+
+    #[test]
+    fn test_try_ones_dtype() {
+        fn check<E: Element + PartialEq>(dtype: DType) {
+            let data = TensorData::try_ones_dtype(&[2, 2], dtype).unwrap();
+            assert_eq!(data.shape.dims(), [2, 2]);
+            assert_eq!(&data.try_into_vec::<E>().unwrap(), &vec![1.elem::<E>(); 4]);
+        }
+
+        check::<f32>(DType::F32);
+        check::<f64>(DType::F64);
+        check::<f16>(DType::F16);
+        check::<bf16>(DType::BF16);
+
+        check::<i64>(DType::I64);
+        check::<i32>(DType::I32);
+        check::<i16>(DType::I16);
+        check::<i8>(DType::I8);
+
+        check::<u64>(DType::U64);
+        check::<u32>(DType::U32);
+        check::<u16>(DType::U16);
+        check::<u8>(DType::U8);
+
+        check::<bool>(DType::Bool(BoolStore::Native));
+        check::<u8>(DType::Bool(BoolStore::U8));
+        check::<u32>(DType::Bool(BoolStore::U32));
+
+        assert_eq!(
+            TensorData::try_ones_dtype(&[2, 2], DType::QFloat(Default::default())).unwrap_err(),
+            DataError::UnsupportedConversion {
+                from: DType::I64,
+                to: DType::QFloat(Default::default()),
+            }
+        );
     }
 }

@@ -52,6 +52,16 @@ impl Scalar {
         }
     }
 
+    /// Returns the dtype of the scalar.
+    pub fn dtype(&self) -> DType {
+        match self {
+            Scalar::Float(_) => DType::F64,
+            Scalar::Int(_) => DType::I64,
+            Scalar::UInt(_) => DType::U64,
+            Scalar::Bool(_) => DType::Bool(BoolStore::Native),
+        }
+    }
+
     /// Returns the exact integer value, if valid.
     pub fn try_as_integer(&self) -> Option<Self> {
         match self {
@@ -107,5 +117,18 @@ impl ToPrimitive for Scalar {
             Scalar::Int(x) => x.to_f64(),
             Scalar::Bool(x) => (*x as u8).to_f64(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dtype() {
+        assert_eq!(Scalar::Float(1.0).dtype(), DType::F64);
+        assert_eq!(Scalar::Int(1).dtype(), DType::I64);
+        assert_eq!(Scalar::UInt(1).dtype(), DType::U64);
+        assert_eq!(Scalar::Bool(true).dtype(), DType::Bool(BoolStore::Native));
     }
 }
