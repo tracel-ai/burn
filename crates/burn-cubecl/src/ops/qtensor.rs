@@ -3,12 +3,12 @@ use burn_backend::{
     get_device_settings,
     ops::QTensorOps,
     quantization::{
-        QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
-        QuantizationParametersPrimitive, params_shape,
+        QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
+        QuantizationParametersPrimitive, ScaleDtype, global_scale_dtype, params_shape,
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata};
+use burn_std::{FloatDType, Metadata, quantization::global_scale_size};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -19,6 +19,13 @@ use crate::{
 };
 
 use super::{into_data, permute, swap_dims};
+
+/// Length of the block-scales region within a combined scales+global byte buffer.
+fn scales_region_len(total: usize, scheme: &QuantScheme) -> usize {
+    total
+        .checked_sub(global_scale_size(scheme))
+        .expect("quantized tensor data is shorter than the scheme's global scale")
+}
 
 /// Create a quantized tensor with packed values (u32).
 fn new_qtensor_optimized<R: CubeRuntime>(
@@ -101,34 +108,88 @@ fn new_quantized<R: CubeRuntime>(
         },
     };
 
-    let scales_dtype = match scheme.param {
-        QuantParam::F32 => DType::F32,
-        QuantParam::F16 => DType::F16,
-        QuantParam::BF16 => DType::BF16,
+    let scales_dtype = match scheme.scale_dtype() {
+        ScaleDtype::F32 => DType::F32,
+        ScaleDtype::F16 => DType::F16,
+        ScaleDtype::BF16 => DType::BF16,
         // Represented by U8 and reinterpreted in the kernel
-        QuantParam::UE8M0 | QuantParam::UE4M3 => DType::U8,
+        ScaleDtype::UE8M0 | ScaleDtype::UE4M3 => DType::U8,
     };
 
-    let scales_shape = params_shape(&shape, scheme.level);
+    let scales_shape = params_shape(&shape, &scheme);
     let data_desc = MemoryLayoutDescriptor::new(alloc_kind, shape_value.clone(), data_size);
     let scales_desc =
         MemoryLayoutDescriptor::new(alloc_kind, scales_shape.clone(), scales_dtype.size());
 
+    let global_shape = Shape::new([1]);
+    let global_dtype = global_scale_dtype(&scheme).map(|dtype| {
+        // The region is f32-sized and the kernels bind it as f32.
+        assert_eq!(
+            dtype,
+            ScaleDtype::F32,
+            "a two-level scheme binds its per-tensor scale as f32, got {scheme:?}"
+        );
+        DType::F32
+    });
+    let global_desc = global_dtype
+        .map(|dtype| MemoryLayoutDescriptor::new(alloc_kind, global_shape.clone(), dtype.size()));
+
     let mut tensors = match data {
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
+            let split = data.split(num_bytes, SplitPolicy::Shared);
 
-            match data.split(num_bytes, SplitPolicy::Shared) {
-                Ok((bytes_data, bytes_scales)) => client
-                    .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_scales)]),
-                Err((data, _)) => client.create_tensors_from_slices(vec![
-                    (data_desc, &data[..num_bytes]),
-                    (scales_desc, &data[num_bytes..]),
-                ]),
+            match (split, global_desc.clone()) {
+                (Ok((bytes_data, bytes_params)), None) => client
+                    .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_params)]),
+                (Ok((bytes_data, bytes_params)), Some(global_desc)) => {
+                    let scales_bytes = scales_region_len(bytes_params.len(), &scheme);
+                    match bytes_params.split(scales_bytes, SplitPolicy::Shared) {
+                        Ok((block, global)) => client.create_tensors(vec![
+                            (data_desc, bytes_data),
+                            (scales_desc, block),
+                            (global_desc, global),
+                        ]),
+                        Err((params, _)) => client.create_tensors_from_slices(vec![
+                            (data_desc, &bytes_data[..]),
+                            (scales_desc, &params[..scales_bytes]),
+                            (global_desc, &params[scales_bytes..]),
+                        ]),
+                    }
+                }
+                (Err((data, _)), global_desc) => {
+                    let params = &data[num_bytes..];
+                    let scales_bytes = scales_region_len(params.len(), &scheme);
+                    let mut entries = vec![
+                        (data_desc, &data[..num_bytes]),
+                        (scales_desc, &params[..scales_bytes]),
+                    ];
+                    if let Some(global_desc) = global_desc {
+                        entries.push((global_desc, &params[scales_bytes..]));
+                    }
+                    client.create_tensors_from_slices(entries)
+                }
             }
         }
-        None => client.empty_tensors(vec![data_desc, scales_desc]),
+        None => {
+            let mut descs = vec![data_desc, scales_desc];
+            descs.extend(global_desc);
+            client.empty_tensors(descs)
+        }
     };
+
+    let global = global_dtype.map(|dtype| {
+        let MemoryLayout {
+            memory: handle,
+            strides,
+        } = tensors.remove(2);
+        QParamTensor {
+            offset_start: handle.offset_start.unwrap_or(0) as usize,
+            offset_end: handle.offset_end.unwrap_or(0) as usize,
+            metadata: Metadata::new(global_shape, strides),
+            dtype,
+        }
+    });
     let MemoryLayout {
         memory: scales_handle,
         strides: scales_strides,
@@ -141,7 +202,7 @@ fn new_quantized<R: CubeRuntime>(
         metadata: Metadata::new(scales_shape, scales_strides),
         dtype: scales_dtype,
     };
-    let qparams = QParams { scales };
+    let qparams = QParams { scales, global };
 
     CubeTensor::new_quantized(
         client,
@@ -159,11 +220,6 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::BlockTensor { .. },
-                    ..
-                } => unimplemented!("two-level quantization is not supported yet"),
-                QuantScheme {
-                    level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     value:
                         QuantValue::Q8F
@@ -196,7 +252,16 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        kernel::quantization::quantize(tensor, scheme, qparams.scales)
+        // The kernel reads this at the scheme's scale dtype, not the tensor's actual dtype.
+        if let Some(global) = &qparams.global {
+            assert_eq!(
+                global.dtype,
+                DType::F32,
+                "a two-level scheme's per-tensor scale must be an f32 tensor, got {:?}",
+                global.dtype
+            );
+        }
+        kernel::quantization::quantize(tensor, scheme, qparams.scales, qparams.global)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
@@ -217,12 +282,18 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         }
 
         let (shape, dtype) = (tensor.shape(), tensor.dtype);
+        let global = tensor.global();
         let (values, params) = tensor.quantized_handles().unwrap();
 
         let mut data_values = into_data(values).await?;
         let data_params = into_data(params).await?;
 
         data_values.bytes.extend_from_byte_slice(&data_params.bytes);
+
+        if let Some(global) = global {
+            let data_global = into_data(global).await?;
+            data_values.bytes.extend_from_byte_slice(&data_global.bytes);
+        }
 
         Ok(TensorData {
             bytes: data_values.bytes,

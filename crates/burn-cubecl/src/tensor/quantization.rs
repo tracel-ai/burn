@@ -106,17 +106,29 @@ impl<R: CubeRuntime> CubeTensor<R> {
 
     /// Construct a separate tensor for the quantization scales, if present
     pub fn scales(&self) -> Option<CubeTensor<R>> {
-        let qparams = self.qparams.as_ref()?;
+        self.param_tensor(|qparams| Some(&qparams.scales))
+    }
+
+    /// Construct a separate tensor for the per-tensor scale, for a two-level scheme.
+    pub fn global(&self) -> Option<CubeTensor<R>> {
+        self.param_tensor(|qparams| qparams.global.as_ref())
+    }
+
+    fn param_tensor(
+        &self,
+        select: impl Fn(&QParams) -> Option<&QParamTensor>,
+    ) -> Option<CubeTensor<R>> {
+        let param = select(self.qparams.as_ref()?)?;
         let mut handle = self.handle.clone();
-        handle.offset_start = Some(qparams.scales.offset_start as u64);
-        handle.offset_end = Some(qparams.scales.offset_end as u64);
+        handle.offset_start = Some(param.offset_start as u64);
+        handle.offset_end = Some(param.offset_end as u64);
 
         Some(CubeTensor::new(
             self.client.clone(),
             handle,
-            qparams.scales.metadata.clone(),
+            param.metadata.clone(),
             self.device.clone(),
-            qparams.scales.dtype,
+            param.dtype,
         ))
     }
 }

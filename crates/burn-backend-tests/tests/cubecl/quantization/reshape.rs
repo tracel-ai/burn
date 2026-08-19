@@ -2,11 +2,19 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    quantization::{BlockSize, QuantLevel, QuantScheme, QuantStore, QuantValue},
+    quantization::{BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype},
 };
 
+fn scheme_for(block: Option<BlockSize>, value: QuantValue, store: QuantStore) -> QuantScheme {
+    let scheme = QuantScheme::default().with_value(value).with_store(store);
+    match block {
+        Some(block) => scheme.per_block(block.as_slice(), ScaleDtype::F32),
+        None => scheme,
+    }
+}
+
 fn should_quantize_dequantize_per_block_arange_reshaped<const D1: usize, const D2: usize>(
-    level: QuantLevel,
+    block: Option<BlockSize>,
     value: QuantValue,
     store: QuantStore,
     shape: [usize; D1],
@@ -17,10 +25,7 @@ fn should_quantize_dequantize_per_block_arange_reshaped<const D1: usize, const D
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
 
-    let scheme = QuantScheme::default()
-        .with_level(level)
-        .with_value(value)
-        .with_store(store);
+    let scheme = scheme_for(block, value, store);
 
     let data = TestTensorInt::arange(0..numel, &ref_device)
         .float()
@@ -41,10 +46,10 @@ fn should_quantize_dequantize_per_block_arange_reshaped<const D1: usize, const D
 
 #[test]
 // https://github.com/tracel-ai/burn/issues/4659
-// Edge case where a single block is used, essentially like `QuantLevel::Tensor`
+// Edge case where a single block is used, essentially like per-tensor quantization
 fn should_quantize_dequantize_per_block_reshaped_global_block_q8s_packed() {
     should_quantize_dequantize_per_block_arange_reshaped(
-        QuantLevel::Block(BlockSize::new([16])),
+        Some(BlockSize::new([16])),
         QuantValue::Q8S,
         QuantStore::PackedU32(0),
         [32],
@@ -57,7 +62,7 @@ fn should_quantize_dequantize_per_block_reshaped_global_block_q8s_packed() {
 #[should_panic] // "Reshape with sub-byte values is not supported"] error is shadowed by the CallError
 fn should_quantize_dequantize_per_block_reshaped_global_block_q4s_packed() {
     should_quantize_dequantize_per_block_arange_reshaped(
-        QuantLevel::Block(BlockSize::new([16])),
+        Some(BlockSize::new([16])),
         QuantValue::Q4S,
         QuantStore::PackedU32(0),
         [32],
@@ -70,7 +75,7 @@ fn should_quantize_dequantize_per_block_reshaped_global_block_q4s_packed() {
 #[should_panic] // "Reshape with sub-byte values is not supported" error is shadowed by the CallError
 fn should_quantize_dequantize_per_tensor_reshaped_q4s_packed() {
     should_quantize_dequantize_per_block_arange_reshaped(
-        QuantLevel::Tensor,
+        None,
         QuantValue::Q4S,
         QuantStore::PackedU32(0),
         [32],
@@ -82,7 +87,7 @@ fn should_quantize_dequantize_per_tensor_reshaped_q4s_packed() {
 fn should_quantize_dequantize_per_block_reshaped_1d_q8s_native() {
     if supports_native() {
         should_quantize_dequantize_per_block_arange_reshaped(
-            QuantLevel::Block(BlockSize::new([16])),
+            Some(BlockSize::new([16])),
             QuantValue::Q8S,
             QuantStore::Native,
             [32],
@@ -94,7 +99,7 @@ fn should_quantize_dequantize_per_block_reshaped_1d_q8s_native() {
 #[test]
 fn should_quantize_dequantize_per_block_unsqueezed_q8s_packed() {
     should_quantize_dequantize_per_block_arange_reshaped(
-        QuantLevel::Block(BlockSize::new([32])),
+        Some(BlockSize::new([32])),
         QuantValue::Q8S,
         QuantStore::PackedU32(0),
         [32],
@@ -106,7 +111,7 @@ fn should_quantize_dequantize_per_block_unsqueezed_q8s_packed() {
 #[should_panic] // "Reshape of ND block-quantized tensor is not yet supported" error is shadowed by the CallError
 fn quantize_2d_block_reshape_should_panic() {
     should_quantize_dequantize_per_block_arange_reshaped(
-        QuantLevel::Block(BlockSize::new([2, 4])),
+        Some(BlockSize::new([2, 4])),
         QuantValue::Q8S,
         QuantStore::PackedU32(0),
         [4, 8],
@@ -119,7 +124,7 @@ fn quantize_2d_block_reshape_should_panic() {
 fn quantize_per_block_reshaped_should_not_split_block() {
     if supports_native() {
         should_quantize_dequantize_per_block_arange_reshaped(
-            QuantLevel::Block(BlockSize::new([32])),
+            Some(BlockSize::new([32])),
             QuantValue::Q8S,
             QuantStore::Native,
             [2, 32],
@@ -135,7 +140,7 @@ fn quantize_per_block_reshaped_should_not_split_block() {
 #[should_panic] // "Reshape would split a block across multiple rows"] error is shadowed by the CallError
 fn should_quantize_dequantize_per_block_reshaped_2d_q8s_packed() {
     should_quantize_dequantize_per_block_arange_reshaped(
-        QuantLevel::Block(BlockSize::new([32])),
+        Some(BlockSize::new([32])),
         QuantValue::Q8S,
         QuantStore::PackedU32(0),
         [2, 32],
@@ -152,14 +157,11 @@ fn should_quantize_dequantize_per_block_reshaped_2d_q8s_packed() {
 
 /// Reshape correctness isolated from quantization error: dequantize the *same*
 /// quantized tensor via both orders. Any difference is the reshape's doing.
-fn reshape_matches_dequantize_then_reshape(value: QuantValue, level: QuantLevel) {
+fn reshape_matches_dequantize_then_reshape(value: QuantValue, block: Option<BlockSize>) {
     let numel = 32i64;
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
-    let scheme = QuantScheme::default()
-        .with_level(level)
-        .with_value(value)
-        .with_store(QuantStore::PackedU32(0));
+    let scheme = scheme_for(block, value, QuantStore::PackedU32(0));
 
     let data = TestTensorInt::arange(0..numel, &ref_device)
         .float()
@@ -176,18 +178,15 @@ fn reshape_matches_dequantize_then_reshape(value: QuantValue, level: QuantLevel)
 
 #[test]
 fn q8s_reshape_matches_dequantize_then_reshape() {
-    reshape_matches_dequantize_then_reshape(QuantValue::Q8S, QuantLevel::Tensor);
+    reshape_matches_dequantize_then_reshape(QuantValue::Q8S, None);
 }
 
 #[test]
 fn q4s_reshape_matches_dequantize_then_reshape() {
-    reshape_matches_dequantize_then_reshape(QuantValue::Q4S, QuantLevel::Tensor);
+    reshape_matches_dequantize_then_reshape(QuantValue::Q4S, None);
 }
 
 #[test]
 fn q4s_block_reshape_matches_dequantize_then_reshape() {
-    reshape_matches_dequantize_then_reshape(
-        QuantValue::Q4S,
-        QuantLevel::Block(BlockSize::new([16])),
-    );
+    reshape_matches_dequantize_then_reshape(QuantValue::Q4S, Some(BlockSize::new([16])));
 }

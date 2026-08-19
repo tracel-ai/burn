@@ -1,6 +1,6 @@
 use burn_backend::{
     AllocationProperty, DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
+    quantization::{QuantMode, QuantScheme},
 };
 use burn_std::BoolStore;
 
@@ -704,57 +704,32 @@ pub struct NdArrayQTensor {
     pub qtensor: NdArrayTensor,
     /// The quantization scheme.
     pub scheme: QuantScheme,
-    /// The quantization parameters.
-    pub qparams: Vec<QParams<f32>>,
+    /// The block scales.
+    pub qparams: Vec<f32>,
+    /// The per-tensor scale that [`qparams`](Self::qparams) are expressed relative to, for a
+    /// two-level scheme.
+    pub global: Option<f32>,
 }
 
 impl NdArrayQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
-        match self.scheme {
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::E4M3
-                    | QuantValue::E5M2
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::E2M1
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                ..
-            } => QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                self.qparams[0].scales,
-                self.scheme.value,
-            )),
-            QuantScheme {
-                level: QuantLevel::Block(block_size),
-                mode: QuantMode::Symmetric,
-                value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::E4M3
-                    | QuantValue::E5M2
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::E2M1
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                ..
-            } => QuantizationStrategy::PerBlockSymmetric(
+        match (self.scheme.mode, self.scheme.block_size()) {
+            (QuantMode::Symmetric, None) => QuantizationStrategy::PerTensorSymmetric(
+                SymmetricQuantization::init(self.qparams[0], self.scheme.value),
+            ),
+            (QuantMode::Symmetric, Some(block_size)) => QuantizationStrategy::PerBlockSymmetric(
                 self.qparams
                     .iter()
-                    .map(|q| SymmetricQuantization::init(q.scales, self.scheme.value))
+                    .map(|&s| {
+                        SymmetricQuantization::init(
+                            self.global.unwrap_or(1.0) * s,
+                            self.scheme.value,
+                        )
+                    })
                     .collect(),
                 block_size,
             ),
-            QuantScheme {
-                level: QuantLevel::BlockTensor { .. },
-                ..
-            } => unimplemented!("two-level quantization is not supported yet"),
         }
     }
 }
@@ -791,7 +766,7 @@ mod tests {
     use burn_backend::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},
-        quantization::{QuantStore, QuantizationParametersPrimitive},
+        quantization::{QuantStore, QuantValue, QuantizationParametersPrimitive},
     };
     use burn_std::rand::get_seeded_rng;
 
@@ -863,6 +838,7 @@ mod tests {
             .with_store(QuantStore::Native);
         let qparams = QuantizationParametersPrimitive {
             scales: B::float_from_data(TensorData::from([scale]), &device),
+            global: None,
         };
         let qtensor: NdArrayQTensor = B::quantize(tensor, &scheme, qparams);
 
