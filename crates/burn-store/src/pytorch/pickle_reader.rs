@@ -352,20 +352,39 @@ fn parse_storage_arg(arg: &Object, fn_name: &str) -> Result<(Vec<u8>, Option<Vec
     }
 }
 
-/// Parse shape argument.
-fn parse_shape_arg(arg: &Object, fn_name: &str) -> Result<Vec<usize>> {
+/// Parse a tuple of non-negative integer tensor metadata.
+fn parse_size_tuple_arg(arg: &Object, fn_name: &str, field_name: &str) -> Result<Vec<usize>> {
     match arg {
-        Object::Tuple(shape) => shape
+        Object::Tuple(values) => values
             .iter()
             .map(|x| match x {
-                Object::Int(i) => Ok(*i as usize),
-                _ => Err(PickleError::InvalidData(
-                    "shape must contain ints".to_string(),
-                )),
+                Object::Int(i) => usize::try_from(*i).map_err(|_| {
+                    PickleError::InvalidData(format!(
+                        "{}: {} must contain non-negative ints",
+                        fn_name, field_name
+                    ))
+                }),
+                _ => Err(PickleError::InvalidData(format!(
+                    "{}: {} must contain non-negative ints",
+                    fn_name, field_name
+                ))),
             })
             .collect::<Result<Vec<_>>>(),
         _ => Err(PickleError::InvalidData(format!(
-            "{}: expected shape tuple got {:?}",
+            "{}: expected {} tuple got {:?}",
+            fn_name, field_name, arg
+        ))),
+    }
+}
+
+/// Parse a non-negative storage offset.
+fn parse_storage_offset(arg: &Object, fn_name: &str) -> Result<usize> {
+    match arg {
+        Object::Int(offset) => usize::try_from(*offset).map_err(|_| {
+            PickleError::InvalidData(format!("{}: storage offset must be non-negative", fn_name))
+        }),
+        _ => Err(PickleError::InvalidData(format!(
+            "{}: expected integer storage offset got {:?}",
             fn_name, arg
         ))),
     }
@@ -395,17 +414,16 @@ fn rebuild_tensor(
     }
 
     let (storage_info, storage_tuple) = parse_storage_arg(&args[0], "rebuild_tensor")?;
-    let storage_offset = match &args[1] {
-        Object::Int(offset) => *offset as usize,
-        _ => 0,
-    };
-    let shape = parse_shape_arg(&args[2], "rebuild_tensor")?;
+    let storage_offset = parse_storage_offset(&args[1], "rebuild_tensor")?;
+    let shape = parse_size_tuple_arg(&args[2], "rebuild_tensor", "shape")?;
+    let stride = parse_size_tuple_arg(&args[3], "rebuild_tensor", "stride")?;
 
     rebuild_tensor_impl(
         storage_info,
         storage_tuple,
         storage_offset,
         shape,
+        stride,
         data_source,
     )
 }
@@ -434,12 +452,9 @@ fn rebuild_tensor_v2(
     }
 
     let (storage_info, storage_tuple) = parse_storage_arg(&args[0], "rebuild_tensor_v2")?;
-    let storage_offset = match &args[1] {
-        Object::Int(offset) => *offset as usize,
-        _ => 0,
-    };
-    let shape = parse_shape_arg(&args[2], "rebuild_tensor_v2")?;
-    // args[3] is stride (unused)
+    let storage_offset = parse_storage_offset(&args[1], "rebuild_tensor_v2")?;
+    let shape = parse_size_tuple_arg(&args[2], "rebuild_tensor_v2", "shape")?;
+    let stride = parse_size_tuple_arg(&args[3], "rebuild_tensor_v2", "stride")?;
     // args[4] is requires_grad (unused)
     // args[5] is backward_hooks (unused)
 
@@ -448,6 +463,7 @@ fn rebuild_tensor_v2(
         storage_tuple,
         storage_offset,
         shape,
+        stride,
         data_source,
     )
 }
@@ -472,6 +488,141 @@ fn storage_type_to_dtype(storage_type: &str) -> Result<DType> {
     }
 }
 
+/// Return the number of logical elements, rejecting shape arithmetic overflow.
+fn tensor_num_elements(shape: &[usize]) -> Result<usize> {
+    shape.iter().try_fold(1usize, |total, dim| {
+        total.checked_mul(*dim).ok_or_else(|| {
+            PickleError::InvalidData("Tensor shape element count overflows usize".to_string())
+        })
+    })
+}
+
+/// Return one past the largest storage index referenced by a strided tensor.
+fn tensor_storage_extent(
+    shape: &[usize],
+    stride: &[usize],
+    storage_offset: usize,
+) -> Result<usize> {
+    if shape.len() != stride.len() {
+        return Err(PickleError::InvalidData(format!(
+            "Tensor stride rank {} does not match shape rank {}",
+            stride.len(),
+            shape.len()
+        )));
+    }
+
+    if shape.contains(&0) {
+        return Ok(storage_offset);
+    }
+
+    let max_index = shape
+        .iter()
+        .zip(stride)
+        .try_fold(storage_offset, |index, (&dim, &step)| {
+            let offset = (dim - 1).checked_mul(step).ok_or_else(|| {
+                PickleError::InvalidData("Tensor stride calculation overflows usize".to_string())
+            })?;
+            index.checked_add(offset).ok_or_else(|| {
+                PickleError::InvalidData("Tensor storage extent overflows usize".to_string())
+            })
+        })?;
+
+    max_index.checked_add(1).ok_or_else(|| {
+        PickleError::InvalidData("Tensor storage extent overflows usize".to_string())
+    })
+}
+
+fn is_contiguous_stride(shape: &[usize], stride: &[usize]) -> bool {
+    if shape.contains(&0) {
+        return true;
+    }
+
+    let mut expected = 1usize;
+    for (&dim, &step) in shape.iter().zip(stride).rev() {
+        if dim > 1 && step != expected {
+            return false;
+        }
+        let Some(next) = expected.checked_mul(dim) else {
+            return false;
+        };
+        expected = next;
+    }
+    true
+}
+
+/// Gather a non-contiguous storage view into logical row-major byte order.
+///
+/// Returns `None` for an already-contiguous layout so the existing zero-copy slice path is used.
+fn reorder_tensor_bytes(
+    data: &[u8],
+    shape: &[usize],
+    stride: &[usize],
+    storage_offset: usize,
+    element_size: usize,
+    num_elements: usize,
+) -> std::result::Result<Option<Vec<u8>>, crate::TensorSnapshotError> {
+    if shape.len() != stride.len() {
+        return Err(crate::TensorSnapshotError::DataError(format!(
+            "Tensor stride rank {} does not match shape rank {}",
+            stride.len(),
+            shape.len()
+        )));
+    }
+    if is_contiguous_stride(shape, stride) {
+        return Ok(None);
+    }
+
+    let byte_len = num_elements.checked_mul(element_size).ok_or_else(|| {
+        crate::TensorSnapshotError::DataError(
+            "Tensor byte length calculation overflows usize".to_string(),
+        )
+    })?;
+    let mut reordered = Vec::with_capacity(byte_len);
+
+    for linear_index in 0..num_elements {
+        let mut remaining = linear_index;
+        let mut storage_index = storage_offset;
+
+        for (&dim, &step) in shape.iter().zip(stride).rev() {
+            let coordinate = remaining % dim;
+            remaining /= dim;
+            let coordinate_offset = coordinate.checked_mul(step).ok_or_else(|| {
+                crate::TensorSnapshotError::DataError(
+                    "Tensor stride calculation overflows usize".to_string(),
+                )
+            })?;
+            storage_index = storage_index
+                .checked_add(coordinate_offset)
+                .ok_or_else(|| {
+                    crate::TensorSnapshotError::DataError(
+                        "Tensor storage index overflows usize".to_string(),
+                    )
+                })?;
+        }
+
+        let byte_start = storage_index.checked_mul(element_size).ok_or_else(|| {
+            crate::TensorSnapshotError::DataError(
+                "Tensor byte offset calculation overflows usize".to_string(),
+            )
+        })?;
+        let byte_end = byte_start.checked_add(element_size).ok_or_else(|| {
+            crate::TensorSnapshotError::DataError(
+                "Tensor byte range calculation overflows usize".to_string(),
+            )
+        })?;
+        let bytes = data.get(byte_start..byte_end).ok_or_else(|| {
+            crate::TensorSnapshotError::DataError(format!(
+                "Tensor stride references storage element {} beyond {} available elements",
+                storage_index,
+                data.len() / element_size
+            ))
+        })?;
+        reordered.extend_from_slice(bytes);
+    }
+
+    Ok(Some(reordered))
+}
+
 /// Core implementation for rebuilding tensors.
 /// Shared by both rebuild_tensor (legacy) and rebuild_tensor_v2 (modern).
 fn rebuild_tensor_impl(
@@ -479,6 +630,7 @@ fn rebuild_tensor_impl(
     storage_tuple: Option<Vec<Object>>,
     storage_offset: usize,
     shape: Vec<usize>,
+    stride: Vec<usize>,
     data_source: &Option<Arc<LazyDataSource>>,
 ) -> Result<Object> {
     // Parse the storage info to extract dtype and storage key
@@ -511,7 +663,11 @@ fn rebuild_tensor_impl(
             };
             // Extract total element count from index 4
             let total_elements = match tuple.get(4) {
-                Some(Object::Int(n)) => Some(*n as usize),
+                Some(Object::Int(n)) => Some(usize::try_from(*n).map_err(|_| {
+                    PickleError::InvalidData(
+                        "Storage element count must be non-negative".to_string(),
+                    )
+                })?),
                 _ => None,
             };
             (dtype, key, total_elements)
@@ -564,6 +720,17 @@ fn rebuild_tensor_impl(
         ));
     };
 
+    let num_elements = tensor_num_elements(&shape)?.max(1);
+    let storage_extent = tensor_storage_extent(&shape, &stride, storage_offset)?;
+    if let Some(total) = storage_total_elements
+        && storage_extent > total
+    {
+        return Err(PickleError::InvalidData(format!(
+            "Tensor view requires {} storage elements but storage contains {}",
+            storage_extent, total
+        )));
+    }
+
     // If no data source, we can't load tensor data
     let data_source = match data_source {
         Some(ds) => ds.clone(),
@@ -577,6 +744,7 @@ fn rebuild_tensor_impl(
     // Create clones for the closure
     let data_source_clone = data_source.clone();
     let shape_clone = shape.clone();
+    let stride_clone = stride.clone();
 
     // Find the correct data file key
     let data_file_key = {
@@ -605,10 +773,10 @@ fn rebuild_tensor_impl(
         let source = source
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let bytes_needed = match storage_total_elements {
-            Some(total) => total * dtype.size(),
-            None => (storage_offset + shape.iter().product::<usize>()) * dtype.size(),
-        };
+        let storage_elements = storage_total_elements.unwrap_or(storage_extent);
+        let bytes_needed = storage_elements.checked_mul(dtype.size()).ok_or_else(|| {
+            PickleError::InvalidData("Storage byte length overflows usize".to_string())
+        })?;
         source.track_storage_usage(&storage_key, 0, bytes_needed);
     }
 
@@ -617,22 +785,35 @@ fn rebuild_tensor_impl(
         Rc::new(move || {
             // Load data only when needed
             if let Ok(data) = data_source_clone.read(&data_file_key) {
-                // Parse the binary data based on dtype
-                let num_elements = shape_clone.iter().product::<usize>().max(1);
-
                 // Use dtype.size() to get element size in bytes
                 let element_size = dtype.size();
 
-                // Apply storage offset
-                let offset_bytes = storage_offset * element_size;
-                if offset_bytes >= data.len() {
-                    return Ok(TensorData::new(
-                        vec![0.0f32; num_elements],
-                        shape_clone.clone(),
-                    ));
-                }
-
-                let data_slice = &data[offset_bytes..];
+                let reordered = reorder_tensor_bytes(
+                    &data,
+                    &shape_clone,
+                    &stride_clone,
+                    storage_offset,
+                    element_size,
+                    num_elements,
+                )?;
+                let data_slice = if let Some(ref reordered) = reordered {
+                    reordered.as_slice()
+                } else {
+                    // Apply storage offset for contiguous tensors.
+                    let offset_bytes =
+                        storage_offset.checked_mul(element_size).ok_or_else(|| {
+                            crate::TensorSnapshotError::DataError(
+                                "Tensor byte offset calculation overflows usize".to_string(),
+                            )
+                        })?;
+                    if offset_bytes >= data.len() {
+                        return Ok(TensorData::new(
+                            vec![0.0f32; num_elements],
+                            shape_clone.clone(),
+                        ));
+                    }
+                    &data[offset_bytes..]
+                };
                 let available_elements = data_slice.len() / element_size;
                 let elements_to_read = num_elements.min(available_elements);
 
@@ -1591,5 +1772,29 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, PickleError::InvalidData(msg) if msg.contains("exceeded 1M nodes")));
+    }
+
+    #[test]
+    fn test_tensor_stride_metadata_validation() {
+        let negative_stride = Object::Tuple(vec![Object::Int(-1)]);
+        assert!(matches!(
+            parse_size_tuple_arg(&negative_stride, "rebuild_tensor_v2", "stride"),
+            Err(PickleError::InvalidData(msg)) if msg.contains("non-negative")
+        ));
+
+        assert!(matches!(
+            tensor_storage_extent(&[2, 3], &[3], 0),
+            Err(PickleError::InvalidData(msg)) if msg.contains("rank")
+        ));
+        assert!(matches!(
+            tensor_storage_extent(&[usize::MAX], &[2], 0),
+            Err(PickleError::InvalidData(msg)) if msg.contains("overflows")
+        ));
+
+        let err = reorder_tensor_bytes(&[0; 4], &[2], &[2], 0, 4, 2).unwrap_err();
+        assert!(matches!(
+            err,
+            crate::TensorSnapshotError::DataError(msg) if msg.contains("beyond")
+        ));
     }
 }
