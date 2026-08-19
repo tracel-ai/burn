@@ -237,6 +237,10 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor_optimized(data.bytes, data.shape.clone(), scheme, device)
                 }
+                QuantScheme {
+                    mode: QuantMode::Lookup,
+                    ..
+                } => unimplemented!("lookup quantization does not travel as a QFloat tensor"),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",

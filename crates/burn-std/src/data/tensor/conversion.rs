@@ -208,6 +208,12 @@ impl TensorData {
                     } => {
                         unimplemented!("Not yet implemented for iteration");
                     }
+                    QuantScheme {
+                        mode: QuantMode::Lookup,
+                        ..
+                    } => {
+                        unimplemented!("lookup quantization is not supported for iteration");
+                    }
                 },
             }
         }

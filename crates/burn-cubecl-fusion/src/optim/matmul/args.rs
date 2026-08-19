@@ -472,7 +472,7 @@ fn create_quant_view<E: Numeric, N: Size, Q: Scalar, S: Scalar>(
         View::new::<GlobalInput, Coords1d>(scales_buf, scales_layout);
     // One binding: two-level schemes are rejected where the scale layout is built, so there is
     // never a per-tensor scale to fold in here.
-    QuantizedView::new(data_view, scales_view, scheme).view()
+    QuantizedView::new(data_view, scales_view, ComptimeOption::new_None(), scheme).view()
 }
 
 #[derive(CubeType)]
