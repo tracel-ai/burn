@@ -237,7 +237,10 @@ impl CaptureScopeGuard {
             }
         }
         let operations = core::mem::take(&mut state.operations);
-        let values = core::mem::take(&mut state.values);
+        // Tensor handles can outlive the scope (for example, module running states shared across
+        // clones). Keep initialized data in the closed session so those handles can still be
+        // materialized onto another device without allowing any further graph operations.
+        let values = state.values.clone();
         let captured = CapturedGraph {
             graph: GraphIr {
                 operations,
@@ -364,10 +367,11 @@ impl RouterChannel for CaptureChannel {
     }
 }
 
-/// Bridge that rejects movement between independent capture devices.
+/// Bridge for materialized values between independent capture devices.
 ///
-/// A captured tensor belongs to one scoped session and cannot be materialized in another. Concrete
-/// backends still move initialized values onto capture through dispatch's one-way conversion path.
+/// Only initialized tensors have handles in the capture backend, so values reaching this bridge
+/// are concrete and can safely initialize a tensor in another capture scope. Computed tensors have
+/// no materialized handle and are rejected by [`CaptureChannel::get_tensor_handle`] first.
 pub struct CaptureBridge;
 
 impl MultiBackendBridge for CaptureBridge {
@@ -375,25 +379,21 @@ impl MultiBackendBridge for CaptureBridge {
     type Device = CaptureDevice;
 
     fn change_backend_float(
-        _tensor: TensorData,
+        tensor: TensorData,
         _shape: Shape,
         _target: &Self::Device,
     ) -> TensorData {
-        panic!("moving tensors between capture devices is not supported")
+        tensor
     }
-    fn change_backend_int(
-        _tensor: TensorData,
-        _shape: Shape,
-        _target: &Self::Device,
-    ) -> TensorData {
-        panic!("moving tensors between capture devices is not supported")
+    fn change_backend_int(tensor: TensorData, _shape: Shape, _target: &Self::Device) -> TensorData {
+        tensor
     }
     fn change_backend_bool(
-        _tensor: TensorData,
+        tensor: TensorData,
         _shape: Shape,
         _target: &Self::Device,
     ) -> TensorData {
-        panic!("moving tensors between capture devices is not supported")
+        tensor
     }
 }
 
@@ -694,6 +694,42 @@ mod tests {
             .unwrap();
         assert_eq!(next.graph.operations.len(), 1);
         assert!(matches!(next.graph.operations[0], OperationIr::Init(_)));
+    }
+
+    #[test]
+    fn initialized_tensor_can_move_from_completed_scope_to_new_device() {
+        let first_device = CaptureDevice::default();
+        let second_device = CaptureDevice::default();
+        let mut escaped = None;
+
+        first_device
+            .capture_scope(|scope| {
+                let tensor =
+                    CaptureBackend::float_from_data(TensorData::from([1.0f32, 2.0]), &first_device);
+                let tensor_id = tensor.id();
+                escaped = Some(tensor);
+                scope.complete([tensor_id], [])
+            })
+            .unwrap();
+
+        let captured = second_device
+            .capture_scope(|scope| {
+                let tensor =
+                    CaptureBackend::float_to_device(escaped.take().unwrap(), &second_device);
+                let output = CaptureBackend::float_neg(tensor);
+                let output_id = output.id();
+                scope.complete([], [output_id])
+            })
+            .unwrap();
+
+        assert_eq!(captured.values.len(), 1);
+        assert!(matches!(
+            captured.graph.operations.last(),
+            Some(OperationIr::NumericFloat(
+                _,
+                burn_ir::NumericOperationIr::Neg(_)
+            ))
+        ));
     }
 
     #[cfg(feature = "std")]
