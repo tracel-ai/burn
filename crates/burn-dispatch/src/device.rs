@@ -137,11 +137,29 @@ impl DispatchDevice {
 /// A wrapper that enables automatic differentiation for a [`DispatchDevice`].
 ///
 /// Use [`DispatchDevice::autodiff`] to construct this type.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct AutodiffDevice {
     pub(crate) inner: Box<DispatchDevice>,
     pub(crate) checkpointing: CheckpointingStrategy,
 }
+
+/// Compares on hardware identity only, ignoring the checkpointing strategy, so that this agrees
+/// with [`DispatchDevice`]'s own [`PartialEq`] — which has to ignore it, since comparing an
+/// `Autodiff` device against a raw one has no strategy to compare against. A derived impl would
+/// make `Autodiff(a) == Autodiff(b)` disagree with `DispatchDevice::Autodiff(a) ==
+/// DispatchDevice::Autodiff(b)`.
+///
+/// Use [`checkpointing_strategy`](Self::checkpointing_strategy) when the strategy is what you
+/// actually need to compare.
+#[cfg(feature = "autodiff")]
+impl PartialEq for AutodiffDevice {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+#[cfg(feature = "autodiff")]
+impl Eq for AutodiffDevice {}
 
 #[cfg(feature = "autodiff")]
 impl AutodiffDevice {

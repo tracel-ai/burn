@@ -107,7 +107,7 @@ impl BoxBlur {
 
     /// Rebuilds the precomputed kernel on `device`.
     pub fn to_device(&mut self, device: &Device) {
-        self.kernel = Tensor::from_data(self.kernel.to_data(), device);
+        self.kernel = self.kernel.clone().to_device(device);
     }
 
     fn sample(&self) -> bool {

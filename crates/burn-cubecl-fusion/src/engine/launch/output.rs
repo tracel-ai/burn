@@ -204,20 +204,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                             let pos = plan.runtime_layouts.len();
                             let mut shape_global = shape.clone();
                             for (i, s) in shape.iter().enumerate() {
-                                shape_global[i] = match context.shapes_relative2global.get(s) {
-                                    Some(global) => *global,
-                                    None => {
-                                        let mut known: Vec<_> = context
-                                            .shapes_relative2global
-                                            .iter()
-                                            .map(|(k, v)| (*k, *v))
-                                            .collect();
-                                        known.sort();
-                                        panic!(
-                                            "[probe] relative shape id {s} not in the context.                                              shape_ref {shape:?}, known relative->global {known:?}"
-                                        )
-                                    }
-                                };
+                                shape_global[i] = *context.shapes_relative2global.get(s).expect(
+                                    "reference shape ids to be assigned by the running stream",
+                                );
                             }
 
                             let strides = strides_dyn_rank(&shape_global);
