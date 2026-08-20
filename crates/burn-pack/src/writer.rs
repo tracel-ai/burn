@@ -96,7 +96,8 @@ impl Writer {
     /// On failure the buffer's contents are unspecified: a deferred [`Tensor`] produces its bytes
     /// during the write, so an entry that fails partway leaves everything before it already
     /// copied in. Callers reusing a buffer across writes cannot treat an error as "nothing
-    /// happened". [`write_to_file`](Self::write_to_file) has no such caveat.
+    /// happened". [`write_to_file_atomic`](Self::write_to_file_atomic) has no such caveat;
+    /// [`write_to_file`](Self::write_to_file) has the same one, on the destination itself.
     ///
     /// # Arguments
     ///
@@ -450,8 +451,8 @@ fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
 ///
 /// Captures everything needed to emit the bytes: the serialized metadata, the
 /// header, where the aligned data section begins, and how large it is. Built once
-/// via [`Writer::plan`] and shared by `size`, `write_into`, `to_bytes`, and
-/// `write_to_file`.
+/// via [`Writer::plan`] and shared by `size`, `write_into`, `to_bytes`, `write_to_file` and
+/// `write_to_file_atomic`.
 struct Layout {
     metadata_bytes: Vec<u8>,
     /// Where each tensor's bytes go, in `Writer::tensors` order.
@@ -502,7 +503,7 @@ impl Sink for BufferSink<'_> {
 
 /// A scratch file next to the eventual destination, deleted unless it is persisted.
 ///
-/// Gives [`Writer::write_to_file`] its all-or-nothing behaviour: the container is built
+/// Gives [`Writer::write_to_file_atomic`] its all-or-nothing behaviour: the container is built
 /// here and only takes the destination's name once it is complete. Any earlier return
 /// drops the guard, which removes the partial file.
 ///
@@ -663,7 +664,7 @@ impl FileSink {
     /// no-op because the handle is unbuffered, and dropping it discards whatever `close`
     /// reports, yet filesystems that allocate lazily (NFS over quota, a failing disk) report
     /// exactly there. Without this, such a write would be renamed over a good container
-    /// while `write_to_file` returned `Ok`.
+    /// while `write_to_file_atomic` returned `Ok`.
     ///
     /// It also orders durability: the data is on disk before the rename happens, so a crash
     /// cannot leave the destination pointing at data that never reached the platter.
