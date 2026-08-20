@@ -10,6 +10,11 @@ use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
+#[cfg(feature = "capture")]
+pub use burn_dispatch::backends::capture::{
+    CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope, TensorId,
+};
+
 #[cfg(feature = "remote-websocket")]
 use alloc::string::String;
 use alloc::vec;
@@ -53,7 +58,7 @@ use alloc::vec::Vec;
 /// (take an integer index or a [`DeviceIndex`]), `Device::wgpu` /
 /// `Device::vulkan` / `Device::metal` / `Device::webgpu` (take a
 /// [`DeviceKind`]), `Device::flex`, `Device::ndarray`, `Device::libtorch`,
-/// `Device::libtorch_mps`, `Device::libtorch_vulkan`.
+/// `Device::libtorch_mps`, `Device::libtorch_vulkan`, `Device::capture`.
 ///
 /// # Autodiff
 ///
@@ -270,6 +275,36 @@ pub enum DeviceKind {
 }
 
 impl Device {
+    /// Create a reusable graph-capture device.
+    ///
+    /// Operations on tensors moved to this device are recorded rather than executed. Use
+    /// [`Device::capture_scope`] to delimit each capture and declare its graph boundaries.
+    #[cfg(feature = "capture")]
+    pub fn capture() -> Self {
+        Self::new(DispatchDevice::capture())
+    }
+
+    /// Capture the operations performed by `capture` on this device.
+    ///
+    /// The closure receives a [`CaptureScope`] and must return the token produced by
+    /// [`CaptureScope::complete`], containing the ordered runtime input and output tensor IDs.
+    /// Requiring this return value prevents a capture from being finalized without an explicit
+    /// boundary declaration. Completing the scope immediately rejects further tensor operations;
+    /// the device can then be reused for later, independent scopes after the closure returns.
+    ///
+    /// Returns [`CaptureError::InvalidDevice`] if this is not a capture device, and
+    /// [`CaptureError::AlreadyActive`] if another scope is active on the same device.
+    #[cfg(feature = "capture")]
+    pub fn capture_scope(
+        &self,
+        capture: impl FnOnce(CaptureScope) -> CompletedCaptureScope,
+    ) -> Result<CapturedGraph, CaptureError> {
+        match self.as_dispatch() {
+            DispatchDevice::Capture(device) => device.capture_scope(capture),
+            _ => Err(CaptureError::InvalidDevice),
+        }
+    }
+
     /// Default CPU device backed by CubeCL's CPU backend.
     #[cfg(feature = "cpu")]
     pub fn cpu() -> Self {
@@ -1128,6 +1163,51 @@ impl core::ops::Deref for Devices {
     type Target = [Device];
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[cfg(all(test, feature = "capture"))]
+mod capture_tests {
+    use super::*;
+
+    #[test]
+    fn user_facing_capture_device_supports_repeated_scopes() {
+        let device = Device::capture();
+
+        let first = device
+            .capture_scope(|scope| scope.complete([], []))
+            .unwrap();
+        let second = device
+            .capture_scope(|scope| scope.complete([], []))
+            .unwrap();
+
+        assert!(first.graph.operations.is_empty());
+        assert!(second.graph.operations.is_empty());
+    }
+
+    #[test]
+    fn capture_scope_rejects_a_non_capture_device() {
+        let device = Device::default();
+
+        let result = device.capture_scope(|scope| scope.complete([], []));
+
+        assert!(matches!(result, Err(CaptureError::InvalidDevice)));
+    }
+
+    #[test]
+    fn capture_device_reports_recordable_dtype_support() {
+        let device = Device::capture();
+
+        let captured = device.capture_scope(|scope| {
+            assert!(device.supports_dtype(FloatDType::F32));
+            assert!(device.supports_dtype(FloatDType::F64));
+            assert!(device.supports_dtype(FloatDType::BF16));
+            assert!(device.supports_dtype(IntDType::I32));
+            assert!(device.supports_dtype(BoolDType::Native));
+            scope.complete([], [])
+        });
+
+        assert!(captured.is_ok());
     }
 }
 

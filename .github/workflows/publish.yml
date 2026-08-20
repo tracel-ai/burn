@@ -50,6 +50,19 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
+  publish-burn-capture:
+    needs:
+      - publish-burn-backend
+      - publish-burn-ir
+      - publish-burn-router
+      - publish-burn-std
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
+    with:
+      crate: burn-capture
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-remote:
     needs:
       - publish-burn-ir
@@ -352,6 +365,7 @@ jobs:
       - publish-burn-ndarray
       - publish-burn-tch
       - publish-burn-remote
+      - publish-burn-capture
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
     with:
       crate: burn-dispatch

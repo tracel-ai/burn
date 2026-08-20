@@ -369,6 +369,16 @@ pub(crate) fn handle_command(
                 CiTestType::Backends | CiTestType::GithubRunner => (),
                 CiTestType::Examples => (),
                 CiTestType::Crates => {
+                    // Capture is intentionally opt-in, so workspace-default tests don't compile
+                    // the dispatch, tensor, core, or facade integration tests that exercise it.
+                    helpers::custom_crates_tests(
+                        vec!["burn-dispatch", "burn-tensor", "burn-core", "burn"],
+                        handle_test_args(&["--features", "capture"], args.release),
+                        None,
+                        None,
+                        "std with graph capture",
+                    )?;
+
                     // burn-dataset
                     helpers::custom_crates_tests(
                         vec!["burn-dataset"],

@@ -103,6 +103,17 @@ pub mod backends {
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
 
+    /// Public graph-capture API types.
+    #[cfg(feature = "capture")]
+    pub mod capture {
+        pub use burn_capture::{
+            CaptureBackend, CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope,
+            TensorId,
+        };
+    }
+    #[cfg(feature = "capture")]
+    pub use burn_capture::CaptureBackend as Capture;
+
     pub use super::devices::*;
 }
 

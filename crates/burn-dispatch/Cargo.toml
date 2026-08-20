@@ -73,6 +73,7 @@ remote = ["std", "burn-remote", "burn-remote/iroh"]
 remote-server = ["remote", "burn-remote/server"]
 # Add the legacy WebSocket transport.
 remote-websocket = ["remote", "burn-remote/websocket"]
+capture = ["burn-capture"]
 
 # Backend features
 autotune = [
@@ -109,6 +110,7 @@ burn-rocm = { workspace = true, optional = true }
 burn-wgpu = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true, features = ["client"] }
+burn-capture = { workspace = true, optional = true }
 
 # Op macros with `.as_$inner_kind()`
 paste = { workspace = true }
