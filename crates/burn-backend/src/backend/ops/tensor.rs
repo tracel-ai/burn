@@ -110,6 +110,35 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
+    /// Computes the singular value decomposition of a batched matrix,
+    /// returning the factors as data: `(U, S, Vt)` with
+    /// `A = U @ diag(S) @ Vt`, singular values sorted descending.
+    ///
+    /// The default implementation pulls the tensor to the host and runs the
+    /// reference scalar pipeline ([`svd_host_data`](crate::backend::ops::svd::svd_host_data)).
+    /// Backends may override this method with a native or fused
+    /// implementation.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor of shape `[..., m, n]` with `m >= n`
+    ///   (wide inputs are transposed by the caller, `swap` reports it).
+    /// * `sweeps` - Upper bound on QR sweeps per singular value.
+    /// * `swap` - Whether the input was transposed (wide input): factor
+    ///   layout follows the `linalg::svd` convention, U is `[..., n, n]` and
+    ///   Vt is `[..., n, m]` instead of `[..., m, n]` / `[..., n, n]`.
+    fn float_svd(
+        tensor: FloatTensor<B>,
+        sweeps: usize,
+        swap: bool,
+    ) -> impl Future<Output = Result<(TensorData, TensorData, TensorData), ExecutionError>> + Send
+    {
+        async move {
+            let data = Self::float_into_data(tensor).await?;
+            Ok(super::svd::svd_host_data(data, sweeps, swap))
+        }
+    }
+
     /// Moves the tensor to the given device.
     ///
     /// # Arguments

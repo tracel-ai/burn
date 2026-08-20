@@ -10,6 +10,7 @@ pub(crate) mod argwhere;
 pub(crate) mod cat;
 pub(crate) mod repeat_dim;
 pub(crate) mod sort;
+pub(crate) mod svd;
 
 pub use activation::*;
 pub use bool_tensor::*;

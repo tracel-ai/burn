@@ -19,6 +19,35 @@ fn from_q_primitive(prim: TensorPrimitive<Dispatch>) -> BridgeTensor {
     }
 }
 
+/// Singular value decomposition of a float tensor, dispatched to the active
+/// backend (`FloatTensorOps::float_svd`). Returns the three factors as
+/// tensors on the same device as the input.
+///
+/// The factor data returned by the backend are re-wrapped on the device of
+/// `tensor`, so a backend may compute the decomposition on a different
+/// device (e.g. a fused GPU kernel) without the caller knowing.
+pub(crate) fn svd(
+    tensor: BridgeTensor,
+    sweeps: usize,
+    swap: bool,
+) -> (BridgeTensor, BridgeTensor, BridgeTensor) {
+    let (kind, tensor) = tensor.into_parts();
+    let device = tensor.device();
+    match kind {
+        BridgeKind::Float => {
+            let (u, s, vt) = crate::try_read_sync(Dispatch::float_svd(tensor, sweeps, swap))
+                .expect("svd: backend execution failed")
+                .expect("svd: backend error while reading the input tensor data");
+            (
+                BridgeTensor::float(Dispatch::float_from_data(u, &device)),
+                BridgeTensor::float(Dispatch::float_from_data(s, &device)),
+                BridgeTensor::float(Dispatch::float_from_data(vt, &device)),
+            )
+        }
+        _ => panic!("svd requires a float tensor"),
+    }
+}
+
 macro_rules! q_bin_ops {
     ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {{
         let (lkind, lhs) = $lhs.into_parts();
