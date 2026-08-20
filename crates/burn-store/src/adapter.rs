@@ -9,7 +9,6 @@ use crate::TensorSnapshot;
 
 use alloc::boxed::Box;
 use alloc::format;
-use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
@@ -289,7 +288,7 @@ impl ModuleAdapter for HalfPrecisionAdapter {
 
         let original_data_fn = snapshot.clone_data_fn();
 
-        let cast_data_fn = Rc::new(move || {
+        let cast_data_fn = TensorSnapshot::data_fn(move || {
             let data = original_data_fn()?;
             Ok(data.convert_dtype(target_dtype))
         });
@@ -368,7 +367,7 @@ impl ModuleAdapter for FloatCastAdapter {
         let original_data_fn = snapshot.clone_data_fn();
         let target = self.target;
 
-        let cast_data_fn = Rc::new(move || {
+        let cast_data_fn = TensorSnapshot::data_fn(move || {
             let data = original_data_fn()?;
             Ok(data.convert_dtype(target))
         });
@@ -552,7 +551,7 @@ fn transpose_2d_tensor(snapshot: &TensorSnapshot) -> TensorSnapshot {
     let transposed_shape = shape![snapshot.shape[1], snapshot.shape[0]];
 
     // Create a lazy closure that transposes when called
-    let transposed_data_fn = Rc::new(move || {
+    let transposed_data_fn = TensorSnapshot::data_fn(move || {
         let data = original_data_fn()?;
         Ok(transpose_tensor_data(data))
     });
@@ -600,7 +599,6 @@ fn transpose_tensor_data(data: TensorData) -> TensorData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::rc::Rc;
     use alloc::sync::Arc;
     use burn_core::tensor::{DType, Shape, TensorData};
     use core::sync::atomic::{AtomicUsize, Ordering};
@@ -640,7 +638,7 @@ mod tests {
         let data = TensorData::new(values, shape.clone());
 
         TensorSnapshot::from_closure(
-            Rc::new(move || Ok(data.clone())),
+            Arc::new(move || Ok(data.clone())),
             DType::F32,
             shape,
             path_parts,
@@ -949,7 +947,7 @@ mod tests {
         let data = TensorData::new(values, shape![2, 3]).convert_dtype(DType::F16);
         let path_parts = vec!["fc".to_string(), "weight".to_string()];
         let snapshot = TensorSnapshot::from_closure(
-            Rc::new(move || Ok(data.clone())),
+            Arc::new(move || Ok(data.clone())),
             DType::F16,
             shape![2, 3],
             path_parts,
@@ -1097,7 +1095,7 @@ mod tests {
         let values = vec![1.0f32, -2.0, 0.5, 4.0, -0.25, 8.0];
         let data = TensorData::new(values, shape![2, 3]).convert_dtype(dtype);
         TensorSnapshot::from_closure(
-            Rc::new(move || Ok(data.clone())),
+            Arc::new(move || Ok(data.clone())),
             dtype,
             shape![2, 3],
             vec!["fc".to_string(), "weight".to_string()],
@@ -1154,7 +1152,7 @@ mod tests {
         let values = vec![1i64, 2, 3];
         let data = TensorData::new(values, shape![3]);
         let snapshot = TensorSnapshot::from_closure(
-            Rc::new(move || Ok(data.clone())),
+            Arc::new(move || Ok(data.clone())),
             DType::I64,
             shape![3],
             vec!["idx".to_string()],

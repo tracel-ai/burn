@@ -36,8 +36,8 @@ pub fn raw_tensor(
 
 /// Decode a tensor entry's bytes as f32 values.
 pub fn read_f32(tensor: &Tensor) -> Vec<f32> {
-    let slice: &[u8] = &tensor.bytes;
-    slice
+    let bytes = tensor.to_bytes().expect("bytes are available");
+    bytes
         .as_chunks::<4>()
         .0
         .iter()
