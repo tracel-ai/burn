@@ -38,7 +38,9 @@ pub fn raw_tensor(
 pub fn read_f32(tensor: &Tensor) -> Vec<f32> {
     let slice: &[u8] = &tensor.bytes;
     slice
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect()
 }
