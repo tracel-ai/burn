@@ -3,7 +3,7 @@ use burn_core as burn;
 use burn::module::{Module, Quantizer};
 use burn::tensor::{
     Distribution, Tensor, Tolerance,
-    quantization::{Calibration, QuantLevel, QuantParam, QuantScheme, QuantValue},
+    quantization::{Calibration, QuantScheme, QuantValue, ScaleDtype},
 };
 use burn_nn::{
     LinearConfig,
@@ -39,8 +39,7 @@ fn should_quantize_transformer() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::block([32]))
-        .with_param(QuantParam::F32);
+        .per_block([32], ScaleDtype::F32);
 
     should_quantize_module(
         transformer,
@@ -59,9 +58,7 @@ fn should_quantize_linear_128_256() {
         .settings()
         .quantization
         .scheme
-        .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::Tensor)
-        .with_param(QuantParam::F32);
+        .with_value(QuantValue::Q8S);
 
     should_quantize_module(
         transformer,
@@ -82,10 +79,8 @@ fn should_quantize_linear() {
         .settings()
         .quantization
         .scheme
-        .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::Tensor)
         // .with_store(QuantStore::Native)
-        .with_param(QuantParam::F32);
+        .with_value(QuantValue::Q8S);
 
     should_quantize_module(
         transformer,
@@ -103,9 +98,7 @@ fn should_quantize_linear_weights() {
         .settings()
         .quantization
         .scheme
-        .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::Tensor)
-        .with_param(QuantParam::F32);
+        .with_value(QuantValue::Q8S);
 
     should_quantize_module(
         transformer,
@@ -125,9 +118,8 @@ fn should_quantize_linear_blocks() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::block([16]))
         // .with_store(QuantStore::Native)
-        .with_param(QuantParam::F32);
+        .per_block([16], ScaleDtype::F32);
 
     should_quantize_module(
         transformer,
@@ -146,9 +138,8 @@ fn should_quantize_linear_weights_blocks() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::block([16]))
         // .with_store(QuantStore::Native)
-        .with_param(QuantParam::F32);
+        .per_block([16], ScaleDtype::F32);
 
     should_quantize_module(
         transformer,

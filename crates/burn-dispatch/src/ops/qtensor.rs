@@ -18,15 +18,14 @@ impl QTensorOps<Self> for Dispatch {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        // `binary_float` rather than `binary_op`: on an autodiff device the
-        // tensor and its scales arrive autodiff-wrapped, and quantization
-        // detaches them (the packed result carries no graph).
-        binary_float!(
-            (tensor, float),
-            (qparams.scales, float),
-            |tensor, scales| {
-                B::quantize(tensor, scheme, QuantizationParametersPrimitive { scales })
-            } => Quantized
+        let QuantizationParametersPrimitive { scales, global } = qparams;
+        // On an autodiff device the tensor and its scales arrive autodiff-wrapped, and
+        // quantization detaches them: the packed result carries no graph.
+        multi_op!(
+            inputs[(tensor, float), (scales, float)],
+            opt_inputs[(global, float)],
+            => Quantized,
+            B::quantize(tensor, scheme, QuantizationParametersPrimitive { scales, global })
         )
     }
 

@@ -10,7 +10,7 @@ use burn_backend::{
         },
         unfold::calculate_unfold_shape,
     },
-    quantization::{QuantLevel, QuantScheme, QuantStore},
+    quantization::{QuantScheme, QuantStore},
     tensor::IndexingUpdateOp,
 };
 
@@ -23,14 +23,7 @@ fn permute_quantized_dtype(dtype: DType, rank: usize, axes: &[usize]) -> DType {
         return dtype;
     };
 
-    if let QuantLevel::Block(block_size) = scheme.level {
-        let block_size = block_size.to_dim_vec(rank);
-        let block_size = axes
-            .iter()
-            .map(|axis| block_size[*axis])
-            .collect::<Vec<_>>();
-        scheme = scheme.with_level(QuantLevel::block(&block_size));
-    }
+    scheme.permute_block_dims(rank, axes);
 
     if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
         &mut scheme.store

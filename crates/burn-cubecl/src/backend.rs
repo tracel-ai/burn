@@ -4,9 +4,11 @@ use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
     TensorData,
 };
-use burn_std::{BoolStore, DType};
+use burn_std::{BoolStore, DType, quantization::quantizable};
 use cubecl::{
+    client::ComputeClient,
     features::{MmaConfig, TypeUsage},
+    ir::ElemType,
     server::ComputeServer,
 };
 use std::marker::PhantomData;
@@ -15,6 +17,20 @@ use std::marker::PhantomData;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 #[cfg(not(feature = "fusion"))]
 use burn_ir::{BackendIr, TensorHandle};
+
+/// Whether the runtime can hold a quantized dtype's scales, which `dtype_to_storage_type` misses
+/// because it doesn't see the scheme's scale levels. Non-quantized dtypes always pass.
+fn qfloat_params_usable<R: CubeRuntime>(client: &ComputeClient<R>, dtype: DType) -> bool {
+    let DType::QFloat(scheme) = dtype else {
+        return true;
+    };
+
+    quantizable(&scheme)
+        && client
+            .properties()
+            .type_usage(ElemType::from_scale_dtype(scheme.scale_dtype()))
+            .is_superset(TypeUsage::Buffer | TypeUsage::Conversion)
+}
 
 /// Turn a cubecl graph-capture error into a backend [`ExecutionError`].
 fn graph_err(err: impl core::fmt::Display) -> ExecutionError {
@@ -132,8 +148,11 @@ where
         if let DType::Bool(BoolStore::Native) = dtype {
             return false;
         }
-
         let client = R::client(device);
+
+        if !qfloat_params_usable::<R>(&client, dtype) {
+            return false;
+        }
 
         let type_usage = client.properties().type_usage(dtype_to_storage_type(dtype));
         // Same as `TypeUsage::all_scalar()`, but we make the usage explicit here
@@ -151,8 +170,11 @@ where
         if let DType::Bool(BoolStore::Native) = dtype {
             return DTypeUsageSet::empty();
         }
-
         let client = R::client(device);
+
+        if !qfloat_params_usable::<R>(&client, dtype) {
+            return DTypeUsageSet::empty();
+        }
 
         let props = client.properties();
         let storage = dtype_to_storage_type(dtype);

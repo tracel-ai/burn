@@ -275,16 +275,14 @@ mod tests {
     #[test]
     fn qlora_quantizes_base_and_attaches_adapter() {
         use crate::module::Quantizer;
-        use burn_tensor::quantization::{Calibration, QuantLevel, QuantParam, QuantValue};
+        use burn_tensor::quantization::{Calibration, QuantValue};
 
         let device = test_device();
         let scheme = device
             .settings()
             .quantization
             .scheme
-            .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Tensor)
-            .with_param(QuantParam::F32);
+            .with_value(QuantValue::Q8S);
         let quantizer = Quantizer::new(Calibration::MinMax, scheme);
 
         let original = SimpleLinear::new(8, 8, &device).weight.val();
@@ -306,16 +304,14 @@ mod tests {
     fn qlora_composes_packed_base_at_the_configured_factor_dtype() {
         use crate::module::Quantizer;
         use burn_tensor::DType;
-        use burn_tensor::quantization::{Calibration, QuantLevel, QuantParam, QuantValue};
+        use burn_tensor::quantization::{Calibration, QuantValue};
 
         let device = test_device();
         let scheme = device
             .settings()
             .quantization
             .scheme
-            .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Tensor)
-            .with_param(QuantParam::F32);
+            .with_value(QuantValue::Q8S);
         let quantizer = Quantizer::new(Calibration::MinMax, scheme);
 
         // A packed base carries no float dtype, so the configured one is the

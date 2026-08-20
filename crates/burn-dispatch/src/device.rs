@@ -2,6 +2,9 @@ use burn_backend::{DeviceId, DeviceOps, DeviceSettings};
 
 use crate::backends::*;
 
+#[cfg(feature = "capture")]
+use burn_capture::CaptureDevice;
+
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 
@@ -419,6 +422,13 @@ const INTERNAL_ID_MASK: u16 = 0x00FF;
 const BACKEND_SHIFT: u32 = 8;
 
 impl DispatchDevice {
+    /// Create the dispatch representation used by the high-level graph-capture device.
+    #[cfg(feature = "capture")]
+    #[doc(hidden)]
+    pub fn capture() -> Self {
+        Self::Capture(CaptureDevice::default())
+    }
+
     #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
@@ -741,9 +751,16 @@ impl From<RemoteDevice> for DispatchDevice {
     }
 }
 
-#[cfg(feature = "capture")]
-impl From<CaptureDevice> for DispatchDevice {
-    fn from(device: CaptureDevice) -> Self {
-        DispatchDevice::Capture(device)
+#[cfg(all(test, feature = "capture"))]
+mod tests {
+    use super::*;
+    use burn_backend::Device;
+
+    #[test]
+    fn capture_device_id_round_trips_through_dispatch() {
+        let device = DispatchDevice::capture();
+        let restored = DispatchDevice::from_id(device.to_id());
+
+        assert_eq!(restored, device);
     }
 }

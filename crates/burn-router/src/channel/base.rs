@@ -19,7 +19,12 @@ pub trait RouterChannel: Clone + Send + Sync + 'static + Sized {
     /// Name of the channel.
     fn name(device: &Self::Device) -> String;
 
-    /// Initialize a new client for the given device.
+    /// Initialize a new unscoped client for the given device.
+    ///
+    /// [`get_client`] calls this on a cache miss and retains the result in the global client
+    /// locator. Channels whose client lifetime is externally scoped can instead construct their
+    /// client directly and install it with [`crate::register_scoped_client`]; that path deliberately
+    /// bypasses this method.
     fn init_client(device: &Self::Device) -> Self::Client;
 
     /// Get the tensor handle corresponding to the [tensor representation](TensorIr).

@@ -75,7 +75,7 @@ mod tests {
     use crate::test_utils::SimpleLinear;
     use burn_tensor::{
         Device, Tensor, Tolerance,
-        quantization::{Calibration, QuantLevel, QuantParam, QuantScheme, QuantValue},
+        quantization::{Calibration, QuantScheme, QuantValue},
     };
 
     /// Per-tensor Q8 symmetric scheme used across these tests.
@@ -85,8 +85,6 @@ mod tests {
             .quantization
             .scheme
             .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Tensor)
-            .with_param(QuantParam::F32)
     }
 
     /// Whether a tensor currently holds quantized (`QFloat`) data.

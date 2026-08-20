@@ -111,6 +111,8 @@
 //!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
+//!   - `capture`: Makes the non-executing graph capture backend available.
+//!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `server`: Enables the remote server.
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!
@@ -147,6 +149,21 @@ pub mod nn {
 }
 
 pub use burn_std::config::{BurnConfig, config as runtime_config};
+
+#[cfg(all(test, feature = "capture"))]
+mod capture_tests {
+    use crate::tensor::Device;
+
+    #[test]
+    fn capture_feature_exposes_the_user_facing_device_api() {
+        let device = Device::capture();
+        let captured = device
+            .capture_scope(|scope| scope.complete([], []))
+            .unwrap();
+
+        assert!(captured.graph.operations.is_empty());
+    }
+}
 
 /// Optimizers module.
 #[cfg(feature = "optim")]
