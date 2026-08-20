@@ -221,9 +221,7 @@ burn-train = { path = "crates/burn-train", version = "=0.22.0-pre.2", default-fe
 burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.2", default-features = false }
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.2", default-features = false }
 
-### For the cubecl feat/quant-scale-levels and cubek feat/quant-two-level-scheme branches. ###
-# cubek's branch pins this cubecl revision, and both sides have to agree on one.
-# These revisions are descendants of the pins on burn's main branch.
+### For the main burn branch. ###
 cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3b3e3e5c41c700af8cd847d81e3bc1df42544c8a" }
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3b3e3e5c41c700af8cd847d81e3bc1df42544c8a" }
 cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3b3e3e5c41c700af8cd847d81e3bc1df42544c8a" }
