@@ -145,8 +145,6 @@ fn elemwise_fuse(
 pub const NAME: &str = "ElementWise";
 
 impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
-    /// Every block's reference shape, so a replay onto a stream with a smaller relative shape
-    /// space is caught before launch rather than by a failed lookup inside it.
     fn max_relative_shape_id(&self) -> Option<usize> {
         self.trace.max_relative_shape_id()
     }

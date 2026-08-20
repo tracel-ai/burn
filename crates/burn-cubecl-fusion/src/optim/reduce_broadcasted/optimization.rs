@@ -223,15 +223,17 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
 pub const NAME: &str = "ReduceBroadcasted";
 
 impl<R: Runtime> FusedOperation<R> for ReduceBroadcastedOptimization<R> {
-    /// Every block's reference shape, so a replay onto a stream with a smaller relative shape
-    /// space is caught before launch rather than by a failed lookup inside it.
     fn max_relative_shape_id(&self) -> Option<usize> {
-        let fallbacks = self.info.fallbacks.iter().filter_map(|fallback| match fallback {
-            ReduceBlockOptimInfo::Reduce(info) => info.max_relative_shape_id(),
-            ReduceBlockOptimInfo::Elemwise(opt) => {
-                FusedOperation::<R>::max_relative_shape_id(opt.as_ref())
-            }
-        });
+        let fallbacks = self
+            .info
+            .fallbacks
+            .iter()
+            .filter_map(|fallback| match fallback {
+                ReduceBlockOptimInfo::Reduce(info) => info.max_relative_shape_id(),
+                ReduceBlockOptimInfo::Elemwise(opt) => {
+                    FusedOperation::<R>::max_relative_shape_id(opt.as_ref())
+                }
+            });
 
         self.info
             .broadcasted

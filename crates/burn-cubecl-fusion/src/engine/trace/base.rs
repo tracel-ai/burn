@@ -30,10 +30,6 @@ pub struct FuseTrace {
 
 impl FuseTrace {
     /// The highest relative shape id any of this trace's blocks names as its reference shape.
-    ///
-    /// A block's reference layout can name an id that none of the trace's own operations carry,
-    /// so this is what decides whether the trace can be replayed on a given stream. See
-    /// [`NumOperations::max_relative_shape_id`](burn_fusion::NumOperations::max_relative_shape_id).
     pub fn max_relative_shape_id(&self) -> Option<usize> {
         self.blocks
             .iter()

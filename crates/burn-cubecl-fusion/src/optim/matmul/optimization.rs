@@ -712,8 +712,6 @@ fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
 pub const NAME: &str = "Matmul";
 
 impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
-    /// Every block's reference shape, so a replay onto a stream with a smaller relative shape
-    /// space is caught before launch rather than by a failed lookup inside it.
     fn max_relative_shape_id(&self) -> Option<usize> {
         [
             self.info.trace.max_relative_shape_id(),

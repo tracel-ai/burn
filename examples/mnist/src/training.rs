@@ -69,10 +69,10 @@ pub fn run(device: Device) {
     let model = Model::new(&autodiff_device);
 
     let dataset_train_original = Arc::new(MnistDataset::train());
-    let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
-    let dataset_valid_plain = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
+    let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 15_000);
+    let dataset_valid_plain = PartialDataset::new(dataset_train_original.clone(), 15_000, 17_000);
 
-    let ident_trains = generate_idents(Some(10000));
+    let ident_trains = generate_idents(Some(2000));
     let ident_valid = generate_idents(None);
     let dataset_train = DatasetIdent::compose(ident_trains, dataset_train_plain);
     let dataset_valid = DatasetIdent::compose(ident_valid, dataset_valid_plain);

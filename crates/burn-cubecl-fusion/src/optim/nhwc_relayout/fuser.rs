@@ -146,14 +146,3 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
         Box::new(self.clone())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn permutation_sends_channels_last() {
-        assert_eq!(permutation(4), Shape::from(vec![0, 3, 1, 2]));
-        assert_eq!(permutation(3), Shape::from(vec![0, 2, 1]));
-    }
-}

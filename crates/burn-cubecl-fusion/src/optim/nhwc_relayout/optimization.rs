@@ -67,8 +67,6 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
 pub const NAME: &str = "NHWCRelayout";
 
 impl<R: Runtime> FusedOperation<R> for NHWCRelayoutOptimization<R> {
-    /// Every block's reference shape, so a replay onto a stream with a smaller relative shape
-    /// space is caught before launch rather than by a failed lookup inside it.
     fn max_relative_shape_id(&self) -> Option<usize> {
         self.trace.max_relative_shape_id()
     }

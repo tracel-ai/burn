@@ -545,8 +545,6 @@ impl<R: Runtime> ReduceOptimizationInfo<R> {
 }
 
 impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
-    /// Every block's reference shape, so a replay onto a stream with a smaller relative shape
-    /// space is caught before launch rather than by a failed lookup inside it.
     fn max_relative_shape_id(&self) -> Option<usize> {
         self.info.max_relative_shape_id()
     }
