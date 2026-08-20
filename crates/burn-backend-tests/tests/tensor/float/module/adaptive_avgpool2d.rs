@@ -76,6 +76,45 @@ fn test_adaptive_avg_pool2d_bigger_output() {
     ]]));
 }
 
+/// A `1x1` output takes a dedicated path on the cubecl backends: it is a
+/// reduction over every pixel rather than a pooling window, and is dispatched to
+/// the reduce kernels because the pooling one parallelises over its output and
+/// would run this with `batch * channels` units. Nothing else here covers a
+/// `1x1` output, so nothing else covers that path.
+#[test]
+fn test_adaptive_avg_pool2d_global() {
+    let test = AdaptiveAvgPool2dTestCase {
+        batch_size: 2,
+        channels: 2,
+        height: 4,
+        width: 5,
+        height_out: 1,
+        width_out: 1,
+    };
+
+    // Each channel is 20 consecutive integers, so its mean is its midpoint.
+    test.assert_output(TestTensor::from([
+        [[[9.5000]], [[29.5000]]],
+        [[[49.5000]], [[69.5000]]],
+    ]));
+}
+
+/// The same path over a map whose pixel count is neither square nor a power of
+/// two, so a reduction that padded or rounded its axis would show up here.
+#[test]
+fn test_adaptive_avg_pool2d_global_odd_shape() {
+    let test = AdaptiveAvgPool2dTestCase {
+        batch_size: 1,
+        channels: 2,
+        height: 5,
+        width: 7,
+        height_out: 1,
+        width_out: 1,
+    };
+
+    test.assert_output(TestTensor::from([[[[17.0000]], [[52.0000]]]]));
+}
+
 struct AdaptiveAvgPool2dTestCase {
     batch_size: usize,
     channels: usize,
