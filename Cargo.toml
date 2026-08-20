@@ -166,7 +166,6 @@ serde = { version = "1.0.228", default-features = false, features = [
     "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.148", default-features = false }
-protobuf = "3.7.2"
 smallvec = { version = "1", features = ["const_generics", "const_new"] }
 uuid = { version = "1.23.0", default-features = false }
 
@@ -221,10 +220,6 @@ burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "=0.22.0-
 burn-train = { path = "crates/burn-train", version = "=0.22.0-pre.2", default-features = false }
 burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.2", default-features = false }
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.2", default-features = false }
-# TODO: remove once burn-onnx-export is moved into burn-onnx
-onnx-ir = { git = "https://github.com/tracel-ai/burn-onnx", default-features = false }
-ort = "=2.0.0-rc.13"
-
 
 ### For the cubecl feat/quant-scale-levels and cubek feat/quant-two-level-scheme branches. ###
 # cubek's branch pins this cubecl revision, and both sides have to agree on one.
