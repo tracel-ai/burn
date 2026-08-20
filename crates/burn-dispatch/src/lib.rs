@@ -140,9 +140,6 @@ pub mod devices {
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
 
-    #[cfg(feature = "capture")]
-    pub use burn_capture::CaptureDevice;
-
     #[cfg(feature = "remote")]
     pub use burn_remote::BURN_REMOTE_ALPN;
 }
