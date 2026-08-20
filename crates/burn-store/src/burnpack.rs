@@ -393,7 +393,9 @@ impl ModuleStore for BurnpackStore {
                         final_path.display()
                     )));
                 }
-                writer.write_to_file(&final_path)?;
+                // Atomic: snapshots materialize mid-write, so a device readback that
+                // fails partway must not truncate whatever was already at this path.
+                writer.write_to_file_atomic(&final_path)?;
             }
             StoreMode::Bytes(_) => {
                 // Generate and store the bytes

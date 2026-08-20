@@ -9,12 +9,13 @@
 //! a provider that yields the data on demand, which is what lets [`Writer`](crate::Writer)
 //! save a model without holding all of it in memory.
 
+use alloc::format;
 use alloc::string::String;
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
 // `alloc::sync` needs atomic CAS. A target without it has no threads to share a tensor
-// across, so neither the atomic pointer nor the `Send + Sync` bound on [`ByteSource`] is
+// across, so neither the atomic pointer nor the `Send + Sync` bound on the provider is
 // needed there, and both are dropped below.
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::rc::Rc as Arc;
@@ -23,26 +24,15 @@ use burn_std::{Bytes, DType, Shape};
 
 use crate::base::Error;
 
-/// What a deferred tensor's byte provider must satisfy.
+/// Shared handle to a deferred tensor's byte provider, kept behind a pointer so [`Tensor`]
+/// stays [`Clone`].
 ///
-/// `Send` on targets with threads, because a [`Tensor`] must stay `Send`: an optimizer record
-/// holds a `Vec` of them and crosses threads through burn-train's async checkpointer, whose
-/// `Checkpoint` bound is `Send`. `Sync` follows from sharing the provider in an `Arc`
-/// (`Arc<T>: Send` requires `T: Send + Sync`), and that sharing is what keeps [`Tensor`]
-/// [`Clone`]. A target without atomic CAS has no threads and no `alloc::sync`, so neither
-/// bound applies or can be met there.
-#[cfg(target_has_atomic = "ptr")]
-pub trait ByteSource: Fn() -> Result<Bytes, Error> + Send + Sync + 'static {}
-#[cfg(target_has_atomic = "ptr")]
-impl<T> ByteSource for T where T: Fn() -> Result<Bytes, Error> + Send + Sync + 'static {}
-
-/// Without atomic CAS there are no threads, so the bound is just the closure itself.
-#[cfg(not(target_has_atomic = "ptr"))]
-pub trait ByteSource: Fn() -> Result<Bytes, Error> + 'static {}
-#[cfg(not(target_has_atomic = "ptr"))]
-impl<T> ByteSource for T where T: Fn() -> Result<Bytes, Error> + 'static {}
-
-/// Shared handle to a [`ByteSource`], kept behind a pointer so [`Tensor`] stays [`Clone`].
+/// The provider is `Send + Sync` on targets with threads, because a [`Tensor`] must stay
+/// `Send`: an optimizer record holds a `Vec` of them and crosses threads through burn-train's
+/// async checkpointer, whose `Checkpoint` bound is `Send`. `Sync` follows from sharing the
+/// provider at all (`Arc<T>: Send` requires `T: Send + Sync`). A target without atomic CAS
+/// has no threads and no `alloc::sync`, so neither bound applies or can be met there, and
+/// [`Tensor::deferred`] asks for correspondingly less.
 #[cfg(target_has_atomic = "ptr")]
 type Provider = Arc<dyn Fn() -> Result<Bytes, Error> + Send + Sync>;
 #[cfg(not(target_has_atomic = "ptr"))]
@@ -65,6 +55,47 @@ enum Source {
     Resident(Bytes),
     /// Bytes not yet produced, but whose length is already known.
     Deferred { len: usize, provider: Provider },
+}
+
+impl Source {
+    /// Number of bytes described, without producing them.
+    fn len(&self) -> usize {
+        match self {
+            Self::Resident(bytes) => bytes.len(),
+            Self::Deferred { len, .. } => *len,
+        }
+    }
+
+    fn to_bytes(&self) -> Result<Bytes, Error> {
+        match self {
+            Self::Resident(bytes) => Ok(bytes.clone()),
+            Self::Deferred { len, provider } => Self::checked(*len, provider()?),
+        }
+    }
+
+    fn into_bytes(self) -> Result<Bytes, Error> {
+        match self {
+            Self::Resident(bytes) => Ok(bytes),
+            Self::Deferred { len, provider } => Self::checked(len, provider()?),
+        }
+    }
+
+    /// Reject a provider that hands back a different length than it declared.
+    ///
+    /// Every materialization path goes through here, so the length a caller reads from
+    /// [`Tensor::byte_len`] is the length they will get. `Writer` commits its offset table
+    /// from that number before any provider runs, and a disagreement would misplace every
+    /// tensor written after this one.
+    fn checked(expected: usize, bytes: Bytes) -> Result<Bytes, Error> {
+        if bytes.len() != expected {
+            return Err(Error::TensorBytesSizeMismatch(format!(
+                "deferred source has inconsistent length (expected {}, got {})",
+                expected,
+                bytes.len()
+            )));
+        }
+        Ok(bytes)
+    }
 }
 
 /// A single tensor in a burnpack container, decoupled from any tensor library.
@@ -127,13 +158,42 @@ impl Tensor {
     /// result is dropped before the next tensor's is requested. Producing the data there -
     /// reading a parameter back from a device, say - is what bounds a save's peak host memory
     /// by the largest single tensor rather than by the whole model.
+    #[cfg(target_has_atomic = "ptr")]
     pub fn deferred(
         name: String,
         dtype: DType,
         shape: impl Into<Shape>,
         param_id: Option<u64>,
         byte_len: usize,
-        provider: impl ByteSource,
+        provider: impl Fn() -> Result<Bytes, Error> + Send + Sync + 'static,
+    ) -> Self {
+        Self::with_provider(name, dtype, shape, param_id, byte_len, Arc::new(provider))
+    }
+
+    /// Create a tensor whose bytes are produced on demand.
+    ///
+    /// See the `target_has_atomic = "ptr"` variant for the contract. This one drops the
+    /// `Send + Sync` bound, which nothing on a single-threaded target can satisfy or needs.
+    #[cfg(not(target_has_atomic = "ptr"))]
+    pub fn deferred(
+        name: String,
+        dtype: DType,
+        shape: impl Into<Shape>,
+        param_id: Option<u64>,
+        byte_len: usize,
+        provider: impl Fn() -> Result<Bytes, Error> + 'static,
+    ) -> Self {
+        Self::with_provider(name, dtype, shape, param_id, byte_len, Arc::new(provider))
+    }
+
+    /// The half of [`deferred`](Self::deferred) that does not vary by target.
+    fn with_provider(
+        name: String,
+        dtype: DType,
+        shape: impl Into<Shape>,
+        param_id: Option<u64>,
+        byte_len: usize,
+        provider: Provider,
     ) -> Self {
         Self {
             name,
@@ -142,17 +202,14 @@ impl Tensor {
             param_id,
             source: Source::Deferred {
                 len: byte_len,
-                provider: Arc::new(provider),
+                provider,
             },
         }
     }
 
     /// Number of raw bytes the tensor occupies, known without producing them.
     pub fn byte_len(&self) -> usize {
-        match &self.source {
-            Source::Resident(bytes) => bytes.len(),
-            Source::Deferred { len, .. } => *len,
-        }
+        self.source.len()
     }
 
     /// The tensor's raw little-endian bytes, leaving it intact.
@@ -162,10 +219,7 @@ impl Tensor {
     /// its [`Bytes`] can share their backing. Prefer [`into_bytes`](Self::into_bytes), or
     /// [`into_parts`](Self::into_parts) when the metadata is wanted too.
     pub fn to_bytes(&self) -> Result<Bytes, Error> {
-        match &self.source {
-            Source::Resident(bytes) => Ok(bytes.clone()),
-            Source::Deferred { provider, .. } => provider(),
-        }
+        self.source.to_bytes()
     }
 
     /// Take the tensor's raw little-endian bytes, producing them if deferred.
@@ -174,10 +228,7 @@ impl Tensor {
     /// produces resident tensors; the [`Result`] is there for deferred ones, whose provider
     /// can fail.
     pub fn into_bytes(self) -> Result<Bytes, Error> {
-        match self.source {
-            Source::Resident(bytes) => Ok(bytes),
-            Source::Deferred { provider, .. } => provider(),
-        }
+        self.source.into_bytes()
     }
 
     /// Split into `(name, dtype, shape, param_id, bytes)`, producing the bytes if deferred.
@@ -192,11 +243,7 @@ impl Tensor {
             param_id,
             source,
         } = self;
-        let bytes = match source {
-            Source::Resident(bytes) => bytes,
-            Source::Deferred { provider, .. } => provider()?,
-        };
-        Ok((name, dtype, shape, param_id, bytes))
+        Ok((name, dtype, shape, param_id, source.into_bytes()?))
     }
 }
 
@@ -283,7 +330,7 @@ mod tests {
         assert_eq!(&bytes[..], &[7, 8]);
     }
 
-    /// The `Send + Sync` bound on [`ByteSource`] exists so a `Tensor` can reach burn-train's
+    /// The `Send + Sync` bound on the provider exists so a `Tensor` can reach burn-train's
     /// async checkpointer inside an optimizer record. Nothing in burn-pack's own build would
     /// catch a regression to a non-atomic pointer, so pin it where the type lives.
     #[test]

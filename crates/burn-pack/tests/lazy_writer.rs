@@ -230,7 +230,7 @@ fn a_plan_time_rejection_creates_no_file() {
     entry.declared_len = 8;
 
     Writer::new(vec![entry.build()])
-        .write_to_file(&dest)
+        .write_to_file_atomic(&dest)
         .unwrap_err();
 
     assert_eq!(
@@ -253,7 +253,7 @@ fn a_failing_provider_leaves_no_file_behind() {
     entries.last_mut().unwrap().fails = true;
 
     Writer::new(deferred_tensors(entries))
-        .write_to_file(&dest)
+        .write_to_file_atomic(&dest)
         .unwrap_err();
 
     assert!(!dest.exists(), "destination should not have been created");
@@ -272,14 +272,14 @@ fn a_failed_write_leaves_an_existing_file_intact() {
     // A valid container already at the destination.
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file(&dest)
+        .write_to_file_atomic(&dest)
         .unwrap();
     let original = std::fs::read(&dest).unwrap();
 
     let mut entries = entries(&log);
     entries.last_mut().unwrap().fails = true;
     Writer::new(deferred_tensors(entries))
-        .write_to_file(&dest)
+        .write_to_file_atomic(&dest)
         .unwrap_err();
 
     assert_eq!(
@@ -300,7 +300,7 @@ fn a_failed_rename_leaves_no_scratch_file() {
 
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file(&dest)
+        .write_to_file_atomic(&dest)
         .unwrap_err();
 
     assert!(dest.is_dir(), "the destination should be untouched");
@@ -318,10 +318,10 @@ fn a_successful_write_replaces_an_existing_file() {
 
     let log = Log::default();
     Writer::new(vec![LazyEntry::new("old", [4], 1.0, &log).build()])
-        .write_to_file(&dest)
+        .write_to_file_atomic(&dest)
         .unwrap();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file(&dest)
+        .write_to_file_atomic(&dest)
         .unwrap();
 
     let names: Vec<String> = Reader::from_file(&dest)
@@ -336,5 +336,38 @@ fn a_successful_write_replaces_an_existing_file() {
         std::fs::read_dir(dir.path()).unwrap().count(),
         1,
         "no scratch file should survive a successful write"
+    );
+}
+
+/// The counterpart to the atomicity tests: plain `write_to_file` truncates in place, which is
+/// why a caller with deferred tensors has to ask for the atomic path. Pinning it here keeps
+/// the two methods from quietly converging.
+#[test]
+fn a_failing_provider_does_truncate_an_existing_file_in_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .write_to_file(&dest)
+        .unwrap();
+    let original = std::fs::read(&dest).unwrap();
+
+    let mut entries = entries(&log);
+    entries.last_mut().unwrap().fails = true;
+    Writer::new(deferred_tensors(entries))
+        .write_to_file(&dest)
+        .unwrap_err();
+
+    let after = std::fs::read(&dest).unwrap();
+    assert_ne!(
+        after, original,
+        "in-place writing is expected to have clobbered the previous container"
+    );
+    assert!(
+        after.len() < original.len(),
+        "the failed write should have left a short file, got {} vs {}",
+        after.len(),
+        original.len()
     );
 }

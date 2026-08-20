@@ -30,10 +30,11 @@ assert_eq!(reader.into_tensors().unwrap()[0].shape.to_vec(), vec![2, 2]);
 ```
 
 Use `Writer::write_to_file` / `Reader::from_file` for disk I/O (the default `std` feature; disable
-it for no-std targets). `write_to_file` is all-or-nothing against process-level failure: the
-container is built alongside the destination and renamed into place once complete, so a save that
-fails or dies never leaves a truncated file. Surviving power loss additionally requires the syncs
-that only Unix provides; see the API docs.
+it for no-std targets). `write_to_file` replaces the destination in place, so a save that fails
+partway leaves it truncated. `write_to_file_atomic` instead builds the container beside the
+destination and renames it into place once complete, so the old file survives a failed save; that
+is what deferred tensors want, since their bytes are produced mid-write. See the API docs for how
+far each guarantee reaches.
 
 ## Writing models larger than memory
 

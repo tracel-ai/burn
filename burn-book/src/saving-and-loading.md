@@ -358,10 +358,11 @@ model.save_into(&mut store)?;
 This applies to file saves. `BurnpackStore::from_bytes` has to build the whole container in memory
 by definition, so prefer a file path for large models.
 
-File saves are also all-or-nothing: the container is written beside the destination and renamed
-into place once complete, so a save that fails, panics, or has its process killed leaves any
-existing file untouched rather than replacing it with a truncated one. Surviving power loss is a
-stronger guarantee and holds on Unix only; see `Writer::write_to_file` for the details.
+File saves through `BurnpackStore` are also all-or-nothing: because parameters are read back
+mid-write, the container is written beside the destination and renamed into place once complete,
+so a save that fails, panics, or has its process killed leaves any existing file untouched rather
+than replacing it with a truncated one. Surviving power loss is a stronger guarantee and holds on
+Unix only; see `Writer::write_to_file_atomic` for the details.
 
 #### Half-Precision Storage
 

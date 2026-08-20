@@ -72,9 +72,11 @@ length differs from what was reserved. Quantized tensors are exempt from the fir
 packed values and inline scales are not a product of shape and dtype; that exception is why
 `Tensor::deferred` takes an explicit length rather than deriving one.
 
-`Writer::write_to_file` builds the container in a scratch file beside the destination and renames it
-into place only once it is complete. Because a lazy entry's bytes are produced mid-write, provider
-failure is an ordinary outcome, and it must not truncate whatever was already at that path.
+`Writer::write_to_file_atomic` builds the container in a scratch file beside the destination and
+renames it into place only once it is complete. Because a deferred tensor's bytes are produced
+mid-write, provider failure is an ordinary outcome, and it must not truncate whatever was already at
+that path. `Writer::write_to_file` writes in place and is the cheaper choice for records, whose
+tensors are resident and cannot fail to materialize.
 
 ## The three record types
 

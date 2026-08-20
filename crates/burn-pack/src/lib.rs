@@ -123,7 +123,7 @@ pub use base::{
     TENSOR_ALIGNMENT, aligned_data_section_start,
 };
 pub use reader::Reader;
-pub use tensor::{ByteSource, Tensor};
+pub use tensor::Tensor;
 pub use writer::Writer;
 
 /// The canonical file extension for burnpack files (without the leading dot).

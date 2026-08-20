@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
 // `alloc::sync` needs atomic CAS. A target without it has no threads to share a snapshot
-// across, so neither the atomic pointer nor the `Send + Sync` bound on [`DataSource`] is
+// across, so neither the atomic pointer nor the `Send + Sync` bound on [`DataFn`] is
 // needed there, and both are dropped below.
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::rc::Rc as Arc;
@@ -14,33 +14,15 @@ use burn_core::tensor::quantization::{QuantParam, params_shape};
 use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
 use half::f16;
 
-/// What a closure passed to [`TensorSnapshot::data_fn`] must satisfy.
-///
-/// `Send + Sync` on targets with threads, so a snapshot can back a deferred
-/// `burn_pack::Tensor`, whose provider must be `Send`: records holding one cross threads
-/// through burn-train's async checkpointer. A target without atomic CAS has no threads and no
-/// `alloc::sync`, so neither bound applies or can be met there.
-#[cfg(target_has_atomic = "ptr")]
-pub trait DataSource:
-    Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync + 'static
-{
-}
-#[cfg(target_has_atomic = "ptr")]
-impl<T> DataSource for T where
-    T: Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync + 'static
-{
-}
-
-/// Without atomic CAS there are no threads, so the bound is just the closure itself.
-#[cfg(not(target_has_atomic = "ptr"))]
-pub trait DataSource: Fn() -> Result<TensorData, TensorSnapshotError> + 'static {}
-#[cfg(not(target_has_atomic = "ptr"))]
-impl<T> DataSource for T where T: Fn() -> Result<TensorData, TensorSnapshotError> + 'static {}
-
 /// Lazily produces a [`TensorSnapshot`]'s data, shared so that cloning a snapshot is cheap.
 ///
 /// Build one with [`TensorSnapshot::data_fn`] rather than naming the pointer type, which
 /// varies with the target's atomic support.
+///
+/// The closure is `Send + Sync` on targets with threads, so a snapshot can back a deferred
+/// `burn_pack::Tensor`, whose provider must be `Send`: records holding one cross threads
+/// through burn-train's async checkpointer. A target without atomic CAS has no threads and no
+/// `alloc::sync`, so neither bound applies or can be met there.
 #[cfg(target_has_atomic = "ptr")]
 pub type DataFn = Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync>;
 #[cfg(not(target_has_atomic = "ptr"))]
@@ -332,7 +314,19 @@ impl TensorSnapshot {
     ///
     /// Use this rather than constructing the pointer directly: [`DataFn`] is `Arc`-based only
     /// on targets with atomic CAS, and `Rc`-based elsewhere.
-    pub fn data_fn(f: impl DataSource) -> DataFn {
+    #[cfg(target_has_atomic = "ptr")]
+    pub fn data_fn(
+        f: impl Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync + 'static,
+    ) -> DataFn {
+        Arc::new(f)
+    }
+
+    /// Wrap a closure into the shared form [`from_closure`](Self::from_closure) takes.
+    ///
+    /// See the `target_has_atomic = "ptr"` variant. This one drops the `Send + Sync` bound,
+    /// which nothing on a single-threaded target can satisfy or needs.
+    #[cfg(not(target_has_atomic = "ptr"))]
+    pub fn data_fn(f: impl Fn() -> Result<TensorData, TensorSnapshotError> + 'static) -> DataFn {
         Arc::new(f)
     }
 }

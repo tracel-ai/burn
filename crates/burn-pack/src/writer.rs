@@ -134,57 +134,84 @@ impl Writer {
         Ok(Bytes::from_bytes_vec(buffer))
     }
 
-    /// Write directly to a file (more memory efficient for large models).
+    /// Write directly to a file, replacing its contents in place.
     ///
     /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
     ///
-    /// The container is written to a scratch sibling of `path` and renamed into place only
-    /// once every byte is on disk, so `path` either ends up holding a complete container or
-    /// is left exactly as it was. This matters for deferred tensors,
-    /// whose bytes are produced during the write: a provider that fails partway through (or
-    /// hands back a different length than it declared) is an ordinary error, and it must not
-    /// leave a truncated file where a valid one used to be.
+    /// The file is truncated as soon as writing starts, so a failure partway through leaves it
+    /// truncated. That only matters when a tensor's bytes can fail to materialize, which for
+    /// resident tensors they cannot: the write fails only if the disk does. Callers holding
+    /// [`deferred`](Tensor::deferred) tensors, whose providers run mid-write, want
+    /// [`write_to_file_atomic`](Self::write_to_file_atomic) instead.
+    #[cfg(feature = "std")]
+    pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
+        let path = Self::resolve_path(path.as_ref());
+        let layout = self.plan()?;
+
+        let file = File::create(&path)
+            .map_err(|e| Error::IoError(format!("cannot create '{}': {e}", path.display())))?;
+        let mut sink = FileSink { file, path };
+
+        self.write_container(&layout, &mut sink)
+    }
+
+    /// Write to a file without ever leaving a partial one at `path`.
     ///
-    /// That much holds everywhere, for failure at the process level: a returned error, a
-    /// panic, the process being killed. The rename is a single call, so it either took
-    /// effect or it did not, and neither outcome is a partial file.
+    /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
+    ///
+    /// The container is built in a scratch sibling of `path` and renamed into place only once
+    /// every byte is on disk, so `path` either ends up holding a complete container or is left
+    /// exactly as it was. This is what [`deferred`](Tensor::deferred) tensors need: their bytes
+    /// are produced during the write, so a provider that fails partway through (or hands back a
+    /// different length than it declared) is an ordinary error, and it must not leave a
+    /// truncated file where a valid one used to be.
+    ///
+    /// That much holds everywhere, for failure at the process level: a returned error, a panic,
+    /// the process being killed. The rename is a single call, so it either took effect or it
+    /// did not, and neither outcome is a partial file.
     ///
     /// Power loss is narrower, and Unix-only. There the data is synced before the rename and
-    /// the parent directory after it, so a crash mid-save leaves the old container and a
-    /// crash after `Ok` leaves the new one - never a mixture, and never a lost save.
-    /// Elsewhere both halves are missing: the directory sync is unavailable, and the replace
-    /// carries no documented atomicity guarantee (Windows `MoveFileEx` is not specified as a
-    /// single metadata transaction when it replaces an existing file). After power loss the
-    /// destination may hold the old container or the new one, and the finished scratch file
-    /// may still be beside it.
+    /// the parent directory after it, so a crash mid-save leaves the old container and a crash
+    /// after `Ok` leaves the new one - never a mixture, and never a lost save. Elsewhere both
+    /// halves are missing: the directory sync is unavailable, and the replace carries no
+    /// documented atomicity guarantee (Windows `MoveFileEx` is not specified as a single
+    /// metadata transaction when it replaces an existing file). After power loss the
+    /// destination may hold the old container or the new one, and the finished scratch file may
+    /// still be beside it.
     ///
-    /// Building alongside the destination has four consequences:
+    /// Building alongside the destination has four consequences, which is why
+    /// [`write_to_file`](Self::write_to_file) does not do it:
     ///
+    /// - The data is fsynced before the rename, so the call does not return until the bytes are
+    ///   durable rather than merely handed to the page cache.
     /// - Overwriting needs room for a second copy. Re-saving a model over itself transiently
     ///   occupies twice its size, since the old file keeps its blocks until the rename.
+    /// - The destination is replaced rather than truncated, so its permissions, ownership and
+    ///   hard links do not carry over; the new file gets the process umask. A symlink at `path`
+    ///   is replaced by a regular file rather than followed.
     /// - A hard kill (SIGKILL, OOM) skips the cleanup and strands the scratch file. Scratch
     ///   names are `<file_name>.<pid>-<n>.tmp` siblings of the resolved path (after any
     ///   extension is appended), so leftovers are identifiable and safe to delete once no
     ///   writer is running.
-    /// - The destination is replaced rather than truncated, so its permissions, ownership and
-    ///   hard links do not carry over; the new file gets the process umask.
-    /// - A symlink at `path` is replaced by a regular file rather than followed. Saving over
-    ///   a symlink that points at bulk storage stops updating the target.
     #[cfg(feature = "std")]
-    pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
-        let path = path.as_ref();
-        let path = if path.extension().is_none() {
-            path.with_extension(crate::EXTENSION)
-        } else {
-            path.to_path_buf()
-        };
-
+    pub fn write_to_file_atomic<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
+        let path = Self::resolve_path(path.as_ref());
         let layout = self.plan()?;
         let (scratch, mut sink) = ScratchFile::create(&path)?;
 
         self.write_container(&layout, &mut sink)?;
 
         scratch.persist(sink, &path)
+    }
+
+    /// Append the canonical extension when the caller left one off.
+    #[cfg(feature = "std")]
+    fn resolve_path(path: &Path) -> std::path::PathBuf {
+        if path.extension().is_none() {
+            path.with_extension(crate::EXTENSION)
+        } else {
+            path.to_path_buf()
+        }
     }
 
     /// Build the complete on-disk layout: header, serialized metadata, and the
@@ -279,7 +306,6 @@ impl Writer {
             placements.push(Placement {
                 name: name.clone(),
                 offset: aligned_start as usize,
-                len: data_len as usize,
             });
             current_offset = end;
         }
@@ -368,20 +394,9 @@ impl Writer {
         // Name the tensor on the way out. `into_bytes` runs mid-write, so its failures arrive
         // interleaved with the writer's own disk errors; without this, a device readback that
         // fails on one tensor of eight hundred is indistinguishable from a full disk.
-        let bytes = tensor
+        tensor
             .into_bytes()
-            .map_err(|e| e.in_tensor(&placement.name))?;
-
-        if bytes.len() != placement.len {
-            return Err(Error::TensorBytesSizeMismatch(format!(
-                "tensor '{}' has inconsistent length (expected {}, got {})",
-                placement.name,
-                placement.len,
-                bytes.len()
-            )));
-        }
-
-        Ok(bytes)
+            .map_err(|e| e.in_tensor(&placement.name))
     }
 }
 
@@ -392,8 +407,6 @@ struct Placement {
     name: String,
     /// Aligned start, relative to the beginning of the data section.
     offset: usize,
-    /// Bytes reserved, from [`Tensor::byte_len`].
-    len: usize,
 }
 
 /// Stream a single tensor's bytes into `sink`, materializing at most
