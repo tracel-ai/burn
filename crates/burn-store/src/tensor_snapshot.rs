@@ -507,6 +507,40 @@ mod tests {
         ));
     }
 
+    /// Packed quantized storage divides only the packed dimension, so a non-divisible extent
+    /// pads once per line rather than once over the flattened tensor. No current backend can
+    /// materialize such a tensor, so this pins the formula against the storage shape the
+    /// allocation would use (`CubeTensor::quantized_storage`) rather than against `to_data()`.
+    ///
+    /// Getting this wrong is not cosmetic: a deferred tensor declares its length from
+    /// `data_len()` before the writer reserves space, so an under-count makes the save fail.
+    #[test]
+    fn data_len_packs_per_line_for_packed_stores() {
+        let packed = |shape: Shape| {
+            // Q4 in u32 words: 8 values per storage element, packed along the last dimension.
+            let scheme = QuantScheme::default().with_value(QuantValue::Q4S);
+            TensorSnapshot::from_closure(
+                Arc::new(|| Err(TensorSnapshotError::DataError("formula-only".to_string()))),
+                DType::QFloat(scheme),
+                shape,
+                vec!["packed".to_string()],
+                vec![],
+                ParamId::new(),
+            )
+            .data_len()
+        };
+
+        // 3 lines x ceil(3 / 8) = 3 u32 words = 12 value bytes, plus one tensor-level f32
+        // scale. Flattening first would say ceil(9 / 8) * 4 = 8.
+        assert_eq!(packed(shape![3, 3]), 12 + 4);
+
+        // The same over more than two dimensions: 2 * 5 lines x ceil(9 / 8) = 20 words.
+        assert_eq!(packed(shape![2, 5, 9]), 20 * 4 + 4);
+
+        // A divisible extent is unaffected, and agrees with the flattened count.
+        assert_eq!(packed(shape![4, 8]), 4 * 4 + 4);
+    }
+
     /// Quantized is the one family where `data_len()` reconstructs the layout instead of
     /// deriving it from an element count, so it is where the two drift apart.
     ///
