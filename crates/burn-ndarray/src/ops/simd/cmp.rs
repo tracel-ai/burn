@@ -344,9 +344,9 @@ mod elemwise {
         for elem in head.iter_mut().chain(tail) {
             *elem = cast(Op::apply(*elem, rhs));
         }
-        let mut chunks = main.chunks_exact_mut(8);
+        let chunks = main.as_chunks_mut::<8>();
         let rhs = rhs.splat::<S>();
-        for elem in chunks.by_ref() {
+        for elem in chunks.0.iter_mut() {
             seq!(N in 0..8 {
                 // Load a full vector from the aligned portion of the buffer.
                 // SAFETY: `align_to_mut` guarantees we're aligned to `T::Vector`'s size, and there is
@@ -359,7 +359,7 @@ mod elemwise {
             });
         }
 
-        for elem in chunks.into_remainder() {
+        for elem in chunks.1 {
             // Load a full vector from the aligned portion of the buffer.
             // SAFETY: `align_to_mut` guarantees we're aligned to `T::Vector`'s size, and there is
             // always a full vector in bounds.

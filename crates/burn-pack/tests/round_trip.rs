@@ -220,7 +220,9 @@ fn read_single_tensor_data_by_name() {
     let reader = Reader::from_bytes(packed).unwrap();
     let raw = reader.tensor_data("a").unwrap();
     let values: Vec<f32> = raw
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
     assert_eq!(values, vec![1.0, 2.0]);
