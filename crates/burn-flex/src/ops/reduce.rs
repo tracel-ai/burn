@@ -2608,7 +2608,7 @@ mod tests {
     fn test_sum_u32() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![10u32, 20, 30], [3]));
         let result = Flex::int_sum(tensor);
-        let data: Vec<u32> = result.into_data().to_vec().unwrap();
+        let data: Vec<u32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![60]);
     }
 
@@ -2616,7 +2616,7 @@ mod tests {
     fn test_sum_u64() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![100u64, 200, 300], [3]));
         let result = Flex::int_sum(tensor);
-        let data: Vec<u64> = result.into_data().to_vec().unwrap();
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![600]);
     }
 
@@ -2624,7 +2624,7 @@ mod tests {
     fn test_sum_dim_u8() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![1u8, 2, 3, 4], [2, 2]));
         let result = Flex::int_sum_dim(tensor, 1);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![3, 7]);
     }
 
@@ -2632,7 +2632,7 @@ mod tests {
     fn test_prod_u16() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![2u16, 3, 5], [3]));
         let result = Flex::int_prod(tensor);
-        let data: Vec<u16> = result.into_data().to_vec().unwrap();
+        let data: Vec<u16> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![30]);
     }
 
@@ -2640,7 +2640,7 @@ mod tests {
     fn test_max_u32() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![5u32, 100, 42], [3]));
         let result = Flex::int_max(tensor);
-        let data: Vec<u32> = result.into_data().to_vec().unwrap();
+        let data: Vec<u32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![100]);
     }
 
@@ -2648,7 +2648,7 @@ mod tests {
     fn test_min_u8() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![5u8, 1, 42], [3]));
         let result = Flex::int_min(tensor);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1]);
     }
 
@@ -2656,7 +2656,7 @@ mod tests {
     fn test_max_dim_u64() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![10u64, 20, 30, 5], [2, 2]));
         let result = Flex::int_max_dim(tensor, 1);
-        let data: Vec<u64> = result.into_data().to_vec().unwrap();
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![20, 30]);
     }
 
@@ -2664,7 +2664,7 @@ mod tests {
     fn test_min_dim_u16() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![10u16, 2, 30, 5], [2, 2]));
         let result = Flex::int_min_dim(tensor, 1);
-        let data: Vec<u16> = result.into_data().to_vec().unwrap();
+        let data: Vec<u16> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![2, 5]);
     }
 
@@ -2672,7 +2672,7 @@ mod tests {
     fn test_mean_dim_u8() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![10u8, 20, 30, 40], [2, 2]));
         let result = Flex::int_mean_dim(tensor, 1);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![15, 35]);
     }
 
@@ -2680,7 +2680,7 @@ mod tests {
     fn test_max_dim_with_indices_u32() {
         let tensor = FlexTensor::from_data(TensorData::new(vec![5u32, 10, 3, 8], [2, 2]));
         let (values, indices) = Flex::int_max_dim_with_indices(tensor, 1);
-        let vals: Vec<u32> = values.into_data().to_vec().unwrap();
+        let vals: Vec<u32> = values.into_data().try_into_vec().unwrap();
         let idxs: Vec<isize> = bytemuck::cast_slice(&indices.into_data().bytes).to_vec();
         assert_eq!(vals, vec![10, 8]);
         assert_eq!(idxs, vec![1, 1]);

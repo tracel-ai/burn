@@ -58,7 +58,10 @@ fn snapshots_write_and_read_back_without_a_module() {
     assert_eq!(paths, ["decoder.weight", "encoder.weight"]);
 
     let decoder = restored[0].to_data().unwrap();
-    assert_eq!(decoder.to_vec::<f32>().unwrap(), vec![5.0, 6.0, 7.0, 8.0]);
+    assert_eq!(
+        decoder.try_to_vec::<f32>().unwrap(),
+        vec![5.0, 6.0, 7.0, 8.0]
+    );
 }
 
 /// Quantized is the case where the declared byte length is reconstructed from the scheme

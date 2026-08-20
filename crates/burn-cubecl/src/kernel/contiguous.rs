@@ -121,5 +121,15 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         dtype_to_storage_type(dtype_scales),
     );
 
+    if let (Some(global), Some(out_global)) = (tensor.global(), output.global()) {
+        let dtype_global = global.dtype;
+        cubecl::std::tensor::copy_into(
+            &client,
+            global.binding(),
+            out_global.binding(),
+            dtype_to_storage_type(dtype_global),
+        );
+    }
+
     output
 }

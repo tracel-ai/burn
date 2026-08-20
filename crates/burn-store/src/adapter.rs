@@ -710,21 +710,21 @@ mod tests {
         let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], [2, 3]);
         let transposed = transpose_tensor_data(f32_data);
         assert_eq!(transposed.shape, shape![3, 2]);
-        let values = transposed.to_vec::<f32>().unwrap();
+        let values = transposed.try_to_vec::<f32>().unwrap();
         assert_eq!(values, vec![1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
 
         // Test with I32
         let i32_data = TensorData::new(vec![1i32, 2, 3, 4, 5, 6], [2, 3]);
         let transposed = transpose_tensor_data(i32_data);
         assert_eq!(transposed.shape, shape![3, 2]);
-        let values = transposed.to_vec::<i32>().unwrap();
+        let values = transposed.try_to_vec::<i32>().unwrap();
         assert_eq!(values, vec![1, 4, 2, 5, 3, 6]);
 
         // Test with F64
         let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], [2, 2]);
         let transposed = transpose_tensor_data(f64_data);
         assert_eq!(transposed.shape, shape![2, 2]);
-        let values = transposed.to_vec::<f64>().unwrap();
+        let values = transposed.try_to_vec::<f64>().unwrap();
         assert_eq!(values, vec![1.0, 3.0, 2.0, 4.0]);
     }
 
@@ -1117,7 +1117,10 @@ mod tests {
 
         let data = adapted.to_data().unwrap();
         assert_eq!(data.dtype, DType::F16);
-        let values = data.convert_dtype(DType::F32).into_vec::<f32>().unwrap();
+        let values = data
+            .convert_dtype(DType::F32)
+            .try_into_vec::<f32>()
+            .unwrap();
         assert_eq!(values, vec![1.0, -2.0, 0.5, 4.0, -0.25, 8.0]);
     }
 

@@ -3,7 +3,7 @@ use crate::engine::codegen::{DynElem, DynSize};
 
 use super::{ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
-use cubecl::quant::scheme::{QuantLevel, QuantStore};
+use cubecl::quant::scheme::QuantStore;
 use cubecl::{
     intrinsic,
     prelude::*,
@@ -318,20 +318,21 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     #[comptime] pos: usize,
     #[comptime] tensor_pos: usize,
-    #[comptime] level: QuantLevel,
+    #[comptime] scheme: QuantScheme,
     #[comptime] config: &FuseBlockConfig,
 ) -> View<'static, C, usize> {
+    comptime!(assert!(
+        burn_std::quantization::global_scale_dtype(&scheme).is_none(),
+        "two-level quantization is not supported in fused kernels yet"
+    ));
     set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
     let tensor = inputs.tensors.index(tensor_pos);
     let scales = inputs.tensors.index(pos);
     let tensor_len = tensor.tensor.len();
     let rank = config.rank;
-    let layout = match level {
-        QuantLevel::BlockTensor { .. } => {
-            unimplemented!("two-level quantization is not supported yet")
-        }
-        QuantLevel::Tensor => ScalesLayout::new_PerTensor(PerTensorLayout::new(tensor_len)),
-        QuantLevel::Block(block_size) => {
+    let layout = match comptime![scheme.block_size()] {
+        None => ScalesLayout::new_PerTensor(PerTensorLayout::new(tensor_len)),
+        Some(block_size) => {
             let block_size = comptime![block_size.to_dim_vec(rank)];
             let mut tensor_shape = Sequence::new();
             let mut scales_strides = Sequence::new();

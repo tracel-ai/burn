@@ -577,7 +577,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::from([true, false, true]));
         let result = Flex::bool_into_int(t, IntDType::U8);
         assert_eq!(result.dtype(), burn_backend::DType::U8);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1u8, 0, 1]);
     }
 
@@ -586,7 +586,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::from([true, false, true]));
         let result = Flex::bool_into_float(t, FloatDType::F64);
         assert_eq!(result.dtype(), burn_backend::DType::F64);
-        let data: Vec<f64> = result.into_data().to_vec().unwrap();
+        let data: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1.0f64, 0.0, 1.0]);
     }
 }

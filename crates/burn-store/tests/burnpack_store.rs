@@ -41,7 +41,7 @@ fn first_weight(model: &TestModel) -> Vec<f32> {
         .val()
         .to_data()
         .convert_dtype(DType::F32)
-        .to_vec()
+        .try_to_vec()
         .unwrap()
 }
 

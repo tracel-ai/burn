@@ -74,7 +74,7 @@ fn test_memory_get_snapshot_existing() {
 
     // Verify data
     let data = snapshot.to_data().unwrap();
-    let values: Vec<f32> = data.to_vec().unwrap();
+    let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0]);
 }
 
@@ -95,7 +95,7 @@ fn test_memory_get_snapshot_nested() {
 
     let snapshot = snapshot.unwrap();
     let data = snapshot.to_data().unwrap();
-    let values: Vec<f32> = data.to_vec().unwrap();
+    let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0]);
 }
 
@@ -208,7 +208,7 @@ fn test_file_get_snapshot_existing() {
     assert_eq!(snapshot.shape, shape![2, 2]);
 
     let data = snapshot.to_data().unwrap();
-    let values: Vec<f32> = data.to_vec().unwrap();
+    let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0]);
 }
 

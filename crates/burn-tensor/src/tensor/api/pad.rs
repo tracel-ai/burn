@@ -169,6 +169,7 @@ where
     E: ElementConversion,
 {
     let mut padded_dims: [usize; D] = tensor.dims();
+    let (device, dtype) = (tensor.device(), tensor.dtype());
 
     for (i, &(before, after)) in padding.iter().enumerate() {
         padded_dims[i] += before + after;
@@ -185,7 +186,7 @@ where
         .try_into()
         .unwrap();
 
-    let padded_tensor = Tensor::full(padded_dims, value, &tensor.device());
+    let padded_tensor = Tensor::full(padded_dims, value, (&device, dtype));
 
     padded_tensor.slice_assign(ranges, tensor)
 }
@@ -239,13 +240,14 @@ where
 {
     let dims = tensor.dims();
     let dim_size = dims[dim];
+    let (device, dtype) = (tensor.device(), tensor.dtype());
 
     // Calculate output dimensions
     let mut output_dims = dims;
     output_dims[dim] += pad_before + pad_after;
 
     // Create output tensor and place original in the center
-    let output = Tensor::zeros(output_dims, &tensor.device());
+    let output = Tensor::zeros(output_dims, (&device, dtype));
     let original_range = build_slice_ranges(output_dims, dim, pad_before, dim_size);
     let mut output = output.slice_assign(original_range, tensor.clone());
 
@@ -313,13 +315,14 @@ where
 {
     let dims = tensor.dims();
     let dim_size = dims[dim];
+    let (device, dtype) = (tensor.device(), tensor.dtype());
 
     // Calculate output dimensions
     let mut output_dims = dims;
     output_dims[dim] += pad_before + pad_after;
 
     // Create output tensor and place original in the center
-    let output = Tensor::zeros(output_dims, &tensor.device());
+    let output = Tensor::zeros(output_dims, (&device, dtype));
     let original_range = build_slice_ranges(output_dims, dim, pad_before, dim_size);
     let mut output = output.slice_assign(original_range, tensor.clone());
 

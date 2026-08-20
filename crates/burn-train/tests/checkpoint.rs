@@ -115,7 +115,7 @@ fn checkpoint_restores_model_weights() {
         .weight
         .val()
         .into_data()
-        .to_vec::<f32>()
+        .try_into_vec::<f32>()
         .unwrap();
 
     // Load the checkpoint into a fresh learner
@@ -139,8 +139,7 @@ fn checkpoint_restores_model_weights() {
         .model()
         .weight
         .val()
-        .into_data()
-        .to_vec::<f32>()
+        .try_into_vec_as::<f32>()
         .unwrap();
 
     assert_eq!(

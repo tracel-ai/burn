@@ -10,9 +10,8 @@ use alloc::sync::Arc;
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::rc::Rc as Arc;
 use burn_core::module::ParamId;
-use burn_core::tensor::quantization::{QuantParam, params_shape};
+use burn_core::tensor::quantization::quantized_data_len;
 use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
-use half::f16;
 
 /// Lazily produces a [`TensorSnapshot`]'s data, shared so that cloning a snapshot is cheap.
 ///
@@ -27,16 +26,6 @@ use half::f16;
 pub type DataFn = Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync>;
 #[cfg(not(target_has_atomic = "ptr"))]
 pub type DataFn = Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>;
-
-/// Returns the byte size of a quantization parameter type.
-// TODO: Add `size_bytes()` method to `QuantParam` in cubecl and use it here.
-const fn quant_param_size(param: QuantParam) -> usize {
-    match param {
-        QuantParam::F32 => core::mem::size_of::<f32>(),
-        QuantParam::F16 | QuantParam::BF16 => core::mem::size_of::<f16>(),
-        QuantParam::UE8M0 | QuantParam::UE4M3 => core::mem::size_of::<u8>(),
-    }
-}
 
 /// Error type for TensorSnapshot operations
 #[derive(Debug, Clone)]
@@ -265,43 +254,12 @@ impl TensorSnapshot {
     ///
     /// For quantized types (`QFloat`), this accounts for:
     /// - The quantized values (packed according to the quantization scheme)
-    /// - Quantization parameters (scale values appended directly after the values)
+    /// - Quantization parameters (scale values appended to the data), including the per-tensor
+    ///   scale of a two-level scheme
     pub fn data_len(&self) -> usize {
-        const BITS_PER_BYTE: usize = 8;
-
-        let num_elements: usize = self.shape.iter().product();
-
         match self.dtype {
-            DType::QFloat(scheme) => {
-                // Each storage element packs `num_quants` values into `size_bits_stored` bits.
-                // Round that width up to whole bytes: a `QuantStore::Native` Q4 or Q2 value is
-                // narrower than a byte but still occupies one, and dividing down reports zero.
-                //
-                // Packing is dimension-local, not flat: each line along the packed (last)
-                // dimension packs separately, mirroring the storage-shape computation at
-                // allocation, so a non-divisible extent pads once per line rather than once
-                // overall. A flat `num_elements.div_ceil(num_quants)` would under-count, e.g.
-                // a [3, 3] Q4 `PackedU32` tensor occupies 3 lines x 1 u32 = 12 value bytes,
-                // not ceil(9 / 8) * 4 = 8.
-                let num_quants = scheme.num_quants();
-                let num_storage_elements = match self.shape.last() {
-                    Some(&last) if num_quants > 1 && last > 0 => {
-                        (num_elements / last) * last.div_ceil(num_quants)
-                    }
-                    _ => num_elements.div_ceil(num_quants),
-                };
-                let value_bytes =
-                    num_storage_elements * scheme.size_bits_stored().div_ceil(BITS_PER_BYTE);
-
-                // Scales follow the values with nothing in between: `QuantizedBytes::new` appends
-                // them with `extend_from_byte_slice_aligned`, where the alignment constrains the
-                // allocation rather than the length, so it inserts no padding.
-                let num_params = params_shape(&self.shape, scheme.level).num_elements();
-                let scale_bytes = num_params * quant_param_size(scheme.param);
-
-                value_bytes + scale_bytes
-            }
-            _ => num_elements * self.dtype.size(),
+            DType::QFloat(scheme) => quantized_data_len(&scheme, &self.shape),
+            _ => self.shape.iter().product::<usize>() * self.dtype.size(),
         }
     }
 
@@ -431,6 +389,41 @@ mod tests {
         assert_eq!(data.dtype, DType::Bool(BoolStore::Native));
     }
 
+    /// `data_len` predicts the serialized size without materializing the tensor, and a mismatch
+    /// with what `TensorData::quantized` writes silently truncates or over-reserves on save.
+    #[test]
+    fn data_len_matches_quantized_bytes() {
+        use burn_core::tensor::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+
+        let base = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+
+        // 8 values in blocks of 4 lands on `QPARAM_ALIGN`, which would hide a padding assumption;
+        // 6 in blocks of 3 and 10 in blocks of 5 do not.
+        for (values, block) in [(8usize, 4usize), (6, 3), (10, 5)] {
+            let scales = vec![0.5f32; values / block];
+            let one_level = base.per_block([block as u8], ScaleDtype::UE4M3);
+            let two_level = base
+                .per_block([block as u8], ScaleDtype::UE4M3)
+                .per_tensor(ScaleDtype::F32);
+
+            for (scheme, global) in [(one_level, None), (two_level, Some(3.0f32))] {
+                let data =
+                    TensorData::quantized(vec![0i8; values], [values], scheme, &scales, global);
+                let snapshot =
+                    TensorSnapshot::from_data(data.clone(), vec![], vec![], ParamId::new());
+
+                assert_eq!(
+                    snapshot.data_len(),
+                    data.bytes.len(),
+                    "predicted size disagrees with the written bytes for {values} values \
+                     in blocks of {block}, {scheme:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn data_len() {
         let device = Device::default();
@@ -512,30 +505,6 @@ mod tests {
             vec![],
             ParamId::new(),
         ));
-    }
-
-    /// Packed quantized storage is dimension-local: each line along the packed (last)
-    /// dimension packs into whole storage elements on its own, so a non-divisible extent
-    /// pads per line. No current backend can materialize such a tensor (cubecl rejects
-    /// non-divisible extents at allocation, and the test backend rewrites packed schemes
-    /// to `Native`), so this pins the formula against a hand-computed layout instead of
-    /// against `to_data()`.
-    #[test]
-    fn data_len_packs_per_line_for_packed_stores() {
-        // Q4 in u32 words: 8 values per storage element, packed along the last dimension.
-        let scheme = QuantScheme::default().with_value(QuantValue::Q4S);
-        let snapshot = TensorSnapshot::from_closure(
-            Arc::new(|| Err(TensorSnapshotError::DataError("formula-only".to_string()))),
-            DType::QFloat(scheme),
-            shape![3, 3],
-            vec!["packed".to_string()],
-            vec![],
-            ParamId::new(),
-        );
-
-        // 3 lines x ceil(3 / 8) = 3 u32 words = 12 value bytes (a flat ceil(9 / 8) * 4
-        // would say 8), plus one tensor-level f32 scale.
-        assert_eq!(snapshot.data_len(), 12 + 4);
     }
 
     /// Quantized is the one family where `data_len()` reconstructs the layout instead of

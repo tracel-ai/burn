@@ -107,7 +107,7 @@ fn categorical_statistical_distribution() {
     let samples = probs.categorical(num_samples);
 
     let data: TensorData = samples.into_data();
-    let values = data.to_vec::<IntElem>().unwrap();
+    let values = data.try_to_vec::<IntElem>().unwrap();
 
     let count_zero = values.iter().filter(|&&v| v == 0).count();
     let ratio = count_zero as f64 / num_samples as f64;

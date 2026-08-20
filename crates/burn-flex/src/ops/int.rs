@@ -1192,7 +1192,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1i64, 2, -3], [3]));
         let result = Flex::int_into_float(t, FloatDType::F64);
         assert_eq!(result.dtype(), burn_backend::DType::F64);
-        let data: Vec<f64> = result.into_data().to_vec().unwrap();
+        let data: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1.0f64, 2.0, -3.0]);
     }
 
@@ -1201,7 +1201,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1u64, 2, 3], [3]));
         let big: u64 = (i64::MAX as u64) + 100;
         let result = Flex::int_add_scalar(t, burn_backend::Scalar::from(big));
-        let data: Vec<u64> = result.into_data().to_vec().unwrap();
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![big + 1, big + 2, big + 3]);
     }
 
@@ -1214,7 +1214,7 @@ mod tests {
             burn_backend::Scalar::from(big),
             burn_std::BoolStore::Native,
         );
-        let data: Vec<bool> = result.into_data().to_vec().unwrap();
+        let data: Vec<bool> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![false, true, false]);
     }
 
@@ -1223,7 +1223,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1i32, 2, 3, 4], [4]));
         let mask = FlexTensor::from_data(TensorData::new(vec![true, false, true, false], [4]));
         let result = Flex::int_mask_fill(t, mask, burn_backend::Scalar::from(0i64));
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![0, 2, 0, 4]);
     }
 
@@ -1232,7 +1232,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![10i16, 20, 30, 40], [4]));
         let mask = FlexTensor::from_data(TensorData::new(vec![false, true, false, true], [4]));
         let result = Flex::int_mask_fill(t, mask, burn_backend::Scalar::from(-1i64));
-        let data: Vec<i16> = result.into_data().to_vec().unwrap();
+        let data: Vec<i16> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![10, -1, 30, -1]);
     }
 
@@ -1241,7 +1241,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1u8, 2, 3, 4], [4]));
         let mask = FlexTensor::from_data(TensorData::new(vec![true, true, false, false], [4]));
         let result = Flex::int_mask_fill(t, mask, burn_backend::Scalar::from(255i64));
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![255, 255, 3, 4]);
     }
 
@@ -1250,7 +1250,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![100u32, 200, 300], [3]));
         let mask = FlexTensor::from_data(TensorData::new(vec![true, false, true], [3]));
         let result = Flex::int_mask_fill(t, mask, burn_backend::Scalar::from(0i64));
-        let data: Vec<u32> = result.into_data().to_vec().unwrap();
+        let data: Vec<u32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![0, 200, 0]);
     }
 
@@ -1260,7 +1260,7 @@ mod tests {
         let mask = FlexTensor::from_data(TensorData::new(vec![true, false, true, false], [4]));
         let v = FlexTensor::from_data(TensorData::new(vec![10i32, 20, 30, 40], [4]));
         let result = Flex::int_mask_where(t, mask, v);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![10, 2, 30, 4]);
     }
 
@@ -1270,7 +1270,7 @@ mod tests {
         let mask = FlexTensor::from_data(TensorData::new(vec![false, true, false, true], [4]));
         let v = FlexTensor::from_data(TensorData::new(vec![10u8, 20, 30, 40], [4]));
         let result = Flex::int_mask_where(t, mask, v);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1, 20, 3, 40]);
     }
 
@@ -1279,7 +1279,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![10i32, 20, 30, 40, 50, 60], [2, 3]));
         let indices = FlexTensor::from_data(TensorData::new(vec![2i64, 0, 1, 2], [2, 2]));
         let result = Flex::int_gather(1, t, indices);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![30, 10, 50, 60]);
     }
 
@@ -1288,7 +1288,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![10u16, 20, 30, 40, 50, 60], [2, 3]));
         let indices = FlexTensor::from_data(TensorData::new(vec![0i64, 1], [2]));
         let result = Flex::int_select(t, 1, indices);
-        let data: Vec<u16> = result.into_data().to_vec().unwrap();
+        let data: Vec<u16> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![10, 20, 40, 50]);
     }
 
@@ -1296,7 +1296,7 @@ mod tests {
     fn test_int_cumsum_i32() {
         let t = FlexTensor::from_data(TensorData::new(vec![1i32, 2, 3, 4], [4]));
         let result = Flex::int_cumsum(t, 0);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1, 3, 6, 10]);
     }
 
@@ -1304,7 +1304,7 @@ mod tests {
     fn test_int_cumprod_u8() {
         let t = FlexTensor::from_data(TensorData::new(vec![1u8, 2, 3, 4], [4]));
         let result = Flex::int_cumprod(t, 0);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1, 2, 6, 24]);
     }
 
@@ -1312,7 +1312,7 @@ mod tests {
     fn test_int_cummin_i32() {
         let t = FlexTensor::from_data(TensorData::new(vec![3i32, 1, 4, 1, 5], [5]));
         let result = Flex::int_cummin(t, 0);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![3, 1, 1, 1, 1]);
     }
 
@@ -1320,7 +1320,7 @@ mod tests {
     fn test_int_cummax_u16() {
         let t = FlexTensor::from_data(TensorData::new(vec![3u16, 1, 4, 1, 5], [5]));
         let result = Flex::int_cummax(t, 0);
-        let data: Vec<u16> = result.into_data().to_vec().unwrap();
+        let data: Vec<u16> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![3, 3, 4, 4, 5]);
     }
 
@@ -1330,7 +1330,7 @@ mod tests {
         let indices = FlexTensor::from_data(TensorData::new(vec![0i64, 2, 1], [1, 3]));
         let values = FlexTensor::from_data(TensorData::new(vec![10i32, 20, 30], [1, 3]));
         let result = Flex::int_scatter_add(1, t, indices, values);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![10, 30, 20]);
     }
 
@@ -1340,7 +1340,7 @@ mod tests {
         let indices = FlexTensor::from_data(TensorData::new(vec![0i64, 2], [2]));
         let values = FlexTensor::from_data(TensorData::new(vec![10u8, 20], [2]));
         let result = Flex::int_select_add(t, 0, indices, values);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![11, 2, 23]);
     }
 
@@ -1354,7 +1354,7 @@ mod tests {
         let device = crate::FlexDevice;
         let t = Flex::int_random(shape, dist, &device, IntDType::I32);
         assert_eq!(t.dtype(), DType::I32);
-        let data: Vec<i32> = t.into_data().to_vec().unwrap();
+        let data: Vec<i32> = t.into_data().try_into_vec().unwrap();
         assert!(data.iter().all(|&v| (0..=10).contains(&v)));
     }
 
@@ -1377,7 +1377,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![10i32, 20, 30], [3]));
         let result = Flex::int_mean(t);
         assert_eq!(result.dtype(), DType::I32);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![20]); // (10 + 20 + 30) / 3 = 20
     }
 }

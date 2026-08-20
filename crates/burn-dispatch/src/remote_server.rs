@@ -118,6 +118,10 @@ macro_rules! with_backend {
             DispatchDevice::Remote(_) => {
                 panic!("Cannot host a remote server on a remote device")
             }
+            #[cfg(feature = "capture")]
+            DispatchDevice::Capture(_) => {
+                panic!("Cannot host a remote server on a capture device")
+            }
             #[cfg(feature = "autodiff")]
             DispatchDevice::Autodiff(_) => {
                 unreachable!("Autodiff stripped by .inner() above")
