@@ -397,15 +397,21 @@ pub fn scale_size(dtype: ScaleDtype) -> usize {
 fn decode_scales(bytes: &[u8], dtype: ScaleDtype) -> Vec<f32> {
     match dtype {
         ScaleDtype::F32 => bytes
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|c| f32::from_ne_bytes([c[0], c[1], c[2], c[3]]))
             .collect(),
         ScaleDtype::F16 => bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| crate::f16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
         ScaleDtype::BF16 => bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| crate::bf16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
         ScaleDtype::UE4M3 => bytes.iter().map(|b| e4m3::from_bits(*b).to_f32()).collect(),
