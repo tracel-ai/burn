@@ -83,10 +83,7 @@ impl<O: core::fmt::Debug> Policy<O> {
 
         if let Some((id, length)) = self.found {
             // A plan covering `length` operations cannot be applied to a shorter
-            // segment: the executor walks the plan's ordering against the queue
-            // and would index past its end. The segment can end up shorter than
-            // the plan that was found for it when it is drained between the two,
-            // so this is checked rather than assumed.
+            // segment.
             if length <= operations.len() {
                 return Action::Execute(id);
             }
@@ -338,10 +335,6 @@ mod tests {
         assert_eq!(action, Action::Execute(id_1));
     }
 
-    /// A found plan is only returned while the segment still holds at least as many operations
-    /// as the plan covers. `OrderedExecution::execute_optimization` walks the plan's ordering
-    /// against the queue, so a longer plan would index past its end; the segment can end up
-    /// shorter than the plan found for it when it is drained in between.
     #[test]
     fn should_not_execute_a_plan_longer_than_the_segment() {
         let mut store = ExecutionPlanStore::<()>::default();
@@ -358,22 +351,16 @@ mod tests {
             policy.update(&store, operation);
         }
 
-        // The plan matched, so a segment that still holds all three runs it.
         assert_eq!(
             policy.action(&store, &stream.operations[0..3], ExecutionMode::Lazy),
             Action::Execute(id),
         );
-
-        // The same policy state, asked about a segment holding fewer operations than the plan
-        // covers.
         assert_ne!(
             policy.action(&store, &stream.operations[0..1], ExecutionMode::Lazy),
             Action::Execute(id),
         );
     }
 
-    /// The relative shape id space a plan needs is the max over every optimization it holds,
-    /// including the ones nested in a [`Composed`](ExecutionStrategy::Composed) strategy.
     #[test]
     fn strategy_reports_the_highest_relative_shape_id_it_holds() {
         let strategy = ExecutionStrategy::Composed(vec![
@@ -393,7 +380,6 @@ mod tests {
         assert_eq!(strategy.max_relative_shape_id(), Some(7));
     }
 
-    /// An operations-only strategy names no shape, so it fits any stream.
     #[test]
     fn operations_only_strategy_names_no_relative_shape_id() {
         let strategy = ExecutionStrategy::<ShapeIds>::operations(3);

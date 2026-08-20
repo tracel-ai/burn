@@ -29,10 +29,6 @@ pub(crate) enum ExecutionStrategy<O> {
 }
 
 impl<O: crate::NumOperations> ExecutionStrategy<O> {
-    /// The highest relative shape id any optimization in this strategy names.
-    ///
-    /// See [`NumOperations::max_relative_shape_id`](crate::NumOperations::max_relative_shape_id)
-    /// for why a cached plan carries this constraint.
     pub(crate) fn max_relative_shape_id(&self) -> Option<usize> {
         match self {
             Self::Optimization { opt, .. } => opt.max_relative_shape_id(),

@@ -25,9 +25,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
     ) {
         let plan = store.get_mut_unchecked(id);
 
-        // A cached plan may name relative shape ids this stream never assigned — the id space
-        // depends on how many *distinct* dimension values the producing stream carried, and a
-        // block's reference layout can name an id none of the plan's own operations do. Matching
+        // A cached plan may name relative shape ids this stream never assigned. Matching
         // on operations therefore does not imply the plan fits. When it does not, run the very
         // same operations in submission order instead: always a legal order, just unfused.
         let assigned = self.converter.num_relative_shapes();
