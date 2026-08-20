@@ -1126,7 +1126,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 // Unique indices are required for this backward formula.
                 // Forward: out[index] = tensor[index] * value.
                 // Backward:
-                //   grad_tensor = grad * scatter(ones, indices, value, Assign)
+                //   grad_tensor = grad * scatter(ones, indices, value, Mul)
                 //   grad_value  = gather(grad, indices) * gather(tensor, indices)
                 #[derive(Debug)]
                 struct ScatterMul;
@@ -1162,7 +1162,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                                     ones,
                                     indices_4lhs.unwrap(),
                                     value_state.unwrap(),
-                                    IndexingUpdateOp::Assign,
+                                    IndexingUpdateOp::Mul,
                                 );
                                 B::float_mul(grad, multiplier)
                             },
@@ -1799,7 +1799,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 // Unique indices are required for this backward formula.
                 // Forward: out[index] = tensor[index] * value.
                 // Backward:
-                //   grad_tensor = grad * select_assign(ones, indices, value, Assign)
+                //   grad_tensor = grad * select_assign(ones, indices, value, Mul)
                 //   grad_value  = select(grad, indices) * select(tensor, indices)
                 #[derive(Debug)]
                 struct IndexSelectDimAssignMul;
@@ -1857,7 +1857,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                                     dim,
                                     indices_4lhs.unwrap(),
                                     value_state.unwrap(),
-                                    IndexingUpdateOp::Assign,
+                                    IndexingUpdateOp::Mul,
                                 );
                                 B::float_mul(grad, multiplier)
                             },
