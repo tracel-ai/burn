@@ -18,7 +18,7 @@ use burn_ir::{TensorId, TensorIr};
 use burn_std::Shape;
 use burn_std::{
     Strides,
-    tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action},
+    tensor::{ReshapeAction, contiguous_strides, is_contiguous, is_dense, reshape_action},
 };
 use cubecl::{Runtime, client::ComputeClient};
 
@@ -269,7 +269,16 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     };
 
                     match block.settings.ref_layout {
-                        RefLayoutSetting::Any => set_ref_as_concrete(block_plan),
+                        RefLayoutSetting::Any => {
+                            // A padded reference would make the kernel walk a prefix of the
+                            // buffer: the launch is sized from the logical element count while a
+                            // position indexes the buffer.
+                            if is_dense(&reference.global_ir.shape, &reference.handle.strides) {
+                                set_ref_as_concrete(block_plan)
+                            } else {
+                                set_ref_as_virtual(block_plan)
+                            }
+                        }
                         RefLayoutSetting::SameAsBlock { .. } => {
                             // Skip set ref.
                         }

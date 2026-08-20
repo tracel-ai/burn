@@ -41,6 +41,27 @@ pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     true
 }
 
+/// Check if the current tensor fills its buffer without gaps.
+///
+/// Unlike [is_contiguous], this holds for any ordering of the dimensions: a permuted tensor is
+/// dense, a tensor whose rows were padded by a pitched allocator is not. Dimensions of size one
+/// carry no information about the layout and are ignored.
+pub fn is_dense(shape: &[usize], strides: &[usize]) -> bool {
+    let mut remaining = shape.iter().filter(|&&dim| dim > 1).count();
+    let mut expected = 1;
+
+    while remaining > 0 {
+        let Some(dim) = (0..shape.len()).find(|&i| shape[i] > 1 && strides[i] == expected) else {
+            return false;
+        };
+
+        expected *= shape[dim];
+        remaining -= 1;
+    }
+
+    true
+}
+
 /// Computes the strides for a contiguous tensor with the given shape.
 ///
 /// In a contiguous row-major tensor, the stride for each dimension
@@ -326,6 +347,28 @@ mod tests {
         // parts; the leading real dim keeps its stride.
         let strides = split_strides(&[26, 16], &[1, 0], &[26, 4, 4]);
         assert_eq!(strides.as_ref(), &[1, 0, 0]);
+    }
+
+    #[test]
+    fn test_is_dense_contiguous() {
+        assert!(is_dense(&[2, 2, 2, 2], &[8, 4, 2, 1]));
+    }
+
+    #[test]
+    fn test_is_dense_permuted() {
+        assert!(is_dense(&[2, 2, 2, 2], &[8, 1, 4, 2]));
+    }
+
+    #[test]
+    fn test_is_dense_pitched_row() {
+        assert!(!is_dense(&[2, 2, 2, 2], &[16, 8, 4, 1]));
+        assert!(!is_dense(&[1, 8, 6, 6], &[384, 48, 8, 1]));
+    }
+
+    #[test]
+    fn test_is_dense_unit_dims_carry_no_layout() {
+        // A unit dim can hold any stride, a broadcast 0 included, without leaving a gap.
+        assert!(is_dense(&[1, 4, 1], &[0, 1, 7]));
     }
 
     #[test]
