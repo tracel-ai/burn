@@ -11,7 +11,7 @@ use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
-    AccessError, BoolStore, Bytes, ExecutionError, QuantLevel, QuantMode, QuantScheme, QuantValue,
+    AccessError, BoolStore, Bytes, ExecutionError, QuantMode, QuantScheme, QuantValue,
     QuantizedBytes, Reader, Shape, Writer, bf16, f16,
 };
 
@@ -146,11 +146,12 @@ impl TensorData {
         shape: S,
         scheme: QuantScheme,
         qparams: &[f32],
+        global: Option<f32>,
     ) -> Self {
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
 
-        let q_bytes = QuantizedBytes::new(value, scheme, qparams);
+        let q_bytes = QuantizedBytes::new(value, shape.clone(), scheme, qparams, global);
 
         Self {
             bytes: q_bytes.bytes,
@@ -486,7 +487,6 @@ impl core::fmt::Display for TensorData {
             DType::Bool(BoolStore::U32) => format!("{:?}", self.as_slice::<u32>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     value:
                         QuantValue::Q8F
@@ -501,7 +501,6 @@ impl core::fmt::Display for TensorData {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 },
                 QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
@@ -510,10 +509,10 @@ impl core::fmt::Display for TensorData {
                         unimplemented!("Can't format yet");
                     }
                 QuantScheme {
-                    level: QuantLevel::BlockTensor { .. },
+                    mode: QuantMode::Lookup,
                     ..
                 } => {
-                    unimplemented!("two-level quantization is not supported yet")
+                    format!("<lookup-quantized> {scheme:?}")
                 }
             },
         };
@@ -862,7 +861,7 @@ mod tests {
             })
         );
 
-        let quantized = TensorData::quantized(vec![0i8], [1], scheme, &[1.0]);
+        let quantized = TensorData::quantized(vec![0i8], [1], scheme, &[1.0], None);
         assert_eq!(
             quantized.try_cast(DType::F32),
             Err(DataError::UnsupportedConversion {

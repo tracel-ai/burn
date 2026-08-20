@@ -7,8 +7,7 @@ use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut};
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
-    BoolStore, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Reader, Writer,
-    bf16, f16,
+    BoolStore, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Reader, Writer, bf16, f16,
 };
 
 use super::{DataError, TensorData};
@@ -174,7 +173,6 @@ impl TensorData {
                 ),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::Q8F
@@ -190,7 +188,7 @@ impl TensorData {
                         let q_bytes = QuantizedBytes {
                             bytes: self.bytes.clone(),
                             scheme,
-                            num_elements: self.num_elements(),
+                            shape: self.shape.clone(),
                         };
                         let (values, _) = q_bytes.into_vec_i8();
 
@@ -203,7 +201,6 @@ impl TensorData {
                         )
                     }
                     QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value:
                             QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
@@ -212,10 +209,10 @@ impl TensorData {
                         unimplemented!("Not yet implemented for iteration");
                     }
                     QuantScheme {
-                        level: QuantLevel::BlockTensor { .. },
+                        mode: QuantMode::Lookup,
                         ..
                     } => {
-                        unimplemented!("two-level quantization is not supported yet")
+                        unimplemented!("lookup quantization is not supported for iteration");
                     }
                 },
             }

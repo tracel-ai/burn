@@ -2,7 +2,7 @@ use super::init_matmul_output;
 use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
-use burn_std::{MatmulTransformAnalysis, MatmulTransformPolicy, QuantLevel};
+use burn_std::{MatmulTransformAnalysis, MatmulTransformPolicy};
 use cubek::{
     matmul::{
         definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
@@ -34,15 +34,35 @@ impl Default for MatmulStrategy {
     }
 }
 
+fn is_two_level<R: CubeRuntime>(tensor: &CubeTensor<R>) -> bool {
+    match tensor.dtype {
+        DType::QFloat(scheme) => burn_backend::quantization::global_scale_dtype(&scheme).is_some(),
+        _ => false,
+    }
+}
+
+fn maybe_dequantize<R: CubeRuntime>(tensor: CubeTensor<R>, dtype: DType) -> CubeTensor<R> {
+    if is_two_level(&tensor) {
+        dequantize(tensor, dtype)
+    } else {
+        tensor
+    }
+}
+
 /// Launch a matmul kernel using the given strategy.
 pub fn matmul<R: CubeRuntime>(
-    mut lhs: CubeTensor<R>,
+    lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
     strategy: MatmulStrategy,
     out_dtype: DType,
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
+
+    // No quantized matmul kernel applies a per-tensor scale, and the autotune candidates panic on
+    // the level rather than decline it, taking the whole tuning run down with them.
+    let mut lhs = maybe_dequantize(lhs, out_dtype);
+    let rhs = maybe_dequantize(rhs, out_dtype);
 
     // A broadcast-rhs batched matmul that would tile poorly is folded into a
     // single matmul: `[.., b, m, k] @ [.., 1, k, n]` runs as `[.., 1, b*m, k]`
@@ -142,9 +162,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
         ),
         Some((data, scale)) => {
             // Extremely hacky fix to ensure naive can run in every case
-            if matches!(strategy, Strategy::Naive)
-                && matches!(rhs.scheme().level, QuantLevel::Block(_))
-            {
+            if matches!(strategy, Strategy::Naive) && rhs.scheme().block_size().is_some() {
                 rhs = dequantize(rhs.clone(), lhs_dtype);
                 let rhs_dtype = rhs.dtype;
                 (
