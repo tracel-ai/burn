@@ -550,6 +550,38 @@ fn is_contiguous_stride(shape: &[usize], stride: &[usize]) -> bool {
     true
 }
 
+fn contiguous_tensor_bytes<'a>(
+    data: &'a [u8],
+    shape: &[usize],
+    storage_offset: usize,
+    element_size: usize,
+    num_elements: usize,
+) -> std::result::Result<&'a [u8], crate::TensorSnapshotError> {
+    let elements_to_read = if shape.contains(&0) { 0 } else { num_elements };
+    let byte_start = storage_offset.checked_mul(element_size).ok_or_else(|| {
+        crate::TensorSnapshotError::DataError(
+            "Tensor byte offset calculation overflows usize".to_string(),
+        )
+    })?;
+    let byte_len = elements_to_read.checked_mul(element_size).ok_or_else(|| {
+        crate::TensorSnapshotError::DataError(
+            "Tensor byte length calculation overflows usize".to_string(),
+        )
+    })?;
+    let byte_end = byte_start.checked_add(byte_len).ok_or_else(|| {
+        crate::TensorSnapshotError::DataError(
+            "Tensor byte range calculation overflows usize".to_string(),
+        )
+    })?;
+
+    data.get(byte_start..byte_end).ok_or_else(|| {
+        crate::TensorSnapshotError::DataError(format!(
+            "Contiguous tensor byte range {byte_start}..{byte_end} extends beyond {} available storage bytes",
+            data.len()
+        ))
+    })
+}
+
 /// Gather a non-contiguous storage view into logical row-major byte order.
 ///
 /// Returns `None` for an already-contiguous layout so the existing zero-copy slice path is used.
@@ -799,23 +831,15 @@ fn rebuild_tensor_impl(
                 let data_slice = if let Some(ref reordered) = reordered {
                     reordered.as_slice()
                 } else {
-                    // Apply storage offset for contiguous tensors.
-                    let offset_bytes =
-                        storage_offset.checked_mul(element_size).ok_or_else(|| {
-                            crate::TensorSnapshotError::DataError(
-                                "Tensor byte offset calculation overflows usize".to_string(),
-                            )
-                        })?;
-                    if offset_bytes >= data.len() {
-                        return Ok(TensorData::new(
-                            vec![0.0f32; num_elements],
-                            shape_clone.clone(),
-                        ));
-                    }
-                    &data[offset_bytes..]
+                    contiguous_tensor_bytes(
+                        &data,
+                        &shape_clone,
+                        storage_offset,
+                        element_size,
+                        num_elements,
+                    )?
                 };
-                let available_elements = data_slice.len() / element_size;
-                let elements_to_read = num_elements.min(available_elements);
+                let elements_to_read = data_slice.len() / element_size;
 
                 // Convert bytes to the appropriate type
                 match dtype {
@@ -1795,6 +1819,18 @@ mod tests {
         assert!(matches!(
             err,
             crate::TensorSnapshotError::DataError(msg) if msg.contains("beyond")
+        ));
+
+        let short_contiguous = contiguous_tensor_bytes(&[0; 4], &[2], 0, 4, 2);
+        assert!(matches!(
+            short_contiguous,
+            Err(crate::TensorSnapshotError::DataError(msg)) if msg.contains("beyond")
+        ));
+
+        let offset_past_storage = contiguous_tensor_bytes(&[0; 4], &[1], 1, 4, 1);
+        assert!(matches!(
+            offset_past_storage,
+            Err(crate::TensorSnapshotError::DataError(msg)) if msg.contains("beyond")
         ));
     }
 }
