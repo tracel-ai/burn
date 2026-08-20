@@ -47,16 +47,27 @@ pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 /// dense, a tensor whose rows were padded by a pitched allocator is not. Dimensions of size one
 /// carry no information about the layout and are ignored.
 pub fn is_dense(shape: &[usize], strides: &[usize]) -> bool {
-    let mut remaining = shape.iter().filter(|&&dim| dim > 1).count();
+    if shape.len() != strides.len() {
+        return false;
+    }
+
+    let mut dims: SmallVec<[(usize, usize); 5]> = shape
+        .iter()
+        .zip(strides)
+        .filter(|&(&dim, _)| dim > 1)
+        .map(|(&dim, &stride)| (dim, stride))
+        .collect();
+
+    dims.sort_unstable_by_key(|&(_, stride)| stride);
+
     let mut expected = 1;
 
-    while remaining > 0 {
-        let Some(dim) = (0..shape.len()).find(|&i| shape[i] > 1 && strides[i] == expected) else {
+    for (dim, stride) in dims {
+        if stride != expected {
             return false;
-        };
+        }
 
-        expected *= shape[dim];
-        remaining -= 1;
+        expected *= dim;
     }
 
     true
@@ -369,6 +380,11 @@ mod tests {
     fn test_is_dense_unit_dims_carry_no_layout() {
         // A unit dim can hold any stride, a broadcast 0 included, without leaving a gap.
         assert!(is_dense(&[1, 4, 1], &[0, 1, 7]));
+    }
+
+    #[test]
+    fn test_is_dense_rank_mismatch() {
+        assert!(!is_dense(&[2, 3], &[1]));
     }
 
     #[test]
