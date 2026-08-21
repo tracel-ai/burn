@@ -3,7 +3,7 @@
 
 use super::*;
 use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
-use burn_tensor::{TensorData, Tolerance};
+use burn_tensor::{Device, TensorData, Tolerance};
 
 /// `cat` on dim 0 followed by an element-wise op should collapse into a single
 /// ElementWise fused kernel containing both operations.
@@ -338,4 +338,64 @@ fn cat_output_broadcast_by_elementwise_computes_correctly() {
             "broadcast cat should be part of a fused block\n\n{tables}",
         );
     });
+}
+
+/// A concatenation whose operands are permuted votes for their layout rather than
+/// keeping the contiguous one, so `concat` has to reach the vectorization axis
+/// through the block's reference instead of assuming the last dimension.
+///
+/// This is the decoder shape: two channels-last maps joined along the channel axis
+/// and handed to a convolution, which wants them channels-last too.
+#[test]
+fn cat_of_permuted_operands_is_correct_along_every_axis() {
+    let device: Device = Default::default();
+
+    // Stored channels-last, presented as NCHW — what a convolution hands its
+    // successor, and what makes the block's reference permuted.
+    let nhwc = |data: [[[[f32; 3]; 2]; 2]; 1]| {
+        let tensor = TestTensor::<4>::from_data(TensorData::from(data), &device);
+        device.sync().unwrap();
+        tensor.permute([0, 3, 1, 2])
+    };
+
+    // [1, h=2, w=2, c=3] each, so the permuted views are [1, 3, 2, 2].
+    let a = nhwc([[
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]],
+    ]]);
+    let b = nhwc([[
+        [[101.0, 102.0, 103.0], [104.0, 105.0, 106.0]],
+        [[107.0, 108.0, 109.0], [110.0, 111.0, 112.0]],
+    ]]);
+
+    for (dim, expected) in [
+        // Along the channel axis, which is the innermost one in memory: a vector
+        // spans both operands.
+        (
+            1,
+            TensorData::from([[
+                [[1.0f32, 4.0], [7.0, 10.0]],
+                [[2.0, 5.0], [8.0, 11.0]],
+                [[3.0, 6.0], [9.0, 12.0]],
+                [[101.0, 104.0], [107.0, 110.0]],
+                [[102.0, 105.0], [108.0, 111.0]],
+                [[103.0, 106.0], [109.0, 112.0]],
+            ]]),
+        ),
+        // Along a spatial axis, which is not the innermost one: each vector comes
+        // from a single operand.
+        (
+            2,
+            TensorData::from([[
+                [[1.0f32, 4.0], [7.0, 10.0], [101.0, 104.0], [107.0, 110.0]],
+                [[2.0, 5.0], [8.0, 11.0], [102.0, 105.0], [108.0, 111.0]],
+                [[3.0, 6.0], [9.0, 12.0], [103.0, 106.0], [109.0, 112.0]],
+            ]]),
+        ),
+    ] {
+        let out = TestTensor::cat(vec![a.clone(), b.clone()], dim).mul_scalar(1.0);
+
+        out.into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+    }
 }
