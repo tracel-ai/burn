@@ -108,6 +108,45 @@ fn broadcast_elemwise_writes_inplace_and_computes_correctly() {
     });
 }
 
+/// A zero stride on an extent-one dimension must not make generic fused offset
+/// calculation divide by zero.
+///
+/// On CubeCL, repeating a singleton dimension once is a metadata-only operation that
+/// leaves the shape unchanged and gives that dimension stride zero. Consuming the view
+/// makes it a candidate for in-place output reuse; adding the differently shaped bias
+/// then exercises generic (`LayoutInfo::Unknown`) offset calculation.
+#[test]
+fn zero_stride_singleton_with_broadcast_computes_correctly() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = Default::default();
+
+        let bias = TestTensor::<3>::from_data(
+            TensorData::from([[[10.0], [20.0], [30.0], [40.0]]]),
+            &device,
+        );
+        let tensor = TestTensor::<3>::from_data(
+            TensorData::from([[[1.0], [2.0], [3.0], [4.0]], [[5.0], [6.0], [7.0], [8.0]]]),
+            &device,
+        )
+        .repeat_dim(2, 1);
+        device.sync().unwrap();
+
+        let inspector = FusionInspector::install(stream);
+        let out = (tensor + bias).mul_scalar(2.0);
+        out.into_data().assert_approx_eq::<FloatElem>(
+            &TensorData::from([
+                [[22.0], [44.0], [66.0], [88.0]],
+                [[30.0], [52.0], [74.0], [96.0]],
+            ]),
+            Tolerance::default(),
+        );
+        device.sync().unwrap();
+
+        assert_all_fused(&inspector.drain(), "zero-stride broadcast elemwise");
+    });
+}
+
 /// A tensor that stays alive (read-only use) must NOT be written in-place: its values
 /// must survive the op. Asserted through values — the alias counter is process-global,
 /// so "did not move" can't be checked under parallel tests, but a wrong alias would
