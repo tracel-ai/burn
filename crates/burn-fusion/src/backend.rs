@@ -215,6 +215,11 @@ pub trait NumOperations: core::fmt::Debug {
     }
     /// The name of the optimization.
     fn name(&self) -> &'static str;
+    /// The highest relative shape id this optimization names, if it names any.
+    /// `None` means the optimization names no relative shape, so it fits any stream.
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        None
+    }
 }
 
 /// The optimization created from a [fuser](OperationFuser).

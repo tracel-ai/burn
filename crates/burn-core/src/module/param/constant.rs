@@ -135,7 +135,7 @@ impl<const D: usize, K: Basic> ModuleDisplay for Tensor<D, K> {}
 
 impl<const D: usize, K: Autodiff> AutodiffModule for Tensor<D, K> {
     fn valid(&self) -> Self {
-        self.clone().inner()
+        self.clone().no_grad()
     }
 
     fn from_inner(tensor: Self) -> Self {

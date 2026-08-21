@@ -708,7 +708,7 @@ impl AutodiffBackend for Dispatch {
         let checkpointing = if let Some(strategy) = checkpointing {
             Some(strategy)
         } else {
-            Some(crate::CheckpointingStrategy::None)
+            Some(crate::GradientCheckpointingStrategy::Disabled)
         };
         DispatchTensor {
             kind,
@@ -773,7 +773,7 @@ impl AutodiffBackend for Dispatch {
         let checkpointing = if let Some(strategy) = checkpointing {
             Some(strategy)
         } else {
-            Some(crate::CheckpointingStrategy::None)
+            Some(crate::GradientCheckpointingStrategy::Disabled)
         };
         DispatchTensor {
             kind,

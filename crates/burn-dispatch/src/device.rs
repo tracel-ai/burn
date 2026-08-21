@@ -137,15 +137,36 @@ impl DispatchDevice {
 /// A wrapper that enables automatic differentiation for a [`DispatchDevice`].
 ///
 /// Use [`DispatchDevice::autodiff`] to construct this type.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct AutodiffDevice {
     pub(crate) inner: Box<DispatchDevice>,
-    pub(crate) checkpointing: CheckpointingStrategy,
+    pub(crate) checkpointing: GradientCheckpointingStrategy,
+}
+
+/// Compares on hardware identity only, ignoring the checkpointing strategy, so that this agrees
+/// with [`DispatchDevice`]'s own [`PartialEq`] — which has to ignore it, since comparing an
+/// `Autodiff` device against a raw one has no strategy to compare against. A derived impl would
+/// make `Autodiff(a) == Autodiff(b)` disagree with `DispatchDevice::Autodiff(a) ==
+/// DispatchDevice::Autodiff(b)`.
+///
+/// Use [`gradient_checkpointing_strategy`](Self::gradient_checkpointing_strategy) when the
+/// strategy is what you actually need to compare.
+#[cfg(feature = "autodiff")]
+impl PartialEq for AutodiffDevice {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
 }
 
 #[cfg(feature = "autodiff")]
+impl Eq for AutodiffDevice {}
+
+#[cfg(feature = "autodiff")]
 impl AutodiffDevice {
-    pub(crate) fn new(device: DispatchDevice, checkpointing: CheckpointingStrategy) -> Self {
+    pub(crate) fn new(
+        device: DispatchDevice,
+        checkpointing: GradientCheckpointingStrategy,
+    ) -> Self {
         Self {
             inner: Box::new(device),
             checkpointing,
@@ -155,6 +176,11 @@ impl AutodiffDevice {
     /// Returns the underlying device, removing the autodiff capability.
     pub fn inner(self) -> DispatchDevice {
         *self.inner
+    }
+
+    /// Returns the gradient checkpointing strategy.
+    pub fn gradient_checkpointing_strategy(&self) -> GradientCheckpointingStrategy {
+        self.checkpointing
     }
 }
 
@@ -170,24 +196,26 @@ impl core::ops::Deref for AutodiffDevice {
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-/// Checkpointing strategy for autodiff.
+/// Gradient checkpointing strategy for autodiff.
 #[repr(u8)]
-pub enum CheckpointingStrategy {
+pub enum GradientCheckpointingStrategy {
+    /// Recompute selected activations during backpropagation to reduce peak memory usage.
     Balanced,
+    /// Disable gradient checkpointing while retaining autodiff tracking.
     #[default]
-    None,
+    Disabled,
 }
 
 #[cfg(feature = "autodiff")]
 pub(crate) fn validate_checkpointing(
-    lhs: Option<crate::CheckpointingStrategy>,
-    rhs: Option<crate::CheckpointingStrategy>,
-) -> Option<crate::CheckpointingStrategy> {
+    lhs: Option<crate::GradientCheckpointingStrategy>,
+    rhs: Option<crate::GradientCheckpointingStrategy>,
+) -> Option<crate::GradientCheckpointingStrategy> {
     match (lhs, rhs) {
         (Some(lhs), Some(rhs)) => {
             assert_eq!(
                 lhs, rhs,
-                "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
+                "Gradient checkpointing strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
             );
             Some(lhs)
         }
@@ -229,7 +257,11 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Capture(device) => f.debug_tuple("Capture").field(device).finish(),
             #[cfg(feature = "autodiff")]
             // Format without `AutodiffDevice` wrapper
-            Self::Autodiff(device) => f.debug_tuple("Autodiff").field(&device.inner).finish(),
+            Self::Autodiff(device) => f
+                .debug_struct("Autodiff")
+                .field("device", &device.inner)
+                .field("checkpointing", &device.checkpointing)
+                .finish(),
         }
     }
 }
@@ -371,7 +403,9 @@ impl PartialEq for DispatchDevice {
         match (self, other) {
             // If both are Autodiff, compare the inner devices
             #[cfg(feature = "autodiff")]
-            (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => a == b,
+            (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => {
+                a.inner.as_ref() == b.inner.as_ref()
+            }
             // If one is Autodiff, compare it to the raw device
             #[cfg(feature = "autodiff")]
             (DispatchDevice::Autodiff(a), b) => a.inner.as_ref() == b,
@@ -421,13 +455,14 @@ impl DispatchDevice {
     #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
-        Self::autodiff_checkpointed(device, CheckpointingStrategy::None)
+        Self::autodiff_with_gradient_checkpointing(device, GradientCheckpointingStrategy::Disabled)
     }
     #[cfg(feature = "autodiff")]
-    /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
-    pub fn autodiff_checkpointed(
+    /// Creates a new [`DispatchDevice`] with automatic differentiation and the provided gradient
+    /// checkpointing strategy enabled.
+    pub fn autodiff_with_gradient_checkpointing(
         device: impl Into<DispatchDevice>,
-        checkpointing: CheckpointingStrategy,
+        checkpointing: GradientCheckpointingStrategy,
     ) -> DispatchDevice {
         let device = device.into();
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))

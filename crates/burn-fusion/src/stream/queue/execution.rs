@@ -1,4 +1,6 @@
 use burn_ir::{HandleContainer, TensorStatus};
+use burn_std::config::{fusion::FusionLogLevel, log_fusion};
+use std::sync::Arc;
 
 use crate::{
     FusionRuntime, UnfusedOp,
@@ -22,6 +24,42 @@ impl<R: FusionRuntime> OperationQueue<R> {
         stream_id: StreamId,
     ) {
         let plan = store.get_mut_unchecked(id);
+
+        // A cached plan may name relative shape ids this stream never assigned. Matching
+        // on operations therefore does not imply the plan fits. When it does not, run the very
+        // same operations in submission order instead: always a legal order, just unfused.
+        //
+        // The bound is what the plan's own operations assigned, not what the whole queue did:
+        // plans usually fire from `ExecutionTrigger::OnOperations`, i.e. exactly when later
+        // operations are already queued behind them, and those would otherwise inflate the
+        // count enough to let an unfitting plan through.
+        let len = plan.optimization.ordering.len();
+        let assigned = match len.checked_sub(1).and_then(|i| self.shapes_assigned.get(i)) {
+            Some(assigned) => *assigned,
+            // No operation to bound against: nothing but shape id 0 can be legal.
+            None => 1,
+        };
+        if let Some(max_id) = plan.optimization.strategy.max_relative_shape_id()
+            && max_id >= assigned
+        {
+            log_fusion(FusionLogLevel::Medium, || {
+                format!(
+                    "[plan] #{id} needs relative shape id {max_id} but the stream assigned \
+                     {assigned}; running its {len} operations unfused"
+                )
+            });
+
+            let ordering: Vec<usize> = (0..len).collect();
+            let mut fallback = BlockOptimization::new(
+                ExecutionStrategy::Operations {
+                    ordering: Arc::new(ordering.clone()),
+                },
+                ordering,
+            );
+            self.execute_block_optimization(&mut fallback, handles, stream_id);
+            return;
+        }
+
         self.execute_block_optimization(&mut plan.optimization, handles, stream_id);
     }
 
@@ -77,11 +115,14 @@ impl<R: FusionRuntime> OperationQueue<R> {
 
     fn reset_relative(&mut self) {
         self.relative.clear();
+        self.shapes_assigned.clear();
         self.converter.clear();
 
         for node in self.global.iter() {
             let relative = node.to_relative(&mut self.converter);
             self.relative.push(relative);
+            self.shapes_assigned
+                .push(self.converter.num_relative_shapes());
         }
     }
 }

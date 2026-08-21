@@ -6,7 +6,7 @@ use burn_autodiff::checkpoint::strategy::{
 };
 use burn_backend::{Backend, BackendTypes, DType, Shape, TensorMetadata};
 
-use crate::CheckpointingStrategy;
+use crate::GradientCheckpointingStrategy;
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
@@ -211,7 +211,7 @@ pub struct DispatchTensor {
     /// Holds the autodiff checkpointing strategy.
     /// - `None`: tensor is not tracked by autodiff
     /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
-    pub checkpointing: Option<CheckpointingStrategy>,
+    pub checkpointing: Option<GradientCheckpointingStrategy>,
 }
 
 /// Internal representation of a [`DispatchTensor`].
@@ -477,18 +477,18 @@ impl DispatchTensorKind {
 }
 
 #[cfg(feature = "autodiff")]
-trait IntoCheckpointingStrategy {
-    const STRATEGY: CheckpointingStrategy;
+trait IntoGradientCheckpointingStrategy {
+    const STRATEGY: GradientCheckpointingStrategy;
 }
 
 #[cfg(feature = "autodiff")]
-impl IntoCheckpointingStrategy for NoCheckpointing {
-    const STRATEGY: CheckpointingStrategy = CheckpointingStrategy::None;
+impl IntoGradientCheckpointingStrategy for NoCheckpointing {
+    const STRATEGY: GradientCheckpointingStrategy = GradientCheckpointingStrategy::Disabled;
 }
 
 #[cfg(feature = "autodiff")]
-impl IntoCheckpointingStrategy for BalancedCheckpointing {
-    const STRATEGY: CheckpointingStrategy = CheckpointingStrategy::Balanced;
+impl IntoGradientCheckpointingStrategy for BalancedCheckpointing {
+    const STRATEGY: GradientCheckpointingStrategy = GradientCheckpointingStrategy::Balanced;
 }
 
 /// Trait to execute runtime routing conversions between the dynamic dispatch layer and specific backends.
@@ -531,7 +531,7 @@ macro_rules! impl_dispatch_conversion {
         }
 
         #[cfg(all($cfg, feature = "autodiff"))]
-        impl<C: CheckpointStrategy + IntoCheckpointingStrategy>
+        impl<C: CheckpointStrategy + IntoGradientCheckpointingStrategy>
             DispatchKindConversion<Autodiff<$backend, C>> for DispatchTensor
         {
             fn try_into_backend(
