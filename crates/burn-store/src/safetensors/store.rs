@@ -921,6 +921,10 @@ fn to_safetensors_views(
 fn lazy_tensors<S>(source: Arc<S>) -> Result<Vec<PackTensor>, SafetensorsStoreError>
 where
     S: Deref<Target = [u8]> + Send + Sync + 'static,
+    // Each tensor's provider keeps its own handle on the container. On a target without
+    // atomic CAS there is no `Arc` and this alias is a `Box`, so the bound lands on `S`
+    // itself and the handle is a copy of the buffer rather than a share of it.
+    Arc<S>: Clone,
 {
     // Parse to get metadata (with a memory map, safetensors won't copy data)
     let tensors = safetensors::SafeTensors::deserialize(&source)?;
