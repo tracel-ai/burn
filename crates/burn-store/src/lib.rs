@@ -76,7 +76,8 @@
 //! - `std`: Enables file I/O and other std-only features (default)
 //! - `safetensors`: Enables SafeTensors format support (default)
 //! - `pytorch`: Enables loading PyTorch `.pt`/`.pth` files (default)
-//! - `memmap`: Memory-maps files on load rather than reading them (default)
+//! - `memmap`: Implied by `std` and adds nothing on top of it. Loading a SafeTensors file
+//!   memory-maps it whenever `std` is on, regardless of this flag.
 
 extern crate alloc;
 

@@ -16,13 +16,14 @@ use core::fmt;
 use core::ops::Deref;
 use hashbrown::HashMap;
 
-// Arc is only available on targets with atomic pointers
+// `alloc::sync::Arc` needs atomic CAS. A target without it has no threads to share a
+// container across, so `Rc` stands in: the same sharing, without the atomics. `Box` would
+// not do, since every tensor's provider holds its own handle on the container and cloning a
+// `Box` copies the whole buffer.
+#[cfg(not(target_has_atomic = "ptr"))]
+use alloc::rc::Rc as Arc;
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
-
-// For targets without atomic pointers, we use Box instead
-#[cfg(not(target_has_atomic = "ptr"))]
-type Arc<T> = Box<T>;
 
 /// Errors that can occur during SafeTensors operations.
 #[derive(Debug)]
@@ -661,7 +662,10 @@ impl ModuleStore for SafetensorsStore {
 
                 // Use serialize_to_file which streams directly to disk
                 // This calls the lazy closures on-demand without buffering everything
-                safetensors::serialize_to_file(tensors, Some(std_metadata), &p.path)?;
+                let path = p.path.clone();
+                caught(move || {
+                    safetensors::serialize_to_file(tensors, Some(std_metadata), &path)
+                })??;
                 Ok(())
             }
             Self::Memory(p) => {
@@ -669,7 +673,7 @@ impl ModuleStore for SafetensorsStore {
                 let tensors = to_safetensors_views(tensors)?;
                 // For no-std, serialize still needs std HashMap when std feature is enabled
                 #[cfg(feature = "std")]
-                let data = safetensors::serialize(tensors, Some(std_metadata))?;
+                let data = caught(move || safetensors::serialize(tensors, Some(std_metadata)))??;
 
                 #[cfg(not(feature = "std"))]
                 let data = safetensors::serialize(tensors, Some(metadata))?;
@@ -871,6 +875,26 @@ impl SafetensorsStore {
     }
 }
 
+/// Run a serialization step, turning a panic escaping it into an error.
+///
+/// [`safetensors::View::data`] has no error channel, so [`PackTensorView`] can only report a
+/// failed materialization by panicking. That would unwind out of `collect_from`, which
+/// declares a `Result`, and past a half-written file. Catching it here is what keeps the
+/// declared contract honest: the typed error `bridge::guarded` produced is handed back as one
+/// instead of being re-raised.
+#[cfg(feature = "std")]
+fn caught<T>(f: impl FnOnce() -> T) -> Result<T, SafetensorsStoreError> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).map_err(|payload| {
+        let cause = payload
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "unknown panic payload".to_string());
+
+        SafetensorsStoreError::Other(cause)
+    })
+}
+
 /// Apply filter to tensors.
 fn apply_filter(mut tensors: Vec<PackTensor>, filter: &PathFilter) -> Vec<PackTensor> {
     if filter.is_empty() {
@@ -921,10 +945,6 @@ fn to_safetensors_views(
 fn lazy_tensors<S>(source: Arc<S>) -> Result<Vec<PackTensor>, SafetensorsStoreError>
 where
     S: Deref<Target = [u8]> + Send + Sync + 'static,
-    // Each tensor's provider keeps its own handle on the container. On a target without
-    // atomic CAS there is no `Arc` and this alias is a `Box`, so the bound lands on `S`
-    // itself and the handle is a copy of the buffer rather than a share of it.
-    Arc<S>: Clone,
 {
     // Parse to get metadata (with a memory map, safetensors won't copy data)
     let tensors = safetensors::SafeTensors::deserialize(&source)?;
