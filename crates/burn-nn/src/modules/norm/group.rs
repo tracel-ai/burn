@@ -181,10 +181,12 @@ pub(crate) fn group_norm<const D: usize>(
         None => input,
     };
 
-    let mean = input.clone().sum_dim(2) / hidden_size as f64;
+    // Keep the denominator inside the backend reduction so it is applied in
+    // the accumulator precision instead of through a narrow `div_scalar`.
+    let mean = input.clone().mean_dim(2);
     let input = input.sub(mean);
 
-    let var = input.clone().square().sum_dim(2) / hidden_size as f64;
+    let var = input.clone().square().mean_dim(2);
     let input_normalized = input.div(var.add_scalar(epsilon).sqrt());
 
     let input_normalized = match widened {
