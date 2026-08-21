@@ -1,7 +1,10 @@
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous_aligned,
-    ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    kernel::{
+        into_contiguous_aligned,
+        reduce::{KernelReduceStrategy, reduce_dim},
+    },
+    ops::{base::reshape, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
@@ -10,6 +13,7 @@ use cubek::pool::{
     definition::{AdaptiveAvgPoolOptions, AvgPoolOptions, MaxPoolOptions, PoolError, PoolMode},
     pool2d, pool2d_backward, pool2d_with_indices, pool2d_with_indices_backward,
 };
+use cubek::reduce::components::instructions::ReduceOperationConfig;
 
 pub(crate) fn max_pool2d<R: CubeRuntime>(
     x: CubeTensor<R>,
@@ -267,10 +271,41 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
+/// Average every pixel of every channel into one number: `[b, c, h, w]` to
+/// `[b, c, 1, 1]`.
+///
+/// This is what an adaptive average pool with a `1x1` output *is*, and it is a
+/// reduction rather than a pooling problem.
+///
+/// So the reduction axis becomes the parallel one. `[b, c, h, w]` is reshaped to
+/// `[b, c, h * w]` — free in NCHW, where those two axes are already adjacent and
+/// contiguous — and reduced over the last axis by the tuned reduce.
+fn global_avg_pool2d<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
+    let [batch_size, channels, height, width] = input.meta.shape().dims();
+
+    let flattened = reshape(input, Shape::new([batch_size, channels, height * width]));
+    let reduced = reduce_dim::<R>(
+        flattened,
+        None,
+        2,
+        KernelReduceStrategy::default(),
+        ReduceOperationConfig::Mean,
+    )
+    .expect("the last axis of a rank-3 tensor is reducible");
+
+    reshape(reduced, Shape::new([batch_size, channels, 1, 1]))
+}
+
 pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
 ) -> CubeTensor<R> {
+    // A `1x1` output is a reduction, and the pooling kernel is the wrong shape
+    // of parallelism for it — see [`global_avg_pool2d`].
+    if output_size == [1, 1] {
+        return global_avg_pool2d(input);
+    }
+
     let [batch_size, channels, _, _] = input.meta.shape().dims();
     let input = into_contiguous_aligned(permute_nchw_to_nhwc(input));
 
