@@ -227,6 +227,30 @@ fn test_4d_tensor() {
 }
 
 #[test]
+fn test_non_contiguous_tensors() {
+    let path = test_data_path("non_contiguous.pt");
+    let reader = PytorchReader::new(&path).expect("Failed to load non_contiguous.pt");
+
+    let permuted = reader.get("permuted").expect("permuted key not found");
+    assert_eq!(permuted.shape, shape![2, 4, 3]);
+    let data = permuted.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(
+        values,
+        &[
+            5.0, 9.0, 13.0, 6.0, 10.0, 14.0, 7.0, 11.0, 15.0, 8.0, 12.0, 16.0, 17.0, 21.0, 25.0,
+            18.0, 22.0, 26.0, 19.0, 23.0, 27.0, 20.0, 24.0, 28.0,
+        ]
+    );
+
+    let expanded = reader.get("expanded").expect("expanded key not found");
+    assert_eq!(expanded.shape, shape![2, 3]);
+    let data = expanded.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values, &[1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
+}
+
+#[test]
 fn test_state_dict() {
     let path = test_data_path("state_dict.pt");
     let reader = PytorchReader::new(&path).expect("Failed to load state_dict.pt");
@@ -327,8 +351,8 @@ fn test_empty_tensor() {
     assert_eq!(tensor.shape, shape![0]); // Empty tensor has shape [0]
     assert_eq!(tensor.dtype, DType::F32);
 
-    // Note: Empty tensors cannot be loaded with to_data() due to TensorData validation
-    // We verify the metadata is correct, which confirms the .pt file is being read
+    let data = tensor.to_data().unwrap();
+    assert!(data.as_slice::<f32>().unwrap().is_empty());
 }
 
 #[test]
