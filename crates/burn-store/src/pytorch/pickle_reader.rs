@@ -365,7 +365,7 @@ fn parse_size_tuple_arg(arg: &Object, fn_name: &str, field_name: &str) -> Result
                     ))
                 }),
                 _ => Err(PickleError::InvalidData(format!(
-                    "{}: {} must contain non-negative ints",
+                    "{}: {} must contain ints",
                     fn_name, field_name
                 ))),
             })
@@ -497,7 +497,14 @@ fn tensor_num_elements(shape: &[usize]) -> Result<usize> {
     })
 }
 
-/// Return one past the largest storage index referenced by a strided tensor.
+/// Return the minimum number of storage elements required by a strided tensor view.
+///
+/// For a non-empty view, this is one past the largest storage index it reads. An empty view
+/// requires only its storage offset. Size-one dimensions still contribute no storage movement.
+///
+/// # Errors
+///
+/// Returns an error when shape and stride ranks differ or when extent arithmetic overflows.
 fn tensor_storage_extent(
     shape: &[usize],
     stride: &[usize],
@@ -511,7 +518,7 @@ fn tensor_storage_extent(
         )));
     }
 
-    if shape.contains(&0) {
+    if tensor_num_elements(shape)? == 0 {
         return Ok(storage_offset);
     }
 
@@ -532,11 +539,12 @@ fn tensor_storage_extent(
     })
 }
 
+/// Check whether a stride describes row-major contiguous storage.
+///
+/// PyTorch ignores strides for size-one dimensions because those dimensions cannot be stepped.
+/// An overflow is treated conservatively as non-contiguous; callers validate the full logical
+/// element count first, so suffix products cannot overflow in the tensor-loading path.
 fn is_contiguous_stride(shape: &[usize], stride: &[usize]) -> bool {
-    if shape.contains(&0) {
-        return true;
-    }
-
     let mut expected = 1usize;
     for (&dim, &step) in shape.iter().zip(stride).rev() {
         if dim > 1 && step != expected {
@@ -550,20 +558,24 @@ fn is_contiguous_stride(shape: &[usize], stride: &[usize]) -> bool {
     true
 }
 
-fn contiguous_tensor_bytes<'a>(
-    data: &'a [u8],
-    shape: &[usize],
+/// Slice the exact byte range for a contiguous tensor view.
+///
+/// # Errors
+///
+/// Returns a data error when byte-range arithmetic overflows or storage does not contain the
+/// complete requested range.
+fn contiguous_tensor_bytes(
+    data: &[u8],
     storage_offset: usize,
     element_size: usize,
     num_elements: usize,
-) -> std::result::Result<&'a [u8], crate::TensorSnapshotError> {
-    let elements_to_read = if shape.contains(&0) { 0 } else { num_elements };
+) -> std::result::Result<&[u8], crate::TensorSnapshotError> {
     let byte_start = storage_offset.checked_mul(element_size).ok_or_else(|| {
         crate::TensorSnapshotError::DataError(
             "Tensor byte offset calculation overflows usize".to_string(),
         )
     })?;
-    let byte_len = elements_to_read.checked_mul(element_size).ok_or_else(|| {
+    let byte_len = num_elements.checked_mul(element_size).ok_or_else(|| {
         crate::TensorSnapshotError::DataError(
             "Tensor byte length calculation overflows usize".to_string(),
         )
@@ -584,7 +596,9 @@ fn contiguous_tensor_bytes<'a>(
 
 /// Gather a non-contiguous storage view into logical row-major byte order.
 ///
-/// Returns `None` for an already-contiguous layout so the existing zero-copy slice path is used.
+/// Returns `None` for an already-contiguous layout, letting the caller slice the storage bytes
+/// directly instead of building an intermediate reordered buffer. Shape and stride ranks must be
+/// validated by the caller.
 fn reorder_tensor_bytes(
     data: &[u8],
     shape: &[usize],
@@ -593,13 +607,6 @@ fn reorder_tensor_bytes(
     element_size: usize,
     num_elements: usize,
 ) -> std::result::Result<Option<Vec<u8>>, crate::TensorSnapshotError> {
-    if shape.len() != stride.len() {
-        return Err(crate::TensorSnapshotError::DataError(format!(
-            "Tensor stride rank {} does not match shape rank {}",
-            stride.len(),
-            shape.len()
-        )));
-    }
     if is_contiguous_stride(shape, stride) {
         return Ok(None);
     }
@@ -609,7 +616,12 @@ fn reorder_tensor_bytes(
             "Tensor byte length calculation overflows usize".to_string(),
         )
     })?;
-    let mut reordered = Vec::with_capacity(byte_len);
+    let mut reordered = Vec::new();
+    reordered.try_reserve_exact(byte_len).map_err(|err| {
+        crate::TensorSnapshotError::DataError(format!(
+            "Failed to reserve {byte_len} bytes for reordered tensor data: {err}"
+        ))
+    })?;
 
     for linear_index in 0..num_elements {
         let mut remaining = linear_index;
@@ -752,16 +764,7 @@ fn rebuild_tensor_impl(
         ));
     };
 
-    let num_elements = tensor_num_elements(&shape)?.max(1);
-    let storage_extent = tensor_storage_extent(&shape, &stride, storage_offset)?;
-    if let Some(total) = storage_total_elements
-        && storage_extent > total
-    {
-        return Err(PickleError::InvalidData(format!(
-            "Tensor view requires {} storage elements but storage contains {}",
-            storage_extent, total
-        )));
-    }
+    let num_elements = tensor_num_elements(&shape)?;
 
     // If no data source, we can't load tensor data
     let data_source = match data_source {
@@ -805,7 +808,12 @@ fn rebuild_tensor_impl(
         let source = source
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let storage_elements = storage_total_elements.unwrap_or(storage_extent);
+        let storage_elements = match storage_total_elements {
+            Some(total) => total,
+            None => storage_offset.checked_add(num_elements).ok_or_else(|| {
+                PickleError::InvalidData("Storage element count overflows usize".to_string())
+            })?,
+        };
         let bytes_needed = storage_elements.checked_mul(dtype.size()).ok_or_else(|| {
             PickleError::InvalidData("Storage byte length overflows usize".to_string())
         })?;
@@ -816,251 +824,174 @@ fn rebuild_tensor_impl(
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
         Rc::new(move || {
             // Load data only when needed
-            if let Ok(data) = data_source_clone.read(&data_file_key) {
-                // Use dtype.size() to get element size in bytes
-                let element_size = dtype.size();
-
-                let reordered = reorder_tensor_bytes(
-                    &data,
-                    &shape_clone,
-                    &stride_clone,
-                    storage_offset,
-                    element_size,
-                    num_elements,
+            let data = data_source_clone.read(&data_file_key).map_err(|err| {
+                crate::TensorSnapshotError::DataError(format!(
+                    "Failed to read storage '{data_file_key}' for tensor with shape {shape_clone:?}: {err}"
+                ))
+            })?;
+            // Use dtype.size() to get element size in bytes
+            let element_size = dtype.size();
+            let storage_extent =
+                tensor_storage_extent(&shape_clone, &stride_clone, storage_offset).map_err(
+                    |err| {
+                        crate::TensorSnapshotError::DataError(format!(
+                            "Invalid view of storage '{data_file_key}' for tensor with shape {shape_clone:?}: {err}"
+                        ))
+                    },
                 )?;
-                let data_slice = if let Some(ref reordered) = reordered {
-                    reordered.as_slice()
-                } else {
-                    contiguous_tensor_bytes(
-                        &data,
-                        &shape_clone,
-                        storage_offset,
-                        element_size,
-                        num_elements,
-                    )?
-                };
-                let elements_to_read = data_slice.len() / element_size;
+            let available_elements = data.len() / element_size;
+            if storage_extent > available_elements {
+                return Err(crate::TensorSnapshotError::DataError(format!(
+                    "Tensor with shape {shape_clone:?} requires {storage_extent} elements from storage '{data_file_key}', but only {available_elements} are available"
+                )));
+            }
 
-                // Convert bytes to the appropriate type
-                match dtype {
-                    DType::F32 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let bytes = [
-                                data_slice[i * element_size],
-                                data_slice[i * element_size + 1],
-                                data_slice[i * element_size + 2],
-                                data_slice[i * element_size + 3],
-                            ];
-                            values.push(f32::from_le_bytes(bytes));
-                        }
-                        // Pad with zeros if needed
-                        values.resize(num_elements, 0.0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::F64 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 8];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(f64::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, 0.0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::I64 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 8];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(i64::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, 0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::I32 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 4];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(i32::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, 0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::I16 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 2];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(i16::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, 0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::I8 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for &byte in data_slice.iter().take(elements_to_read) {
-                            values.push(byte as i8);
-                        }
-                        values.resize(num_elements, 0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::Bool(BoolStore::Native) => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for &byte in data_slice.iter().take(elements_to_read) {
-                            values.push(byte != 0);
-                        }
-                        values.resize(num_elements, false);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::F16 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 2];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(f16::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, f16::ZERO);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::BF16 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 2];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(bf16::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, bf16::ZERO);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::U8 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for &byte in data_slice.iter().take(elements_to_read) {
-                            values.push(byte);
-                        }
-                        values.resize(num_elements, 0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::U16 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 2];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(u16::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, 0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::U32 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 4];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(u32::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, 0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    DType::U64 => {
-                        let mut values = Vec::with_capacity(num_elements);
-                        for i in 0..elements_to_read {
-                            let mut bytes = [0u8; 8];
-                            bytes.copy_from_slice(
-                                &data_slice[i * element_size..(i + 1) * element_size],
-                            );
-                            values.push(u64::from_le_bytes(bytes));
-                        }
-                        values.resize(num_elements, 0);
-                        Ok(TensorData::new(values, shape_clone.clone()))
-                    }
-                    _ => {
-                        // For any remaining unsupported types, return an error
-                        Err(crate::TensorSnapshotError::DataError(format!(
-                            "Unsupported dtype for tensor data reading: {:?}",
-                            dtype
-                        )))
-                    }
-                }
+            let reordered = reorder_tensor_bytes(
+                &data,
+                &shape_clone,
+                &stride_clone,
+                storage_offset,
+                element_size,
+                num_elements,
+            )?;
+            let data_slice = if let Some(ref reordered) = reordered {
+                reordered.as_slice()
             } else {
-                // If no data file found, return zeros of the appropriate type
-                let num_elements = shape_clone.iter().product::<usize>().max(1);
-                match dtype {
-                    DType::F32 => Ok(TensorData::new(
-                        vec![0.0f32; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::F64 => Ok(TensorData::new(
-                        vec![0.0f64; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::F16 => Ok(TensorData::new(
-                        vec![f16::ZERO; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::BF16 => Ok(TensorData::new(
-                        vec![bf16::ZERO; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::I64 => Ok(TensorData::new(
-                        vec![0i64; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::I32 => Ok(TensorData::new(
-                        vec![0i32; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::I16 => Ok(TensorData::new(
-                        vec![0i16; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::I8 => Ok(TensorData::new(
-                        vec![0i8; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::U8 => Ok(TensorData::new(
-                        vec![0u8; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::U16 => Ok(TensorData::new(
-                        vec![0u16; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::U32 => Ok(TensorData::new(
-                        vec![0u32; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::U64 => Ok(TensorData::new(
-                        vec![0u64; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::Bool(BoolStore::Native) => Ok(TensorData::new(
-                        vec![false; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    _ => {
-                        // For any remaining unsupported types, return an error
-                        Err(crate::TensorSnapshotError::DataError(format!(
-                            "Unsupported dtype for tensor data reading: {:?}",
-                            dtype
-                        )))
+                contiguous_tensor_bytes(&data, storage_offset, element_size, num_elements)?
+            };
+
+            // Convert bytes to the appropriate type
+            match dtype {
+                DType::F32 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let bytes = [
+                            data_slice[i * element_size],
+                            data_slice[i * element_size + 1],
+                            data_slice[i * element_size + 2],
+                            data_slice[i * element_size + 3],
+                        ];
+                        values.push(f32::from_le_bytes(bytes));
                     }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::F64 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 8];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(f64::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::I64 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 8];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(i64::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::I32 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 4];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(i32::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::I16 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 2];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(i16::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::I8 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for &byte in data_slice.iter().take(num_elements) {
+                        values.push(byte as i8);
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::Bool(BoolStore::Native) => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for &byte in data_slice.iter().take(num_elements) {
+                        values.push(byte != 0);
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::F16 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 2];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(f16::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::BF16 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 2];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(bf16::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::U8 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for &byte in data_slice.iter().take(num_elements) {
+                        values.push(byte);
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::U16 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 2];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(u16::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::U32 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 4];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(u32::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                DType::U64 => {
+                    let mut values = Vec::with_capacity(num_elements);
+                    for i in 0..num_elements {
+                        let mut bytes = [0u8; 8];
+                        bytes
+                            .copy_from_slice(&data_slice[i * element_size..(i + 1) * element_size]);
+                        values.push(u64::from_le_bytes(bytes));
+                    }
+                    Ok(TensorData::new(values, shape_clone.clone()))
+                }
+                _ => {
+                    // For any remaining unsupported types, return an error
+                    Err(crate::TensorSnapshotError::DataError(format!(
+                        "Unsupported dtype for tensor data reading: {:?}",
+                        dtype
+                    )))
                 }
             }
         }),
@@ -1779,6 +1710,45 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
+    fn fixture_data_source() -> Option<Arc<LazyDataSource>> {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/pytorch/tests/reader/test_data/non_contiguous.pt");
+        Some(Arc::new(LazyDataSource::from_zip(path).unwrap()))
+    }
+
+    fn storage_arg(storage_type: &str, key: &str, elements: i64) -> Object {
+        Object::PersistentTuple(vec![
+            Object::String("storage".to_string()),
+            Object::String(storage_type.to_string()),
+            Object::String(key.to_string()),
+            Object::String("cpu".to_string()),
+            Object::Int(elements),
+        ])
+    }
+
+    fn rebuild_args(
+        storage_type: &str,
+        key: &str,
+        elements: i64,
+        offset: i64,
+        shape: &[i64],
+        stride: &[i64],
+    ) -> Object {
+        Object::Tuple(vec![
+            storage_arg(storage_type, key, elements),
+            Object::Int(offset),
+            Object::Tuple(shape.iter().copied().map(Object::Int).collect()),
+            Object::Tuple(stride.iter().copied().map(Object::Int).collect()),
+        ])
+    }
+
+    fn snapshot_from_object(object: Object) -> TensorSnapshot {
+        match object {
+            Object::TorchParam(snapshot) => snapshot,
+            other => panic!("expected tensor snapshot, got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_memo_bomb_mitigation() {
         // Generate the Billion Laughs equivalent for pickles
@@ -1799,38 +1769,160 @@ mod tests {
     }
 
     #[test]
-    fn test_tensor_stride_metadata_validation() {
+    fn stride_rejects_negative_values() {
         let negative_stride = Object::Tuple(vec![Object::Int(-1)]);
         assert!(matches!(
             parse_size_tuple_arg(&negative_stride, "rebuild_tensor_v2", "stride"),
-            Err(PickleError::InvalidData(msg)) if msg.contains("non-negative")
+            Err(PickleError::InvalidData(msg))
+                if msg == "rebuild_tensor_v2: stride must contain non-negative ints"
         ));
+    }
 
+    #[test]
+    fn stride_rejects_non_integer_values() {
+        let invalid_stride = Object::Tuple(vec![Object::String("one".to_string())]);
+        assert!(matches!(
+            parse_size_tuple_arg(&invalid_stride, "rebuild_tensor_v2", "stride"),
+            Err(PickleError::InvalidData(msg))
+                if msg == "rebuild_tensor_v2: stride must contain ints"
+        ));
+    }
+
+    #[test]
+    fn storage_extent_rejects_rank_mismatch() {
         assert!(matches!(
             tensor_storage_extent(&[2, 3], &[3], 0),
-            Err(PickleError::InvalidData(msg)) if msg.contains("rank")
+            Err(PickleError::InvalidData(msg))
+                if msg == "Tensor stride rank 1 does not match shape rank 2"
         ));
+    }
+
+    #[test]
+    fn storage_extent_rejects_overflow() {
         assert!(matches!(
             tensor_storage_extent(&[usize::MAX], &[2], 0),
-            Err(PickleError::InvalidData(msg)) if msg.contains("overflows")
+            Err(PickleError::InvalidData(msg))
+                if msg == "Tensor stride calculation overflows usize"
         ));
+    }
 
+    #[test]
+    fn reorder_rejects_out_of_bounds_stride() {
         let err = reorder_tensor_bytes(&[0; 4], &[2], &[2], 0, 4, 2).unwrap_err();
         assert!(matches!(
             err,
-            crate::TensorSnapshotError::DataError(msg) if msg.contains("beyond")
+            crate::TensorSnapshotError::DataError(msg)
+                if msg == "Tensor stride references storage element 2 beyond 1 available elements"
         ));
+    }
 
-        let short_contiguous = contiguous_tensor_bytes(&[0; 4], &[2], 0, 4, 2);
+    #[test]
+    fn contiguous_rejects_truncated_storage() {
+        let short_contiguous = contiguous_tensor_bytes(&[0; 4], 0, 4, 2);
         assert!(matches!(
             short_contiguous,
-            Err(crate::TensorSnapshotError::DataError(msg)) if msg.contains("beyond")
+            Err(crate::TensorSnapshotError::DataError(msg))
+                if msg == "Contiguous tensor byte range 0..8 extends beyond 4 available storage bytes"
         ));
+    }
 
-        let offset_past_storage = contiguous_tensor_bytes(&[0; 4], &[1], 1, 4, 1);
+    #[test]
+    fn contiguous_rejects_offset_past_storage() {
+        let offset_past_storage = contiguous_tensor_bytes(&[0; 4], 1, 4, 1);
         assert!(matches!(
             offset_past_storage,
-            Err(crate::TensorSnapshotError::DataError(msg)) if msg.contains("beyond")
+            Err(crate::TensorSnapshotError::DataError(msg))
+                if msg == "Contiguous tensor byte range 4..8 extends beyond 4 available storage bytes"
+        ));
+    }
+
+    #[test]
+    fn reorder_supports_multiple_element_sizes() {
+        for element_size in [1, 2, 8] {
+            let data = (0..4)
+                .flat_map(|value| vec![value as u8; element_size])
+                .collect::<Vec<_>>();
+            let reordered = reorder_tensor_bytes(&data, &[2, 2], &[1, 2], 0, element_size, 4)
+                .unwrap()
+                .unwrap();
+            let expected = [0, 2, 1, 3]
+                .into_iter()
+                .flat_map(|value| vec![value; element_size])
+                .collect::<Vec<_>>();
+            assert_eq!(reordered, expected, "element size {element_size}");
+        }
+    }
+
+    #[test]
+    fn legacy_rebuild_tensor_loads_contiguous_stride() {
+        let object = rebuild_tensor(
+            rebuild_args("FloatStorage", "0", 32, 5, &[2, 3], &[3, 1]),
+            &mut HashMap::new(),
+            &fixture_data_source(),
+        )
+        .unwrap();
+        let data = snapshot_from_object(object).to_data().unwrap();
+        assert_eq!(
+            data.as_slice::<f32>().unwrap(),
+            &[5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+        );
+    }
+
+    #[test]
+    fn legacy_rebuild_tensor_loads_permuted_stride() {
+        let object = rebuild_tensor(
+            rebuild_args("FloatStorage", "0", 32, 5, &[2, 4, 3], &[12, 1, 4]),
+            &mut HashMap::new(),
+            &fixture_data_source(),
+        )
+        .unwrap();
+        let data = snapshot_from_object(object).to_data().unwrap();
+        assert_eq!(
+            data.as_slice::<f32>().unwrap(),
+            &[
+                5.0, 9.0, 13.0, 6.0, 10.0, 14.0, 7.0, 11.0, 15.0, 8.0, 12.0, 16.0, 17.0, 21.0,
+                25.0, 18.0, 22.0, 26.0, 19.0, 23.0, 27.0, 20.0, 24.0, 28.0,
+            ]
+        );
+    }
+
+    #[test]
+    fn legacy_rebuild_tensor_loads_scalar_at_offset() {
+        let object = rebuild_tensor(
+            rebuild_args("FloatStorage", "0", 32, 5, &[], &[]),
+            &mut HashMap::new(),
+            &fixture_data_source(),
+        )
+        .unwrap();
+        let data = snapshot_from_object(object).to_data().unwrap();
+        assert_eq!(data.as_slice::<f32>().unwrap(), &[5.0]);
+    }
+
+    #[test]
+    fn zip_storage_length_is_authoritative() {
+        let object = rebuild_tensor(
+            rebuild_args("FloatStorage", "0", 4, 5, &[2, 4, 3], &[12, 1, 4]),
+            &mut HashMap::new(),
+            &fixture_data_source(),
+        )
+        .unwrap();
+        let data = snapshot_from_object(object).to_data().unwrap();
+        assert_eq!(data.as_slice::<f32>().unwrap().len(), 24);
+    }
+
+    #[test]
+    fn missing_storage_returns_contextual_error() {
+        let object = rebuild_tensor(
+            rebuild_args("FloatStorage", "missing", 6, 0, &[2, 3], &[3, 1]),
+            &mut HashMap::new(),
+            &fixture_data_source(),
+        )
+        .unwrap();
+        let err = snapshot_from_object(object).to_data().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::TensorSnapshotError::DataError(msg)
+                if msg.contains("Failed to read storage 'data/missing' for tensor with shape [2, 3]")
         ));
     }
 }

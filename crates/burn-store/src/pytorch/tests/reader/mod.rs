@@ -351,8 +351,8 @@ fn test_empty_tensor() {
     assert_eq!(tensor.shape, shape![0]); // Empty tensor has shape [0]
     assert_eq!(tensor.dtype, DType::F32);
 
-    // Note: Empty tensors cannot be loaded with to_data() due to TensorData validation
-    // We verify the metadata is correct, which confirms the .pt file is being read
+    let data = tensor.to_data().unwrap();
+    assert!(data.as_slice::<f32>().unwrap().is_empty());
 }
 
 #[test]
