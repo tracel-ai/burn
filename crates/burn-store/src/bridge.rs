@@ -63,38 +63,38 @@ fn guarded(f: impl Fn() -> Result<TensorData, PackError>) -> Result<TensorData, 
     f()
 }
 
-/// Build a tensor whose data is produced on demand by `data_fn`.
+/// The `Send + Sync` bound a data closure carries on a target with threads, and nothing on one
+/// without.
 ///
-/// `dtype` and `shape` describe what `data_fn` will return, and fix the byte length the writer
-/// reserves, so a transform that changes either must be declared here rather than left for the
-/// closure to reveal.
+/// [`PackTensor::deferred`] asks for `Send + Sync` providers only where `alloc::sync` exists: a
+/// target without atomic CAS has no threads to share a tensor across, and could not meet the
+/// bound anyway. Naming that difference once keeps every constructor below from having to be
+/// written twice.
 #[cfg(target_has_atomic = "ptr")]
-pub fn deferred(
-    name: String,
-    dtype: DType,
-    shape: Shape,
-    param_id: Option<u64>,
-    data_fn: impl Fn() -> Result<TensorData, PackError> + Send + Sync + 'static,
-) -> PackTensor {
-    let byte_len = data_len(dtype, &shape);
-    PackTensor::deferred(name, dtype, shape, param_id, byte_len, move || {
-        guarded(&data_fn).map(|data| data.bytes)
-    })
-}
+pub trait MaybeSendSync: Send + Sync {}
+#[cfg(target_has_atomic = "ptr")]
+impl<T: Send + Sync> MaybeSendSync for T {}
+
+/// See the `target_has_atomic = "ptr"` variant.
+#[cfg(not(target_has_atomic = "ptr"))]
+pub trait MaybeSendSync {}
+#[cfg(not(target_has_atomic = "ptr"))]
+impl<T> MaybeSendSync for T {}
 
 /// Build a tensor whose data is produced on demand by `data_fn`.
 ///
-/// See the `target_has_atomic = "ptr"` variant. This one drops the `Send + Sync` bound, which
-/// nothing on a single-threaded target can satisfy or needs.
-#[cfg(not(target_has_atomic = "ptr"))]
+/// `dtype` and `shape` describe what `data_fn` will return, and fix the byte length the writer
+/// reserves before the closure ever runs, so a transform that changes either must be declared
+/// here rather than left for the closure to reveal.
 pub fn deferred(
     name: String,
     dtype: DType,
     shape: Shape,
     param_id: Option<u64>,
-    data_fn: impl Fn() -> Result<TensorData, PackError> + 'static,
+    data_fn: impl Fn() -> Result<TensorData, PackError> + MaybeSendSync + 'static,
 ) -> PackTensor {
     let byte_len = data_len(dtype, &shape);
+
     PackTensor::deferred(name, dtype, shape, param_id, byte_len, move || {
         guarded(&data_fn).map(|data| data.bytes)
     })
@@ -124,7 +124,8 @@ pub fn from_data(data: TensorData, name: String, param_id: Option<u64>) -> PackT
 /// Read a tensor's bytes back as [`TensorData`], leaving it intact.
 ///
 /// Costs whatever the source costs: a deferred tensor re-runs its provider, since nothing is
-/// cached. Prefer [`into_data`] where the tensor is no longer needed.
+/// cached, and a resident one copies its bytes unless they can be shared. Prefer [`into_data`]
+/// where the tensor is not needed afterwards.
 pub fn to_data(tensor: &PackTensor) -> Result<TensorData, PackError> {
     Ok(TensorData::from_bytes(
         tensor.to_bytes()?,
@@ -136,43 +137,30 @@ pub fn to_data(tensor: &PackTensor) -> Result<TensorData, PackError> {
 /// Take a tensor's bytes as [`TensorData`], producing them if deferred.
 pub fn into_data(tensor: PackTensor) -> Result<TensorData, PackError> {
     let (_, dtype, shape, _, bytes) = tensor.into_parts()?;
+
     Ok(TensorData::from_bytes(bytes, shape, dtype))
 }
 
 /// Wrap a tensor's data in a transform, keeping it deferred.
 ///
-/// How adapters chain. Each declares the `dtype` and `shape` its transform produces (the
-/// writer needs the resulting byte length up front) while the transform itself runs only once
-/// the bytes are finally drawn. `name` is passed explicitly because some adapters rename as
-/// they go.
-#[cfg(target_has_atomic = "ptr")]
-pub fn map_data(
-    tensor: &PackTensor,
-    name: String,
-    dtype: DType,
-    shape: Shape,
-    f: impl Fn(TensorData) -> TensorData + Send + Sync + 'static,
-) -> PackTensor {
-    let source = tensor.clone();
-    deferred(name, dtype, shape, tensor.param_id, move || {
-        to_data(&source).map(&f)
-    })
-}
-
-/// Wrap a tensor's data in a transform, keeping it deferred.
+/// How adapters chain. Each declares the `dtype` and `shape` its transform produces, because
+/// the writer needs the resulting byte length up front, while the transform itself runs only
+/// once the bytes are finally drawn. `name` is passed explicitly because some adapters rename
+/// as they go.
 ///
-/// See the `target_has_atomic = "ptr"` variant.
-#[cfg(not(target_has_atomic = "ptr"))]
+/// Takes the tensor by value: the closure holds it for the adapted tensor's whole lifetime, so
+/// borrowing here would only mean cloning it into the closure anyway.
 pub fn map_data(
-    tensor: &PackTensor,
+    tensor: PackTensor,
     name: String,
     dtype: DType,
     shape: Shape,
-    f: impl Fn(TensorData) -> TensorData + 'static,
+    f: impl Fn(TensorData) -> TensorData + MaybeSendSync + 'static,
 ) -> PackTensor {
-    let source = tensor.clone();
-    deferred(name, dtype, shape, tensor.param_id, move || {
-        to_data(&source).map(&f)
+    let param_id = tensor.param_id;
+
+    deferred(name, dtype, shape, param_id, move || {
+        to_data(&tensor).map(&f)
     })
 }
 
@@ -411,13 +399,10 @@ mod tests {
         );
         assert_eq!(source.byte_len(), 16);
 
-        let cast = map_data(
-            &source,
-            "weight".to_string(),
-            DType::F16,
-            source.shape.clone(),
-            |data| data.convert_dtype(DType::F16),
-        );
+        let shape = source.shape.clone();
+        let cast = map_data(source, "weight".to_string(), DType::F16, shape, |data| {
+            data.convert_dtype(DType::F16)
+        });
 
         assert_eq!(cast.byte_len(), 8);
         assert_byte_len_matches(cast);

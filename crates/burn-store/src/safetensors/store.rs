@@ -832,7 +832,7 @@ impl SafetensorsStore {
                     .data
                     .clone()
                     .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
-                lazy_tensors_from_bytes(data_arc)?
+                lazy_tensors(data_arc)?
             }
         };
 
@@ -898,12 +898,17 @@ fn to_safetensors_views(tensors: Vec<PackTensor>) -> Vec<(String, PackTensorView
         .collect()
 }
 
-/// Read a safetensors buffer into lazily-loading tensors.
-fn lazy_tensors_from_bytes(
-    data_arc: Arc<Vec<u8>>,
-) -> Result<Vec<PackTensor>, SafetensorsStoreError> {
-    // Parse to get metadata
-    let tensors = safetensors::SafeTensors::deserialize(&data_arc)?;
+/// Read a safetensors container into lazily-loading tensors.
+///
+/// Only the header is parsed here; each tensor's bytes are copied out when its data is asked
+/// for. `source` is whatever holds the container bytes - an in-memory buffer, or a memory map
+/// of a file - which is why this is generic rather than written once per source.
+fn lazy_tensors<S>(source: Arc<S>) -> Result<Vec<PackTensor>, SafetensorsStoreError>
+where
+    S: Deref<Target = [u8]> + Send + Sync + 'static,
+{
+    // Parse to get metadata (with a memory map, safetensors won't copy data)
+    let tensors = safetensors::SafeTensors::deserialize(&source)?;
     let mut loaded = Vec::new();
 
     for (name, view) in tensors.tensors() {
@@ -912,11 +917,8 @@ fn lazy_tensors_from_bytes(
         let shape: Shape = view.shape().into();
 
         // Create a lazy closure that will deserialize only this tensor when needed
-        #[cfg(target_has_atomic = "ptr")]
-        let data_clone = Arc::clone(&data_arc);
-        #[cfg(not(target_has_atomic = "ptr"))]
-        let data_clone = data_arc.clone();
-        let name_clone = name.to_string();
+        let source = source.clone();
+        let tensor_name = name.to_string();
         let tensor_shape = shape.clone();
 
         // Safetensors carries no parameter identity, so `param_id` stays empty and loading
@@ -928,17 +930,17 @@ fn lazy_tensors_from_bytes(
             shape,
             None,
             move || {
-                // Re-deserialize when needed (this is cheap, just parsing header)
-                let tensors = safetensors::SafeTensors::deserialize(&data_clone).map_err(|e| {
-                    PackError::IoError(format!("Failed to re-deserialize safetensors: {}", e))
+                // Re-parse when needed; this only walks the header again.
+                let tensors = safetensors::SafeTensors::deserialize(&source).map_err(|e| {
+                    PackError::IoError(format!("Failed to deserialize safetensors: {}", e))
                 })?;
 
                 // Find our specific tensor
-                let tensor = tensors.tensor(&name_clone).map_err(|e| {
-                    PackError::ValidationError(format!("Tensor '{}' not found: {}", name_clone, e))
+                let tensor = tensors.tensor(&tensor_name).map_err(|e| {
+                    PackError::ValidationError(format!("Tensor '{}' not found: {}", tensor_name, e))
                 })?;
 
-                // Now materialize just this tensor's data
+                // Only now do we actually copy this tensor's data
                 let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
                 Ok(TensorData::from_bytes(bytes, tensor_shape.clone(), dtype))
             },
@@ -948,8 +950,7 @@ fn lazy_tensors_from_bytes(
     Ok(loaded)
 }
 
-/// Read a safetensors file into lazily-loading tensors.
-/// This reads only the header initially, then loads tensor data on demand.
+/// Memory map a safetensors file and read it into lazily-loading tensors.
 #[cfg(feature = "std")]
 fn lazy_tensors_from_file(
     path: &std::path::Path,
@@ -957,46 +958,10 @@ fn lazy_tensors_from_file(
     // Always use memory mapping for the most efficient access
     use memmap2::MmapOptions;
 
-    // Memory map the file for efficient access
     let file = std::fs::File::open(path)?;
     let mmap = unsafe { MmapOptions::new().map(&file)? };
-    let mmap_arc = Arc::new(mmap);
 
-    // Parse just to get metadata (safetensors won't copy data with mmap)
-    let tensors = safetensors::SafeTensors::deserialize(&mmap_arc)?;
-    let mut loaded = Vec::new();
-
-    for (name, view) in tensors.tensors() {
-        let dtype = safetensor_dtype_to_burn(view.dtype())?;
-        let shape: Shape = view.shape().into();
-
-        // Create a lazy closure that accesses the mmap'd data
-        let mmap_clone = Arc::clone(&mmap_arc);
-        let name_clone = name.to_string();
-        let tensor_shape = shape.clone();
-
-        // As above, safetensors carries no parameter identity.
-        loaded.push(bridge::deferred(
-            name.to_string(),
-            dtype,
-            shape,
-            None,
-            move || {
-                // Re-parse to get the tensor view (this is cheap with mmap)
-                let tensors = safetensors::SafeTensors::deserialize(&mmap_clone)
-                    .map_err(|e| PackError::IoError(format!("Failed to deserialize: {}", e)))?;
-                let tensor = tensors.tensor(&name_clone).map_err(|e| {
-                    PackError::ValidationError(format!("Tensor '{}' not found: {}", name_clone, e))
-                })?;
-
-                // Only now do we actually copy the tensor data
-                let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
-                Ok(TensorData::from_bytes(bytes, tensor_shape.clone(), dtype))
-            },
-        ));
-    }
-
-    Ok(loaded)
+    lazy_tensors(Arc::new(mmap))
 }
 
 /// Helper to convert safetensors Dtype to burn DType.

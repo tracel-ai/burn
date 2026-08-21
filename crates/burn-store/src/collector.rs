@@ -122,18 +122,6 @@ impl Collector {
         }
     }
 
-    /// Adapt a tensor with the module context live on the traversal stack, then keep it.
-    ///
-    /// Adapting here rather than at the end is what lets the collected tensor be a plain
-    /// [`PackTensor`]: the container stack an adapter needs is in scope only during the walk,
-    /// so consuming it now means it never has to ride along on the tensor.
-    fn push(&mut self, tensor: PackTensor) {
-        self.tensors.push(match &self.adapter {
-            Some(adapter) => adapter.adapt(tensor, ModuleContext::new(&self.container_stack)),
-            None => tensor,
-        });
-    }
-
     /// Collect a parameter reached at the collector's current path.
     ///
     /// One method covers float, int and bool parameters: [`Basic`] is what supplies `dtype`,
@@ -149,9 +137,10 @@ impl Collector {
         // The `on_save` form is what the load side validates against and un-maps with
         // `on_load`; saving `val()` breaks any param whose mapper changes the shape.
         let tensor = param.transform_for_save().val();
-        let name = self.path_stack.join(".");
+        let tensor = bridge::from_tensor(&tensor, self.path_stack.join("."), Some(param.id.val()));
 
-        self.push(bridge::from_tensor(&tensor, name, Some(param.id.val())));
+        let tensor = adapt(self.adapter.as_deref(), tensor, &self.container_stack);
+        self.tensors.push(tensor);
     }
 
     /// Collect a tensor reached at an explicit path rather than through the path stack.
@@ -166,7 +155,29 @@ impl Collector {
             return;
         }
 
-        self.push(bridge::from_tensor(tensor, path.join("."), Some(id.val())));
+        let tensor = bridge::from_tensor(tensor, path.join("."), Some(id.val()));
+
+        let tensor = adapt(self.adapter.as_deref(), tensor, &self.container_stack);
+        self.tensors.push(tensor);
+    }
+}
+
+/// Adapt a tensor with the module position live on the traversal stack.
+///
+/// Adapting during the walk rather than at the end is what lets a collected tensor be a plain
+/// [`PackTensor`]: the stacks an adapter needs are in scope only here, so consuming them now
+/// means they never have to ride along on the tensor.
+///
+/// Free rather than a method so the borrow of the collector's container stack ends before its
+/// `tensors` field is borrowed mutably to push the result.
+fn adapt(
+    adapter: Option<&dyn ModuleAdapter>,
+    tensor: PackTensor,
+    containers: &[String],
+) -> PackTensor {
+    match adapter {
+        Some(adapter) => adapter.adapt(tensor, ModuleContext::new(containers)),
+        None => tensor,
     }
 }
 
@@ -797,9 +808,9 @@ mod tests {
     }
 
     use crate::traits::ModuleSnapshot;
-    use burn_core::tensor::DType;
     use burn_nn::{BatchNorm, BatchNormConfig, Linear};
     use hashbrown::HashMap;
+    use std::sync::{Arc, Mutex};
 
     // Test module with Option fields
     #[derive(Module, Debug)]
@@ -1010,12 +1021,48 @@ mod tests {
         assert!(views_b.contains_key("LayerB.weight"));
         assert!(views_b.contains_key("LayerB.bias"));
     }
+    /// Records the module context each tensor was seen in, and changes nothing.
+    ///
+    /// The container stack is consumed during the walk rather than kept on the collected
+    /// tensor, so this is how the traversal's view of it is observed. Asserting through a real
+    /// adapter's dtype output would instead couple these tests to that adapter's (documented as
+    /// changeable) module allowlist.
+    /// A tensor's path paired with the module type it was seen in.
+    type Sighting = (String, Option<String>);
+
+    #[derive(Clone, Default)]
+    struct RecordingAdapter {
+        seen: Arc<Mutex<Vec<Sighting>>>,
+    }
+
+    impl RecordingAdapter {
+        /// The sightings recorded so far, sorted by path.
+        fn seen(&self) -> Vec<Sighting> {
+            let mut seen = self.seen.lock().unwrap().clone();
+            seen.sort();
+            seen
+        }
+    }
+
+    impl ModuleAdapter for RecordingAdapter {
+        fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor {
+            self.seen.lock().unwrap().push((
+                tensor.name.clone(),
+                ctx.module_type().map(|t| t.to_string()),
+            ));
+            tensor
+        }
+
+        fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+            Box::new(self.clone())
+        }
+    }
+
+    fn linear(module: &str) -> Option<String> {
+        Some(module.to_string())
+    }
+
     // Container type tracking tests
-    //
-    // The container stack is consumed during traversal and does not ride along on the
-    // collected tensor, so these check it through the thing it exists for: an adapter that
-    // selects by module type. `HalfPrecisionAdapter` converts Linear and leaves BatchNorm
-    // alone, so the resulting dtypes say which module each tensor was found in.
     #[test]
     fn linear_container_type() {
         let device = Default::default();
@@ -1036,24 +1083,20 @@ mod tests {
         }
 
         let model = ModelWithLinear::new(&device);
+        let adapter = RecordingAdapter::default();
+        model.collect(None, Some(Box::new(adapter.clone())), false);
 
-        let views: HashMap<String, PackTensor> = model
-            .collect(
-                None,
-                Some(Box::new(crate::HalfPrecisionAdapter::new())),
-                false,
-            )
-            .into_iter()
-            .map(|v| (v.name.clone(), v))
-            .collect();
-
-        // Tensors inside the Linear were seen as "Struct:Linear" and converted.
-        assert_eq!(views["linear.weight"].dtype, DType::F16);
-        assert_eq!(views["linear.bias"].dtype, DType::F16);
-
-        // BatchNorm is excluded from the default set, so its parameters were left alone.
-        assert_eq!(views["norm.gamma"].dtype, DType::F32);
-        assert_eq!(views["norm.beta"].dtype, DType::F32);
+        assert_eq!(
+            adapter.seen(),
+            vec![
+                ("linear.bias".to_string(), linear("Struct:Linear")),
+                ("linear.weight".to_string(), linear("Struct:Linear")),
+                ("norm.beta".to_string(), linear("Struct:BatchNorm")),
+                ("norm.gamma".to_string(), linear("Struct:BatchNorm")),
+                ("norm.running_mean".to_string(), linear("Struct:BatchNorm")),
+                ("norm.running_var".to_string(), linear("Struct:BatchNorm")),
+            ]
+        );
     }
 
     #[test]
@@ -1084,25 +1127,21 @@ mod tests {
         }
 
         let model = ComplexModel::new(&device);
-
-        let views: Vec<PackTensor> = model.collect(
-            None,
-            Some(Box::new(crate::HalfPrecisionAdapter::new())),
-            false,
-        );
+        let adapter = RecordingAdapter::default();
+        model.collect(None, Some(Box::new(adapter.clone())), false);
 
         // Should have 10 tensors total
-        assert_eq!(views.len(), 10);
+        let seen = adapter.seen();
+        assert_eq!(seen.len(), 10);
 
-        // Every one is inside a Linear, including those reached through an array or a Vec:
-        // the collection wrapper sits above the module on the container stack, and looking
-        // past it is exactly what `ModuleContext::module_type` does.
-        for view in views.iter() {
+        // Every one is inside a Linear, including those reached through an array or a Vec: the
+        // collection wrapper sits above the module on the container stack, and looking past it
+        // is exactly what `ModuleContext::module_type` does.
+        for (name, module_type) in seen {
             assert_eq!(
-                view.dtype,
-                DType::F16,
-                "'{}' should have been seen as a Linear parameter",
-                view.name
+                module_type,
+                linear("Struct:Linear"),
+                "'{name}' should have been seen as a Linear parameter"
             );
         }
     }

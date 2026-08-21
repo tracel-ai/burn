@@ -45,7 +45,9 @@ use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use super::lazy_data::LazyDataSource;
-use super::pickle_reader::{Object, PickleError, read_pickle, read_pickle_with_data};
+use super::pickle_reader::{
+    Object, PickleError, extract_tensors, read_pickle, read_pickle_with_data,
+};
 use std::sync::Arc;
 
 /// Error type for PyTorch file operations
@@ -680,34 +682,8 @@ fn extract_tensors_with_data(
 
     let mut tensors = HashMap::new();
     let mut path = Vec::new();
-    extract_tensors_recursive(&Object::Dict(dict), &mut path, &mut tensors);
+    extract_tensors(&Object::Dict(dict), &mut path, &mut tensors);
     Ok(tensors)
-}
-
-/// Recursively extract tensors from an object
-fn extract_tensors_recursive<'a>(
-    obj: &'a Object,
-    path: &mut Vec<&'a str>,
-    tensors: &mut HashMap<String, PackTensor>,
-) {
-    match obj {
-        Object::Dict(dict) => {
-            for (key, value) in dict {
-                path.push(key);
-                extract_tensors_recursive(value, path, tensors);
-                path.pop();
-            }
-        }
-        Object::TorchParam(tensor) => {
-            // The tensor already carries its data-loading closure, but was built without a
-            // name: its path is only known here. Only allocate the string when we insert.
-            let name = path.join(".");
-            let mut tensor = tensor.clone();
-            tensor.name = name.clone();
-            tensors.insert(name, tensor);
-        }
-        _ => {}
-    }
 }
 
 /// Load a legacy PyTorch file with metadata

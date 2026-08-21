@@ -676,7 +676,7 @@ mod enum_variant_tests {
     /// check it through what it controls: the variant name appears in a collected path, and
     /// `skip_enum_variants` is what takes it back out.
     #[test]
-    fn test_enum_variant_detection_in_container_stack() {
+    fn enum_variant_appears_in_path_unless_skipped() {
         let device = Default::default();
 
         // Create model with enum

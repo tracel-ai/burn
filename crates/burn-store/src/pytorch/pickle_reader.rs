@@ -811,27 +811,16 @@ fn rebuild_tensor_impl(
 /// F32: the byte length the caller declared comes from `dtype` and `shape`, and data of the
 /// wrong width would be rejected when it is drawn.
 fn zeros(dtype: DType, shape: &[usize]) -> core::result::Result<TensorData, PackError> {
-    let n = shape.iter().product::<usize>().max(1);
-
-    match dtype {
-        DType::F32 => Ok(TensorData::new(vec![0.0f32; n], shape.to_vec())),
-        DType::F64 => Ok(TensorData::new(vec![0.0f64; n], shape.to_vec())),
-        DType::F16 => Ok(TensorData::new(vec![f16::ZERO; n], shape.to_vec())),
-        DType::BF16 => Ok(TensorData::new(vec![bf16::ZERO; n], shape.to_vec())),
-        DType::I64 => Ok(TensorData::new(vec![0i64; n], shape.to_vec())),
-        DType::I32 => Ok(TensorData::new(vec![0i32; n], shape.to_vec())),
-        DType::I16 => Ok(TensorData::new(vec![0i16; n], shape.to_vec())),
-        DType::I8 => Ok(TensorData::new(vec![0i8; n], shape.to_vec())),
-        DType::U8 => Ok(TensorData::new(vec![0u8; n], shape.to_vec())),
-        DType::U16 => Ok(TensorData::new(vec![0u16; n], shape.to_vec())),
-        DType::U32 => Ok(TensorData::new(vec![0u32; n], shape.to_vec())),
-        DType::U64 => Ok(TensorData::new(vec![0u64; n], shape.to_vec())),
-        DType::Bool(BoolStore::Native) => Ok(TensorData::new(vec![false; n], shape.to_vec())),
-        _ => Err(PackError::ValidationError(format!(
+    // The one dtype `full_dtype` cannot fill, a quantized buffer being packed values plus
+    // scales rather than a run of elements.
+    if matches!(dtype, DType::QFloat(_)) {
+        return Err(PackError::ValidationError(format!(
             "Unsupported dtype for tensor data reading: {:?}",
             dtype
-        ))),
+        )));
     }
+
+    Ok(TensorData::full_dtype(shape.to_vec(), 0, dtype))
 }
 
 pub struct Stack {
@@ -1515,7 +1504,11 @@ pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String,
     Ok(tensors)
 }
 
-fn extract_tensors<'a>(
+/// Walk a parsed pickle object tree, collecting every tensor under its dotted path.
+///
+/// A tensor is built without a name, its path being assembled only here, so this is also where
+/// each one gets its final identity.
+pub(super) fn extract_tensors<'a>(
     obj: &'a Object,
     path: &mut Vec<&'a str>,
     tensors: &mut HashMap<String, PackTensor>,

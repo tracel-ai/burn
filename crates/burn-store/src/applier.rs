@@ -82,13 +82,9 @@ impl Applier {
         self.path_stack.join(".")
     }
 
-    /// Get the current module type (last Struct/Enum in container stack)
-    fn current_module_type(&self) -> Option<&str> {
-        self.container_stack
-            .iter()
-            .rev()
-            .find(|ct| ct.starts_with("Struct:") || ct.starts_with("Enum:"))
-            .map(|s| s.as_str())
+    /// The module position live on this traversal, as adapters see it.
+    fn context(&self) -> ModuleContext<'_> {
+        ModuleContext::new(&self.container_stack)
     }
 
     /// Check if a tensor should be applied based on filter
@@ -173,7 +169,7 @@ impl Applier {
         // If not found and we have an adapter, try alternative parameter names
         if tensor.is_none()
             && let Some(ref adapter) = self.adapter
-            && let Some(module_type) = self.current_module_type()
+            && let Some(module_type) = self.context().module_type()
         {
             // Get alternative name based on current module type (user-defined module only)
             let param_name = self.path_stack.last()?;
@@ -202,7 +198,7 @@ impl Applier {
         // source name would undo the match that just succeeded.
         if let Some(ref adapter) = self.adapter {
             tensor.name = path.clone();
-            tensor = adapter.adapt(tensor, ModuleContext::new(&self.container_stack));
+            tensor = adapter.adapt(tensor, self.context());
         }
 
         // Check if we should apply based on filter
@@ -211,8 +207,10 @@ impl Applier {
             return None;
         }
 
-        // Load tensor data
-        let data = match bridge::to_data(&tensor) {
+        // Load tensor data. The tensor is not needed afterwards, so take its bytes rather
+        // than copying them out.
+        let dtype = tensor.dtype;
+        let data = match bridge::into_data(tensor) {
             Ok(data) => data,
             Err(e) => {
                 self.errors.push(ApplyError::LoadError {
@@ -234,10 +232,7 @@ impl Applier {
         }
 
         self.applied.push(path);
-        Some((
-            Tensor::from_data(data, (target_device, tensor.dtype)),
-            source_id,
-        ))
+        Some((Tensor::from_data(data, (target_device, dtype)), source_id))
     }
 }
 

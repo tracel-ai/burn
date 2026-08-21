@@ -51,6 +51,11 @@ mod module_names {
 /// Borrowed rather than owned: both producers ([`Collector`](crate::Collector) and
 /// [`Applier`](crate::Applier)) keep this stack live as they walk the module, and pass it
 /// straight through.
+///
+/// Note this carries only the container stack, not the path. A tensor's parameter name comes
+/// from the tensor itself, because [`ChainAdapter`] threads each adapter's output into the
+/// next: an adapter that renames must be visible to the one after it, which a fixed context
+/// could not express.
 #[derive(Debug, Clone, Copy)]
 pub struct ModuleContext<'a> {
     container_stack: &'a [String],
@@ -60,19 +65,10 @@ impl<'a> ModuleContext<'a> {
     /// Wrap the container stack captured at a point in a module traversal.
     ///
     /// The stack runs outermost-first, one entry per level entered, e.g.
-    /// `["Struct:Model", "Vec", "Struct:Linear"]`.
+    /// `["Struct:Model", "Vec", "Struct:Linear"]`. An empty stack means the tensor was not
+    /// reached through any user-defined module.
     pub fn new(container_stack: &'a [String]) -> Self {
         Self { container_stack }
-    }
-
-    /// A context with no module information, for tensors that did not come from a traversal.
-    ///
-    /// What a tensor read from a file has until it is matched against a module: the format
-    /// records names, not the module hierarchy that produced them.
-    pub fn none() -> Self {
-        Self {
-            container_stack: &[],
-        }
     }
 
     /// The innermost user-defined module type, skipping collection wrappers.
@@ -213,9 +209,14 @@ impl ModuleAdapter for IdentityAdapter {
 fn cast(tensor: PackTensor, target: DType) -> PackTensor {
     let (name, shape) = (tensor.name.clone(), tensor.shape.clone());
 
-    bridge::map_data(&tensor, name, target, shape, move |data| {
+    bridge::map_data(tensor, name, target, shape, move |data| {
         data.convert_dtype(target)
     })
+}
+
+/// The last segment of a tensor's name, which is the parameter's own name.
+fn param_name(tensor: &PackTensor) -> &str {
+    tensor.name.rsplit('.').next().unwrap_or("")
 }
 
 /// Replace the last segment of a tensor's name, leaving its data untouched.
@@ -224,11 +225,6 @@ fn rename_param(mut tensor: PackTensor, new_name: &str) -> PackTensor {
     tensor.name.truncate(keep);
     tensor.name.push_str(new_name);
     tensor
-}
-
-/// The last segment of a tensor's name, which is the parameter's own name.
-fn param_name(tensor: &PackTensor) -> &str {
-    tensor.name.rsplit('.').next().unwrap_or("")
 }
 
 /// Returns the default set of module types that `HalfPrecisionAdapter` converts.
@@ -537,25 +533,21 @@ fn adapt_pytorch_tensor(
     };
     let param = param_name(&tensor);
 
-    // Decide everything that reads the tensor before moving it, so the borrows end here.
-    let transpose =
-        module_type == module_names::LINEAR && param == "weight" && tensor.shape.len() == 2;
-
-    // Normalization layers: rename parameters based on direction
-    let rename = is_normalization_layer(module_type)
-        .then(|| match direction {
-            PyTorchConversionDirection::PyTorchToBurn => pytorch_norm_param_to_burn(param),
-            PyTorchConversionDirection::BurnToPyTorch => burn_norm_param_to_pytorch(param),
-        })
-        .flatten();
-
     // Linear: transpose weight (bidirectional - same operation both ways)
-    if transpose {
+    if module_type == module_names::LINEAR && param == "weight" && tensor.shape.len() == 2 {
         return transpose_2d_tensor(tensor);
     }
 
-    if let Some(new_name) = rename {
-        return rename_param(tensor, new_name);
+    // Normalization layers: rename parameters based on direction
+    if is_normalization_layer(module_type) {
+        let renamed = match direction {
+            PyTorchConversionDirection::PyTorchToBurn => pytorch_norm_param_to_burn(param),
+            PyTorchConversionDirection::BurnToPyTorch => burn_norm_param_to_pytorch(param),
+        };
+
+        if let Some(new_name) = renamed {
+            return rename_param(tensor, new_name);
+        }
     }
 
     tensor
@@ -571,13 +563,7 @@ fn transpose_2d_tensor(tensor: PackTensor) -> PackTensor {
     let transposed_shape = shape![tensor.shape[1], tensor.shape[0]];
 
     // Compose the transpose onto the byte source; it runs when the data is finally drawn.
-    bridge::map_data(
-        &tensor,
-        name,
-        dtype,
-        transposed_shape,
-        transpose_tensor_data,
-    )
+    bridge::map_data(tensor, name, dtype, transposed_shape, transpose_tensor_data)
 }
 
 /// Transpose tensor data (assumes 2D shape is already validated)
@@ -673,6 +659,11 @@ mod tests {
     ) -> PackTensor {
         let containers = containers(container_type);
         adapter.adapt(tensor(name, shape), ModuleContext::new(&containers))
+    }
+
+    /// Adapt a tensor reached outside any user-defined module.
+    fn adapt_without_module(adapter: &dyn ModuleAdapter, tensor: PackTensor) -> PackTensor {
+        adapter.adapt(tensor, ModuleContext::new(&[]))
     }
 
     #[test]
@@ -798,11 +789,11 @@ mod tests {
         let adapter = PyTorchToBurnAdapter;
 
         // Without container info, no transformation occurs for linear layers
-        let adapted = adapter.adapt(tensor("fc.weight", shape![10, 5]), ModuleContext::none());
+        let adapted = adapt_without_module(&adapter, tensor("fc.weight", shape![10, 5]));
         assert_eq!(adapted.shape, shape![10, 5]); // No transposition without container info
 
         // Test a non-linear, non-norm parameter - should pass through unchanged
-        let adapted = adapter.adapt(tensor("other.weight", shape![10, 5]), ModuleContext::none());
+        let adapted = adapt_without_module(&adapter, tensor("other.weight", shape![10, 5]));
         assert_eq!(adapted.shape, shape![10, 5]); // No transposition
     }
 
@@ -1095,7 +1086,7 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new();
 
         // No module type info: skip
-        let adapted = adapter.adapt(tensor("fc.weight", shape![2, 3]), ModuleContext::none());
+        let adapted = adapt_without_module(&adapter, tensor("fc.weight", shape![2, 3]));
         assert_eq!(adapted.dtype, DType::F32);
     }
 
@@ -1170,14 +1161,14 @@ mod tests {
         assert_eq!(adapted.dtype, DType::F16);
 
         // Even with no container info at all.
-        let adapted = adapter.adapt(float_tensor(DType::F32), ModuleContext::none());
+        let adapted = adapt_without_module(&adapter, float_tensor(DType::F32));
         assert_eq!(adapted.dtype, DType::F16);
     }
 
     #[test]
     fn test_float_cast_passthrough_on_target_dtype() {
         let adapter = FloatCastAdapter::to(DType::F16);
-        let adapted = adapter.adapt(float_tensor(DType::F16), ModuleContext::none());
+        let adapted = adapt_without_module(&adapter, float_tensor(DType::F16));
         assert_eq!(adapted.dtype, DType::F16);
     }
 
