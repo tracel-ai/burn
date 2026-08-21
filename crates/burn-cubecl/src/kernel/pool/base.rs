@@ -277,21 +277,46 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
 /// This is what an adaptive average pool with a `1x1` output *is*, and it is a
 /// reduction rather than a pooling problem.
 ///
-/// So the reduction axis becomes the parallel one. `[b, c, h, w]` is reshaped to
-/// `[b, c, h * w]` — free in NCHW, where those two axes are already adjacent and
-/// contiguous — and reduced over the last axis by the tuned reduce.
+/// So the reduction axis becomes the parallel one: the two spatial axes are
+/// flattened into one and the tuned reduce runs over it.
+///
+/// Which flattening is free depends on the layout the producer left behind. In
+/// NCHW `h` and `w` are adjacent and contiguous, so `[b, c, h, w]` reshapes to
+/// `[b, c, h * w]` for nothing. A convolution's output is NHWC, where `c` is
+/// innermost instead — reshaping *that* to `[b, c, h * w]` materialises a
+/// transpose to buy a reshape that is supposed to be free, and the transpose
+/// costs more than the reduction it feeds. There the free flattening is
+/// `[b, h * w, c]`, reduced over the middle axis, which also leaves `c`
+/// innermost and the reduction coalesced across it.
 fn global_avg_pool2d<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
     let [batch_size, channels, height, width] = input.meta.shape().dims();
 
-    let flattened = reshape(input, Shape::new([batch_size, channels, height * width]));
+    // Channels innermost is the signature of NHWC memory. A single channel is
+    // both layouts at once, and the NCHW path is the cheaper one to take.
+    let channels_innermost = channels > 1 && input.meta.strides()[1] == 1;
+
+    let (flattened, axis) = match channels_innermost {
+        true => (
+            reshape(
+                permute_nchw_to_nhwc(input),
+                Shape::new([batch_size, height * width, channels]),
+            ),
+            1,
+        ),
+        false => (
+            reshape(input, Shape::new([batch_size, channels, height * width])),
+            2,
+        ),
+    };
+
     let reduced = reduce_dim::<R>(
         flattened,
         None,
-        2,
+        axis,
         KernelReduceStrategy::default(),
         ReduceOperationConfig::Mean,
     )
-    .expect("the last axis of a rank-3 tensor is reducible");
+    .expect("the flattened spatial axis of a rank-3 tensor is reducible");
 
     reshape(reduced, Shape::new([batch_size, channels, 1, 1]))
 }
