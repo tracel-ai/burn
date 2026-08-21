@@ -59,8 +59,8 @@ property of `Tensor` rather than of the writer's input. `Tensor::new` carries by
 resident; `Tensor::deferred` carries a byte length plus a provider that yields the data on demand.
 The writer reads only the metadata while planning, to compute every descriptor and offset before any
 I/O, then calls each provider once in write order, dropping each tensor's bytes before requesting
-the next. `burn-store` converts a `TensorSnapshot` into a deferred tensor, so each `to_data()` (and
-so each device readback) waits until the writer reaches that tensor. Paired with
+the next. `burn-store` collects a module's parameters as deferred tensors, so each device readback
+waits until the writer reaches that tensor. Paired with
 `Writer::write_to_file`, which streams to disk, saving a large module costs one tensor of host
 memory at a time rather than the whole set. The in-memory sinks (`into_bytes`, `write_into`) still
 build the container as a whole.

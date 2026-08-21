@@ -210,7 +210,7 @@ fn half_precision_adapter_round_trip() {
         _ => panic!("Expected memory store"),
     };
     let mut inspect_store = SafetensorsStore::from_bytes(Some(save_bytes.clone()));
-    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    let snapshots = inspect_store.get_all_tensors().unwrap();
     for (name, snapshot) in snapshots.iter() {
         if name.starts_with("linear") {
             assert_eq!(
@@ -285,7 +285,7 @@ fn half_precision_adapter_without_module() {
         _ => panic!("Expected memory store"),
     };
     let mut inspect_store = SafetensorsStore::from_bytes(Some(save_bytes));
-    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    let snapshots = inspect_store.get_all_tensors().unwrap();
     for (name, snapshot) in snapshots {
         if name.starts_with("linear") {
             assert_eq!(
@@ -333,7 +333,7 @@ fn half_precision_adapter_default_converts_layer_norm() {
         _ => panic!("Expected memory store"),
     };
     let mut inspect_store = SafetensorsStore::from_bytes(Some(save_bytes));
-    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    let snapshots = inspect_store.get_all_tensors().unwrap();
     for (name, snapshot) in snapshots {
         assert_eq!(
             snapshot.dtype,
