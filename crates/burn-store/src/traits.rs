@@ -3,22 +3,24 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use burn_pack::Tensor as PackTensor;
+
 use super::applier::Applier;
 use super::apply_result::ApplyResult;
 use crate::collector::Collector;
-use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
+use crate::{ModuleAdapter, PathFilter};
 use burn_core::module::Module;
 
 /// Extension trait for modules that provides tensor storage functionality.
 ///
-/// This trait provides convenient methods to collect and apply tensor snapshots from any Burn module.
-/// Collection operations create lightweight tensor snapshots without immediately copying data.
-/// Apply operations apply tensor data from snapshots to the corresponding tensors in the module.
+/// This trait provides convenient methods to collect tensors from any Burn module and apply
+/// them back. Collection is lazy: each [`burn_pack::Tensor`] it returns reads its data back
+/// from the device only when that data is asked for.
 pub trait ModuleSnapshot: Module {
-    /// Collects tensor snapshots for inspection without copying data.
+    /// Collects the module's tensors for inspection without copying data.
     ///
-    /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
-    /// Each `TensorSnapshot` contains the full path accessible via `snapshot.full_path()`.
+    /// Returns [`burn_pack::Tensor`]s that materialize their data lazily, each named by its
+    /// full path in the module (`tensor.name`).
     ///
     /// # Arguments
     ///
@@ -35,21 +37,21 @@ pub trait ModuleSnapshot: Module {
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
         skip_enum_variants: bool,
-    ) -> Vec<TensorSnapshot> {
+    ) -> Vec<PackTensor> {
         let mut collector = Collector::new(filter, adapter, skip_enum_variants);
         self.visit(&mut collector);
         collector.into_tensors()
     }
 
-    /// Applies tensor snapshots to the module.
+    /// Applies tensors to the module.
     ///
-    /// This is the primary apply method that applies tensor data from `TensorSnapshot`s
-    /// to the corresponding tensors in the module. The snapshots are typically obtained
-    /// from `collect()` or loaded from storage.
+    /// This is the primary apply method that applies tensor data to the corresponding
+    /// parameters in the module. The tensors are typically obtained from `collect()` or
+    /// loaded from storage.
     ///
     /// # Arguments
     ///
-    /// * `snapshots` - A vector of TensorSnapshot objects
+    /// * `tensors` - The tensors to apply, matched to parameters by name
     /// * `filter` - An optional [`PathFilter`] to determine which tensors to apply.
     ///   When `None`, all available tensors are applied.
     /// * `adapter` - Optional adapter to transform tensors based on container types
@@ -66,25 +68,25 @@ pub trait ModuleSnapshot: Module {
     /// use burn_store::PathFilter;
     ///
     /// // Apply all tensors
-    /// let result = model.apply(snapshots, None, None, false);
+    /// let result = model.apply(tensors, None, None, false);
     ///
     /// // Apply only encoder tensors
     /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
-    /// let result = model.apply(snapshots, Some(filter), None, false);
+    /// let result = model.apply(tensors, Some(filter), None, false);
     ///
     /// // Apply with complex filter
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_regex(r"^decoder\..*")
     ///     .with_full_path("head.weight");
-    /// let result = model.apply(snapshots, Some(filter), None, false);
+    /// let result = model.apply(tensors, Some(filter), None, false);
     ///
     /// // Apply with enum variant skipping (for PyTorch models)
-    /// let result = model.apply(snapshots, None, None, true);
+    /// let result = model.apply(tensors, None, None, true);
     /// ```
     fn apply(
         &mut self,
-        snapshots: Vec<TensorSnapshot>,
+        tensors: Vec<PackTensor>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
         skip_enum_variants: bool,
@@ -92,7 +94,7 @@ pub trait ModuleSnapshot: Module {
     where
         Self: Sized,
     {
-        let mut applier = Applier::new(snapshots, filter, adapter, skip_enum_variants);
+        let mut applier = Applier::new(tensors, filter, adapter, skip_enum_variants);
 
         // Use unsafe to avoid cloning the entire module, which would double the memory usage
         // We read the module out, map it, then write it back
@@ -111,7 +113,7 @@ pub trait ModuleSnapshot: Module {
         applier.into_result()
     }
 
-    /// Saves tensor snapshots into a [`ModuleStore`].
+    /// Saves the module's tensors into a [`ModuleStore`].
     ///
     /// This method allows using a `ModuleStore` implementation to handle the
     /// collection and writing logic in a configurable way.
@@ -193,11 +195,11 @@ pub trait ModuleStore {
     /// * `Err(Self::Error)` - If a critical error prevented the apply operation
     fn apply_to<M: ModuleSnapshot>(&mut self, module: &mut M) -> Result<ApplyResult, Self::Error>;
 
-    /// Get a single tensor snapshot by name.
+    /// Get a single tensor by name.
     ///
     /// This method provides direct access to individual tensors in storage without
-    /// requiring a module. The returned `TensorSnapshot` uses lazy loading - tensor
-    /// data is only materialized when `to_data()` is called.
+    /// requiring a module. The returned tensor loads lazily: its data is only read when
+    /// asked for.
     ///
     /// **Note:** Key remapping is applied, so use the remapped name if configured.
     /// Filters are NOT applied - use `apply_to()` for filtered loading.
@@ -210,7 +212,7 @@ pub trait ModuleStore {
     ///
     /// # Returns
     ///
-    /// * `Ok(Some(&TensorSnapshot))` - Reference to the tensor snapshot if found
+    /// * `Ok(Some(&burn_pack::Tensor))` - Reference to the tensor if found
     /// * `Ok(None)` - If no tensor with that name exists
     /// * `Err(Self::Error)` - If an error occurred accessing storage
     ///
@@ -218,17 +220,17 @@ pub trait ModuleStore {
     ///
     /// ```rust,ignore
     /// let mut store = BurnpackStore::from_file("model.bpk");
-    /// if let Some(snapshot) = store.get_snapshot("encoder.weight")? {
-    ///     println!("Shape: {:?}", snapshot.shape);
-    ///     println!("Dtype: {:?}", snapshot.dtype);
-    ///     let data = snapshot.to_data()?;  // Lazy load
+    /// if let Some(tensor) = store.get_tensor("encoder.weight")? {
+    ///     println!("Shape: {:?}", tensor.shape);
+    ///     println!("Dtype: {:?}", tensor.dtype);
+    ///     let data = burn_store::bridge::to_data(tensor)?;  // Lazy load
     /// }
     /// ```
-    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error>;
+    fn get_tensor(&mut self, name: &str) -> Result<Option<&PackTensor>, Self::Error>;
 
-    /// Get all tensor snapshots from storage as an ordered map.
+    /// Get all tensors from storage as an ordered map.
     ///
-    /// This method returns all tensors in storage as lazy-loading snapshots,
+    /// This method returns all tensors in storage as lazy-loading entries,
     /// organized in a `BTreeMap` for efficient lookup by name. The map preserves
     /// alphabetical ordering of tensor names.
     ///
@@ -240,19 +242,18 @@ pub trait ModuleStore {
     ///
     /// # Returns
     ///
-    /// * `Ok(&BTreeMap<String, TensorSnapshot>)` - Reference to all tensor snapshots
+    /// * `Ok(&BTreeMap<String, burn_pack::Tensor>)` - Reference to all tensors
     /// * `Err(Self::Error)` - If an error occurred accessing storage
     ///
     /// # Example
     ///
     /// ```rust,ignore
     /// let mut store = SafetensorsStore::from_file("model.safetensors");
-    /// let snapshots = store.get_all_snapshots()?;
-    /// for (name, snapshot) in snapshots {
-    ///     println!("{}: {:?}", name, snapshot.shape);
+    /// for (name, tensor) in store.get_all_tensors()? {
+    ///     println!("{}: {:?}", name, tensor.shape);
     /// }
     /// ```
-    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error>;
+    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, PackTensor>, Self::Error>;
 
     /// Get all tensor names/keys in storage.
     ///

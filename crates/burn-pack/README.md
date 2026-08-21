@@ -54,7 +54,7 @@ let tensor = Tensor::deferred(
 ```
 
 Paired with `write_to_file`, peak host memory is bounded by the largest single tensor rather than
-by the whole model. `burn-store` converts a `TensorSnapshot` into one of these, so saving a
+by the whole model. `burn-store` collects a module's parameters directly as these, so saving a
 `Module` gets it for free.
 
 See the [docs](https://docs.rs/burn-pack) for the format layout and the full API.

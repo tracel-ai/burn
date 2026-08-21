@@ -5,7 +5,7 @@
 //! guard) sitting on top of the atomic write, and the adapter path that produces snapshots
 //! whose declared metadata and eventual bytes come from different code.
 
-#![cfg(all(feature = "burnpack", feature = "std"))]
+#![cfg(feature = "std")]
 
 // The `Module` derive expands to `::burn::...` paths.
 use burn_core as burn;

@@ -1,9 +1,7 @@
 //! SafeTensors store implementation using the official safetensors crate.
 
-use crate::{
-    ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter,
-    TensorSnapshot,
-};
+use crate::bridge;
+use crate::{ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter};
 
 #[cfg(feature = "std")]
 use crate::{KeyRemapper, map_indices_contiguous};
@@ -11,10 +9,9 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
-use alloc::vec;
 use alloc::vec::Vec;
-use burn_core::module::ParamId;
-use burn_core::tensor::{BoolStore, DType, TensorData};
+use burn_core::tensor::{BoolStore, DType, Shape, TensorData};
+use burn_pack::{Error as PackError, Tensor as PackTensor};
 use core::fmt;
 use core::ops::Deref;
 use hashbrown::HashMap;
@@ -126,7 +123,7 @@ impl SafetensorsStore {
             map_indices_contiguous: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
-            snapshots_cache: None,
+            tensors_cache: None,
         })
     }
 
@@ -146,7 +143,7 @@ impl SafetensorsStore {
             map_indices_contiguous: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
-            snapshots_cache: None,
+            tensors_cache: None,
         })
     }
 
@@ -517,8 +514,8 @@ pub struct FileStore {
     map_indices_contiguous: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
-    /// Cached tensor snapshots (parsed once, reused)
-    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
+    /// Cached tensors (parsed once, reused)
+    tensors_cache: Option<BTreeMap<String, PackTensor>>,
 }
 
 /// Memory-based store.
@@ -536,8 +533,8 @@ pub struct MemoryStore {
     map_indices_contiguous: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
-    /// Cached tensor snapshots (parsed once, reused)
-    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
+    /// Cached tensors (parsed once, reused)
+    tensors_cache: Option<BTreeMap<String, PackTensor>>,
 }
 
 impl Default for MemoryStore {
@@ -555,7 +552,7 @@ impl Default for MemoryStore {
             map_indices_contiguous: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
-            snapshots_cache: None,
+            tensors_cache: None,
         }
     }
 }
@@ -577,11 +574,11 @@ impl MemoryStore {
     }
 }
 
-// Adapter to use TensorSnapshot directly with safetensors
+// Adapter to write a tensor through safetensors' `View`
 #[derive(Debug)]
-struct TensorSnapshotAdapter(TensorSnapshot);
+struct PackTensorView(PackTensor);
 
-impl safetensors::View for TensorSnapshotAdapter {
+impl safetensors::View for PackTensorView {
     fn dtype(&self) -> safetensors::Dtype {
         // Convert from burn dtype to safetensors dtype
         dtype_to_safetensors(self.0.dtype).unwrap_or(safetensors::Dtype::F32)
@@ -593,16 +590,16 @@ impl safetensors::View for TensorSnapshotAdapter {
 
     fn data(&self) -> alloc::borrow::Cow<'_, [u8]> {
         // Only materialize data when actually needed for serialization
-        let data = self
+        let bytes = self
             .0
-            .to_data()
+            .to_bytes()
             .unwrap_or_else(|e| panic!("Failed to get tensor data: {:?}", e));
-        alloc::borrow::Cow::Owned(data.bytes.deref().to_vec())
+        alloc::borrow::Cow::Owned(bytes.deref().to_vec())
     }
 
     fn data_len(&self) -> usize {
-        // Use the efficient data_len method from TensorSnapshot
-        self.0.data_len()
+        // Known from the descriptor, without drawing the bytes
+        self.0.byte_len()
     }
 }
 
@@ -613,26 +610,26 @@ impl ModuleStore for SafetensorsStore {
         // Invalidate cache since we're writing new data
         match self {
             #[cfg(feature = "std")]
-            Self::File(p) => p.snapshots_cache = None,
-            Self::Memory(p) => p.snapshots_cache = None,
+            Self::File(p) => p.tensors_cache = None,
+            Self::Memory(p) => p.tensors_cache = None,
         }
 
-        // Collect tensor snapshots from module with adapter
+        // Collect the module's tensors with the adapter applied
         // The to_adapter converts from Burn format to target format for saving
         let to_adapter = match self {
             #[cfg(feature = "std")]
             Self::File(p) => p.to_adapter.clone(),
             Self::Memory(p) => p.to_adapter.clone(),
         };
-        let mut snapshots = module.collect(None, Some(to_adapter), self.get_skip_enum_variants());
+        let mut tensors = module.collect(None, Some(to_adapter), self.get_skip_enum_variants());
 
         // Apply filtering
-        snapshots = apply_filter(snapshots, self.get_filter());
+        tensors = apply_filter(tensors, self.get_filter());
 
         // Apply remapping
         #[cfg(feature = "std")]
         {
-            snapshots = apply_remapping(snapshots, self.get_remapper());
+            tensors = apply_remapping(tensors, self.get_remapper());
         }
 
         // Get metadata (already includes format, producer and version from default_metadata)
@@ -657,7 +654,7 @@ impl ModuleStore for SafetensorsStore {
                 }
 
                 // Convert to safetensors format
-                let tensors = snapshots_to_safetensors(snapshots)?;
+                let tensors = to_safetensors_views(tensors);
 
                 // Use serialize_to_file which streams directly to disk
                 // This calls the lazy closures on-demand without buffering everything
@@ -666,7 +663,7 @@ impl ModuleStore for SafetensorsStore {
             }
             Self::Memory(p) => {
                 // For memory, we need to serialize to bytes
-                let tensors = snapshots_to_safetensors(snapshots)?;
+                let tensors = to_safetensors_views(tensors);
                 // For no-std, serialize still needs std HashMap when std feature is enabled
                 #[cfg(feature = "std")]
                 let data = safetensors::serialize(tensors, Some(std_metadata))?;
@@ -680,8 +677,8 @@ impl ModuleStore for SafetensorsStore {
     }
 
     fn apply_to<M: ModuleSnapshot>(&mut self, module: &mut M) -> Result<ApplyResult, Self::Error> {
-        // Get snapshots from cache
-        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
+        // Get tensors from cache
+        let tensors: Vec<PackTensor> = self.get_all_tensors()?.values().cloned().collect();
 
         // Get the adapter
         let adapter: Box<dyn ModuleAdapter> = match self {
@@ -702,7 +699,7 @@ impl ModuleStore for SafetensorsStore {
         // The adapter will be applied during module traversal with proper container info
         // Filter is applied here during apply, not during cache population
         let result = module.apply(
-            snapshots,
+            tensors,
             filter_opt,
             Some(adapter),
             self.get_skip_enum_variants(),
@@ -727,31 +724,31 @@ impl ModuleStore for SafetensorsStore {
         Ok(result)
     }
 
-    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
+    fn get_tensor(&mut self, name: &str) -> Result<Option<&PackTensor>, Self::Error> {
         // Ensure cache is populated
-        self.ensure_snapshots_cache()?;
+        self.ensure_tensors_cache()?;
         let cache = match self {
             #[cfg(feature = "std")]
-            Self::File(p) => p.snapshots_cache.as_ref().unwrap(),
-            Self::Memory(p) => p.snapshots_cache.as_ref().unwrap(),
+            Self::File(p) => p.tensors_cache.as_ref().unwrap(),
+            Self::Memory(p) => p.tensors_cache.as_ref().unwrap(),
         };
         Ok(cache.get(name))
     }
 
-    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, PackTensor>, Self::Error> {
         // Ensure cache is populated
-        self.ensure_snapshots_cache()?;
+        self.ensure_tensors_cache()?;
         let cache = match self {
             #[cfg(feature = "std")]
-            Self::File(p) => p.snapshots_cache.as_ref().unwrap(),
-            Self::Memory(p) => p.snapshots_cache.as_ref().unwrap(),
+            Self::File(p) => p.tensors_cache.as_ref().unwrap(),
+            Self::Memory(p) => p.tensors_cache.as_ref().unwrap(),
         };
         Ok(cache)
     }
 
     fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
         // Always use the cache to ensure remapping is applied consistently
-        Ok(self.get_all_snapshots()?.keys().cloned().collect())
+        Ok(self.get_all_tensors()?.keys().cloned().collect())
     }
 }
 
@@ -812,39 +809,39 @@ impl SafetensorsStore {
         }
     }
 
-    /// Ensure the snapshots cache is populated
-    fn ensure_snapshots_cache(&mut self) -> Result<(), SafetensorsStoreError> {
+    /// Ensure the tensors cache is populated
+    fn ensure_tensors_cache(&mut self) -> Result<(), SafetensorsStoreError> {
         // Check if cache exists
         let has_cache = match self {
             #[cfg(feature = "std")]
-            Self::File(p) => p.snapshots_cache.is_some(),
-            Self::Memory(p) => p.snapshots_cache.is_some(),
+            Self::File(p) => p.tensors_cache.is_some(),
+            Self::Memory(p) => p.tensors_cache.is_some(),
         };
 
         if has_cache {
             return Ok(());
         }
 
-        // Load snapshots
+        // Load tensors
         #[allow(unused_mut)]
-        let mut snapshots = match self {
+        let mut tensors = match self {
             #[cfg(feature = "std")]
-            Self::File(p) => safetensors_to_snapshots_lazy_file(&p.path)?,
+            Self::File(p) => lazy_tensors_from_file(&p.path)?,
             Self::Memory(p) => {
                 let data_arc = p
                     .data
                     .clone()
                     .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
-                safetensors_to_snapshots_lazy(data_arc)?
+                lazy_tensors_from_bytes(data_arc)?
             }
         };
 
         // Apply remapping (but NOT filtering - that's done at apply time)
         #[cfg(feature = "std")]
         {
-            snapshots = match self {
-                Self::File(p) => apply_remapping(snapshots, &p.remapper),
-                Self::Memory(p) => apply_remapping(snapshots, &p.remapper),
+            tensors = match self {
+                Self::File(p) => apply_remapping(tensors, &p.remapper),
+                Self::Memory(p) => apply_remapping(tensors, &p.remapper),
             };
         }
 
@@ -852,78 +849,67 @@ impl SafetensorsStore {
         // This must be done after remapping so that remapped paths are mapped
         #[cfg(feature = "std")]
         if self.get_map_indices_contiguous() {
-            let (mapped, _) = map_indices_contiguous(snapshots);
-            snapshots = mapped;
+            let (mapped, _) = map_indices_contiguous(tensors);
+            tensors = mapped;
         }
 
         // Build cache as BTreeMap
-        let cache: BTreeMap<String, TensorSnapshot> =
-            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
+        let cache: BTreeMap<String, PackTensor> =
+            tensors.into_iter().map(|t| (t.name.clone(), t)).collect();
 
         // Store cache
         match self {
             #[cfg(feature = "std")]
-            Self::File(p) => p.snapshots_cache = Some(cache),
-            Self::Memory(p) => p.snapshots_cache = Some(cache),
+            Self::File(p) => p.tensors_cache = Some(cache),
+            Self::Memory(p) => p.tensors_cache = Some(cache),
         }
 
         Ok(())
     }
 }
 
-/// Apply filter to tensor snapshots.
-fn apply_filter(mut snapshots: Vec<TensorSnapshot>, filter: &PathFilter) -> Vec<TensorSnapshot> {
+/// Apply filter to tensors.
+fn apply_filter(mut tensors: Vec<PackTensor>, filter: &PathFilter) -> Vec<PackTensor> {
     if filter.is_empty() {
-        return snapshots;
+        return tensors;
     }
 
-    snapshots.retain(|snapshot| {
-        let path = snapshot.full_path();
-        filter.matches(&path)
-    });
+    tensors.retain(|tensor| filter.matches(&tensor.name));
 
-    snapshots
+    tensors
 }
 
-/// Apply remapping to tensor snapshots.
+/// Apply remapping to tensors.
 #[cfg(feature = "std")]
-fn apply_remapping(snapshots: Vec<TensorSnapshot>, remapper: &KeyRemapper) -> Vec<TensorSnapshot> {
+fn apply_remapping(tensors: Vec<PackTensor>, remapper: &KeyRemapper) -> Vec<PackTensor> {
     if remapper.is_empty() {
-        return snapshots;
+        return tensors;
     }
 
-    let (remapped, _) = remapper.remap(snapshots);
+    let (remapped, _) = remapper.remap(tensors);
     remapped
 }
 
-/// Convert TensorSnapshots to safetensors format lazily.
-fn snapshots_to_safetensors(
-    snapshots: Vec<TensorSnapshot>,
-) -> Result<Vec<(String, TensorSnapshotAdapter)>, SafetensorsStoreError> {
-    let mut tensors = Vec::new();
-
-    for snapshot in snapshots {
-        let name = snapshot.full_path();
-        // No need to materialize data - TensorSnapshot now has dtype and shape cached!
-        tensors.push((name, TensorSnapshotAdapter(snapshot)));
-    }
-
-    Ok(tensors)
+/// Wrap tensors as safetensors views, still without materializing any data.
+fn to_safetensors_views(tensors: Vec<PackTensor>) -> Vec<(String, PackTensorView)> {
+    tensors
+        .into_iter()
+        .map(|tensor| (tensor.name.clone(), PackTensorView(tensor)))
+        .collect()
 }
 
-/// Convert safetensors to TensorSnapshots with lazy loading.
-fn safetensors_to_snapshots_lazy(
+/// Read a safetensors buffer into lazily-loading tensors.
+fn lazy_tensors_from_bytes(
     data_arc: Arc<Vec<u8>>,
-) -> Result<Vec<TensorSnapshot>, SafetensorsStoreError> {
+) -> Result<Vec<PackTensor>, SafetensorsStoreError> {
     // Parse to get metadata
     let tensors = safetensors::SafeTensors::deserialize(&data_arc)?;
-    let mut snapshots = Vec::new();
+    let mut loaded = Vec::new();
 
-    for (name, tensor_snapshot) in tensors.tensors() {
+    for (name, view) in tensors.tensors() {
         // Extract metadata without materializing data
-        let dtype = safetensor_dtype_to_burn(tensor_snapshot.dtype())?;
-        let shape = tensor_snapshot.shape();
-        let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
+        let dtype = safetensor_dtype_to_burn(view.dtype())?;
+        let shape: Shape = view.shape().into();
 
         // Create a lazy closure that will deserialize only this tensor when needed
         #[cfg(target_has_atomic = "ptr")]
@@ -931,57 +917,43 @@ fn safetensors_to_snapshots_lazy(
         #[cfg(not(target_has_atomic = "ptr"))]
         let data_clone = data_arc.clone();
         let name_clone = name.to_string();
-        let data_fn = TensorSnapshot::data_fn(move || {
-            // Re-deserialize when needed (this is cheap, just parsing header)
-            let tensors = safetensors::SafeTensors::deserialize(&data_clone).map_err(|e| {
-                crate::TensorSnapshotError::IoError(format!(
-                    "Failed to re-deserialize safetensors: {}",
-                    e
-                ))
-            })?;
+        let tensor_shape = shape.clone();
 
-            // Find our specific tensor
-            let tensor = tensors.tensor(&name_clone).map_err(|e| {
-                crate::TensorSnapshotError::DataError(format!(
-                    "Tensor '{}' not found: {}",
-                    name_clone, e
-                ))
-            })?;
-
-            // Now materialize just this tensor's data
-            let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
-            Ok(TensorData {
-                bytes,
-                shape: tensor.shape().into(),
-                dtype: safetensor_dtype_to_burn(tensor.dtype())
-                    .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,
-            })
-        });
-
-        let mut snapshot = TensorSnapshot::from_closure(
-            data_fn,
+        // Safetensors carries no parameter identity, so `param_id` stays empty and loading
+        // keeps the target module's ids rather than randomizing them (the PyTorch store does
+        // the same).
+        loaded.push(bridge::deferred(
+            name.to_string(),
             dtype,
-            shape.into(),
-            path_parts,
-            vec![], // Empty container_stack - will be filled during module traversal
-            ParamId::new(),
-        );
-        // Safetensors carries no parameter identity, so the id above is a placeholder rather than
-        // a persisted one. Clear it so loading keeps the target module's ids instead of randomizing
-        // them (the PyTorch store does the same).
-        snapshot.tensor_id = None;
-        snapshots.push(snapshot);
+            shape,
+            None,
+            move || {
+                // Re-deserialize when needed (this is cheap, just parsing header)
+                let tensors = safetensors::SafeTensors::deserialize(&data_clone).map_err(|e| {
+                    PackError::IoError(format!("Failed to re-deserialize safetensors: {}", e))
+                })?;
+
+                // Find our specific tensor
+                let tensor = tensors.tensor(&name_clone).map_err(|e| {
+                    PackError::ValidationError(format!("Tensor '{}' not found: {}", name_clone, e))
+                })?;
+
+                // Now materialize just this tensor's data
+                let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
+                Ok(TensorData::from_bytes(bytes, tensor_shape.clone(), dtype))
+            },
+        ));
     }
 
-    Ok(snapshots)
+    Ok(loaded)
 }
 
-/// Convert safetensors to TensorSnapshots with true on-demand loading from file.
+/// Read a safetensors file into lazily-loading tensors.
 /// This reads only the header initially, then loads tensor data on demand.
 #[cfg(feature = "std")]
-fn safetensors_to_snapshots_lazy_file(
+fn lazy_tensors_from_file(
     path: &std::path::Path,
-) -> Result<Vec<TensorSnapshot>, SafetensorsStoreError> {
+) -> Result<Vec<PackTensor>, SafetensorsStoreError> {
     // Always use memory mapping for the most efficient access
     use memmap2::MmapOptions;
 
@@ -992,54 +964,39 @@ fn safetensors_to_snapshots_lazy_file(
 
     // Parse just to get metadata (safetensors won't copy data with mmap)
     let tensors = safetensors::SafeTensors::deserialize(&mmap_arc)?;
-    let mut snapshots = Vec::new();
+    let mut loaded = Vec::new();
 
-    for (name, tensor_snapshot) in tensors.tensors() {
-        let dtype = safetensor_dtype_to_burn(tensor_snapshot.dtype())?;
-        let shape = tensor_snapshot.shape();
-        let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
+    for (name, view) in tensors.tensors() {
+        let dtype = safetensor_dtype_to_burn(view.dtype())?;
+        let shape: Shape = view.shape().into();
 
         // Create a lazy closure that accesses the mmap'd data
         let mmap_clone = Arc::clone(&mmap_arc);
         let name_clone = name.to_string();
+        let tensor_shape = shape.clone();
 
-        let data_fn = TensorSnapshot::data_fn(move || {
-            // Re-parse to get the tensor snapshot (this is cheap with mmap)
-            let tensors = safetensors::SafeTensors::deserialize(&mmap_clone).map_err(|e| {
-                crate::TensorSnapshotError::IoError(format!("Failed to deserialize: {}", e))
-            })?;
-            let tensor = tensors.tensor(&name_clone).map_err(|e| {
-                crate::TensorSnapshotError::DataError(format!(
-                    "Tensor '{}' not found: {}",
-                    name_clone, e
-                ))
-            })?;
-
-            // Only now do we actually copy the tensor data
-            Ok(TensorData {
-                bytes: burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
-                shape: tensor.shape().into(),
-                dtype: safetensor_dtype_to_burn(tensor.dtype())
-                    .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,
-            })
-        });
-
-        let mut snapshot = TensorSnapshot::from_closure(
-            data_fn,
+        // As above, safetensors carries no parameter identity.
+        loaded.push(bridge::deferred(
+            name.to_string(),
             dtype,
-            shape.into(),
-            path_parts,
-            vec![], // Empty container_stack - will be filled during module traversal
-            ParamId::new(),
-        );
-        // Safetensors carries no parameter identity, so the id above is a placeholder rather than
-        // a persisted one. Clear it so loading keeps the target module's ids instead of randomizing
-        // them (the PyTorch store does the same).
-        snapshot.tensor_id = None;
-        snapshots.push(snapshot);
+            shape,
+            None,
+            move || {
+                // Re-parse to get the tensor view (this is cheap with mmap)
+                let tensors = safetensors::SafeTensors::deserialize(&mmap_clone)
+                    .map_err(|e| PackError::IoError(format!("Failed to deserialize: {}", e)))?;
+                let tensor = tensors.tensor(&name_clone).map_err(|e| {
+                    PackError::ValidationError(format!("Tensor '{}' not found: {}", name_clone, e))
+                })?;
+
+                // Only now do we actually copy the tensor data
+                let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
+                Ok(TensorData::from_bytes(bytes, tensor_shape.clone(), dtype))
+            },
+        ));
     }
 
-    Ok(snapshots)
+    Ok(loaded)
 }
 
 /// Helper to convert safetensors Dtype to burn DType.

@@ -192,7 +192,7 @@ fn verify_tensor_names_from_pytorch() {
 
     // Collect tensor names from the model
     let views = model.collect(None, None, false);
-    let tensor_names: Vec<String> = views.iter().map(|v| v.full_path()).collect();
+    let tensor_names: Vec<String> = views.iter().map(|v| v.name.clone()).collect();
 
     // Verify expected tensor names are present
     assert!(tensor_names.iter().any(|n| n.contains("conv1")));

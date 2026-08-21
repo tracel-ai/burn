@@ -10,12 +10,12 @@
 //! - Extended PyTorch version compatibility (0.1.10 - 2.x)
 //! - Better separation of pickle parsing and tensor extraction
 //! - Support for both legacy and modern PyTorch formats
-use crate::TensorSnapshot;
+use crate::bridge;
 use crate::pytorch::lazy_data::LazyDataSource;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use burn_core::module::ParamId;
 use burn_core::tensor::{BoolStore, DType, TensorData};
+use burn_pack::{Error as PackError, Tensor as PackTensor};
 use byteorder::{LittleEndian, ReadBytesExt};
 use half::{bf16, f16};
 use std::collections::HashMap;
@@ -230,7 +230,7 @@ pub enum Object {
         callable: Box<Object>,
         args: Box<Object>,
     },
-    TorchParam(TensorSnapshot),
+    TorchParam(PackTensor),
 }
 
 impl Object {
@@ -611,9 +611,16 @@ fn rebuild_tensor_impl(
         source.track_storage_usage(&storage_key, 0, bytes_needed);
     }
 
-    // Create a TensorSnapshot with a closure that loads the actual data on-demand
-    Ok(Object::TorchParam(TensorSnapshot::from_closure(
-        Arc::new(move || {
+    // The tensor's name is not known here: it is a value in the pickle's nested dicts, and
+    // its path is only assembled while walking them, so `PytorchReader` fills it in on insert.
+    // PyTorch carries no parameter identity either, so `param_id` stays empty and loading keeps
+    // the target module's ids.
+    Ok(Object::TorchParam(bridge::deferred(
+        String::new(),
+        dtype,
+        shape.into(),
+        None,
+        move || {
             // Load data only when needed
             if let Ok(data) = data_source_clone.read(&data_file_key) {
                 // Parse the binary data based on dtype
@@ -625,10 +632,7 @@ fn rebuild_tensor_impl(
                 // Apply storage offset
                 let offset_bytes = storage_offset * element_size;
                 if offset_bytes >= data.len() {
-                    return Ok(TensorData::new(
-                        vec![0.0f32; num_elements],
-                        shape_clone.clone(),
-                    ));
+                    return zeros(dtype, &shape_clone);
                 }
 
                 let data_slice = &data[offset_bytes..];
@@ -786,7 +790,7 @@ fn rebuild_tensor_impl(
                     }
                     _ => {
                         // For any remaining unsupported types, return an error
-                        Err(crate::TensorSnapshotError::DataError(format!(
+                        Err(PackError::ValidationError(format!(
                             "Unsupported dtype for tensor data reading: {:?}",
                             dtype
                         )))
@@ -794,76 +798,40 @@ fn rebuild_tensor_impl(
                 }
             } else {
                 // If no data file found, return zeros of the appropriate type
-                let num_elements = shape_clone.iter().product::<usize>().max(1);
-                match dtype {
-                    DType::F32 => Ok(TensorData::new(
-                        vec![0.0f32; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::F64 => Ok(TensorData::new(
-                        vec![0.0f64; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::F16 => Ok(TensorData::new(
-                        vec![f16::ZERO; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::BF16 => Ok(TensorData::new(
-                        vec![bf16::ZERO; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::I64 => Ok(TensorData::new(
-                        vec![0i64; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::I32 => Ok(TensorData::new(
-                        vec![0i32; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::I16 => Ok(TensorData::new(
-                        vec![0i16; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::I8 => Ok(TensorData::new(
-                        vec![0i8; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::U8 => Ok(TensorData::new(
-                        vec![0u8; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::U16 => Ok(TensorData::new(
-                        vec![0u16; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::U32 => Ok(TensorData::new(
-                        vec![0u32; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::U64 => Ok(TensorData::new(
-                        vec![0u64; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    DType::Bool(BoolStore::Native) => Ok(TensorData::new(
-                        vec![false; num_elements],
-                        shape_clone.clone(),
-                    )),
-                    _ => {
-                        // For any remaining unsupported types, return an error
-                        Err(crate::TensorSnapshotError::DataError(format!(
-                            "Unsupported dtype for tensor data reading: {:?}",
-                            dtype
-                        )))
-                    }
-                }
+                zeros(dtype, &shape_clone)
             }
-        }),
-        dtype,
-        shape.into(),
-        vec![],         // path_stack
-        vec![],         // container_stack
-        ParamId::new(), // tensor_id
+        },
     )))
+}
+
+/// Zero-filled data of the given dtype.
+///
+/// Used when a tensor's storage is missing from the archive, or when its offset points past
+/// the end of what the archive holds. The dtype has to be honored rather than defaulted to
+/// F32: the byte length the caller declared comes from `dtype` and `shape`, and data of the
+/// wrong width would be rejected when it is drawn.
+fn zeros(dtype: DType, shape: &[usize]) -> core::result::Result<TensorData, PackError> {
+    let n = shape.iter().product::<usize>().max(1);
+
+    match dtype {
+        DType::F32 => Ok(TensorData::new(vec![0.0f32; n], shape.to_vec())),
+        DType::F64 => Ok(TensorData::new(vec![0.0f64; n], shape.to_vec())),
+        DType::F16 => Ok(TensorData::new(vec![f16::ZERO; n], shape.to_vec())),
+        DType::BF16 => Ok(TensorData::new(vec![bf16::ZERO; n], shape.to_vec())),
+        DType::I64 => Ok(TensorData::new(vec![0i64; n], shape.to_vec())),
+        DType::I32 => Ok(TensorData::new(vec![0i32; n], shape.to_vec())),
+        DType::I16 => Ok(TensorData::new(vec![0i16; n], shape.to_vec())),
+        DType::I8 => Ok(TensorData::new(vec![0i8; n], shape.to_vec())),
+        DType::U8 => Ok(TensorData::new(vec![0u8; n], shape.to_vec())),
+        DType::U16 => Ok(TensorData::new(vec![0u16; n], shape.to_vec())),
+        DType::U32 => Ok(TensorData::new(vec![0u32; n], shape.to_vec())),
+        DType::U64 => Ok(TensorData::new(vec![0u64; n], shape.to_vec())),
+        DType::Bool(BoolStore::Native) => Ok(TensorData::new(vec![false; n], shape.to_vec())),
+        _ => Err(PackError::ValidationError(format!(
+            "Unsupported dtype for tensor data reading: {:?}",
+            dtype
+        ))),
+    }
 }
 
 pub struct Stack {
@@ -1536,7 +1504,7 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
 }
 
 /// Load tensors from a pickle file (PyTorch checkpoint format)
-pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String, TensorSnapshot>> {
+pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String, PackTensor>> {
     let obj = read_pickle(reader)?;
 
     // Extract tensors from the loaded object
@@ -1550,7 +1518,7 @@ pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String,
 fn extract_tensors<'a>(
     obj: &'a Object,
     path: &mut Vec<&'a str>,
-    tensors: &mut HashMap<String, TensorSnapshot>,
+    tensors: &mut HashMap<String, PackTensor>,
 ) {
     match obj {
         Object::Dict(dict) => {
@@ -1560,9 +1528,13 @@ fn extract_tensors<'a>(
                 path.pop();
             }
         }
-        Object::TorchParam(snapshot) => {
-            // Only allocate the string here when we actually insert
-            tensors.insert(path.join("."), snapshot.clone());
+        Object::TorchParam(tensor) => {
+            // The tensor was built without a name; its path is only known here.
+            // Only allocate the string when we actually insert.
+            let name = path.join(".");
+            let mut tensor = tensor.clone();
+            tensor.name = name.clone();
+            tensors.insert(name, tensor);
         }
         _ => {}
     }
