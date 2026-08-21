@@ -1,5 +1,5 @@
 use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
-use crate::engine::launch::layout::dim_order;
+use crate::engine::launch::layout::permuted_innermost_dim;
 use crate::engine::launch::runner::TraceRunner;
 use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
 use crate::{
@@ -115,10 +115,13 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
             // Which dimension a line of the reference advances along. Only a concrete
             // reference can be permuted; the virtual ones are indexed through a
-            // transform written against the last dimension.
+            // transform written against the last dimension. The vectorization
+            // planner decides a tensor's axis by the same rule, so the dimension a
+            // line is measured along and the dimension it is stepped along are the
+            // same one.
             let ref_innermost = match &block_plan.reference {
                 ReferenceSelection::Concrete { shape, strides, .. } => {
-                    dim_order(shape, strides).and_then(|order| order.last().copied())
+                    permuted_innermost_dim(shape, strides)
                 }
                 _ => None,
             }

@@ -10,7 +10,7 @@ use crate::{
             HandleInput,
             layout::{DimOrder, dim_order, is_contiguous_order, strides_for},
         },
-        settings::RefLayoutSetting,
+        settings::{FuseSettings, RefLayoutSetting},
         trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
     },
     strides_dyn_rank,
@@ -124,7 +124,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     // block is free to lay it out in whatever order costs its inputs
                     // the least traffic. The transform kinds below keep the strides
                     // their view dictates.
-                    let strides = self.chosen_strides(plan, block_idx, &tensor_global.shape);
+                    let strides = self.chosen_strides(
+                        plan,
+                        block_idx,
+                        &tensor_global.shape,
+                        &output.tensor_relative.shape,
+                    );
 
                     self.normal_output(
                         client,
@@ -353,7 +358,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     /// dimension order — what this used to be, unconditionally — are the right
     /// answer only when the inputs are contiguous too, and after a convolution
     /// they are not.
-    fn chosen_strides(&self, plan: &LaunchPlan<'a, R>, block_idx: usize, shape: &Shape) -> Strides {
+    fn chosen_strides(
+        &self,
+        plan: &LaunchPlan<'a, R>,
+        block_idx: usize,
+        shape: &Shape,
+        shape_relative: &Shape,
+    ) -> Strides {
         // Once a reference exists, the remaining outputs follow it, so their writes
         // are linear as well. Their shapes can differ from the reference's; the
         // dimension *order* is what carries over.
@@ -366,6 +377,16 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             && let Some(order) = dim_order(ref_shape, ref_strides)
         {
             return strides_for(shape, &order);
+        }
+
+        // Only the output that goes on to *be* the reference gets to pick a layout.
+        // Any other output is written against a reference it does not define, so a
+        // layout of its own would leave its own writes strided and nothing else
+        // improved — and would hand the vectorization planner an output whose
+        // innermost dimension is not the one the block iterates along.
+        // [Self::normal_output] selects the reference on exactly this condition.
+        if &self.blocks[block_idx].shape_ref != shape_relative {
+            return strides_dyn_rank(shape);
         }
 
         match self.preferred_dim_order(plan, block_idx, shape) {
@@ -396,30 +417,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         block_idx: usize,
         shape: &Shape,
     ) -> Option<DimOrder> {
-        // A block that requires a contiguous reference (a reduce) has no say, and
-        // one that inherits its reference from another block is not the one making
-        // the decision.
-        if !matches!(
-            self.blocks[block_idx].settings.ref_layout,
-            RefLayoutSetting::Any
+        if !may_permute_layout(
+            &self.blocks[block_idx].settings,
+            &self.blocks[block_idx].ops,
         ) {
-            return None;
-        }
-
-        // A few operations index their operands against the last dimension directly
-        // rather than through the reference, so they only agree with the rest of the
-        // kernel while the reference is contiguous.
-        let indexes_last_dim = self.blocks[block_idx].ops.iter().any(|op| {
-            matches!(
-                op,
-                FuseOp::Gather { .. }
-                    | FuseOp::Select { .. }
-                    | FuseOp::Cat { .. }
-                    | FuseOp::Dequantize { .. }
-            )
-        });
-
-        if indexes_last_dim {
             return None;
         }
 
@@ -491,6 +492,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
         let block = &plan.blocks[block_idx];
         let ref_layout_setting = &self.blocks[block_idx].settings.ref_layout;
+        let may_permute = may_permute_layout(
+            &self.blocks[block_idx].settings,
+            &self.blocks[block_idx].ops,
+        );
         let kind = block
             .potential_inplaces
             .iter()
@@ -510,22 +515,23 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         // Compared against the candidate's own strides, since those are
                         // what the aliased buffer actually has.
                         block.reference.compatible_strides_for_inplace(&pi.strides)
-                    } else {
+                    } else if may_permute {
                         // When no reference has been selected yet, this output becomes
                         // the reference (see [Self::inplace_output]); requiring an
                         // existing reference here made the first output of every block
                         // ineligible, since the reference is only selected while
-                        // processing outputs. The candidate's layout therefore has to
-                        // be one the block's setting allows — a reduce needs a
-                        // contiguous reference, and a block that inherits its reference
-                        // from another cannot validate one here at all.
-                        match ref_layout_setting {
-                            RefLayoutSetting::Any => true,
-                            RefLayoutSetting::OnlyContiguous => {
-                                is_contiguous(&tensor_global.shape, &pi.strides)
-                            }
-                            RefLayoutSetting::SameAsBlock { .. } => false,
-                        }
+                        // processing outputs. This block can iterate in the candidate's
+                        // order, so any dense layout will do.
+                        true
+                    } else {
+                        // Aliasing here makes the candidate's layout the block's
+                        // reference, and this block is not one that can iterate in a
+                        // permuted order — so let it in only when it is contiguous,
+                        // which is what this check was before dense candidates were
+                        // allowed at all. A block that inherits its reference from
+                        // another cannot validate one here regardless.
+                        !matches!(ref_layout_setting, RefLayoutSetting::SameAsBlock { .. })
+                            && is_contiguous(&tensor_global.shape, &pi.strides)
                     }
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
@@ -902,6 +908,41 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 }
 
+/// Whether a block may iterate — and so write its outputs — in a permuted
+/// dimension order.
+///
+/// Three things have to hold, and each one has bitten:
+///
+/// The settings must allow a free reference at all. A reduce pins it contiguous,
+/// and a block that inherits its reference from another is not the one making the
+/// decision.
+///
+/// The runner must read and write every operand through the generic fused paths.
+/// The matmul one does not: it describes its output to the matmul algorithm as
+/// row-major while building the output view from the reference's last two strides,
+/// so a permuted reference has it writing lines that are not contiguous along the
+/// column. That is what [FuseSettings::choose_output_layout] gates.
+///
+/// And the block must contain no operation that indexes its operands against the
+/// last dimension directly rather than through the reference. `gather` walks its
+/// lanes with the stride of `rank - 1`; it agrees with the rest of the kernel only
+/// while the reference is contiguous.
+fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
+    if !matches!(settings.ref_layout, RefLayoutSetting::Any) || !settings.choose_output_layout {
+        return false;
+    }
+
+    !ops.iter().any(|op| {
+        matches!(
+            op,
+            FuseOp::Gather { .. }
+                | FuseOp::Select { .. }
+                | FuseOp::Cat { .. }
+                | FuseOp::Dequantize { .. }
+        )
+    })
+}
+
 fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize) {
     let ops = block.writes.remove(&id);
 
@@ -954,4 +995,115 @@ fn relayout_strides(strides: &mut Strides, shape: &Shape, stride_relayout: &Shap
     }
 
     strides_changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::{
+        codegen::ir::{FuseType, QuantSchemeFuse, UnaryFuseArgs},
+        settings::VectorizationSetting,
+    };
+    use cubecl::quant::scheme::QuantScheme;
+
+    fn arg(pos: usize) -> FuseArg {
+        FuseArg::Input(pos, FuseType::F32, LayoutInfo::Unknown)
+    }
+
+    fn elemwise_op() -> FuseOp {
+        FuseOp::Assign(UnaryFuseArgs {
+            input: arg(0),
+            out: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+        })
+    }
+
+    fn settings(ref_layout: RefLayoutSetting, choose_output_layout: bool) -> FuseSettings {
+        FuseSettings {
+            broadcast: true,
+            output_shape_updates: true,
+            inplace: true,
+            vectorization: VectorizationSetting::Activated,
+            ref_layout,
+            choose_output_layout,
+        }
+    }
+
+    #[test]
+    fn an_elementwise_block_may_choose_its_layout() {
+        let settings = settings(RefLayoutSetting::Any, true);
+
+        assert!(may_permute_layout(&settings, &[elemwise_op()]));
+        assert!(may_permute_layout(&settings, &[]));
+    }
+
+    #[test]
+    fn a_runner_that_did_not_opt_in_keeps_the_contiguous_layout() {
+        // What a matmul block is: `RefLayoutSetting::Any` by way of
+        // `FuseSettings::default()`, but its output view is built from the
+        // reference's last two strides while the matmul algorithm is told the output
+        // is row-major. A permuted reference makes those two disagree.
+        let settings = settings(RefLayoutSetting::Any, false);
+
+        assert!(!may_permute_layout(&settings, &[elemwise_op()]));
+        assert!(
+            !may_permute_layout(&FuseSettings::default(), &[elemwise_op()]),
+            "opting in has to be deliberate, so the default must not",
+        );
+    }
+
+    #[test]
+    fn a_block_that_needs_a_contiguous_reference_may_not_choose() {
+        for ref_layout in [
+            RefLayoutSetting::OnlyContiguous,
+            RefLayoutSetting::SameAsBlock { block_pos: 0 },
+        ] {
+            assert!(!may_permute_layout(
+                &settings(ref_layout, true),
+                &[elemwise_op()]
+            ));
+        }
+    }
+
+    #[test]
+    fn an_operation_that_indexes_the_last_dimension_rules_out_a_permuted_layout() {
+        // These index their operands against `rank - 1` directly rather than through
+        // the reference, so they agree with the rest of the kernel only while the
+        // reference is contiguous.
+        let indexing = [
+            FuseOp::Gather {
+                input: arg(0),
+                indices: arg(1),
+                output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+                dim: 0,
+            },
+            FuseOp::Select {
+                input: arg(0),
+                indices: arg(1),
+                output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+                dim: 0,
+            },
+            FuseOp::Cat {
+                inputs: vec![arg(0), arg(1)],
+                output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+                dim: 0,
+            },
+            FuseOp::Dequantize {
+                values: arg(0),
+                params: arg(1),
+                output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+                scheme: QuantSchemeFuse {
+                    scheme: QuantScheme::default(),
+                },
+            },
+        ];
+
+        let settings = settings(RefLayoutSetting::Any, true);
+
+        for op in indexing {
+            assert!(
+                !may_permute_layout(&settings, &[elemwise_op(), op.clone()]),
+                "{op:?} must pin the block to a contiguous layout",
+            );
+        }
+    }
 }

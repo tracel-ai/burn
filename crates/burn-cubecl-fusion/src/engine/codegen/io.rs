@@ -391,7 +391,11 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
         Some(Transform::SwapDims(dim1, dim2)) => {
             let offset =
                 get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
-            let i = comptime![swap_dims_transform(config.rank - 1, (dim1, dim2))];
+            // `tensor` is the original; the block sees the swapped view. A line
+            // advances along `ref_innermost` in the view's numbering, which is this
+            // dimension in the original's — the same mapping
+            // [index_offset_with_layout] applies to every dimension it walks.
+            let i = comptime![swap_dims_transform(config.ref_innermost, (dim1, dim2))];
             let stride = tensor.tensor.stride(i);
 
             #[unroll]

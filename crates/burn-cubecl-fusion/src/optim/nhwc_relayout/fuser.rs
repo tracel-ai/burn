@@ -64,6 +64,9 @@ impl<R: Runtime> NHWCRelayoutFuser<R> {
             inplace: true,
             vectorization: VectorizationSetting::Activated,
             ref_layout: RefLayoutSetting::Any,
+            // This fuser exists to impose a layout of its own; it does not want one
+            // picked for it.
+            choose_output_layout: false,
         }
     }
 

@@ -63,6 +63,35 @@ pub fn dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
     Some(Shape::from(order))
 }
 
+/// The dimension a vectorized line advances along in a tensor laid out in a
+/// permuted order, or `None` when the tensor is in logical dimension order, is
+/// not dense, or has no line to advance along.
+///
+/// Everything written before a block could choose its layout takes a line to
+/// advance along the last dimension, and for logical dimension order it does —
+/// including across trailing degenerate dimensions, which a contiguous layout
+/// gives stride one. Answering `None` there rather than a dimension of our own
+/// leaves every such block behaving exactly as it did, and keeps the two callers
+/// — the `ref_innermost` a kernel steps by and the axis the vectorization pass
+/// measures along — from disagreeing about what a line is.
+///
+/// For a permuted order it is the innermost dimension of [dim_order], except that
+/// degenerate dimensions are skipped. Their position in the order is arbitrary —
+/// nothing distinguishes them, since density says nothing about their stride —
+/// and their stride is arbitrary with it: a broadcast dimension carries stride
+/// zero, so a line stepping it would read the same element `width` times. Even a
+/// benign stride of one costs the block its vectorization, because an extent of
+/// one reads as broadcast to every access measured against it.
+pub fn permuted_innermost_dim(shape: &[usize], strides: &[usize]) -> Option<usize> {
+    let order = dim_order(shape, strides)?;
+
+    if is_contiguous_order(&order) {
+        return None;
+    }
+
+    order.iter().rev().find(|&&dim| shape[dim] > 1).copied()
+}
+
 /// The strides a tensor of this shape has when laid out in the given dimension
 /// order.
 ///
@@ -162,6 +191,68 @@ mod tests {
 
         assert_eq!(contiguous.last(), Some(&3));
         assert_eq!(nhwc.last(), Some(&1));
+    }
+
+    #[test]
+    fn a_permuted_order_skips_degenerate_dimensions() {
+        // `dim_order` breaks stride ties by dimension index, so a degenerate
+        // dimension whose stride happens to tie with the real innermost one sorts
+        // last. It is not what a line advances along.
+        let shape = [2, 48, 16, 1];
+        let strides = [768, 1, 48, 1];
+
+        assert_eq!(
+            dim_order(&shape, &strides).unwrap().last(),
+            Some(&3),
+            "the order still ends at the degenerate dimension",
+        );
+        assert_eq!(permuted_innermost_dim(&shape, &strides), Some(1));
+    }
+
+    #[test]
+    fn a_broadcast_degenerate_dimension_is_never_the_innermost() {
+        // The case that makes this a correctness bug rather than a missed
+        // vectorization: a stride of zero sorts last, and a line stepping it would
+        // read the same element `width` times.
+        let shape = [2, 48, 16, 1];
+        let strides = [768, 1, 48, 0];
+
+        assert!(dim_order(&shape, &strides).is_some(), "still dense");
+        assert_eq!(permuted_innermost_dim(&shape, &strides), Some(1));
+    }
+
+    #[test]
+    fn logical_dimension_order_asks_for_nothing() {
+        // The callers fall back to the last dimension, which is what a contiguous
+        // layout advances along — degenerate trailing dimensions included, since a
+        // contiguous layout gives them stride one.
+        assert_eq!(
+            permuted_innermost_dim(&[2, 48, 16, 16], &[48 * 16 * 16, 16 * 16, 16, 1]),
+            None
+        );
+        assert_eq!(permuted_innermost_dim(&[2, 48, 1, 1], &[48, 1, 1, 1]), None);
+    }
+
+    #[test]
+    fn nhwc_memory_advances_along_the_channel() {
+        let shape = [2, 48, 16, 16];
+        let strides = [16 * 16 * 48, 1, 16 * 48, 48];
+
+        assert_eq!(permuted_innermost_dim(&shape, &strides), Some(1));
+    }
+
+    #[test]
+    fn a_tensor_that_is_not_dense_asks_for_nothing() {
+        assert_eq!(permuted_innermost_dim(&[4, 8], &[16, 1]), None);
+        assert_eq!(
+            permuted_innermost_dim(&[2, 48, 16, 16], &[0, 1, 0, 0]),
+            None
+        );
+    }
+
+    #[test]
+    fn a_single_element_tensor_asks_for_nothing() {
+        assert_eq!(permuted_innermost_dim(&[1, 1, 1, 1], &[1, 1, 1, 1]), None);
     }
 
     #[test]

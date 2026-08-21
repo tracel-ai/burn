@@ -7,7 +7,7 @@ use crate::{
     engine::{
         launch::{
             HandleInput, ReferenceSelection,
-            layout::dim_order,
+            layout::permuted_innermost_dim,
             runner::{Vectorization, VectorizationAxis, VectorizationHandle},
         },
         settings::VectorizationSetting,
@@ -29,6 +29,63 @@ use cubecl::{
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+/// What one block asks of one tensor's vectorization axis.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum AxisVote {
+    /// The block iterates in logical dimension order, so the tensor keeps the
+    /// default axis — its own last dimension.
+    Default,
+    /// The block iterates in a permuted order innermost along this dimension, and
+    /// every tensor it touches has to be measured along the same one.
+    Along(usize),
+    /// The tensor cannot be lined up with the order the block iterates in, and must
+    /// not be vectorized.
+    Never,
+}
+
+/// The dimension a permuted reference advances a line along, or `None` when the
+/// block iterates in logical dimension order.
+///
+/// A virtual reference indexes through a transform and those paths were written
+/// against the last dimension; a contiguous concrete one advances along the last
+/// dimension by construction. Neither asks anything of the tensors it touches
+/// beyond the default, so both answer `None`.
+fn permuted_innermost(reference: &ReferenceSelection) -> Option<usize> {
+    let ReferenceSelection::Concrete { shape, strides, .. } = reference else {
+        return None;
+    };
+
+    permuted_innermost_dim(shape, strides)
+}
+
+/// What a block whose reference is innermost along `permuted` asks of one tensor.
+///
+/// `strides` is given only for tensors the vectorization pass will not check them
+/// for itself, which is what makes the difference between refusing and trusting it
+/// to refuse.
+fn axis_vote(permuted: Option<usize>, rank: usize, strides: Option<&[usize]>) -> AxisVote {
+    let Some(axis) = permuted else {
+        return AxisVote::Default;
+    };
+
+    // A reshaped view can have fewer dimensions than the reference. There is no
+    // dimension of its own to line up with the reference's, and reading its shape
+    // at the reference's innermost index would index past the end.
+    if axis >= rank {
+        return AxisVote::Never;
+    }
+
+    // A line along a dimension the tensor is not contiguous in covers elements that
+    // are not adjacent in its buffer, so it is not a line at all.
+    if let Some(strides) = strides
+        && strides[axis] != 1
+    {
+        return AxisVote::Never;
+    }
+
+    AxisVote::Along(axis)
+}
+
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: Runtime> {
     resources: &'a FuseResources,
@@ -45,88 +102,153 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         }
     }
 
-    /// Which dimension of each tensor a vectorized access runs along.
+    /// Which dimension of each tensor a vectorized access runs along, and which
+    /// tensors must not be vectorized at all.
     ///
-    /// Vectorization assumes the last dimension is the innermost in memory,
-    /// which holds only for a contiguous layout. A block whose reference is a
-    /// permuted layout — what an elementwise block adopts when its inputs come
-    /// out of a convolution — has its innermost dimension somewhere else, and
-    /// reading the last one there finds a stride that is not one and gives up on
-    /// vectorizing an access that is perfectly linear.
+    /// Vectorization assumes the last dimension is the innermost in memory, which
+    /// holds only for a layout in logical dimension order. A block whose reference
+    /// is permuted — what an elementwise block adopts when its inputs come out of a
+    /// convolution — has its innermost dimension somewhere else, and measuring the
+    /// last one there finds a stride that is not one and gives up on an access that
+    /// is perfectly linear.
     ///
     /// Worse than giving up: a tensor whose dimension order differs from the
-    /// reference's must not vectorize at all, because a line of the reference and
-    /// a line of that tensor cover different elements. The default axis happens to
-    /// enforce that for a contiguous reference and does not for a permuted one, so
-    /// the axis has to come from the reference rather than from the rank.
+    /// reference's must not vectorize at all, because a line of the reference and a
+    /// line of that tensor cover different elements. Handing every tensor the
+    /// reference's innermost dimension enforces that for inputs, since
+    /// [`vectorization_input`](super::base) refuses an axis it is not contiguous
+    /// along. It does not enforce it for outputs —
+    /// [`vectorization_output`](super::base) is given a shape and never sees a
+    /// stride — nor for a reshaped view whose rank differs from the reference's, so
+    /// those are refused here instead.
     ///
-    /// A tensor shared by two blocks that disagree keeps the default, which is
-    /// conservative in the same way: the disagreement means at least one of the
-    /// two would be vectorizing against a layout that is not its own.
+    /// A block iterating in logical dimension order asks for nothing beyond the
+    /// default and votes [AxisVote::Default], which leaves every such block behaving
+    /// exactly as it did before a block could choose its own layout. Two blocks that
+    /// want different things from a shared tensor cancel out to [AxisVote::Never]:
+    /// the disagreement means at least one of them would be vectorizing against a
+    /// layout that is not its own.
     fn vectorization_axis<Runner: Vectorization<R>>(
+        &self,
         runner: &Runner,
+        context: &Context<CubeFusionHandle<R>>,
         plan: &LaunchPlan<'a, R>,
-    ) -> VectorizationAxis {
-        // `None` marks a tensor whose blocks disagree, or one belonging to a block
-        // with no concrete dense reference to take an axis from.
-        let mut per_tensor: HashMap<TensorId, Option<usize>> = HashMap::new();
+    ) -> (VectorizationAxis, Vec<TensorId>) {
+        // Keyed by the id the vectorization pass looks the axis up by, carrying the
+        // id whose vector size a refusal has to be applied to. Those differ for a
+        // view: it is vectorized under its own id, but the verdict lands on the
+        // tensor it views.
+        let mut per_tensor: HashMap<TensorId, (AxisVote, TensorId)> = HashMap::new();
 
-        let mut vote = |id: TensorId, axis: Option<usize>| {
+        let mut vote = |id: TensorId, clamp: TensorId, cast: AxisVote| {
             per_tensor
                 .entry(id)
-                .and_modify(|current| {
-                    if *current != axis {
-                        *current = None;
+                .and_modify(|(current, _)| {
+                    if *current != cast {
+                        *current = AxisVote::Never;
                     }
                 })
-                .or_insert(axis);
+                .or_insert((cast, clamp));
         };
 
         for block_plan in plan.blocks.iter() {
-            let axis = match &block_plan.reference {
-                ReferenceSelection::Concrete { shape, strides, .. } => {
-                    dim_order(shape, strides).and_then(|order| order.last().copied())
-                }
-                // A virtual reference indexes through a transform; the default axis
-                // is what those paths were written against.
-                _ => None,
-            };
+            let permuted = permuted_innermost(&block_plan.reference);
 
             for input in plan.handle_inputs.iter() {
                 if let Some(input) = input.as_normal()
                     && block_plan.reads.contains_key(&input.relative_id)
                 {
-                    vote(input.global_ir.id, axis);
+                    // No strides: `vectorization_input` checks them itself, and it
+                    // tells a broadcast dimension from one it merely cannot line up.
+                    let rank = input.global_ir.shape.rank();
+                    vote(
+                        input.global_ir.id,
+                        input.global_ir.id,
+                        axis_vote(permuted, rank, None),
+                    );
                 }
             }
 
             for output in plan.handle_outputs.iter() {
                 if let HandleOutput::Owned {
+                    handle,
                     global_id,
                     relative_id,
+                    global_shape,
                     ..
                 } = output
                     && block_plan.writes.contains_key(relative_id)
                 {
-                    vote(*global_id, axis);
+                    let rank = global_shape.rank();
+                    vote(
+                        *global_id,
+                        *global_id,
+                        axis_vote(permuted, rank, Some(&handle.strides)),
+                    );
                 }
             }
         }
 
-        // The runner knows better for its own operands — the matmul one places the
-        // axis by matrix layout — so anything it sets wins.
-        const UNSET: usize = usize::MAX;
-        let mut axis = runner.axis(plan);
+        // A view is read under its own shape and rank. `vectorization_reshape`
+        // indexes the reshaped shape at the axis and bails out unless the axis is
+        // that shape's last dimension; `vectorization_swapped` maps the axis through
+        // the swap and checks the original's stride there — the same mapping
+        // [read_input_aligned](crate::engine::codegen::io) applies. Both of them go
+        // wrong only when handed the default while the block iterates elsewhere.
+        for view in self.resources.views.iter() {
+            let (view_id, original_id) = match view {
+                TensorView::Reshape {
+                    reshaped, original, ..
+                } => (reshaped, original),
+                TensorView::SwapDims {
+                    swapped, original, ..
+                } => (swapped, original),
+                // Already pinned to a vector size of one by [Self::run].
+                TensorView::NhwcStrides { .. } => continue,
+            };
 
-        for (id, dim) in per_tensor {
-            if let Some(dim) = dim
-                && axis.get(id, || UNSET) == UNSET
-            {
-                axis.insert(id, dim);
+            let (Some(view_global), Some(original_global)) = (
+                context.tensors.get(view_id),
+                context.tensors.get(original_id),
+            ) else {
+                continue;
+            };
+
+            for block_plan in plan.blocks.iter() {
+                if !block_plan.reads.contains_key(original_id) {
+                    continue;
+                }
+
+                let permuted = permuted_innermost(&block_plan.reference);
+                let rank = view_global.shape.rank();
+
+                vote(
+                    view_global.id,
+                    original_global.id,
+                    axis_vote(permuted, rank, None),
+                );
             }
         }
 
-        axis
+        // The runner knows better for its own operands — the matmul one places the
+        // axis by matrix layout — so anything it sets wins, refusals included.
+        const UNSET: usize = usize::MAX;
+        let mut axis = runner.axis(plan);
+        let mut never = Vec::new();
+
+        for (id, (cast, clamp)) in per_tensor {
+            if axis.get(id, || UNSET) != UNSET {
+                continue;
+            }
+
+            match cast {
+                AxisVote::Default => {}
+                AxisVote::Along(dim) => axis.insert(id, dim),
+                AxisVote::Never => never.push(clamp),
+            }
+        }
+
+        (axis, never)
     }
 
     pub fn run<Runner: Vectorization<R>>(
@@ -219,7 +341,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 .io_optimized_vector_sizes(ref_elem.0.size())
                 .collect::<Vec<_>>(),
         };
-        let vectorization_axis = Self::vectorization_axis(runner, plan);
+        let (vectorization_axis, never_vectorized) = self.vectorization_axis(runner, context, plan);
 
         runner.vectorization(
             context,
@@ -259,6 +381,16 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             if let TensorView::NhwcStrides { id, .. } = view {
                 let global = context.tensors.get(id).unwrap();
                 plan.vectorizations.insert(global.id, Vect::Aligned(1));
+            }
+        }
+
+        // Tensors whose own layout cannot be lined up with the one their block
+        // iterates in. A tensor already judged broadcast along its axis is left
+        // alone: it is read element by element either way, and calling it aligned
+        // would drag the whole block's width down to one with it.
+        for id in never_vectorized {
+            if !matches!(plan.vectorizations.get(&id), Some(Vect::Broadcasted)) {
+                plan.vectorizations.insert(id, Vect::Aligned(1));
             }
         }
 
@@ -550,4 +682,121 @@ fn vector_sizes_quants<R: Runtime>(
             panic!("Not yet supported")
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::codegen::ir::{FuseArg, FuseType, LayoutInfo};
+    use burn_std::{Shape, Strides};
+
+    fn concrete(shape: &[usize], strides: &[usize]) -> ReferenceSelection {
+        ReferenceSelection::Concrete {
+            layout: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+            shape: Shape::from(shape.to_vec()),
+            strides: Strides::new(strides),
+        }
+    }
+
+    #[test]
+    fn a_contiguous_reference_asks_for_nothing() {
+        // The whole point: a block that iterates in logical dimension order has to
+        // keep behaving exactly as it did before a block could choose its layout.
+        let reference = concrete(&[2, 48, 16, 16], &[48 * 16 * 16, 16 * 16, 16, 1]);
+
+        assert_eq!(permuted_innermost(&reference), None);
+        assert_eq!(axis_vote(None, 4, None), AxisVote::Default);
+    }
+
+    #[test]
+    fn a_virtual_reference_asks_for_nothing() {
+        let reference = ReferenceSelection::Reshaped { reshape_pos: 0 };
+        assert_eq!(permuted_innermost(&reference), None);
+
+        let reference = ReferenceSelection::Searching;
+        assert_eq!(permuted_innermost(&reference), None);
+    }
+
+    #[test]
+    fn a_reference_that_is_not_dense_asks_for_nothing() {
+        // A padded or sliced reference has no dimension order to impose.
+        assert_eq!(permuted_innermost(&concrete(&[4, 8], &[16, 1])), None);
+    }
+
+    #[test]
+    fn an_nhwc_reference_asks_for_its_channel_dimension() {
+        let reference = concrete(&[2, 48, 16, 16], &[16 * 16 * 48, 1, 16 * 48, 48]);
+
+        assert_eq!(permuted_innermost(&reference), Some(1));
+        assert_eq!(axis_vote(Some(1), 4, None), AxisVote::Along(1));
+    }
+
+    #[test]
+    fn a_permuted_reference_skips_its_degenerate_dimensions() {
+        // The dimension order ends at a size-one dimension whose stride is zero.
+        // Advancing a line along it would read the same element `width` times.
+        let reference = concrete(&[2, 48, 16, 1], &[768, 1, 48, 0]);
+
+        assert_eq!(permuted_innermost(&reference), Some(1));
+    }
+
+    #[test]
+    fn an_output_the_block_cannot_write_in_lines_is_refused() {
+        // A reshaped output on the recompute path is allocated contiguous while its
+        // block iterates NHWC. `vectorization_output` is handed a shape and never
+        // sees a stride, so nothing downstream would catch this.
+        let contiguous = [48 * 16 * 16, 16 * 16, 16, 1];
+
+        assert_eq!(
+            axis_vote(Some(1), 4, Some(&contiguous)),
+            AxisVote::Never,
+            "stride along the block's innermost dimension is not one",
+        );
+
+        let nhwc = [16 * 16 * 48, 1, 16 * 48, 48];
+        assert_eq!(axis_vote(Some(1), 4, Some(&nhwc)), AxisVote::Along(1));
+    }
+
+    #[test]
+    fn an_output_of_a_lower_rank_is_refused_rather_than_indexed_past_its_end() {
+        // A reshape can drop dimensions. Reading `shape[axis]` at the reference's
+        // innermost index would panic; the default axis could never do that, since
+        // it came from the tensor's own rank.
+        assert_eq!(axis_vote(Some(3), 2, None), AxisVote::Never);
+        assert_eq!(axis_vote(Some(2), 2, None), AxisVote::Never);
+        assert_eq!(axis_vote(Some(1), 2, None), AxisVote::Along(1));
+    }
+
+    #[test]
+    fn an_input_is_trusted_to_refuse_an_axis_it_cannot_use() {
+        // Inputs are voted without strides on purpose: `vectorization_input` makes
+        // the same check, and unlike this one it tells a broadcast dimension from a
+        // dimension it merely cannot line up.
+        assert_eq!(axis_vote(Some(1), 4, None), AxisVote::Along(1));
+    }
+
+    #[test]
+    fn blocks_that_disagree_cancel_out() {
+        // Modelled on the merge in `vectorization_axis`: any two votes that are not
+        // the same answer leave the tensor unvectorized, including a permuted block
+        // meeting one that only wants the default.
+        let merge = |a: AxisVote, b: AxisVote| if a == b { a } else { AxisVote::Never };
+
+        assert_eq!(
+            merge(AxisVote::Along(1), AxisVote::Along(3)),
+            AxisVote::Never
+        );
+        assert_eq!(
+            merge(AxisVote::Along(1), AxisVote::Default),
+            AxisVote::Never
+        );
+        assert_eq!(
+            merge(AxisVote::Default, AxisVote::Default),
+            AxisVote::Default
+        );
+        assert_eq!(
+            merge(AxisVote::Along(1), AxisVote::Along(1)),
+            AxisVote::Along(1)
+        );
+    }
 }
