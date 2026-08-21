@@ -63,17 +63,18 @@ pub fn dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
     Some(Shape::from(order))
 }
 
-/// The dimension a vectorized line advances along in a tensor laid out in a
-/// permuted order, or `None` when the tensor is in logical dimension order, is
-/// not dense, or has no line to advance along.
+/// The axis a vector runs along in a tensor laid out in a permuted order, or
+/// `None` when the tensor is in logical dimension order, is not dense, or has no
+/// axis to run along.
 ///
-/// Everything written before a block could choose its layout takes a line to
-/// advance along the last dimension, and for logical dimension order it does —
-/// including across trailing degenerate dimensions, which a contiguous layout
-/// gives stride one. Answering `None` there rather than a dimension of our own
-/// leaves every such block behaving exactly as it did, and keeps the two callers
-/// — the `ref_innermost` a kernel steps by and the axis the vectorization pass
-/// measures along — from disagreeing about what a line is.
+/// Everything written before a block could choose its layout takes a vector to run
+/// along the last dimension, and for logical dimension order it does — including
+/// across trailing degenerate dimensions, which a contiguous layout gives stride
+/// one. Answering `None` there rather than an axis of our own leaves every such
+/// block behaving exactly as it did, and keeps the two callers — the
+/// [vector_axis](crate::engine::codegen::ir::FuseBlockConfig::vector_axis) a kernel
+/// steps by and the axis the vectorization pass sizes against — from disagreeing
+/// about what a vector is.
 ///
 /// For a permuted order it is the innermost dimension of [dim_order], except that
 /// degenerate dimensions are skipped. Their position in the order is arbitrary —

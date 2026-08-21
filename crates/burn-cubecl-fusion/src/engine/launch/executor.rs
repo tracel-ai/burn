@@ -113,13 +113,12 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
-            // Which dimension a line of the reference advances along. Only a concrete
-            // reference can be permuted; the virtual ones are indexed through a
-            // transform written against the last dimension. The vectorization
-            // planner decides a tensor's axis by the same rule, so the dimension a
-            // line is measured along and the dimension it is stepped along are the
-            // same one.
-            let ref_innermost = match &block_plan.reference {
+            // Which axis a vector runs along. Only a concrete reference can be
+            // permuted; the virtual ones are indexed through a transform written
+            // against the last dimension. The vectorization planner picks a tensor's
+            // axis by the same rule, so the axis a vector is sized along and the one
+            // it is stepped along are the same.
+            let vector_axis = match &block_plan.reference {
                 ReferenceSelection::Concrete { shape, strides, .. } => {
                     permuted_innermost_dim(shape, strides)
                 }
@@ -176,7 +175,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ref_layout: reference,
                 ops,
                 width: block_plan.width,
-                ref_innermost,
+                vector_axis,
             };
             configs.push(config);
         }

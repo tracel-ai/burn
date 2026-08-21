@@ -392,10 +392,10 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             let offset =
                 get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
             // `tensor` is the original; the block sees the swapped view. A line
-            // advances along `ref_innermost` in the view's numbering, which is this
+            // advances along `vector_axis` in the view's numbering, which is this
             // dimension in the original's — the same mapping
             // [index_offset_with_layout] applies to every dimension it walks.
-            let i = comptime![swap_dims_transform(config.ref_innermost, (dim1, dim2))];
+            let i = comptime![swap_dims_transform(config.vector_axis, (dim1, dim2))];
             let stride = tensor.tensor.stride(i);
 
             #[unroll]
@@ -407,7 +407,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
         None => {
             let offset =
                 get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
-            let stride = tensor.tensor.stride(config.ref_innermost);
+            let stride = tensor.tensor.stride(config.vector_axis);
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
@@ -535,7 +535,7 @@ fn write_output_aligned<C: Scalar, N: Size>(
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
             let offset = (ref_pos * config.width) / tensor.tensor.vector_size();
             let output = outputs.tensors.index_mut(pos);
-            let stride = output.tensor.stride(config.ref_innermost);
+            let stride = output.tensor.stride(config.vector_axis);
 
             #[unroll]
             for i in 0..config.width {
