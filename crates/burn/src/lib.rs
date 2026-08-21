@@ -152,7 +152,7 @@ pub use burn_std::config::{BurnConfig, config as runtime_config};
 
 #[cfg(all(test, feature = "capture"))]
 mod capture_tests {
-    use crate::tensor::Device;
+    use crate::{module::Module, nn::BatchNormConfig, tensor::Device};
 
     #[test]
     fn capture_feature_exposes_the_user_facing_device_api() {
@@ -162,6 +162,29 @@ mod capture_tests {
             .unwrap();
 
         assert!(captured.graph.operations.is_empty());
+    }
+
+    #[test]
+    fn shared_running_state_moves_across_capture_scopes() {
+        let module = BatchNormConfig::new(3).init(&Device::default());
+        let first_device = Device::capture();
+        let second_device = Device::capture();
+
+        let first = first_device
+            .capture_scope(|scope| {
+                let _module = module.clone().to_device(&first_device);
+                scope.complete([], [])
+            })
+            .unwrap();
+        let second = second_device
+            .capture_scope(|scope| {
+                let _module = module.clone().to_device(&second_device);
+                scope.complete([], [])
+            })
+            .unwrap();
+
+        assert_eq!(first.values.len(), 4);
+        assert_eq!(second.values.len(), 4);
     }
 }
 
