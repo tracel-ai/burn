@@ -275,7 +275,7 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
 /// `[b, c, 1, 1]`.
 ///
 /// This is what an adaptive average pool with a `1x1` output *is*, and it is a
-/// reduction rather than a pooling problem. 
+/// reduction rather than a pooling problem.
 ///
 /// So the reduction axis becomes the parallel one. `[b, c, h, w]` is reshaped to
 /// `[b, c, h * w]` — free in NCHW, where those two axes are already adjacent and
