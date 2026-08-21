@@ -60,14 +60,14 @@ macro_rules! backend_matrix {
 macro_rules! with_autodiff_backend {
     ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {
-            Some($crate::CheckpointingStrategy::Balanced) => {
+            Some($crate::GradientCheckpointingStrategy::Balanced) => {
                 type $B = $crate::backends::Autodiff<
                     $crate::backends::$Backend,
                     burn_autodiff::checkpoint::strategy::BalancedCheckpointing,
                 >;
                 $body
             }
-            Some($crate::CheckpointingStrategy::None) => {
+            Some($crate::GradientCheckpointingStrategy::Disabled) => {
                 type $B = $crate::backends::Autodiff<
                     $crate::backends::$Backend,
                     burn_autodiff::checkpoint::strategy::NoCheckpointing,

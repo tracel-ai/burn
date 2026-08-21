@@ -5,10 +5,10 @@ pub use burn_std::{
 #[cfg(feature = "cubecl")]
 pub use burn_backend::cubecl::{ThroughputKey, ThroughputMode, ThroughputValue};
 use burn_backend::{Backend, DeviceOps};
-#[cfg(feature = "autodiff")]
-use burn_dispatch::CheckpointingStrategy;
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
+#[cfg(feature = "autodiff")]
+use burn_dispatch::GradientCheckpointingStrategy;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
@@ -546,9 +546,9 @@ impl Device {
     ///
     /// Panics if autodiff is not enabled on this device.
     #[cfg(feature = "autodiff")]
-    pub fn checkpointing_strategy(&self) -> CheckpointingStrategy {
+    pub fn gradient_checkpointing_strategy(&self) -> GradientCheckpointingStrategy {
         match self.as_dispatch() {
-            DispatchDevice::Autodiff(device) => device.checkpointing_strategy(),
+            DispatchDevice::Autodiff(device) => device.gradient_checkpointing_strategy(),
             _ => panic!("Autodiff is not enabled on this device"),
         }
     }
@@ -572,10 +572,12 @@ impl Device {
     #[cfg(feature = "autodiff")]
     pub fn gradient_checkpointing(self) -> Self {
         match self.into_dispatch() {
-            DispatchDevice::Autodiff(device) => Self::new(DispatchDevice::autodiff_checkpointed(
-                device.inner(),
-                CheckpointingStrategy::Balanced,
-            )),
+            DispatchDevice::Autodiff(device) => {
+                Self::new(DispatchDevice::autodiff_with_gradient_checkpointing(
+                    device.inner(),
+                    GradientCheckpointingStrategy::Balanced,
+                ))
+            }
             _ => panic!("Autodiff is not enabled on this device"),
         }
     }

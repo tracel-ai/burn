@@ -140,7 +140,7 @@ impl DispatchDevice {
 #[derive(Debug, Clone)]
 pub struct AutodiffDevice {
     pub(crate) inner: Box<DispatchDevice>,
-    pub(crate) checkpointing: CheckpointingStrategy,
+    pub(crate) checkpointing: GradientCheckpointingStrategy,
 }
 
 /// Compares on hardware identity only, ignoring the checkpointing strategy, so that this agrees
@@ -149,8 +149,8 @@ pub struct AutodiffDevice {
 /// make `Autodiff(a) == Autodiff(b)` disagree with `DispatchDevice::Autodiff(a) ==
 /// DispatchDevice::Autodiff(b)`.
 ///
-/// Use [`checkpointing_strategy`](Self::checkpointing_strategy) when the strategy is what you
-/// actually need to compare.
+/// Use [`gradient_checkpointing_strategy`](Self::gradient_checkpointing_strategy) when the
+/// strategy is what you actually need to compare.
 #[cfg(feature = "autodiff")]
 impl PartialEq for AutodiffDevice {
     fn eq(&self, other: &Self) -> bool {
@@ -163,7 +163,10 @@ impl Eq for AutodiffDevice {}
 
 #[cfg(feature = "autodiff")]
 impl AutodiffDevice {
-    pub(crate) fn new(device: DispatchDevice, checkpointing: CheckpointingStrategy) -> Self {
+    pub(crate) fn new(
+        device: DispatchDevice,
+        checkpointing: GradientCheckpointingStrategy,
+    ) -> Self {
         Self {
             inner: Box::new(device),
             checkpointing,
@@ -176,7 +179,7 @@ impl AutodiffDevice {
     }
 
     /// Returns the gradient checkpointing strategy.
-    pub fn checkpointing_strategy(&self) -> CheckpointingStrategy {
+    pub fn gradient_checkpointing_strategy(&self) -> GradientCheckpointingStrategy {
         self.checkpointing
     }
 }
@@ -193,24 +196,26 @@ impl core::ops::Deref for AutodiffDevice {
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-/// Checkpointing strategy for autodiff.
+/// Gradient checkpointing strategy for autodiff.
 #[repr(u8)]
-pub enum CheckpointingStrategy {
+pub enum GradientCheckpointingStrategy {
+    /// Recompute selected activations during backpropagation to reduce peak memory usage.
     Balanced,
+    /// Disable gradient checkpointing while retaining autodiff tracking.
     #[default]
-    None,
+    Disabled,
 }
 
 #[cfg(feature = "autodiff")]
 pub(crate) fn validate_checkpointing(
-    lhs: Option<crate::CheckpointingStrategy>,
-    rhs: Option<crate::CheckpointingStrategy>,
-) -> Option<crate::CheckpointingStrategy> {
+    lhs: Option<crate::GradientCheckpointingStrategy>,
+    rhs: Option<crate::GradientCheckpointingStrategy>,
+) -> Option<crate::GradientCheckpointingStrategy> {
     match (lhs, rhs) {
         (Some(lhs), Some(rhs)) => {
             assert_eq!(
                 lhs, rhs,
-                "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
+                "Gradient checkpointing strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
             );
             Some(lhs)
         }
@@ -450,13 +455,14 @@ impl DispatchDevice {
     #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
-        Self::autodiff_checkpointed(device, CheckpointingStrategy::None)
+        Self::autodiff_with_gradient_checkpointing(device, GradientCheckpointingStrategy::Disabled)
     }
     #[cfg(feature = "autodiff")]
-    /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
-    pub fn autodiff_checkpointed(
+    /// Creates a new [`DispatchDevice`] with automatic differentiation and the provided gradient
+    /// checkpointing strategy enabled.
+    pub fn autodiff_with_gradient_checkpointing(
         device: impl Into<DispatchDevice>,
-        checkpointing: CheckpointingStrategy,
+        checkpointing: GradientCheckpointingStrategy,
     ) -> DispatchDevice {
         let device = device.into();
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))

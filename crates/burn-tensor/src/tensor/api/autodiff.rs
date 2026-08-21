@@ -5,9 +5,9 @@ use crate::ops::{BridgeKind, BridgeTensor};
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
-use burn_dispatch::CheckpointingStrategy;
-#[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
+#[cfg(feature = "autodiff")]
+use burn_dispatch::GradientCheckpointingStrategy;
 
 #[cfg(feature = "autodiff")]
 type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
@@ -147,7 +147,10 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// Operations combining tensors that carry different strategies panic; make sure all
     /// operands share the same one.
     #[cfg(feature = "autodiff")]
-    pub fn with_checkpoint_strategy(self, strategy: CheckpointingStrategy) -> Self {
+    pub fn with_gradient_checkpointing_strategy(
+        self,
+        strategy: GradientCheckpointingStrategy,
+    ) -> Self {
         let (kind, mut tensor) = self.primitive.into_parts();
         tensor.checkpointing = Some(strategy);
         Self::new(match kind {
