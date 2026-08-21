@@ -6,7 +6,10 @@ use crate::{
     CubeFusionHandle,
     engine::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
-        launch::HandleInput,
+        launch::{
+            HandleInput,
+            layout::{DimOrder, dim_order, is_contiguous_order, strides_for},
+        },
         settings::RefLayoutSetting,
         trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
     },
@@ -110,21 +113,19 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .unwrap()
                 .clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
-            let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
+            let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output);
 
             match kind {
                 OutputKind::Inplace { input_pos } => {
-                    self.inplace_output(
-                        context,
-                        plan,
-                        output,
-                        tensor_global,
-                        strides,
-                        input_pos,
-                        block_idx,
-                    );
+                    self.inplace_output(context, plan, output, tensor_global, input_pos, block_idx);
                 }
                 OutputKind::Normal => {
+                    // A normal output has no layout forced on it by a view, so the
+                    // block is free to lay it out in whatever order costs its inputs
+                    // the least traffic. The transform kinds below keep the strides
+                    // their view dictates.
+                    let strides = self.chosen_strides(plan, block_idx, &tensor_global.shape);
+
                     self.normal_output(
                         client,
                         device,
@@ -345,12 +346,131 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
     }
 
+    /// The strides to allocate a normal output of this block with.
+    ///
+    /// The reference layout is taken from the first output allocated, so this is
+    /// what decides how the whole block iterates. Contiguous strides in logical
+    /// dimension order — what this used to be, unconditionally — are the right
+    /// answer only when the inputs are contiguous too, and after a convolution
+    /// they are not.
+    fn chosen_strides(&self, plan: &LaunchPlan<'a, R>, block_idx: usize, shape: &Shape) -> Strides {
+        // Once a reference exists, the remaining outputs follow it, so their writes
+        // are linear as well. Their shapes can differ from the reference's; the
+        // dimension *order* is what carries over.
+        if let ReferenceSelection::Concrete {
+            shape: ref_shape,
+            strides: ref_strides,
+            ..
+        } = &plan.blocks[block_idx].reference
+            && ref_shape.num_dims() == shape.num_dims()
+            && let Some(order) = dim_order(ref_shape, ref_strides)
+        {
+            return strides_for(shape, &order);
+        }
+
+        match self.preferred_dim_order(plan, block_idx, shape) {
+            Some(order) => strides_for(shape, &order),
+            None => strides_dyn_rank(shape),
+        }
+    }
+
+    /// The dimension order that costs this block's inputs the least strided
+    /// traffic, or `None` to keep the contiguous one.
+    ///
+    /// Writing an output in any dense order costs the same, so the output layout
+    /// is free and the only price of a choice is the inputs that disagree with
+    /// it. That makes the best choice the plurality of the inputs, weighted by
+    /// the bytes each one moves.
+    ///
+    /// Only inputs of exactly this shape vote. A broadcast parameter is read from
+    /// cache whatever the order is, and a differently shaped input can never be
+    /// `SameAsRef` regardless, so neither has a stake in the outcome.
+    ///
+    /// Because a convolution's output is NHWC and its consumers' outputs then
+    /// become NHWC too, this propagates forward on its own: a `conv -> norm ->
+    /// silu -> conv` chain settles into NHWC end to end, and the permutes around
+    /// each convolution stay the metadata changes they are meant to be.
+    fn preferred_dim_order(
+        &self,
+        plan: &LaunchPlan<'a, R>,
+        block_idx: usize,
+        shape: &Shape,
+    ) -> Option<DimOrder> {
+        // A block that requires a contiguous reference (a reduce) has no say, and
+        // one that inherits its reference from another block is not the one making
+        // the decision.
+        if !matches!(
+            self.blocks[block_idx].settings.ref_layout,
+            RefLayoutSetting::Any
+        ) {
+            return None;
+        }
+
+        // A few operations index their operands against the last dimension directly
+        // rather than through the reference, so they only agree with the rest of the
+        // kernel while the reference is contiguous.
+        let indexes_last_dim = self.blocks[block_idx].ops.iter().any(|op| {
+            matches!(
+                op,
+                FuseOp::Gather { .. }
+                    | FuseOp::Select { .. }
+                    | FuseOp::Cat { .. }
+                    | FuseOp::Dequantize { .. }
+            )
+        });
+
+        if indexes_last_dim {
+            return None;
+        }
+
+        let block = &plan.blocks[block_idx];
+        let mut votes: Vec<(DimOrder, usize)> = Vec::new();
+
+        for input in plan.handle_inputs.iter() {
+            let Some(input) = input.as_normal() else {
+                // A quantized input cannot be `SameAsRef`.
+                continue;
+            };
+
+            if !block.reads.contains_key(&input.relative_id)
+                || self.resources.indexed.contains_key(&input.relative_id)
+                || self.resources.inputs_unhandled.contains(&input.relative_id)
+                || &input.global_ir.shape != shape
+            {
+                continue;
+            }
+
+            let Some(order) = dim_order(shape, &input.handle.strides) else {
+                // Not dense: sliced, broadcast, or otherwise not describable as an
+                // order. The block cannot adopt a layout it cannot express.
+                continue;
+            };
+
+            let bytes = shape.num_elements() * dtype_to_storage_type(input.global_ir.dtype).size();
+
+            match votes.iter_mut().find(|(candidate, _)| candidate == &order) {
+                Some((_, total)) => *total += bytes,
+                None => votes.push((order, bytes)),
+            }
+        }
+
+        let winner = votes.into_iter().max_by_key(|(order, bytes)| {
+            // Ties go to the contiguous order, so a block whose inputs disagree
+            // keeps behaving the way it always has.
+            (*bytes, is_contiguous_order(order))
+        })?;
+
+        match is_contiguous_order(&winner.0) {
+            true => None,
+            false => Some(winner.0),
+        }
+    }
+
     fn output_kind(
         &self,
         plan: &mut LaunchPlan<'a, R>,
         tensor_global: &TensorIr,
         output: &OutputSorted,
-        strides: &[usize],
     ) -> (OutputKind, usize) {
         let mut block_idx = None;
         for (i, block) in plan.blocks.iter().enumerate() {
@@ -378,20 +498,34 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .find(|(_pos, pi)| {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
-                    && &*pi.strides == strides
+                    // The candidate only has to be *dense*, not contiguous. Requiring
+                    // contiguity here made every convolution output ineligible — a
+                    // convolution hands over an NCHW view of NHWC memory — so the one
+                    // buffer whose layout the block should have adopted was the one
+                    // buffer it always refused, and the block allocated a contiguous
+                    // output and read its input strided instead.
+                    && dim_order(&tensor_global.shape, &pi.strides).is_some()
                     && if block.reference.is_found() {
                         // An already-selected reference must have compatible strides.
-                        block.reference.compatible_strides_for_inplace(strides)
+                        // Compared against the candidate's own strides, since those are
+                        // what the aliased buffer actually has.
+                        block.reference.compatible_strides_for_inplace(&pi.strides)
                     } else {
                         // When no reference has been selected yet, this output becomes
                         // the reference (see [Self::inplace_output]); requiring an
                         // existing reference here made the first output of every block
                         // ineligible, since the reference is only selected while
-                        // processing outputs. Blocks that inherit their reference from
-                        // another block are excluded: the inherited layout is unknown
-                        // at this point, so it cannot be validated against the
-                        // candidate's strides.
-                        !matches!(ref_layout_setting, RefLayoutSetting::SameAsBlock { .. })
+                        // processing outputs. The candidate's layout therefore has to
+                        // be one the block's setting allows — a reduce needs a
+                        // contiguous reference, and a block that inherits its reference
+                        // from another cannot validate one here at all.
+                        match ref_layout_setting {
+                            RefLayoutSetting::Any => true,
+                            RefLayoutSetting::OnlyContiguous => {
+                                is_contiguous(&tensor_global.shape, &pi.strides)
+                            }
+                            RefLayoutSetting::SameAsBlock { .. } => false,
+                        }
                     }
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
@@ -407,7 +541,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
-        strides: Strides,
         input_index: usize,
         block_idx: usize,
     ) {
@@ -482,7 +615,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             input_pos: potential_inplace.input_pos,
             precision: output.precision,
             global_shape: tensor_global.shape.clone(),
-            strides,
+            // The aliased buffer keeps the input's layout, which is not contiguous
+            // when the input came out of a convolution.
+            strides: handle_input.handle.strides.clone(),
             #[cfg(feature = "autotune-checks")]
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,

@@ -6,8 +6,9 @@ use crate::{
     CubeFusionHandle,
     engine::{
         launch::{
-            HandleInput,
-            runner::{Vectorization, VectorizationHandle},
+            HandleInput, ReferenceSelection,
+            layout::dim_order,
+            runner::{Vectorization, VectorizationAxis, VectorizationHandle},
         },
         settings::VectorizationSetting,
         trace::{FuseResources, TensorView, block::FuseBlock},
@@ -25,6 +26,7 @@ use cubecl::{
     ir::VectorSize,
     quant::scheme::{QuantScheme, QuantStore, QuantValue},
 };
+use std::collections::HashMap;
 use std::marker::PhantomData;
 
 /// Select the best vectorization factor for each tensor handle.
@@ -42,6 +44,91 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             _r: PhantomData,
         }
     }
+
+    /// Which dimension of each tensor a vectorized access runs along.
+    ///
+    /// Vectorization assumes the last dimension is the innermost in memory,
+    /// which holds only for a contiguous layout. A block whose reference is a
+    /// permuted layout — what an elementwise block adopts when its inputs come
+    /// out of a convolution — has its innermost dimension somewhere else, and
+    /// reading the last one there finds a stride that is not one and gives up on
+    /// vectorizing an access that is perfectly linear.
+    ///
+    /// Worse than giving up: a tensor whose dimension order differs from the
+    /// reference's must not vectorize at all, because a line of the reference and
+    /// a line of that tensor cover different elements. The default axis happens to
+    /// enforce that for a contiguous reference and does not for a permuted one, so
+    /// the axis has to come from the reference rather than from the rank.
+    ///
+    /// A tensor shared by two blocks that disagree keeps the default, which is
+    /// conservative in the same way: the disagreement means at least one of the
+    /// two would be vectorizing against a layout that is not its own.
+    fn vectorization_axis<Runner: Vectorization<R>>(
+        runner: &Runner,
+        plan: &LaunchPlan<'a, R>,
+    ) -> VectorizationAxis {
+        // `None` marks a tensor whose blocks disagree, or one belonging to a block
+        // with no concrete dense reference to take an axis from.
+        let mut per_tensor: HashMap<TensorId, Option<usize>> = HashMap::new();
+
+        let mut vote = |id: TensorId, axis: Option<usize>| {
+            per_tensor
+                .entry(id)
+                .and_modify(|current| {
+                    if *current != axis {
+                        *current = None;
+                    }
+                })
+                .or_insert(axis);
+        };
+
+        for block_plan in plan.blocks.iter() {
+            let axis = match &block_plan.reference {
+                ReferenceSelection::Concrete { shape, strides, .. } => {
+                    dim_order(shape, strides).and_then(|order| order.last().copied())
+                }
+                // A virtual reference indexes through a transform; the default axis
+                // is what those paths were written against.
+                _ => None,
+            };
+
+            for input in plan.handle_inputs.iter() {
+                if let Some(input) = input.as_normal()
+                    && block_plan.reads.contains_key(&input.relative_id)
+                {
+                    vote(input.global_ir.id, axis);
+                }
+            }
+
+            for output in plan.handle_outputs.iter() {
+                if let HandleOutput::Owned {
+                    global_id,
+                    relative_id,
+                    ..
+                } = output
+                    && block_plan.writes.contains_key(relative_id)
+                {
+                    vote(*global_id, axis);
+                }
+            }
+        }
+
+        // The runner knows better for its own operands — the matmul one places the
+        // axis by matrix layout — so anything it sets wins.
+        const UNSET: usize = usize::MAX;
+        let mut axis = runner.axis(plan);
+
+        for (id, dim) in per_tensor {
+            if let Some(dim) = dim
+                && axis.get(id, || UNSET) == UNSET
+            {
+                axis.insert(id, dim);
+            }
+        }
+
+        axis
+    }
+
     pub fn run<Runner: Vectorization<R>>(
         self,
         client: &ComputeClient<R>,
@@ -132,7 +219,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 .io_optimized_vector_sizes(ref_elem.0.size())
                 .collect::<Vec<_>>(),
         };
-        let vectorization_axis = runner.axis(plan);
+        let vectorization_axis = Self::vectorization_axis(runner, plan);
 
         runner.vectorization(
             context,

@@ -670,6 +670,14 @@ pub struct FuseBlockConfig {
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
     pub width: VectorSize,
+    /// The dimension the reference layout advances along within a vectorized line.
+    ///
+    /// This is `rank - 1` for a contiguous reference, and the innermost dimension in
+    /// memory for a permuted one. The aligned read and write paths walk a line by
+    /// stepping a tensor's stride along this dimension, so taking it to be the last
+    /// one — which it used to be, unconditionally — reads and writes the wrong
+    /// elements as soon as the reference is not contiguous.
+    pub ref_innermost: usize,
 }
 
 impl AsRefExpand for FuseBlockConfig {

@@ -403,7 +403,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
         None => {
             let offset =
                 get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
-            let stride = tensor.tensor.stride(config.rank - 1);
+            let stride = tensor.tensor.stride(config.ref_innermost);
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
@@ -531,7 +531,7 @@ fn write_output_aligned<C: Scalar, N: Size>(
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
             let offset = (ref_pos * config.width) / tensor.tensor.vector_size();
             let output = outputs.tensors.index_mut(pos);
-            let stride = output.tensor.stride(config.rank - 1);
+            let stride = output.tensor.stride(config.ref_innermost);
 
             #[unroll]
             for i in 0..config.width {

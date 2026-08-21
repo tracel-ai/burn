@@ -1,4 +1,5 @@
 use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
+use crate::engine::launch::layout::dim_order;
 use crate::engine::launch::runner::TraceRunner;
 use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
 use crate::{
@@ -112,6 +113,17 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
+            // Which dimension a line of the reference advances along. Only a concrete
+            // reference can be permuted; the virtual ones are indexed through a
+            // transform written against the last dimension.
+            let ref_innermost = match &block_plan.reference {
+                ReferenceSelection::Concrete { shape, strides, .. } => {
+                    dim_order(shape, strides).and_then(|order| order.last().copied())
+                }
+                _ => None,
+            }
+            .unwrap_or(plan.rank.saturating_sub(1));
+
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
                 ReferenceSelection::VirtualShape { original, .. } => {
@@ -161,6 +173,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ref_layout: reference,
                 ops,
                 width: block_plan.width,
+                ref_innermost,
             };
             configs.push(config);
         }
