@@ -777,7 +777,7 @@ mod tests {
     }
 
     #[test]
-    fn tensors_cannot_move_between_capture_devices() {
+    fn initialized_tensors_can_move_between_capture_devices() {
         let source_device = DispatchDevice::Flex(Default::default());
         let first = CaptureDevice::default();
         let second = CaptureDevice::default();
@@ -792,6 +792,40 @@ mod tests {
                 let float = Dispatch::float_to_device(float, &first_dispatch);
                 let int = Dispatch::int_to_device(int, &first_dispatch);
                 let bool = Dispatch::bool_to_device(bool, &first_dispatch);
+
+                let second_graph = second
+                    .capture_scope(|second_scope| {
+                        Dispatch::float_to_device(float, &second_dispatch);
+                        Dispatch::int_to_device(int, &second_dispatch);
+                        Dispatch::bool_to_device(bool, &second_dispatch);
+                        second_scope.complete([], [])
+                    })
+                    .unwrap();
+                assert_eq!(second_graph.values.len(), 3);
+
+                first_scope.complete([], [])
+            })
+            .unwrap();
+
+        assert_eq!(first_graph.values.len(), 3);
+    }
+
+    #[test]
+    fn computed_tensors_cannot_move_between_capture_devices() {
+        let source_device = DispatchDevice::Flex(Default::default());
+        let first = CaptureDevice::default();
+        let second = CaptureDevice::default();
+        let first_dispatch = DispatchDevice::Capture(first);
+        let second_dispatch = DispatchDevice::Capture(second);
+        let float = Dispatch::float_from_data(TensorData::from([1.0f32]), &source_device);
+        let int = Dispatch::int_from_data(TensorData::from([1i64]), &source_device);
+        let bool = Dispatch::bool_from_data(TensorData::from([true]), &source_device);
+
+        let first_graph = first
+            .capture_scope(|first_scope| {
+                let float = Dispatch::float_neg(Dispatch::float_to_device(float, &first_dispatch));
+                let int = Dispatch::int_neg(Dispatch::int_to_device(int, &first_dispatch));
+                let bool = Dispatch::bool_not(Dispatch::bool_to_device(bool, &first_dispatch));
 
                 let second_graph = second
                     .capture_scope(|second_scope| {
