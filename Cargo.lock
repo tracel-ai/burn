@@ -803,23 +803,14 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 name = "burn"
 version = "0.22.0-pre.2"
 dependencies = [
- "burn-autodiff",
  "burn-core",
- "burn-cpu",
- "burn-cuda",
- "burn-flex",
- "burn-ndarray",
  "burn-nn",
  "burn-optim",
  "burn-rl",
- "burn-rocm",
- "burn-router",
  "burn-std",
  "burn-store",
- "burn-tch",
  "burn-train",
  "burn-vision",
- "burn-wgpu",
  "cubecl",
 ]
 

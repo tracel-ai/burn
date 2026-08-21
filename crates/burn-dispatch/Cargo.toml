@@ -96,6 +96,24 @@ fusion = [
     "burn-remote?/fusion",
 ]
 
+# CPU backend codegen and threading. `burn-flex` is a non-optional dependency
+# here, so these reach it without the weak `?` form (which only fires when the
+# optional dependency's own feature is enabled).
+simd = ["burn-flex/simd", "burn-ndarray?/simd"]
+rayon = ["burn-flex/rayon", "burn-ndarray?/multi-threads"]
+
+# Opt-in gemm codegen paths (burn-flex).
+x86-v4 = ["burn-flex/x86-v4"]
+apple-amx = ["burn-flex/apple-amx"]
+
+# BLAS providers (burn-ndarray).
+accelerate = ["burn-ndarray?/blas-accelerate"]
+blas-netlib = ["burn-ndarray?/blas-netlib"]
+openblas = ["burn-ndarray?/blas-openblas"]
+openblas-system = ["burn-ndarray?/blas-openblas-system"]
+
+template = ["burn-wgpu?/template"]
+
 [dependencies]
 burn-backend = { workspace = true }
 

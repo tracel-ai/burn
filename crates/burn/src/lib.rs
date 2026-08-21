@@ -99,6 +99,8 @@
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
 //!   - `ndarray`: Makes available the NdArray backend (deprecated - use `flex` instead)
 //! - Backend specifications
+//!   - `simd`: Enable SIMD codegen in the CPU backends
+//!   - `rayon`: Enable multi-threaded execution in the CPU backends
 //!   - `accelerate`: If supported, Accelerate will be used
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
 //!   - `openblas`: If supported, Openblas will be use
