@@ -41,9 +41,13 @@ pub fn filter2d(images: Tensor<4>, kernel: Tensor<2>, border: PadMode) -> Tensor
         .expand([channels, 1, kh, kw])
         .cast(FloatDType::from(images.dtype()));
 
-    // "Same"-size output: pad half the kernel on each side. The `(l, r, t, b)`
-    // tuple pads `(t, b)` along H and `(l, r)` along W.
-    let images = images.pad((kw / 2, kw / 2, kh / 2, kh / 2), border);
+    // "Same"-size output: the total padding is one less than the kernel size,
+    // with any extra pixel placed on the top/left. The `(l, r, t, b)` tuple
+    // pads `(t, b)` along H and `(l, r)` along W.
+    let images = images.pad(
+        (kw / 2, (kw - 1) - kw / 2, kh / 2, (kh - 1) - kh / 2),
+        border,
+    );
 
     conv2d(
         images,
@@ -248,6 +252,19 @@ mod tests {
         let out = filter2d(images, kernel, PadMode::Edge);
         // Edge-replicated sums: [1+1+2, 1+2+3, 2+3+3].
         let expected = Tensor::<4>::from([[[[4., 6., 8.]]]]);
+        expected
+            .to_data()
+            .assert_approx_eq(&out.to_data(), Tolerance::<f32>::balanced());
+    }
+
+    #[test]
+    fn filter2d_even_kernel_keeps_shape_and_values() {
+        let images = Tensor::<4>::from([[[[1., 2.], [3., 4.]]]]);
+        let kernel = Tensor::<2>::from([[1., 1.], [1., 1.]]);
+        let out = filter2d(images, kernel, PadMode::Edge);
+        let expected = Tensor::<4>::from([[[[4., 6.], [8., 10.]]]]);
+
+        assert_eq!(out.dims(), [1, 1, 2, 2]);
         expected
             .to_data()
             .assert_approx_eq(&out.to_data(), Tolerance::<f32>::balanced());
