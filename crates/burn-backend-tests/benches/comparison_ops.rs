@@ -18,9 +18,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Benchmarking comparison and broadcast operations");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 const SMALL: usize = 64 * 64; // 4K elements
