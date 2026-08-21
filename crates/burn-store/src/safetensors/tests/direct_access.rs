@@ -65,7 +65,7 @@ fn test_memory_get_tensor_existing() {
 
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
 
-    // Get existing snapshot
+    // Get existing tensor
     let snapshot = load_store.get_tensor("weight").unwrap();
     assert!(snapshot.is_some());
 
@@ -89,7 +89,7 @@ fn test_memory_get_tensor_nested() {
 
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
 
-    // Get nested snapshot
+    // Get nested tensor
     let snapshot = load_store.get_tensor("nested.gamma").unwrap();
     assert!(snapshot.is_some());
 
@@ -152,7 +152,7 @@ fn test_memory_caching_behavior() {
     let snapshots2 = load_store.get_all_tensors().unwrap();
     assert_eq!(snapshots2.len(), 4);
 
-    // Verify we can still access individual snapshots after caching
+    // Verify we can still access individual tensors after caching
     let snapshot = load_store.get_tensor("bias").unwrap();
     assert!(snapshot.is_some());
 }

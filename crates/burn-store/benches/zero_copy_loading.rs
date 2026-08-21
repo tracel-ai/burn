@@ -408,10 +408,10 @@ mod store_only {
             .counter(divan::counter::BytesCount::new(file_size))
             .bench(|| {
                 let mut store = BurnpackStore::from_file(&bp_path);
-                let snapshots = store.get_all_tensors().expect("Failed to get snapshots");
-                for snapshot in snapshots.values() {
+                let tensors = store.get_all_tensors().expect("Failed to get tensors");
+                for tensor in tensors.values() {
                     let _data =
-                        burn_store::bridge::to_data(snapshot).expect("Failed to get tensor data");
+                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
                 }
             });
     }
@@ -427,10 +427,10 @@ mod store_only {
             .bench(|| {
                 let bytes = Bytes::from_bytes_vec(static_bytes.to_vec());
                 let mut store = BurnpackStore::from_bytes(Some(bytes));
-                let snapshots = store.get_all_tensors().expect("Failed to get snapshots");
-                for snapshot in snapshots.values() {
+                let tensors = store.get_all_tensors().expect("Failed to get tensors");
+                for tensor in tensors.values() {
                     let _data =
-                        burn_store::bridge::to_data(snapshot).expect("Failed to get tensor data");
+                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
                 }
             });
     }
@@ -445,10 +445,10 @@ mod store_only {
             .counter(divan::counter::BytesCount::new(file_size))
             .bench(|| {
                 let mut store = BurnpackStore::from_static(static_bytes);
-                let snapshots = store.get_all_tensors().expect("Failed to get snapshots");
-                for snapshot in snapshots.values() {
+                let tensors = store.get_all_tensors().expect("Failed to get tensors");
+                for tensor in tensors.values() {
                     let _data =
-                        burn_store::bridge::to_data(snapshot).expect("Failed to get tensor data");
+                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
                 }
             });
     }

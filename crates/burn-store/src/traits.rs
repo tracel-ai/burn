@@ -190,7 +190,8 @@ pub trait ModuleStore {
     /// * `Ok(ApplyResult)` - Detailed information about the apply operation:
     ///   - `applied`: List of successfully applied tensor names
     ///   - `missing`: Tensors expected by the module but not found in storage
-    ///   - `skipped`: Tensors in storage that were not applied (filtered or not needed)
+    ///   - `skipped`: Module parameters that were visited but filtered out
+    ///   - `unused`: Tensors in storage that no module parameter matched
     ///   - `errors`: Non-critical errors that occurred during apply
     /// * `Err(Self::Error)` - If a critical error prevented the apply operation
     fn apply_to<M: ModuleSnapshot>(&mut self, module: &mut M) -> Result<ApplyResult, Self::Error>;
@@ -215,6 +216,9 @@ pub trait ModuleStore {
     /// * `Ok(Some(&burn_pack::Tensor))` - Reference to the tensor if found
     /// * `Ok(None)` - If no tensor with that name exists
     /// * `Err(Self::Error)` - If an error occurred accessing storage
+    ///
+    /// The returned reference borrows the store's cache, so only one tensor can be held at a
+    /// time; use [`get_all_tensors`](Self::get_all_tensors) to inspect several.
     ///
     /// # Example
     ///

@@ -365,7 +365,9 @@ impl ModuleStore for BurnpackStore {
 
         // Collect the module's tensors with the adapter applied. Nothing is materialized
         // here: each one reads its data back only when the writer reaches it in the data
-        // section, so peak memory is bounded by the largest tensor rather than the model.
+        // section. In file mode that bounds peak host memory by the largest single tensor
+        // rather than the model; the bytes mode below still builds the whole container in
+        // memory.
         let tensors = module.collect(self.filter.clone(), Some(self.to_adapter.clone()), false);
         let mut writer = Writer::new(tensors);
 

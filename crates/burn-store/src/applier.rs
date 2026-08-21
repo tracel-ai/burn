@@ -320,7 +320,7 @@ mod tests {
     use super::*;
     use crate::PyTorchToBurnAdapter;
     use burn_core::module::{ModuleMapper, Param, ParamId};
-    use burn_core::tensor::{DType, Tensor, TensorData};
+    use burn_core::tensor::{DType, Tensor, TensorData, shape};
 
     /// A resident tensor named `name`, standing in for one read from a store.
     fn tensor(name: &str, data: TensorData, id: Option<ParamId>) -> PackTensor {
@@ -668,6 +668,47 @@ mod tests {
         assert_eq!(
             loaded.id, persisted_id,
             "Applier should restore persisted ParamId from the source"
+        );
+    }
+
+    /// A provider failure must land in `errors` as a LoadError, leave the parameter at its
+    /// initialized value, and not also be counted as missing: `into_result` excludes errored
+    /// paths on purpose, so under `validate(false)` `errors` is the only place it shows up.
+    ///
+    /// This arm was near-unreachable before every materialization was length- and
+    /// dtype-checked; now a truncated file or a backend panic lands here.
+    #[test]
+    fn a_failing_tensor_is_reported_and_leaves_the_param_untouched() {
+        let device = Default::default();
+        let failing = bridge::deferred("weight".to_string(), DType::F32, shape![2], None, || {
+            Err(burn_pack::Error::IoError("device read failed".to_string()))
+        });
+
+        let mut applier = Applier::new(vec![failing], None, None, false);
+        applier.enter_module("weight", "Struct:Linear");
+        let loaded = applier.map_float(Param::initialized(
+            ParamId::from(7u64),
+            Tensor::<1>::zeros([2], &device),
+        ));
+        applier.exit_module("weight", "Struct:Linear");
+
+        assert_eq!(
+            loaded.val().try_into_vec_as::<f32>().unwrap(),
+            vec![0.0, 0.0],
+            "the parameter must keep its initialized value"
+        );
+
+        let result = applier.into_result();
+        assert!(result.applied.is_empty());
+        assert!(
+            result.missing.is_empty(),
+            "an errored path must not also be reported missing: {:?}",
+            result.missing
+        );
+        assert!(
+            matches!(&result.errors[..], [ApplyError::LoadError { path, .. }] if path == "weight"),
+            "expected one LoadError naming the path, got {:?}",
+            result.errors
         );
     }
 

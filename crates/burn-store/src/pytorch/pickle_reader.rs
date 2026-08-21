@@ -1504,10 +1504,11 @@ pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String,
     Ok(tensors)
 }
 
-/// Walk a parsed pickle object tree, collecting every tensor under its dotted path.
+/// Walk a parsed pickle object tree, collecting each tensor found under a dict path.
 ///
-/// A tensor is built without a name, its path being assembled only here, so this is also where
-/// each one gets its final identity.
+/// Only dicts are descended into: a state_dict is one, and a tensor reached any other way is
+/// ignored. A tensor is built without a name, its path being assembled only here, so this is
+/// also where each one gets its final identity.
 pub(super) fn extract_tensors<'a>(
     obj: &'a Object,
     path: &mut Vec<&'a str>,
@@ -1537,6 +1538,32 @@ pub(super) fn extract_tensors<'a>(
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    /// The declared byte length comes from the dtype and shape, so a fallback that defaulted to
+    /// F32 (as this one used to) now fails the length check rather than loading quietly wrong
+    /// data. Quantized has no zero value to fill with and must be refused.
+    #[test]
+    fn zeros_honors_the_declared_dtype() {
+        use burn_core::tensor::quantization::QuantScheme;
+
+        for dtype in [
+            DType::F32,
+            DType::F64,
+            DType::F16,
+            DType::I64,
+            DType::U8,
+            DType::Bool(BoolStore::Native),
+        ] {
+            let data = zeros(dtype, &[2, 3]).unwrap();
+            assert_eq!(data.dtype, dtype);
+            assert_eq!(
+                data.bytes.len(),
+                crate::bridge::data_len(dtype, &data.shape)
+            );
+        }
+
+        assert!(zeros(DType::QFloat(QuantScheme::default()), &[4]).is_err());
+    }
 
     #[test]
     fn test_memo_bomb_mitigation() {

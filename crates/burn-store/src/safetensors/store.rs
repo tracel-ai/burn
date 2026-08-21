@@ -590,10 +590,13 @@ impl safetensors::View for PackTensorView {
 
     fn data(&self) -> alloc::borrow::Cow<'_, [u8]> {
         // Only materialize data when actually needed for serialization
+        // `View::data` has no error channel, so this is the one place a materialization
+        // failure cannot be returned. Name the tensor at least, since the writer's own
+        // annotation is not reached from here.
         let bytes = self
             .0
             .to_bytes()
-            .unwrap_or_else(|e| panic!("Failed to get tensor data: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to get data for tensor '{}': {:?}", self.0.name, e));
         alloc::borrow::Cow::Owned(bytes.deref().to_vec())
     }
 
@@ -654,7 +657,7 @@ impl ModuleStore for SafetensorsStore {
                 }
 
                 // Convert to safetensors format
-                let tensors = to_safetensors_views(tensors);
+                let tensors = to_safetensors_views(tensors)?;
 
                 // Use serialize_to_file which streams directly to disk
                 // This calls the lazy closures on-demand without buffering everything
@@ -663,7 +666,7 @@ impl ModuleStore for SafetensorsStore {
             }
             Self::Memory(p) => {
                 // For memory, we need to serialize to bytes
-                let tensors = to_safetensors_views(tensors);
+                let tensors = to_safetensors_views(tensors)?;
                 // For no-std, serialize still needs std HashMap when std feature is enabled
                 #[cfg(feature = "std")]
                 let data = safetensors::serialize(tensors, Some(std_metadata))?;
@@ -891,10 +894,22 @@ fn apply_remapping(tensors: Vec<PackTensor>, remapper: &KeyRemapper) -> Vec<Pack
 }
 
 /// Wrap tensors as safetensors views, still without materializing any data.
-fn to_safetensors_views(tensors: Vec<PackTensor>) -> Vec<(String, PackTensorView)> {
+fn to_safetensors_views(
+    tensors: Vec<PackTensor>,
+) -> Result<Vec<(String, PackTensorView)>, SafetensorsStoreError> {
     tensors
         .into_iter()
-        .map(|tensor| (tensor.name.clone(), PackTensorView(tensor)))
+        .map(|tensor| {
+            // `View::dtype` has no error channel, so a dtype the format cannot represent has
+            // to be refused here. Letting it through would write a header claiming F32 over
+            // bytes that are nothing of the sort, and the file would only be found broken on
+            // load.
+            dtype_to_safetensors(tensor.dtype).map_err(|e| {
+                SafetensorsStoreError::Other(format!("tensor '{}': {e}", tensor.name))
+            })?;
+
+            Ok((tensor.name.clone(), PackTensorView(tensor)))
+        })
         .collect()
 }
 
@@ -931,8 +946,11 @@ where
             None,
             move || {
                 // Re-parse when needed; this only walks the header again.
+                // A malformed or truncated container, not a disk problem: classifying it as
+                // I/O would arrive mid-write next to the writer's own file errors and send
+                // the reader looking at their disk.
                 let tensors = safetensors::SafeTensors::deserialize(&source).map_err(|e| {
-                    PackError::IoError(format!("Failed to deserialize safetensors: {}", e))
+                    PackError::ValidationError(format!("Failed to deserialize safetensors: {}", e))
                 })?;
 
                 // Find our specific tensor

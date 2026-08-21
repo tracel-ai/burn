@@ -79,7 +79,7 @@ impl<'a> ModuleContext<'a> {
     /// # Examples
     /// - `Linear.weight` -> `Some("Struct:Linear")`
     /// - `Vec<Linear>[0].weight` -> `Some("Struct:Linear")`
-    /// - `Vec<Param>[0]` (no module) -> `None`
+    /// - a stack with no `Struct:`/`Enum:` entry at all -> `None`
     pub fn module_type(&self) -> Option<&'a str> {
         self.container_stack
             .iter()
@@ -94,7 +94,15 @@ pub trait ModuleAdapter: Send + Sync {
     /// Adapt a tensor given where in the module hierarchy it was found.
     ///
     /// Takes the tensor by value so a pass-through costs nothing, and returns one whose data is
-    /// still deferred: a transform is composed onto the byte source rather than run here.
+    /// still unmaterialized: a transform is composed onto the byte source rather than run here.
+    ///
+    /// An adapter that changes `dtype` or `shape` must declare the resulting byte length, which
+    /// means going through [`bridge::map_data`](crate::bridge::map_data) rather than assigning
+    /// those fields: the writer reserves space from `byte_len` before any provider runs.
+    ///
+    /// `tensor.name` is the parameter's path in the module being traversed, not the key it was
+    /// stored under. An adapter that renames sets it, and the next adapter in a chain sees the
+    /// renamed value.
     fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor;
 
     /// Get alternative parameter name to try during matching
@@ -105,15 +113,11 @@ pub trait ModuleAdapter: Send + Sync {
     ///
     /// # Arguments
     /// * `param_name` - The parameter name we're looking for
-    /// * `container_type` - The type of container module (e.g., "BatchNorm")
+    /// * `module_type` - The user-defined module the parameter sits in (e.g. "Struct:BatchNorm")
     ///
     /// # Returns
     /// Alternative parameter name to try, or None if no alternative exists
-    fn get_alternative_param_name(
-        &self,
-        _param_name: &str,
-        _container_type: &str,
-    ) -> Option<String> {
+    fn get_alternative_param_name(&self, _param_name: &str, _module_type: &str) -> Option<String> {
         None
     }
 
@@ -559,6 +563,14 @@ fn transpose_2d_tensor(tensor: PackTensor) -> PackTensor {
         return tensor;
     }
 
+    // Quantized data is packed values plus an inline scale tail, not a grid of equal-sized
+    // elements: `DType::size()` is 0 for a sub-byte value type, and a packed store's byte
+    // length is recomputed per line, so transposing one both scrambles the scales and
+    // contradicts the length declared below. Pass it through instead.
+    if matches!(tensor.dtype, DType::QFloat(_)) {
+        return tensor;
+    }
+
     let (name, dtype) = (tensor.name.clone(), tensor.dtype);
     let transposed_shape = shape![tensor.shape[1], tensor.shape[0]];
 
@@ -580,7 +592,8 @@ fn transpose_tensor_data(data: TensorData) -> TensorData {
     // Create a new buffer for transposed data
     let mut transposed_bytes = vec![0u8; bytes.len()];
 
-    // Transpose at the byte level - works for any data type
+    // Transpose at the byte level - valid for fixed-width dtypes, which is why quantized
+    // data is turned away before it gets here
     for i in 0..rows {
         for j in 0..cols {
             let src_idx = (i * cols + j) * element_size;
@@ -1096,8 +1109,8 @@ mod tests {
 
         let adapter = HalfPrecisionAdapter::new();
 
-        // QFloat source: skip. Built with the length the scheme actually implies, since every
-        // materialization is now checked against the declared byte length.
+        // QFloat source: skip. Sized from the scheme so `byte_len` matches the bytes, the way
+        // a real quantized tensor's would.
         let qfloat_dtype = DType::QFloat(QuantScheme::default());
         let shape = shape![2, 3];
         let bytes = Bytes::from_bytes_vec(vec![0u8; bridge::data_len(qfloat_dtype, &shape)]);
@@ -1180,6 +1193,42 @@ mod tests {
         let data = TensorData::new(vec![1i64, 2, 3], shape![3]);
         let adapted = adapter.adapt(tensor_with("idx", data), ModuleContext::new(&containers));
         assert_eq!(adapted.dtype, DType::I64);
+    }
+
+    /// A quantized weight is packed values plus an inline scale tail, not a grid of
+    /// equal-sized elements: `DType::size()` is 0 for a sub-byte value type, so a byte-level
+    /// transpose would copy nothing and hand back correctly-sized zeros. It has to pass
+    /// through untouched.
+    #[test]
+    fn a_quantized_linear_weight_is_not_transposed() {
+        use burn_core::tensor::quantization::{QuantScheme, QuantValue};
+        use burn_core::tensor::{Device, Distribution, Tensor};
+
+        let device = Device::default();
+        let quantized = Tensor::<2>::random(shape![3, 8], Distribution::Default, &device)
+            .quantize_dynamic(&QuantScheme::default().with_value(QuantValue::Q4S));
+
+        let source = bridge::from_tensor(&quantized, "fc.weight".to_string(), None);
+        let (shape, bytes) = (
+            source.shape.clone(),
+            bridge::to_data(&source).unwrap().bytes.to_vec(),
+        );
+
+        let containers = containers(module_names::LINEAR);
+        let adapted = BurnToPyTorchAdapter.adapt(source, ModuleContext::new(&containers));
+
+        assert_eq!(
+            adapted.shape, shape,
+            "a quantized weight must pass through unchanged"
+        );
+        assert_eq!(bridge::to_data(&adapted).unwrap().bytes.to_vec(), bytes);
+    }
+
+    /// A stack of only collection wrappers has no user-defined module in it.
+    #[test]
+    fn module_type_is_none_without_a_user_defined_module() {
+        let containers = vec!["Vec".to_string(), "Array".to_string()];
+        assert_eq!(ModuleContext::new(&containers).module_type(), None);
     }
 
     #[test]

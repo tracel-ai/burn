@@ -69,11 +69,14 @@
 //! - [`PathFilter`]: Flexible filtering system for selective tensor loading/saving
 //! - [`KeyRemapper`]: Advanced tensor name remapping with regex patterns
 //! - [`ModuleAdapter`]: Framework adapters for cross-framework compatibility
+//! - [`bridge`]: Conversions between burn-core tensors and the [`burn_pack::Tensor`] entries the stores move around
 //!
 //! ## Feature Flags
 //!
 //! - `std`: Enables file I/O and other std-only features (default)
 //! - `safetensors`: Enables SafeTensors format support (default)
+//! - `pytorch`: Enables loading PyTorch `.pt`/`.pth` files (default)
+//! - `memmap`: Memory-maps files on load rather than reading them (default)
 
 extern crate alloc;
 
@@ -84,8 +87,6 @@ mod collector;
 mod filter;
 mod traits;
 
-/// Conversions between burn-core tensors and the [`burn_pack::Tensor`] entries burn-store
-/// moves around.
 pub mod bridge;
 
 pub use adapter::{

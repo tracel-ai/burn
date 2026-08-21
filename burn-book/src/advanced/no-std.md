@@ -26,7 +26,7 @@ Some other dependencies have to be added
 [dependencies]
 embedded-alloc = "0.6.0" # Only if there is no default allocator for your chip
 burn = { version = "0.21", default-features = false, features = ["flex"] } # Flex supports no_std
-burn-store = { version = "0.21", default-features = false, features = ["burnpack"] }
+burn-store = { version = "0.21", default-features = false }
 
 [build-dependencies]
 burn-onnx = { version = "0.21" } # Used to auto generate the rust code to import the model

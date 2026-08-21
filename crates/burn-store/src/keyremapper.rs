@@ -339,7 +339,7 @@ mod tests {
 
         let (remapped, transformations) = remapper.remap(tensors);
 
-        // Check that remapped views exist with correct paths
+        // Check that remapped tensors exist with correct names
         assert!(
             remapped
                 .iter()

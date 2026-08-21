@@ -5,13 +5,14 @@
 //! burn-store uses it as its single tensor-transport type: what a [`Collector`](crate::Collector)
 //! produces, what an [`Applier`](crate::Applier) consumes, and what the stores read and write.
 //!
-//! This module is the seam where burn-core's [`TensorData`] meets those raw bytes. Everything
-//! here stays lazy: a tensor built by [`from_tensor`] holds the (reference-counted) device
-//! tensor and reads it back only when the bytes are finally drawn, and [`map_data`] wraps one
-//! deferred source in another without materializing either.
+//! This module is the seam where burn-core's [`TensorData`] meets those raw bytes. The lazy
+//! paths are the load-bearing ones: a tensor built by [`from_tensor`] holds the
+//! (reference-counted) device tensor and reads it back only when the bytes are finally drawn,
+//! and [`map_data`] composes a transform onto a byte source without materializing it.
 
+use alloc::format;
 use alloc::string::String;
-// Only the `std` panic guard below builds an error message.
+// Only the `std` panic guard below builds an error message from a panic payload.
 #[cfg(feature = "std")]
 use alloc::string::ToString;
 
@@ -48,10 +49,19 @@ pub fn data_len(dtype: DType, shape: &Shape) -> usize {
 fn guarded(f: impl Fn() -> Result<TensorData, PackError>) -> Result<TensorData, PackError> {
     // AssertUnwindSafe: the shared closure is not UnwindSafe, and the only state that could be
     // observed after a panic is the tensor being read, which is dropped either way.
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| {
-        Err(PackError::ValidationError(
-            "panic while producing tensor data".to_string(),
-        ))
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|payload| {
+        // Carry the panic's own message through. Everything from a device OOM to a bug in an
+        // adapter's transform arrives here, and without the payload they are indistinguishable
+        // to anything handling the error rather than reading stderr.
+        let cause = payload
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "unknown panic payload".to_string());
+
+        Err(PackError::ValidationError(format!(
+            "panic while producing tensor data: {cause}"
+        )))
     })
 }
 
@@ -67,15 +77,18 @@ fn guarded(f: impl Fn() -> Result<TensorData, PackError>) -> Result<TensorData, 
 /// without.
 ///
 /// [`PackTensor::deferred`] asks for `Send + Sync` providers only where `alloc::sync` exists: a
-/// target without atomic CAS has no threads to share a tensor across, and could not meet the
-/// bound anyway. Naming that difference once keeps every constructor below from having to be
-/// written twice.
+/// target without atomic CAS has no threads to share a tensor across, and the `Rc`-backed
+/// provider it falls back to could not satisfy the bound anyway. Naming that difference once
+/// keeps every constructor below from having to be written twice.
+///
+/// Implemented for every type that satisfies it; the blanket impl makes a manual
+/// implementation impossible.
 #[cfg(target_has_atomic = "ptr")]
 pub trait MaybeSendSync: Send + Sync {}
 #[cfg(target_has_atomic = "ptr")]
 impl<T: Send + Sync> MaybeSendSync for T {}
 
-/// See the `target_has_atomic = "ptr"` variant.
+/// Empty on a target without atomic CAS, where no provider bound is needed or satisfiable.
 #[cfg(not(target_has_atomic = "ptr"))]
 pub trait MaybeSendSync {}
 #[cfg(not(target_has_atomic = "ptr"))]
@@ -85,7 +98,9 @@ impl<T> MaybeSendSync for T {}
 ///
 /// `dtype` and `shape` describe what `data_fn` will return, and fix the byte length the writer
 /// reserves before the closure ever runs, so a transform that changes either must be declared
-/// here rather than left for the closure to reveal.
+/// here rather than left for the closure to reveal. A provider that hands back something else
+/// is rejected when the data is drawn, so the failure is an error rather than a misplaced or
+/// misread tensor.
 pub fn deferred(
     name: String,
     dtype: DType,
@@ -94,9 +109,22 @@ pub fn deferred(
     data_fn: impl Fn() -> Result<TensorData, PackError> + MaybeSendSync + 'static,
 ) -> PackTensor {
     let byte_len = data_len(dtype, &shape);
+    let declared = shape.clone();
 
     PackTensor::deferred(name, dtype, shape, param_id, byte_len, move || {
-        guarded(&data_fn).map(|data| data.bytes)
+        let data = guarded(&data_fn)?;
+
+        // The byte length is checked downstream, but two dtypes of the same width (F32 and
+        // I32, say) produce identical lengths, and the declared one is what a reader will
+        // reinterpret the bytes as. Nothing else catches that, so check it here.
+        if data.dtype != dtype || data.shape != declared {
+            return Err(PackError::ValidationError(format!(
+                "provider produced {:?} {:?}, but the tensor declared {:?} {:?}",
+                data.dtype, data.shape, dtype, declared
+            )));
+        }
+
+        Ok(data.bytes)
     })
 }
 
@@ -308,6 +336,31 @@ mod tests {
         );
     }
 
+    /// A materialization failure must reach the caller through the writer with its class and
+    /// its tensor intact: a panic is a validation failure, not an I/O one, and it arrives
+    /// mid-write alongside the writer's real file errors. Reverting the classification, or
+    /// dropping the writer's `in_tensor` annotation, fails here.
+    #[test]
+    fn a_write_time_failure_keeps_its_class_and_names_its_tensor() {
+        let tensor = deferred(
+            "encoder.weight".to_string(),
+            DType::F32,
+            shape![1],
+            None,
+            || panic!("device readback panicked"),
+        );
+
+        let err = burn_pack::Writer::new(vec![tensor])
+            .into_bytes()
+            .expect_err("a panicking provider must fail the write");
+
+        assert!(
+            matches!(&err, PackError::ValidationError(m)
+                if m.contains("tensor 'encoder.weight'") && m.contains("device readback panicked")),
+            "expected a named ValidationError carrying the panic message, got {err:?}"
+        );
+    }
+
     /// A provider's own error is passed through untouched; only panics are translated.
     #[test]
     fn a_provider_error_passes_through() {
@@ -322,11 +375,11 @@ mod tests {
         );
     }
 
-    /// Snapshotting a module must not read anything back from the device. This is what bounds
-    /// a save's peak host memory by the largest single tensor rather than by the whole model,
-    /// and it is invisible in the metadata, so pin it on the call count.
+    /// A deferred tensor must not run its provider until the bytes are asked for. This is what
+    /// bounds a save's peak host memory by the largest single tensor rather than by the whole
+    /// model, and it is invisible in the metadata, so pin it on the call count.
     #[test]
-    fn from_tensor_reads_nothing_until_asked() {
+    fn deferred_runs_its_provider_only_when_asked() {
         use core::sync::atomic::{AtomicUsize, Ordering};
         // Tests only build for std targets, so the atomic pointer is always available here.
         use alloc::sync::Arc;
@@ -384,6 +437,52 @@ mod tests {
             None,
         );
         assert_eq!(to_data(&bools).unwrap().shape, shape![2, 2]);
+    }
+
+    /// A provider that returns a different dtype than the tensor declared must be refused.
+    /// Two dtypes of the same width give identical byte lengths, so the length check cannot
+    /// see this, and a reader would reinterpret the bytes as the declared type.
+    #[test]
+    fn a_provider_contradicting_its_declared_dtype_is_refused() {
+        let tensor = deferred("weight".to_string(), DType::F32, shape![4], None, || {
+            Ok(TensorData::from([1i32, 2, 3, 4]))
+        });
+
+        let err = to_data(&tensor).unwrap_err();
+        assert!(
+            matches!(&err, PackError::ValidationError(m) if m.contains("I32") && m.contains("F32")),
+            "expected a validation error naming both dtypes, got {err:?}"
+        );
+    }
+
+    /// The same for a shape that permutes to the same element count.
+    #[test]
+    fn a_provider_contradicting_its_declared_shape_is_refused() {
+        let tensor = deferred("weight".to_string(), DType::F32, shape![2, 3], None, || {
+            Ok(TensorData::new(vec![0.0f32; 6], shape![3, 2]))
+        });
+
+        assert!(matches!(
+            to_data(&tensor).unwrap_err(),
+            PackError::ValidationError(_)
+        ));
+    }
+
+    /// `into_data` yields what `to_data` does, taking the tensor rather than borrowing it.
+    #[test]
+    fn into_data_matches_to_data() {
+        let device = Device::default();
+        let tensor = from_tensor(
+            &Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device),
+            "weight".to_string(),
+            None,
+        );
+
+        let borrowed = to_data(&tensor).unwrap();
+        let taken = into_data(tensor).unwrap();
+        assert_eq!(borrowed.shape, taken.shape);
+        assert_eq!(borrowed.dtype, taken.dtype);
+        assert_eq!(borrowed.bytes.to_vec(), taken.bytes.to_vec());
     }
 
     /// `map_data` has to declare the length its transform will produce, not the one it

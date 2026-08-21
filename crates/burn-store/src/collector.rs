@@ -1021,15 +1021,15 @@ mod tests {
         assert!(views_b.contains_key("LayerB.weight"));
         assert!(views_b.contains_key("LayerB.bias"));
     }
+    /// A tensor's path paired with the module type it was seen in.
+    type Sighting = (String, Option<String>);
+
     /// Records the module context each tensor was seen in, and changes nothing.
     ///
     /// The container stack is consumed during the walk rather than kept on the collected
     /// tensor, so this is how the traversal's view of it is observed. Asserting through a real
     /// adapter's dtype output would instead couple these tests to that adapter's (documented as
     /// changeable) module allowlist.
-    /// A tensor's path paired with the module type it was seen in.
-    type Sighting = (String, Option<String>);
-
     #[derive(Clone, Default)]
     struct RecordingAdapter {
         seen: Arc<Mutex<Vec<Sighting>>>,
@@ -1058,7 +1058,8 @@ mod tests {
         }
     }
 
-    fn linear(module: &str) -> Option<String> {
+    /// The module type a sighting is expected to carry.
+    fn module(module: &str) -> Option<String> {
         Some(module.to_string())
     }
 
@@ -1089,12 +1090,12 @@ mod tests {
         assert_eq!(
             adapter.seen(),
             vec![
-                ("linear.bias".to_string(), linear("Struct:Linear")),
-                ("linear.weight".to_string(), linear("Struct:Linear")),
-                ("norm.beta".to_string(), linear("Struct:BatchNorm")),
-                ("norm.gamma".to_string(), linear("Struct:BatchNorm")),
-                ("norm.running_mean".to_string(), linear("Struct:BatchNorm")),
-                ("norm.running_var".to_string(), linear("Struct:BatchNorm")),
+                ("linear.bias".to_string(), module("Struct:Linear")),
+                ("linear.weight".to_string(), module("Struct:Linear")),
+                ("norm.beta".to_string(), module("Struct:BatchNorm")),
+                ("norm.gamma".to_string(), module("Struct:BatchNorm")),
+                ("norm.running_mean".to_string(), module("Struct:BatchNorm")),
+                ("norm.running_var".to_string(), module("Struct:BatchNorm")),
             ]
         );
     }
@@ -1140,7 +1141,7 @@ mod tests {
         for (name, module_type) in seen {
             assert_eq!(
                 module_type,
-                linear("Struct:Linear"),
+                module("Struct:Linear"),
                 "'{name}' should have been seen as a Linear parameter"
             );
         }
