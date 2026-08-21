@@ -43,6 +43,10 @@ impl<R: Runtime> ElementWiseFuser<R> {
                     inplace: true,
                     vectorization: VectorizationSetting::Activated,
                     ref_layout: RefLayoutSetting::Any,
+                    // The elementwise runner reads and writes every operand through
+                    // the generic fused paths, so it is free to iterate in whatever
+                    // order its inputs already sit in.
+                    choose_output_layout: true,
                 },
             ),
             device,

@@ -1,3 +1,4 @@
+use super::axis::VectorAxes;
 use super::{
     super::{BlockPlan, HandleOutput, LaunchPlan},
     Vect,
@@ -42,6 +43,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             _r: PhantomData,
         }
     }
+
     pub fn run<Runner: Vectorization<R>>(
         self,
         client: &ComputeClient<R>,
@@ -132,7 +134,8 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 .io_optimized_vector_sizes(ref_elem.0.size())
                 .collect::<Vec<_>>(),
         };
-        let vectorization_axis = runner.axis(plan);
+        let (vectorization_axis, refusals) =
+            VectorAxes::resolve(runner, self.resources, context, plan).split();
 
         runner.vectorization(
             context,
@@ -174,6 +177,10 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 plan.vectorizations.insert(global.id, Vect::Aligned(1));
             }
         }
+
+        // Tensors whose own layout cannot be lined up with the one their block
+        // iterates in.
+        refusals.apply(&mut plan.vectorizations);
 
         let mut block_vectorization = Vec::with_capacity(self.blocks.len());
         for _ in 0..self.blocks.len() {

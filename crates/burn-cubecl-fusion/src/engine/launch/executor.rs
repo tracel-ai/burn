@@ -1,4 +1,5 @@
 use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
+use crate::engine::launch::layout::permuted_innermost_axis;
 use crate::engine::launch::runner::TraceRunner;
 use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
 use crate::{
@@ -112,6 +113,19 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
+            // Which axis a vector runs along. Only a concrete reference can be
+            // permuted; the virtual ones are indexed through a transform written
+            // against the last dimension. The vectorization planner picks a tensor's
+            // axis by the same rule, so the axis a vector is sized along and the one
+            // it is stepped along are the same.
+            let vector_axis = match &block_plan.reference {
+                ReferenceSelection::Concrete { shape, strides, .. } => {
+                    permuted_innermost_axis(shape, strides)
+                }
+                _ => None,
+            }
+            .unwrap_or(plan.rank.saturating_sub(1));
+
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
                 ReferenceSelection::VirtualShape { original, .. } => {
@@ -161,6 +175,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ref_layout: reference,
                 ops,
                 width: block_plan.width,
+                vector_axis,
             };
             configs.push(config);
         }
