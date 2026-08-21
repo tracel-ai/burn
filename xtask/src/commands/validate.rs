@@ -59,7 +59,7 @@ pub fn handle_command(
             no_capture: false,
             release: true,
             test: None,
-            miri: false,
+            miri: None,
         },
         args.backend,
         Context::Std,

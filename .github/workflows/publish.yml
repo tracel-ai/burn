@@ -56,7 +56,7 @@ jobs:
       - publish-burn-ir
       - publish-burn-router
       - publish-burn-std
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
     with:
       crate: burn-capture
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}

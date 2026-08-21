@@ -12,7 +12,6 @@
 //! - Support for both legacy and modern PyTorch formats
 use crate::TensorSnapshot;
 use crate::pytorch::lazy_data::LazyDataSource;
-use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
@@ -614,7 +613,7 @@ fn rebuild_tensor_impl(
 
     // Create a TensorSnapshot with a closure that loads the actual data on-demand
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
-        Rc::new(move || {
+        Arc::new(move || {
             // Load data only when needed
             if let Ok(data) = data_source_clone.read(&data_file_key) {
                 // Parse the binary data based on dtype

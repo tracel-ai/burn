@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
-use crate::bridge;
 use crate::{
     IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot,
 };
@@ -369,13 +368,9 @@ impl ModuleStore for BurnpackStore {
         // Collect snapshots from module with adapter
         let snapshots = module.collect(self.filter.clone(), Some(self.to_adapter.clone()), false);
 
-        // Bridge snapshots to tensor-agnostic burnpack entries (materializing their data)
-        let tensors: Vec<PackTensor> = snapshots
-            .iter()
-            .map(bridge::snapshot_to_tensor)
-            .collect::<Result<_, _>>()?;
-
-        // Initialize writer with tensors
+        // Nothing is materialized here: each snapshot becomes a deferred tensor whose
+        // `to_data()` runs when the writer reaches it in the data section.
+        let tensors = snapshots.into_iter().map(PackTensor::from).collect();
         let mut writer = Writer::new(tensors);
 
         // Add metadata using builder pattern
@@ -398,7 +393,9 @@ impl ModuleStore for BurnpackStore {
                         final_path.display()
                     )));
                 }
-                writer.write_to_file(&final_path)?;
+                // Atomic: snapshots materialize mid-write, so a device readback that
+                // fails partway must not truncate whatever was already at this path.
+                writer.write_to_file_atomic(&final_path)?;
             }
             StoreMode::Bytes(_) => {
                 // Generate and store the bytes
@@ -490,7 +487,7 @@ impl BurnpackStore {
         let snapshots: Vec<TensorSnapshot> = reader
             .into_tensors()?
             .into_iter()
-            .map(bridge::tensor_to_snapshot)
+            .map(TensorSnapshot::from)
             .collect();
 
         // Apply remapping if configured (but NOT filtering - that's done at apply time)

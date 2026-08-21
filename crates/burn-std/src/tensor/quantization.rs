@@ -372,11 +372,33 @@ pub fn global_scale_size(scheme: &QuantScheme) -> usize {
     global_scale_dtype(scheme).map_or(0, scale_size)
 }
 
+/// Number of storage elements a tensor of `shape` occupies under `scheme`.
+///
+/// A packed store divides only the packed dimension, rounding that extent up on its own and
+/// leaving the others intact, so a non-divisible extent pads once per line rather than once
+/// over the flattened tensor. This mirrors the storage shape the allocation actually uses (see
+/// `CubeTensor::quantized_storage` in burn-cubecl); flattening first would under-count, e.g. a
+/// `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not `ceil(9 / 8) = 2`.
+fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
+    let num_quants = scheme.num_quants();
+
+    match scheme.store {
+        QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim)
+            if num_quants > 1 && !shape.is_empty() =>
+        {
+            let packed_dim = shape.num_dims() - packed_dim - 1;
+            let mut storage = shape.clone();
+            storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
+            storage.num_elements()
+        }
+        _ => shape.num_elements().div_ceil(num_quants),
+    }
+}
+
 /// Total bytes a tensor of `shape` occupies under `scheme`, laid out as [`QuantizedBytes::new`]
 /// writes it: values, then block scales, then (for a two-level scheme) the per-tensor scale.
 pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
-    let num_storage_elements = shape.num_elements().div_ceil(scheme.num_quants());
-    let value_bytes = num_storage_elements * scheme.size_bits_stored().div_ceil(8);
+    let value_bytes = storage_elements(scheme, shape) * scheme.size_bits_stored().div_ceil(8);
 
     let num_params = params_shape(shape, scheme).num_elements();
     let scale_bytes = num_params * scale_size(scheme.scale_dtype());
@@ -397,15 +419,21 @@ pub fn scale_size(dtype: ScaleDtype) -> usize {
 fn decode_scales(bytes: &[u8], dtype: ScaleDtype) -> Vec<f32> {
     match dtype {
         ScaleDtype::F32 => bytes
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|c| f32::from_ne_bytes([c[0], c[1], c[2], c[3]]))
             .collect(),
         ScaleDtype::F16 => bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| crate::f16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
         ScaleDtype::BF16 => bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| crate::bf16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
         ScaleDtype::UE4M3 => bytes.iter().map(|b| e4m3::from_bits(*b).to_f32()).collect(),
