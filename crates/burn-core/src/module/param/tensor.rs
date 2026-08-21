@@ -317,7 +317,7 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
         // Preserve initialized param `require_grad` state, but reset the inner value's.
         // `val()` folds any reparameterization into the base for inference.
         let require_grad = self.require_grad;
-        let mut param = Param::initialized(self.id, self.val().inner().set_require_grad(false));
+        let mut param = Param::initialized(self.id, self.val().no_grad().set_require_grad(false));
         param.require_grad = require_grad;
         param
     }
@@ -339,7 +339,7 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
     fn valid(&self) -> Self {
-        Param::initialized(self.id, self.val().inner())
+        Param::initialized(self.id, self.val().no_grad())
     }
 
     fn from_inner(module: Self) -> Self {
@@ -349,7 +349,7 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
     fn valid(&self) -> Self {
-        Param::initialized(self.id, self.val().inner())
+        Param::initialized(self.id, self.val().no_grad())
     }
 
     fn from_inner(module: Self) -> Self {

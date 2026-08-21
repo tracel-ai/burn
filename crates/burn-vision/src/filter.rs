@@ -105,6 +105,11 @@ impl BoxBlur {
         self
     }
 
+    /// Rebuilds the precomputed kernel on `device`.
+    pub fn to_device(&mut self, device: &Device) {
+        self.kernel = self.kernel.clone().to_device(device);
+    }
+
     fn sample(&self) -> bool {
         let mut rng = self.rng.lock();
 

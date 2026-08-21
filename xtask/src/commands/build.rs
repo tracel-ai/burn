@@ -45,7 +45,7 @@ pub(crate) fn handle_command(
                         "--cfg portable_atomic_unsafe_assume_single_core",
                     );
                 }
-                helpers::custom_crates_build(
+                build_helpers::custom_crates_build(
                     crates,
                     build_args.clone(),
                     Some(env_vars.clone()),
@@ -71,7 +71,7 @@ pub(crate) fn handle_command(
                             && v != "burn-capture"
                     });
 
-                    helpers::custom_crates_build(
+                    build_helpers::custom_crates_build(
                         crates,
                         build_args,
                         None,
@@ -100,7 +100,7 @@ pub(crate) fn handle_command(
             base_commands::build::handle_command(args.try_into().unwrap(), env, context)?;
             // Specific additional commands to test specific features
             // burn-dataset
-            helpers::custom_crates_build(
+            build_helpers::custom_crates_build(
                 vec!["burn-dataset"],
                 vec!["--all-features"],
                 None,

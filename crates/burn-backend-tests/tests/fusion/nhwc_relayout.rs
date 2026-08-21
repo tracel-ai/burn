@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::{
     Device, TensorData,
-    module::{interpolate, max_pool2d},
+    module::{adaptive_avg_pool2d, interpolate, max_pool2d},
     ops::{InterpolateMode, InterpolateOptions},
 };
 
@@ -171,6 +171,34 @@ fn fusion_test_nhwc_relayout_broadcast_different_shapes() {
         &TensorData::new(vec![11.0, 12.0, 21.0, 22.0], [2, 2, 1, 1]),
         false,
     );
+}
+
+/// A tensor read by both the pool and a later operation must keep its NCHW layout.
+///
+/// The relayout rewrites where the pooled tensor's elements live so the pool can read it
+/// without a copy. That is only sound when the pool is that tensor's last reader.
+#[test]
+fn fusion_test_nhwc_relayout_shared_input_keeps_nchw_layout() {
+    let dev: Device = Default::default();
+
+    let input = TestTensor::<4>::from_data(
+        TensorData::from([[[[1.0f32, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]]),
+        &dev,
+    );
+    dev.sync().unwrap();
+
+    // An elementwise op the fuser can absorb, whose result has two readers.
+    let filtered = input * 2.0;
+    let pooled = adaptive_avg_pool2d(filtered.clone(), [1, 1]);
+    let output = filtered * pooled;
+
+    // Doubled, the channel means are 5 and 13, so every product is exact in f32.
+    let expected = TensorData::from([[
+        [[10.0f32, 20.0], [30.0, 40.0]],
+        [[130.0, 156.0], [182.0, 208.0]],
+    ]]);
+
+    output.into_data().assert_eq(&expected, false);
 }
 
 fn seq_input(dev: &Device) -> TestTensor<4> {

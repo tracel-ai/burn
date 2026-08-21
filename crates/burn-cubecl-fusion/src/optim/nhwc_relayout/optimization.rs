@@ -67,6 +67,10 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
 pub const NAME: &str = "NHWCRelayout";
 
 impl<R: Runtime> FusedOperation<R> for NHWCRelayoutOptimization<R> {
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        self.trace.max_relative_shape_id()
+    }
+
     const NAME: &'static str = self::NAME;
     type State = RelayoutOptimizationState;
 

@@ -11,8 +11,12 @@
 //! tensor/snapshot types.
 //!
 //! Write a pack with [`Writer`], read one with [`Reader`]; both operate on [`Tensor`]
-//! entries that carry the format-level metadata plus a lazy provider of the raw
-//! little-endian bytes.
+//! entries carrying the format-level metadata plus the raw little-endian bytes.
+//!
+//! A tensor's bytes need not exist yet. A [`Reader`] reads them from the source only when
+//! they are accessed, and a caller that knows a tensor's length without holding its data (a
+//! module snapshot, an ONNX initializer) can build one with [`Tensor::deferred`] to write a
+//! model larger than host memory to a file - see that constructor for the contract.
 //!
 //! ```
 //! use burn_pack::{Bytes, DType, Reader, Tensor, Writer};

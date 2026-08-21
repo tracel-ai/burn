@@ -1,10 +1,31 @@
-use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+// `alloc::sync` needs atomic CAS. A target without it has no threads to share a snapshot
+// across, so neither the atomic pointer nor the `Send + Sync` bound on [`DataFn`] is
+// needed there, and both are dropped below.
+#[cfg(not(target_has_atomic = "ptr"))]
+use alloc::rc::Rc as Arc;
 use burn_core::module::ParamId;
 use burn_core::tensor::quantization::quantized_data_len;
 use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
+
+/// Lazily produces a [`TensorSnapshot`]'s data, shared so that cloning a snapshot is cheap.
+///
+/// Build one with [`TensorSnapshot::data_fn`] rather than naming the pointer type, which
+/// varies with the target's atomic support.
+///
+/// The closure is `Send + Sync` on targets with threads, so a snapshot can back a deferred
+/// `burn_pack::Tensor`, whose provider must be `Send`: records holding one cross threads
+/// through burn-train's async checkpointer. A target without atomic CAS has no threads and no
+/// `alloc::sync`, so neither bound applies or can be met there.
+#[cfg(target_has_atomic = "ptr")]
+pub type DataFn = Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync>;
+#[cfg(not(target_has_atomic = "ptr"))]
+pub type DataFn = Arc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>;
 
 /// Error type for TensorSnapshot operations
 #[derive(Debug, Clone)]
@@ -38,8 +59,8 @@ impl core::error::Error for TensorSnapshotError {}
 /// The dtype and shape are cached for efficient access without requiring data materialization,
 /// which is particularly useful for serialization formats that need metadata upfront.
 pub struct TensorSnapshot {
-    /// Function to get tensor data when needed (Rc allows cloning)
-    data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
+    /// Produces the tensor data when needed. Shared, so cloning a snapshot is cheap.
+    data_fn: DataFn,
     /// Data type of the tensor (cached for efficient access)
     pub dtype: DType,
     /// Shape of the tensor (cached for efficient access)
@@ -64,7 +85,7 @@ impl TensorSnapshot {
         let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            data_fn: Arc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -84,7 +105,7 @@ impl TensorSnapshot {
         let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            data_fn: Arc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -104,7 +125,7 @@ impl TensorSnapshot {
         let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            data_fn: Arc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -116,7 +137,7 @@ impl TensorSnapshot {
     /// Convert to TensorData (this is where actual data copy happens)
     #[cfg(feature = "std")]
     pub fn to_data(&self) -> Result<TensorData, TensorSnapshotError> {
-        // Use AssertUnwindSafe since we're working with Rc which is not UnwindSafe
+        // Use AssertUnwindSafe: the shared `data_fn` pointer is not UnwindSafe
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.data_fn)())).unwrap_or_else(
             |_| {
                 Err(TensorSnapshotError::PanicError(
@@ -191,7 +212,7 @@ impl TensorSnapshot {
     /// Create a TensorSnapshot from a closure that produces TensorData
     /// This is used internally for lazy loading
     pub fn from_closure(
-        data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
+        data_fn: DataFn,
         dtype: DType,
         shape: Shape,
         path_stack: Vec<String>,
@@ -218,7 +239,7 @@ impl TensorSnapshot {
         let dtype = data.dtype;
         let shape = data.shape.clone();
         Self {
-            data_fn: Rc::new(move || Ok(data.clone())),
+            data_fn: Arc::new(move || Ok(data.clone())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -243,8 +264,28 @@ impl TensorSnapshot {
     }
 
     /// Clone the data function for lazy composition
-    pub fn clone_data_fn(&self) -> Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>> {
+    pub fn clone_data_fn(&self) -> DataFn {
         self.data_fn.clone()
+    }
+
+    /// Wrap a closure into the shared form [`from_closure`](Self::from_closure) takes.
+    ///
+    /// Use this rather than constructing the pointer directly: [`DataFn`] is `Arc`-based only
+    /// on targets with atomic CAS, and `Rc`-based elsewhere.
+    #[cfg(target_has_atomic = "ptr")]
+    pub fn data_fn(
+        f: impl Fn() -> Result<TensorData, TensorSnapshotError> + Send + Sync + 'static,
+    ) -> DataFn {
+        Arc::new(f)
+    }
+
+    /// Wrap a closure into the shared form [`from_closure`](Self::from_closure) takes.
+    ///
+    /// See the `target_has_atomic = "ptr"` variant. This one drops the `Send + Sync` bound,
+    /// which nothing on a single-threaded target can satisfy or needs.
+    #[cfg(not(target_has_atomic = "ptr"))]
+    pub fn data_fn(f: impl Fn() -> Result<TensorData, TensorSnapshotError> + 'static) -> DataFn {
+        Arc::new(f)
     }
 }
 
@@ -278,7 +319,8 @@ impl core::fmt::Debug for TensorSnapshot {
 mod tests {
     use super::*;
     use alloc::string::ToString;
-    use burn_core::tensor::{BoolStore, Device, shape};
+    use burn_core::tensor::quantization::{QuantScheme, QuantValue};
+    use burn_core::tensor::{BoolStore, Device, Distribution, shape};
 
     #[test]
     fn tensor_view_float() {
@@ -421,6 +463,123 @@ mod tests {
         assert_eq!(view_bool.data_len(), 4 * dtype.size()); // 4 elements * 1 byte
     }
 
+    fn assert_data_len_matches(snapshot: TensorSnapshot) {
+        let declared = snapshot.data_len();
+        let actual = snapshot.to_data().unwrap().bytes.len();
+        assert_eq!(
+            declared,
+            actual,
+            "data_len() disagrees with to_data() for {}",
+            snapshot.full_path()
+        );
+    }
+
+    /// `data_len()` is computed from the cached shape and dtype rather than observed, and
+    /// callers such as the burnpack writer reserve exactly that many bytes before ever
+    /// calling `to_data()`. A disagreement would silently misplace everything written after
+    /// this tensor, so pin the two together for every dtype family.
+    #[test]
+    fn data_len_matches_materialized_bytes() {
+        let device = Device::default();
+
+        let floats = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let ints = Tensor::<2, Int>::from_data([[1, 2], [3, 4]], &device);
+        let bools = Tensor::<2, Bool>::from_data([[true, false], [false, true]], &device);
+
+        let path = |name: &str| vec![name.to_string()];
+        assert_data_len_matches(TensorSnapshot::from_float(
+            &floats,
+            path("float"),
+            vec![],
+            ParamId::new(),
+        ));
+        assert_data_len_matches(TensorSnapshot::from_int(
+            &ints,
+            path("int"),
+            vec![],
+            ParamId::new(),
+        ));
+        assert_data_len_matches(TensorSnapshot::from_bool(
+            &bools,
+            path("bool"),
+            vec![],
+            ParamId::new(),
+        ));
+    }
+
+    /// Packed quantized storage divides only the packed dimension, so a non-divisible extent
+    /// pads once per line rather than once over the flattened tensor. No current backend can
+    /// materialize such a tensor, so this pins the formula against the storage shape the
+    /// allocation would use (`CubeTensor::quantized_storage`) rather than against `to_data()`.
+    ///
+    /// Getting this wrong is not cosmetic: a deferred tensor declares its length from
+    /// `data_len()` before the writer reserves space, so an under-count makes the save fail.
+    #[test]
+    fn data_len_packs_per_line_for_packed_stores() {
+        let packed = |shape: Shape| {
+            // Q4 in u32 words: 8 values per storage element, packed along the last dimension.
+            let scheme = QuantScheme::default().with_value(QuantValue::Q4S);
+            TensorSnapshot::from_closure(
+                Arc::new(|| Err(TensorSnapshotError::DataError("formula-only".to_string()))),
+                DType::QFloat(scheme),
+                shape,
+                vec!["packed".to_string()],
+                vec![],
+                ParamId::new(),
+            )
+            .data_len()
+        };
+
+        // 3 lines x ceil(3 / 8) = 3 u32 words = 12 value bytes, plus one tensor-level f32
+        // scale. Flattening first would say ceil(9 / 8) * 4 = 8.
+        assert_eq!(packed(shape![3, 3]), 12 + 4);
+
+        // The same over more than two dimensions: 2 * 5 lines x ceil(9 / 8) = 20 words.
+        assert_eq!(packed(shape![2, 5, 9]), 20 * 4 + 4);
+
+        // A divisible extent is unaffected, and agrees with the flattened count.
+        assert_eq!(packed(shape![4, 8]), 4 * 4 + 4);
+    }
+
+    /// Quantized is the one family where `data_len()` reconstructs the layout instead of
+    /// deriving it from an element count, so it is where the two drift apart.
+    ///
+    /// The shapes and schemes here are chosen to hit the two ways that reconstruction has
+    /// been wrong: a value-byte count that is not a multiple of 4 (which a spurious
+    /// alignment round-up inflates), and a sub-byte `QuantValue` under `QuantStore::Native`
+    /// (whose stored width rounds down to zero bytes if divided rather than div_ceil'd). A
+    /// 32x32 Q8 tensor passes either way, so it cannot stand in for these.
+    ///
+    /// Both axes rely on the test backend storing quantized values natively, one `i8` per
+    /// value: `quantize_dynamic` rewrites the scheme's store to `QuantStore::Native` even
+    /// though `QuantScheme::default()` starts as `PackedU32`. A backend honoring `PackedU32`
+    /// would produce 4-byte-exact value counts and exercise neither axis.
+    #[test]
+    fn data_len_matches_materialized_bytes_when_quantized() {
+        let device = Device::default();
+
+        let schemes = [
+            ("q8", QuantScheme::default()),
+            ("q4", QuantScheme::default().with_value(QuantValue::Q4S)),
+            ("q2", QuantScheme::default().with_value(QuantValue::Q2S)),
+        ];
+        // Element counts that are and are not multiples of the 4-byte scale alignment.
+        let shapes = [shape![32, 32], shape![3, 3], shape![5, 5], shape![2, 3]];
+
+        for (name, scheme) in schemes {
+            for shape in &shapes {
+                let tensor = Tensor::<2>::random(shape.clone(), Distribution::Default, &device)
+                    .quantize_dynamic(&scheme);
+                assert_data_len_matches(TensorSnapshot::from_float(
+                    &tensor,
+                    vec![format!("{name}-{shape:?}")],
+                    vec![],
+                    ParamId::new(),
+                ));
+            }
+        }
+    }
+
     #[test]
     fn from_closure() {
         let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0]);
@@ -428,7 +587,7 @@ mod tests {
         let shape = data.shape.clone();
 
         let snapshot = TensorSnapshot::from_closure(
-            Rc::new(move || Ok(data.clone())),
+            Arc::new(move || Ok(data.clone())),
             dtype,
             shape.clone(),
             vec!["model".to_string(), "layer".to_string()],
@@ -472,14 +631,26 @@ mod tests {
         assert_eq!(materialized.shape, original_shape);
     }
 
+    /// `data_fn` is an `Arc<dyn Fn + Send + Sync>` rather than an `Rc` so that snapshots can
+    /// back a deferred [`burn_pack::Tensor`], whose byte provider must be `Send` because
+    /// records containing one cross threads through burn-train's `Checkpoint: Send`.
+    /// Reverting the closure to a plain `Rc`, or capturing something like a `Cell`, fails
+    /// here.
+    #[test]
+    #[cfg(target_has_atomic = "ptr")]
+    fn snapshot_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<TensorSnapshot>();
+    }
+
     #[test]
     #[cfg(feature = "std")]
     fn panic_catching_in_to_data() {
-        use alloc::rc::Rc;
+        use alloc::sync::Arc;
 
         // Create a TensorSnapshot with a closure that panics
         let snapshot = TensorSnapshot {
-            data_fn: Rc::new(|| panic!("Test panic in data_fn")),
+            data_fn: Arc::new(|| panic!("Test panic in data_fn")),
             dtype: DType::F32,
             shape: shape![2, 2],
             path_stack: Some(vec!["test".to_string()]),
@@ -501,11 +672,11 @@ mod tests {
 
     #[test]
     fn error_propagation_in_closure() {
-        use alloc::rc::Rc;
+        use alloc::sync::Arc;
 
         // Create a snapshot with a closure that returns an error
         let snapshot = TensorSnapshot::from_closure(
-            Rc::new(|| Err(TensorSnapshotError::IoError("Simulated IO error".into()))),
+            Arc::new(|| Err(TensorSnapshotError::IoError("Simulated IO error".into()))),
             DType::F32,
             shape![2, 2],
             vec!["error_test".into()],

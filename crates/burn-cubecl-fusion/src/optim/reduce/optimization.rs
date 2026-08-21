@@ -530,7 +530,25 @@ pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Siz
 /// Name of the reduce fusion optimization.
 pub const NAME: &str = "Reduce";
 
+impl<R: Runtime> ReduceOptimizationInfo<R> {
+    /// The highest relative shape id across this reduce's trace and both of its fallbacks.
+    pub(crate) fn max_relative_shape_id(&self) -> Option<usize> {
+        [
+            self.trace.max_relative_shape_id(),
+            self.trace_read_fallback.max_relative_shape_id(),
+            self.trace_write_fallback.max_relative_shape_id(),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+    }
+}
+
 impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        self.info.max_relative_shape_id()
+    }
+
     const NAME: &'static str = self::NAME;
     type State = ReduceOptimizationState;
 

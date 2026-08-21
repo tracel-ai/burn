@@ -6,7 +6,7 @@ use crate::{
     optim::{CubeOptimization, nhwc_relayout::optimization::NHWCRelayoutOptimization},
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
-use burn_ir::{ModuleOperationIr, OperationIr, TensorIr};
+use burn_ir::{ModuleOperationIr, OperationIr, TensorIr, TensorStatus};
 use burn_std::Shape;
 use cubecl::Runtime;
 
@@ -88,7 +88,12 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
         }
 
         match operation {
-            OperationIr::Module(ir) if let Some(tensor) = nhwc_relayout_tensor(ir) => {
+            // A `ReadOnly` tensor cannot be a relayout candidate: another consumer
+            // is still expecting NCHW.
+            OperationIr::Module(ir)
+                if let Some(tensor) = nhwc_relayout_tensor(ir)
+                    && tensor.status == TensorStatus::ReadWrite =>
+            {
                 self.op = Some(operation.clone());
                 self.fuser
                     .output_nhwc_layout(tensor, permutation(tensor.shape.num_dims()));

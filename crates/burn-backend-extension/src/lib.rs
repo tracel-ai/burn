@@ -773,7 +773,7 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
         // Compute the checkpointing strategy and backend tag in a scoped block so the representative's
         // borrow of the inputs ends before the dispatch arms below move them.
         let (checkpointing, __burn_backend_tag): (
-            Option<burn::backend::CheckpointingStrategy>,
+            Option<burn::backend::GradientCheckpointingStrategy>,
             (bool, usize),
         ) = {
             let __repr: &burn::backend::DispatchTensor = (#float_chain)
@@ -1317,7 +1317,7 @@ pub fn derive_extension_type(input: TokenStream) -> TokenStream {
             fn map_to_dispatch<F>(
                 self,
                 map_kind: F,
-                checkpointing: Option<burn::backend::CheckpointingStrategy>,
+                checkpointing: Option<burn::backend::GradientCheckpointingStrategy>,
             ) -> Self::Target
             where
                 F: Fn(burn::backend::BackendTensor<B>) -> burn::backend::DispatchTensorKind,

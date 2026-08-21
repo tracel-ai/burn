@@ -204,7 +204,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                             let pos = plan.runtime_layouts.len();
                             let mut shape_global = shape.clone();
                             for (i, s) in shape.iter().enumerate() {
-                                shape_global[i] = *context.shapes_relative2global.get(s).unwrap();
+                                shape_global[i] = *context.shapes_relative2global.get(s).expect(
+                                    "reference shape ids to be assigned by the running stream",
+                                );
                             }
 
                             let strides = strides_dyn_rank(&shape_global);

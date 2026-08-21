@@ -150,11 +150,8 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     /// # Arguments
     ///
     /// * `renderer` - The custom renderer.
-    pub fn renderer<MR>(mut self, renderer: MR) -> Self
-    where
-        MR: MetricsRenderer + 'static,
-    {
-        self.renderer = Some(Box::new(renderer));
+    pub fn renderer(mut self, renderer: Box<dyn MetricsRenderer + 'static>) -> Self {
+        self.renderer = Some(renderer);
         self
     }
 

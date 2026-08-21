@@ -93,7 +93,7 @@ pub use applier::Applier;
 pub use apply_result::{ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
-pub use tensor_snapshot::{TensorSnapshot, TensorSnapshotError};
+pub use tensor_snapshot::{DataFn, TensorSnapshot, TensorSnapshotError};
 pub use traits::{ModuleSnapshot, ModuleStore};
 
 #[cfg(feature = "std")]
@@ -122,3 +122,32 @@ mod bridge;
 mod burnpack;
 #[cfg(feature = "burnpack")]
 pub use burnpack::BurnpackStore;
+
+/// The burnpack format crate, re-exported.
+///
+/// A [`TensorSnapshot`] converts into a deferred [`burn_pack::Tensor`], so a crate holding
+/// snapshots can drive a [`burn_pack::Writer`] itself instead of going through
+/// [`BurnpackStore`] (useful when the tensors did not come from a
+/// [`Module`](burn_core::module::Module) - weights read out of an ONNX file during codegen,
+/// say). Nothing is materialized by the conversion; each snapshot is read back only when the
+/// writer reaches it:
+///
+/// ```
+/// use burn_store::burn_pack::{Bytes, Error, Tensor, Writer};
+/// use burn_store::TensorSnapshot;
+///
+/// fn pack(snapshots: Vec<TensorSnapshot>) -> Result<Bytes, Error> {
+///     Writer::new(snapshots.into_iter().map(Tensor::from).collect()).into_bytes()
+/// }
+/// ```
+///
+/// With burn-pack's `std` feature, `Writer::write_to_file` is the better choice for a large
+/// model: it streams to disk instead of building the container in memory. This example uses
+/// [`into_bytes`](burn_pack::Writer::into_bytes) so it compiles in no-std builds too.
+///
+/// Reach for this rather than depending on `burn-pack` directly. The conversion only applies
+/// for the exact `burn-pack` version burn-store was built against, and a separate dependency
+/// that resolves to a different one fails with a confusing "the trait `From<TensorSnapshot>`
+/// is not implemented" rather than a version conflict.
+#[cfg(feature = "burnpack")]
+pub use burn_pack;

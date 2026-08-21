@@ -223,6 +223,27 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
 pub const NAME: &str = "ReduceBroadcasted";
 
 impl<R: Runtime> FusedOperation<R> for ReduceBroadcastedOptimization<R> {
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        let fallbacks = self
+            .info
+            .fallbacks
+            .iter()
+            .filter_map(|fallback| match fallback {
+                ReduceBlockOptimInfo::Reduce(info) => info.max_relative_shape_id(),
+                ReduceBlockOptimInfo::Elemwise(opt) => {
+                    FusedOperation::<R>::max_relative_shape_id(opt.as_ref())
+                }
+            });
+
+        self.info
+            .broadcasted
+            .trace
+            .max_relative_shape_id()
+            .into_iter()
+            .chain(fallbacks)
+            .max()
+    }
+
     const NAME: &'static str = self::NAME;
     type State = ReduceBroadcastedOptimizationState;
 

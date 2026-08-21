@@ -28,6 +28,16 @@ pub struct FuseTrace {
     pub resources: FuseResources,
 }
 
+impl FuseTrace {
+    /// The highest relative shape id any of this trace's blocks names as its reference shape.
+    pub fn max_relative_shape_id(&self) -> Option<usize> {
+        self.blocks
+            .iter()
+            .flat_map(|block| block.shape_ref.iter().copied())
+            .max()
+    }
+}
+
 impl core::fmt::Display for FuseTrace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "FuseTrace")?;

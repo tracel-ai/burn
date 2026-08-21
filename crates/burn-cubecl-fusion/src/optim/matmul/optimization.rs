@@ -712,6 +712,16 @@ fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
 pub const NAME: &str = "Matmul";
 
 impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        [
+            self.info.trace.max_relative_shape_id(),
+            self.info.trace_fallback.max_relative_shape_id(),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+    }
+
     const NAME: &'static str = self::NAME;
     type State = MatmulOptimizationState;
 
