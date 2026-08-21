@@ -4,7 +4,7 @@ use burn_tensor::{TensorData, Tolerance};
 
 const SQ2INV: f64 = std::f64::consts::FRAC_1_SQRT_2;
 const SQ2INV_PLUS_HALF: f64 = SQ2INV + 0.5;
-const SQ2INV_MINUS_HALF: f64 = SQ2INV + 0.5;
+const SQ2INV_MINUS_HALF: f64 = SQ2INV - 0.5;
 
 #[test]
 fn rfft_zeros() {
