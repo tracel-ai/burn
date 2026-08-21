@@ -50,14 +50,14 @@ pub fn dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
 
     let mut expected = 1;
 
-    for &dim in order.iter().rev() {
-        if shape[dim] == 1 {
+    for &axis in order.iter().rev() {
+        if shape[axis] == 1 {
             continue;
         }
-        if strides[dim] != expected {
+        if strides[axis] != expected {
             return None;
         }
-        expected *= shape[dim];
+        expected *= shape[axis];
     }
 
     Some(Shape::from(order))
@@ -80,17 +80,17 @@ pub fn dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
 /// degenerate dimensions are skipped. Their position in the order is arbitrary —
 /// nothing distinguishes them, since density says nothing about their stride —
 /// and their stride is arbitrary with it: a broadcast dimension carries stride
-/// zero, so a line stepping it would read the same element `width` times. Even a
+/// zero, so a vector stepping it would read the same element `width` times. Even a
 /// benign stride of one costs the block its vectorization, because an extent of
 /// one reads as broadcast to every access measured against it.
-pub fn permuted_innermost_dim(shape: &[usize], strides: &[usize]) -> Option<usize> {
+pub fn permuted_innermost_axis(shape: &[usize], strides: &[usize]) -> Option<usize> {
     let order = dim_order(shape, strides)?;
 
     if is_contiguous_order(&order) {
         return None;
     }
 
-    order.iter().rev().find(|&&dim| shape[dim] > 1).copied()
+    order.iter().rev().find(|&&axis| shape[axis] > 1).copied()
 }
 
 /// The strides a tensor of this shape has when laid out in the given dimension
@@ -103,9 +103,9 @@ pub fn strides_for(shape: &[usize], order: &[usize]) -> Strides {
     let mut strides = vec![0usize; shape.len()];
     let mut current = 1;
 
-    for &dim in order.iter().rev() {
-        strides[dim] = current;
-        current *= shape[dim];
+    for &axis in order.iter().rev() {
+        strides[axis] = current;
+        current *= shape[axis];
     }
 
     Strides::new(&strides)
@@ -113,7 +113,7 @@ pub fn strides_for(shape: &[usize], order: &[usize]) -> Strides {
 
 /// Whether a dimension order is the contiguous one, `[0, 1, .., rank - 1]`.
 pub fn is_contiguous_order(order: &[usize]) -> bool {
-    order.iter().enumerate().all(|(pos, dim)| pos == *dim)
+    order.iter().enumerate().all(|(pos, axis)| pos == *axis)
 }
 
 #[cfg(test)]
@@ -207,7 +207,7 @@ mod tests {
             Some(&3),
             "the order still ends at the degenerate dimension",
         );
-        assert_eq!(permuted_innermost_dim(&shape, &strides), Some(1));
+        assert_eq!(permuted_innermost_axis(&shape, &strides), Some(1));
     }
 
     #[test]
@@ -219,7 +219,7 @@ mod tests {
         let strides = [768, 1, 48, 0];
 
         assert!(dim_order(&shape, &strides).is_some(), "still dense");
-        assert_eq!(permuted_innermost_dim(&shape, &strides), Some(1));
+        assert_eq!(permuted_innermost_axis(&shape, &strides), Some(1));
     }
 
     #[test]
@@ -228,10 +228,13 @@ mod tests {
         // layout advances along — degenerate trailing dimensions included, since a
         // contiguous layout gives them stride one.
         assert_eq!(
-            permuted_innermost_dim(&[2, 48, 16, 16], &[48 * 16 * 16, 16 * 16, 16, 1]),
+            permuted_innermost_axis(&[2, 48, 16, 16], &[48 * 16 * 16, 16 * 16, 16, 1]),
             None
         );
-        assert_eq!(permuted_innermost_dim(&[2, 48, 1, 1], &[48, 1, 1, 1]), None);
+        assert_eq!(
+            permuted_innermost_axis(&[2, 48, 1, 1], &[48, 1, 1, 1]),
+            None
+        );
     }
 
     #[test]
@@ -239,21 +242,21 @@ mod tests {
         let shape = [2, 48, 16, 16];
         let strides = [16 * 16 * 48, 1, 16 * 48, 48];
 
-        assert_eq!(permuted_innermost_dim(&shape, &strides), Some(1));
+        assert_eq!(permuted_innermost_axis(&shape, &strides), Some(1));
     }
 
     #[test]
     fn a_tensor_that_is_not_dense_asks_for_nothing() {
-        assert_eq!(permuted_innermost_dim(&[4, 8], &[16, 1]), None);
+        assert_eq!(permuted_innermost_axis(&[4, 8], &[16, 1]), None);
         assert_eq!(
-            permuted_innermost_dim(&[2, 48, 16, 16], &[0, 1, 0, 0]),
+            permuted_innermost_axis(&[2, 48, 16, 16], &[0, 1, 0, 0]),
             None
         );
     }
 
     #[test]
     fn a_single_element_tensor_asks_for_nothing() {
-        assert_eq!(permuted_innermost_dim(&[1, 1, 1, 1], &[1, 1, 1, 1]), None);
+        assert_eq!(permuted_innermost_axis(&[1, 1, 1, 1], &[1, 1, 1, 1]), None);
     }
 
     #[test]

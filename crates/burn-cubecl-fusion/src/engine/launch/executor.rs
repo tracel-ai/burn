@@ -1,5 +1,5 @@
 use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
-use crate::engine::launch::layout::permuted_innermost_dim;
+use crate::engine::launch::layout::permuted_innermost_axis;
 use crate::engine::launch::runner::TraceRunner;
 use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
 use crate::{
@@ -120,7 +120,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             // it is stepped along are the same.
             let vector_axis = match &block_plan.reference {
                 ReferenceSelection::Concrete { shape, strides, .. } => {
-                    permuted_innermost_dim(shape, strides)
+                    permuted_innermost_axis(shape, strides)
                 }
                 _ => None,
             }

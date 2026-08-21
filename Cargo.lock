@@ -1006,7 +1006,6 @@ dependencies = [
  "hashbrown 0.16.1",
  "rmp-serde",
  "serde",
- "smallvec",
  "spin 0.11.1",
 ]
 

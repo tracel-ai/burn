@@ -47,7 +47,6 @@ burn-backend = { workspace = true, features = ["cubecl"] }
 
 derive-new = { workspace = true }
 hashbrown = { workspace = true }
-smallvec = { workspace = true }
 rmp-serde = { workspace = true }
 serde = { workspace = true }
 spin = { workspace = true }
