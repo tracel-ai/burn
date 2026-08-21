@@ -7,13 +7,13 @@ use crate::{
     ops::{base::reshape, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
-use cubek::reduce::components::instructions::ReduceOperationConfig;
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, Shape, ops::conv::calculate_pool_output_size};
 use cubek::pool::{
     definition::{AdaptiveAvgPoolOptions, AvgPoolOptions, MaxPoolOptions, PoolError, PoolMode},
     pool2d, pool2d_backward, pool2d_with_indices, pool2d_with_indices_backward,
 };
+use cubek::reduce::components::instructions::ReduceOperationConfig;
 
 pub(crate) fn max_pool2d<R: CubeRuntime>(
     x: CubeTensor<R>,
@@ -275,16 +275,7 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
 /// `[b, c, 1, 1]`.
 ///
 /// This is what an adaptive average pool with a `1x1` output *is*, and it is a
-/// reduction rather than a pooling problem. The distinction is not cosmetic:
-/// [`pool2d`] parallelises over its **output** elements, so at a `1x1` output it
-/// runs with `batch * channels` units — twelve of them once the channels
-/// vectorise, on a device with thousands of lanes — and each one walks the whole
-/// feature map serially.
-///
-/// Measured on a Radeon 8060S under vulkan, EfficientNet-B4's squeeze-and-excite
-/// at 384x384: 37.6 ms for 28 MB of traffic, which is 1.5 GB/s against a device
-/// that does ~158. Time tracked *work / channels* rather than work, which is the
-/// signature of parallelism bounded by the channel count alone.
+/// reduction rather than a pooling problem. 
 ///
 /// So the reduction axis becomes the parallel one. `[b, c, h, w]` is reshaped to
 /// `[b, c, h * w]` — free in NCHW, where those two axes are already adjacent and
