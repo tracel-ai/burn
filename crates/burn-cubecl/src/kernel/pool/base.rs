@@ -11,7 +11,8 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, Shape, ops::conv::calculate_pool_output_size};
 use cubek::pool::{
     definition::{AdaptiveAvgPoolOptions, AvgPoolOptions, MaxPoolOptions, PoolError, PoolMode},
-    pool2d, pool2d_backward, pool2d_with_indices, pool2d_with_indices_backward,
+    pool2d, pool2d_backward, pool2d_with_indices, pool2d_with_indices_backward, pool3d,
+    pool3d_backward,
 };
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 
@@ -384,6 +385,73 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
         dtype_to_storage_type(output.dtype),
     )
     .unwrap_or_else(|e| pool_panic("adaptive_avg_pool2d_backward", &input, e));
+
+    permute_nhwc_to_nchw(output)
+}
+
+pub(crate) fn adaptive_avg_pool3d<R: CubeRuntime>(
+    input: CubeTensor<R>,
+    output_size: [usize; 3],
+) -> CubeTensor<R> {
+    let [batch_size, channels, _, _, _] = input.meta.shape().dims();
+    let input = into_contiguous_aligned(permute_nchw_to_nhwc(input));
+    let output_shape = Shape::new([
+        batch_size,
+        output_size[0],
+        output_size[1],
+        output_size[2],
+        channels,
+    ]);
+    let output = empty_device_dtype(
+        input.client.clone(),
+        input.device.clone(),
+        output_shape,
+        input.dtype,
+    );
+    let mode = PoolMode::from(AdaptiveAvgPoolOptions::new(output_size));
+
+    pool3d(
+        &output.client,
+        input.clone().binding(),
+        output.clone().binding(),
+        mode,
+        dtype_to_storage_type(output.dtype),
+    )
+    .unwrap_or_else(|e| pool_panic("adaptive_avg_pool3d", &input, e));
+
+    permute_nhwc_to_nchw(output)
+}
+
+pub(crate) fn adaptive_avg_pool3d_backward<R: CubeRuntime>(
+    x: CubeTensor<R>,
+    out_grad: CubeTensor<R>,
+) -> CubeTensor<R> {
+    let [batches, channels, depth, height, width] = x.meta.shape().dims();
+    let [_, _, out_depth, out_height, out_width] = out_grad.meta.shape().dims();
+    // Cubek only reads the input binding's shape during adaptive average pool 3d backward.
+    let input = permute_nchw_to_nhwc(x);
+    let out_grad = into_contiguous_aligned(permute_nchw_to_nhwc(out_grad));
+
+    let output_shape = Shape::new([batches, depth, height, width, channels]);
+    let output = empty_device_dtype(
+        input.client.clone(),
+        input.device.clone(),
+        output_shape,
+        input.dtype,
+    );
+    let mode = PoolMode::from(AdaptiveAvgPoolOptions::new([
+        out_depth, out_height, out_width,
+    ]));
+
+    pool3d_backward(
+        &output.client,
+        input.clone().binding(),
+        out_grad.binding(),
+        output.clone().binding(),
+        mode,
+        dtype_to_storage_type(output.dtype),
+    )
+    .unwrap_or_else(|e| pool_panic("adaptive_avg_pool3d_backward", &input, e));
 
     permute_nhwc_to_nchw(output)
 }

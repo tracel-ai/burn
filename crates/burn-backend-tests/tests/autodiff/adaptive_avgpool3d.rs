@@ -1,5 +1,3 @@
-#![cfg(any(feature = "flex", feature = "ndarray", feature = "tch"))]
-
 use super::*;
 use burn_tensor::module::adaptive_avg_pool3d;
 use burn_tensor::{Shape, Tolerance};
@@ -79,29 +77,51 @@ fn test_adaptive_avg_pool3d_backward_output_1() {
 
 #[test]
 fn test_adaptive_avg_pool3d_backward_dyn_filter() {
-    // 4x6x8 -> 2x3x4 with non-trivial window sizes
-    // Verify backward produces valid gradients
-    let shape_x = Shape::new([1, 1, 4, 6, 8]);
-    let device = AutodiffDevice::new();
-    let x = TestTensor::from_data(
-        TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-            .reshape::<5, _>(shape_x)
-            .into_data(),
-        &device,
-    )
-    .require_grad();
-    let output = adaptive_avg_pool3d(x.clone(), [2, 3, 4]);
-    let grads = output.backward();
-    let x_grad = x.grad(&grads).unwrap();
-    let grad_data: Vec<f32> = x_grad.into_data().iter::<f32>().collect();
+    let test = AdaptiveAvgPool3dTestCase {
+        batch_size: 1,
+        channels: 1,
+        depth: 2,
+        height: 3,
+        width: 4,
+        depth_out: 1,
+        height_out: 2,
+        width_out: 3,
+    };
 
-    // All gradients should be non-negative
-    for v in &grad_data {
-        assert!(*v >= 0.0, "Expected non-negative grad, got {}", v);
-    }
-    // Gradients should be non-zero (something flowed backward)
-    let total: f32 = grad_data.iter().sum();
-    assert!(total > 0.0, "Total grad should be positive, got {}", total);
+    test.assert_output(TestTensor::from_data(
+        [[[
+            [
+                [0.125, 0.25, 0.25, 0.125],
+                [0.25, 0.5, 0.5, 0.25],
+                [0.125, 0.25, 0.25, 0.125],
+            ],
+            [
+                [0.125, 0.25, 0.25, 0.125],
+                [0.25, 0.5, 0.5, 0.25],
+                [0.125, 0.25, 0.25, 0.125],
+            ],
+        ]]],
+        &AutodiffDevice::new(),
+    ));
+}
+
+#[test]
+fn test_adaptive_avg_pool3d_backward_divisible_dyn_filter() {
+    let test = AdaptiveAvgPool3dTestCase {
+        batch_size: 1,
+        channels: 1,
+        depth: 4,
+        height: 6,
+        width: 8,
+        depth_out: 2,
+        height_out: 3,
+        width_out: 4,
+    };
+
+    test.assert_output(TestTensor::from_data(
+        [[[[[0.125; 8]; 6]; 4]]],
+        &AutodiffDevice::new(),
+    ));
 }
 
 struct AdaptiveAvgPool3dTestCase {

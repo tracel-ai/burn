@@ -1,5 +1,3 @@
-#![cfg(any(feature = "flex", feature = "ndarray", feature = "tch"))]
-
 use super::*;
 use burn_tensor::Shape;
 use burn_tensor::TensorData;
@@ -47,36 +45,46 @@ fn test_adaptive_avg_pool3d_output_1() {
 
 #[test]
 fn test_adaptive_avg_pool3d_asymmetric() {
-    // For this test, we compute the expected values by running the reference implementation
-    let shape_x = Shape::new([1, 2, 4, 6, 8]);
-    let device = Default::default();
-    let x = TestTensor::from(
-        TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-            .reshape::<5, _>(shape_x)
-            .into_data(),
-    );
-    let output = adaptive_avg_pool3d(x, [2, 3, 2]);
-    let output_data = output.into_data();
+    let test = AdaptiveAvgPool3dTestCase {
+        batch_size: 1,
+        channels: 1,
+        depth: 2,
+        height: 3,
+        width: 4,
+        depth_out: 1,
+        height_out: 2,
+        width_out: 3,
+    };
 
-    // Verify output shape
-    assert_eq!(output_data.shape, Shape::new([1, 2, 2, 3, 2]));
+    test.assert_output(TestTensor::from([[[[
+        [8.5, 9.5, 10.5],
+        [12.5, 13.5, 14.5],
+    ]]]]));
+}
 
-    // Verify all values are finite and positive
-    let values: Vec<f32> = output_data.iter::<f32>().collect();
-    for v in &values {
-        assert!(v.is_finite(), "Expected finite, got {}", v);
-        assert!(*v >= 0.0, "Expected non-negative, got {}", v);
-    }
+#[test]
+fn test_adaptive_avg_pool3d_multichannel_divisible_asymmetric() {
+    let test = AdaptiveAvgPool3dTestCase {
+        batch_size: 1,
+        channels: 2,
+        depth: 4,
+        height: 6,
+        width: 8,
+        depth_out: 2,
+        height_out: 3,
+        width_out: 2,
+    };
 
-    // Verify the average is reasonable (should be around the mean of input)
-    let mean: f32 = values.iter().sum::<f32>() / values.len() as f32;
-    let input_mean = (383.0) / 2.0; // mean of 0..384 per channel
-    assert!(
-        (mean - input_mean).abs() < 1.0,
-        "Mean {} too far from expected {}",
-        mean,
-        input_mean
-    );
+    test.assert_output(TestTensor::from([[
+        [
+            [[29.5, 33.5], [45.5, 49.5], [61.5, 65.5]],
+            [[125.5, 129.5], [141.5, 145.5], [157.5, 161.5]],
+        ],
+        [
+            [[221.5, 225.5], [237.5, 241.5], [253.5, 257.5]],
+            [[317.5, 321.5], [333.5, 337.5], [349.5, 353.5]],
+        ],
+    ]]));
 }
 
 #[test]
