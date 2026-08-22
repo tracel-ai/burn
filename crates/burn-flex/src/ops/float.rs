@@ -305,6 +305,36 @@ impl FloatTensorOps<Flex> for Flex {
         }
     }
 
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<Flex>,
+        indices: IntTensor<Flex>,
+        value: FloatTensor<Flex>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Flex> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::float_scatter_add(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::scatter_mul::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::scatter_mul::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::scatter_mul::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::scatter_mul::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!("float_scatter: unsupported dtype {:?}", tensor.dtype()),
+            },
+            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn float_scatter_nd(
         data: FloatTensor<Flex>,
         indices: IntTensor<Flex>,
@@ -372,6 +402,41 @@ impl FloatTensorOps<Flex> for Flex {
                 crate::ops::gather_scatter::select_add::<bf16>(tensor, dim, indices, value)
             }
             _ => panic!("float_select_add: unsupported dtype {:?}", tensor.dtype()),
+        }
+    }
+
+    fn float_select_assign(
+        tensor: FloatTensor<Flex>,
+        dim: usize,
+        indices: IntTensor<Flex>,
+        value: FloatTensor<Flex>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Flex> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::float_select_add(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::select_mul::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::select_mul::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::select_mul::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::select_mul::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!(
+                    "float_select_assign: unsupported dtype {:?}",
+                    tensor.dtype()
+                ),
+            },
+            other => {
+                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            }
         }
     }
 

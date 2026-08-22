@@ -167,6 +167,51 @@ impl IntTensorOps<Flex> for Flex {
         }
     }
 
+    fn int_scatter(
+        dim: usize,
+        tensor: IntTensor<Flex>,
+        indices: IntTensor<Flex>,
+        value: IntTensor<Flex>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> IntTensor<Flex> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::int_scatter_add(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_mul::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_mul::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_mul::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_mul::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_mul::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_mul::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_mul::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_mul::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
+            }
+            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn int_scatter_nd(
         data: IntTensor<Flex>,
         indices: IntTensor<Flex>,
@@ -276,6 +321,57 @@ impl IntTensorOps<Flex> for Flex {
             }
             DType::U8 => crate::ops::gather_scatter::select_add::<u8>(tensor, dim, indices, value),
             dt => panic!("int_select_add: unsupported dtype {:?}", dt),
+        }
+    }
+
+    fn int_select_assign(
+        tensor: IntTensor<Flex>,
+        dim: usize,
+        indices: IntTensor<Flex>,
+        value: IntTensor<Flex>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> IntTensor<Flex> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::int_select_add(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_mul::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_mul::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_mul::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_mul::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_mul::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_mul::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_mul::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_mul::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
+            }
+            other => {
+                unimplemented!("int_select_assign with {other:?} update is not implemented")
+            }
         }
     }
 

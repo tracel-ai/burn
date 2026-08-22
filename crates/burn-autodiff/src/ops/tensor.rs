@@ -1122,6 +1122,91 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     )),
                 }
             }
+            IndexingUpdateOp::Mul => {
+                // Unique indices are required for this backward formula.
+                // Forward: out[index] = tensor[index] * value.
+                // Backward:
+                //   grad_tensor = grad * scatter(ones, indices, value, Mul)
+                //   grad_value  = gather(grad, indices) * gather(tensor, indices)
+                #[derive(Debug)]
+                struct ScatterMul;
+
+                impl<B: Backend> Backward<B, 2> for ScatterMul {
+                    type State = (
+                        usize,
+                        Option<FloatTensor<B>>,
+                        Option<FloatTensor<B>>,
+                        IntTensor<B>,
+                    );
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, tensor_state, value_state, indices) = ops.state;
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                let device = grad.device();
+                                let dtype = grad.dtype();
+                                let shape = grad.shape();
+                                let ones = B::float_ones(shape, &device, dtype.into());
+                                let multiplier = B::float_scatter(
+                                    dim,
+                                    ones,
+                                    indices_4lhs.unwrap(),
+                                    value_state.unwrap(),
+                                    IndexingUpdateOp::Mul,
+                                );
+                                B::float_mul(grad, multiplier)
+                            },
+                            |grad| {
+                                let indices = indices_4rhs.unwrap();
+                                let grad = B::float_gather(dim, grad, indices.clone());
+                                let tensor = B::float_gather(dim, tensor_state.unwrap(), indices);
+                                B::float_mul(grad, tensor)
+                            },
+                        );
+                    }
+                }
+
+                let tensor_tracked = tensor.is_tracked();
+                let value_tracked = value.is_tracked();
+
+                match ScatterMul
+                    .prepare::<C>([tensor.node, value.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => {
+                        let tensor_state = value_tracked.then(|| tensor.primitive.clone());
+                        let value_state = tensor_tracked.then(|| value.primitive.clone());
+                        prep.finish(
+                            (dim, tensor_state, value_state, indices.clone()),
+                            B::float_scatter(
+                                dim,
+                                tensor.primitive,
+                                indices,
+                                value.primitive,
+                                IndexingUpdateOp::Mul,
+                            ),
+                        )
+                    }
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter(
+                        dim,
+                        tensor.primitive,
+                        indices,
+                        value.primitive,
+                        IndexingUpdateOp::Mul,
+                    )),
+                }
+            }
             other => unimplemented!("float_scatter with {other:?} update is not implemented"),
         }
     }
@@ -1707,6 +1792,120 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         indices,
                         value.primitive,
                         IndexingUpdateOp::Assign,
+                    )),
+                }
+            }
+            IndexingUpdateOp::Mul => {
+                // Unique indices are required for this backward formula.
+                // Forward: out[index] = tensor[index] * value.
+                // Backward:
+                //   grad_tensor = grad * select_assign(ones, indices, value, Mul)
+                //   grad_value  = select(grad, indices) * select(tensor, indices)
+                #[derive(Debug)]
+                struct IndexSelectDimAssignMul;
+
+                #[derive(new, Debug)]
+                struct RetroSelectAssignMul<B: Backend> {
+                    tensor_id: NodeId,
+                    dim: usize,
+                    indices: IntTensor<B>,
+                    value_id: NodeId,
+                }
+
+                impl<B: Backend> RetroForward for RetroSelectAssignMul<B> {
+                    fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
+                        let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
+                        let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
+                        let out = B::float_select_assign(
+                            tensor,
+                            self.dim,
+                            self.indices.clone(),
+                            value,
+                            IndexingUpdateOp::Mul,
+                        );
+                        states.save(out_node, out)
+                    }
+                }
+
+                impl<B: Backend> Backward<B, 2> for IndexSelectDimAssignMul {
+                    type State = (usize, Option<NodeId>, Option<NodeId>, IntTensor<B>);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, tensor_state, value_state, indices) = ops.state;
+                        let tensor_state =
+                            tensor_state.map(|id| checkpointer.retrieve_node_output(id));
+                        let value_state =
+                            value_state.map(|id| checkpointer.retrieve_node_output(id));
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                let device = grad.device();
+                                let dtype = grad.dtype();
+                                let shape = grad.shape();
+                                let ones = B::float_ones(shape, &device, dtype.into());
+                                let multiplier = B::float_select_assign(
+                                    ones,
+                                    dim,
+                                    indices_4lhs.unwrap(),
+                                    value_state.unwrap(),
+                                    IndexingUpdateOp::Mul,
+                                );
+                                B::float_mul(grad, multiplier)
+                            },
+                            |grad| {
+                                let indices = indices_4rhs.unwrap();
+                                let grad = B::float_select(grad, dim, indices.clone());
+                                let tensor = B::float_select(tensor_state.unwrap(), dim, indices);
+                                B::float_mul(grad, tensor)
+                            },
+                        );
+                    }
+                }
+
+                let tensor_tracked = tensor.is_tracked();
+                let value_tracked = value.is_tracked();
+
+                match IndexSelectDimAssignMul
+                    .prepare::<C>([tensor.node.clone(), value.node.clone()])
+                    .memory_bound()
+                    .retro_forward(RetroSelectAssignMul::<B>::new(
+                        tensor.node.id,
+                        dim,
+                        indices.clone(),
+                        value.node.id,
+                    ))
+                    .parents([&tensor, &value])
+                    .stateful()
+                {
+                    OpsKind::Tracked(mut prep) => {
+                        let tensor_state = value_tracked.then(|| prep.checkpoint(&tensor));
+                        let value_state = tensor_tracked.then(|| prep.checkpoint(&value));
+                        prep.finish(
+                            (dim, tensor_state, value_state, indices.clone()),
+                            B::float_select_assign(
+                                tensor.primitive,
+                                dim,
+                                indices,
+                                value.primitive,
+                                IndexingUpdateOp::Mul,
+                            ),
+                        )
+                    }
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_select_assign(
+                        tensor.primitive,
+                        dim,
+                        indices,
+                        value.primitive,
+                        IndexingUpdateOp::Mul,
                     )),
                 }
             }
