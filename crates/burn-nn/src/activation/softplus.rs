@@ -4,7 +4,7 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::activation::softplus;
+use burn::tensor::activation::softplus_with_threshold;
 
 /// Softplus layer.
 ///
@@ -17,6 +17,8 @@ use burn::tensor::activation::softplus;
 pub struct Softplus {
     /// The beta value.
     pub beta: f64,
+    /// The stability threshold.
+    pub threshold: f64,
 }
 
 /// Configuration to create a [Softplus](Softplus) layer using the [init function](SoftplusConfig::init).
@@ -25,12 +27,21 @@ pub struct SoftplusConfig {
     /// The beta value. Default is 1.0
     #[config(default = "1.0")]
     pub beta: f64,
+    /// The value of `beta * x` above which the linear approximation is used, which is what
+    /// keeps `exp` from overflowing. Default is 20.0
+    ///
+    /// See [softplus_with_threshold](burn::tensor::activation::softplus_with_threshold).
+    #[config(default = "20.0")]
+    pub threshold: f64,
 }
 
 impl SoftplusConfig {
     /// Initialize a new [Softplus](Softplus) Layer
     pub fn init(&self) -> Softplus {
-        Softplus { beta: self.beta }
+        Softplus {
+            beta: self.beta,
+            threshold: self.threshold,
+        }
     }
 }
 
@@ -49,13 +60,14 @@ impl ModuleDisplay for Softplus {
 impl Softplus {
     /// Forward pass for the Softplus layer.
     ///
-    /// See [softplus](burn::tensor::activation::softplus) for more information.
+    /// See [softplus_with_threshold](burn::tensor::activation::softplus_with_threshold) for
+    /// more information.
     ///
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        softplus(input, self.beta)
+        softplus_with_threshold(input, self.beta, self.threshold)
     }
 }
 
@@ -92,6 +104,42 @@ mod tests {
         let expected = TensorData::from([[0.3466, 1.0635]]);
         out.to_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn test_softplus_default_threshold() {
+        let device = Default::default();
+        let model = SoftplusConfig::new().init();
+        assert_eq!(model.threshold, 20.0);
+
+        // The default threshold keeps saturated inputs finite.
+        let input = Tensor::<2>::from_data(TensorData::from([[100.0, 1000.0]]), &device);
+        let out = model.forward(input);
+        let expected = TensorData::from([[100.0, 1000.0]]);
+        out.to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn test_softplus_with_threshold() {
+        let device = Default::default();
+        let input = Tensor::<2>::from_data(TensorData::from([[5.0]]), &device);
+
+        // Below the threshold the curve is evaluated: softplus(5) = log(1 + e^5) ≈ 5.0067.
+        let out = SoftplusConfig::new()
+            .with_threshold(10.0)
+            .init()
+            .forward(input.clone());
+        out.to_data()
+            .assert_approx_eq::<FT>(&TensorData::from([[5.0067153]]), Tolerance::default());
+
+        // Above it, the identity is substituted instead.
+        let out = SoftplusConfig::new()
+            .with_threshold(1.0)
+            .init()
+            .forward(input);
+        out.to_data()
+            .assert_approx_eq::<FT>(&TensorData::from([[5.0]]), Tolerance::default());
     }
 
     #[test]
