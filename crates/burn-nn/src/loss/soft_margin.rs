@@ -53,7 +53,7 @@ impl SoftMarginLoss {
         targets: Tensor<D>,
     ) -> Tensor<D> {
         // log(1 + exp(-target * logit)) = softplus(-target * logit)
-        softplus(targets.mul(logits).neg(), 1.0, 20.0)
+        softplus(targets.mul(logits).neg(), 1.0)
     }
 }
 

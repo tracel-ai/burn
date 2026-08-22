@@ -4,7 +4,7 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::activation::softplus;
+use burn::tensor::activation::softplus_with_threshold;
 
 /// Softplus layer.
 ///
@@ -27,11 +27,10 @@ pub struct SoftplusConfig {
     /// The beta value. Default is 1.0
     #[config(default = "1.0")]
     pub beta: f64,
-    /// The value of `beta * x` above which the result is taken to be `x` directly, which is
-    /// what keeps `exp` from overflowing. Default is 20.0
+    /// The value of `beta * x` above which the linear approximation is used, which is what
+    /// keeps `exp` from overflowing. Default is 20.0
     ///
-    /// See [softplus](burn::tensor::activation::softplus) for the range of values that make
-    /// sense here.
+    /// See [softplus_with_threshold](burn::tensor::activation::softplus_with_threshold).
     #[config(default = "20.0")]
     pub threshold: f64,
 }
@@ -61,13 +60,14 @@ impl ModuleDisplay for Softplus {
 impl Softplus {
     /// Forward pass for the Softplus layer.
     ///
-    /// See [softplus](burn::tensor::activation::softplus) for more information.
+    /// See [softplus_with_threshold](burn::tensor::activation::softplus_with_threshold) for
+    /// more information.
     ///
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        softplus(input, self.beta, self.threshold)
+        softplus_with_threshold(input, self.beta, self.threshold)
     }
 }
 

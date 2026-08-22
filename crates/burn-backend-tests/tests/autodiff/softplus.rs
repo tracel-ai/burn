@@ -6,7 +6,7 @@ fn should_diff_softplus() {
     let device = AutodiffDevice::new();
     let tensor = TestTensor::<1>::from_data([-1.0, 0.0, 2.0], &device).require_grad();
 
-    let output = activation::softplus(tensor.clone(), 1.0, 20.0).sum();
+    let output = activation::softplus(tensor.clone(), 1.0).sum();
     let grads = output.backward();
 
     // The derivative of softplus is `sigmoid(beta * x)`.
@@ -25,7 +25,7 @@ fn should_diff_softplus_saturated() {
     // gradient and poisons the rest of the backward pass.
     let tensor = TestTensor::<1>::from_data([-100.0, 0.0, 100.0], &device).require_grad();
 
-    let output = activation::softplus(tensor.clone(), 1.0, 20.0).sum();
+    let output = activation::softplus(tensor.clone(), 1.0).sum();
     let grads = output.backward();
 
     // `sigmoid` saturates to 0 and 1 without ever becoming `NaN`.

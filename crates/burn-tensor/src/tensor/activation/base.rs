@@ -213,6 +213,10 @@ pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D
     Tensor::new(softmin_impl(tensor.primitive, dim))
 }
 
+/// Default value of `beta * x` above which [`softplus`] falls back to the identity, matching
+/// the default of `torch.nn.functional.softplus`.
+pub const DEFAULT_SOFTPLUS_THRESHOLD: f64 = 20.0;
+
 /// Largest argument for which `exp` is still finite in the given float dtype, rounded down.
 ///
 /// `f32`, `flex32` and `bf16` all carry `f32`'s exponent range, so they share a bound.
@@ -241,38 +245,56 @@ $$
 ///
 /// The SoftPlus function is a smooth approximation of the ReLU function.
 ///
+/// For values where `beta * x > 20`, returns `x` directly to avoid overflow when evaluating
+/// the exponential. Use [`softplus_with_threshold`] to pick a different threshold.
+///
 /// # Arguments
-/// - `threshold`: the value of `beta * x` above which the result is taken to be `x` directly
-///   rather than evaluated. This is what keeps `exp` from overflowing: the naive form returns
-///   `inf` in the forward pass and `NaN` in the backward pass from `beta * x > ~88` upwards in
-///   `f32`. Pass `20.0` unless you have a reason not to, matching the default of
-///   `torch.nn.functional.softplus`. Values below `~20` start to visibly round the curve near
-///   the origin. A `threshold` too large for the dtype to evaluate is lowered to the largest
-///   one that dtype supports, since the two are indistinguishable at that magnitude anyway.
-pub fn softplus<const D: usize>(tensor: Tensor<D>, beta: f64, threshold: f64) -> Tensor<D> {
+///
+/// - `beta`: Controls the sharpness of the approximation to ReLU.
+pub fn softplus<const D: usize>(tensor: Tensor<D>, beta: f64) -> Tensor<D> {
+    softplus_with_threshold(tensor, beta, DEFAULT_SOFTPLUS_THRESHOLD)
+}
+
+/// Applies the SoftPlus function element-wise, with an explicit stability threshold.
+///
+/// See [`softplus`] for the function itself, which uses the default threshold of `20.0`.
+///
+/// For values where `beta * x > threshold`, returns `x` directly to avoid overflow when
+/// evaluating the exponential. A `threshold` too large for the dtype to evaluate is lowered
+/// to the largest one that dtype supports.
+///
+/// # Arguments
+///
+/// - `beta`: Controls the sharpness of the approximation to ReLU.
+/// - `threshold`: The value of `beta * x` above which the linear approximation is used.
+pub fn softplus_with_threshold<const D: usize>(
+    tensor: Tensor<D>,
+    beta: f64,
+    threshold: f64,
+) -> Tensor<D> {
     // `exp` saturates once its argument passes `ln(MAX)` for the dtype, which is only ~11.09
-    // in `f16` — far below the `f32`-oriented default of 20, so the requested threshold alone
-    // does not always keep `exp` in range. Substituting the identity earlier is safe: softplus
-    // and the identity already agree to within the dtype's precision at that magnitude.
+    // in `f16` — below the `f32`-oriented default of 20, so the requested threshold alone does
+    // not always keep `exp` in range. Substituting the identity earlier is safe: softplus and
+    // the identity already agree to within the dtype's precision at that magnitude.
     let threshold = threshold.min(max_finite_exp_arg(tensor.dtype()));
 
     let scaled = tensor.clone().mul_scalar(beta);
+    let mask = scaled.clone().greater_elem(threshold);
 
-    // The saturated elements are masked out below, but they are still evaluated here, so the
-    // input to `exp` is clamped to keep them finite. Letting them reach `inf` would leave the
+    // The saturated elements are masked out below, but they are still evaluated here, so their
+    // input to `exp` is capped to keep them finite. Letting them reach `inf` would leave the
     // discarded branch contributing `inf * 0 = NaN` to the backward pass.
     //
     // `log1p` rather than `log(1 + ..)` keeps the opposite tail: for `beta * x < ~-16` the
     // `1 + exp(beta * x)` intermediate rounds to exactly `1.0` in `f32` and the result
     // underflows to zero.
-    let softplus = scaled
-        .clone()
-        .clamp_max(threshold)
+    let nonlinear = scaled
+        .mask_fill(mask.clone(), threshold)
         .exp()
         .log1p()
         .div_scalar(beta);
 
-    softplus.mask_where(scaled.greater_elem(threshold), tensor)
+    nonlinear.mask_where(mask, tensor)
 }
 
 /// Applies the "quiet softmax" function on the input tensor along the given dimension.
@@ -436,7 +458,7 @@ $$
     doc = "`mish(x) = x * tanh(softplus(x)) = tanh(log(1 + exp(x)))`"
 )]
 pub fn mish<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    tensor.clone().mul(softplus(tensor, 1.0, 20.0).tanh())
+    tensor.clone().mul(softplus(tensor, 1.0).tanh())
 }
 
 /// Applies the tanh function element-wise.
