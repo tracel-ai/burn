@@ -14,11 +14,13 @@ use crate::{
         AddOp, into_contiguous_aligned, launch_binop,
         matmul::{MatmulStrategy, matmul},
         reduce::{KernelReduceStrategy, reduce_dim},
+        slice_assign, slice_with_steps,
         utils::split_dim,
     },
-    ops::{reshape, swap_dims},
+    ops::{numeric::zeros_client, reshape, swap_dims},
     tensor::CubeTensor,
 };
+use burn_std::Slice;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 
 #[cfg(not(test))]
@@ -393,5 +395,205 @@ pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
         return uncut();
     };
 
+    Ok(reshape(grad, weight_shape))
+}
+
+/// The input laid out as the matrix a weight gradient contracts against:
+/// `[(batch, ..out spatial), (..kernel, channels)]`.
+///
+/// `columns[(n, ..o), (..k, c)] = input[n, ..o * stride + k * dilation -
+/// padding.., c]`, and zero where that reads outside the image. Those zeros are
+/// not a special case being handled — a padded position contributes nothing to
+/// the gradient, so zero *is* the answer, and allocating zeroed means the taps
+/// only have to write what they actually cover.
+///
+/// Built from one assignment per kernel tap rather than a kernel of its own.
+/// Each tap owns a contiguous block of columns and reads a sub-rectangle of the
+/// image, so at unit stride its source is a plain slice — metadata only — and
+/// the whole thing costs a single pass over the column matrix. A strided
+/// convolution pays a gather per tap on top.
+///
+/// The column axis is ordered `(..kernel, channels)` deliberately: that is the
+/// weight's own NHWC layout, so what the matmul produces needs reshaping and
+/// not permuting.
+///
+/// **This materialises.** The column matrix holds every pixel once per tap that
+/// reads it — nine times over for a 3x3 — which is what im2col costs everywhere
+/// and what buys the contraction a shape a matmul can hold.
+fn im2col<R: CubeRuntime, const N: usize>(
+    input: CubeTensor<R>,
+    out_shape: &[usize],
+    kernel_shape: &[usize],
+    options: &ConvOptions<N>,
+) -> CubeTensor<R> {
+    let rank = input.meta.num_dims();
+    let dim_c = rank - 1;
+
+    let batch = input.meta.shape()[0];
+    let channels = input.meta.shape()[dim_c];
+    let in_shape = input.meta.shape()[1..dim_c].to_vec();
+
+    let taps: usize = kernel_shape.iter().product();
+
+    let mut columns_shape = vec![batch];
+    columns_shape.extend(out_shape.iter().copied());
+    columns_shape.push(taps * channels);
+
+    let mut columns = zeros_client(
+        input.client.clone(),
+        input.device.clone(),
+        columns_shape.into(),
+        input.dtype,
+    );
+
+    for tap in 0..taps {
+        // The tap's index per spatial dimension, innermost varying fastest —
+        // the order the column axis is laid out in.
+        let mut rest = tap;
+        let mut offsets = vec![0usize; N];
+        for axis in (0..N).rev() {
+            offsets[axis] = rest % kernel_shape[axis];
+            rest /= kernel_shape[axis];
+        }
+
+        let mut source = vec![Slice::from(0..batch)];
+        let mut target = vec![Slice::from(0..batch)];
+        let mut covers_nothing = false;
+
+        for axis in 0..N {
+            let stride = options.stride[axis] as isize;
+            // Where this tap reads for output zero. Negative under padding.
+            let base =
+                (offsets[axis] * options.dilation[axis]) as isize - options.padding[axis] as isize;
+            let extent = in_shape[axis] as isize;
+
+            // The outputs whose read lands inside the image. Everything else is
+            // padding, and the allocation already says zero there.
+            // Rounded up by hand: `isize::div_ceil` is not stable, and both
+            // operands are positive here.
+            let first = match base >= 0 {
+                true => 0,
+                false => (-base + stride - 1) / stride,
+            };
+            let last = match extent - 1 - base {
+                reach if reach < 0 => 0,
+                reach => Ord::min(out_shape[axis] as isize, reach / stride + 1),
+            };
+
+            if last <= first {
+                covers_nothing = true;
+                break;
+            }
+
+            // Exactly `last - first` elements: the end is one past the last one
+            // the step actually lands on, not one past the range it spans.
+            let start = first * stride + base;
+            source.push(Slice {
+                start,
+                end: Some(start + (last - first - 1) * stride + 1),
+                step: stride,
+            });
+            target.push(Slice {
+                start: first,
+                end: Some(last),
+                step: 1,
+            });
+        }
+
+        // A tap that reads outside the image everywhere — a kernel wider than
+        // the padded image. Its columns stay zero.
+        if covers_nothing {
+            continue;
+        }
+
+        source.push(Slice::from(0..channels));
+        target.push(Slice::from(tap * channels..(tap + 1) * channels));
+
+        let block = slice_with_steps(input.clone(), &source);
+        columns = slice_assign(columns, &target, block);
+    }
+
+    columns
+}
+
+/// The gradient with respect to a dense convolution's weight, as one matmul
+/// over the input's columns.
+///
+/// `conv_weight_grad_no_groups` computes the same thing by convolving the input
+/// *by the output gradient*, which is correct and makes the gradient the kernel
+/// — so the convolution it submits has a kernel the size of the whole feature
+/// map and channels numbering only the batch. That is the worst shape a direct
+/// convolution kernel can be handed: no tiling, no reuse, and on a device whose
+/// dtype has no accelerated matmul it is the only candidate that does not
+/// decline. A 3x3 over a 128x128 map at batch 4 takes about 20 ms that way,
+/// against 1.5 ms for the *data* gradient of the same convolution.
+///
+/// Laid out as columns it is `[c_out, m] @ [m, ..kernel * c_in]`, a matmul —
+/// and one whose contraction is enormous against a small output, so
+/// [`split_count`] applies for the same reason it does to the pointwise case.
+///
+/// The cost is the materialisation: see [`im2col`]. That is the trade this
+/// makes, and it is why it is offered to autotune rather than taken as a rule.
+pub fn wgrad_im2col<R: CubeRuntime, const N: usize>(
+    input: CubeTensor<R>,
+    out_grad: CubeTensor<R>,
+    weight_shape: Shape,
+    options: ConvOptions<N>,
+) -> Result<CubeTensor<R>, ConvSetupError> {
+    // The only decline, and it reads a field the autotune key holds exactly. A
+    // decline that turned on the spatial dimensions would be unsound: the key
+    // anchors those, so a shape that declines can share a key with one that did
+    // not, and the tuner unwraps whatever it already picked.
+    if options.groups != 1 {
+        return Err(ConvSetupError::Groups(options.groups));
+    }
+
+    let rank = input.meta.num_dims();
+    let dim_c = rank - 1;
+
+    let out_channels = weight_shape[0];
+    let in_channels = input.meta.shape()[dim_c];
+    let kernel_shape = weight_shape[1..dim_c].to_vec();
+    let out_shape = out_grad.meta.shape()[1..dim_c].to_vec();
+
+    let cols = kernel_shape.iter().product::<usize>() * in_channels;
+    let rows = out_grad.meta.shape()[..dim_c].iter().product::<usize>();
+
+    let columns = im2col::<R, N>(input, &out_shape, &kernel_shape, &options);
+    // `[batch, ..out spatial, cols]` -> `[m, cols]`. Free: only leading
+    // dimensions merge, and they are dense in that order.
+    let columns = reshape(columns, Shape::new([rows, cols]));
+
+    let out_grad = reshape_input(out_grad); // [m, c_out]
+    let dtype = out_grad.dtype;
+
+    let grad = match split_count(rows) {
+        // `[split, c_out, m / split] @ [split, m / split, cols]`, the partials
+        // summed. Every reshape is free, as in `wgrad_im2col_1x1_split`.
+        Some(split) => {
+            let per = rows / split;
+            let columns = reshape(columns, Shape::new([split, per, cols]));
+            let out_grad = reshape(out_grad, Shape::new([split, per, out_channels]));
+            let out_grad = swap_dims(out_grad, 1, 2);
+
+            let partials = matmul(out_grad, columns, None, MatmulStrategy::default(), dtype)?;
+
+            reduce_dim::<R>(
+                partials,
+                None,
+                0,
+                KernelReduceStrategy::default(),
+                ReduceOperationConfig::Sum,
+            )
+            .map_err(|_| ConvSetupError::Unknown)?
+        }
+        None => {
+            let out_grad = swap_dims(out_grad, 0, 1); // [c_out, m]
+            matmul(out_grad, columns, None, MatmulStrategy::default(), dtype)?
+        }
+    };
+
+    // `[c_out, ..kernel * c_in]` -> `[c_out, ..kernel, c_in]`, which is the
+    // order the columns were laid out in.
     Ok(reshape(grad, weight_shape))
 }
