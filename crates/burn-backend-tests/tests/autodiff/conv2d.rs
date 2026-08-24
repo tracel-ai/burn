@@ -875,11 +875,11 @@ fn test_conv2d_groups_stride_2_no_pad() {
     test.assert_grads(grads);
 }
 
-// The two below are the only grouped cases with a batch larger than one. A
-// depthwise weight gradient can be computed by folding the batch into the
-// channels, which is a rearrangement that cannot be wrong at a batch of one —
-// so every other grouped test here would pass an implementation that dropped
-// every batch element but the first.
+/// A depthwise weight gradient folds the batch into the channels, and no batch
+/// element may be lost in the fold.
+///
+/// Every other grouped case here has a batch of one, where that rearrangement
+/// cannot be wrong.
 #[test]
 fn test_conv2d_groups_depthwise_batched() {
     let test = Conv2dTestCase {
@@ -945,8 +945,8 @@ fn test_conv2d_groups_depthwise_batched() {
     test.assert_grads(grads);
 }
 
-/// The same, with two output channels per group rather than one — the case
-/// where a filter's group is not its own index.
+/// The same fold, where a filter's group is not its own index: two output
+/// channels per group rather than one.
 #[test]
 fn test_conv2d_groups_depthwise_batched_multiplier() {
     let test = Conv2dTestCase {
@@ -1010,6 +1010,86 @@ fn test_conv2d_groups_depthwise_batched_multiplier() {
             &device,
         ),
         bias: TestTensor::from_data([8., 8., 8., 8.], &device),
+    };
+    test.assert_grads(grads);
+}
+
+/// A pointwise convolution's gradients drop the convolution entirely and
+/// matmul, so a mis-oriented weight or a mis-chosen reduction axis is the whole
+/// failure mode.
+///
+/// The channel counts differ from each other and are not powers of two, so a
+/// pitched allocator pads the rows both matmuls read.
+#[test]
+fn test_conv2d_pointwise() {
+    let test = Conv2dTestCase {
+        batch_size: 2,
+        channels_in: 3,
+        channels_out: 5,
+        kernel_size_1: 1,
+        kernel_size_2: 1,
+        padding_1: 0,
+        padding_2: 0,
+        stride_1: 1,
+        stride_2: 1,
+        dilation_1: 1,
+        dilation_2: 1,
+        groups: 1,
+        height: 3,
+        width: 5,
+    };
+    let device = AutodiffDevice::new();
+    let grads = Grads {
+        x: TestTensor::from_data(
+            [
+                [
+                    [
+                        [30., 30., 30., 30., 30.],
+                        [30., 30., 30., 30., 30.],
+                        [30., 30., 30., 30., 30.],
+                    ],
+                    [
+                        [35., 35., 35., 35., 35.],
+                        [35., 35., 35., 35., 35.],
+                        [35., 35., 35., 35., 35.],
+                    ],
+                    [
+                        [40., 40., 40., 40., 40.],
+                        [40., 40., 40., 40., 40.],
+                        [40., 40., 40., 40., 40.],
+                    ],
+                ],
+                [
+                    [
+                        [30., 30., 30., 30., 30.],
+                        [30., 30., 30., 30., 30.],
+                        [30., 30., 30., 30., 30.],
+                    ],
+                    [
+                        [35., 35., 35., 35., 35.],
+                        [35., 35., 35., 35., 35.],
+                        [35., 35., 35., 35., 35.],
+                    ],
+                    [
+                        [40., 40., 40., 40., 40.],
+                        [40., 40., 40., 40., 40.],
+                        [40., 40., 40., 40., 40.],
+                    ],
+                ],
+            ],
+            &device,
+        ),
+        weight: TestTensor::from_data(
+            [
+                [[[885.]], [[1335.]], [[1785.]]],
+                [[[885.]], [[1335.]], [[1785.]]],
+                [[[885.]], [[1335.]], [[1785.]]],
+                [[[885.]], [[1335.]], [[1785.]]],
+                [[[885.]], [[1335.]], [[1785.]]],
+            ],
+            &device,
+        ),
+        bias: TestTensor::from_data([30., 30., 30., 30., 30.], &device),
     };
     test.assert_grads(grads);
 }

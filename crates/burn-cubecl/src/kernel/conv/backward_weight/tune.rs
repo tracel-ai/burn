@@ -36,11 +36,9 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
                     conv_weight_backward_fallback::<R, N>(input, grad, shape, options)
                 },
             ))
-            // Declines every shape but the pointwise one, the same way the
-            // forward's `conv_im2col_1x1` does. It earns its place because on a
-            // device with no accelerated matmul for the dtype every accelerated
-            // candidate below declines *every* shape, which leaves the fallback
-            // unopposed for the whole network.
+            // Declines every shape but the pointwise one. It earns its place
+            // because a device with no accelerated matmul for the dtype
+            // declines every candidate below, leaving the fallback unopposed.
             .with(Tunable::new(
                 "wgrad_im2col_1x1",
                 |(input, grad, shape, options)| {

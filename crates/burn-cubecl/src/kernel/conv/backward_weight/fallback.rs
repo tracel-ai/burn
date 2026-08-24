@@ -4,7 +4,7 @@ use cubek::convolution::components::ConvSetupError;
 
 use crate::{
     CubeRuntime,
-    kernel::{conv::base::conv_forward_nhwc, into_contiguous_aligned, slice, slice_assign},
+    kernel::{conv::base::conv_forward_nhwc, slice, slice_assign},
     ops::{numeric::empty_device_dtype, permute, reshape, swap_dims},
     tensor::CubeTensor,
 };
@@ -18,9 +18,8 @@ pub fn conv_weight_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
 ) -> Result<CubeTensor<R>, ConvSetupError> {
     let in_channels = input.meta.shape()[input.rank() - 1];
 
-    // The depthwise case is separated out because the general one costs a
-    // kernel *per group*, and a depthwise convolution's group count is its
-    // channel count — hundreds or thousands of launches for one gradient.
+    // Depthwise is separated out because the general grouped path costs a
+    // kernel per group, and a depthwise convolution has one group per channel.
     match options.groups {
         1 => conv_weight_grad_no_groups::<R, N_DIM>(input, output_grad, weight_shape, options),
         groups if groups == in_channels => {
@@ -30,37 +29,25 @@ pub fn conv_weight_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
     }
 }
 
-/// The weight gradient of a *depthwise* convolution, as one grouped convolution.
+/// The weight gradient of a depthwise convolution, as one grouped convolution.
 ///
-/// [`conv_weight_grad_groups`] computes a grouped weight gradient by convolving
-/// each group on its own, which is correct and costs one kernel launch per
-/// group. When the convolution is depthwise there is one group per channel, so
-/// a single block of EfficientNet's later stages submits thousands of launches
-/// to differentiate one 3x3 — each over a single channel, which is far too
-/// little work to cover the launch that carries it. The arithmetic is trivial;
-/// only the shape of the loop is not.
+/// [`conv_weight_grad_groups`] launches a kernel per group, and a depthwise
+/// convolution has one group per channel — a single block of EfficientNet's
+/// later stages submits thousands of launches, each over one channel, to
+/// differentiate one 3x3.
 ///
-/// It does not have to be a loop. [`conv_weight_grad_no_groups`] already frames
-/// a weight gradient as a convolution of the *input* by the *output gradient*,
-/// with batch and channel swapped so that each input channel is an image and
-/// each output channel a filter. The same framing survives being made
-/// depthwise, provided the channel that must not mix is the one the groups are
-/// cut along:
+/// [`conv_weight_grad_no_groups`] already frames a weight gradient as a
+/// convolution of the input by the output gradient, each input channel an image
+/// and each output channel a filter. That framing survives being made depthwise
+/// by folding the batch into the channels: the input becomes one image of
+/// `channels * batch` channels ordered so a channel's batch elements are
+/// adjacent, the gradient becomes `channels * multiplier` filters of `batch`
+/// channels each, and `groups = channels` cuts the image so filter `o` sees the
+/// batch of input channel `o / multiplier` and nothing else.
 ///
-/// - the input becomes a single image of `channels * batch` channels, ordered
-///   so that a channel's batch elements are adjacent — the one materialised
-///   copy this path pays, and it is one pass over the activation;
-/// - the output gradient becomes `channels * multiplier` filters of `batch`
-///   channels each, which is a metadata swap;
-/// - `groups = channels` then cuts the image so that filter `o` sees the batch
-///   of input channel `o / multiplier` and nothing else, which is exactly the
-///   sum a depthwise weight gradient is.
-///
-/// Restricted to `groups == in_channels`. A general grouped convolution carries
-/// more than one input channel per group, and those channels have to stay
-/// *apart* in the result rather than being summed over — which is the one thing
-/// this framing cannot express, since a filter sums over every channel of its
-/// group. Those keep the loop.
+/// Restricted to `groups == in_channels`. A group carrying several input
+/// channels needs them kept apart in the result, and a filter sums over every
+/// channel of its group.
 fn conv_weight_grad_depthwise<R: CubeRuntime, const N_DIM: usize>(
     input: CubeTensor<R>,
     output_grad: CubeTensor<R>,
@@ -73,30 +60,25 @@ fn conv_weight_grad_depthwise<R: CubeRuntime, const N_DIM: usize>(
     let batch_size = input.meta.shape()[0];
     let channels = input.meta.shape()[dim_c];
 
-    // `[N, ..spatial, C]` -> `[..spatial, C, N]`, so that a channel's batch
-    // elements end up adjacent and the merge below is a reshape rather than a
-    // second copy. This is the only data movement the path adds, and it reads
-    // and writes the activation once.
-    let mut rolled_axes: Vec<usize> = (1..rank).collect();
+    // `[N, ..spatial, C]` -> `[1, ..spatial, C * N]`: one image whose channels
+    // are every (channel, batch) pair. The permutation is not expressible in
+    // strides, so this is the single copy the path adds — one pass over the
+    // activation.
+    let mut rolled_axes = (1..rank).collect::<Vec<_>>();
     rolled_axes.push(0);
-    let rolled = into_contiguous_aligned(permute(input, &rolled_axes));
-
-    // -> `[1, ..spatial, C * N]`. One image, whose channels are every (channel,
-    // batch) pair. Free: only the last two dimensions merge, and they are
-    // adjacent and contiguous after the roll.
     let mut image_shape = vec![1];
-    image_shape.extend(rolled.meta.shape()[..rank - 2].iter().copied());
+    image_shape.extend(input.meta.shape()[1..dim_c].iter().copied());
     image_shape.push(channels * batch_size);
-    let image = reshape(rolled, image_shape.into());
+    let image = reshape(permute(input, &rolled_axes), image_shape.into());
 
     // `[N, ..out spatial, C_out]` -> `[C_out, ..out spatial, N]`: the gradient
-    // read as `C_out` filters of `N` channels. A metadata swap, as it is in the
+    // read as `C_out` filters of `N` channels. A metadata swap, as in the
     // no-groups path.
     let filter = swap_dims(output_grad, 0, dim_c);
 
-    // Stride and dilation trade places, because the gradient is being used as
-    // the kernel: the step between the *kernel's* taps is the convolution's
-    // stride, and the step between the *image's* is its dilation.
+    // Stride and dilation trade places, because the gradient is the kernel: the
+    // step between the kernel's taps is the convolution's stride, and the step
+    // between the image's is its dilation.
     let weight_grad = conv_forward_nhwc(
         image,
         filter,
@@ -105,13 +87,12 @@ fn conv_weight_grad_depthwise<R: CubeRuntime, const N_DIM: usize>(
         Default::default(),
     )?;
 
-    // `[1, ..kernel, C_out]` -> `[C_out, ..kernel, 1]`, which is the weight's
-    // own NHWC shape: the batch axis is a unit axis here, so this swap is the
-    // same one the no-groups path ends with.
+    // `[1, ..kernel, C_out]` -> `[C_out, ..kernel, 1]`, the weight's own NHWC
+    // shape: the batch axis is a unit axis here.
     let mut weight_grad = swap_dims(weight_grad, 0, dim_c);
 
     // The convolution's output can overhang the kernel when a stride does not
-    // divide the input evenly, exactly as in the no-groups path.
+    // divide the input evenly, as in the no-groups path.
     if weight_grad.shape() != weight_shape {
         let ranges = weight_shape.iter().map(|&s| 0..s).collect::<Vec<_>>();
         weight_grad = slice(weight_grad, &ranges);

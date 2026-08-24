@@ -39,7 +39,9 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
                     conv_data_backward_fallback::<R, N>(out_grad, weights, input_shape, options)
                 },
             ))
-            // See the note on the same candidate in `backward_weight::tune`.
+            // Declines every shape but the pointwise one. It earns its place
+            // because a device with no accelerated matmul for the dtype
+            // declines every candidate below, leaving the fallback unopposed.
             .with(Tunable::new(
                 "dgrad_im2col_1x1",
                 |(out_grad, weights, input_shape, options)| {
