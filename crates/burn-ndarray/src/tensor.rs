@@ -679,7 +679,9 @@ impl NdArrayTensor {
                 match $data.dtype {
                     $( $dtype => {
                         match data.try_into_vec::<$ty>() {
-                            Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
+                            Ok(vec) => ArrayD::from_shape_vec(shape, vec)
+                                .expect("Data should have as many elements as the shape")
+                                .into_shared(),
                             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
                         }.into()
                     }, )*
@@ -950,5 +952,15 @@ mod tests {
         let result = tensor.into_data();
 
         assert_eq!(data, result, "Data should round-trip correctly");
+    }
+
+    #[test]
+    #[should_panic(expected = "Data should have as many elements as the shape")]
+    fn should_panic_when_data_bytes_shorter_than_shape() {
+        // 4 bytes of payload for a shape claiming 1000 f32 elements: building the array
+        // unchecked would read and write out of bounds.
+        let data = TensorData::from_bytes_vec(vec![0u8, 0, 128, 63], [1000usize], DType::F32);
+
+        let _ = NdArrayTensor::from_data(data);
     }
 }
