@@ -14,9 +14,9 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
-    components::tile::TileMatmulKind,
-    definition::{MatmulElems, MatmulGlobalElems, MatmulKind, adjust_dtypes},
-    strategy::{
+    definition::{MatmulElems, MatmulGlobalElems, MatmulKind},
+    multi_level::{components::tile::TileMatmulKind, definition::adjust_dtypes},
+    tune_key::{
         MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, should_tune_double_buffering,
     },
 };

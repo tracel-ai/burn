@@ -21,7 +21,7 @@ use cubecl::{
     },
 };
 use cubek::{
-    matmul::{
+    matmul::multi_level::{
         args::{BatchedCoords, MatmulArgs},
         components::global::memory::{
             BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,

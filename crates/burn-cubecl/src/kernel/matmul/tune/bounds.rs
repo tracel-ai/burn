@@ -2,7 +2,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{std::throughput::roofline_bounds, tune::TunableSet};
 use cubek::matmul::{
     definition::{MatmulCost, MatmulGlobalElems},
-    strategy::MatmulAutotuneKey,
+    tune_key::MatmulAutotuneKey,
 };
 
 use crate::{CubeRuntime, kernel::autotune_bounds, kernel::matmul::tune::base::Inputs};
