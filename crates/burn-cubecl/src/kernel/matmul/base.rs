@@ -79,7 +79,7 @@ pub fn matmul<R: CubeRuntime>(
 
     match strategy {
         MatmulStrategy::Cube => {
-            launch_matmul(&Default::default(), lhs, rhs, out_launch)?;
+            launch_matmul(&Strategy::default(), lhs, rhs, out_launch)?;
             Ok(out)
         }
         #[cfg(feature = "autotune")]
@@ -90,8 +90,8 @@ pub fn matmul<R: CubeRuntime>(
     }
 }
 
-pub(crate) fn launch_matmul_naive<R: CubeRuntime>(
-    strategy: &Strategy,
+pub(crate) fn launch_matmul_naive<R: CubeRuntime, S: Clone + Into<Strategy>>(
+    strategy: &S,
     mut lhs: CubeTensor<R>,
     mut rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -116,12 +116,13 @@ pub(crate) fn launch_matmul_naive<R: CubeRuntime>(
     }
 }
 
-pub(crate) fn launch_matmul<R: CubeRuntime>(
-    strategy: &Strategy,
+pub(crate) fn launch_matmul<R: CubeRuntime, S: Clone + Into<Strategy>>(
+    strategy: &S,
     lhs: CubeTensor<R>,
     mut rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), MatmulSetupError> {
+    let strategy: Strategy = strategy.clone().into();
     let client = &out.client;
 
     let lhs_quant_handles = lhs.quantized_handles();
@@ -162,7 +163,11 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
         ),
         Some((data, scale)) => {
             // Extremely hacky fix to ensure naive can run in every case
-            if matches!(strategy, Strategy::Naive) && rhs.scheme().block_size().is_some() {
+            if matches!(
+                strategy,
+                Strategy::MultiLevel(cubek::matmul::multi_level::Strategy::Naive)
+            ) && rhs.scheme().block_size().is_some()
+            {
                 rhs = dequantize(rhs.clone(), lhs_dtype);
                 let rhs_dtype = rhs.dtype;
                 (
@@ -195,7 +200,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
     });
 
     cubek::matmul::launch::launch_ref(
-        strategy,
+        &strategy,
         client,
         lhs_handle,
         rhs_handle,
