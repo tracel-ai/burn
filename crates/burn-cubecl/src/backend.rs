@@ -2,11 +2,15 @@ use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
+    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
     TensorData,
 };
 use burn_std::{BoolStore, DType, quantization::quantizable};
 use cubecl::{
+    MemoryPoolKind,
     client::ComputeClient,
+    config::memory::{MemoryPoolConfig, MemoryPoolsConfig, MemoryPoolsPreset},
+    config::size::MemorySize,
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
     server::ComputeServer,
@@ -132,6 +136,56 @@ where
     fn memory_cleanup(device: &Self::Device) {
         let client = R::client(device);
         client.memory_cleanup();
+    }
+
+    fn memory_install_pools(
+        device: &Self::Device,
+        layout: MemoryPoolLayout,
+    ) -> Result<(), InstallMemoryPoolsError> {
+        R::client(device)
+            .install_memory_pools(&pool_config(layout))
+            .map_err(runtime_install_error)
+    }
+
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        let report = R::client(device).memory_report().ok()?;
+
+        // The pools a layout can be paired with, in the order allocations are
+        // routed through them: a `Sliced` layout maps onto them one to one, and
+        // a `Direct` layout is the single entry with no page size. The presets
+        // mix in pools of other kinds, which no measurement is derived from.
+        Some(
+            report
+                .dynamic
+                .iter()
+                .filter_map(|pool| match pool.kind {
+                    MemoryPoolKind::Sliced { page_size, .. } => Some(SlicedPoolReport {
+                        page_size,
+                        pages: pool.pages,
+                        pages_peak: pool.pages_peak,
+                        largest_alloc: pool.largest_alloc,
+                    }),
+                    MemoryPoolKind::Direct => Some(SlicedPoolReport {
+                        page_size: 0,
+                        pages: pool.pages,
+                        pages_peak: pool.pages_peak,
+                        largest_alloc: pool.largest_alloc,
+                    }),
+                    _ => None,
+                })
+                .collect(),
+        )
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        let usage = R::client(device).memory_usage().ok()?;
+
+        Some(MemoryPoolUsage {
+            number_allocs: usage.number_allocs,
+            bytes_in_use: usage.bytes_in_use,
+            bytes_padding: usage.bytes_padding,
+            bytes_reserved: usage.bytes_reserved,
+        })
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -273,5 +327,52 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor
+    }
+}
+
+/// A pool layout in the runtime's own vocabulary.
+fn pool_config(layout: MemoryPoolLayout) -> MemoryPoolsConfig {
+    match layout {
+        MemoryPoolLayout::Sliced(pools) => MemoryPoolsConfig::Explicit(
+            pools
+                .into_iter()
+                .map(
+                    |SlicedPool {
+                         page_size,
+                         pages,
+                         max_slice,
+                     }| MemoryPoolConfig::Sliced {
+                        page_size: MemorySize(page_size),
+                        max_slice_size: max_slice.map(MemorySize),
+                        max_pool_size: pages
+                            .map(|pages| MemorySize(page_size.saturating_mul(pages))),
+                        dealloc_period: None,
+                    },
+                )
+                .collect(),
+        ),
+        // Never reclaiming on its own: a direct pool is installed to measure
+        // what a workload allocates, which is a short window with an explicit
+        // cleanup on either side of it.
+        MemoryPoolLayout::Direct => {
+            MemoryPoolsConfig::Explicit(vec![MemoryPoolConfig::Direct { reclaim_at: None }])
+        }
+        MemoryPoolLayout::SubSlices => MemoryPoolsConfig::Preset(MemoryPoolsPreset::SubSlices),
+        MemoryPoolLayout::ExclusivePages => {
+            MemoryPoolsConfig::Preset(MemoryPoolsPreset::ExclusivePages)
+        }
+    }
+}
+
+/// The runtime's refusal, in the backend's vocabulary.
+fn runtime_install_error(err: cubecl::InstallMemoryPoolsError) -> InstallMemoryPoolsError {
+    match err {
+        cubecl::InstallMemoryPoolsError::PoolsInUse { bytes_in_use } => {
+            InstallMemoryPoolsError::PoolsInUse { bytes_in_use }
+        }
+        cubecl::InstallMemoryPoolsError::StreamUnavailable => {
+            InstallMemoryPoolsError::StreamUnavailable
+        }
+        cubecl::InstallMemoryPoolsError::Unsupported => InstallMemoryPoolsError::Unsupported,
     }
 }
