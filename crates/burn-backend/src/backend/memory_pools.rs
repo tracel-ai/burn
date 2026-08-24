@@ -11,6 +11,7 @@
 //! [`Backend`](super::Backend) is implemented by backends with no notion of a
 //! pool at all, which is why every method here has a default saying so.
 
+use alloc::string::String;
 use alloc::vec::Vec;
 
 /// A layout for a device's dynamic memory pools, applied with
@@ -40,10 +41,17 @@ pub enum MemoryPoolLayout {
 /// One pool of a [`MemoryPoolLayout::Sliced`] layout: allocations are slices of
 /// fixed-size pages, capped at `pages` pages. An allocation that no longer fits
 /// goes to the next pool that accepts it, and fails when none does.
+///
+/// Sizes are rounded up to the device's allocation alignment, so a pool holds
+/// at least what it was asked for. A layout that cannot be honoured at all —
+/// a zero size, `max_slice` past `page_size`, `pages` outside `1..=65535` — is
+/// refused with
+/// [`InvalidLayout`](InstallMemoryPoolsError::InvalidLayout) rather than
+/// quietly adjusted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SlicedPool {
     /// Size of each page in bytes; also the largest single allocation this pool
-    /// can serve.
+    /// can serve. Rounded up to the device's alignment.
     pub page_size: u64,
     /// How many pages the pool may hold. `None` grows without a cap, which is
     /// what a workload is measured on before its caps are known.
@@ -94,7 +102,7 @@ pub struct MemoryPoolUsage {
 /// backend with no configurable pools will refuse forever — and a caller that
 /// treats the two alike either gives up on a layout it could have installed, or
 /// repeats an expensive measurement that can never succeed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstallMemoryPoolsError {
     /// The pools being rebuilt still hold live allocations, so the previous
     /// layout was kept. Transient.
@@ -108,6 +116,15 @@ pub enum InstallMemoryPoolsError {
     StreamUnavailable,
     /// This backend has no configurable dynamic pools. Permanent.
     Unsupported,
+    /// The layout itself cannot be honoured, so the previous one was kept: an
+    /// empty pool list, a zero size, a slice larger than its page, a cap too
+    /// small to hold a page or spanning more pages than a pool can address, or
+    /// a pool shape this build has none of. Permanent for this layout — what
+    /// has to change is the layout, not the moment it is installed at.
+    InvalidLayout {
+        /// What the backend objected to, in its own words.
+        reason: String,
+    },
 }
 
 impl core::fmt::Display for InstallMemoryPoolsError {
@@ -121,6 +138,9 @@ impl core::fmt::Display for InstallMemoryPoolsError {
             }
             Self::Unsupported => {
                 write!(formatter, "this backend has no configurable memory pools")
+            }
+            Self::InvalidLayout { reason } => {
+                write!(formatter, "the pool layout cannot be honoured: {reason}")
             }
         }
     }

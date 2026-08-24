@@ -170,9 +170,11 @@ pub trait Backend:
     /// [`InstallMemoryPoolsError::PoolsInUse`] when something is still live in
     /// the pools being rebuilt, which is worth retrying once it drains;
     /// [`StreamUnavailable`](InstallMemoryPoolsError::StreamUnavailable) when
-    /// the calling stream has already failed; and
-    /// [`Unsupported`](InstallMemoryPoolsError::Unsupported) — the default —
-    /// on a backend with no configurable pools, which no retry will change.
+    /// the calling stream has already failed;
+    /// [`InvalidLayout`](InstallMemoryPoolsError::InvalidLayout) when the
+    /// layout itself cannot be honoured, which no retry will change either;
+    /// and [`Unsupported`](InstallMemoryPoolsError::Unsupported) — the default
+    /// — on a backend with no configurable pools.
     /// The layout in force is unchanged in every case, so a caller that cannot
     /// proceed without it has to say so rather than assume the reservation it
     /// asked for.
@@ -184,8 +186,17 @@ pub trait Backend:
         Err(InstallMemoryPoolsError::Unsupported)
     }
 
-    /// The dynamic pools' measured state, in the order they were installed.
-    /// `None` on a backend that does not report one.
+    /// The dynamic pools' measured state, in the order allocations are routed
+    /// through them. `None` on a backend that does not report one, or whose
+    /// stream has failed.
+    ///
+    /// Entries pair one-to-one with the pools of a
+    /// [`Sliced`](MemoryPoolLayout::Sliced) or
+    /// [`Direct`](MemoryPoolLayout::Direct) layout this caller installed, which
+    /// is the pairing a measured layout is rebuilt from. A layout nobody
+    /// installed — the runtime's own default, or a preset — routes through
+    /// pools of other kinds as well, and those are left out, so its entries
+    /// carry no position a layout can be rebuilt at.
     ///
     /// Reporting and installing are separate capabilities: a runtime may
     /// describe the pools it has while refusing to be given different ones, so
@@ -197,7 +208,7 @@ pub trait Backend:
     }
 
     /// The device allocator's current state. `None` on a backend that does not
-    /// report one.
+    /// report one, or whose stream has failed.
     #[allow(unused_variables)]
     fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
         None

@@ -7,7 +7,7 @@ use burn_backend::{
 };
 use burn_std::{BoolStore, DType, quantization::quantizable};
 use cubecl::{
-    MemoryPoolKind,
+    MemoryConfiguration, MemoryPoolKind,
     client::ComputeClient,
     config::memory::{MemoryPoolConfig, MemoryPoolsConfig, MemoryPoolsPreset},
     config::size::MemorySize,
@@ -142,18 +142,38 @@ where
         device: &Self::Device,
         layout: MemoryPoolLayout,
     ) -> Result<(), InstallMemoryPoolsError> {
-        R::client(device)
-            .install_memory_pools(&pool_config(layout))
+        let client = R::client(device);
+        let properties = &client.properties().memory;
+        let config = pool_config(layout, properties.alignment.max(1))?;
+
+        // The runtime treats an unhonourable layout as a bad literal and
+        // panics on it — which lands on a device thread the caller cannot
+        // catch, and takes the device with it. Resolving the layout here first
+        // turns that into this method's own error, by the runtime's own rules
+        // rather than a second copy of them.
+        MemoryConfiguration::default()
+            .resolve(Some(&config), properties)
+            .map_err(|err| InstallMemoryPoolsError::InvalidLayout {
+                reason: err.to_string(),
+            })?;
+
+        client
+            .install_memory_pools(&config)
             .map_err(runtime_install_error)
     }
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        // A failed stream reports nothing, same as a runtime that has nothing
+        // to report: the failure itself surfaces at the next flush or sync.
         let report = R::client(device).memory_report().ok()?;
 
         // The pools a layout can be paired with, in the order allocations are
         // routed through them: a `Sliced` layout maps onto them one to one, and
         // a `Direct` layout is the single entry with no page size. The presets
-        // mix in pools of other kinds, which no measurement is derived from.
+        // mix in pools of other kinds, which no measurement is derived from —
+        // so their entries keep the routing order but not the positions of any
+        // layout, which is why only a layout this caller installed can be
+        // rebuilt from a report.
         Some(
             report
                 .dynamic
@@ -178,6 +198,7 @@ where
     }
 
     fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        // As with the report: a failed stream reads as nothing to report.
         let usage = R::client(device).memory_usage().ok()?;
 
         Some(MemoryPoolUsage {
@@ -330,9 +351,17 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     }
 }
 
-/// A pool layout in the runtime's own vocabulary.
-fn pool_config(layout: MemoryPoolLayout) -> MemoryPoolsConfig {
-    match layout {
+/// A pool layout in the runtime's own vocabulary, with sizes aligned to
+/// `alignment` — the same rounding the runtime applies, done here because the
+/// cap is a number of pages and has to be counted in the pages the runtime will
+/// actually build. Multiplying the *requested* page size instead buys a cap
+/// that fits fewer aligned pages than were asked for, and for a single-page
+/// pool one that cannot fit a page at all.
+fn pool_config(
+    layout: MemoryPoolLayout,
+    alignment: u64,
+) -> Result<MemoryPoolsConfig, InstallMemoryPoolsError> {
+    let config = match layout {
         MemoryPoolLayout::Sliced(pools) => MemoryPoolsConfig::Explicit(
             pools
                 .into_iter()
@@ -341,15 +370,32 @@ fn pool_config(layout: MemoryPoolLayout) -> MemoryPoolsConfig {
                          page_size,
                          pages,
                          max_slice,
-                     }| MemoryPoolConfig::Sliced {
-                        page_size: MemorySize(page_size),
-                        max_slice_size: max_slice.map(MemorySize),
-                        max_pool_size: pages
-                            .map(|pages| MemorySize(page_size.saturating_mul(pages))),
-                        dealloc_period: None,
+                     }| {
+                        let page_size = align_up(page_size, alignment)?;
+                        let max_pool_size = pages
+                            .map(|pages| {
+                                page_size.checked_mul(pages).ok_or_else(|| {
+                                    InstallMemoryPoolsError::InvalidLayout {
+                                        reason: format!(
+                                            "a cap of {pages} pages of {page_size} B overflows"
+                                        ),
+                                    }
+                                })
+                            })
+                            .transpose()?;
+
+                        Ok(MemoryPoolConfig::Sliced {
+                            page_size: MemorySize(page_size),
+                            max_slice_size: max_slice
+                                .map(|size| align_up(size, alignment))
+                                .transpose()?
+                                .map(MemorySize),
+                            max_pool_size: max_pool_size.map(MemorySize),
+                            dealloc_period: None,
+                        })
                     },
                 )
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()?,
         ),
         // Never reclaiming on its own: a direct pool is installed to measure
         // what a workload allocates, which is a short window with an explicit
@@ -361,7 +407,18 @@ fn pool_config(layout: MemoryPoolLayout) -> MemoryPoolsConfig {
         MemoryPoolLayout::ExclusivePages => {
             MemoryPoolsConfig::Preset(MemoryPoolsPreset::ExclusivePages)
         }
-    }
+    };
+
+    Ok(config)
+}
+
+/// A size rounded up to the device's alignment. Zero stays zero, which the
+/// layout's own validation rejects with the field it belongs to.
+fn align_up(size: u64, alignment: u64) -> Result<u64, InstallMemoryPoolsError> {
+    size.checked_next_multiple_of(alignment)
+        .ok_or_else(|| InstallMemoryPoolsError::InvalidLayout {
+            reason: format!("{size} B cannot be aligned up to {alignment} B"),
+        })
 }
 
 /// The runtime's refusal, in the backend's vocabulary.
