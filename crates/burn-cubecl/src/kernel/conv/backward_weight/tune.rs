@@ -36,9 +36,6 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
                     conv_weight_backward_fallback::<R, N>(input, grad, shape, options)
                 },
             ))
-            // Declines every shape but the pointwise one. It earns its place
-            // because a device with no accelerated matmul for the dtype
-            // declines every candidate below, leaving the fallback unopposed.
             // The same matmul with its contraction cut into pieces, which is
             // what a weight gradient's shape asks for — see `split_count`.
             .with(Tunable::new(
@@ -47,6 +44,9 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
                     wgrad_im2col_1x1_split::<R, N>(input, grad, shape, options)
                 },
             ))
+            // Declines every shape but the pointwise one. It earns its place
+            // because a device with no accelerated matmul for the dtype
+            // declines every candidate below, leaving the fallback unopposed.
             .with(Tunable::new(
                 "wgrad_im2col_1x1",
                 |(input, grad, shape, options)| {

@@ -179,8 +179,11 @@ fn conv2d_weight_backward_pointwise_split_should_match_reference_backend() {
 ///
 /// `batch * height * width` is `1 * 65 * 65`, which is odd — long enough to be
 /// worth cutting and impossible to cut into equal pieces, since the whole point
-/// of the cut is that the reshape splitting it is free. The path has to decline
-/// rather than round, and the gradient still has to come out right.
+/// of the cut is that the reshape splitting it is free. The path has to fall
+/// back on the uncut form rather than round, and the gradient still has to come
+/// out right. It falls back rather than declining because the autotune key
+/// holds the spatial dimensions anchored, so this shape shares a key with ones
+/// the cut does divide: an `Err` here would abort on their cached hit.
 #[test]
 fn conv2d_weight_backward_pointwise_odd_contraction_should_match_reference_backend() {
     let device = Default::default();

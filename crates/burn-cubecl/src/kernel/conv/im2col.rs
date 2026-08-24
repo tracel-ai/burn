@@ -269,8 +269,9 @@ pub fn wgrad_im2col_1x1<R: CubeRuntime, const N: usize>(
 /// How few rows of the contraction a single piece may be left with.
 ///
 /// The cut is worth making because it buys parallelism, and stops being worth
-/// making once each piece is too short to amortise its own launch. Flat between
-/// 4 and 256 pieces on the shapes measured, so the exact value is not delicate.
+/// making once each piece is too short to amortise its own launch. Flat across
+/// every piece count [`MAX_SPLIT`] leaves reachable, on the shapes measured, so
+/// the exact value is not delicate.
 const MIN_SPLIT_ROWS: usize = 2048;
 
 /// The most pieces to cut into, so that the reduction putting them back stays
@@ -287,10 +288,13 @@ const MAX_SPLIT: usize = 64;
 /// *shape* is wrong. Cutting `k` into independent pieces multiplies the work
 /// items by the cut and costs one small reduction to put back.
 ///
-/// Declines only what it cannot do: a contraction too short to be worth cutting,
-/// or one no equal cut divides. Whether the cut *pays* is left to autotune,
-/// which measures it against the uncut form on the actual shape — a guess about
-/// where the crossover lies would only be a worse version of that measurement.
+/// Declines a contraction too short to be worth cutting, and one that none of
+/// the cuts it considers divides — the search tries powers of two only, which is
+/// where `k = batch * height * width` almost always has its factors, so the rare
+/// `k` whose only equal cuts are odd is left uncut rather than sent down a shape
+/// nothing measured. Whether the cut *pays* is left to autotune, which measures
+/// it against the uncut form on the actual shape — a guess about where the
+/// crossover lies would only be a worse version of that measurement.
 ///
 /// The count has to divide `k` exactly, since the whole point is that the
 /// reshape splitting it is free.
@@ -332,18 +336,35 @@ pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
 
     check_pointwise(&weight_shape[1..dim_c], &options)?;
 
+    // Every way of bowing out below ends in the uncut form rather than in an
+    // `Err`, so that this candidate declines exactly what [`wgrad_im2col_1x1`]
+    // declines and nothing more. What it would otherwise decline on turns on
+    // `k`, and the autotune key holds the spatial dimensions only anchored: a
+    // shape that declines can share a key with one that did not, and the tuner
+    // unwraps whatever it already picked, so declining on a cached hit aborts
+    // the process.
+    let uncut = {
+        let args = (
+            input.clone(),
+            out_grad.clone(),
+            weight_shape.clone(),
+            options.clone(),
+        );
+        move || wgrad_im2col_1x1::<R, N>(args.0, args.1, args.2, args.3)
+    };
+
+    let rows: usize = input.meta.shape()[..dim_c].iter().product();
+    let Some(split) = split_count(rows) else {
+        return uncut();
+    };
+    let per = rows / split;
+
     let input = reshape_input(input); // [M, C_in]
     let out_grad = reshape_input(out_grad); // [M, C_out]
     let dtype = out_grad.dtype;
 
-    let rows = input.meta.shape()[0];
     let in_channels = input.meta.shape()[1];
     let out_channels = out_grad.meta.shape()[1];
-
-    let Some(split) = split_count(rows) else {
-        return Err(ConvSetupError::Unknown);
-    };
-    let per = rows / split;
 
     // `[M, C]` -> `[split, M / split, C]`. Free: the contraction is the leading
     // axis of both operands, so cutting it only inserts a dimension.
@@ -353,7 +374,9 @@ pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
     // `[split, C_out, M / split] @ [split, M / split, C_in]`, a stride swap on
     // the gradient as in the uncut form.
     let out_grad = swap_dims(out_grad, 1, 2);
-    let partials = matmul(out_grad, input, None, MatmulStrategy::default(), dtype)?;
+    let Ok(partials) = matmul(out_grad, input, None, MatmulStrategy::default(), dtype) else {
+        return uncut();
+    };
 
     // `[split, C_out, C_in]` -> `[1, C_out, C_in]`. Small next to the matmul:
     // the pieces are the only thing being added, not the contraction.
@@ -363,8 +386,12 @@ pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
         0,
         KernelReduceStrategy::default(),
         ReduceOperationConfig::Sum,
-    )
-    .expect("the leading axis of a rank-3 tensor is reducible");
+    );
+    // The axis is in range, so only the strategy or the dtype can refuse here —
+    // and the uncut form adds the same products inside its own matmul.
+    let Ok(grad) = grad else {
+        return uncut();
+    };
 
     Ok(reshape(grad, weight_shape))
 }
