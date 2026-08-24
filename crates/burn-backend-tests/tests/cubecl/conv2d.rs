@@ -143,6 +143,67 @@ fn conv2d_weight_backward_pointwise_should_match_reference_backend() {
         .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
 }
 
+/// A pointwise weight gradient whose contraction is long enough to be cut.
+///
+/// The cut only applies above a threshold, so every other convolution test here
+/// is below it and leaves that path unrun: `batch * height * width` has to
+/// reach a few thousand before there is an imbalance worth correcting. This is
+/// the smallest shape that reaches it and still divides evenly.
+///
+/// The channel counts are unequal and not powers of two, so the partial
+/// gradients are summed over rows a pitched allocator has padded.
+#[test]
+fn conv2d_weight_backward_pointwise_split_should_match_reference_backend() {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let x = TestTensor::<4>::random([4, 6, 64, 64], Distribution::Default, &device);
+    let weight = TestTensor::<4>::random([10, 6, 1, 1], Distribution::Default, &device);
+    let output_grad = TestTensor::<4>::random([4, 10, 64, 64], Distribution::Default, &device);
+
+    let x_ref = TestTensor::<4>::from_data(x.to_data(), &ref_device);
+    let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
+    let output_grad_ref = TestTensor::<4>::from_data(output_grad.to_data(), &ref_device);
+
+    let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+
+    let output = module::conv2d_weight_backward(x, weight, output_grad, options.clone());
+    let output_ref = module::conv2d_weight_backward(x_ref, weight_ref, output_grad_ref, options);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
+}
+
+/// The same, with a contraction no even cut divides.
+///
+/// `batch * height * width` is `1 * 65 * 65`, which is odd — long enough to be
+/// worth cutting and impossible to cut into equal pieces, since the whole point
+/// of the cut is that the reshape splitting it is free. The path has to decline
+/// rather than round, and the gradient still has to come out right.
+#[test]
+fn conv2d_weight_backward_pointwise_odd_contraction_should_match_reference_backend() {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let x = TestTensor::<4>::random([1, 6, 65, 65], Distribution::Default, &device);
+    let weight = TestTensor::<4>::random([10, 6, 1, 1], Distribution::Default, &device);
+    let output_grad = TestTensor::<4>::random([1, 10, 65, 65], Distribution::Default, &device);
+
+    let x_ref = TestTensor::<4>::from_data(x.to_data(), &ref_device);
+    let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
+    let output_grad_ref = TestTensor::<4>::from_data(output_grad.to_data(), &ref_device);
+
+    let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+
+    let output = module::conv2d_weight_backward(x, weight, output_grad, options.clone());
+    let output_ref = module::conv2d_weight_backward(x_ref, weight_ref, output_grad_ref, options);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
+}
+
 /// A 1x1 convolution that strides and pads reads outside its own pixel, so it
 /// is not the per-pixel matmul the pointwise path computes.
 ///

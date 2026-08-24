@@ -13,11 +13,13 @@ use crate::{
     kernel::{
         AddOp, into_contiguous_aligned, launch_binop,
         matmul::{MatmulStrategy, matmul},
+        reduce::{KernelReduceStrategy, reduce_dim},
         utils::split_dim,
     },
     ops::{reshape, swap_dims},
     tensor::CubeTensor,
 };
+use cubek::reduce::components::instructions::ReduceOperationConfig;
 
 #[cfg(not(test))]
 pub(crate) fn batches_per_run(
@@ -262,4 +264,107 @@ pub fn wgrad_im2col_1x1<R: CubeRuntime, const N: usize>(
 
     // Only unit kernel dimensions are being reinserted, so nothing moves.
     Ok(reshape(grad, weight_shape)) // [C_out, 1, .., 1, C_in]
+}
+
+/// How few rows of the contraction a single piece may be left with.
+///
+/// The cut is worth making because it buys parallelism, and stops being worth
+/// making once each piece is too short to amortise its own launch. Flat between
+/// 4 and 256 pieces on the shapes measured, so the exact value is not delicate.
+const MIN_SPLIT_ROWS: usize = 2048;
+
+/// The most pieces to cut into, so that the reduction putting them back stays
+/// small next to the matmul that produced them.
+const MAX_SPLIT: usize = 64;
+
+/// How many pieces to cut a weight gradient's contraction into, or `None` when
+/// cutting it does not apply.
+///
+/// A weight gradient contracts over every pixel in the batch, so `k` is enormous
+/// against an output that is only `c_out` by `c_in`. A matmul kernel gives each
+/// output element the whole of `k`, which leaves a device with far more lanes
+/// than there are output elements mostly idle — the arithmetic is fine and the
+/// *shape* is wrong. Cutting `k` into independent pieces multiplies the work
+/// items by the cut and costs one small reduction to put back.
+///
+/// Declines only what it cannot do: a contraction too short to be worth cutting,
+/// or one no equal cut divides. Whether the cut *pays* is left to autotune,
+/// which measures it against the uncut form on the actual shape — a guess about
+/// where the crossover lies would only be a worse version of that measurement.
+///
+/// The count has to divide `k` exactly, since the whole point is that the
+/// reshape splitting it is free.
+fn split_count(k: usize) -> Option<usize> {
+    if k < MIN_SPLIT_ROWS * 2 {
+        return None;
+    }
+
+    let by_rows = k / MIN_SPLIT_ROWS;
+    let ceiling = Ord::min(by_rows, MAX_SPLIT);
+
+    // Powers of two downward, so the split divides `k` and the pieces are
+    // equal. `k` is `batch * height * width` and usually has many factors of
+    // two, but nothing guarantees it, so this can come back empty.
+    (1..=ceiling.ilog2())
+        .rev()
+        .map(|log| 1usize << log)
+        .find(|split| k.is_multiple_of(*split))
+}
+
+/// The gradient with respect to a 1x1 convolution's weight, with the
+/// contraction cut into independent pieces and summed.
+///
+/// Identical arithmetic to [`wgrad_im2col_1x1`] up to the order the products
+/// are added in, and the same single matmul underneath — only batched, over a
+/// `k` that has been cut. See [`split_count`] for why that is worth doing.
+///
+/// Registered beside the uncut form rather than replacing it, so that autotune
+/// decides per shape: the cut is a large win where the output is small and a
+/// small loss where it is not, and which side a shape falls on is exactly the
+/// kind of thing measuring answers better than a rule.
+pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
+    input: CubeTensor<R>,
+    out_grad: CubeTensor<R>,
+    weight_shape: Shape,
+    options: ConvOptions<N>,
+) -> Result<CubeTensor<R>, ConvSetupError> {
+    let dim_c = input.meta.num_dims() - 1;
+
+    check_pointwise(&weight_shape[1..dim_c], &options)?;
+
+    let input = reshape_input(input); // [M, C_in]
+    let out_grad = reshape_input(out_grad); // [M, C_out]
+    let dtype = out_grad.dtype;
+
+    let rows = input.meta.shape()[0];
+    let in_channels = input.meta.shape()[1];
+    let out_channels = out_grad.meta.shape()[1];
+
+    let Some(split) = split_count(rows) else {
+        return Err(ConvSetupError::Unknown);
+    };
+    let per = rows / split;
+
+    // `[M, C]` -> `[split, M / split, C]`. Free: the contraction is the leading
+    // axis of both operands, so cutting it only inserts a dimension.
+    let input = reshape(input, Shape::new([split, per, in_channels]));
+    let out_grad = reshape(out_grad, Shape::new([split, per, out_channels]));
+
+    // `[split, C_out, M / split] @ [split, M / split, C_in]`, a stride swap on
+    // the gradient as in the uncut form.
+    let out_grad = swap_dims(out_grad, 1, 2);
+    let partials = matmul(out_grad, input, None, MatmulStrategy::default(), dtype)?;
+
+    // `[split, C_out, C_in]` -> `[1, C_out, C_in]`. Small next to the matmul:
+    // the pieces are the only thing being added, not the contraction.
+    let grad = reduce_dim::<R>(
+        partials,
+        None,
+        0,
+        KernelReduceStrategy::default(),
+        ReduceOperationConfig::Sum,
+    )
+    .expect("the leading axis of a rank-3 tensor is reducible");
+
+    Ok(reshape(grad, weight_shape))
 }
