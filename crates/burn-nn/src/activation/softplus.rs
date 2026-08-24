@@ -53,7 +53,10 @@ impl ModuleDisplay for Softplus {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content.add("beta", &self.beta).optional()
+        content
+            .add("beta", &self.beta)
+            .add("threshold", &self.threshold)
+            .optional()
     }
 }
 
@@ -145,6 +148,9 @@ mod tests {
     #[test]
     fn display() {
         let config = SoftplusConfig::new().init();
-        assert_eq!(alloc::format!("{config}"), "Softplus {beta: 1}");
+        assert_eq!(
+            alloc::format!("{config}"),
+            "Softplus {beta: 1, threshold: 20}"
+        );
     }
 }

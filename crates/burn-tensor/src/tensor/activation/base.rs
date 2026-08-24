@@ -218,16 +218,18 @@ pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D
 pub const DEFAULT_SOFTPLUS_THRESHOLD: f64 = 20.0;
 
 /// Largest argument for which `exp` is still finite in the given float dtype, rounded down.
-///
-/// `f32`, `flex32` and `bf16` all carry `f32`'s exponent range, so they share a bound.
 fn max_finite_exp_arg(dtype: DType) -> f64 {
     match dtype {
+        // Flex32 computes with f16-like limits; see `FloatDType::finfo`.
         // ln(f16::MAX) = ln(65504) ~= 11.09
-        DType::F16 => 11.0,
+        DType::F16 | DType::Flex32 => 11.0,
         // ln(f64::MAX) ~= 709.78
         DType::F64 => 709.0,
-        // ln(f32::MAX) ~= 88.72
-        _ => 88.0,
+        // ln(f32::MAX) ~= 88.72; bf16 has the same exponent range.
+        DType::F32 | DType::BF16 => 88.0,
+        // Quantized operations are evaluated through a floating-point representation. Use the
+        // most conservative floating-point bound; other kinds can't reach this float API.
+        _ => 11.0,
     }
 }
 
@@ -245,8 +247,8 @@ $$
 ///
 /// The SoftPlus function is a smooth approximation of the ReLU function.
 ///
-/// For values where `beta * x > 20`, returns `x` directly to avoid overflow when evaluating
-/// the exponential. Use [`softplus_with_threshold`] to pick a different threshold.
+/// Uses a default threshold of `20.0` for numerical stability. Use
+/// [`softplus_with_threshold`] to pick a different threshold.
 ///
 /// # Arguments
 ///
@@ -260,8 +262,8 @@ pub fn softplus<const D: usize>(tensor: Tensor<D>, beta: f64) -> Tensor<D> {
 /// See [`softplus`] for the function itself, which uses the default threshold of `20.0`.
 ///
 /// For values where `beta * x > threshold`, returns `x` directly to avoid overflow when
-/// evaluating the exponential. A `threshold` too large for the dtype to evaluate is lowered
-/// to the largest one that dtype supports.
+/// evaluating the exponential. A threshold beyond the dtype's finite `exp` range is lowered to
+/// the largest safe value.
 ///
 /// # Arguments
 ///
@@ -272,10 +274,9 @@ pub fn softplus_with_threshold<const D: usize>(
     beta: f64,
     threshold: f64,
 ) -> Tensor<D> {
-    // `exp` saturates once its argument passes `ln(MAX)` for the dtype, which is only ~11.09
-    // in `f16` — below the `f32`-oriented default of 20, so the requested threshold alone does
-    // not always keep `exp` in range. Substituting the identity earlier is safe: softplus and
-    // the identity already agree to within the dtype's precision at that magnitude.
+    // `exp` overflows at a much lower input in f16 and Flex32 than in the wider formats, so the
+    // requested threshold alone does not always keep it in range. Substituting the identity at
+    // the dtype's limit is safe because Softplus has already rounded to it by that magnitude.
     let threshold = threshold.min(max_finite_exp_arg(tensor.dtype()));
 
     let scaled = tensor.clone().mul_scalar(beta);
@@ -764,4 +765,18 @@ fn hard_sigmoid_impl(p: BridgeTensor, alpha: f64, beta: f64) -> BridgeTensor {
 
 fn log_sigmoid_impl(p: BridgeTensor) -> BridgeTensor {
     BridgeTensor::float(Dispatch::log_sigmoid(p.into_float()))
+}
+
+#[cfg(test)]
+mod softplus_threshold_tests {
+    use super::*;
+
+    #[test]
+    fn thresholds_follow_dtype_exp_range() {
+        assert_eq!(max_finite_exp_arg(DType::F64), 709.0);
+        assert_eq!(max_finite_exp_arg(DType::F32), 88.0);
+        assert_eq!(max_finite_exp_arg(DType::BF16), 88.0);
+        assert_eq!(max_finite_exp_arg(DType::F16), 11.0);
+        assert_eq!(max_finite_exp_arg(DType::Flex32), 11.0);
+    }
 }
