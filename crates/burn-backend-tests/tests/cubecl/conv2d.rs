@@ -236,19 +236,42 @@ fn conv2d_weight_backward_dense_split_should_match_reference_backend() {
         .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
 }
 
+/// A dense weight gradient with no padding at all.
+///
+/// Every kernel tap then covers the whole output, so the columns are written
+/// end to end and are allocated uninitialised rather than zeroed. Nothing else
+/// here reaches that: the unpadded convolution tests are all grouped or
+/// pointwise, which this path declines. The kernel is not square, so the two
+/// spatial axes cannot pass by symmetry.
+#[test]
+fn conv2d_weight_backward_dense_unpadded_should_match_reference_backend() {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let x = TestTensor::<4>::random([3, 5, 33, 35], Distribution::Default, &device);
+    let weight = TestTensor::<4>::random([7, 5, 3, 2], Distribution::Default, &device);
+    let output_grad = TestTensor::<4>::random([3, 7, 31, 34], Distribution::Default, &device);
+
+    let x_ref = TestTensor::<4>::from_data(x.to_data(), &ref_device);
+    let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
+    let output_grad_ref = TestTensor::<4>::from_data(output_grad.to_data(), &ref_device);
+
+    let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+
+    let output = module::conv2d_weight_backward(x, weight, output_grad, options.clone());
+    let output_ref = module::conv2d_weight_backward(x_ref, weight_ref, output_grad_ref, options);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
+}
+
 /// A dense weight gradient that strides, pads and dilates at once.
 ///
 /// Sized so that laying the input out as columns is the candidate autotune
-/// picks. A few dozen pixels is below where that pays, and a shape it does not
-/// win runs something else — so a small version of this test would assert
-/// against a path it never takes.
-///
-/// Each kernel tap reads its own sub-rectangle of the image, and which outputs
-/// it reads in bounds for is where the three interact: the tap's offset moves
-/// with the dilation, the padding decides how far outside it starts, and the
-/// stride decides which outputs land back inside. The asymmetric options make
-/// the two spatial axes disagree, so an axis handled by the wrong one of them
-/// cannot pass by symmetry.
+/// picks: a small version of this test would assert against a path it never
+/// takes. The options are asymmetric so that the two spatial axes disagree, and
+/// an axis handled by the wrong one of the three cannot pass by symmetry.
 #[test]
 fn conv2d_weight_backward_dense_strided_padded_dilated_should_match_reference_backend() {
     let device = Default::default();
@@ -275,18 +298,15 @@ fn conv2d_weight_backward_dense_strided_padded_dilated_should_match_reference_ba
 /// A kernel that reaches past the padded image, so some taps cover no output at
 /// all.
 ///
-/// A tap falling entirely outside forces a short output — it is the kernel
-/// out-reaching the padded image that does it — and a short output is where
-/// laying out columns does not pay, so this shape is served by the
-/// convolution-by-the-gradient form whatever its size. It therefore guards the
-/// geometry against the reference backend rather than the column path
-/// specifically; the test above is the one that covers that path's arithmetic.
+/// Over the `5`-tall axis, `4` of dilation against `2` of padding leaves the
+/// first and last of the three taps reading entirely outside the image while
+/// the middle one reads inside — so the gradient is not simply zero, and a tap
+/// that writes nothing has to differ from one that writes something. The other
+/// axis is ordinary, so only one of the two is degenerate.
 ///
-/// Over the `5`-tall axis here, `4` of dilation against `2` of padding leaves
-/// the first and last of the three taps reading entirely outside the image
-/// while the middle one reads inside — so the gradient is not simply zero, and
-/// a tap that writes nothing has to differ from one that writes something. The
-/// other axis is ordinary, so only one of the two is degenerate.
+/// A short output is where laying out columns does not pay, so the winner here
+/// is the convolution-by-the-gradient form, and it is `autotune-checks` —
+/// which compares every candidate — that holds the column path to this shape.
 #[test]
 fn conv2d_weight_backward_dense_tap_outside_image_should_match_reference_backend() {
     let device = Default::default();
