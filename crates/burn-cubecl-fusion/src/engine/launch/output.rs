@@ -24,6 +24,7 @@ use burn_std::{
     tensor::{ReshapeAction, contiguous_strides, is_contiguous, is_dense, reshape_action},
 };
 use cubecl::{Runtime, client::ComputeClient};
+use std::collections::BTreeMap;
 
 /// Create or reuse handles for the outputs.
 ///
@@ -407,6 +408,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     /// cache whatever the order is, and a differently shaped input can never be
     /// `SameAsRef` regardless, so neither has a stake in the outcome.
     ///
+    /// A concatenated operand is the exception, and votes despite being shorter
+    /// than the output along the axis it is joined on: `concat` computes its
+    /// offset itself rather than reading it through the reference, so its layout
+    /// is free for the same reason the output's is. See the voter loop below.
+    ///
     /// Because a convolution's output is NHWC and its consumers' outputs then
     /// become NHWC too, this propagates forward on its own: a `conv -> norm ->
     /// silu -> conv` chain settles into NHWC end to end, and the permutes around
@@ -425,29 +431,49 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
 
         let block = &plan.blocks[block_idx];
+        let concatenated = concat_operands(&self.blocks[block_idx].ops);
         let mut votes: Vec<(DimOrder, usize)> = Vec::new();
 
-        for input in plan.handle_inputs.iter() {
+        for (pos, input) in plan.handle_inputs.iter().enumerate() {
             let Some(input) = input.as_normal() else {
                 // A quantized input cannot be `SameAsRef`.
                 continue;
             };
 
-            if !block.reads.contains_key(&input.relative_id)
-                || self.resources.indexed.contains_key(&input.relative_id)
-                || self.resources.inputs_unhandled.contains(&input.relative_id)
-                || &input.global_ir.shape != shape
-            {
-                continue;
-            }
+            // A concatenated operand is registered as an indexed input — `concat`
+            // computes its offset itself rather than reading it through the
+            // reference — and it is shorter than the output along the axis it is
+            // joined on, so it matches neither the usual eligibility test nor the
+            // output's shape. Both exclusions cost it a vote it should have: its
+            // layout is free precisely *because* the offset is computed, and it is
+            // the whole of the traffic a concatenation moves. Without this a
+            // concatenation has no voters at all and keeps the contiguous order by
+            // default, which is what its consumer then transposes.
+            let voter_shape = match concatenated.get(&pos) {
+                Some(axis) => match joined_only_along(shape, &input.global_ir.shape, *axis) {
+                    true => &input.global_ir.shape,
+                    false => continue,
+                },
+                None => {
+                    if !block.reads.contains_key(&input.relative_id)
+                        || self.resources.indexed.contains_key(&input.relative_id)
+                        || self.resources.inputs_unhandled.contains(&input.relative_id)
+                        || &input.global_ir.shape != shape
+                    {
+                        continue;
+                    }
+                    shape
+                }
+            };
 
-            let Some(order) = dim_order(shape, &input.handle.strides) else {
+            let Some(order) = dim_order(voter_shape, &input.handle.strides) else {
                 // Not dense: sliced, broadcast, or otherwise not describable as an
                 // order. The block cannot adopt a layout it cannot express.
                 continue;
             };
 
-            let bytes = shape.num_elements() * dtype_to_storage_type(input.global_ir.dtype).size();
+            let bytes =
+                voter_shape.num_elements() * dtype_to_storage_type(input.global_ir.dtype).size();
 
             match votes.iter_mut().find(|(candidate, _)| candidate == &order) {
                 Some((_, total)) => *total += bytes,
@@ -926,21 +952,58 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 /// And the block must contain no operation that indexes its operands against the
 /// last dimension directly rather than through the reference. `gather` walks its
 /// lanes with the stride of `rank - 1`; it agrees with the rest of the kernel only
-/// while the reference is contiguous.
+/// while the reference is contiguous. `concat` used to be counted here and no
+/// longer is — it reaches the vectorization axis through
+/// [FuseBlockConfig::vector_axis](crate::engine::codegen::FuseBlockConfig::vector_axis),
+/// which follows a permuted reference.
 fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
     if !matches!(settings.ref_layout, RefLayoutSetting::Any) || !settings.choose_output_layout {
         return false;
     }
 
+    // `Cat` is absent: `concat` asks whether the concatenation axis is the
+    // vectorization axis, and steps a vector along it, through
+    // [FuseBlockConfig::vector_axis] rather than the last dimension — so it
+    // follows a permuted reference correctly. The rest still index the last
+    // dimension directly and must keep the contiguous order.
     !ops.iter().any(|op| {
         matches!(
             op,
-            FuseOp::Gather { .. }
-                | FuseOp::Select { .. }
-                | FuseOp::Cat { .. }
-                | FuseOp::Dequantize { .. }
+            FuseOp::Gather { .. } | FuseOp::Select { .. } | FuseOp::Dequantize { .. }
         )
     })
+}
+
+/// The input positions this block concatenates, each mapped to the axis it is
+/// joined on.
+///
+/// An operand shared by two concatenations along different axes keeps the last
+/// one. Two concatenations can only sit in one block when their outputs fit its
+/// shape, which for a shared operand forces the same axis — so the disagreement
+/// this would misjudge does not arise, and misjudging it would only cost a vote
+/// rather than produce a layout the kernel cannot express.
+fn concat_operands(ops: &[FuseOp]) -> BTreeMap<usize, usize> {
+    let mut operands = BTreeMap::new();
+
+    for op in ops {
+        if let FuseOp::Cat { inputs, dim, .. } = op {
+            for input in inputs {
+                if let FuseArg::Input(pos, ..) = input {
+                    operands.insert(*pos, *dim);
+                }
+            }
+        }
+    }
+
+    operands
+}
+
+/// Whether `operand` is `shape` shortened along `axis` alone — which is what a
+/// concatenated operand is, and what makes its dimension order comparable to the
+/// output's.
+fn joined_only_along(shape: &Shape, operand: &Shape, axis: usize) -> bool {
+    shape.num_dims() == operand.num_dims()
+        && (0..shape.num_dims()).all(|dim| dim == axis || shape[dim] == operand[dim])
 }
 
 fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize) {
@@ -1017,6 +1080,14 @@ mod tests {
         })
     }
 
+    fn cat_op(inputs: &[usize], dim: usize) -> FuseOp {
+        FuseOp::Cat {
+            inputs: inputs.iter().copied().map(arg).collect(),
+            output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+            dim,
+        }
+    }
+
     fn settings(ref_layout: RefLayoutSetting, choose_output_layout: bool) -> FuseSettings {
         FuseSettings {
             broadcast: true,
@@ -1082,11 +1153,6 @@ mod tests {
                 output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
                 dim: 0,
             },
-            FuseOp::Cat {
-                inputs: vec![arg(0), arg(1)],
-                output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
-                dim: 0,
-            },
             FuseOp::Dequantize {
                 values: arg(0),
                 params: arg(1),
@@ -1105,5 +1171,78 @@ mod tests {
                 "{op:?} must pin the block to a contiguous layout",
             );
         }
+    }
+
+    /// `concat` reaches the vectorization axis through
+    /// [FuseBlockConfig::vector_axis], so unlike its neighbours above it follows a
+    /// permuted reference rather than assuming the last dimension.
+    #[test]
+    fn a_concatenation_does_not_rule_out_a_permuted_layout() {
+        assert!(may_permute_layout(
+            &settings(RefLayoutSetting::Any, true),
+            &[elemwise_op(), cat_op(&[0, 1], 0)]
+        ));
+    }
+
+    #[test]
+    fn a_block_without_a_concatenation_has_no_operands() {
+        assert!(concat_operands(&[]).is_empty());
+        assert!(concat_operands(&[elemwise_op()]).is_empty());
+    }
+
+    #[test]
+    fn every_operand_of_every_concatenation_maps_to_its_axis() {
+        let operands = concat_operands(&[elemwise_op(), cat_op(&[1, 2], 3), cat_op(&[4, 5, 6], 1)]);
+
+        assert_eq!(
+            operands,
+            BTreeMap::from([(1, 3), (2, 3), (4, 1), (5, 1), (6, 1)])
+        );
+    }
+
+    #[test]
+    fn an_operand_of_two_concatenations_keeps_the_last_axis() {
+        // Documented in [concat_operands]: the block shapes that would let this
+        // happen force the same axis, so the choice only has to be harmless.
+        let operands = concat_operands(&[cat_op(&[0, 1], 2), cat_op(&[0, 3], 1)]);
+
+        assert_eq!(operands.get(&0), Some(&1));
+    }
+
+    #[test]
+    fn an_operand_is_joined_along_its_axis_alone() {
+        let output = Shape::from(vec![1, 6, 2, 2]);
+
+        assert!(joined_only_along(
+            &output,
+            &Shape::from(vec![1, 3, 2, 2]),
+            1
+        ));
+        assert!(
+            joined_only_along(&output, &output, 1),
+            "an operand the full length of the output is joined along it too",
+        );
+        assert!(
+            joined_only_along(&output, &Shape::from(vec![1, 0, 2, 2]), 1),
+            "an empty operand is still only shortened along the axis",
+        );
+    }
+
+    #[test]
+    fn an_operand_that_differs_elsewhere_is_not_a_concatenated_one() {
+        let output = Shape::from(vec![1, 6, 2, 2]);
+
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![4, 3, 2, 2]), 1),
+            "a broadcast operand differs on an axis it is not joined on",
+        );
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![6, 2, 2]), 1),
+            "a rank the block cannot line up with its own is refused, not indexed past",
+        );
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![1, 3, 2, 2]), 9),
+            "an axis past the rank asks for full equality rather than panicking",
+        );
     }
 }

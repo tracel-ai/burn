@@ -796,7 +796,7 @@ fn concat<C: Scalar, N: Size>(
     let mut result = Vector::<C, N>::empty();
     let write_pos_elem = write_pos * vector_size_ref;
 
-    if comptime![dim != config.rank - 1] {
+    if comptime![dim != config.vector_axis] {
         // The concatenation axis isn't the vectorization axis, therefore the whole vector is
         // contained in a single input tensor.
         let coordinate_dim = write_pos_elem / stride_dim_ref % shape_dim_ref;
@@ -825,7 +825,7 @@ fn concat<C: Scalar, N: Size>(
                 );
 
                 let stride_tensor_vector =
-                    global_stride(inputs, comptime![config.rank - 1], pos_tensor);
+                    global_stride(inputs, comptime![config.vector_axis], pos_tensor);
 
                 #[unroll]
                 for i in 0..vector_size_ref {
