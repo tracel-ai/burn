@@ -1,15 +1,14 @@
 //! The layout of a device's dynamic memory pools, and what one reports.
 //!
-//! A backend's allocator normally grows: it keeps whatever page it ever needed,
-//! so a long-running workload reserves its worst moment for the rest of its
-//! life. These types let a caller install a layout of its own instead — a pool
-//! per size class, each capped at a number of pages — and read back what a
-//! workload actually held, so the caps can be a measurement rather than a
-//! guess.
+//! An allocator that only grows keeps whatever page it ever needed, so a
+//! long-running workload reserves its worst moment for life. These types let a
+//! caller install a layout of its own — a pool per size class, each capped at a
+//! number of pages — and read back what the workload actually held, so the caps
+//! are a measurement rather than a guess.
 //!
-//! The vocabulary is deliberately the backend's own rather than any runtime's:
-//! [`Backend`](super::Backend) is implemented by backends with no notion of a
-//! pool at all, which is why every method here has a default saying so.
+//! The vocabulary is the backend's own rather than any runtime's, since
+//! [`Backend`](super::Backend) is also implemented by backends with no pools at
+//! all.
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -23,13 +22,11 @@ pub enum MemoryPoolLayout {
     /// accepts its size, so a small pool listed before a large one captures the
     /// small-allocation traffic. Pages are allocated on first use.
     Sliced(Vec<SlicedPool>),
-    /// One direct pool for everything: every allocation is its own device
-    /// allocation, sized to the request and reused by exact size — no pages, no
-    /// sub-slicing, no padding beyond alignment.
-    ///
-    /// A layout with no page size chosen in advance, which is what a workload
-    /// has to run on for its largest allocation to be read back as it was asked
-    /// for.
+    /// One direct pool for everything: every allocation is its own, sized to
+    /// the request and reused by exact size — no pages, no sub-slicing, no
+    /// padding beyond alignment. With no page size chosen in advance, this is
+    /// what a workload runs on for its largest allocation to be read back as it
+    /// was asked for.
     Direct,
     /// The runtime's default: a ladder of size-bucketed pools that sub-slice
     /// large pages.
@@ -42,12 +39,10 @@ pub enum MemoryPoolLayout {
 /// fixed-size pages, capped at `pages` pages. An allocation that no longer fits
 /// goes to the next pool that accepts it, and fails when none does.
 ///
-/// Sizes are rounded up to the device's allocation alignment, so a pool holds
-/// at least what it was asked for. A layout that cannot be honoured at all —
-/// a zero size, `max_slice` past `page_size`, `pages` outside `1..=65535` — is
-/// refused with
-/// [`InvalidLayout`](InstallMemoryPoolsError::InvalidLayout) rather than
-/// quietly adjusted.
+/// Sizes are rounded up to the device's alignment, so a pool holds at least
+/// what it was asked for. A layout that cannot be honoured at all — a zero
+/// size, `max_slice` past `page_size`, `pages` outside `1..=65535` — is refused
+/// with [`InvalidLayout`](InstallMemoryPoolsError::InvalidLayout).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SlicedPool {
     /// Size of each page in bytes; also the largest single allocation this pool
@@ -63,10 +58,10 @@ pub struct SlicedPool {
 
 /// One dynamic pool's measured state, in the order the pools were installed.
 ///
-/// The read side of a measured layout: install a growable layout, run the
-/// workload, read these, then re-install the same layout capped at
-/// `pages_peak`. Pool placement is deterministic, so the same stream of
-/// allocation sizes fits the capped layout by construction.
+/// The read side of a measured layout: install a growable one, run the
+/// workload, read these, re-install capped at `pages_peak`. Pool placement is
+/// deterministic, so the same allocations fit the capped layout by
+/// construction.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SlicedPoolReport {
     /// Size of each page in bytes; `0` for a [direct](MemoryPoolLayout::Direct)
@@ -97,11 +92,11 @@ pub struct MemoryPoolUsage {
 
 /// Why installing a pool layout did not take effect.
 ///
-/// The distinction a caller needs is **transient or permanent**. A refused
-/// rebuild is worth retrying once whatever holds the pools drains, whereas a
-/// backend with no configurable pools will refuse forever — and a caller that
-/// treats the two alike either gives up on a layout it could have installed, or
-/// repeats an expensive measurement that can never succeed.
+/// The distinction a caller needs is **transient or permanent**: a refused
+/// rebuild is worth retrying once whatever holds the pools drains, while a
+/// backend with no configurable pools refuses forever. Treating the two alike
+/// either gives up on a layout that would have installed, or repeats an
+/// expensive measurement that can never succeed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstallMemoryPoolsError {
     /// The pools being rebuilt still hold live allocations, so the previous
@@ -117,9 +112,8 @@ pub enum InstallMemoryPoolsError {
     /// This backend has no configurable dynamic pools. Permanent.
     Unsupported,
     /// The layout itself cannot be honoured, so the previous one was kept: an
-    /// empty pool list, a zero size, a slice larger than its page, a cap too
-    /// small to hold a page or spanning more pages than a pool can address, or
-    /// a pool shape this build has none of. Permanent for this layout — what
+    /// empty pool list, a zero size, a slice larger than its page, an
+    /// unusable cap, or a pool shape this build has none of. Permanent — what
     /// has to change is the layout, not the moment it is installed at.
     InvalidLayout {
         /// What the backend objected to, in its own words.

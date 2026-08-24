@@ -710,17 +710,16 @@ impl Device {
 
     /// Installs a layout for this device's dynamic memory pools.
     ///
-    /// The allocator otherwise grows to whatever a workload's worst moment ever
-    /// asked for and keeps it. A caller that would rather reserve a measured
-    /// amount installs a growable layout, runs the workload, reads
-    /// [`memory_pool_report`](Self::memory_pool_report), and installs the same
-    /// layout capped at what it reported.
+    /// The allocator otherwise keeps whatever a workload's worst moment asked
+    /// for. To reserve a measured amount instead, install a growable layout,
+    /// run the workload, read [`memory_pool_report`](Self::memory_pool_report),
+    /// and install the same layout capped at what it reported.
     ///
-    /// Pools are rebuilt in place only while nothing is live in them, so this
-    /// belongs at a quiescent point — after the previous workload's tensors have
-    /// dropped and a [`memory_cleanup`](Self::memory_cleanup). Long-lived
-    /// allocations that would otherwise block every rebuild (a model's
-    /// parameters, say) belong in the persistent pool
+    /// Pools are rebuilt only while nothing is live in them, so this belongs at
+    /// a quiescent point — after the previous workload's tensors have dropped
+    /// and a [`memory_cleanup`](Self::memory_cleanup). Long-lived allocations
+    /// that would block every rebuild (a model's parameters, say) belong in the
+    /// persistent pool
     /// → [`memory_persistent_allocations`](Self::memory_persistent_allocations).
     ///
     /// ```rust,ignore

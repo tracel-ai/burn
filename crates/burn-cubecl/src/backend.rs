@@ -146,10 +146,9 @@ where
         let properties = &client.properties().memory;
         let config = pool_config(layout, properties.alignment.max(1))?;
 
-        // The runtime treats an unhonourable layout as a bad literal and
-        // panics on it — which lands on a device thread the caller cannot
-        // catch, and takes the device with it. Resolving the layout here first
-        // turns that into this method's own error, by the runtime's own rules
+        // The runtime panics on an unhonourable layout, on a device thread the
+        // caller cannot catch and taking the device with it. Resolving it here
+        // first turns that into this method's error, by the runtime's own rules
         // rather than a second copy of them.
         MemoryConfiguration::default()
             .resolve(Some(&config), properties)
@@ -170,10 +169,8 @@ where
         // The pools a layout can be paired with, in the order allocations are
         // routed through them: a `Sliced` layout maps onto them one to one, and
         // a `Direct` layout is the single entry with no page size. The presets
-        // mix in pools of other kinds, which no measurement is derived from —
-        // so their entries keep the routing order but not the positions of any
-        // layout, which is why only a layout this caller installed can be
-        // rebuilt from a report.
+        // mix in pools of other kinds, dropped here — so their entries keep the
+        // routing order but not the positions of any layout.
         Some(
             report
                 .dynamic
@@ -352,11 +349,10 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
 }
 
 /// A pool layout in the runtime's own vocabulary, with sizes aligned to
-/// `alignment` — the same rounding the runtime applies, done here because the
-/// cap is a number of pages and has to be counted in the pages the runtime will
-/// actually build. Multiplying the *requested* page size instead buys a cap
-/// that fits fewer aligned pages than were asked for, and for a single-page
-/// pool one that cannot fit a page at all.
+/// `alignment` — the rounding the runtime applies anyway, done here because the
+/// cap has to be counted in the pages it will actually build. Multiplying the
+/// *requested* page size instead buys fewer aligned pages than were asked for,
+/// and for a single-page pool a cap that cannot fit its page at all.
 fn pool_config(
     layout: MemoryPoolLayout,
     alignment: u64,
@@ -412,8 +408,8 @@ fn pool_config(
     Ok(config)
 }
 
-/// A size rounded up to the device's alignment. Zero stays zero, which the
-/// layout's own validation rejects with the field it belongs to.
+/// A size rounded up to the device's alignment. Zero stays zero, for the
+/// layout's own validation to reject by field.
 fn align_up(size: u64, alignment: u64) -> Result<u64, InstallMemoryPoolsError> {
     size.checked_next_multiple_of(alignment)
         .ok_or_else(|| InstallMemoryPoolsError::InvalidLayout {

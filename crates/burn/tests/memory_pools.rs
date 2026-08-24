@@ -1,9 +1,9 @@
 //! Installing and reading a device's dynamic memory pools.
 //!
 //! What these defend is the contract a measured memory plan is built on: a
-//! caller can install a layout of its own, run a workload, read back what that
-//! workload actually held, and cap the next run at it — and a backend with no
-//! pools says so rather than accepting a layout it will not honour.
+//! caller installs a layout of its own, runs a workload, reads back what it
+//! actually held, and caps the next run at that — and a backend with no pools
+//! says so rather than accepting a layout it will not honour.
 //!
 //! Only the last of those runs without an accelerator. Pool installation is
 //! implemented by the cubecl GPU runtimes; the CPU one reports
@@ -39,9 +39,9 @@ use burn::tensor::{InstallMemoryPoolsError, MemoryPoolLayout, SlicedPool};
 ))]
 use burn::prelude::Tensor;
 
-/// Pools are per device, and every test here resolves the same one: an install
-/// resets the high-water marks another test is reading, and a live tensor held
-/// across one test's window refuses another's rebuild. They take turns.
+/// Pools are per device and every test here resolves the same one: an install
+/// resets the marks another test is reading, and a tensor held across one
+/// test's window refuses another's rebuild. They take turns.
 #[cfg(any(
     feature = "cuda",
     feature = "rocm",
@@ -157,10 +157,9 @@ fn the_peak_outlives_the_allocations_that_set_it() {
 
     {
         let held = Tensor::<1>::zeros([256 * 1024], &device);
-        // Both the operands and the result stay live until the reading below:
-        // dropping them first would leave nothing in the pools to read, and
-        // dropping the result before it is used would leave the addition
-        // itself unexecuted, since the backend allocates lazily.
+        // Operands and result stay live until the reading below: dropping them
+        // leaves nothing in the pools, and dropping the result unused leaves
+        // the addition itself unexecuted, since allocation is lazy.
         let sum = held.clone() + held.clone();
         let _ = device.sync();
 
@@ -184,7 +183,7 @@ fn the_peak_outlives_the_allocations_that_set_it() {
 /// pages that was asked for.
 ///
 /// The cap is a byte count the runtime divides back into pages, so it has to be
-/// counted in the pages the device will actually build: measured against the
+/// counted in the pages the device will actually build. Measured against the
 /// requested page size instead, a one-page pool asks for a cap that cannot hold
 /// its own page, and a larger one silently gets fewer pages than the
 /// measurement it was sized from.
@@ -263,9 +262,9 @@ fn a_rebuild_is_refused_while_the_pools_are_in_use() {
 ///
 /// This is the difference between a mistake in a layout literal and a dead
 /// device: pools are installed from the stream that owns them, so a panic
-/// raised down there takes the device's runner with it and nothing the caller
-/// writes can catch it. Every unhonourable shape has to be refused before the
-/// layout leaves this thread.
+/// raised down there takes the runner with it and nothing the caller writes can
+/// catch it. Every unhonourable shape is refused before the layout leaves this
+/// thread.
 #[test]
 #[cfg(feature = "cpu")]
 fn a_layout_that_cannot_be_honoured_is_refused_rather_than_fatal() {
@@ -310,14 +309,13 @@ fn a_layout_that_cannot_be_honoured_is_refused_rather_than_fatal() {
 /// A runtime that cannot install pools refuses permanently, rather than
 /// accepting a layout it will not honour.
 ///
-/// The distinction is the point: this refusal is the one a caller must never
-/// retry, and it has to be told apart from
-/// [`PoolsInUse`](InstallMemoryPoolsError::PoolsInUse), which is worth retrying
-/// at the next quiescent point.
+/// The distinction is the point: this refusal must never be retried, unlike
+/// [`PoolsInUse`](InstallMemoryPoolsError::PoolsInUse), which is worth another
+/// try at the next quiescent point.
 ///
 /// Reporting is a separate capability, which this also pins: the cubecl CPU
 /// runtime describes the pools it has while declining to be given different
-/// ones, so a caller cannot read a report back as proof that its layout went in.
+/// ones, so a report is not proof that a layout went in.
 #[test]
 #[cfg(feature = "cpu")]
 fn a_runtime_that_cannot_install_pools_refuses_permanently() {
