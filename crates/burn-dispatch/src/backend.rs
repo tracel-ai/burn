@@ -12,7 +12,10 @@ use alloc::vec;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
-use burn_backend::{AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError};
+use burn_backend::{
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError,
+    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport,
+};
 
 /// A captured graph from one of the dispatched backends (see
 /// [`BackendTypes::GraphPrimitive`]).
@@ -260,6 +263,24 @@ impl Backend for Dispatch {
 
     fn memory_cleanup(device: &Self::Device) {
         dispatch_device!(device, |device| B::memory_cleanup(device))
+    }
+
+    fn memory_install_pools(
+        device: &Self::Device,
+        layout: MemoryPoolLayout,
+    ) -> Result<(), InstallMemoryPoolsError> {
+        dispatch_device!(device, |device| B::memory_install_pools(
+            device,
+            layout.clone()
+        ))
+    }
+
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        dispatch_device!(device, |device| B::memory_pool_report(device))
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        dispatch_device!(device, |device| B::memory_pool_usage(device))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

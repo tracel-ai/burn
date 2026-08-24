@@ -3,11 +3,14 @@ use crate::{
     grads::Gradients,
     tensor::AutodiffTensor,
 };
-use alloc::{format, string::String};
+use alloc::{format, string::String, vec::Vec};
 use core::marker::PhantomData;
 
 use burn_backend::{
-    backend::{AutodiffBackend, Backend, BackendTypes, ExecutionError},
+    backend::{
+        AutodiffBackend, Backend, BackendTypes, ExecutionError, InstallMemoryPoolsError,
+        MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport,
+    },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
 
@@ -70,6 +73,21 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
+    }
+
+    fn memory_install_pools(
+        device: &Self::Device,
+        layout: MemoryPoolLayout,
+    ) -> Result<(), InstallMemoryPoolsError> {
+        B::memory_install_pools(device, layout)
+    }
+
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        B::memory_pool_report(device)
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        B::memory_pool_usage(device)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
