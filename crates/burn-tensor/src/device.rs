@@ -871,6 +871,7 @@ fn mode_label(mode: &ThroughputMode) -> &'static str {
         ThroughputMode::ComputeCmma { .. } => "compute-cmma",
         ThroughputMode::Memory => "memory",
         ThroughputMode::MemoryRead => "memory-read",
+        ThroughputMode::MemoryWrite => "memory-write",
         ThroughputMode::MemoryWorkingSet { .. } => "memory-working-set",
         ThroughputMode::Launch => "launch",
     }
@@ -893,6 +894,7 @@ impl core::fmt::Display for ThroughputStat {
             }
             ThroughputMode::Memory
             | ThroughputMode::MemoryRead
+            | ThroughputMode::MemoryWrite
             | ThroughputMode::MemoryWorkingSet { .. }
             | ThroughputMode::Launch => alloc::string::String::new(),
         };
