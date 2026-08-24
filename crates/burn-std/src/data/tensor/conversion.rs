@@ -2,13 +2,12 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut};
-
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
     BoolStore, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Reader, Writer, bf16, f16,
 };
+use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut};
 
 use super::{DataError, TensorData};
 
@@ -325,10 +324,10 @@ impl TensorData {
             DType::U8 => self.try_convert_inplace::<Current, u8>(),
             DType::Bool(BoolStore::U8) => self
                 .try_convert_inplace_bool::<Current, u8>()
-                .map(TensorData::into_bool_u8),
+                .map(|d| d.unchecked_cast(DType::Bool(BoolStore::U8))),
             DType::Bool(BoolStore::U32) => self
                 .try_convert_inplace_bool::<Current, u32>()
-                .map(TensorData::into_bool_u32),
+                .map(|d| d.unchecked_cast(DType::Bool(BoolStore::U32))),
             DType::Bool(BoolStore::Native) | DType::QFloat(_) => Err(DataError::DTypeMismatch {
                 expected: dtype,
                 actual: Current::dtype(),
@@ -426,10 +425,10 @@ impl TensorData {
             DType::Bool(BoolStore::Native) => self.try_convert_clone::<Current, bool>(),
             DType::Bool(BoolStore::U8) => self
                 .try_convert_clone_bool::<Current, u8>()
-                .map(TensorData::into_bool_u8),
+                .map(|d| d.unchecked_cast(DType::Bool(BoolStore::U8))),
             DType::Bool(BoolStore::U32) => self
                 .try_convert_clone_bool::<Current, u32>()
-                .map(TensorData::into_bool_u32),
+                .map(|d| d.unchecked_cast(DType::Bool(BoolStore::U32))),
             DType::QFloat(_) => Err(DataError::UnsupportedConversion {
                 to: dtype,
                 from: self.dtype,
