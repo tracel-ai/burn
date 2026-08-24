@@ -36,6 +36,7 @@ impl ReduceBroadcastedFullFuser {
             broadcast: true,
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
+            choose_output_layout: false,
             vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
@@ -43,6 +44,7 @@ impl ReduceBroadcastedFullFuser {
             inplace: false,
             broadcast: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
+            choose_output_layout: false,
             // Deactivated for now, but would be cool to support vectorization of the output.
             vectorization: VectorizationSetting::Deactivated,
         };

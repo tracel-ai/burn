@@ -99,6 +99,8 @@
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
 //!   - `ndarray`: Makes available the NdArray backend (deprecated - use `flex` instead)
 //! - Backend specifications
+//!   - `simd`: Enable SIMD codegen in the CPU backends
+//!   - `rayon`: Enable multi-threaded execution in the CPU backends
 //!   - `accelerate`: If supported, Accelerate will be used
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
 //!   - `openblas`: If supported, Openblas will be use
@@ -111,6 +113,8 @@
 //!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
+//!   - `capture`: Makes the non-executing graph capture backend available.
+//!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `server`: Enables the remote server.
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!
@@ -147,6 +151,44 @@ pub mod nn {
 }
 
 pub use burn_std::config::{BurnConfig, config as runtime_config};
+
+#[cfg(all(test, feature = "capture"))]
+mod capture_tests {
+    use crate::{module::Module, nn::BatchNormConfig, tensor::Device};
+
+    #[test]
+    fn capture_feature_exposes_the_user_facing_device_api() {
+        let device = Device::capture();
+        let captured = device
+            .capture_scope(|scope| scope.complete([], []))
+            .unwrap();
+
+        assert!(captured.graph.operations.is_empty());
+    }
+
+    #[test]
+    fn shared_running_state_moves_across_capture_scopes() {
+        let module = BatchNormConfig::new(3).init(&Device::default());
+        let first_device = Device::capture();
+        let second_device = Device::capture();
+
+        let first = first_device
+            .capture_scope(|scope| {
+                let _module = module.clone().to_device(&first_device);
+                scope.complete([], [])
+            })
+            .unwrap();
+        let second = second_device
+            .capture_scope(|scope| {
+                let _module = module.clone().to_device(&second_device);
+                scope.complete([], [])
+            })
+            .unwrap();
+
+        assert_eq!(first.values.len(), 4);
+        assert_eq!(second.values.len(), 4);
+    }
+}
 
 /// Optimizers module.
 #[cfg(feature = "optim")]

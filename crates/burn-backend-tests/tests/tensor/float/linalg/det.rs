@@ -120,9 +120,11 @@ fn test_det_3x3_singular_linearly_dependent() {
 fn test_det_20x20_singular_linearly_dependent() {
     let device = Default::default();
     let mut tensor = TestTensor::random([1, 20, 20], Distribution::Default, &device);
-    let lin_dep_row1 = tensor.clone().slice(s![.., 5, ..]);
-    let lin_dep_row2 = lin_dep_row1.mul_scalar(3);
-    tensor = tensor.slice_assign(s![.., 17, ..], lin_dep_row2);
+    // Copy the row directly so the matrix is exactly singular in the working dtype.
+    // Scaling a random f32 row can round each element independently and only produce
+    // an approximately dependent row.
+    let lin_dep_row = tensor.clone().slice(s![.., 5, ..]);
+    tensor = tensor.slice_assign(s![.., 17, ..], lin_dep_row);
     let det_tensor = det::<3, 2, 1>(tensor);
     let expected = TestTensor::<1>::from_data([0.0], &device);
     let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);

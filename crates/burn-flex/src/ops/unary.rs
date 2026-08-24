@@ -388,7 +388,7 @@ mod tests {
         let data = vec![2e18_f32, -2e18_f32, f32::MAX, f32::MIN];
         let tensor = FlexTensor::from_data(TensorData::new(data.clone(), [data.len()]));
         let result = super::round(tensor);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
         for (a, b) in out.iter().zip(data.iter()) {
             assert_eq!(a.to_bits(), b.to_bits());
         }

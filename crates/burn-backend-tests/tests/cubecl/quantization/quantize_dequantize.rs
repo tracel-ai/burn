@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    quantization::{QuantLevel, QuantScheme, QuantStore, QuantValue},
+    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
 };
 
 fn should_quantize_dequantize_symmetric_arange<S: Into<Shape>>(
@@ -48,7 +48,7 @@ fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(
 
     let scheme = QuantScheme::default()
         .with_value(value)
-        .with_level(QuantLevel::block([block_size as u8]))
+        .per_block([block_size as u8], ScaleDtype::F32)
         .with_store(store);
     let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
@@ -78,7 +78,7 @@ fn should_quantize_dequantize_symmetric_per_block(
 ) {
     let scheme = QuantScheme::default()
         .with_value(value)
-        .with_level(QuantLevel::block([block_size as u8]))
+        .per_block([block_size as u8], ScaleDtype::F32)
         .with_store(store);
     let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 

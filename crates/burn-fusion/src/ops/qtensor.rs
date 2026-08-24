@@ -56,8 +56,14 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let scales = handles.get_float_tensor::<B>(&self.desc.qparams.scales);
+                let global = self
+                    .desc
+                    .qparams
+                    .global
+                    .as_ref()
+                    .map(|global| handles.get_float_tensor::<B>(global));
 
-                let qparams = QuantizationParametersPrimitive { scales };
+                let qparams = QuantizationParametersPrimitive { scales, global };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
@@ -68,6 +74,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let client = tensor.client.clone();
         let qparams = QuantizationParametersIr {
             scales: qparams.scales.into_ir(),
+            global: qparams.global.map(|global| global.into_ir()),
         };
         let desc = QuantizeOpIr::create(tensor.into_ir(), qparams, *scheme, || {
             client.create_empty_handle()

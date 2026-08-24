@@ -44,6 +44,8 @@ pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
 // Re-exported types
+#[cfg(feature = "autodiff")]
+pub use burn_dispatch::GradientCheckpointingStrategy;
 pub use burn_std::{
     AllocationProperty, Bytes, bf16, f16,
     reader::{read_sync, try_read_sync},

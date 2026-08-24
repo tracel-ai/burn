@@ -26,7 +26,7 @@ fn stft_constant_signal_rectangular_window() {
 
     // DC bin should be 4.0 + 0i (sum of ones)
     let data = result.into_data();
-    let values = data.to_vec::<f32>().unwrap();
+    let values = data.try_into_vec::<f32>().unwrap();
     // [batch=0, frame=0, freq=0, re] = 4.0
     assert!(
         (values[0] - 4.0).abs() < 1e-4,

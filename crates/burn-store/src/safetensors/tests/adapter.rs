@@ -52,8 +52,8 @@ fn pytorch_to_burn_adapter_linear_transpose() {
     let weight2 = model2.linear.weight.val().to_data();
 
     assert_eq!(weight1.shape, weight2.shape);
-    let data1 = weight1.to_vec::<f32>().unwrap();
-    let data2 = weight2.to_vec::<f32>().unwrap();
+    let data1 = weight1.try_to_vec::<f32>().unwrap();
+    let data2 = weight2.try_to_vec::<f32>().unwrap();
 
     for (a, b) in data1.iter().zip(data2.iter()) {
         assert!(
@@ -107,10 +107,10 @@ fn pytorch_to_burn_adapter_norm_rename() {
     assert!(!result.applied.is_empty());
 
     // Verify data is preserved
-    let gamma1 = model.norm_gamma.val().to_data().to_vec::<f32>().unwrap();
-    let gamma2 = model2.norm_gamma.val().to_data().to_vec::<f32>().unwrap();
-    let beta1 = model.norm_beta.val().to_data().to_vec::<f32>().unwrap();
-    let beta2 = model2.norm_beta.val().to_data().to_vec::<f32>().unwrap();
+    let gamma1 = model.norm_gamma.val().try_into_vec_as::<f32>().unwrap();
+    let gamma2 = model2.norm_gamma.val().try_into_vec_as::<f32>().unwrap();
+    let beta1 = model.norm_beta.val().try_into_vec_as::<f32>().unwrap();
+    let beta2 = model2.norm_beta.val().try_into_vec_as::<f32>().unwrap();
 
     assert_eq!(gamma1, gamma2);
     assert_eq!(beta1, beta2);
@@ -145,8 +145,8 @@ fn no_adapter_preserves_original() {
 
     assert_eq!(weight1.shape, weight2.shape);
     assert_eq!(
-        weight1.to_vec::<f32>().unwrap(),
-        weight2.to_vec::<f32>().unwrap()
+        weight1.try_to_vec::<f32>().unwrap(),
+        weight2.try_to_vec::<f32>().unwrap()
     );
 }
 
@@ -238,13 +238,13 @@ fn half_precision_adapter_round_trip() {
     assert!(!result.applied.is_empty());
 
     // Verify values are close (F32 -> F16 -> F32 has rounding)
-    let w1 = model.linear.weight.val().to_data().to_vec::<f32>().unwrap();
+    let w1 = model.linear.weight.val().try_into_vec_as::<f32>().unwrap();
     let w2 = model2
         .linear
         .weight
         .val()
         .to_data()
-        .to_vec::<f32>()
+        .try_into_vec::<f32>()
         .unwrap();
     for (a, b) in w1.iter().zip(w2.iter()) {
         assert!(

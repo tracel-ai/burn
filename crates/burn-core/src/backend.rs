@@ -39,7 +39,7 @@ pub trait ExtensionType<B: Backend> {
     fn map_to_dispatch<F>(
         self,
         map_kind: F,
-        checkpointing: Option<CheckpointingStrategy>,
+        checkpointing: Option<GradientCheckpointingStrategy>,
     ) -> Self::Target
     where
         F: Fn(BackendTensor<B>) -> DispatchTensorKind;

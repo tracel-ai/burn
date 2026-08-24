@@ -109,7 +109,7 @@ pub fn save_tensor_as_image<const D: usize, P: AsRef<std::ffi::OsStr>>(
         RgbImage::new(opts.width_out as u32, opts.height_out as u32)
     };
 
-    let data_vec = data.to_vec::<f32>().unwrap();
+    let data_vec = data.try_to_vec::<f32>().unwrap();
 
     let mut channel_vals = vec![0 as f32; channels]; // value for each channel in a given pixel
     for n in 0..batch {

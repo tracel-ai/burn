@@ -2,7 +2,7 @@ use super::tensor::GlobalTensor;
 use crate::engine::codegen::{DynElem, DynSize, DynVector};
 use burn_std::{
     BoolStore, DType, Shape, Strides, bf16, f16,
-    quantization::{QuantParam, QuantScheme, QuantStore, QuantValue},
+    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype, global_scale_dtype},
     strides,
 };
 use core::fmt::Display;
@@ -670,6 +670,17 @@ pub struct FuseBlockConfig {
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
     pub width: VectorSize,
+    /// The axis a vector of [width](Self::width) elements runs along.
+    ///
+    /// This is `rank - 1` while the reference layout is in logical dimension order,
+    /// and the dimension the reference is innermost along when it is permuted. The
+    /// aligned read and write paths walk a vector by stepping a tensor's stride
+    /// along this axis, so taking it to be the last dimension — which it used to be,
+    /// unconditionally — reads and writes the wrong elements as soon as the
+    /// reference is not contiguous.
+    ///
+    /// It only matters at a width above one: a single-element vector never steps.
+    pub vector_axis: usize,
 }
 
 impl AsRefExpand for FuseBlockConfig {
@@ -900,23 +911,28 @@ impl From<ElemType> for FuseType {
 }
 
 impl FuseType {
-    /// The type quantization scales are read as, or `None` when fusion can't read that param.
+    /// The type quantization scales are read as, or `None` when fusion can't read that dtype.
     ///
-    /// Callers must decline to fuse on `None` rather than fail: an unsupported param is only a
+    /// Callers must decline to fuse on `None` rather than fail: an unsupported dtype is only a
     /// missing feature here, and the unfused path still handles it.
-    pub fn from_quant_param(param: QuantParam) -> Option<Self> {
-        match param {
-            QuantParam::F32 => Some(Self::F32),
-            QuantParam::F16 => Some(Self::F16),
-            QuantParam::BF16 => Some(Self::BF16),
-            QuantParam::UE8M0 | QuantParam::UE4M3 => None,
+    pub fn from_scale_dtype(dtype: ScaleDtype) -> Option<Self> {
+        match dtype {
+            ScaleDtype::F32 => Some(Self::F32),
+            ScaleDtype::F16 => Some(Self::F16),
+            ScaleDtype::BF16 => Some(Self::BF16),
+            ScaleDtype::UE8M0 | ScaleDtype::UE4M3 => None,
         }
     }
 
     /// The type quantized values are read as, or `None` when fusion can't read that scheme.
     ///
-    /// Same contract as [Self::from_quant_param]: callers must decline to fuse on `None`.
+    /// Same contract as [Self::from_scale_dtype]: callers must decline to fuse on `None`.
     pub fn from_quant_scheme(scheme: QuantScheme) -> Option<Self> {
+        // No fused kernel applies a per-tensor scale.
+        if global_scale_dtype(&scheme).is_some() {
+            return None;
+        }
+
         match scheme.store {
             QuantStore::Native => match scheme.value {
                 QuantValue::Q8F | QuantValue::Q8S => Some(Self::I8),

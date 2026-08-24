@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::{
     TensorData, Tolerance,
-    quantization::{Calibration, QuantLevel, QuantValue, compute_range},
+    quantization::{Calibration, QuantValue, ScaleDtype, compute_range},
 };
 
 // NOTE: The scheme variant fields are not important for calibration, only the "main" variant (e.g., per-tensor)
@@ -44,7 +44,7 @@ fn min_max_calibration_range_per_block() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::block([4]));
+        .per_block([4], ScaleDtype::F32);
 
     let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
 
@@ -95,7 +95,7 @@ fn abs_mean_calibration_range_per_block() {
         .quantization
         .scheme
         .with_value(QuantValue::Q2S)
-        .with_level(QuantLevel::block([4]));
+        .per_block([4], ScaleDtype::F32);
 
     let range = compute_range(&scheme, &tensor, &Calibration::AbsMean);
 

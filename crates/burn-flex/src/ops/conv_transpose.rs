@@ -23,14 +23,14 @@ use super::conv_common::{add_bias, squeeze_3d_to_1d, squeeze_3d_to_2d};
 
 /// Generates a conv_transpose3d typed function.
 macro_rules! conv_transpose3d_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $gemm_fn:ident, $add_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $gemm_fn:ident) => {
         pub fn $fn_name(
             x: FlexTensor,
             weight: FlexTensor,
             bias: Option<FlexTensor>,
             options: &ConvTransposeOptions<3>,
         ) -> FlexTensor {
-            conv_transpose3d_impl::<$T>(x, weight, bias, options, $dtype, $zero, $gemm_fn, $add_fn)
+            conv_transpose3d_impl::<$T>(x, weight, bias, options, $dtype, $zero, $gemm_fn)
         }
     };
 }
@@ -166,24 +166,21 @@ conv_transpose3d_typed!(
     f32,
     DType::F32,
     0.0f32,
-    conv_transpose_gemm_f32,
-    |a, b| a + b
+    conv_transpose_gemm_f32
 );
 conv_transpose3d_typed!(
     conv_transpose3d_f64,
     f64,
     DType::F64,
     0.0f64,
-    conv_transpose_gemm_f64,
-    |a, b| a + b
+    conv_transpose_gemm_f64
 );
 conv_transpose3d_typed!(
     conv_transpose3d_f16,
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    conv_transpose_gemm_f16,
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32())
+    conv_transpose_gemm_f16
 );
 bf16_via_f32!(
     conv_transpose3d_bf16,
@@ -207,7 +204,6 @@ fn conv_transpose3d_impl<
     dtype: DType,
     zero: T,
     gemm_fn: ConvTransposeGemmFn<T>,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor {
     let x = x.to_contiguous();
     let weight = weight.to_contiguous();
@@ -340,7 +336,7 @@ fn conv_transpose3d_impl<
                                         let val = columns[col_base + s];
                                         let out_idx =
                                             out_ch_base + od * out_h * out_w + oh * out_w + ow;
-                                        output[out_idx] = add_fn(output[out_idx], val);
+                                        output[out_idx] = T::add(output[out_idx], val);
                                     }
                                 }
                             }
@@ -451,7 +447,7 @@ mod tests {
         let w = FlexTensor::from_data(TensorData::new(vec![1.0f64; 4], vec![1, 1, 2, 2]));
         let opts = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
         let result = conv_transpose2d_f64(x, w, None, &opts);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out, vec![1.0, 3.0, 2.0, 4.0, 10.0, 6.0, 3.0, 7.0, 4.0]);
     }
 
@@ -466,7 +462,7 @@ mod tests {
         let w = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let opts = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
         let result = conv_transpose2d_f16(x, w, None, &opts);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
         let expected = [1.0f32, 3.0, 2.0, 4.0, 10.0, 6.0, 3.0, 7.0, 4.0];
         for (a, e) in out.iter().zip(expected.iter()) {
             assert!((a.to_f32() - e).abs() < 0.1);

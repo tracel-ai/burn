@@ -14,7 +14,8 @@ macro_rules! backend_list {
             [Flex, any(feature = "flex", default_backend)],
             [NdArray, feature = "ndarray"],
             [LibTorch, feature = "tch"],
-            [Remote, feature = "remote"]
+            [Remote, feature = "remote"],
+            [Capture, feature = "capture"]
         }
     };
 }
@@ -59,14 +60,14 @@ macro_rules! backend_matrix {
 macro_rules! with_autodiff_backend {
     ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {
-            Some($crate::CheckpointingStrategy::Balanced) => {
+            Some($crate::GradientCheckpointingStrategy::Balanced) => {
                 type $B = $crate::backends::Autodiff<
                     $crate::backends::$Backend,
                     burn_autodiff::checkpoint::strategy::BalancedCheckpointing,
                 >;
                 $body
             }
-            Some($crate::CheckpointingStrategy::None) => {
+            Some($crate::GradientCheckpointingStrategy::Disabled) => {
                 type $B = $crate::backends::Autodiff<
                     $crate::backends::$Backend,
                     burn_autodiff::checkpoint::strategy::NoCheckpointing,
@@ -151,7 +152,19 @@ macro_rules! to_device_arms {
         $kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
         $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
     ) => {
+        #[allow(unreachable_patterns)]
         match ($tensor.kind, $device) {
+            // Capture is deliberately absent from the cross-backend matrix: it accepts concrete
+            // initializer values, but a captured tensor cannot be materialized on another backend.
+            #[cfg(feature = "capture")]
+            ($crate::DispatchTensorKind::Capture(t), $crate::DispatchDevice::Capture(d)) => {
+                $crate::DispatchTensor {
+                    kind: $crate::DispatchTensorKind::Capture($crate::BackendTensor::$kind(
+                        $crate::backends::Capture::$to_device(t.$inner_fn(), d)
+                    )),
+                    checkpointing: $tensor.checkpointing,
+                }
+            }
             // --- Same backend to_device ---
             $(
                 #[cfg($src_cfg)]
@@ -160,6 +173,24 @@ macro_rules! to_device_arms {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::$kind(
                             $crate::backends::$B1::$to_device(t.$inner_fn(), d)
                         )),
+                        checkpointing: $tensor.checkpointing,
+                    }
+                }
+            )*
+
+            // Any concrete backend can be materialized on the capture backend.
+            // This is how ordinary module parameters and sample inputs become
+            // locally retained capture initializers.
+            $(
+                #[cfg(all($src_cfg, feature = "capture"))]
+                ($crate::DispatchTensorKind::$B1(t), $crate::DispatchDevice::Capture($device_ident)) => {
+                    type B1 = $crate::backends::$B1;
+                    type B2 = $crate::backends::Capture;
+                    let $inner = t.$inner_fn();
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::Capture(
+                            $crate::BackendTensor::$kind($body)
+                        ),
                         checkpointing: $tensor.checkpointing,
                     }
                 }
@@ -228,7 +259,13 @@ macro_rules! to_device_arms {
             #[cfg(feature = "autodiff")]
             (_, $crate::DispatchDevice::Autodiff(_)) => unreachable!("Autodiff should not wrap an autodiff device."),
             #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensorKind::Autodiff(..), _) => panic!("Operation not marked for autodiff.")
+            ($crate::DispatchTensorKind::Autodiff(..), _) => panic!("Operation not marked for autodiff."),
+            // Capture is intentionally one-way: initialized values can be moved onto a
+            // capture device, but captured tensors have no materialized data to move back.
+            #[cfg(feature = "capture")]
+            ($crate::DispatchTensorKind::Capture(_), _) => {
+                panic!("Cannot move a tensor from a capture device")
+            }
         }
     };
 }
@@ -257,6 +294,7 @@ macro_rules! float_to_device_arms {
         $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
         $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
     ) => {
+        #[allow(unreachable_patterns)]
         match ($tensor.kind, $device) {
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensorKind::Autodiff(kind), $crate::DispatchDevice::Autodiff(device)) => {
@@ -268,6 +306,18 @@ macro_rules! float_to_device_arms {
                 )
 
             }
+            // Capture is deliberately absent from the cross-backend matrix. Same-backend movement
+            // remains available; CaptureBackend decides whether the particular device transfer is
+            // valid (computed tensors can only remain in their capture session).
+            #[cfg(feature = "capture")]
+            ($crate::DispatchTensorKind::Capture(kind), $crate::DispatchDevice::Capture(d)) => {
+                $crate::DispatchTensor {
+                    kind: $crate::DispatchTensorKind::Capture($crate::BackendTensor::Float(
+                        $crate::backends::Capture::$to_device(kind.float(), d)
+                    )),
+                    checkpointing: $tensor.checkpointing,
+                }
+            }
             // --- Same backend to_device ---
             $(
                 #[cfg($src_cfg)]
@@ -276,6 +326,22 @@ macro_rules! float_to_device_arms {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::Float(
                             $crate::backends::$B1::$to_device(kind.float(), d)
                         )),
+                        checkpointing: $tensor.checkpointing,
+                    }
+                }
+            )*
+
+            // Materialize float tensors from any backend on capture.
+            $(
+                #[cfg(all($src_cfg, feature = "capture"))]
+                ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::Capture($device_ident)) => {
+                    type B1 = $crate::backends::$B1;
+                    type B2 = $crate::backends::Capture;
+                    let $inner = kind.float();
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::Capture(
+                            $crate::BackendTensor::Float($body)
+                        ),
                         checkpointing: $tensor.checkpointing,
                     }
                 }
@@ -299,7 +365,13 @@ macro_rules! float_to_device_arms {
                 )+
             )*
             #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances.")
+            ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances."),
+            // Capture is intentionally one-way: initialized values can be moved onto a
+            // capture device, but captured tensors have no materialized data to move back.
+            #[cfg(feature = "capture")]
+            ($crate::DispatchTensorKind::Capture(_), _) => {
+                panic!("Cannot move a tensor from a capture device")
+            }
         }
     };
 

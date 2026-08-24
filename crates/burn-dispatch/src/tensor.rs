@@ -6,7 +6,7 @@ use burn_autodiff::checkpoint::strategy::{
 };
 use burn_backend::{Backend, BackendTypes, DType, Shape, TensorMetadata};
 
-use crate::CheckpointingStrategy;
+use crate::GradientCheckpointingStrategy;
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
@@ -211,7 +211,7 @@ pub struct DispatchTensor {
     /// Holds the autodiff checkpointing strategy.
     /// - `None`: tensor is not tracked by autodiff
     /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
-    pub checkpointing: Option<CheckpointingStrategy>,
+    pub checkpointing: Option<GradientCheckpointingStrategy>,
 }
 
 /// Internal representation of a [`DispatchTensor`].
@@ -266,6 +266,9 @@ pub enum DispatchTensorKind {
     /// The [Remote backend](Remote) tensor (lives on a remote server).
     #[cfg(feature = "remote")]
     Remote(BackendTensor<Remote>),
+    /// A tensor recorded by the capture backend.
+    #[cfg(feature = "capture")]
+    Capture(BackendTensor<Capture>),
 
     /// The [autodiff enabled backend](Autodiff) tensor.
     #[cfg(feature = "autodiff")]
@@ -299,6 +302,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::LibTorch(tensor) => tensor.dtype(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.dtype(),
+            #[cfg(feature = "capture")]
+            Self::Capture(tensor) => tensor.dtype(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(tensor) => tensor.dtype(),
         }
@@ -328,6 +333,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::LibTorch(tensor) => tensor.shape(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.shape(),
+            #[cfg(feature = "capture")]
+            Self::Capture(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(tensor) => tensor.shape(),
         }
@@ -357,6 +364,8 @@ impl TensorMetadata for DispatchTensorKind {
             DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => DispatchDevice::Remote(tensor.device()),
+            #[cfg(feature = "capture")]
+            DispatchTensorKind::Capture(tensor) => DispatchDevice::Capture(tensor.device()),
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
         }
@@ -386,6 +395,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::LibTorch(tensor) => tensor.can_mut(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.can_mut(),
+            #[cfg(feature = "capture")]
+            Self::Capture(tensor) => tensor.can_mut(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(tensor) => tensor.can_mut(),
         }
@@ -411,19 +422,15 @@ impl TensorMetadata for DispatchTensor {
         #[allow(unused_mut)]
         let mut device = self.kind.device();
 
-        // TODO: should int and bool kinds return an autodiff device?
-        // It would be much easier once there is a single underlying primitive type, which
-        // we can wrap with Autodiff in all cases.
-
         #[cfg(feature = "autodiff")]
         if let Some(checkpointing) = &self.checkpointing {
-            // A packed (quantized) tensor is float-kind data that travels beside
-            // the tape untracked, so its device is the autodiff one: whatever is
-            // built from it — its dequantized form, LoRA factors over it — must
-            // land on the tape.
-            if matches!(self.dtype(), DType::QFloat(_))
-                && !matches!(device, DispatchDevice::Autodiff(_))
-            {
+            // Int, bool, and quantized tensors travel beside the tape untracked, but
+            // their device must retain the autodiff capability so tensors derived
+            // from them can join the graph (for example, an integer one-hot tensor
+            // cast to float). Plain float gradients can also carry checkpointing
+            // metadata copied from their source tensor, but remain on the inner
+            // backend and must continue to report that device.
+            if !self.dtype().is_float() && !matches!(device, DispatchDevice::Autodiff(_)) {
                 device = DispatchDevice::autodiff(device);
             }
             if let DispatchDevice::Autodiff(device) = &mut device {
@@ -461,6 +468,8 @@ impl DispatchTensorKind {
             DispatchTensorKind::LibTorch(_) => "LibTorch",
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(_) => "Remote",
+            #[cfg(feature = "capture")]
+            DispatchTensorKind::Capture(_) => "Capture",
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(_) => "Autodiff",
         }
@@ -468,18 +477,18 @@ impl DispatchTensorKind {
 }
 
 #[cfg(feature = "autodiff")]
-trait IntoCheckpointingStrategy {
-    const STRATEGY: CheckpointingStrategy;
+trait IntoGradientCheckpointingStrategy {
+    const STRATEGY: GradientCheckpointingStrategy;
 }
 
 #[cfg(feature = "autodiff")]
-impl IntoCheckpointingStrategy for NoCheckpointing {
-    const STRATEGY: CheckpointingStrategy = CheckpointingStrategy::None;
+impl IntoGradientCheckpointingStrategy for NoCheckpointing {
+    const STRATEGY: GradientCheckpointingStrategy = GradientCheckpointingStrategy::Disabled;
 }
 
 #[cfg(feature = "autodiff")]
-impl IntoCheckpointingStrategy for BalancedCheckpointing {
-    const STRATEGY: CheckpointingStrategy = CheckpointingStrategy::Balanced;
+impl IntoGradientCheckpointingStrategy for BalancedCheckpointing {
+    const STRATEGY: GradientCheckpointingStrategy = GradientCheckpointingStrategy::Balanced;
 }
 
 /// Trait to execute runtime routing conversions between the dynamic dispatch layer and specific backends.
@@ -522,7 +531,7 @@ macro_rules! impl_dispatch_conversion {
         }
 
         #[cfg(all($cfg, feature = "autodiff"))]
-        impl<C: CheckpointStrategy + IntoCheckpointingStrategy>
+        impl<C: CheckpointStrategy + IntoGradientCheckpointingStrategy>
             DispatchKindConversion<Autodiff<$backend, C>> for DispatchTensor
         {
             fn try_into_backend(
@@ -590,6 +599,7 @@ impl_dispatch_conversion!(Cpu, feature = "cpu");
 impl_dispatch_conversion!(Cuda, feature = "cuda");
 impl_dispatch_conversion!(Rocm, feature = "rocm");
 impl_dispatch_conversion!(Remote, feature = "remote");
+impl_dispatch_conversion!(Capture, feature = "capture");
 impl_dispatch_conversion!(Metal, feature = "metal");
 impl_dispatch_conversion!(Vulkan, feature = "vulkan");
 impl_dispatch_conversion!(Wgpu, feature = "wgpu");

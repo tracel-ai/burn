@@ -501,21 +501,54 @@ fn bool_binary_op_simd(lhs: FlexTensor, rhs: FlexTensor, op: BoolBinaryOp) -> Fl
             out
         }
         _ => {
-            let lhs_iter = StridedIter::new(lhs.layout());
-            let rhs_iter = StridedIter::new(rhs.layout());
-            match op {
-                BoolBinaryOp::And => lhs_iter
-                    .zip(rhs_iter)
-                    .map(|(li, ri)| lhs_storage[li] & rhs_storage[ri])
-                    .collect(),
-                BoolBinaryOp::Or => lhs_iter
-                    .zip(rhs_iter)
-                    .map(|(li, ri)| lhs_storage[li] | rhs_storage[ri])
-                    .collect(),
-                BoolBinaryOp::Xor => lhs_iter
-                    .zip(rhs_iter)
-                    .map(|(li, ri)| lhs_storage[li] ^ rhs_storage[ri])
-                    .collect(),
+            // Strided/broadcast fallback: collapsed loop nest with an
+            // autovectorized bitwise inner loop. Separate zip_map calls
+            // per op keep the closures monomorphized. StridedIter only
+            // remains for layouts the nest can't handle (negative
+            // strides, rank > 8).
+            let zipped = match op {
+                BoolBinaryOp::And => crate::zip::zip_map(
+                    lhs_storage,
+                    lhs.layout(),
+                    rhs_storage,
+                    rhs.layout(),
+                    |a, b| a & b,
+                ),
+                BoolBinaryOp::Or => crate::zip::zip_map(
+                    lhs_storage,
+                    lhs.layout(),
+                    rhs_storage,
+                    rhs.layout(),
+                    |a, b| a | b,
+                ),
+                BoolBinaryOp::Xor => crate::zip::zip_map(
+                    lhs_storage,
+                    lhs.layout(),
+                    rhs_storage,
+                    rhs.layout(),
+                    |a, b| a ^ b,
+                ),
+            };
+            match zipped {
+                Some(result) => result,
+                None => {
+                    let lhs_iter = StridedIter::new(lhs.layout());
+                    let rhs_iter = StridedIter::new(rhs.layout());
+                    match op {
+                        BoolBinaryOp::And => lhs_iter
+                            .zip(rhs_iter)
+                            .map(|(li, ri)| lhs_storage[li] & rhs_storage[ri])
+                            .collect(),
+                        BoolBinaryOp::Or => lhs_iter
+                            .zip(rhs_iter)
+                            .map(|(li, ri)| lhs_storage[li] | rhs_storage[ri])
+                            .collect(),
+                        BoolBinaryOp::Xor => lhs_iter
+                            .zip(rhs_iter)
+                            .map(|(li, ri)| lhs_storage[li] ^ rhs_storage[ri])
+                            .collect(),
+                    }
+                }
             }
         }
     };
@@ -544,7 +577,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::from([true, false, true]));
         let result = Flex::bool_into_int(t, IntDType::U8);
         assert_eq!(result.dtype(), burn_backend::DType::U8);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1u8, 0, 1]);
     }
 
@@ -553,7 +586,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::from([true, false, true]));
         let result = Flex::bool_into_float(t, FloatDType::F64);
         assert_eq!(result.dtype(), burn_backend::DType::F64);
-        let data: Vec<f64> = result.into_data().to_vec().unwrap();
+        let data: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1.0f64, 0.0, 1.0]);
     }
 }

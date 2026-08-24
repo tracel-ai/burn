@@ -221,7 +221,7 @@ impl<const D: usize> AutodiffModule for RunningState<Tensor<D>> {
         self.sync();
         let value = self.value();
 
-        RunningState::with_id(self.id, value.inner())
+        RunningState::with_id(self.id, value.no_grad())
     }
 
     fn from_inner(module: Self) -> Self {

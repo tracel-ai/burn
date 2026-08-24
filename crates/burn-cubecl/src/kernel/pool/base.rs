@@ -1,7 +1,10 @@
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous_aligned,
-    ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    kernel::{
+        into_contiguous_aligned,
+        reduce::{KernelReduceStrategy, reduce_dim},
+    },
+    ops::{base::reshape, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
@@ -10,6 +13,7 @@ use cubek::pool::{
     definition::{AdaptiveAvgPoolOptions, AvgPoolOptions, MaxPoolOptions, PoolError, PoolMode},
     pool2d, pool2d_backward, pool2d_with_indices, pool2d_with_indices_backward,
 };
+use cubek::reduce::components::instructions::ReduceOperationConfig;
 
 pub(crate) fn max_pool2d<R: CubeRuntime>(
     x: CubeTensor<R>,
@@ -267,10 +271,66 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
+/// Average every pixel of every channel into one number: `[b, c, h, w]` to
+/// `[b, c, 1, 1]`.
+///
+/// This is what an adaptive average pool with a `1x1` output *is*, and it is a
+/// reduction rather than a pooling problem.
+///
+/// So the reduction axis becomes the parallel one: the two spatial axes are
+/// flattened into one and the tuned reduce runs over it.
+///
+/// Which flattening is free depends on the layout the producer left behind. In
+/// NCHW `h` and `w` are adjacent and contiguous, so `[b, c, h, w]` reshapes to
+/// `[b, c, h * w]` for nothing. A convolution's output is NHWC, where `c` is
+/// innermost instead — reshaping *that* to `[b, c, h * w]` materialises a
+/// transpose to buy a reshape that is supposed to be free, and the transpose
+/// costs more than the reduction it feeds. There the free flattening is
+/// `[b, h * w, c]`, reduced over the middle axis, which also leaves `c`
+/// innermost and the reduction coalesced across it.
+fn global_avg_pool2d<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
+    let [batch_size, channels, height, width] = input.meta.shape().dims();
+
+    // Channels innermost is the signature of NHWC memory. A single channel is
+    // both layouts at once, and the NCHW path is the cheaper one to take.
+    let channels_innermost = channels > 1 && input.meta.strides()[1] == 1;
+
+    let (flattened, axis) = match channels_innermost {
+        true => (
+            reshape(
+                permute_nchw_to_nhwc(input),
+                Shape::new([batch_size, height * width, channels]),
+            ),
+            1,
+        ),
+        false => (
+            reshape(input, Shape::new([batch_size, channels, height * width])),
+            2,
+        ),
+    };
+
+    let reduced = reduce_dim::<R>(
+        flattened,
+        None,
+        axis,
+        KernelReduceStrategy::default(),
+        ReduceOperationConfig::Mean,
+    )
+    .expect("the flattened spatial axis of a rank-3 tensor is reducible");
+
+    reshape(reduced, Shape::new([batch_size, channels, 1, 1]))
+}
+
 pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
 ) -> CubeTensor<R> {
+    // A `1x1` output is a reduction, and the pooling kernel is the wrong shape
+    // of parallelism for it — see [`global_avg_pool2d`].
+    if output_size == [1, 1] {
+        return global_avg_pool2d(input);
+    }
+
     let [batch_size, channels, _, _] = input.meta.shape().dims();
     let input = into_contiguous_aligned(permute_nchw_to_nhwc(input));
 

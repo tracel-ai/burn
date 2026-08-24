@@ -2,7 +2,9 @@ use super::*;
 use burn_tensor::{DType, Distribution, Element, Tolerance, linalg::qr, s};
 
 const REL: f32 = 5e-3;
-const ABS: f32 = 1e-3;
+// Householder updates are expressed as matmuls, for which accelerated CUDA
+// kernels can use reduced-precision inputs and accumulate errors around 1e-3.
+const ABS: f32 = 2e-3;
 
 // ---------------------------------------------------------------------
 // Small Matrices

@@ -931,7 +931,7 @@ fn safetensors_to_snapshots_lazy(
         #[cfg(not(target_has_atomic = "ptr"))]
         let data_clone = data_arc.clone();
         let name_clone = name.to_string();
-        let data_fn = alloc::rc::Rc::new(move || {
+        let data_fn = TensorSnapshot::data_fn(move || {
             // Re-deserialize when needed (this is cheap, just parsing header)
             let tensors = safetensors::SafeTensors::deserialize(&data_clone).map_err(|e| {
                 crate::TensorSnapshotError::IoError(format!(
@@ -1003,7 +1003,7 @@ fn safetensors_to_snapshots_lazy_file(
         let mmap_clone = Arc::clone(&mmap_arc);
         let name_clone = name.to_string();
 
-        let data_fn = alloc::rc::Rc::new(move || {
+        let data_fn = TensorSnapshot::data_fn(move || {
             // Re-parse to get the tensor snapshot (this is cheap with mmap)
             let tensors = safetensors::SafeTensors::deserialize(&mmap_clone).map_err(|e| {
                 crate::TensorSnapshotError::IoError(format!("Failed to deserialize: {}", e))
