@@ -408,6 +408,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     /// cache whatever the order is, and a differently shaped input can never be
     /// `SameAsRef` regardless, so neither has a stake in the outcome.
     ///
+    /// A concatenated operand is the exception, and votes despite being shorter
+    /// than the output along the axis it is joined on: `concat` computes its
+    /// offset itself rather than reading it through the reference, so its layout
+    /// is free for the same reason the output's is. See the voter loop below.
+    ///
     /// Because a convolution's output is NHWC and its consumers' outputs then
     /// become NHWC too, this propagates forward on its own: a `conv -> norm ->
     /// silu -> conv` chain settles into NHWC end to end, and the permutes around
@@ -971,6 +976,12 @@ fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
 
 /// The input positions this block concatenates, each mapped to the axis it is
 /// joined on.
+///
+/// An operand shared by two concatenations along different axes keeps the last
+/// one. Two concatenations can only sit in one block when their outputs fit its
+/// shape, which for a shared operand forces the same axis — so the disagreement
+/// this would misjudge does not arise, and misjudging it would only cost a vote
+/// rather than produce a layout the kernel cannot express.
 fn concat_operands(ops: &[FuseOp]) -> BTreeMap<usize, usize> {
     let mut operands = BTreeMap::new();
 
@@ -1069,6 +1080,14 @@ mod tests {
         })
     }
 
+    fn cat_op(inputs: &[usize], dim: usize) -> FuseOp {
+        FuseOp::Cat {
+            inputs: inputs.iter().copied().map(arg).collect(),
+            output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+            dim,
+        }
+    }
+
     fn settings(ref_layout: RefLayoutSetting, choose_output_layout: bool) -> FuseSettings {
         FuseSettings {
             broadcast: true,
@@ -1159,15 +1178,71 @@ mod tests {
     /// permuted reference rather than assuming the last dimension.
     #[test]
     fn a_concatenation_does_not_rule_out_a_permuted_layout() {
-        let cat = FuseOp::Cat {
-            inputs: vec![arg(0), arg(1)],
-            output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
-            dim: 0,
-        };
-
         assert!(may_permute_layout(
             &settings(RefLayoutSetting::Any, true),
-            &[elemwise_op(), cat]
+            &[elemwise_op(), cat_op(&[0, 1], 0)]
         ));
+    }
+
+    #[test]
+    fn a_block_without_a_concatenation_has_no_operands() {
+        assert!(concat_operands(&[]).is_empty());
+        assert!(concat_operands(&[elemwise_op()]).is_empty());
+    }
+
+    #[test]
+    fn every_operand_of_every_concatenation_maps_to_its_axis() {
+        let operands = concat_operands(&[elemwise_op(), cat_op(&[1, 2], 3), cat_op(&[4, 5, 6], 1)]);
+
+        assert_eq!(
+            operands,
+            BTreeMap::from([(1, 3), (2, 3), (4, 1), (5, 1), (6, 1)])
+        );
+    }
+
+    #[test]
+    fn an_operand_of_two_concatenations_keeps_the_last_axis() {
+        // Documented in [concat_operands]: the block shapes that would let this
+        // happen force the same axis, so the choice only has to be harmless.
+        let operands = concat_operands(&[cat_op(&[0, 1], 2), cat_op(&[0, 3], 1)]);
+
+        assert_eq!(operands.get(&0), Some(&1));
+    }
+
+    #[test]
+    fn an_operand_is_joined_along_its_axis_alone() {
+        let output = Shape::from(vec![1, 6, 2, 2]);
+
+        assert!(joined_only_along(
+            &output,
+            &Shape::from(vec![1, 3, 2, 2]),
+            1
+        ));
+        assert!(
+            joined_only_along(&output, &output, 1),
+            "an operand the full length of the output is joined along it too",
+        );
+        assert!(
+            joined_only_along(&output, &Shape::from(vec![1, 0, 2, 2]), 1),
+            "an empty operand is still only shortened along the axis",
+        );
+    }
+
+    #[test]
+    fn an_operand_that_differs_elsewhere_is_not_a_concatenated_one() {
+        let output = Shape::from(vec![1, 6, 2, 2]);
+
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![4, 3, 2, 2]), 1),
+            "a broadcast operand differs on an axis it is not joined on",
+        );
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![6, 2, 2]), 1),
+            "a rank the block cannot line up with its own is refused, not indexed past",
+        );
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![1, 3, 2, 2]), 9),
+            "an axis past the rank asks for full equality rather than panicking",
+        );
     }
 }
