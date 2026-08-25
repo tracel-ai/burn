@@ -7,7 +7,7 @@ use burn_backend::{
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
-use core::{marker::PhantomData, ops::DerefMut};
+use core::marker::PhantomData;
 use hashbrown::HashMap;
 use spin::Mutex;
 
@@ -50,7 +50,7 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn flush(&self);
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
-    /// Create a new [RouterTensor] from the tensor data.
+    /// Create a new [`RouterTensor`] from the tensor data.
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
@@ -169,19 +169,18 @@ impl RouterClientLocator {
             Self::register_inner::<R>(client_id, client, &mut clients);
         }
 
-        match clients.deref_mut() {
-            Some(clients) => match clients.get(&client_id) {
-                Some(client) => {
+        match &mut *clients {
+            Some(clients) => {
+                if let Some(client) = clients.get(&client_id) {
                     let client: &Client<R> = client.downcast_ref().unwrap();
                     client.clone()
-                }
-                None => {
+                } else {
                     let client = new_client::<R>(device);
                     let any = Box::new(client.clone());
                     clients.insert(client_id, any);
                     client
                 }
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -220,9 +219,10 @@ impl RouterClientLocator {
         }
 
         if let Some(clients) = clients {
-            if clients.contains_key(&key) {
-                panic!("Client already created for device {key:?}");
-            }
+            assert!(
+                !clients.contains_key(&key),
+                "Client already created for device {key:?}"
+            );
 
             clients.insert(key, Box::new(client));
         }

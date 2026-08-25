@@ -148,6 +148,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// [`RouterClient::register_alias`](crate::RouterClient::register_alias)). Cloning the backend
     /// handle is a cheap `Arc`-style refcount bump, so the buffer survives until *both* ids are
     /// freed — consuming the alias on one stream can't pull it out from under the other.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `src_id` has not been materialized yet.
     pub fn register_alias(&mut self, new_id: TensorId, src_id: TensorId) {
         let ctx = &mut self.context;
         let handle = ctx
@@ -165,13 +169,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
         if dtype.is_float() {
             let tensor = B::float_from_data(data, &self.device);
-            ctx.handles.register_float_tensor::<B>(&id, tensor)
+            ctx.handles.register_float_tensor::<B>(&id, tensor);
         } else if dtype.is_int() {
             let tensor = B::int_from_data(data, &self.device);
-            ctx.handles.register_int_tensor::<B>(&id, tensor)
+            ctx.handles.register_int_tensor::<B>(&id, tensor);
         } else if dtype.is_bool() {
             let tensor = B::bool_from_data(data, &self.device);
-            ctx.handles.register_bool_tensor::<B>(&id, tensor)
+            ctx.handles.register_bool_tensor::<B>(&id, tensor);
         } else if let DType::QFloat(_) = dtype {
             todo!();
         }
@@ -186,13 +190,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
         if dtype.is_float() {
             let tensor = B::float_from_data(data, &self.device);
-            ctx.handles.register_float_tensor::<B>(&id, tensor)
+            ctx.handles.register_float_tensor::<B>(&id, tensor);
         } else if dtype.is_int() {
             let tensor = B::int_from_data(data, &self.device);
-            ctx.handles.register_int_tensor::<B>(&id, tensor)
+            ctx.handles.register_int_tensor::<B>(&id, tensor);
         } else if dtype.is_bool() {
             let tensor = B::bool_from_data(data, &self.device);
-            ctx.handles.register_bool_tensor::<B>(&id, tensor)
+            ctx.handles.register_bool_tensor::<B>(&id, tensor);
         } else if let DType::QFloat(_) = dtype {
             todo!();
         }
@@ -213,6 +217,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
 impl<B: BackendIr> TensorInterpreter<B> {
     /// Execute a tensor operation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `op` references a custom operation for which no handler is registered, or if
+    /// required input tensors have not been materialized.
     pub fn register_op(&mut self, op: OperationIr) {
         // Remove unused tensor handles
         let ctx = &mut self.context;
@@ -332,10 +341,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Equal(desc) => {
-                    binary_float_cmp_ops!(handles, desc, B::float_equal)
+                    binary_float_cmp_ops!(handles, desc, B::float_equal);
                 }
                 BaseOperationIr::EqualElem(desc) => {
-                    scalar_float_cmp_ops!(handles, desc, B::float_equal_elem)
+                    scalar_float_cmp_ops!(handles, desc, B::float_equal_elem);
                 }
                 BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -374,10 +383,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::NotEqual(desc) => {
-                    binary_float_cmp_ops!(handles, desc, B::float_not_equal)
+                    binary_float_cmp_ops!(handles, desc, B::float_not_equal);
                 }
                 BaseOperationIr::NotEqualElem(desc) => {
-                    scalar_float_cmp_ops!(handles, desc, B::float_not_equal_elem)
+                    scalar_float_cmp_ops!(handles, desc, B::float_not_equal_elem);
                 }
                 BaseOperationIr::All(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
@@ -512,10 +521,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Equal(desc) => {
-                    binary_int_cmp_ops!(handles, desc, B::int_equal)
+                    binary_int_cmp_ops!(handles, desc, B::int_equal);
                 }
                 BaseOperationIr::EqualElem(desc) => {
-                    scalar_int_cmp_ops!(handles, desc, B::int_equal_elem)
+                    scalar_int_cmp_ops!(handles, desc, B::int_equal_elem);
                 }
                 BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
@@ -550,10 +559,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::NotEqual(desc) => {
-                    binary_int_cmp_ops!(handles, desc, B::int_not_equal)
+                    binary_int_cmp_ops!(handles, desc, B::int_not_equal);
                 }
                 BaseOperationIr::NotEqualElem(desc) => {
-                    scalar_int_cmp_ops!(handles, desc, B::int_not_equal_elem)
+                    scalar_int_cmp_ops!(handles, desc, B::int_not_equal_elem);
                 }
                 BaseOperationIr::All(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
@@ -766,37 +775,37 @@ impl<B: BackendIr> TensorInterpreter<B> {
             },
             OperationIr::NumericFloat(_dtype, op) => match op {
                 NumericOperationIr::Add(desc) => {
-                    binary_float_ops!(handles, desc, B::float_add)
+                    binary_float_ops!(handles, desc, B::float_add);
                 }
                 NumericOperationIr::AddScalar(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_add_scalar)
+                    scalar_float_ops!(handles, desc, B::float_add_scalar);
                 }
                 NumericOperationIr::Sub(desc) => {
-                    binary_float_ops!(handles, desc, B::float_sub)
+                    binary_float_ops!(handles, desc, B::float_sub);
                 }
                 NumericOperationIr::SubScalar(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_sub_scalar)
+                    scalar_float_ops!(handles, desc, B::float_sub_scalar);
                 }
                 NumericOperationIr::Div(desc) => {
-                    binary_float_ops!(handles, desc, B::float_div)
+                    binary_float_ops!(handles, desc, B::float_div);
                 }
                 NumericOperationIr::DivScalar(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_div_scalar)
+                    scalar_float_ops!(handles, desc, B::float_div_scalar);
                 }
                 NumericOperationIr::Rem(desc) => {
-                    binary_float_ops!(handles, desc, B::float_remainder)
+                    binary_float_ops!(handles, desc, B::float_remainder);
                 }
                 NumericOperationIr::RemScalar(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_remainder_scalar)
+                    scalar_float_ops!(handles, desc, B::float_remainder_scalar);
                 }
                 NumericOperationIr::Mul(desc) => {
-                    binary_float_ops!(handles, desc, B::float_mul)
+                    binary_float_ops!(handles, desc, B::float_mul);
                 }
                 NumericOperationIr::MulScalar(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_mul_scalar)
+                    scalar_float_ops!(handles, desc, B::float_mul_scalar);
                 }
                 NumericOperationIr::Abs(desc) => {
-                    unary_float_ops!(handles, desc, B::float_abs)
+                    unary_float_ops!(handles, desc, B::float_abs);
                 }
                 NumericOperationIr::Full(desc) => {
                     let shape = desc.out.shape.clone();
@@ -811,66 +820,66 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 NumericOperationIr::MeanDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_mean_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Mean(desc) => {
-                    unary_float_ops!(handles, desc, B::float_mean)
+                    unary_float_ops!(handles, desc, B::float_mean);
                 }
                 NumericOperationIr::Sum(desc) => {
-                    unary_float_ops!(handles, desc, B::float_sum)
+                    unary_float_ops!(handles, desc, B::float_sum);
                 }
                 NumericOperationIr::SumDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_sum_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Prod(desc) => {
-                    unary_float_ops!(handles, desc, B::float_prod)
+                    unary_float_ops!(handles, desc, B::float_prod);
                 }
                 NumericOperationIr::ProdDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_prod_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Greater(desc) => {
-                    binary_float_cmp_ops!(handles, desc, B::float_greater)
+                    binary_float_cmp_ops!(handles, desc, B::float_greater);
                 }
                 NumericOperationIr::GreaterElem(desc) => {
-                    scalar_float_cmp_ops!(handles, desc, B::float_greater_elem)
+                    scalar_float_cmp_ops!(handles, desc, B::float_greater_elem);
                 }
                 NumericOperationIr::GreaterEqual(desc) => {
-                    binary_float_cmp_ops!(handles, desc, B::float_greater_equal)
+                    binary_float_cmp_ops!(handles, desc, B::float_greater_equal);
                 }
                 NumericOperationIr::GreaterEqualElem(desc) => {
-                    scalar_float_cmp_ops!(handles, desc, B::float_greater_equal_elem)
+                    scalar_float_cmp_ops!(handles, desc, B::float_greater_equal_elem);
                 }
                 NumericOperationIr::Lower(desc) => {
-                    binary_float_cmp_ops!(handles, desc, B::float_lower)
+                    binary_float_cmp_ops!(handles, desc, B::float_lower);
                 }
                 NumericOperationIr::LowerElem(desc) => {
-                    scalar_float_cmp_ops!(handles, desc, B::float_lower_elem)
+                    scalar_float_cmp_ops!(handles, desc, B::float_lower_elem);
                 }
                 NumericOperationIr::LowerEqual(desc) => {
-                    binary_float_cmp_ops!(handles, desc, B::float_lower_equal)
+                    binary_float_cmp_ops!(handles, desc, B::float_lower_equal);
                 }
                 NumericOperationIr::LowerEqualElem(desc) => {
-                    scalar_float_cmp_ops!(handles, desc, B::float_lower_equal_elem)
+                    scalar_float_cmp_ops!(handles, desc, B::float_lower_equal_elem);
                 }
                 NumericOperationIr::ArgMax(desc) => {
                     reduce_float2int_dim_ops!(handles, desc, |tensor, axis, _, dtype| {
                         B::float_argmax(tensor, axis, dtype)
-                    })
+                    });
                 }
                 NumericOperationIr::ArgTopK(desc) => {
-                    reduce_float2int_dim_ops!(handles, desc, B::float_argtopk)
+                    reduce_float2int_dim_ops!(handles, desc, B::float_argtopk);
                 }
                 NumericOperationIr::ArgMin(desc) => {
                     reduce_float2int_dim_ops!(handles, desc, |tensor, axis, _, dtype| {
                         B::float_argmin(tensor, axis, dtype)
-                    })
+                    });
                 }
                 NumericOperationIr::Max(desc) => {
-                    unary_float_ops!(handles, desc, B::float_max)
+                    unary_float_ops!(handles, desc, B::float_max);
                 }
                 NumericOperationIr::MaxDimWithIndices(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -907,28 +916,28 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
                 NumericOperationIr::Min(desc) => {
-                    unary_float_ops!(handles, desc, B::float_min)
+                    unary_float_ops!(handles, desc, B::float_min);
                 }
                 NumericOperationIr::MaxDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_max_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::TopK(desc) => {
-                    reduce_float_dim_ops!(handles, desc, B::float_topk)
+                    reduce_float_dim_ops!(handles, desc, B::float_topk);
                 }
                 NumericOperationIr::MinDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_min_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::MaxAbs(desc) => {
-                    unary_float_ops!(handles, desc, B::float_max_abs)
+                    unary_float_ops!(handles, desc, B::float_max_abs);
                 }
                 NumericOperationIr::MaxAbsDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_max_abs_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -944,7 +953,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::PowiScalar(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_powi_scalar)
+                    scalar_float_ops!(handles, desc, B::float_powi_scalar);
                 }
                 NumericOperationIr::CumSum(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
@@ -967,16 +976,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::Neg(desc) => {
-                    unary_float_ops!(handles, desc, B::float_neg)
+                    unary_float_ops!(handles, desc, B::float_neg);
                 }
                 NumericOperationIr::Sign(desc) => {
-                    unary_float_ops!(handles, desc, B::float_sign)
+                    unary_float_ops!(handles, desc, B::float_sign);
                 }
                 NumericOperationIr::ClampMin(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_clamp_min)
+                    scalar_float_ops!(handles, desc, B::float_clamp_min);
                 }
                 NumericOperationIr::ClampMax(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_clamp_max)
+                    scalar_float_ops!(handles, desc, B::float_clamp_max);
                 }
                 NumericOperationIr::Sort(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
@@ -1003,37 +1012,37 @@ impl<B: BackendIr> TensorInterpreter<B> {
             },
             OperationIr::NumericInt(_dtype, op) => match op {
                 NumericOperationIr::Add(desc) => {
-                    binary_int_ops!(handles, desc, B::int_add)
+                    binary_int_ops!(handles, desc, B::int_add);
                 }
                 NumericOperationIr::AddScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::int_add_scalar)
+                    scalar_int_ops!(handles, desc, B::int_add_scalar);
                 }
                 NumericOperationIr::Sub(desc) => {
-                    binary_int_ops!(handles, desc, B::int_sub)
+                    binary_int_ops!(handles, desc, B::int_sub);
                 }
                 NumericOperationIr::SubScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::int_sub_scalar)
+                    scalar_int_ops!(handles, desc, B::int_sub_scalar);
                 }
                 NumericOperationIr::Div(desc) => {
-                    binary_int_ops!(handles, desc, B::int_div)
+                    binary_int_ops!(handles, desc, B::int_div);
                 }
                 NumericOperationIr::DivScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::int_div_scalar)
+                    scalar_int_ops!(handles, desc, B::int_div_scalar);
                 }
                 NumericOperationIr::Rem(desc) => {
-                    binary_int_ops!(handles, desc, B::int_remainder)
+                    binary_int_ops!(handles, desc, B::int_remainder);
                 }
                 NumericOperationIr::RemScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::int_remainder_scalar)
+                    scalar_int_ops!(handles, desc, B::int_remainder_scalar);
                 }
                 NumericOperationIr::Mul(desc) => {
-                    binary_int_ops!(handles, desc, B::int_mul)
+                    binary_int_ops!(handles, desc, B::int_mul);
                 }
                 NumericOperationIr::MulScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::int_mul_scalar)
+                    scalar_int_ops!(handles, desc, B::int_mul_scalar);
                 }
                 NumericOperationIr::Abs(desc) => {
-                    unary_int_ops!(handles, desc, B::int_abs)
+                    unary_int_ops!(handles, desc, B::int_abs);
                 }
                 NumericOperationIr::Full(desc) => {
                     let shape = desc.out.shape.clone();
@@ -1048,66 +1057,66 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 NumericOperationIr::MeanDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_mean_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Mean(desc) => {
-                    unary_int_ops!(handles, desc, B::int_mean)
+                    unary_int_ops!(handles, desc, B::int_mean);
                 }
                 NumericOperationIr::Sum(desc) => {
-                    unary_int_ops!(handles, desc, B::int_sum)
+                    unary_int_ops!(handles, desc, B::int_sum);
                 }
                 NumericOperationIr::SumDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_sum_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Prod(desc) => {
-                    unary_int_ops!(handles, desc, B::int_prod)
+                    unary_int_ops!(handles, desc, B::int_prod);
                 }
                 NumericOperationIr::ProdDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_prod_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Greater(desc) => {
-                    binary_int_cmp_ops!(handles, desc, B::int_greater)
+                    binary_int_cmp_ops!(handles, desc, B::int_greater);
                 }
                 NumericOperationIr::GreaterElem(desc) => {
-                    scalar_int_cmp_ops!(handles, desc, B::int_greater_elem)
+                    scalar_int_cmp_ops!(handles, desc, B::int_greater_elem);
                 }
                 NumericOperationIr::GreaterEqual(desc) => {
-                    binary_int_cmp_ops!(handles, desc, B::int_greater_equal)
+                    binary_int_cmp_ops!(handles, desc, B::int_greater_equal);
                 }
                 NumericOperationIr::GreaterEqualElem(desc) => {
-                    scalar_int_cmp_ops!(handles, desc, B::int_greater_equal_elem)
+                    scalar_int_cmp_ops!(handles, desc, B::int_greater_equal_elem);
                 }
                 NumericOperationIr::Lower(desc) => {
-                    binary_int_cmp_ops!(handles, desc, B::int_lower)
+                    binary_int_cmp_ops!(handles, desc, B::int_lower);
                 }
                 NumericOperationIr::LowerElem(desc) => {
-                    scalar_int_cmp_ops!(handles, desc, B::int_lower_elem)
+                    scalar_int_cmp_ops!(handles, desc, B::int_lower_elem);
                 }
                 NumericOperationIr::LowerEqual(desc) => {
-                    binary_int_cmp_ops!(handles, desc, B::int_lower_equal)
+                    binary_int_cmp_ops!(handles, desc, B::int_lower_equal);
                 }
                 NumericOperationIr::LowerEqualElem(desc) => {
-                    scalar_int_cmp_ops!(handles, desc, B::int_lower_equal_elem)
+                    scalar_int_cmp_ops!(handles, desc, B::int_lower_equal_elem);
                 }
                 NumericOperationIr::ArgMax(desc) => {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_argmax(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::ArgTopK(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_argtopk)
+                    reduce_int_dim_ops!(handles, desc, B::int_argtopk);
                 }
                 NumericOperationIr::ArgMin(desc) => {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_argmin(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Max(desc) => {
-                    unary_int_ops!(handles, desc, B::int_max)
+                    unary_int_ops!(handles, desc, B::int_max);
                 }
                 NumericOperationIr::MaxDimWithIndices(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
@@ -1131,28 +1140,28 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
                 NumericOperationIr::Min(desc) => {
-                    unary_int_ops!(handles, desc, B::int_min)
+                    unary_int_ops!(handles, desc, B::int_min);
                 }
                 NumericOperationIr::MaxDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_max_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::TopK(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_topk)
+                    reduce_int_dim_ops!(handles, desc, B::int_topk);
                 }
                 NumericOperationIr::MinDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_min_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::MaxAbs(desc) => {
-                    unary_int_ops!(handles, desc, B::int_max_abs)
+                    unary_int_ops!(handles, desc, B::int_max_abs);
                 }
                 NumericOperationIr::MaxAbsDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_max_abs_dim(
                         tensor, axis
-                    ))
+                    ));
                 }
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
@@ -1179,7 +1188,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::PowiScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::int_powi_scalar)
+                    scalar_int_ops!(handles, desc, B::int_powi_scalar);
                 }
                 NumericOperationIr::CumSum(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
@@ -1202,16 +1211,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::Neg(desc) => {
-                    unary_int_ops!(handles, desc, B::int_neg)
+                    unary_int_ops!(handles, desc, B::int_neg);
                 }
                 NumericOperationIr::Sign(desc) => {
-                    unary_int_ops!(handles, desc, B::int_sign)
+                    unary_int_ops!(handles, desc, B::int_sign);
                 }
                 NumericOperationIr::ClampMin(desc) => {
-                    scalar_int_ops!(handles, desc, B::int_clamp_min)
+                    scalar_int_ops!(handles, desc, B::int_clamp_min);
                 }
                 NumericOperationIr::ClampMax(desc) => {
-                    scalar_int_ops!(handles, desc, B::int_clamp_max)
+                    scalar_int_ops!(handles, desc, B::int_clamp_max);
                 }
                 NumericOperationIr::Sort(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
@@ -1251,13 +1260,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BoolOperationIr::And(desc) => {
-                    binary_bool_ops!(handles, desc, B::bool_and)
+                    binary_bool_ops!(handles, desc, B::bool_and);
                 }
                 BoolOperationIr::Or(desc) => {
-                    binary_bool_ops!(handles, desc, B::bool_or)
+                    binary_bool_ops!(handles, desc, B::bool_or);
                 }
                 BoolOperationIr::Xor(desc) => {
-                    binary_bool_ops!(handles, desc, B::bool_xor)
+                    binary_bool_ops!(handles, desc, B::bool_xor);
                 }
             },
             OperationIr::Int(op) => match op {
@@ -1268,72 +1277,72 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 IntOperationIr::Matmul(desc) => {
-                    binary_int_ops!(handles, desc, B::int_matmul)
+                    binary_int_ops!(handles, desc, B::int_matmul);
                 }
                 IntOperationIr::BitwiseAnd(desc) => {
-                    binary_int_ops!(handles, desc, B::bitwise_and)
+                    binary_int_ops!(handles, desc, B::bitwise_and);
                 }
                 IntOperationIr::BitwiseAndScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::bitwise_and_scalar)
+                    scalar_int_ops!(handles, desc, B::bitwise_and_scalar);
                 }
                 IntOperationIr::BitwiseOr(desc) => {
-                    binary_int_ops!(handles, desc, B::bitwise_or)
+                    binary_int_ops!(handles, desc, B::bitwise_or);
                 }
                 IntOperationIr::BitwiseOrScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::bitwise_or_scalar)
+                    scalar_int_ops!(handles, desc, B::bitwise_or_scalar);
                 }
                 IntOperationIr::BitwiseXor(desc) => {
-                    binary_int_ops!(handles, desc, B::bitwise_xor)
+                    binary_int_ops!(handles, desc, B::bitwise_xor);
                 }
                 IntOperationIr::BitwiseXorScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::bitwise_xor_scalar)
+                    scalar_int_ops!(handles, desc, B::bitwise_xor_scalar);
                 }
                 IntOperationIr::BitwiseNot(desc) => {
-                    unary_int_ops!(handles, desc, B::bitwise_not)
+                    unary_int_ops!(handles, desc, B::bitwise_not);
                 }
                 IntOperationIr::BitwiseLeftShift(desc) => {
-                    binary_int_ops!(handles, desc, B::bitwise_left_shift)
+                    binary_int_ops!(handles, desc, B::bitwise_left_shift);
                 }
                 IntOperationIr::BitwiseRightShift(desc) => {
-                    binary_int_ops!(handles, desc, B::bitwise_right_shift)
+                    binary_int_ops!(handles, desc, B::bitwise_right_shift);
                 }
                 IntOperationIr::BitwiseLeftShiftScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::bitwise_left_shift_scalar)
+                    scalar_int_ops!(handles, desc, B::bitwise_left_shift_scalar);
                 }
                 IntOperationIr::BitwiseRightShiftScalar(desc) => {
-                    scalar_int_ops!(handles, desc, B::bitwise_right_shift_scalar)
+                    scalar_int_ops!(handles, desc, B::bitwise_right_shift_scalar);
                 }
             },
             OperationIr::Float(_dtype, op) => match op {
                 FloatOperationIr::Exp(desc) => {
-                    unary_float_ops!(handles, desc, B::float_exp)
+                    unary_float_ops!(handles, desc, B::float_exp);
                 }
                 FloatOperationIr::Powf(desc) => {
-                    binary_float_ops!(handles, desc, B::float_powf)
+                    binary_float_ops!(handles, desc, B::float_powf);
                 }
                 FloatOperationIr::Log(desc) => {
-                    unary_float_ops!(handles, desc, B::float_log)
+                    unary_float_ops!(handles, desc, B::float_log);
                 }
                 FloatOperationIr::Log1p(desc) => {
-                    unary_float_ops!(handles, desc, B::float_log1p)
+                    unary_float_ops!(handles, desc, B::float_log1p);
                 }
                 FloatOperationIr::Erf(desc) => {
-                    unary_float_ops!(handles, desc, B::float_erf)
+                    unary_float_ops!(handles, desc, B::float_erf);
                 }
                 FloatOperationIr::PowfScalar(desc) => {
-                    scalar_float_ops!(handles, desc, B::float_powf_scalar)
+                    scalar_float_ops!(handles, desc, B::float_powf_scalar);
                 }
                 FloatOperationIr::Sqrt(desc) => {
-                    unary_float_ops!(handles, desc, B::float_sqrt)
+                    unary_float_ops!(handles, desc, B::float_sqrt);
                 }
                 FloatOperationIr::Cos(desc) => {
-                    unary_float_ops!(handles, desc, B::float_cos)
+                    unary_float_ops!(handles, desc, B::float_cos);
                 }
                 FloatOperationIr::Sin(desc) => {
-                    unary_float_ops!(handles, desc, B::float_sin)
+                    unary_float_ops!(handles, desc, B::float_sin);
                 }
                 FloatOperationIr::Tanh(desc) => {
-                    unary_float_ops!(handles, desc, B::float_tanh)
+                    unary_float_ops!(handles, desc, B::float_tanh);
                 }
                 FloatOperationIr::Tan(desc) => unary_float_ops!(handles, desc, B::float_tan),
                 FloatOperationIr::Cosh(desc) => unary_float_ops!(handles, desc, B::float_cosh),
@@ -1347,16 +1356,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 FloatOperationIr::ArcTan2(desc) => binary_float_ops!(handles, desc, B::float_atan2),
                 FloatOperationIr::Hypot(desc) => binary_float_ops!(handles, desc, B::float_hypot),
                 FloatOperationIr::Round(desc) => {
-                    unary_float_ops!(handles, desc, B::float_round)
+                    unary_float_ops!(handles, desc, B::float_round);
                 }
                 FloatOperationIr::Floor(desc) => {
-                    unary_float_ops!(handles, desc, B::float_floor)
+                    unary_float_ops!(handles, desc, B::float_floor);
                 }
                 FloatOperationIr::Ceil(desc) => {
-                    unary_float_ops!(handles, desc, B::float_ceil)
+                    unary_float_ops!(handles, desc, B::float_ceil);
                 }
                 FloatOperationIr::Trunc(desc) => {
-                    unary_float_ops!(handles, desc, B::float_trunc)
+                    unary_float_ops!(handles, desc, B::float_trunc);
                 }
                 FloatOperationIr::IntoInt(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
@@ -1365,7 +1374,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 FloatOperationIr::Matmul(desc) => {
-                    binary_float_ops!(handles, desc, B::float_matmul)
+                    binary_float_ops!(handles, desc, B::float_matmul);
                 }
                 FloatOperationIr::Cross(desc) => {
                     let lhs = handles.get_float_tensor::<B>(&desc.lhs);
@@ -1385,7 +1394,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 FloatOperationIr::Recip(desc) => {
-                    unary_float_ops!(handles, desc, B::float_recip)
+                    unary_float_ops!(handles, desc, B::float_recip);
                 }
                 FloatOperationIr::Quantize(_) => todo!(),
                 FloatOperationIr::Dequantize(_) => todo!(),
@@ -2176,13 +2185,17 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Block until all queued backend work has completed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backend synchronization fails.
     pub fn sync(&self) -> Result<(), ExecutionError> {
         B::sync(&self.device)
     }
 
     /// Seed the backend's RNG.
     pub fn seed(&self, seed: u64) {
-        B::seed(&self.device, seed)
+        B::seed(&self.device, seed);
     }
 
     /// The set of supported usages for `dtype` on this backend.

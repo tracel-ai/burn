@@ -45,6 +45,7 @@ impl<B: BackendIr> Default for CustomOpRegistry<B> {
 
 impl<B: BackendIr> CustomOpRegistry<B> {
     /// Create a new, empty registry.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

@@ -276,7 +276,10 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_cat(tensors: Vec<IntTensor<Self>>, dim: usize) -> IntTensor<Self> {
         let client = tensors.first().unwrap().client.clone();
-        let tensors = tensors.into_iter().map(|t| t.into_ir()).collect();
+        let tensors = tensors
+            .into_iter()
+            .map(super::super::tensor::RouterTensor::into_ir)
+            .collect();
         let desc = CatOpIr::create(tensors, dim, || client.create_empty_handle());
 
         client

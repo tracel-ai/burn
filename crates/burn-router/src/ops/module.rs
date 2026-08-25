@@ -6,7 +6,23 @@ use burn_backend::ops::{
     MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
-use burn_ir::*;
+use burn_ir::{
+    AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr, AdaptiveAvgPool2dBackwardOpIr,
+    AdaptiveAvgPool2dOpIr, AdaptiveAvgPool3dBackwardOpIr, AdaptiveAvgPool3dOpIr, AttentionOpIr,
+    AvgPool1dBackwardOpIr, AvgPool1dOpIr, AvgPool2dBackwardOpIr, AvgPool2dOpIr, BatchNormOpIr,
+    Conv1dBiasBackwardOpIr, Conv1dOpIr, Conv1dWeightBackwardOpIr, Conv1dXBackwardOpIr,
+    Conv2dBiasBackwardOpIr, Conv2dOpIr, Conv2dWeightBackwardOpIr, Conv2dXBackwardOpIr,
+    Conv3dBiasBackwardOpIr, Conv3dOpIr, Conv3dWeightBackwardOpIr, Conv3dXBackwardOpIr,
+    ConvTranspose1dBiasBackwardOpIr, ConvTranspose1dOpIr, ConvTranspose1dWeightBackwardOpIr,
+    ConvTranspose2dBiasBackwardOpIr, ConvTranspose2dOpIr, ConvTranspose2dWeightBackwardOpIr,
+    ConvTranspose3dBiasBackwardOpIr, ConvTranspose3dOpIr, ConvTranspose3dWeightBackwardOpIr,
+    DeformConv2dBackwardOpIr, DeformConv2dOpIr, EmbeddingBackwardOpIr, EmbeddingOpIr,
+    InterpolateBackwardOpIr, InterpolateOpIr, LayerNormOpIr, LinearBiasBackwardOpIr, LinearOpIr,
+    LinearWeightBackwardOpIr, LinearXBackwardOpIr, MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr,
+    MaxPool1dWithIndicesOpIr, MaxPool2dOpIr, MaxPool2dWithIndicesBackwardOpIr,
+    MaxPool2dWithIndicesOpIr, ModuleOperationIr, OperationIr, OperationOutput, ScalarIr,
+    Unfold4dOpIr, Unfold4dOptionsIr,
+};
 use burn_std::IntDType;
 
 use crate::{BackendRouter, RouterChannel, RouterClient};
@@ -77,7 +93,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = LinearOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             || client.create_empty_handle(),
         );
 
@@ -140,7 +156,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = LayerNormOpIr::create(
             tensor.into_ir(),
             gamma.into_ir(),
-            beta.map(|b| b.into_ir()),
+            beta.map(super::super::tensor::RouterTensor::into_ir),
             epsilon,
             || client.create_empty_handle(),
         );
@@ -300,7 +316,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = Conv1dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -384,7 +400,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = Conv2dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -468,7 +484,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = Conv3dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -552,7 +568,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = ConvTranspose1dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -574,7 +590,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = ConvTranspose2dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -596,7 +612,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = ConvTranspose3dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -1029,8 +1045,8 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             x.into_ir(),
             offset.into_ir(),
             weight.into_ir(),
-            mask.map(|mask| mask.into_ir()),
-            bias.map(|bias| bias.into_ir()),
+            mask.map(super::super::tensor::RouterTensor::into_ir),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -1059,8 +1075,8 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             x.into_ir(),
             offset.into_ir(),
             weight.into_ir(),
-            mask.map(|mask| mask.into_ir()),
-            bias.map(|bias| bias.into_ir()),
+            mask.map(super::super::tensor::RouterTensor::into_ir),
+            bias.map(super::super::tensor::RouterTensor::into_ir),
             output_grad.into_ir(),
             options.into(),
             || client.create_empty_handle(),
@@ -1095,7 +1111,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             key.into_ir(),
             value.into_ir(),
             mask.map(|m: BoolTensor<Self>| m.into_ir()),
-            attn_bias.map(|ab| ab.into_ir()),
+            attn_bias.map(super::super::tensor::RouterTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );

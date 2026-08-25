@@ -280,7 +280,10 @@ impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_cat(tensors: Vec<BoolTensor<Self>>, dim: usize) -> BoolTensor<Self> {
         let client = tensors.first().unwrap().client.clone();
-        let tensors = tensors.into_iter().map(|t| t.into_ir()).collect();
+        let tensors = tensors
+            .into_iter()
+            .map(super::super::tensor::RouterTensor::into_ir)
+            .collect();
         let desc = CatOpIr::create(tensors, dim, || client.create_empty_handle());
 
         client

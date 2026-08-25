@@ -1165,7 +1165,10 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_cat(tensors: Vec<FloatTensor<Self>>, dim: usize) -> FloatTensor<Self> {
         let client = tensors.first().unwrap().client.clone();
-        let tensors = tensors.into_iter().map(|t| t.into_ir()).collect();
+        let tensors = tensors
+            .into_iter()
+            .map(super::super::tensor::RouterTensor::into_ir)
+            .collect();
         let desc = CatOpIr::create(tensors, dim, || client.create_empty_handle());
 
         client

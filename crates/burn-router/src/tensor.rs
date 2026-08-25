@@ -151,8 +151,7 @@ impl<C: RouterClient> Drop for RouterTensor<C> {
                 };
                 self.client.register_op(burn_ir::OperationIr::Drop(ir));
             }
-            TensorStatus::ReadOnly => {}
-            TensorStatus::NotInit => {}
+            TensorStatus::ReadOnly | TensorStatus::NotInit => {}
         }
     }
 }

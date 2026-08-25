@@ -43,6 +43,7 @@ pub struct Graph {
 
 impl Graph {
     /// Wrap a relative op-graph so it can be replayed.
+    #[must_use]
     pub fn new(ops: Vec<OperationIr>) -> Self {
         Self {
             graph: Arc::new(GraphIr::new(ops)),
@@ -50,26 +51,31 @@ impl Graph {
     }
 
     /// Number of operations in the graph.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.graph.len()
     }
 
     /// Whether the graph has no operations.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.graph.is_empty()
     }
 
     /// Return the relative operation sequence.
+    #[must_use]
     pub fn operations(&self) -> &[OperationIr] {
         &self.graph.operations
     }
 
     /// Return the relative input boundary.
+    #[must_use]
     pub fn inputs(&self) -> &[TensorId] {
         &self.graph.inputs
     }
 
     /// Return the relative output boundary.
+    #[must_use]
     pub fn outputs(&self) -> &[TensorId] {
         &self.graph.outputs
     }
@@ -89,6 +95,7 @@ impl Graph {
     ///
     /// The returned graph can be inspected by a non-executing consumer such as graph capture.
     /// Binding itself performs no tensor computation.
+    #[must_use]
     pub fn bind(&self, bindings: GraphBindings) -> GraphIr {
         let mut operations = Vec::with_capacity(self.graph.operations.len());
         self.for_each_bound_operation(bindings, |operation| operations.push(operation));
@@ -114,7 +121,7 @@ impl Graph {
         } = bindings;
         // The boundary map *is* the working id table — seeded here, intermediates added on demand.
         let mut ids: HashMap<TensorId, TensorId> = tensors.into_iter().collect();
-        for op in self.graph.operations.iter() {
+        for op in &self.graph.operations {
             let mut op = op.clone();
             let mut visitor = BindingVisitor {
                 ids: &mut ids,
