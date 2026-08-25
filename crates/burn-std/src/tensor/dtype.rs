@@ -147,9 +147,11 @@ pub enum FloatDType {
 
 /// Numerical precision properties for a floating-point dtype.
 ///
-/// Equivalent to NumPy's `finfo` / PyTorch's `torch.finfo`. All values are
-/// widened to `f64` so they can be inspected without knowing the concrete
-/// element type at compile time.
+    /// Equivalent to NumPy's [`finfo`] / PyTorch's `torch.finfo`. All values are
+    /// widened to `f64` so they can be inspected without knowing the concrete
+    /// element type at compile time.
+    ///
+    /// [`finfo`]: https://numpy.org/doc/stable/reference/generated/numpy.finfo.html
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FloatInfo {
     /// Machine epsilon: smallest value such that `1.0 + epsilon != 1.0`.
@@ -182,13 +184,7 @@ impl FloatDType {
             },
             // Flex32 stores as f32 but computes at reduced (f16-like) precision.
             // Use f16 precision limits so stability code stays safe.
-            FloatDType::Flex32 => FloatInfo {
-                epsilon: f16::EPSILON.to_f64_const(),
-                max: f16::MAX.to_f64_const(),
-                min: f16::MIN.to_f64_const(),
-                min_positive: f16::MIN_POSITIVE.to_f64_const(), // ~6.104e-5
-            },
-            FloatDType::F16 => FloatInfo {
+            FloatDType::Flex32 | FloatDType::F16 => FloatInfo {
                 epsilon: f16::EPSILON.to_f64_const(),
                 max: f16::MAX.to_f64_const(),
                 min: f16::MIN.to_f64_const(),

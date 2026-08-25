@@ -242,26 +242,26 @@ pub fn reshape_analysis(
                 && shape_new[0..n_new_batch].iter().all(|it| *it == 1)
             {
                 return ReshapeAnalysis::Broadcasted;
-            } else {
-                let mut dim_prod = 1;
-                let mut old_idx = 0;
-                for dim in shape_new.iter() {
-                    dim_prod *= *dim;
-
-                    // We need to ignore unit dims because they don't affect analysis and break
-                    // things because they match the default `dim_prod`. If we don't do this,
-                    // reshapes like [2, 3] to [2, 3, 1] will panic from out of bounds access.
-                    if *dim == 1 {
-                        continue;
-                    } else if dim_prod == shape[old_idx] {
-                        dim_prod = 1;
-                        old_idx += 1;
-                    } else if dim_prod > shape[old_idx] {
-                        return ReshapeAnalysis::HighlyPermuted;
-                    }
-                }
-                return ReshapeAnalysis::Split;
             }
+
+            let mut dim_prod = 1;
+            let mut old_idx = 0;
+            for dim in shape_new.iter() {
+                dim_prod *= *dim;
+
+                // We need to ignore unit dims because they don't affect analysis and break
+                // things because they match the default `dim_prod`. If we don't do this,
+                // reshapes like [2, 3] to [2, 3, 1] will panic from out of bounds access.
+                if *dim == 1 {
+                    continue;
+                } else if dim_prod == shape[old_idx] {
+                    dim_prod = 1;
+                    old_idx += 1;
+                } else if dim_prod > shape[old_idx] {
+                    return ReshapeAnalysis::HighlyPermuted;
+                }
+            }
+            return ReshapeAnalysis::Split;
         }
 
         false => {

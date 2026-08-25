@@ -163,7 +163,7 @@ impl TensorData {
                         .map(|e: &f64| e.elem::<E>()),
                 ),
                 // bool is a byte value equal to either 0 or 1
-                DType::Bool(BoolStore::Native) | DType::Bool(BoolStore::U8) => {
+                DType::Bool(BoolStore::Native | BoolStore::U8) => {
                     Box::new(self.bytes.iter().map(|e| e.elem::<E>()))
                 }
                 DType::Bool(BoolStore::U32) => Box::new(
