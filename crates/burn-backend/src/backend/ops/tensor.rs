@@ -1045,7 +1045,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with logarithm values of (1 + Xi).
     fn float_log1p(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
-    /// Element-wise power with a FloatTensor.
+    /// Element-wise power with a `FloatTensor`.
     ///
     /// # Arguments
     ///
@@ -1057,7 +1057,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn float_powf(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
-    /// Element-wise power with an IntTensor.
+    /// Element-wise power with an `IntTensor`.
     ///
     /// # Arguments
     ///
@@ -1066,7 +1066,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an `IntTensor`.
     fn float_powi(lhs: FloatTensor<B>, rhs: IntTensor<B>) -> FloatTensor<B> {
         let dtype = lhs.dtype();
         Self::float_powf(lhs, B::int_into_float(rhs, dtype.into()))
@@ -1927,14 +1927,14 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor being sampled from, must be contiguous with shape (N, C, H_in, W_in)
-    /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+    /// * `tensor` - The tensor being sampled from, must be contiguous with shape (N, C, `H_in`, `W_in`)
+    /// * `grid` - A tensor of locations, with shape (N, `H_out`, `W_out`, 2). Values are [-1, 1].
     ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
-    /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
+    /// * `options` - Grid sampling options (mode, `padding_mode`, `align_corners`)
     ///
     /// # Returns
     ///
-    /// A tensor with shape (N, C, H_out, W_out)
+    /// A tensor with shape (N, C, `H_out`, `W_out`)
     fn float_grid_sample_2d(
         tensor: FloatTensor<B>,
         grid: FloatTensor<B>,

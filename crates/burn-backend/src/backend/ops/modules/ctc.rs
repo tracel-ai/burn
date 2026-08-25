@@ -591,7 +591,7 @@ fn create_l_prime_mask<B: Backend>(
     B::bool_and(B::bool_and(not_blank, not_equal_s_m2), s_ge_2)
 }
 
-/// Create a mask for valid s positions: s < 2 * target_length + 1
+/// Create a mask for valid s positions: s < 2 * `target_length` + 1
 fn create_s_mask<B: Backend>(
     target_lengths: &IntTensor<B>,
     batch_size: usize,

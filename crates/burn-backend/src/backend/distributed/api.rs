@@ -25,6 +25,7 @@ pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, Cl
 }
 
 /// Get the distributed sync client for the given [Backend].
+#[must_use]
 pub fn get_distributed_sync_client<B: Backend>() -> Option<DistributedSyncClient<B>> {
     let typeid = TypeId::of::<B>();
     let state_map = get_backend_client_map();

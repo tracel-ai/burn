@@ -38,13 +38,13 @@ impl<B: Backend> DistributedSyncServer<B> {
     pub(crate) fn process_message(&mut self, msg: DistributedSyncMessage<B>) {
         match msg {
             DistributedSyncMessage::RegisterSyncParameters(params) => {
-                self.register_sync_params(params)
+                self.register_sync_params(params);
             }
             DistributedSyncMessage::TensorSync((tensor, params)) => {
-                self.register_tensor(tensor, params)
+                self.register_tensor(tensor, params);
             }
             DistributedSyncMessage::CollectiveSync((device, callback)) => {
-                self.collective_sync(device, callback)
+                self.collective_sync(device, callback);
             }
         }
     }
@@ -57,7 +57,7 @@ impl<B: Backend> DistributedSyncServer<B> {
         self.devices_registered += 1;
     }
 
-    /// Called on registration of a gradient. Calls the all_reduce operation for any parameter that is no longer required in the autodiff graph.
+    /// Called on registration of a gradient. Calls the `all_reduce` operation for any parameter that is no longer required in the autodiff graph.
     fn register_tensor(&mut self, tensor: TensorRef<B>, sharded_params: DistributedParams) {
         let op_queue = self
             .all_reduce_ops_queue

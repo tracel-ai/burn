@@ -6,18 +6,18 @@ use crate::{
 use alloc::vec;
 use burn_std::{Shape, Slice};
 
-/// Reference implementation of grid_sample_2d that supports all options.
+/// Reference implementation of `grid_sample_2d` that supports all options.
 ///
 /// # Arguments
 ///
-/// * `tensor` - The tensor being sampled from, must be contiguous with shape (N, C, H_in, W_in)
-/// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+/// * `tensor` - The tensor being sampled from, must be contiguous with shape (N, C, `H_in`, `W_in`)
+/// * `grid` - A tensor of locations, with shape (N, `H_out`, `W_out`, 2). Values are [-1, 1].
 ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
 /// * `options` - Grid sampling options
 ///
 /// # Returns
 ///
-/// A tensor with shape (N, C, H_out, W_out)
+/// A tensor with shape (N, C, `H_out`, `W_out`)
 pub fn float_grid_sample_2d_ref<B: Backend>(
     tensor: FloatTensor<B>,
     grid: FloatTensor<B>,
@@ -279,8 +279,8 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
 
 /// Reflect coordinates at boundaries using a triangle wave pattern.
 ///
-/// For align_corners=true: reflects within [0, size-1]
-/// For align_corners=false: reflects within [-0.5, size-0.5]
+/// For `align_corners=true`: reflects within [0, size-1]
+/// For `align_corners=false`: reflects within [-0.5, size-0.5]
 fn reflect_coordinates<B: Backend>(
     coords: FloatTensor<B>,
     size: f64,

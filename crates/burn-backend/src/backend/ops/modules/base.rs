@@ -22,7 +22,7 @@ pub struct Conv2dBackward<B: Backend> {
     pub bias_grad: Option<FloatTensor<B>>,
 }
 
-/// Gradient computed during the backward pass for each tensor used by [deform_conv2d](ModuleOps::deform_conv2d).
+/// Gradient computed during the backward pass for each tensor used by [`deform_conv2d`](ModuleOps::deform_conv2d).
 #[derive(new)]
 pub struct DeformConv2dBackward<B: Backend> {
     /// Gradient.
@@ -54,14 +54,14 @@ pub struct Conv3dBackward<B: Backend> {
     pub bias_grad: Option<FloatTensor<B>>,
 }
 
-/// Gradient computed during the backward pass for each tensor used by [max_pool1d](ModuleOps::max_pool1d).
+/// Gradient computed during the backward pass for each tensor used by [`max_pool1d`](ModuleOps::max_pool1d).
 #[derive(new)]
 pub struct MaxPool1dBackward<B: Backend> {
     /// Gradient.
     pub x_grad: FloatTensor<B>,
 }
 
-/// Results from [max_pool1d](ModuleOps::max_pool1d_with_indices).
+/// Results from [`max_pool1d`](ModuleOps::max_pool1d_with_indices).
 #[derive(new)]
 pub struct MaxPool1dWithIndices<B: Backend> {
     /// The output tensor.
@@ -71,14 +71,14 @@ pub struct MaxPool1dWithIndices<B: Backend> {
     pub indices: IntTensor<B>,
 }
 
-/// Gradient computed during the backward pass for each tensor used by [max_pool2d](ModuleOps::max_pool2d).
+/// Gradient computed during the backward pass for each tensor used by [`max_pool2d`](ModuleOps::max_pool2d).
 #[derive(new)]
 pub struct MaxPool2dBackward<B: Backend> {
     /// Gradient.
     pub x_grad: FloatTensor<B>,
 }
 
-/// Results from [max_pool2d](ModuleOps::max_pool2d_with_indices).
+/// Results from [`max_pool2d`](ModuleOps::max_pool2d_with_indices).
 #[derive(new)]
 pub struct MaxPool2dWithIndices<B: Backend> {
     /// The output tensor.
@@ -299,7 +299,7 @@ pub trait ModuleOps<B: Backend> {
         bias: Option<FloatTensor<B>>,
         options: DeformConvOptions<2>,
     ) -> FloatTensor<B>;
-    /// Backward pass for the [deform_conv2d](ModuleOps::deform_conv2d) operation.
+    /// Backward pass for the [`deform_conv2d`](ModuleOps::deform_conv2d) operation.
     fn deform_conv2d_backward(
         x: FloatTensor<B>,
         offset: FloatTensor<B>,
@@ -506,7 +506,7 @@ pub trait ModuleOps<B: Backend> {
 
     /// Four dimensional fold (`col2im`), the adjoint of [unfold4d](ModuleOps::unfold4d).
     ///
-    /// Composes [conv_transpose2d](ModuleOps::conv_transpose2d) with the same one-hot weight
+    /// Composes [`conv_transpose2d`](ModuleOps::conv_transpose2d) with the same one-hot weight
     /// [unfold4d](ModuleOps::unfold4d) uses, so backends inherit a correct (and differentiable)
     /// implementation for free and may override it with a custom one.
     ///
@@ -585,7 +585,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, length],
+    /// x: [`batch_size`, channels, length],
     fn avg_pool1d(
         x: FloatTensor<B>,
         kernel_size: usize,
@@ -627,7 +627,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, height, width],
+    /// x: [`batch_size`, channels, height, width],
     fn avg_pool2d(
         x: FloatTensor<B>,
         kernel_size: [usize; 2],
@@ -650,7 +650,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, height, width],
+    /// x: [`batch_size`, channels, height, width],
     fn adaptive_avg_pool2d(x: FloatTensor<B>, output_size: [usize; 2]) -> FloatTensor<B>;
     /// Backward pass for the [adaptive avg pooling 2d](ModuleOps::adaptive_avg_pool2d) operation.
     fn adaptive_avg_pool2d_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B>;
@@ -658,7 +658,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, depth, height, width],
+    /// x: [`batch_size`, channels, depth, height, width],
     fn adaptive_avg_pool3d(x: FloatTensor<B>, output_size: [usize; 3]) -> FloatTensor<B>;
     /// Backward pass for the [adaptive avg pooling 3d](ModuleOps::adaptive_avg_pool3d) operation.
     fn adaptive_avg_pool3d_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B>;
@@ -666,7 +666,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, length],
+    /// x: [`batch_size`, channels, length],
     fn adaptive_avg_pool1d(x: FloatTensor<B>, output_size: usize) -> FloatTensor<B> {
         pool::adaptive_avg_pool1d_from_2d::<B>(x, output_size)
     }
@@ -678,7 +678,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, length],
+    /// x: [`batch_size`, channels, length],
     fn max_pool1d(
         x: FloatTensor<B>,
         kernel_size: usize,
@@ -694,7 +694,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, height, width],
+    /// x: [`batch_size`, channels, height, width],
     fn max_pool1d_with_indices(
         x: FloatTensor<B>,
         kernel_size: usize,
@@ -742,7 +742,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, height, width],
+    /// x: [`batch_size`, channels, height, width],
     fn max_pool2d(
         x: FloatTensor<B>,
         kernel_size: [usize; 2],
@@ -756,7 +756,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels, height, width],
+    /// x: [`batch_size`, channels, height, width],
     fn max_pool2d_with_indices(
         x: FloatTensor<B>,
         kernel_size: [usize; 2],
@@ -799,7 +799,7 @@ pub trait ModuleOps<B: Backend> {
     ) -> FloatTensor<B>;
 
     /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
-    /// where scale defaults to 1/sqrt(head_dim). Optionally applies masking,
+    /// where scale defaults to `1/sqrt(head_dim)`. Optionally applies masking,
     /// additive bias, causal masking, and softcap to the attention scores.
     ///
     /// # Arguments
@@ -809,7 +809,7 @@ pub trait ModuleOps<B: Backend> {
     /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
     ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
     /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
-    ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+    ///   added to the attention scores before softmax (e.g. `ALiBi`, relative position biases).
     /// - `options`: Additional attention options (custom scale, softcap, causal masking).
     ///
     /// # Returns
@@ -901,27 +901,28 @@ pub trait ModuleOps<B: Backend> {
         ctc::ctc_loss_default::<B>(log_probs, targets, input_lengths, target_lengths, blank)
     }
 
-    /// Returns `true` if this backend implements [ctc_loss_backward](ModuleOps::ctc_loss_backward)
+    /// Returns `true` if this backend implements [`ctc_loss_backward`](ModuleOps::ctc_loss_backward)
     /// natively.
     ///
     /// Autodiff queries this flag to decide between two paths:
-    /// - `true`: use the backend's [ctc_loss](ModuleOps::ctc_loss) and
-    ///   [ctc_loss_backward](ModuleOps::ctc_loss_backward) directly.
-    /// - `false`: call [ctc::ctc_loss_default] for the forward pass; autodiff
+    /// - `true`: use the backend's [`ctc_loss`](ModuleOps::ctc_loss) and
+    ///   [`ctc_loss_backward`](ModuleOps::ctc_loss_backward) directly.
+    /// - `false`: call [`ctc::ctc_loss_default`] for the forward pass; autodiff
     ///   then differentiates through the decomposed tensor ops.
     ///
     /// Backends that override `ctc_loss_backward` must also override this to
     /// return `true`.
+    #[must_use]
     fn has_ctc_loss_backward() -> bool {
         false
     }
 
-    /// Backward pass for [ctc_loss](ModuleOps::ctc_loss): gradient w.r.t. `log_probs`.
+    /// Backward pass for [`ctc_loss`](ModuleOps::ctc_loss): gradient w.r.t. `log_probs`.
     ///
-    /// Only called when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
+    /// Only called when [`has_ctc_loss_backward`](ModuleOps::has_ctc_loss_backward)
     /// returns `true`. Backends without a native implementation should leave
     /// both methods at their defaults; the gradient is computed automatically by
-    /// autodiff against the decomposed [ctc::ctc_loss_default] forward.
+    /// autodiff against the decomposed [`ctc::ctc_loss_default`] forward.
     ///
     /// # Arguments
     ///

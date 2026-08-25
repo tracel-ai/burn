@@ -6,12 +6,12 @@ use core::f64::consts::SQRT_2;
 ///
 /// This trait let backend implementations override activation functions for better performance.
 pub trait ActivationOps<B: Backend> {
-    /// Applies the LeakyReLU activation function.
+    /// Applies the `LeakyReLU` activation function.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `negative_slope` - The negative_slope value that values smaller than 0 are multiplied with.
+    /// * `negative_slope` - The `negative_slope` value that values smaller than 0 are multiplied with.
     ///
     /// # Returns
     ///
@@ -25,7 +25,7 @@ pub trait ActivationOps<B: Backend> {
         B::float_mask_where(tensor, mask, scaled_tensor)
     }
 
-    /// Applies the ReLU activation function.
+    /// Applies the `ReLU` activation function.
     ///
     /// # Arguments
     ///
@@ -41,7 +41,7 @@ pub trait ActivationOps<B: Backend> {
         B::float_mask_fill(tensor, mask, 0f32.into())
     }
 
-    /// Applies the ReLU activation function backward.
+    /// Applies the `ReLU` activation function backward.
     ///
     /// # Arguments
     ///
@@ -74,7 +74,7 @@ pub trait ActivationOps<B: Backend> {
 
         B::float_div_scalar(x, 2f32.into())
     }
-    /// Applies the PReLu activation function.
+    /// Applies the `PReLu` activation function.
     /// # Arguments
     /// * `tensor` - The input tensor
     /// * `alpha` - The weight tensor
@@ -189,7 +189,7 @@ pub trait ActivationOps<B: Backend> {
         B::float_cast(tensor_tmp, dtype.into())
     }
 
-    /// Applies the LogSigmoid activation function.
+    /// Applies the `LogSigmoid` activation function.
     ///
     /// # Arguments
     ///
@@ -291,7 +291,7 @@ pub trait ActivationOps<B: Backend> {
         Self::softmax(B::float_neg(tensor), dim)
     }
 
-    /// Applies the LogSigmoid activation function backward.
+    /// Applies the `LogSigmoid` activation function backward.
     ///
     /// # Arguments
     ///

@@ -86,7 +86,7 @@ fn flatten_leading<B: Backend>(tensor: FloatTensor<B>) -> FloatTensor<B> {
     B::float_reshape(tensor, Shape::new([num_rows, d_last]))
 }
 
-/// Default [linear_x_backward](crate::ops::ModuleOps::linear_x_backward) implementation.
+/// Default [`linear_x_backward`](crate::ops::ModuleOps::linear_x_backward) implementation.
 ///
 /// Computes `dx = output_grad @ weight^T` — a [linear] forward against the
 /// transposed weight, so it shares the transform policy.
@@ -99,7 +99,7 @@ pub(crate) fn linear_x_backward<B: Backend>(
     linear::<B>(output_grad, weight, None)
 }
 
-/// Default [linear_weight_backward](crate::ops::ModuleOps::linear_weight_backward) implementation.
+/// Default [`linear_weight_backward`](crate::ops::ModuleOps::linear_weight_backward) implementation.
 ///
 /// Computes `dW = x^T @ output_grad` summed over batch dimensions, as a single
 /// general matmul on the flattened operands: `[d_input, num_rows] @ [num_rows,
@@ -113,7 +113,7 @@ pub(crate) fn linear_weight_backward<B: Backend>(
     B::float_matmul(x, output_grad)
 }
 
-/// Default [linear_bias_backward](crate::ops::ModuleOps::linear_bias_backward) implementation.
+/// Default [`linear_bias_backward`](crate::ops::ModuleOps::linear_bias_backward) implementation.
 ///
 /// Computes `db = sum(output_grad)` over all dimensions except the last, as a
 /// single reduction on the flattened gradient.

@@ -746,7 +746,7 @@ pub trait QTensorOps<B: Backend> {
         dequant_op_flow!(float_op | lhs, rhs | B::float_powf(lhs, rhs), lhs, rhs)
     }
 
-    /// Element-wise power with an IntTensor.
+    /// Element-wise power with an `IntTensor`.
     ///
     /// # Arguments
     ///
@@ -755,7 +755,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an `IntTensor`.
     fn q_powi(lhs: QuantizedTensor<B>, rhs: IntTensor<B>) -> TensorPrimitive<B> {
         dequant_op_flow!(float_op | tensor | B::float_powi(tensor, rhs), lhs)
     }
@@ -918,6 +918,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the concatenated tensors along `dim`.
+    #[must_use]
     fn q_cat(tensors: Vec<QuantizedTensor<B>>, dim: usize) -> QuantizedTensor<B> {
         // Heuristic: prioritize first tensor scheme
         let first = tensors.first().unwrap();

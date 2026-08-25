@@ -75,6 +75,7 @@ pub(crate) fn unfold4d_using_conv2d<B: Backend>(
 }
 
 /// Calculate the number of unfolding windows that can be extracted from a dimension of given size.
+#[must_use]
 pub fn calculate_unfold_windows(dim_size: usize, window_size: usize, step_size: usize) -> usize {
     assert!(step_size > 0);
     let x = dim_size + step_size;

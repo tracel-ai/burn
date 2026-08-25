@@ -3,7 +3,10 @@ pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
 use crate::distributed::DistributedOps;
 pub use crate::element::Element;
-use crate::ops::*;
+use crate::ops::{
+    ActivationOps, BoolTensorOps, FloatTensorOps, IntTensorOps, ModuleOps, QTensorOps,
+    TransactionOps,
+};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{TensorData, TensorMetadata};
 use alloc::string::String;
@@ -230,7 +233,7 @@ pub trait Backend:
     }
 
     /// Prepare `device` for an upcoming graph capture: route allocations into a
-    /// stable pool so every buffer allocated before graph_stop_capture can
+    /// stable pool so every buffer allocated before `graph_stop_capture` can
     /// be pinned. Call before the warmup run. No-op by default.
     ///
     /// See [`burn_graph`](crate) — the closure-based `capture` helper drives
@@ -302,7 +305,7 @@ pub trait Backend:
         Self::dtype_usage(device, dtype).is_superset(DTypeUsage::general())
     }
 
-    /// Returns the [DTypeUsageSet] for the given [DType] on the specified device.
+    /// Returns the [`DTypeUsageSet`] for the given [`DType`] on the specified device.
     fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet;
 
     /// Returns the number of devices available on this backend.
@@ -521,11 +524,12 @@ pub enum DTypeUsage {
     Accelerated,
 }
 
-/// A set of [DTypeUsage] representing the total capabilities of a data type on a device.
+/// A set of [`DTypeUsage`] representing the total capabilities of a data type on a device.
 pub type DTypeUsageSet = EnumSet<DTypeUsage>;
 
 impl DTypeUsage {
     /// Returns the usage set required for general-purpose tensor support.
+    #[must_use]
     pub fn general() -> DTypeUsageSet {
         DTypeUsage::Storage | DTypeUsage::Arithmetic
     }

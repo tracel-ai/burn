@@ -121,6 +121,7 @@ pub fn calculate_conv_transpose_output_shape<const N: usize>(
 }
 
 /// Calculate the expected padding size required when applying a convolution.
+#[must_use]
 pub fn calculate_conv_padding(
     kernel_size: usize,
     stride: usize,
@@ -139,6 +140,7 @@ pub fn calculate_conv_padding(
 }
 
 /// Calculate the expected output size when doing a convolution operation.
+#[must_use]
 pub fn calculate_conv_output_size(
     kernel_size: usize,
     stride: usize,
@@ -150,6 +152,7 @@ pub fn calculate_conv_output_size(
 }
 
 /// Calculate the expected output sizes when doing a convolution operation.
+#[must_use]
 pub fn calculate_conv_output_sizes(
     kernel_size: &[usize],
     stride: &[usize],
@@ -177,6 +180,7 @@ pub fn calculate_conv_output_sizes(
 /// * `size_in` - Input size (height or width)
 /// * `ceil_mode` - If true, use ceiling instead of floor for output size calculation.
 ///   This allows the last pooling window to go out-of-bounds if needed.
+#[must_use]
 pub fn calculate_pool_output_size(
     kernel_size: usize,
     stride: usize,
@@ -196,6 +200,7 @@ pub fn calculate_pool_output_size(
 }
 
 /// Calculate the expected output size when doing a transposed convolution operation.
+#[must_use]
 pub fn calculate_conv_transpose_output_size(
     kernel_size: usize,
     stride: usize,
@@ -292,14 +297,15 @@ pub(crate) fn conv1d_weight_backward<B: Backend>(
     let weight_shape = weight.shape();
     let weight_device = weight.device();
 
-    match options.groups == 1 {
-        true => conv1d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
-        false => conv1d_weight_grad_groups::<B>(
+    if options.groups == 1 {
+        conv1d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options)
+    } else {
+        conv1d_weight_grad_groups::<B>(
             x,
             B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
-        ),
+        )
     }
 }
 
@@ -374,14 +380,15 @@ pub(crate) fn conv2d_weight_backward<B: Backend>(
     let weight_shape = weight.shape();
     let weight_device = weight.device();
 
-    match options.groups == 1 {
-        true => conv2d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
-        false => conv2d_weight_grad_groups::<B>(
+    if options.groups == 1 {
+        conv2d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options)
+    } else {
+        conv2d_weight_grad_groups::<B>(
             x,
             B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
-        ),
+        )
     }
 }
 
@@ -473,14 +480,15 @@ pub(crate) fn conv3d_weight_backward<B: Backend>(
     let weight_shape = weight.shape();
     let weight_device = weight.device();
 
-    match options.groups == 1 {
-        true => conv3d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
-        false => conv3d_weight_grad_groups::<B>(
+    if options.groups == 1 {
+        conv3d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options)
+    } else {
+        conv3d_weight_grad_groups::<B>(
             x,
             B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
-        ),
+        )
     }
 }
 
@@ -561,14 +569,15 @@ pub(crate) fn conv_transpose1d_weight_backward<B: Backend>(
     let weight_shape = weight.shape();
     let weight_device = weight.device();
 
-    match options.groups == 1 {
-        true => conv_transpose1d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
-        false => conv_transpose1d_weight_grad_groups::<B>(
+    if options.groups == 1 {
+        conv_transpose1d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options)
+    } else {
+        conv_transpose1d_weight_grad_groups::<B>(
             x,
             B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
-        ),
+        )
     }
 }
 
@@ -644,14 +653,15 @@ pub(crate) fn conv_transpose2d_weight_backward<B: Backend>(
     let weight_shape = weight.shape();
     let weight_device = weight.device();
 
-    match options.groups == 1 {
-        true => conv_transpose2d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
-        false => conv_transpose2d_weight_grad_groups::<B>(
+    if options.groups == 1 {
+        conv_transpose2d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options)
+    } else {
+        conv_transpose2d_weight_grad_groups::<B>(
             x,
             B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
-        ),
+        )
     }
 }
 
@@ -731,14 +741,15 @@ pub(crate) fn conv_transpose3d_weight_backward<B: Backend>(
     let weight_shape = weight.shape();
     let weight_device = weight.device();
 
-    match options.groups == 1 {
-        true => conv_transpose3d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
-        false => conv_transpose3d_weight_grad_groups::<B>(
+    if options.groups == 1 {
+        conv_transpose3d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options)
+    } else {
+        conv_transpose3d_weight_grad_groups::<B>(
             x,
             B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
-        ),
+        )
     }
 }
 
@@ -1402,8 +1413,9 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
 
 /// Compute the `padding_out` for a transpose conv that exactly recovers the
 /// original `size_in` from `size_out`, accounting for any input elements the
-/// forward conv dropped. Shared by `conv{1,2,3}d_x_backward` and the CubeCL
+/// forward conv dropped. Shared by `conv{1,2,3}d_x_backward` and the `CubeCL`
 /// dgrad fallback so the two paths can't drift.
+#[must_use]
 pub fn calculate_padding_out(
     kernel_size: usize,
     stride: usize,

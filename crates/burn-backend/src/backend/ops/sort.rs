@@ -343,13 +343,13 @@ fn sort_slice<E: ElementOrdered, I: Element>(
 
             let num_block = id / stride_output % shape_output;
 
-            if d != dim {
-                index_offset += num_block * stride_input;
-            } else {
+            if d == dim {
                 let shape_input = dims[d];
                 stride_dim = stride_input;
                 shape_dim = shape_input;
                 index_offset += num_block;
+            } else {
+                index_offset += num_block * stride_input;
             }
         }
 

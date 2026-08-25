@@ -43,6 +43,7 @@ pub struct TransactionPrimitiveData {
 pub trait TransactionOps<B: Backend> {
     /// Executes a [transaction](TransactionPrimitive) and return its
     /// [data](TransactionPrimitiveData).
+    #[must_use]
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
     ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
@@ -77,6 +78,7 @@ pub trait TransactionOps<B: Backend> {
 
 impl<B: Backend> TransactionPrimitive<B> {
     /// Creates a new transaction.
+    #[must_use]
     pub fn new(
         read_floats: Vec<FloatTensor<B>>,
         read_qfloats: Vec<QuantizedTensor<B>>,

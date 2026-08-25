@@ -33,7 +33,7 @@ impl<B: Backend> DistributedSyncClient<B> {
             while let ActionMessage::Message(msg) =
                 rx.recv().expect("Gradient sync server disconnected.")
             {
-                server.process_message(msg)
+                server.process_message(msg);
             }
         });
         Self { sender: tx }

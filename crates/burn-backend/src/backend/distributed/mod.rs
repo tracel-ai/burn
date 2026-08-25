@@ -21,7 +21,7 @@ use crate::{Backend, TensorMetadata, tensor::FloatTensor};
 /// Parameters for a tensor that is sharded across multiple devices.
 #[derive(Debug, Clone)]
 pub struct DistributedParams {
-    /// The tensor's [DistributedParamId].
+    /// The tensor's [`DistributedParamId`].
     pub param_id: DistributedParamId,
 }
 

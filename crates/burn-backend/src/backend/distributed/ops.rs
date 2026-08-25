@@ -103,16 +103,16 @@ pub trait DistributedOps<B: Backend> {
         let _ = (tensor, distributed_params);
     }
 
-    /// all_reduce operation.
+    /// `all_reduce` operation.
     ///
     /// # Arguments
     ///
-    /// * `tensors` - The tensors on which to perform all_reduce.
+    /// * `tensors` - The tensors on which to perform `all_reduce`.
     /// * `op` - The [`ReduceOperation`].
     ///
     /// # Returns
     ///
-    /// The corresponding [CollectiveTensor].
+    /// The corresponding [`CollectiveTensor`].
     fn all_reduce(
         _tensor: FloatTensor<B>,
         _op: ReduceOperation,
@@ -143,6 +143,7 @@ pub trait DistributedOps<B: Backend> {
     /// # Safety
     ///
     /// Ensure that the tensors are not accessed/modified when calling.
+    #[must_use]
     unsafe fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
         unsafe { &(*tensor.0) }.device()
     }
@@ -160,6 +161,7 @@ pub trait DistributedOps<B: Backend> {
     /// # Safety
     ///
     /// Ensure that the tensors are not accessed/modified when calling.
+    #[must_use]
     unsafe fn float_from_ref(tensor: &TensorRef<B>) -> FloatTensor<B> {
         unsafe { (*tensor.0).clone() }
     }

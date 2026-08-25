@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// Computes softmax(QKᵗ * scale) · V using separate kernels.
-/// Serves as a fallback when FlashAttention is not used.
+/// Serves as a fallback when `FlashAttention` is not used.
 pub fn attention_fallback<B: Backend>(
     query: FloatTensor<B>,
     key: FloatTensor<B>,
@@ -86,7 +86,7 @@ pub fn attention_fallback<B: Backend>(
 }
 
 /// Builds a causal (upper-triangular) bool mask where `true` means "mask this position".
-/// Shape: [batch_size, num_heads, seq_q, seq_k], masking positions where col > row.
+/// Shape: [`batch_size`, `num_heads`, `seq_q`, `seq_k`], masking positions where col > row.
 fn build_causal_mask<B: Backend>(attention_scores: &FloatTensor<B>) -> BoolTensor<B> {
     let device = attention_scores.device();
     let scores_shape = attention_scores.shape().dims::<4>();
