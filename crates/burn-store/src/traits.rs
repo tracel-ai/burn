@@ -11,6 +11,38 @@ use crate::collector::Collector;
 use crate::{ModuleAdapter, PathFilter};
 use burn_core::module::Module;
 
+/// Ends the process if dropped while a panic is unwinding.
+///
+/// [`ModuleSnapshot::apply`] takes the module out of `&mut self` and cannot put one back until
+/// `map` returns. Aborting is the only sound exit from that window: the original module was
+/// consumed by `map`, so there is nothing valid left to restore, and letting the unwind
+/// continue would leave the moved-from value to be dropped a second time by its owner.
+///
+/// The same reasoning is why `take_mut` and `replace_with` abort rather than recover. A
+/// `Default` placeholder would be the alternative, but [`Module`] carries no such bound.
+struct AbortOnUnwind;
+
+impl Drop for AbortOnUnwind {
+    fn drop(&mut self) {
+        // Only reached while unwinding; the success path forgets the guard.
+        #[cfg(feature = "std")]
+        {
+            eprintln!(
+                "burn-store: a panic escaped Module::map during ModuleSnapshot::apply, leaving \
+                 the module moved-from. Aborting rather than dropping it twice."
+            );
+            std::process::abort();
+        }
+        // `abort` needs `std`. A panic raised while another is already unwinding ends the
+        // process the same way, so no-std gets the same guarantee by a different route.
+        #[cfg(not(feature = "std"))]
+        panic!(
+            "burn-store: a panic escaped Module::map during ModuleSnapshot::apply, leaving the \
+             module moved-from"
+        );
+    }
+}
+
 /// Extension trait for modules that provides tensor storage functionality.
 ///
 /// This trait provides convenient methods to collect tensors from any Burn module and apply
@@ -103,11 +135,21 @@ pub trait ModuleSnapshot: Module {
             // Read the module out of self (moves it, leaving self in undefined state)
             let module = core::ptr::read(self as *const Self);
 
+            // From here until the write below, `self` names a value that has been moved from.
+            // `map` runs caller code that can panic (a `ModuleAdapter` implementation, a
+            // backend's `from_data`), and an unwind through this window would hand that
+            // moved-from value back to its owner to be dropped a second time. See
+            // https://github.com/tracel-ai/burn/issues/5477
+            let guard = AbortOnUnwind;
+
             // Map the module to create a new one with updated tensors
             let new_module = module.map(&mut applier);
 
             // Write the new module back to self
             core::ptr::write(self as *mut Self, new_module);
+
+            // `self` holds a whole module again, so the window is closed.
+            core::mem::forget(guard);
         }
 
         applier.into_result()
