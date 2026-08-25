@@ -826,6 +826,29 @@ fn dlartg<F: Float + Copy>(f: F, g: F) -> (F, F, F) {
 mod tests {
     use super::*;
 
+    /// Defensive numeric paths of the LAPACK-style helpers, driven directly:
+    /// all-zero and overflow-scale 2x2 shifts, underflowing Givens
+    /// generation, and the sweep budget bail-out.
+    #[test]
+    fn test_svd_host_numeric_guards() {
+        // dlas2_smax: all-zero block and an f64 block whose squares would
+        // overflow (t ~ 3e400) force the scaled path.
+        assert_eq!(dlas2_smax(0.0f64, 0.0, 0.0), 0.0);
+        assert_eq!(dlas2_smin(0.0f64, 0.0, 0.0), 0.0);
+        let smax = dlas2_smax(1e200f64, 1e200, 1e200);
+        assert!(smax.is_finite() && smax > 1e199 && smax < 2e200, "{smax}");
+        // dlartg: zero vector and an f32 pair whose squares underflow to 0.
+        let (c, s, r) = dlartg(0.0f32, 0.0);
+        assert_eq!((c, s, r), (1.0, 0.0, 0.0));
+        let (c, s, r) = dlartg(1e-30f32, 1e-30);
+        assert!(r.is_finite() && r > 0.0, "{r}");
+        assert!((c * c + s * s - 1.0).abs() < 1e-5, "({c}, {s})");
+        // dbdsqr_host: a zero sweep budget stops after one pass instead of
+        // looping forever; results stay finite.
+        let (sigma, _d, _givens) = dbdsqr_host(&[3.0f64, 1.0], &[0.5], 0);
+        assert!(sigma.iter().all(|x| x.is_finite()), "{sigma:?}");
+    }
+
     fn recon_err<F: Float + Copy>(u: &[F], s: &[F], vt: &[F], a: &[F], m: usize, n: usize) -> F {
         assert!(
             u.len() == m * n && s.len() == n && vt.len() == n * n && a.len() == m * n,
@@ -1064,26 +1087,6 @@ mod tests {
             }
             assert!(err < 1e-12, "rank-def 2x2 recon {err} for {a:?}");
         }
-    }
-
-    #[test]
-    fn test_svd_host_batch2_matrix() {
-        // the batch-2 matrix from test_svd_host_f64, isolated
-        let a = [
-            1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 1.5, 2.5,
-        ];
-        let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false);
-        let mut err = 0.0f64;
-        for i in 0..4 {
-            for j in 0..3 {
-                let mut acc = 0.0f64;
-                for k in 0..3 {
-                    acc += u[i * 3 + k] * s[k] * vt[k * 3 + j];
-                }
-                err = err.max((a[i * 3 + j] - acc).abs());
-            }
-        }
-        assert!(err < 1e-12, "batch2 recon {err}");
     }
 
     #[test]
