@@ -6,7 +6,7 @@ use cubek::convolution::components::ConvSetupError;
 use super::conv_transpose2d_autotune;
 use super::{conv_transpose2d_col2im, conv_transpose2d_direct};
 
-/// The strategy to be used when launching a conv_transpose kernel.
+/// The strategy to be used when launching a `conv_transpose` kernel.
 pub enum ConvTranspose2dStrategy {
     /// A simple direct convolution.
     Direct,

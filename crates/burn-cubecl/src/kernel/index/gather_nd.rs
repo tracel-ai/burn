@@ -8,10 +8,10 @@ use cubecl::std::FastDivmod;
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
-/// gather_nd GPU kernel.
+/// `gather_nd` GPU kernel.
 ///
 /// Each thread handles one element of the output.
-/// Work items = num_indices * slice_size.
+/// Work items = `num_indices` * `slice_size`.
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn gather_nd_kernel<T: Numeric, I: Int>(
     data: &Tensor<T>,
@@ -117,7 +117,7 @@ pub(crate) fn gather_nd<R: CubeRuntime>(
                 dtype_to_storage_type(dtype),
                 dtype_to_storage_type(indices_dtype),
             ],
-        )
+        );
     }
 
     output

@@ -177,9 +177,10 @@ fn check_pointwise<const N: usize>(
         && options.padding.iter().all(|padding| *padding == 0)
         && options.dilation.iter().all(|dilation| *dilation == 1);
 
-    match pointwise {
-        true => Ok(()),
-        false => Err(ConvSetupError::Unknown),
+    if pointwise {
+        Ok(())
+    } else {
+        Err(ConvSetupError::Unknown)
     }
 }
 

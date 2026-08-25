@@ -19,7 +19,7 @@ fn slice_assign_kernel<E: Numeric, N: Size>(
     #[define(E)] _dtype: ElemType,
 ) {
     if !value.is_in_bounds(ABSOLUTE_POS) {
-        terminate!()
+        terminate!();
     }
 
     let rank = comptime!(slice_shape.len());
@@ -110,9 +110,10 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
     }
 
     let client = tensor.client.clone();
-    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
-        true => tensor,
-        false => tensor.copy(),
+    let tensor = if tensor.can_mut() && tensor.is_nonoverlapping() {
+        tensor
+    } else {
+        tensor.copy()
     };
     let ndims = tensor.meta.num_dims();
 
@@ -176,7 +177,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             shape,
             offsets,
             dtype_to_storage_type(tensor.dtype),
-        )
+        );
     };
 
     tensor
@@ -185,7 +186,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
 /// Slice assign with steps support
 ///
 /// This function handles slice assignment with arbitrary step values, including negative steps.
-/// It follows NumPy/PyTorch semantics where values[i] is assigned to selected_indices[i].
+/// It follows NumPy/PyTorch semantics where values[i] is assigned to `selected_indices`[i].
 ///
 /// For example, with s![0..6;-1] which selects indices [5,4,3,2,1,0]:
 /// - values[0] goes to index 5
@@ -196,9 +197,10 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     slices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
-        true => tensor,
-        false => tensor.copy(),
+    let tensor = if tensor.can_mut() && tensor.is_nonoverlapping() {
+        tensor
+    } else {
+        tensor.copy()
     };
 
     // Prepare sequences for kernel

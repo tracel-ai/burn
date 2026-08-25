@@ -24,7 +24,7 @@ pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
 
 /// Cast a tensor to the given element type.
 ///
-/// Note: When input element is semantically a boolean, prefer bool_cast function.
+/// Note: When input element is semantically a boolean, prefer `bool_cast` function.
 pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R> {
     let dtype_output = match dtype {
         DType::Flex32 => DType::F32,

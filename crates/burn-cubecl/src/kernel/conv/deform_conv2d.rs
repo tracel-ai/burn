@@ -66,7 +66,7 @@ fn deform_im2col_kernel<F: Float>(
     let (in_channel, batch) = pos_shape[1].div_mod(rem);
 
     if in_channel >= in_channels {
-        terminate!()
+        terminate!();
     }
 
     let out_k_base = in_channel * kernel_height * kernel_width;

@@ -41,9 +41,9 @@ pub mod template;
 
 /// Just-in-Time runtime extending the [cube runtime](Runtime).
 pub trait CubeRuntime: Runtime<Device = Self::CubeDevice, Server = Self::CubeServer> {
-    /// The device that should also implement [burn_backend::backend::DeviceOps].
+    /// The device that should also implement [`burn_backend::backend::DeviceOps`].
     type CubeDevice: burn_backend::DeviceOps;
-    /// The cube server with the [CubeAutotuneKey].
+    /// The cube server with the [`CubeAutotuneKey`].
     type CubeServer: cubecl::server::ComputeServer<Kernel = Box<dyn CubeTask<Self::Compiler>>>;
 }
 

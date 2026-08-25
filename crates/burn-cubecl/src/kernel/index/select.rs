@@ -79,7 +79,7 @@ pub(crate) fn select<R: CubeRuntime>(
                 dtype_to_storage_type(tensor_dtype),
                 dtype_to_storage_type(indices_dtype),
             ],
-        )
+        );
     };
     output
 }

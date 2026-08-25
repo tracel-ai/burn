@@ -77,9 +77,10 @@ pub(crate) fn scatter<R: CubeRuntime>(
     value: CubeTensor<R>,
     is_bool: bool,
 ) -> CubeTensor<R> {
-    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
-        true => tensor,
-        false => tensor.copy(),
+    let tensor = if tensor.can_mut() && tensor.is_nonoverlapping() {
+        tensor
+    } else {
+        tensor.copy()
     };
 
     let num_elems = tensor.meta.num_elements() / tensor.meta.shape()[dim];
@@ -88,9 +89,10 @@ pub(crate) fn scatter<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
 
-    let launch = match is_bool {
-        true => scatter_kernel::launch_unchecked::<OrOp, R>,
-        false => scatter_kernel::launch_unchecked::<AddOp, R>,
+    let launch = if is_bool {
+        scatter_kernel::launch_unchecked::<OrOp, R>
+    } else {
+        scatter_kernel::launch_unchecked::<AddOp, R>
     };
 
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
@@ -110,7 +112,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
                 dtype_to_storage_type(tensor_dtype),
                 dtype_to_storage_type(indices_dtype),
             ],
-        )
+        );
     }
     tensor
 }

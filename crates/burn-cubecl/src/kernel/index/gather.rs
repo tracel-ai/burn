@@ -77,7 +77,7 @@ pub(crate) fn gather<R: CubeRuntime>(
                 dtype_to_storage_type(dtype),
                 dtype_to_storage_type(indices_dtype),
             ],
-        )
+        );
     }
 
     output

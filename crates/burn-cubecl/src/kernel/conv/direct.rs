@@ -314,7 +314,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             shape_out_c,
             options.padding.iter().any(|it| *it != 0),
             dtype_to_storage_type(out_dtype),
-        )
+        );
     };
 
     Ok(output)

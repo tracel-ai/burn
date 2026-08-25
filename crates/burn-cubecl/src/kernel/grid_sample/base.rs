@@ -145,7 +145,7 @@ pub(crate) fn reflect_coord<F: Float>(coord: F, size: u32, #[comptime] align_cor
     }
 }
 
-/// Reflect a float coordinate into [min_val, max_val] using a triangle wave pattern.
+/// Reflect a float coordinate into [`min_val`, `max_val`] using a triangle wave pattern.
 #[cube]
 fn reflect_float_impl<F: Float>(coord: F, min_val: F, max_val: F) -> F {
     let span = max_val - min_val;

@@ -96,7 +96,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
                 dtype_to_storage_type(dtype_input),
                 dtype_to_storage_type(dtype_bool),
             ],
-        )
+        );
     }
 
     output

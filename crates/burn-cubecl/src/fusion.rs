@@ -32,7 +32,7 @@ where
         self.run(context, &|index| {
             let operation = execution.operation_within_optimization(index);
             Box::new(FallbackOperationWrapper::new(operation))
-        })
+        });
     }
 
     fn to_state(&self) -> CubeOptimizationState {
@@ -136,9 +136,10 @@ impl<R: CubeRuntime> FusionBackend for CubeBackend<R> {
         use cubecl::MemoryAllocationMode;
 
         let client = R::client(device);
-        let mode = match enabled {
-            true => MemoryAllocationMode::Persistent,
-            false => MemoryAllocationMode::Auto,
+        let mode = if enabled {
+            MemoryAllocationMode::Persistent
+        } else {
+            MemoryAllocationMode::Auto
         };
         // Safety: called from the fusion execution thread, whose stream is the
         // one every fused operation allocates on.

@@ -38,7 +38,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     #[define(E)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
-        terminate!()
+        terminate!();
     }
 
     let in_channels = weight.shape(0);

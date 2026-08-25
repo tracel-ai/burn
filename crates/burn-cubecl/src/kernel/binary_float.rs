@@ -47,7 +47,7 @@ pub(crate) fn kernel_binop<C: Float, N: Size, O: BinaryOpFloatFamily>(
 
     let res = O::BinaryOp::<C, N>::execute(lhs.read(ABSOLUTE_POS), rhs.read(ABSOLUTE_POS));
 
-    out.write(ABSOLUTE_POS, res)
+    out.write(ABSOLUTE_POS, res);
 }
 
 pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(

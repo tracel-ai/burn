@@ -65,7 +65,7 @@ pub fn bool_cast<R: CubeRuntime>(tensor: CubeTensor<R>, out_dtype: DType) -> Cub
                 dtype_to_storage_type(dtype),
                 dtype_to_storage_type(out_dtype),
             ],
-        )
+        );
     };
 
     output

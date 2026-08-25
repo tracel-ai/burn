@@ -208,11 +208,13 @@ pub fn matmul_autotune<R: CubeRuntime>(
         });
 
         // CPU-only group
-        let cpu =
-            TuneGroup::<MatmulAutotuneKey>::new("cpu", move |_key| match num_cpu_cores.is_some() {
-                true => PRIORITY_MAX,
-                false => PRIORITY_NEVER,
-            });
+        let cpu = TuneGroup::<MatmulAutotuneKey>::new("cpu", move |_key| {
+            if num_cpu_cores.is_some() {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_NEVER
+            }
+        });
 
         fn double_buffering_priority(key: &MatmulAutotuneKey, max: i8, min: i8) -> i8 {
             if should_tune_double_buffering(false, key) {
@@ -267,9 +269,12 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     launch_matmul::<R, _>(&strategy, lhs, rhs, out)
                         .map_err(|err| std::format!("{err:?}"))
                 })
-                .group(&gemv, move |key| match double_buf {
-                    false => PRIORITY_MAX,
-                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                .group(&gemv, move |key| {
+                    if !double_buf {
+                        PRIORITY_MAX
+                    } else {
+                        double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                    }
                 }),
             );
         }
@@ -298,11 +303,14 @@ pub fn matmul_autotune<R: CubeRuntime>(
                         launch_matmul::<R, _>(&strategy, lhs, rhs, out)
                             .map_err(|err| format!("{err:?}"))
                     })
-                    .group(&unit, move |key| match double_buf {
-                        false => PRIORITY_MAX,
-                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                    .group(&unit, move |key| {
+                        if !double_buf {
+                            PRIORITY_MAX
+                        } else {
+                            double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                        }
                     }),
-                )
+                );
             }
         }
 
@@ -545,9 +553,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     return PRIORITY_MIN;
                 }
 
-                match double_buf {
-                    false => PRIORITY_MAX,
-                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                if !double_buf {
+                    PRIORITY_MAX
+                } else {
+                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
                 }
             };
 

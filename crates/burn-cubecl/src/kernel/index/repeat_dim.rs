@@ -84,7 +84,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
             shape_arg,
             dim,
             dtype_to_storage_type(output.dtype),
-        )
+        );
     };
 
     output

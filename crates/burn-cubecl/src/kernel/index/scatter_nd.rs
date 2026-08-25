@@ -12,10 +12,10 @@ use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 use cubecl::{prelude::*, std::FastDivmod};
 
-/// scatter_nd GPU kernel.
+/// `scatter_nd` GPU kernel.
 ///
 /// Each thread handles one element across all update slices.
-/// Work items = num_updates * slice_size.
+/// Work items = `num_updates` * `slice_size`.
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     data: &mut Tensor<T>,
@@ -93,9 +93,10 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
     reduction: IndexingUpdateOp,
 ) -> CubeTensor<R> {
     // Ensure we can write in-place
-    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
-        true => tensor,
-        false => tensor.copy(),
+    let tensor = if tensor.can_mut() && tensor.is_nonoverlapping() {
+        tensor
+    } else {
+        tensor.copy()
     };
 
     let data_shape = &tensor.meta.shape;
@@ -143,7 +144,7 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
                 dtype_to_storage_type(tensor_dtype),
                 dtype_to_storage_type(indices_dtype),
             ],
-        )
+        );
     }
 
     tensor

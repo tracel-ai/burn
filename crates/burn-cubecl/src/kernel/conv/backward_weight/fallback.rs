@@ -32,7 +32,7 @@ pub fn conv_weight_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
 /// The weight gradient of a depthwise convolution, as one grouped convolution.
 ///
 /// [`conv_weight_grad_groups`] launches a kernel per group, and a depthwise
-/// convolution has one group per channel — a single block of EfficientNet's
+/// convolution has one group per channel — a single block of `EfficientNet`'s
 /// later stages submits thousands of launches, each over one channel, to
 /// differentiate one 3x3.
 ///

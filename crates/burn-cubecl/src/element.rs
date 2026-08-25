@@ -40,9 +40,10 @@ pub trait BoolElement: CubeElement + Int {
 
     /// New bool element from Rust bool.
     fn new_bool(val: bool) -> Self {
-        match val {
-            true => Self::true_val(),
-            false => Self::false_val(),
+        if val {
+            Self::true_val()
+        } else {
+            Self::false_val()
         }
     }
 }

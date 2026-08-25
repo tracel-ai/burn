@@ -118,7 +118,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
             shape_divmod(&output),
             indices_sequence,
             dtype_to_storage_type(dtype),
-        )
+        );
     };
 
     output

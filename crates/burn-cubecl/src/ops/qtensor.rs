@@ -134,48 +134,46 @@ fn new_quantized<R: CubeRuntime>(
     let global_desc = global_dtype
         .map(|dtype| MemoryLayoutDescriptor::new(alloc_kind, global_shape.clone(), dtype.size()));
 
-    let mut tensors = match data {
-        Some(data) => {
-            let num_bytes = shape_value.num_elements() * data_size;
-            let split = data.split(num_bytes, SplitPolicy::Shared);
+    let mut tensors = if let Some(data) = data {
+        let num_bytes = shape_value.num_elements() * data_size;
+        let split = data.split(num_bytes, SplitPolicy::Shared);
 
-            match (split, global_desc.clone()) {
-                (Ok((bytes_data, bytes_params)), None) => client
-                    .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_params)]),
-                (Ok((bytes_data, bytes_params)), Some(global_desc)) => {
-                    let scales_bytes = scales_region_len(bytes_params.len(), &scheme);
-                    match bytes_params.split(scales_bytes, SplitPolicy::Shared) {
-                        Ok((block, global)) => client.create_tensors(vec![
-                            (data_desc, bytes_data),
-                            (scales_desc, block),
-                            (global_desc, global),
-                        ]),
-                        Err((params, _)) => client.create_tensors_from_slices(vec![
-                            (data_desc, &bytes_data[..]),
-                            (scales_desc, &params[..scales_bytes]),
-                            (global_desc, &params[scales_bytes..]),
-                        ]),
-                    }
-                }
-                (Err((data, _)), global_desc) => {
-                    let params = &data[num_bytes..];
-                    let scales_bytes = scales_region_len(params.len(), &scheme);
-                    let mut entries = vec![
-                        (data_desc, &data[..num_bytes]),
+        match (split, global_desc.clone()) {
+            (Ok((bytes_data, bytes_params)), None) => {
+                client.create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_params)])
+            }
+            (Ok((bytes_data, bytes_params)), Some(global_desc)) => {
+                let scales_bytes = scales_region_len(bytes_params.len(), &scheme);
+                match bytes_params.split(scales_bytes, SplitPolicy::Shared) {
+                    Ok((block, global)) => client.create_tensors(vec![
+                        (data_desc, bytes_data),
+                        (scales_desc, block),
+                        (global_desc, global),
+                    ]),
+                    Err((params, _)) => client.create_tensors_from_slices(vec![
+                        (data_desc, &bytes_data[..]),
                         (scales_desc, &params[..scales_bytes]),
-                    ];
-                    if let Some(global_desc) = global_desc {
-                        entries.push((global_desc, &params[scales_bytes..]));
-                    }
-                    client.create_tensors_from_slices(entries)
+                        (global_desc, &params[scales_bytes..]),
+                    ]),
                 }
             }
+            (Err((data, _)), global_desc) => {
+                let params = &data[num_bytes..];
+                let scales_bytes = scales_region_len(params.len(), &scheme);
+                let mut entries = vec![
+                    (data_desc, &data[..num_bytes]),
+                    (scales_desc, &params[..scales_bytes]),
+                ];
+                if let Some(global_desc) = global_desc {
+                    entries.push((global_desc, &params[scales_bytes..]));
+                }
+                client.create_tensors_from_slices(entries)
+            }
         }
-        None => {
-            let mut descs = vec![data_desc, scales_desc];
-            descs.extend(global_desc);
-            client.empty_tensors(descs)
-        }
+    } else {
+        let mut descs = vec![data_desc, scales_desc];
+        descs.extend(global_desc);
+        client.empty_tensors(descs)
     };
 
     let global = global_dtype.map(|dtype| {

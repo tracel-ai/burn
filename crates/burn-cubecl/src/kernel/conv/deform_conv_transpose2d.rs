@@ -281,7 +281,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
                 kernel_w,
             ),
             dtype,
-        )
+        );
     };
 
     Ok((grad_offset, grad_mask))
@@ -409,7 +409,7 @@ fn deform_col2img_coord_kernel<F: Float>(
                 + out_y * grad_mask.stride(2)
                 + out_x * grad_mask.stride(3);
 
-            grad_mask[idx] = grad_mask_val
+            grad_mask[idx] = grad_mask_val;
         }
     }
 }
@@ -500,11 +500,10 @@ fn compute_input_grad<R: CubeRuntime>(
     let pos_shape = pos_shape.into_iter().collect();
 
     let shape = Shape::new([batches, in_channels, height, width]);
-    let grad_in = match supports_fadd && supports_same_type {
-        // Use type as is to save a cast
-        true => zeros_client(client.clone(), device.clone(), shape, columns.dtype),
-        // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
-        false => zeros_client(client.clone(), device.clone(), shape, DType::F32),
+    let grad_in = if supports_fadd && supports_same_type {
+        zeros_client(client.clone(), device.clone(), shape, columns.dtype)
+    } else {
+        zeros_client(client.clone(), device.clone(), shape, DType::F32)
     };
     let grad_arg = grad_in.clone().into_tensor_arg();
 
@@ -512,17 +511,19 @@ fn compute_input_grad<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&offset.client, num_elements);
     let cube_count = calculate_cube_count_elemwise(&offset.client, num_elements, cube_dim);
 
-    let launch = match supports_fadd {
-        true => deform_col2img_kernel::launch_unchecked::<IntrinsicFloatAtomicAddFamily, R>,
-        false => deform_col2img_kernel::launch_unchecked::<CASFloatAtomicAdd, R>,
+    let launch = if supports_fadd {
+        deform_col2img_kernel::launch_unchecked::<IntrinsicFloatAtomicAddFamily, R>
+    } else {
+        deform_col2img_kernel::launch_unchecked::<CASFloatAtomicAdd, R>
     };
     let dtype = offset.dtype;
-    let dtypes: [ElemType; 2] = match supports_same_type {
-        true => [dtype_to_storage_type(dtype), dtype_to_storage_type(dtype)],
-        false => [
+    let dtypes: [ElemType; 2] = if supports_same_type {
+        [dtype_to_storage_type(dtype), dtype_to_storage_type(dtype)]
+    } else {
+        [
             dtype_to_storage_type(dtype),
             dtype_to_storage_type(DType::F32),
-        ],
+        ]
     };
 
     unsafe {
@@ -548,7 +549,7 @@ fn compute_input_grad<R: CubeRuntime>(
                 kernel_w,
             ),
             dtypes,
-        )
+        );
     };
 
     Ok(if !supports_same_type || !supports_fadd {

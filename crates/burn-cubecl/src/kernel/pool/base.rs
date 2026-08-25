@@ -295,18 +295,19 @@ fn global_avg_pool2d<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
     // both layouts at once, and the NCHW path is the cheaper one to take.
     let channels_innermost = channels > 1 && input.meta.strides()[1] == 1;
 
-    let (flattened, axis) = match channels_innermost {
-        true => (
+    let (flattened, axis) = if channels_innermost {
+        (
             reshape(
                 permute_nchw_to_nhwc(input),
                 Shape::new([batch_size, height * width, channels]),
             ),
             1,
-        ),
-        false => (
+        )
+    } else {
+        (
             reshape(input, Shape::new([batch_size, channels, height * width])),
             2,
-        ),
+        )
     };
 
     let reduced = reduce_dim::<R>(

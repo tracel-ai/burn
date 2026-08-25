@@ -66,18 +66,20 @@ pub(crate) fn select_assign<R: CubeRuntime>(
     value: CubeTensor<R>,
     is_bool: bool,
 ) -> CubeTensor<R> {
-    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
-        true => tensor,
-        false => tensor.copy(),
+    let tensor = if tensor.can_mut() && tensor.is_nonoverlapping() {
+        tensor
+    } else {
+        tensor.copy()
     };
 
     let working_units = tensor.meta.num_elements() / tensor.meta.shape()[dim];
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
 
-    let launch = match is_bool {
-        true => select_assign_kernel::launch::<OrOp, R>,
-        false => select_assign_kernel::launch::<AddOp, R>,
+    let launch = if is_bool {
+        select_assign_kernel::launch::<OrOp, R>
+    } else {
+        select_assign_kernel::launch::<AddOp, R>
     };
 
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);

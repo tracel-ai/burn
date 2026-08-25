@@ -136,7 +136,7 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
 pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
-    for dim in tensor.meta.shape()[1..].iter() {
+    for dim in &tensor.meta.shape()[1..] {
         indices.push(0..*dim);
     }
     let mut tensor = slice(tensor, &indices);
@@ -219,7 +219,7 @@ fn col2im<R: CubeRuntime>(
                 options.stride[1],
             ),
             dtype_to_storage_type(dtype),
-        )
+        );
     };
 
     Ok(())
