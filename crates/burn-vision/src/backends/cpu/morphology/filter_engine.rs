@@ -142,10 +142,10 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         let max_buf_rows = (self.ksize.height + 3)
             .max(self.anchor.y)
             .max((self.ksize.height - self.anchor.y - 1) * 2 + 1);
-        let k_offs = if !self.is_separable() {
-            self.ksize.width - 1
-        } else {
+        let k_offs = if self.is_separable() {
             0
+        } else {
+            self.ksize.width - 1
         };
         let is_sep = self.is_separable();
 
@@ -326,7 +326,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                     self.border_type,
                 );
                 if src_y < 0 {
-                    brows[i] = self.const_border_row.as_ptr() as _;
+                    brows[i] = self.const_border_row.as_ptr().cast();
                 } else {
                     if src_y as usize >= self.start_y + self.row_count {
                         break;
@@ -343,10 +343,10 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             i -= kheight - 1;
             match &mut self.filter {
                 Filter::Separable { col_filter, .. } => {
-                    col_filter.apply::<S>(brows, &mut src[dst_off..], src_step, i, self.width * ch)
+                    col_filter.apply::<S>(brows, &mut src[dst_off..], src_step, i, self.width * ch);
                 }
                 Filter::Fallback(filter) => {
-                    filter.apply::<S>(brows, &mut src[dst_off..], src_step, i, self.width, ch)
+                    filter.apply::<S>(brows, &mut src[dst_off..], src_step, i, self.width, ch);
                 }
             }
 

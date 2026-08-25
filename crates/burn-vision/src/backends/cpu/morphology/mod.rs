@@ -49,7 +49,7 @@ fn morph_impl<B: Element>(
     let [kh, kw] = kernel.shape.dims();
 
     let kernel = kernel.try_into_vec::<B>().unwrap();
-    let is_rect = kernel.iter().all(|it| it.to_bool());
+    let is_rect = kernel.iter().all(burn_core::prelude::ToElement::to_bool);
     let anchor = opts.anchor.unwrap_or(Point::new(kw / 2, kh / 2));
     let iter = opts.iterations;
     let btype = opts.border_type;
@@ -143,7 +143,7 @@ fn border_value<T: Element + ElementLimits>(
 ) -> Vec<T> {
     let [_, _, ch] = shape.dims();
     match (btype, bvalue) {
-        (BorderType::Constant, Some(value)) => value.into_iter().map(|v| v.elem::<T>()).collect(),
+        (BorderType::Constant, Some(value)) => value.into_iter().map(burn_std::Scalar::elem::<T>).collect(),
         (BorderType::Constant, None) => match op {
             MorphOp::Erode => vec![T::MAX; ch],
             MorphOp::Dilate => vec![T::MIN; ch],
@@ -170,7 +170,7 @@ fn run_morph<T: VOrd + MinMax + Element, B: Element>(
             let filter = filter::<T, MaxOp, B>(kernel);
             dispatch_morph(input, shape, filter, btype, bvalue, iter);
         }
-    };
+    }
 }
 
 fn filter<T: VOrd + MinMax, Op: MorphOperator<T> + VecMorphOperator<T>, B: Element>(

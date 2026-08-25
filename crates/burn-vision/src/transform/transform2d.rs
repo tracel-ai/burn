@@ -17,7 +17,7 @@ pub struct Transform2D {
 impl Transform2D {
     /// Transforms an image
     ///
-    /// * `img` - Images tensor with shape (batch_size, channels, height, width)
+    /// * `img` - Images tensor with shape (`batch_size`, channels, height, width)
     ///
     /// # Returns
     ///
@@ -38,7 +38,7 @@ impl Transform2D {
     /// Set the padding mode for the transformed images.
     ///
     /// # Default
-    /// [GridSamplePaddingMode::Border]
+    /// [`GridSamplePaddingMode::Border`]
     pub fn with_padding_mode(self, padding_mode: GridSamplePaddingMode) -> Self {
         Self {
             transform: self.transform,
@@ -49,7 +49,7 @@ impl Transform2D {
     /// Makes a 2d transformation composed of other transformations
     pub fn composed<I: IntoIterator<Item = Self>>(transforms: I) -> Self {
         let mut result = Self::identity();
-        for t in transforms.into_iter() {
+        for t in transforms {
             result = result.mul(t);
         }
         result

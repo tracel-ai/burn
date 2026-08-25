@@ -519,7 +519,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
             labels.clone().into_tensor_arg(),
             connectivity,
             dtypes,
-        )
+        );
     };
 
     let horizontal_warps = Ord::min((cols as u32).div_ceil(warp_size), 32);
@@ -538,7 +538,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
             labels.clone().into_tensor_arg(),
             connectivity,
             dtypes,
-        )
+        );
     };
 
     let cube_count = CubeCount::new_2d(
@@ -557,7 +557,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                 img.into_tensor_arg(),
                 labels.clone().into_tensor_arg(),
                 dtypes,
-            )
+            );
         };
     } else {
         unsafe {
@@ -575,7 +575,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                 stats.max_label.clone().into_tensor_arg(),
                 stats_opt,
                 dtypes,
-            )
+            );
         };
         if stats_opt.compact_labels {
             let max_label = CubeBackend::<R>::int_max(stats.max_label);
@@ -604,7 +604,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                     relabel.clone().into_tensor_arg(),
                     stats.max_label.clone().into_tensor_arg(),
                     int_storage,
-                )
+                );
             };
 
             let cube_dim = CubeDim::new_1d(256);
@@ -626,7 +626,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                     stats.bottom.clone().into_tensor_arg(),
                     relabel.into_tensor_arg(),
                     int_storage,
-                )
+                );
             };
         }
     }

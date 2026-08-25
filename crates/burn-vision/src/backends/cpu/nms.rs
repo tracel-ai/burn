@@ -9,7 +9,7 @@ use macerator::{Scalar, Simd, Vector, vload};
 /// This implementation:
 /// 1. Sorts boxes by score (descending)
 /// 2. Iteratively selects the highest-scoring non-suppressed box
-/// 3. Suppresses all boxes with IoU > threshold using SIMD
+/// 3. Suppresses all boxes with `IoU` > threshold using SIMD
 pub fn nms(
     boxes: TensorData,
     scores: TensorData,
@@ -159,10 +159,10 @@ fn suppress_overlapping<'a, S: Simd>(
         // Skip if all boxes in this chunk are already suppressed
         let all_suppressed = unsafe {
             match lanes {
-                4 => *(suppressed.as_ptr().add(i) as *const u32) == 0x01010101,
-                8 => *(suppressed.as_ptr().add(i) as *const u64) == 0x0101010101010101,
+                4 => *suppressed.as_ptr().add(i).cast::<u32>() == 0x01010101,
+                8 => *suppressed.as_ptr().add(i).cast::<u64>() == 0x0101010101010101,
                 16 => {
-                    *(suppressed.as_ptr().add(i) as *const u128)
+                    *suppressed.as_ptr().add(i).cast::<u128>()
                         == 0x01010101010101010101010101010101
                 }
                 _ => unreachable!(),

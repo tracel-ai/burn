@@ -22,15 +22,13 @@ impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
             ConnectedStatsOptions::none(),
             connectivity,
             out_dtype.into(),
-        )
-        .map(|it| it.0)
-        .unwrap_or_else(|_| {
+        ).map_or_else(|_| {
             let device = &img.device();
             Self::int_from_data(
                 cpu::connected_components::<Self>(img, connectivity, out_dtype),
                 device,
             )
-        })
+        }, |it| it.0)
     }
 
     fn connected_components_with_stats(
@@ -60,7 +58,7 @@ impl<R: CubeRuntime> VisionBackend for CubeBackend<R> {}
 
 #[cfg(feature = "fusion")]
 mod fusion {
-    use super::*;
+    use super::{BoolVisionOps, BoolTensor, Connectivity, IntDType, IntTensor, ConnectedStatsOptions, ConnectedStatsPrimitive, IntVisionOps, FloatVisionOps, VisionBackend};
     use burn_core::tensor::Shape;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,

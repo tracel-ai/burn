@@ -128,9 +128,10 @@ impl BoxBlur {
     /// Applies the box filter with probability `probability`, otherwise returns
     /// the images unchanged.
     pub fn forward(&self, images: Tensor<4>) -> Tensor<4> {
-        match self.sample() {
-            true => self.apply(images),
-            false => images,
+        if self.sample() {
+            self.apply(images)
+        } else {
+            images
         }
     }
 }
@@ -223,9 +224,10 @@ impl MedianBlur {
     /// Applies the median filter with probability `probability`, otherwise
     /// returns the images unchanged.
     pub fn forward(&self, images: Tensor<4>) -> Tensor<4> {
-        match self.sample() {
-            true => self.apply(images),
-            false => images,
+        if self.sample() {
+            self.apply(images)
+        } else {
+            images
         }
     }
 }

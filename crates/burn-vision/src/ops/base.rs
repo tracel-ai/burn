@@ -141,11 +141,11 @@ impl ConnectedStatsOptions {
 /// Non-Maximum Suppression options.
 #[derive(Clone, Copy, Debug)]
 pub struct NmsOptions {
-    /// IoU threshold for suppression (default: 0.5).
-    /// Boxes with IoU > threshold with a higher-scoring box are suppressed.
+    /// `IoU` threshold for suppression (default: 0.5).
+    /// Boxes with `IoU` > threshold with a higher-scoring box are suppressed.
     pub iou_threshold: f32,
     /// Score threshold to filter boxes before NMS (default: 0.0, i.e., no filtering).
-    /// Boxes with score < score_threshold are discarded.
+    /// Boxes with score < `score_threshold` are discarded.
     pub score_threshold: f32,
     /// Maximum number of boxes to keep (0 = unlimited).
     pub max_output_boxes: usize,
@@ -358,12 +358,12 @@ pub trait FloatVisionOps: Backend {
     ///
     /// Returns indices of kept boxes after suppressing overlapping detections.
     /// Boxes are processed in descending score order; a box suppresses all
-    /// lower-scoring boxes with IoU > threshold.
+    /// lower-scoring boxes with `IoU` > threshold.
     ///
     /// # Arguments
     /// * `boxes` - Bounding boxes as \[N, 4\] tensor in (x1, y1, x2, y2) format
     /// * `scores` - Confidence scores as \[N\] tensor
-    /// * `options` - NMS options (IoU threshold, score threshold, max boxes)
+    /// * `options` - NMS options (`IoU` threshold, score threshold, max boxes)
     ///
     /// # Returns
     /// Indices of kept boxes as \[M\] tensor where M <= N

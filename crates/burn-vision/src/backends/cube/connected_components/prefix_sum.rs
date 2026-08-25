@@ -129,7 +129,9 @@ fn prefix_sum_kernel<I: Int, N: Size>(
             }
             sync_cube();
 
-            if j != PLANE_DIM {
+            if j == PLANE_DIM {
+                offset_0 += 1;
+            } else {
                 let rshift = j >> lane_log;
                 let i_1 = UNIT_POS_X + rshift;
                 if (i_1 & (j - 1)) >= rshift {
@@ -143,8 +145,6 @@ fn prefix_sum_kernel<I: Int, N: Size>(
                         reduce[i_1 as usize] += t_1;
                     }
                 }
-            } else {
-                offset_0 += 1;
             }
             offset_1 += lane_log;
 
@@ -158,7 +158,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
         reduction[part_id + red_offs].store(
             (reduce[(spine_size - 1) as usize] << I::new(2))
                 | select(part_id != 0, flag_reduction, flag_inclusive),
-        )
+        );
     }
 
     //Lookback, single thread
@@ -261,7 +261,7 @@ pub fn prefix_sum<R: CubeRuntime>(input: CubeTensor<R>, int_dtype: DType) -> Cub
             reduction.into_tensor_arg(),
             cubes,
             dtype_to_storage_type(int_dtype),
-        )
+        );
     };
 
     out

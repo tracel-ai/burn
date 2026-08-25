@@ -27,11 +27,11 @@ pub enum ImageDimOrder {
     Chw,
     /// dims: (height, width, channels)
     Hwc,
-    /// dims: (batch_size, height, width)
+    /// dims: (`batch_size`, height, width)
     Nhw,
-    /// dims: (batch_size, channels, height, width)
+    /// dims: (`batch_size`, channels, height, width)
     Nchw,
-    /// dims: (batch_size, height, width, channels)
+    /// dims: (`batch_size`, height, width, channels)
     Nhwc,
 }
 

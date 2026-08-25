@@ -42,12 +42,12 @@ pub trait Nms {
     ///
     /// Returns indices of kept boxes after suppressing overlapping detections.
     /// Boxes are processed in descending score order; a box suppresses all
-    /// lower-scoring boxes with IoU > threshold.
+    /// lower-scoring boxes with `IoU` > threshold.
     ///
     /// # Arguments
     /// * `self` - Bounding boxes as \[N, 4\] tensor in (x1, y1, x2, y2) format
     /// * `scores` - Confidence scores as \[N\] tensor
-    /// * `options` - NMS options (IoU threshold, score threshold, max boxes)
+    /// * `options` - NMS options (`IoU` threshold, score threshold, max boxes)
     ///
     /// # Returns
     /// Indices of kept boxes as \[M\] tensor where M <= N
