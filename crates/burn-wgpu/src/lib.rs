@@ -69,7 +69,7 @@ type WgpuInner<C> = CubeBackend<cubecl::wgpu::WgpuRuntime<C>>;
 ///
 /// # Notes
 ///
-/// When the `fusion` feature flag is enabled (the default), this backend uses [burn_fusion] to
+/// When the `fusion` feature flag is enabled (the default), this backend uses [`burn_fusion`] to
 /// compile and optimize streams of tensor operations for improved performance. You can disable
 /// the `fusion` feature flag to remove that functionality, which might be necessary on `wasm`
 /// for now.
@@ -78,6 +78,7 @@ pub type Wgpu = WgpuInner<AutoCompiler>;
 /// Measure peak throughput on a wgpu `device` for each of the given `keys`.
 ///
 /// Uses the auto-selected shader compiler, matching the default [`Wgpu`] backend.
+#[must_use]
 pub fn device_throughput(
     device: &WgpuDevice,
     keys: &[ThroughputKey],
