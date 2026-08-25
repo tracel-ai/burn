@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, TrainingFlag};
 use burn::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [Dropout](Dropout) layer using the [init function](DropoutConfig::init).
@@ -24,6 +24,11 @@ pub struct DropoutConfig {
 pub struct Dropout {
     /// The probability of randomly zeroes some elements of the input tensor during training.
     pub prob: f64,
+    /// Whether to behave as during training. Cleared by
+    /// [`no_grad`](burn::module::Module::no_grad) and
+    /// [`valid`](burn::module::AutodiffModule::valid), because a layer with no parameters has no
+    /// `require_grad` of its own to read and has to be told.
+    pub training: TrainingFlag,
 }
 
 impl DropoutConfig {
@@ -35,7 +40,10 @@ impl DropoutConfig {
                 self.prob
             );
         }
-        Dropout { prob: self.prob }
+        Dropout {
+            prob: self.prob,
+            training: TrainingFlag::default(),
+        }
     }
 }
 
@@ -49,7 +57,10 @@ impl Dropout {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if !input.device().is_autodiff() || self.prob == 0.0 {
+        // Both, and for different reasons. The device says a backward is possible at all; the
+        // flag says this layer takes part in one, which a subtree frozen in place on the training
+        // device does not.
+        if !self.training.is_training() || !input.device().is_autodiff() || self.prob == 0.0 {
             return input;
         }
 
@@ -77,6 +88,49 @@ impl ModuleDisplay for Dropout {
 mod tests {
     use super::*;
     use burn::tensor::Shape;
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn frozen_dropout_on_a_training_device_passes_its_input_through() {
+        use burn::tensor::Device;
+        // Frozen where partial finetuning leaves it: on the training device,
+        // because that is where the rest of the graph is. The device alone
+        // cannot tell this apart from a layer that really is being trained.
+        let device = Device::default().autodiff();
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
+        let dropout = DropoutConfig::new(0.5).init().no_grad();
+
+        let output = dropout.forward(tensor.clone());
+
+        assert_eq!(
+            output.to_data(),
+            tensor.to_data(),
+            "a frozen dropout should not perturb a subtree the caller froze"
+        );
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn dropout_freezing_reaches_through_an_enclosing_module() {
+        use burn::tensor::Device;
+        // The flag is cleared by the derive's own recursion, not by the layer
+        // being frozen directly, so nesting is the case that matters.
+        #[derive(Module, Debug)]
+        struct Wrapper {
+            dropout: Dropout,
+        }
+
+        let device = Device::default().autodiff();
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
+        let wrapper = Wrapper {
+            dropout: DropoutConfig::new(0.5).init(),
+        }
+        .no_grad();
+
+        let output = wrapper.dropout.forward(tensor.clone());
+
+        assert_eq!(output.to_data(), tensor.to_data());
+    }
 
     #[cfg(feature = "std")]
     #[test]

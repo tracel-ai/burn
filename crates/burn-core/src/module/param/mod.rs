@@ -9,6 +9,7 @@ mod reparameterization_dyn;
 mod running;
 mod sync_once_cell;
 mod tensor;
+mod training;
 mod visitor;
 
 pub use base::*;
@@ -18,4 +19,5 @@ pub use id::*;
 pub use lora::*;
 pub use reparameterization::*;
 pub use running::*;
+pub use training::*;
 pub use visitor::*;

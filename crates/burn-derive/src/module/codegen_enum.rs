@@ -143,6 +143,20 @@ impl ModuleCodegen for EnumModuleCodegen {
         }
     }
 
+    fn gen_no_grad(&self) -> TokenStream {
+        let match_body = self.gen_variants_match_fn(|variant| {
+            quote! {
+                Self::#variant(burn::module::Module::no_grad(module))
+            }
+        });
+
+        quote! {
+            fn no_grad(self) -> Self {
+                #match_body
+            }
+        }
+    }
+
     fn gen_clone(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {

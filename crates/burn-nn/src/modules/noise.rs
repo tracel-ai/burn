@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, TrainingFlag};
 use burn::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [GaussianNoise](GaussianNoise) layer using the [init function](GaussianNoiseConfig::init).
@@ -23,6 +23,11 @@ pub struct GaussianNoiseConfig {
 pub struct GaussianNoise {
     /// Standard deviation of the normal noise distribution.
     pub std: f64,
+    /// Whether to behave as during training. Cleared by
+    /// [`no_grad`](burn::module::Module::no_grad) and
+    /// [`valid`](burn::module::AutodiffModule::valid), because a layer with no parameters has no
+    /// `require_grad` of its own to read and has to be told.
+    pub training: TrainingFlag,
 }
 
 impl GaussianNoiseConfig {
@@ -34,7 +39,10 @@ impl GaussianNoiseConfig {
                 self.std
             );
         }
-        GaussianNoise { std: self.std }
+        GaussianNoise {
+            std: self.std,
+            training: TrainingFlag::default(),
+        }
     }
 }
 
@@ -48,7 +56,7 @@ impl GaussianNoise {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if input.device().is_autodiff() && self.std != 0.0 {
+        if self.training.is_training() && input.device().is_autodiff() && self.std != 0.0 {
             let noise = Tensor::random(
                 input.shape(),
                 Distribution::Normal(0.0, self.std),

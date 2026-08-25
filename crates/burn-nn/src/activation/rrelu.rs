@@ -1,6 +1,6 @@
 use burn::config::Config;
 use burn::module::Module;
-use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, ModuleDisplay, TrainingFlag};
 use burn::tensor::{Distribution, Tensor};
 use burn_core as burn;
 
@@ -23,6 +23,11 @@ pub struct RRelu {
     pub lower: f64,
     /// The upper bound of the uniform slope range.
     pub upper: f64,
+    /// Whether to behave as during training. Cleared by
+    /// [`no_grad`](burn::module::Module::no_grad) and
+    /// [`valid`](burn::module::AutodiffModule::valid), because a layer with no parameters has no
+    /// `require_grad` of its own to read and has to be told.
+    pub training: TrainingFlag,
 }
 
 /// Configuration to create a [RRelu](RRelu) layer using the [init function](RReluConfig::init).
@@ -48,6 +53,7 @@ impl RReluConfig {
         RRelu {
             lower: self.lower,
             upper: self.upper,
+            training: TrainingFlag::default(),
         }
     }
 }
@@ -76,7 +82,7 @@ impl RRelu {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if !input.device().is_autodiff() {
+        if !self.training.is_training() || !input.device().is_autodiff() {
             // Evaluation: fixed midpoint slope (identical to LeakyReLU).
             return leaky_relu(input, (self.lower + self.upper) / 2.0);
         }

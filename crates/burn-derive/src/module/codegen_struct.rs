@@ -186,6 +186,30 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
+    fn gen_no_grad(&self) -> TokenStream {
+        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
+            if field_type.is_module || field_type.maybe_generic_module() {
+                quote! {
+                    let #name = burn::module::Module::no_grad(#name);
+                }
+            } else {
+                quote! { let #name = #name; }
+            }
+        });
+
+        let destructure = quote! {
+            let Self { #(#names),* } = self;
+        };
+
+        quote! {
+            fn no_grad(self) -> Self {
+                #destructure
+                #body
+                Self { #(#names),* }
+            }
+        }
+    }
+
     fn gen_clone(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name, _field_type| {
             quote! {

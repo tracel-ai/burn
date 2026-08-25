@@ -17,6 +17,7 @@ pub(crate) trait ModuleCodegen {
     fn gen_map(&self) -> TokenStream;
     fn gen_valid(&self) -> TokenStream;
     fn gen_from_inner(&self) -> TokenStream;
+    fn gen_no_grad(&self) -> TokenStream;
     fn gen_clone(&self) -> TokenStream;
 
     fn gen_display(&self) -> TokenStream;
@@ -42,6 +43,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let fork = codegen.gen_fork();
     let valid_fn = codegen.gen_valid();
     let from_inner_fn = codegen.gen_from_inner();
+    let no_grad_fn = codegen.gen_no_grad();
     let clone_fn = codegen.gen_clone();
 
     let (generics_module, generics_ty_module, generics_where_module) =
@@ -60,6 +62,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
             #collect_devices
             #to_device
             #fork
+            #no_grad_fn
 
         }
 
