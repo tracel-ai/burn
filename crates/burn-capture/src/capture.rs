@@ -8,7 +8,7 @@ use burn_backend::{
 use burn_ir::{
     GraphBindings, GraphId, GraphIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus,
 };
-use burn_std::{device::Device, future::DynFut};
+use burn_std::{device::Device, future::DynFut, tensor::quantization::QuantConfig};
 use hashbrown::{HashMap, HashSet};
 use portable_atomic::{AtomicU64, Ordering};
 use spin::Mutex;
@@ -50,6 +50,11 @@ impl CaptureDevice {
     /// afterward, including while unwinding from a panic. Only one scope may be active on a capture
     /// device at a time. Calling `complete` closes the session immediately, so the closure must not
     /// perform more tensor operations before returning the completion token.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CaptureError::AlreadyActive`] if another capture scope is already active on this
+    /// device.
     pub fn capture_scope(
         &self,
         capture: impl FnOnce(CaptureScope) -> CompletedCaptureScope,
@@ -72,11 +77,9 @@ impl CaptureDevice {
 impl Default for CaptureDevice {
     fn default() -> Self {
         let id = DEVICE_COUNTER.fetch_add(1, Ordering::Relaxed);
-        assert!(
-            id <= u16::MAX as u64,
-            "capture device identifier space exhausted"
-        );
-        Self { id: id as u16 }
+        Self {
+            id: u16::try_from(id).expect("capture device identifier space exhausted"),
+        }
     }
 }
 
@@ -105,7 +108,7 @@ impl DeviceOps for CaptureDevice {
             DType::F32,
             DType::I64,
             DType::Bool(BoolStore::U8),
-            Default::default(),
+            QuantConfig::default(),
         )
     }
 }
