@@ -2,8 +2,10 @@ use alloc::format;
 use core::fmt::{Display, Formatter, Result as FmtResult};
 
 use crate as burn;
-use crate::empty;
-use crate::module::{AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault};
+use crate::module::{
+    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
+    ModuleVisitor, ParamId,
+};
 
 /// Whether the layer holding it should behave as it does during training.
 ///
@@ -29,24 +31,44 @@ use crate::module::{AutodiffModule, Content, Module, ModuleDisplay, ModuleDispla
 /// [`ParamId`](crate::module::ParamId), and a flag is not a parameter and has none. A
 /// group-frozen subtree keeps behaving as it does during training.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TrainingFlag(pub bool);
+pub struct TrainingFlag {
+    /// Its identity in the module tree, so a [`ParamGroup`](crate::module::ParamGroup) can name it
+    /// the way it names a parameter. Without one, freezing a group could not reach it: the group
+    /// most callers build is a set of ids collected off a subtree, and a flag with no id is not in
+    /// any such set.
+    pub id: ParamId,
+    training: bool,
+}
 
 impl Default for TrainingFlag {
     fn default() -> Self {
-        Self(true)
+        Self::new(true)
     }
 }
 
 impl TrainingFlag {
+    /// A flag in the given state, with a fresh identity.
+    pub fn new(training: bool) -> Self {
+        Self {
+            id: ParamId::new(),
+            training,
+        }
+    }
+
     /// Whether the layer holding this should behave as it does during training.
     pub fn is_training(&self) -> bool {
-        self.0
+        self.training
+    }
+
+    /// The same flag, in the given state, keeping its identity.
+    pub fn with(self, training: bool) -> Self {
+        Self { training, ..self }
     }
 }
 
 impl Display for TrainingFlag {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self.0 {
+        match self.training {
             true => f.write_str("train"),
             false => f.write_str("eval"),
         }
@@ -57,19 +79,40 @@ impl Module for TrainingFlag {
     /// The whole point of the type: freezing a subtree reaches the layers in it that have no
     /// parameters to freeze.
     fn no_grad(self) -> Self {
-        Self(false)
+        self.with(false)
     }
 
-    empty!(module);
+    /// Offered to the mapper so a group-scoped traversal can reach it. The default hook is the
+    /// identity, so every mapper that does not care — records, quantization, device moves — is
+    /// unaffected.
+    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
+        mapper.map_training(self)
+    }
+
+    fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
+        visitor.visit_training(self);
+    }
+
+    fn to_device(self, _: &burn::tensor::Device) -> Self {
+        self
+    }
+
+    fn fork(self, _: &burn::tensor::Device) -> Self {
+        self
+    }
+
+    fn collect_devices(&self, devices: burn::module::Devices) -> burn::module::Devices {
+        devices
+    }
 }
 
 impl AutodiffModule for TrainingFlag {
     fn valid(&self) -> Self {
-        Self(false)
+        self.with(false)
     }
 
-    fn from_inner(_module: Self) -> Self {
-        Self(true)
+    fn from_inner(module: Self) -> Self {
+        module.with(true)
     }
 }
 

@@ -134,6 +134,51 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
+    fn group_freezing_a_subtree_reaches_the_dropout_in_it() {
+        use crate::{Linear, LinearConfig};
+        use burn::module::ParamGroup;
+        use burn::tensor::Device;
+
+        // A group built off a subtree, which is how a caller says "freeze this
+        // half": `ids_from_module` collects the ids under it, and the flag is
+        // collected with them because it carries one.
+        #[derive(Module, Debug)]
+        struct Half {
+            linear: Linear,
+            dropout: Dropout,
+        }
+        #[derive(Module, Debug)]
+        struct Whole {
+            frozen: Half,
+            trained: Half,
+        }
+
+        let device = Device::default().autodiff();
+        let half = |device: &Device| Half {
+            linear: LinearConfig::new(4, 4).init(device),
+            dropout: DropoutConfig::new(0.5).init(),
+        };
+        let model = Whole {
+            frozen: half(&device),
+            trained: half(&device),
+        };
+        let group = ParamGroup::ids_from_module(model.frozen.clone());
+        let model = model.freeze_group(group);
+
+        assert!(
+            !model.frozen.dropout.training.is_training(),
+            "the frozen half's dropout should have been reached"
+        );
+        assert!(
+            model.trained.dropout.training.is_training(),
+            "the half outside the group should be untouched"
+        );
+        assert!(!model.frozen.linear.weight.is_require_grad());
+        assert!(model.trained.linear.weight.is_require_grad());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
     fn with_ad_backend_should_mark_input() {
         use burn::tensor::Device;
         let device = Device::default().autodiff();

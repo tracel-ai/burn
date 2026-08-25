@@ -43,6 +43,12 @@ impl ModuleVisitor for ParamIdCollector {
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
         self.ids.push(param.id);
     }
+
+    /// A flag is collected like a parameter, so `ids_from_module` over a subtree names the
+    /// training state of the layers in it that have no parameters of their own.
+    fn visit_training(&mut self, flag: &crate::module::TrainingFlag) {
+        self.ids.push(flag.id);
+    }
 }
 
 /// A way to represent a group of parameter for a Burn module.

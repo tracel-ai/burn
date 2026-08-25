@@ -1,6 +1,6 @@
 use crate::module::{Lora, ParamGroup, QLora};
 
-use super::{ApplyReparameterization, Param, ParamId, Quantizer, Reparameterizer};
+use super::{ApplyReparameterization, Param, ParamId, Quantizer, Reparameterizer, TrainingFlag};
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -28,7 +28,7 @@ macro_rules! module {
         let mut mapper = Mapper;
         $module.map(&mut mapper)
     }};
-    (map=$module:ident, ops=$item:expr, group=$group:ident) => {{
+    (map=$module:ident, ops=$item:expr, group=$group:ident, training=$training:expr) => {{
         struct Mapper {
             pub path: Vec<String>,
             pub group: ParamGroup,
@@ -51,6 +51,14 @@ macro_rules! module {
                     return Param::from_mapped_value(id, tensor, mapper);
                 }
                 Param::from_mapped_value(id, tensor, mapper)
+            }
+
+            fn map_training(&mut self, flag: TrainingFlag) -> TrainingFlag {
+                let path = self.path.join(".");
+                match self.group.matches(&flag.id, Some(&path)) {
+                    true => flag.with($training),
+                    false => flag,
+                }
             }
         }
         let mut mapper = Mapper {
@@ -157,7 +165,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         module!(
             map = self,
             ops = |tensor: Tensor<D>| tensor.set_require_grad(false),
-            group = group
+            group = group,
+            training = false
         )
     }
 
@@ -170,7 +179,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         module!(
             map = self,
             ops = |tensor: Tensor<D>| tensor.set_require_grad(true),
-            group = group
+            group = group,
+            training = true
         )
     }
 
@@ -377,6 +387,16 @@ pub trait ModuleVisitor {
     #[allow(unused_variables)]
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {}
 
+    /// Visit a [`TrainingFlag`] in the module.
+    ///
+    /// State a layer with no parameters keeps in place of them, so a traversal that reasons about
+    /// what is trainable can see it too.
+    ///
+    /// # Parameters
+    /// - `flag`: The flag to visit
+    #[allow(unused_variables)]
+    fn visit_training(&mut self, flag: &TrainingFlag) {}
+
     /// Called when entering a submodule.
     ///
     /// # Parameters
@@ -535,6 +555,20 @@ pub trait ModuleMapper {
     ) -> Param<Tensor<D, Bool>> {
         let (id, tensor, mapper) = param.consume();
         Param::from_mapped_value(id, tensor, mapper)
+    }
+
+    /// Map a [`TrainingFlag`] in the module.
+    ///
+    /// The default is the identity, so a mapper with no opinion about training state — a record,
+    /// a quantizer, a device move — behaves exactly as it did before this existed.
+    ///
+    /// # Parameters
+    /// - `flag`: The flag to map
+    ///
+    /// # Returns
+    /// The mapped flag
+    fn map_training(&mut self, flag: TrainingFlag) -> TrainingFlag {
+        flag
     }
 }
 
