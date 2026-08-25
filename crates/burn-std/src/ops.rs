@@ -28,6 +28,7 @@ pub struct ConvOptions<const N: usize> {
 
 impl<const N: usize> ConvOptions<N> {
     /// Constructs a new `ConvOptions`.
+    #[must_use]
     pub fn new(
         stride: [usize; N],
         padding: [usize; N],
@@ -66,6 +67,7 @@ impl<const N: usize> PaddedConvOptions<N> {
     ///
     /// `padding_start` is stored in `ConvOptions::padding`.
     /// `padding_end` specifies the end padding per dimension.
+    #[must_use]
     pub fn asymmetric(
         stride: [usize; N],
         padding_start: [usize; N],
@@ -88,6 +90,7 @@ impl<const N: usize> PaddedConvOptions<N> {
     }
 
     /// Returns true if padding is asymmetric.
+    #[must_use]
     pub fn is_asymmetric(&self) -> bool {
         self.padding_end.is_some()
     }
@@ -123,6 +126,7 @@ pub struct DeformConvOptions<const N: usize> {
 
 impl<const N: usize> DeformConvOptions<N> {
     /// Constructs a new `DeformConvOptions`.
+    #[must_use]
     pub fn new(
         stride: [usize; N],
         padding: [usize; N],
@@ -161,6 +165,7 @@ pub struct ConvTransposeOptions<const N: usize> {
 
 impl<const N: usize> ConvTransposeOptions<N> {
     /// Constructs a new `ConvTransposeOptions`.
+    #[must_use]
     pub fn new(
         stride: [usize; N],
         padding: [usize; N],
@@ -194,6 +199,7 @@ pub struct UnfoldOptions {
 
 impl UnfoldOptions {
     /// Constructs a new `UnfoldOptions`.
+    #[must_use]
     pub fn new(stride: [usize; 2], padding: [usize; 2], dilation: [usize; 2]) -> Self {
         Self {
             stride: stride.map(|s| check_nonzero(s, "stride must be non-zero")),
@@ -207,7 +213,7 @@ impl UnfoldOptions {
 #[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
     /// Nearest-neighbor floor interpolation.
-    /// Matches the legacy behavior of OpenCV’s INTER_NEAREST. It results in a bottom-right shift when resizing.
+    /// Matches the legacy behavior of OpenCV’s `INTER_NEAREST`. It results in a bottom-right shift when resizing.
     /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
     Nearest,
 
@@ -241,6 +247,7 @@ pub struct InterpolateOptions {
 impl InterpolateOptions {
     /// Create new interpolate options with the given mode.
     /// Defaults to `align_corners = true`.
+    #[must_use]
     pub fn new(mode: InterpolateMode) -> Self {
         Self {
             mode,
@@ -248,7 +255,8 @@ impl InterpolateOptions {
         }
     }
 
-    /// Set align_corners.
+    /// Set `align_corners`.
+    #[must_use]
     pub fn with_align_corners(mut self, align_corners: bool) -> Self {
         self.align_corners = align_corners;
         self
@@ -257,7 +265,7 @@ impl InterpolateOptions {
 
 /// Padding mode for grid sampling when coordinates are out of bounds.
 ///
-/// Matches PyTorch's `padding_mode` parameter in `grid_sample`.
+/// Matches `PyTorch`'s `padding_mode` parameter in `grid_sample`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize)]
 pub enum GridSamplePaddingMode {
     /// Fill with zeros for out-of-bounds coordinates.
@@ -301,7 +309,8 @@ impl From<InterpolateMode> for GridSampleOptions {
 impl GridSampleOptions {
     /// Create new grid sample options with the given interpolation mode.
     ///
-    /// Uses default values for padding_mode (Zeros) and align_corners (false).
+    /// Uses default values for `padding_mode` (Zeros) and `align_corners` (false).
+    #[must_use]
     pub fn new(mode: InterpolateMode) -> Self {
         Self {
             mode,
@@ -310,12 +319,14 @@ impl GridSampleOptions {
     }
 
     /// Set the padding mode.
+    #[must_use]
     pub fn with_padding_mode(mut self, padding_mode: GridSamplePaddingMode) -> Self {
         self.padding_mode = padding_mode;
         self
     }
 
-    /// Set align_corners.
+    /// Set `align_corners`.
+    #[must_use]
     pub fn with_align_corners(mut self, align_corners: bool) -> Self {
         self.align_corners = align_corners;
         self
@@ -330,7 +341,7 @@ impl GridSampleOptions {
 /// # Modes
 ///
 /// - [`Constant`](PadMode::Constant): Fill with a specified value (default: 0.0)
-/// - [`Reflect`](PadMode::Reflect): Mirror values at boundary, excluding edge (requires padding < dim_size)
+/// - [`Reflect`](PadMode::Reflect): Mirror values at boundary, excluding edge (requires padding < `dim_size`)
 /// - [`Edge`](PadMode::Edge): Replicate boundary values
 #[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum PadMode {

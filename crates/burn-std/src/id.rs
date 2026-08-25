@@ -6,6 +6,7 @@ pub struct IdGenerator {}
 
 impl IdGenerator {
     /// Generates a new ID.
+    #[must_use]
     pub fn generate() -> u64 {
         // Generate a random u64 (18,446,744,073,709,551,615 combinations)
         let random_bytes: [u8; 8] = gen_random();
@@ -46,6 +47,7 @@ impl Default for ParamId {
 
 impl ParamId {
     /// Create a new parameter ID.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             value: IdGenerator::generate(),
@@ -53,6 +55,7 @@ impl ParamId {
     }
 
     /// Gets the internal value of the id.
+    #[must_use]
     pub fn val(&self) -> u64 {
         self.value
     }

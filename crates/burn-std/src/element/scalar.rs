@@ -32,9 +32,7 @@ impl Scalar {
         } else if dtype.is_bool() {
             match dtype {
                 DType::Bool(BoolStore::Native) => Self::Bool(value.elem()),
-                DType::Bool(BoolStore::U8) | DType::Bool(BoolStore::U32) => {
-                    Self::UInt(value.elem())
-                }
+                DType::Bool(BoolStore::U8 | BoolStore::U32) => Self::UInt(value.elem()),
                 _ => unreachable!(),
             }
         } else {
@@ -43,6 +41,7 @@ impl Scalar {
     }
 
     /// Converts and returns the converted element.
+    #[must_use]
     pub fn elem<E: Element>(self) -> E {
         match self {
             Self::Float(x) => x.elem(),
@@ -53,11 +52,12 @@ impl Scalar {
     }
 
     /// Returns the exact integer value, if valid.
+    #[must_use]
     pub fn try_as_integer(&self) -> Option<Self> {
         match self {
             Scalar::Float(x) => (x.floor() == *x).then(|| Self::Int(x.to_i64().unwrap())),
             Scalar::Int(_) | Scalar::UInt(_) => Some(*self),
-            Scalar::Bool(x) => Some(Scalar::Int(*x as i64)),
+            Scalar::Bool(x) => Some(Scalar::Int(i64::from(*x))),
         }
     }
 }
@@ -87,7 +87,7 @@ impl ToPrimitive for Scalar {
             Scalar::Float(x) => x.to_i64(),
             Scalar::UInt(x) => x.to_i64(),
             Scalar::Int(x) => Some(*x),
-            Scalar::Bool(x) => Some(*x as i64),
+            Scalar::Bool(x) => Some(i64::from(*x)),
         }
     }
 
@@ -96,7 +96,7 @@ impl ToPrimitive for Scalar {
             Scalar::Float(x) => x.to_u64(),
             Scalar::UInt(x) => Some(*x),
             Scalar::Int(x) => x.to_u64(),
-            Scalar::Bool(x) => Some(*x as u64),
+            Scalar::Bool(x) => Some(u64::from(*x)),
         }
     }
 
@@ -105,7 +105,7 @@ impl ToPrimitive for Scalar {
             Scalar::Float(x) => Some(*x),
             Scalar::UInt(x) => x.to_f64(),
             Scalar::Int(x) => x.to_f64(),
-            Scalar::Bool(x) => (*x as u8).to_f64(),
+            Scalar::Bool(x) => u8::from(*x).to_f64(),
         }
     }
 }

@@ -3,7 +3,7 @@ use core::mem::size_of;
 use crate::{bf16, f16};
 
 /// A generic trait for converting a value to a number.
-/// Adapted from num_traits::ToPrimitive to support [bool].
+/// Adapted from `num_traits::ToPrimitive` to support [bool].
 ///
 /// A value can be represented by the target type when it lies within
 /// the range of scalars supported by the target type.
@@ -567,43 +567,43 @@ impl ToElement for crate::flex32 {
 impl ToElement for bool {
     #[inline]
     fn to_i64(&self) -> i64 {
-        *self as i64
+        i64::from(*self)
     }
     #[inline]
     fn to_u64(&self) -> u64 {
-        *self as u64
+        u64::from(*self)
     }
     #[inline]
     fn to_i8(&self) -> i8 {
-        *self as i8
+        i8::from(*self)
     }
     #[inline]
     fn to_u8(&self) -> u8 {
-        *self as u8
+        u8::from(*self)
     }
     #[inline]
     fn to_i16(&self) -> i16 {
-        *self as i16
+        i16::from(*self)
     }
     #[inline]
     fn to_u16(&self) -> u16 {
-        *self as u16
+        u16::from(*self)
     }
     #[inline]
     fn to_i32(&self) -> i32 {
-        *self as i32
+        i32::from(*self)
     }
     #[inline]
     fn to_u32(&self) -> u32 {
-        *self as u32
+        u32::from(*self)
     }
     #[inline]
     fn to_f32(&self) -> f32 {
-        self.to_u8() as f32
+        f32::from(self.to_u8())
     }
     #[inline]
     fn to_f64(&self) -> f64 {
-        self.to_u8() as f64
+        f64::from(self.to_u8())
     }
     #[inline]
     fn to_bool(&self) -> bool {

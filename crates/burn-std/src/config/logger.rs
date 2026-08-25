@@ -29,6 +29,7 @@ std::thread_local! {
 ///
 /// Safe because [`BurnConfig::set`] panics after the first read, so the cached snapshot
 /// matches the global singleton for the whole program lifetime.
+#[must_use]
 pub fn config() -> Arc<BurnConfig> {
     #[cfg(feature = "std")]
     {
@@ -62,6 +63,7 @@ impl Logger {
     ///
     /// Note that creating a logger is somewhat expensive because it opens file handles for any
     /// sink configured with a file path.
+    #[must_use]
     pub fn new() -> Self {
         let config = BurnConfig::get();
         let mut sinks = LoggerSinks::new();
@@ -107,16 +109,19 @@ impl Logger {
     }
 
     /// Returns the current fusion log level.
+    #[must_use]
     pub fn log_level_fusion(&self) -> FusionLogLevel {
         self.config.fusion().logger.level
     }
 
     /// Returns the current remote-backend log level.
+    #[must_use]
     pub fn log_level_remote(&self) -> RemoteLogLevel {
         self.config.remote().logger.level
     }
 
     /// Returns the current autodiff log level.
+    #[must_use]
     pub fn log_level_autodiff(&self) -> AutodiffLogLevel {
         self.config.autodiff().logger.level
     }

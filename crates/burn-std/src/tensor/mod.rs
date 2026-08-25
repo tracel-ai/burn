@@ -27,6 +27,7 @@ pub use cubecl_zspace::{Strides, metadata::Metadata, strides};
 /// of all dimensions greater than `k`.
 ///
 /// This means that strides increase as you move from the rightmost to the leftmost dimension.
+#[must_use]
 pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     if shape.is_empty() {
         return true;
@@ -43,9 +44,10 @@ pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 
 /// Check if the current tensor fills its buffer without gaps.
 ///
-/// Unlike [is_contiguous], this holds for any ordering of the dimensions: a permuted tensor is
+/// Unlike [`is_contiguous`], this holds for any ordering of the dimensions: a permuted tensor is
 /// dense, a tensor whose rows were padded by a pitched allocator is not. Dimensions of size one
 /// carry no information about the layout and are ignored.
+#[must_use]
 pub fn is_dense(shape: &[usize], strides: &[usize]) -> bool {
     if shape.len() != strides.len() {
         return false;
@@ -77,6 +79,7 @@ pub fn is_dense(shape: &[usize], strides: &[usize]) -> bool {
 ///
 /// In a contiguous row-major tensor, the stride for each dimension
 /// equals the product of all dimension sizes to its right.
+#[must_use]
 pub fn contiguous_strides(shape: &[usize]) -> Strides {
     let mut strides = strides![0; shape.len()];
     let mut current = 1;
@@ -122,6 +125,7 @@ pub enum ReshapeAnalysis {
 
 impl ReshapeAnalysis {
     /// Returns the proper action to take for the current analysis.
+    #[must_use]
     pub fn action(&self, shape: &[usize], strides: &[usize], shape_new: &[usize]) -> ReshapeAction {
         match self {
             ReshapeAnalysis::IsContiguous => ReshapeAction::UpdateStrides {
@@ -154,11 +158,13 @@ impl ReshapeAnalysis {
 }
 
 /// Returns the proper action to take when reshaping a tensor.
+#[must_use]
 pub fn reshape_action(shape: &Shape, strides: &Strides, shape_new: &Shape) -> ReshapeAction {
     reshape_analysis(shape, Some(strides), shape_new).action(shape, strides, shape_new)
 }
 
 /// Calculate the new strides given added batch dimensions.
+#[must_use]
 pub fn broadcast_strides(
     n_new_batch: usize,
     rank_prev: usize,
@@ -175,6 +181,7 @@ pub fn broadcast_strides(
 }
 
 /// Calculate the new strides given added split dimensions.
+#[must_use]
 pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) -> Strides {
     let mut strides_new = strides![1; shape_new.len()];
 
@@ -213,6 +220,7 @@ pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) ->
 }
 
 /// Returns the analysis of a reshape operation.
+#[must_use]
 pub fn reshape_analysis(
     shape: &Shape,
     strides: Option<&Strides>,
@@ -236,40 +244,34 @@ pub fn reshape_analysis(
 
     let n_new_batch = shape_new_rank - shape_rank;
 
-    match n_new_batch > 0 {
-        true => {
-            if shape.as_ref() == &shape_new[n_new_batch..shape_new_rank]
-                && shape_new[0..n_new_batch].iter().all(|it| *it == 1)
-            {
-                return ReshapeAnalysis::Broadcasted;
-            }
-
-            let mut dim_prod = 1;
-            let mut old_idx = 0;
-            for dim in shape_new.iter() {
-                dim_prod *= *dim;
-
-                // We need to ignore unit dims because they don't affect analysis and break
-                // things because they match the default `dim_prod`. If we don't do this,
-                // reshapes like [2, 3] to [2, 3, 1] will panic from out of bounds access.
-                if *dim == 1 {
-                    continue;
-                } else if dim_prod == shape[old_idx] {
-                    dim_prod = 1;
-                    old_idx += 1;
-                } else if dim_prod > shape[old_idx] {
-                    return ReshapeAnalysis::HighlyPermuted;
-                }
-            }
-            return ReshapeAnalysis::Split;
+    if n_new_batch > 0 {
+        if shape.as_ref() == &shape_new[n_new_batch..shape_new_rank]
+            && shape_new[0..n_new_batch].iter().all(|it| *it == 1)
+        {
+            return ReshapeAnalysis::Broadcasted;
         }
 
-        false => {
-            if shape == shape_new {
-                return ReshapeAnalysis::NoChange;
+        let mut dim_prod = 1;
+        let mut old_idx = 0;
+        for dim in shape_new.iter() {
+            dim_prod *= *dim;
+
+            // We need to ignore unit dims because they don't affect analysis and break
+            // things because they match the default `dim_prod`. If we don't do this,
+            // reshapes like [2, 3] to [2, 3, 1] will panic from out of bounds access.
+            if *dim == 1 {
+                continue;
+            } else if dim_prod == shape[old_idx] {
+                dim_prod = 1;
+                old_idx += 1;
+            } else if dim_prod > shape[old_idx] {
+                return ReshapeAnalysis::HighlyPermuted;
             }
         }
-    };
+        return ReshapeAnalysis::Split;
+    } else if shape == shape_new {
+        return ReshapeAnalysis::NoChange;
+    }
 
     ReshapeAnalysis::HighlyPermuted
 }

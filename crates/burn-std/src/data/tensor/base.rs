@@ -32,20 +32,20 @@ pub enum DataError {
     /// The stored dtype doesn't match the requested dtype.
     #[error("Expected data type {expected:?}, but got {actual:?}")]
     DTypeMismatch {
-        /// The expected storage DType.
+        /// The expected storage `DType`.
         expected: DType,
 
-        /// The actual storage DType.
+        /// The actual storage `DType`.
         actual: DType,
     },
 
     /// Unsupported data conversion.
     #[error("Unsupported data conversion from {from:?} to {to:?}")]
     UnsupportedConversion {
-        /// The source DType.
+        /// The source `DType`.
         from: DType,
 
-        /// The destination DType.
+        /// The destination `DType`.
         to: DType,
     },
 
@@ -151,7 +151,7 @@ impl TryFrom<TensorDataDe> for TensorData {
 mod shape_inner {
     use crate::SmallVec;
 
-    use super::*;
+    use super::{Deserialize, Serialize, Shape};
 
     pub fn serialize<S: serde::Serializer>(
         shape: &Shape,
@@ -281,11 +281,13 @@ impl TensorData {
     }
 
     /// Returns the rank (the number of dimensions).
+    #[must_use]
     pub fn rank(&self) -> usize {
         self.shape.len()
     }
 
     /// Returns the total number of elements of the tensor data.
+    #[must_use]
     pub fn num_elements(&self) -> usize {
         numel(&self.shape)
     }
@@ -339,7 +341,7 @@ impl TensorData {
         let num_elements = numel(&shape);
         let mut data = Vec::<E>::with_capacity(num_elements);
         for _ in 0..num_elements {
-            data.push(fill_value)
+            data.push(fill_value);
         }
 
         TensorData::new(data, shape)
@@ -389,11 +391,13 @@ impl TensorData {
     }
 
     /// Returns the data as a slice of bytes.
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
     }
 
     /// Returns the bytes representation of the data.
+    #[must_use]
     pub fn into_bytes(self) -> Bytes {
         self.bytes
     }
@@ -418,7 +422,7 @@ impl<const A: usize> From<[usize; A]> for TensorData {
 impl From<&[usize]> for TensorData {
     fn from(elems: &[usize]) -> Self {
         let mut data = Vec::with_capacity(elems.len());
-        for elem in elems.iter() {
+        for elem in elems {
             data.push(*elem as i64);
         }
 
@@ -429,7 +433,7 @@ impl From<&[usize]> for TensorData {
 impl<E: Element> From<&[E]> for TensorData {
     fn from(elems: &[E]) -> Self {
         let mut data = Vec::with_capacity(elems.len());
-        for elem in elems.iter() {
+        for elem in elems {
             data.push(*elem);
         }
 

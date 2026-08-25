@@ -125,7 +125,7 @@ where
 /// * `s![2..8;-2]` selects indices `[7, 5, 3]` (starting from 7, going backward by 2)
 /// * `s![..;-1]` reverses the entire axis
 ///
-/// This matches the semantics of NumPy and the ndarray crate.
+/// This matches the semantics of `NumPy` and the ndarray crate.
 ///
 /// # Examples
 ///
@@ -392,17 +392,20 @@ impl Default for Slice {
 
 impl Slice {
     /// Creates a new slice with start, end, and step
+    #[must_use]
     pub const fn new(start: isize, end: Option<isize>, step: isize) -> Self {
         assert!(step != 0, "Step cannot be zero");
         Self { start, end, step }
     }
 
     /// Creates a slice that represents the full range.
+    #[must_use]
     pub const fn full() -> Self {
         Self::new(0, None, 1)
     }
 
     /// Creates a slice that represents a single index
+    #[must_use]
     pub fn index(idx: isize) -> Self {
         Self {
             start: idx,
@@ -412,6 +415,7 @@ impl Slice {
     }
 
     /// Converts the slice to a vector.
+    #[must_use]
     pub fn into_vec(self) -> Vec<isize> {
         assert!(
             self.end.is_some(),
@@ -438,6 +442,7 @@ impl Slice {
     ///     Slice::new(0, Some(-5), -1).bound_to(10),
     ///     Slice::new(0, Some(-5), -1));
     /// ```
+    #[must_use]
     pub fn bound_to(self, size: usize) -> Self {
         let mut bounds = size as isize;
 
@@ -458,6 +463,7 @@ impl Slice {
     }
 
     /// Creates a slice with a custom step
+    #[must_use]
     pub fn with_step(start: isize, end: Option<isize>, step: isize) -> Self {
         assert!(step != 0, "Step cannot be zero");
         Self { start, end, step }
@@ -472,11 +478,13 @@ impl Slice {
     }
 
     /// Returns the step of the slice
+    #[must_use]
     pub fn step(&self) -> isize {
         self.step
     }
 
     /// Returns the range for this slice given a dimension size
+    #[must_use]
     pub fn range(&self, size: usize) -> Range<usize> {
         self.to_range(size)
     }
@@ -490,6 +498,7 @@ impl Slice {
     /// # Returns
     ///
     /// A `Range<usize>` representing the slice bounds.
+    #[must_use]
     pub fn to_range(&self, size: usize) -> Range<usize> {
         // Always return a valid range with start <= end
         // The step information will be handled separately
@@ -502,17 +511,20 @@ impl Slice {
     }
 
     /// Converts the slice into a range and step tuple
+    #[must_use]
     pub fn to_range_and_step(&self, size: usize) -> (Range<usize>, isize) {
         let range = self.to_range(size);
         (range, self.step)
     }
 
     /// Returns true if the step is negative
+    #[must_use]
     pub fn is_reversed(&self) -> bool {
         self.step < 0
     }
 
     /// Calculates the output size for this slice operation
+    #[must_use]
     pub fn output_size(&self, dim_size: usize) -> usize {
         let range = self.to_range(dim_size);
         // Handle empty slices (start >= end)
@@ -640,7 +652,7 @@ impl Display for Slice {
             }
             f.write_str("..")?;
             if let Some(end) = self.end {
-                f.write_fmt(format_args!("{}", end))?;
+                f.write_fmt(format_args!("{end}"))?;
             }
             if self.step != 1 {
                 f.write_fmt(format_args!(";{}", self.step))?;
@@ -658,10 +670,7 @@ impl FromStr for Slice {
 
         let parse_int = |v: &str| -> Result<isize, Self::Err> {
             v.parse::<isize>().map_err(|e| {
-                crate::ExpressionError::parse_error(
-                    format!("Invalid integer: '{v}': {}", e),
-                    source,
-                )
+                crate::ExpressionError::parse_error(format!("Invalid integer: '{v}': {e}"), source)
             })
         };
 
@@ -669,7 +678,7 @@ impl FromStr for Slice {
         let mut end: Option<isize> = None;
         let mut step: isize = 1;
 
-        if let Some((head, tail)) = s.split_once(";") {
+        if let Some((head, tail)) = s.split_once(';') {
             step = parse_int(tail)?;
             s = head;
         }

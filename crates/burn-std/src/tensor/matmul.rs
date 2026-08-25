@@ -22,7 +22,7 @@ impl MatmulTransformAction {
     /// Apply the action to one merged operand (lhs or out): fold the batch dims
     /// into the rows, in place. A pure metadata rewrite — the buffer is shared.
     ///
-    /// Requires batch-contiguous rows (see [MatmulTransformAnalysis]); the merge
+    /// Requires batch-contiguous rows (see [`MatmulTransformAnalysis`]); the merge
     /// keeps the rank, with every batch dim set to 1.
     pub fn apply(&self, meta: &mut Metadata) {
         let rows = match self {
@@ -61,16 +61,18 @@ pub struct MatmulTransformAnalysis {
 
 impl MatmulTransformAnalysis {
     /// Analyze from shapes alone: the operands are assumed batch-contiguous, as
-    /// holds for freshly materialized tensors. Use [Self::from_metadata] when
+    /// holds for freshly materialized tensors. Use [`Self::from_metadata`] when
     /// the layouts are known.
     ///
     /// The rhs may have a lower rank than the lhs (implicit broadcast).
+    #[must_use]
     pub fn from_shapes(lhs: &Shape, rhs: &Shape) -> Self {
         Self::new(lhs, rhs, true)
     }
 
     /// Analyze from full metadata: on top of the shape facts, the lhs and out
     /// rows must advance with a single stride across batch boundaries.
+    #[must_use]
     pub fn from_metadata(lhs: &Metadata, rhs: &Metadata, out: &Metadata) -> Self {
         let mergeable = merged_row_stride(lhs.shape(), lhs.strides()).is_some()
             && merged_row_stride(out.shape(), out.strides()).is_some();
@@ -114,6 +116,7 @@ pub enum MatmulTransformPolicy {
 
 impl MatmulTransformPolicy {
     /// The action to take for a matmul with the given analysis.
+    #[must_use]
     pub fn action(&self, analysis: &MatmulTransformAnalysis) -> MatmulTransformAction {
         match self {
             MatmulTransformPolicy::Never => MatmulTransformAction::Keep,

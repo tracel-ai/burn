@@ -54,9 +54,9 @@ pub enum QuantAcc {
 pub enum Calibration {
     /// Computes quantization range mapping based on the min and max values.
     MinMax,
-    /// Absolute-mean calibration for BitNet b1.58-style `{-1, 0, +1}` weight quantization.
+    /// Absolute-mean calibration for `BitNet` b1.58-style `{-1, 0, +1}` weight quantization.
     ///
-    /// The range is `[-γ, +γ]` where γ = `mean(|W|)` per tensor or per block (BitNet b1.58
+    /// The range is `[-γ, +γ]` where γ = `mean(|W|)` per tensor or per block (`BitNet` b1.58
     /// §3.1). Use with `QuantValue::Q2S` and `QuantStore::PackedU32` for 2-bit packed storage.
     AbsMean,
 }
@@ -110,6 +110,7 @@ pub struct QParamTensor {
 /// A backend answers `supports_dtype` with this, so an unsupported scheme is declined where it is
 /// chosen rather than at the first quantize. Each condition is asserted again where it is relied
 /// on, so bypassing this reports the specific rule rather than this general one.
+#[must_use]
 pub fn quantizable(scheme: &QuantScheme) -> bool {
     // Quantizing divides by the scale it will store, which needs the round-up rule.
     if scheme.scale_dtype().round_up(1.0).is_none() {
@@ -131,6 +132,7 @@ pub fn quantizable(scheme: &QuantScheme) -> bool {
 ///
 /// [`QuantScheme::tensor_scale`] answers for a per-tensor scheme too, where the scale is the whole
 /// reconstruction rather than a factor over block scales.
+#[must_use]
 pub fn global_scale_dtype(scheme: &QuantScheme) -> Option<ScaleDtype> {
     scheme.block_scale().and(scheme.tensor_scale())
 }
@@ -138,6 +140,7 @@ pub fn global_scale_dtype(scheme: &QuantScheme) -> Option<ScaleDtype> {
 /// Calculate the shape of the block scale grid for a given tensor and scheme.
 ///
 /// A two-level scheme's per-tensor scale is not part of this grid.
+#[must_use]
 pub fn params_shape(data_shape: &Shape, scheme: &QuantScheme) -> Shape {
     match scheme.block_size() {
         None => Shape::new([1]),
@@ -157,6 +160,7 @@ pub struct BlockLayout {
 
 impl BlockLayout {
     /// How `block` tiles a tensor of `shape`.
+    #[must_use]
     pub fn new(shape: &Shape, block: &BlockSize) -> Self {
         Self {
             shape: shape.clone(),
@@ -166,11 +170,13 @@ impl BlockLayout {
     }
 
     /// How many blocks the tensor holds, which is how many block scales it has.
+    #[must_use]
     pub fn num_blocks(&self) -> usize {
         self.blocks.num_elements()
     }
 
     /// Whether every dimension is a whole number of blocks.
+    #[must_use]
     pub fn divides(&self) -> bool {
         self.shape
             .iter()
@@ -179,6 +185,7 @@ impl BlockLayout {
     }
 
     /// The row-major index of the block holding row-major element `index`.
+    #[must_use]
     pub fn block_of(&self, mut index: usize) -> usize {
         let mut block = 0;
         let mut stride = 1;
@@ -231,9 +238,10 @@ impl QuantizedBytes {
             value.len()
         );
         // Only used for 8-bit quantization data comparison in tests
-        if TypeId::of::<E>() != TypeId::of::<i8>() {
-            panic!("Invalid quantized type");
-        }
+        assert!(
+            TypeId::of::<E>() == TypeId::of::<i8>(),
+            "Invalid quantized type"
+        );
 
         // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
@@ -272,11 +280,13 @@ impl QuantizedBytes {
     }
 
     /// The number of quantized elements.
+    #[must_use]
     pub fn num_elements(&self) -> usize {
         self.shape.num_elements()
     }
 
     /// Returns the int8 quantized values with the quantization parameters.
+    #[must_use]
     pub fn into_vec_i8(self) -> (Vec<i8>, DecodedScales) {
         let scheme = self.scheme;
         let (values, (qparams, num_params)) = self.split_values_off();
@@ -361,6 +371,7 @@ impl QuantizedBytes {
 /// Up rather than to nearest, because a scale is derived from the largest magnitude it has to
 /// cover. Rounding down puts that value past the end of the quantized range, where it clips, which
 /// measured several times worse than the coarser step rounding up costs.
+#[must_use]
 pub fn scale_to_dtype(scale: f32, dtype: ScaleDtype) -> f32 {
     dtype
         .round_up(scale)
@@ -397,6 +408,7 @@ fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
 
 /// Total bytes a tensor of `shape` occupies under `scheme`, laid out as [`QuantizedBytes::new`]
 /// writes it: values, then block scales, then (for a two-level scheme) the per-tensor scale.
+#[must_use]
 pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
     let value_bytes = storage_elements(scheme, shape) * scheme.size_bits_stored().div_ceil(8);
 
@@ -407,6 +419,7 @@ pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
 }
 
 /// Bytes per stored scale entry for the given scale dtype.
+#[must_use]
 pub fn scale_size(dtype: ScaleDtype) -> usize {
     match dtype {
         ScaleDtype::F32 => 4,
@@ -472,6 +485,7 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
 }
 
 /// Pack signed 8-bit integer values into a sequence of unsigned 32-bit integers.
+#[must_use]
 pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
     // Shift and combine groups of four 8-bit values into a u32.
     // Same as doing this:
@@ -504,7 +518,7 @@ pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
 
         // Pre-forget the old vec and re-interpret as u32
         let mut values = core::mem::ManuallyDrop::new(values);
-        let ptr = values.as_mut_ptr() as *mut u32;
+        let ptr = values.as_mut_ptr().cast::<u32>();
 
         unsafe { Vec::from_raw_parts(ptr, len, capacity) }
     }

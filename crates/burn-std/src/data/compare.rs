@@ -20,7 +20,7 @@ use crate::{
 ///
 /// The most common way to initialize this struct is to use `Tolerance::<F>::default()`.
 /// In that case, the relative and absolute tolerances are computed using an heuristic based
-/// on the EPSILON and MIN_POSITIVE values of the given floating point type `F`.
+/// on the EPSILON and `MIN_POSITIVE` values of the given floating point type `F`.
 ///
 /// Another common initialization is `Tolerance::<F>::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-2)`.
 /// This will use a sane default to manage values too close to 0.0 and
@@ -39,6 +39,7 @@ impl<F: Float> Default for Tolerance<F> {
 
 impl<F: Float> Tolerance<F> {
     /// Create a tolerance with strict precision setting.
+    #[must_use]
     pub fn strict() -> Self {
         Self {
             relative: F::from(0.00).unwrap(),
@@ -46,6 +47,7 @@ impl<F: Float> Tolerance<F> {
         }
     }
     /// Create a tolerance with balanced precision setting.
+    #[must_use]
     pub fn balanced() -> Self {
         Self {
             relative: F::from(0.005).unwrap(), // 0.5%
@@ -54,6 +56,7 @@ impl<F: Float> Tolerance<F> {
     }
 
     /// Create a tolerance with permissive precision setting.
+    #[must_use]
     pub fn permissive() -> Self {
         Self {
             relative: F::from(0.01).unwrap(), // 1.0%
@@ -253,7 +256,7 @@ impl TensorData {
                     && q.block_size() == q_other.block_size()
                     && global_scale_dtype(&q) == global_scale_dtype(&q_other)
                 {
-                    self.assert_eq_elem::<i8>(other)
+                    self.assert_eq_elem::<i8>(other);
                 } else {
                     panic!("Quantization schemes differ ({q:?} != {q_other:?})")
                 }
@@ -288,9 +291,7 @@ impl TensorData {
             message += format!("\n{} more errors...", num_diff - max_num_diff).as_str();
         }
 
-        if !message.is_empty() {
-            panic!("Tensors are not eq:{message}");
-        }
+        assert!(message.is_empty(), "Tensors are not eq:{message}");
     }
 
     /// Asserts the data is approximately equal to another data.
@@ -353,9 +354,7 @@ impl TensorData {
             message += format!("\n{} more errors...", num_diff - 5).as_str();
         }
 
-        if !message.is_empty() {
-            panic!("Tensors are not approx eq:{message}");
-        }
+        assert!(message.is_empty(), "Tensors are not approx eq:{message}");
     }
 
     /// Asserts each value is within a given range.
@@ -370,9 +369,10 @@ impl TensorData {
     /// and exclusively above (`start..end`).
     pub fn assert_within_range<E: ElementOrdered>(&self, range: core::ops::Range<E>) {
         for elem in self.iter::<E>() {
-            if elem.cmp(&range.start).is_lt() || elem.cmp(&range.end).is_ge() {
-                panic!("Element ({elem:?}) is not within range {range:?}");
-            }
+            assert!(
+                !(elem.cmp(&range.start).is_lt() || elem.cmp(&range.end).is_ge()),
+                "Element ({elem:?}) is not within range {range:?}"
+            );
         }
     }
 
@@ -393,9 +393,10 @@ impl TensorData {
         let end = range.end();
 
         for elem in self.iter::<E>() {
-            if elem.cmp(start).is_lt() || elem.cmp(end).is_gt() {
-                panic!("Element ({elem:?}) is not within range {range:?}");
-            }
+            assert!(
+                !(elem.cmp(start).is_lt() || elem.cmp(end).is_gt()),
+                "Element ({elem:?}) is not within range {range:?}"
+            );
         }
     }
 }

@@ -51,7 +51,7 @@ impl DeviceSettings {
         int_dtype: impl Into<IntDType>,
         bool_dtype: impl Into<BoolDType>,
     ) -> Self {
-        Self::new(float_dtype, int_dtype, bool_dtype, Default::default())
+        Self::new(float_dtype, int_dtype, bool_dtype, QuantConfig::default())
     }
 }
 

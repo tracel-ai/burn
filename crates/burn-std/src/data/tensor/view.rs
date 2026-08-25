@@ -56,6 +56,7 @@ impl TensorData {
     /// Panics if the view can't be created because storage access fails or the dtype, byte
     /// representation, or element count is incompatible with `E`.
     #[track_caller]
+    #[must_use]
     pub fn view<E: Element>(&self) -> TensorDataView<'_, E> {
         self.try_view()
             .unwrap_or_else(|err| panic!("Failed to create TensorData view: {err}"))
@@ -190,11 +191,13 @@ impl<'a, E: Element> TensorDataView<'a, E> {
     }
 
     /// Returns the shape of the view.
+    #[must_use]
     pub fn shape(&self) -> &Shape {
         self.shape
     }
 
     /// Returns the dtype of the view.
+    #[must_use]
     pub fn dtype(&self) -> DType {
         self.dtype
     }
@@ -205,7 +208,7 @@ impl<'a, E: Element> TensorDataView<'a, E> {
     }
 }
 
-impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
+impl<I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'_, E> {
     type Output = E;
 
     fn index(&self, index: &[I]) -> &Self::Output {
@@ -297,11 +300,13 @@ impl<'a, E: Element> TensorDataViewMut<'a, E> {
     }
 
     /// Returns the shape of the view.
+    #[must_use]
     pub fn shape(&self) -> &Shape {
         &self.shape
     }
 
     /// Returns the dtype of the view.
+    #[must_use]
     pub fn dtype(&self) -> DType {
         self.dtype
     }
@@ -312,7 +317,7 @@ impl<'a, E: Element> TensorDataViewMut<'a, E> {
     }
 }
 
-impl<'a, I, E> Index<&[I]> for TensorDataViewMut<'a, E>
+impl<I, E> Index<&[I]> for TensorDataViewMut<'_, E>
 where
     I: AsIndex,
     E: Element,
@@ -325,7 +330,7 @@ where
     }
 }
 
-impl<'a, I, E> IndexMut<&[I]> for TensorDataViewMut<'a, E>
+impl<I, E> IndexMut<&[I]> for TensorDataViewMut<'_, E>
 where
     I: AsIndex,
     E: Element,

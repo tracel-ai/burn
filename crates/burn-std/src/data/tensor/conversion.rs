@@ -101,6 +101,7 @@ impl TensorData {
     }
 
     /// Returns an iterator over the values of the tensor data.
+    #[must_use]
     pub fn iter<E: Element>(&self) -> Box<dyn Iterator<Item = E> + '_> {
         if E::dtype() == self.dtype {
             Box::new(bytemuck::checked::cast_slice(&self.bytes).iter().copied())
@@ -226,6 +227,7 @@ impl TensorData {
     /// Panics if storage access fails, the conversion isn't supported, or the stored
     /// representation or element count is invalid.
     #[track_caller]
+    #[must_use]
     pub fn convert<E: Element>(self) -> Self {
         // TODO: deprecate?
         self.try_cast_as::<E>()
@@ -239,6 +241,7 @@ impl TensorData {
     /// Panics if storage access fails, the conversion isn't supported, or the stored
     /// representation or element count is invalid.
     #[track_caller]
+    #[must_use]
     pub fn convert_dtype(self, dtype: DType) -> Self {
         // TODO: deprecate?
         self.try_cast(dtype)

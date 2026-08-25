@@ -29,6 +29,7 @@ where
     ID: core::hash::Hash + PartialEq + Eq + core::fmt::Debug,
 {
     /// Create an empty container.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             tensors: HashMap::new(),
@@ -70,16 +71,19 @@ where
     }
 
     /// The number of tensors registered.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.tensors.len()
     }
 
     /// If any tensor is contained.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Get id of every tensor in the container
+    #[must_use]
     pub fn ids(&self) -> Vec<&ID> {
         self.tensors.keys().collect()
     }

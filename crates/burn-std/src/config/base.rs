@@ -26,16 +26,19 @@ pub struct BurnConfig {
 
 impl BurnConfig {
     /// Returns a reference to the operation-fusion configuration.
+    #[must_use]
     pub fn fusion(&self) -> &FusionConfig {
         &self.fusion
     }
 
     /// Returns a reference to the autodiff configuration.
+    #[must_use]
     pub fn autodiff(&self) -> &AutodiffConfig {
         &self.autodiff
     }
 
     /// Returns a reference to the remote-backend configuration.
+    #[must_use]
     pub fn remote(&self) -> &RemoteConfig {
         &self.remote
     }

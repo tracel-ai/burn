@@ -33,6 +33,7 @@ pub enum DType {
 
 impl DType {
     /// Returns the size of a type in bytes.
+    #[must_use]
     pub const fn size(&self) -> usize {
         match self {
             DType::F64 => core::mem::size_of::<f64>(),
@@ -75,6 +76,7 @@ impl DType {
         }
     }
     /// Returns true if the data type is a floating point type.
+    #[must_use]
     pub fn is_float(&self) -> bool {
         matches!(
             self,
@@ -82,15 +84,18 @@ impl DType {
         )
     }
     /// Returns true if the data type is a signed integer type.
+    #[must_use]
     pub fn is_int(&self) -> bool {
         matches!(self, DType::I64 | DType::I32 | DType::I16 | DType::I8)
     }
     /// Returns true if the data type is an unsigned integer type.
+    #[must_use]
     pub fn is_uint(&self) -> bool {
         matches!(self, DType::U64 | DType::U32 | DType::U16 | DType::U8)
     }
 
     /// Returns true if the data type is a boolean type
+    #[must_use]
     pub fn is_bool(&self) -> bool {
         matches!(self, DType::Bool(_))
     }
@@ -98,6 +103,7 @@ impl DType {
     /// Returns float precision info if this is a float dtype, `None` otherwise.
     ///
     /// Analogous to `torch.finfo(dtype)` or `numpy.finfo(dtype)`.
+    #[must_use]
     pub const fn finfo(&self) -> Option<FloatInfo> {
         match self {
             DType::F64 => Some(FloatDType::F64.finfo()),
@@ -110,6 +116,7 @@ impl DType {
     }
 
     /// Returns the data type name.
+    #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
             DType::F64 => "f64",
@@ -147,11 +154,11 @@ pub enum FloatDType {
 
 /// Numerical precision properties for a floating-point dtype.
 ///
-    /// Equivalent to NumPy's [`finfo`] / PyTorch's `torch.finfo`. All values are
-    /// widened to `f64` so they can be inspected without knowing the concrete
-    /// element type at compile time.
-    ///
-    /// [`finfo`]: https://numpy.org/doc/stable/reference/generated/numpy.finfo.html
+/// Equivalent to `NumPy`'s [`finfo`] / `PyTorch`'s `torch.finfo`. All values are
+/// widened to `f64` so they can be inspected without knowing the concrete
+/// element type at compile time.
+///
+/// [`finfo`]: https://numpy.org/doc/stable/reference/generated/numpy.finfo.html
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FloatInfo {
     /// Machine epsilon: smallest value such that `1.0 + epsilon != 1.0`.
@@ -168,6 +175,7 @@ impl FloatDType {
     /// Returns numerical precision properties for this float dtype.
     ///
     /// Analogous to `torch.finfo(dtype)` or `numpy.finfo(dtype)`.
+    #[must_use]
     pub const fn finfo(self) -> FloatInfo {
         match self {
             FloatDType::F64 => FloatInfo {
