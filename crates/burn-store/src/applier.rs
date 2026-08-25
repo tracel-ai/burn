@@ -8,13 +8,62 @@ use alloc::vec::Vec;
 use hashbrown::{HashMap, HashSet};
 
 use burn_core::module::{ModuleMapper, Param, ParamId};
-use burn_core::tensor::{Bool, Device, Int, Shape, Tensor};
+use burn_core::tensor::{Bool, DType, Device, Int, Shape, Tensor};
 
 use burn_pack::Tensor as PackTensor;
 
 use crate::apply_result::{ApplyError, ApplyResult};
 use crate::bridge;
 use crate::{ModuleAdapter, ModuleContext, PathFilter};
+
+/// The kind of parameter a loaded tensor is going into.
+///
+/// A loaded parameter keeps whatever dtype the source declared, across every kind. For floats
+/// that is what makes a half-precision save loadable into a module written for full precision
+/// (`dtype_preservation_f64` below pins it); for ints it is what keeps a PyTorch checkpoint's
+/// int64 buffers at int64 rather than narrowing them to the backend's element (pinned by
+/// `pytorch-tests`' `integer_full_precision`, added deliberately in #4854).
+///
+/// What is checked here is only that the source is of the right *kind*. Shape agreement says
+/// nothing about that, so before #5478 float data loaded into an `Int` parameter and left it
+/// holding `F32` - a tensor whose declared element type cannot read its own data.
+#[derive(Clone, Copy)]
+enum TargetDType {
+    Float,
+    Int,
+    Bool,
+}
+
+impl TargetDType {
+    /// Whether a source of `dtype` can be loaded into a parameter of this kind.
+    fn accepts(self, dtype: DType) -> bool {
+        // `is_int` covers only signed integers, so unsigned needs asking for separately.
+        let integral = dtype.is_int() || dtype.is_uint();
+
+        match self {
+            // Quantized data is a float tensor's packed form, so it belongs to this kind too.
+            Self::Float => dtype.is_float() || matches!(dtype, DType::QFloat(_)),
+            Self::Int => integral,
+            // An integer source is how bools survive a format with no boolean dtype:
+            // SafeTensors stores `Bool(U32)` as `U32` and reads it back as an integer.
+            Self::Bool => integral || dtype.is_bool(),
+        }
+    }
+
+    /// What to name as expected when [`accepts`](Self::accepts) turns a source away.
+    ///
+    /// The device's own element for this kind, which is the best available stand-in: there is
+    /// no `lazy_dtype` on [`Param`] to ask a lazily-initialized parameter for its dtype
+    /// without forcing it to materialize. Only the kind is load-bearing in the message.
+    fn expected(self, device: &Device) -> DType {
+        let settings = device.settings();
+        match self {
+            Self::Float => settings.float_dtype.into(),
+            Self::Int => settings.int_dtype.into(),
+            Self::Bool => settings.bool_dtype.into(),
+        }
+    }
+}
 
 /// Applier that applies loaded tensors to module parameters
 /// with proper adapter support using container type information
@@ -155,6 +204,7 @@ impl Applier {
         &mut self,
         target_device: &Device,
         target_shape: Shape,
+        target_dtype: TargetDType,
     ) -> Option<(Tensor<D, K>, Option<ParamId>)>
     where
         K: burn_core::tensor::kind::Basic,
@@ -231,6 +281,19 @@ impl Applier {
             return None; // Signal caller to fall back to initialization
         }
 
+        // Validate the dtype's kind. Shape agreement alone is not enough: it says nothing
+        // about whether the bytes mean what the parameter's element type says they mean. The
+        // width is left alone on purpose, so a half-precision or int64 source still loads as
+        // itself; only a source of the wrong kind entirely is refused.
+        if !target_dtype.accepts(dtype) {
+            self.errors.push(ApplyError::DTypeMismatch {
+                path: path.clone(),
+                expected: target_dtype.expected(target_device),
+                found: dtype,
+            });
+            return None; // Signal caller to fall back to initialization
+        }
+
         self.applied.push(path);
         Some((Tensor::from_data(data, (target_device, dtype)), source_id))
     }
@@ -263,7 +326,7 @@ impl ModuleMapper for Applier {
         let target_shape = param.lazy_shape();
 
         // Try to apply the loaded tensor with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Float) {
             Some((tensor, source_id)) => {
                 // Prefer the source's persisted ParamId so optimizer state (keyed by ParamId)
                 // survives save/load cycles, but keep the target's id when the source format
@@ -283,7 +346,7 @@ impl ModuleMapper for Applier {
         let target_shape = param.lazy_shape();
 
         // Try to apply the loaded tensor with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Int) {
             Some((tensor, source_id)) => {
                 param.transform_for_load(tensor, source_id.unwrap_or(param_id))
             }
@@ -303,7 +366,7 @@ impl ModuleMapper for Applier {
         let target_shape = param.lazy_shape();
 
         // Try to apply the loaded tensor with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Bool) {
             Some((tensor, source_id)) => {
                 param.transform_for_load(tensor, source_id.unwrap_or(param_id))
             }
