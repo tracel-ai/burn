@@ -16,7 +16,8 @@ pub type Rocm = CubeBackend<HipRuntime>;
 #[cfg(feature = "fusion")]
 pub type Rocm = burn_fusion::Fusion<CubeBackend<HipRuntime>>;
 
-/// Measure peak throughput on a ROCm `device` for each of the given `keys`.
+/// Measure peak throughput on a `ROCm` [`device`](crate::RocmDevice) for each of the given `keys`.
+#[must_use]
 pub fn device_throughput(
     device: &RocmDevice,
     keys: &[ThroughputKey],
