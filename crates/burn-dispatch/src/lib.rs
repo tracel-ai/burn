@@ -22,7 +22,7 @@
 //! | `Cpu`      | `cpu`      | Rust CPU backend (MLIR + LLVM) |
 //! | `Cuda`     | `cuda`     | NVIDIA CUDA backend |
 //! | `Metal`    | `metal`    | Apple Metal backend via `wgpu` (MSL) |
-//! | `Rocm`     | `rocm`     | AMD ROCm backend |
+//! | `Rocm`     | `rocm`     | AMD `ROCm` backend |
 //! | `Vulkan`   | `vulkan`   | Vulkan backend via `wgpu` (SPIR-V) |
 //! | `Wgpu`     | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |

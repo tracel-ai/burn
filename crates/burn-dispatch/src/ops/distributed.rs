@@ -120,7 +120,7 @@ impl DistributedOps<Self> for Dispatch {
     fn close_communication_server(device: &DispatchDevice) {
         dispatch_device!(@distributed device, |device| {
             B::close_communication_server(device)
-        })
+        });
     }
 
     fn register_sync_parameters(
@@ -130,11 +130,11 @@ impl DistributedOps<Self> for Dispatch {
         dispatch_device!(@distributed device, |device| B::register_sync_parameters(
             device,
             sharded_param_ids,
-        ))
+        ));
     }
 
     fn submit_sync_collective(device: &DispatchDevice) {
-        dispatch_device!(@distributed device, |device| B::submit_sync_collective(device))
+        dispatch_device!(@distributed device, |device| B::submit_sync_collective(device));
     }
 
     fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
@@ -158,7 +158,7 @@ impl DistributedOps<Self> for Dispatch {
     }
 
     fn sync_collective(device: &DispatchDevice) {
-        dispatch_device!(@distributed device, |device| B::sync_collective(device))
+        dispatch_device!(@distributed device, |device| B::sync_collective(device));
     }
 
     unsafe fn comm_device(_tensor: &TensorRef<Self>) -> DispatchDevice {

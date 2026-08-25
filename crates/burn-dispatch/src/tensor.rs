@@ -1,3 +1,4 @@
+#[allow(clippy::wildcard_imports)]
 use crate::{DispatchDevice, backends::*};
 
 #[cfg(feature = "autodiff")]
@@ -35,6 +36,10 @@ pub enum BackendTensor<B: BackendTypes> {
 
 impl<B: Backend> BackendTensor<B> {
     /// Returns the inner float tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tensor is not a float tensor.
     pub fn float(self) -> B::FloatTensorPrimitive {
         match self {
             BackendTensor::Float(tensor) => tensor,
@@ -46,6 +51,10 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
     /// Returns the inner float tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tensor is not a float tensor.
     pub fn as_float(&self) -> &B::FloatTensorPrimitive {
         match self {
             BackendTensor::Float(tensor) => tensor,
@@ -58,6 +67,10 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner int tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tensor is not an int tensor.
     pub fn int(self) -> B::IntTensorPrimitive {
         match self {
             BackendTensor::Int(tensor) => tensor,
@@ -70,6 +83,10 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner bool tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tensor is not a bool tensor.
     pub fn bool(self) -> B::BoolTensorPrimitive {
         match self {
             BackendTensor::Bool(tensor) => tensor,
@@ -82,6 +99,10 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner quantized tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tensor is not a quantized tensor.
     pub fn quantized(self) -> B::QuantizedTensorPrimitive {
         match self {
             BackendTensor::Quantized(tensor) => tensor,
@@ -89,8 +110,12 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
 
-    #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tensor is not an autodiff tensor.
+    #[cfg(feature = "autodiff")]
     pub fn autodiff(self) -> FloatTensor<Autodiff<B>> {
         match self {
             BackendTensor::Autodiff(tensor) => tensor,

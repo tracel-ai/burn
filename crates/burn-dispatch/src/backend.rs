@@ -130,6 +130,7 @@ use burn_autodiff::grads::Gradients;
 use crate::DispatchDeviceId;
 #[allow(unused)]
 use crate::DispatchTensorKind;
+#[allow(clippy::wildcard_imports)]
 use crate::backends::*;
 use crate::{DispatchDevice, DispatchTensor};
 
@@ -178,7 +179,7 @@ impl Backend for Dispatch {
     }
 
     fn seed(device: &Self::Device, seed: u64) {
-        dispatch_device!(device, |device| B::seed(device, seed))
+        dispatch_device!(device, |device| B::seed(device, seed));
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -262,7 +263,7 @@ impl Backend for Dispatch {
     }
 
     fn memory_cleanup(device: &Self::Device) {
-        dispatch_device!(device, |device| B::memory_cleanup(device))
+        dispatch_device!(device, |device| B::memory_cleanup(device));
     }
 
     fn memory_install_pools(
@@ -287,7 +288,7 @@ impl Backend for Dispatch {
     where
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
     {
-        dispatch_device!(device, |device| B::staging(data, device))
+        dispatch_device!(device, |device| B::staging(data, device));
     }
 
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
@@ -295,7 +296,7 @@ impl Backend for Dispatch {
     }
 
     fn flush(device: &Self::Device) {
-        dispatch_device!(device, |device| B::flush(device))
+        dispatch_device!(device, |device| B::flush(device));
     }
 }
 
@@ -920,6 +921,7 @@ impl AutodiffBackend for Dispatch {
 
 impl Dispatch {
     /// List all available devices of the specified [type id](DispatchDeviceId).
+    #[must_use]
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
         // TODO: right now this assumes `type_id = 0`, but WgpuDevice and LibTorchDevice have other types.
         match type_id {

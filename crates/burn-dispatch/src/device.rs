@@ -1,5 +1,6 @@
 use burn_backend::{DeviceId, DeviceOps, DeviceSettings};
 
+#[allow(clippy::wildcard_imports)]
 use crate::backends::*;
 
 #[cfg(feature = "capture")]
@@ -352,7 +353,7 @@ impl Default for DispatchDevice {
                             "BURN_DEVICE=ndarray requested, but the 'ndarray' feature is not enabled."
                         );
                     }
-                    _ => panic!("Unknown BURN_DEVICE override: '{}'.", device_str),
+                    _ => panic!("Unknown BURN_DEVICE override: '{device_str}'."),
                 }
             }
         }
@@ -469,6 +470,7 @@ impl DispatchDevice {
     }
 
     /// Returns the inner device, without autodiff (when enabled).
+    #[must_use]
     pub fn inner(self) -> Self {
         #[cfg(feature = "autodiff")]
         if let DispatchDevice::Autodiff(device) = self {
@@ -478,7 +480,7 @@ impl DispatchDevice {
         self
     }
 
-    /// Returns a unique number per variant to encode into type_id.
+    /// Returns a unique number per variant to encode into `type_id`.
     fn backend_id(&self) -> DispatchDeviceId {
         match self {
             #[cfg(feature = "cpu")]
