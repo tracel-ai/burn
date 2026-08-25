@@ -85,3 +85,50 @@ fn test_any_dim_large() {
     let boolean = TestTensorBool::<2>::from_data(TensorData::new(mask, [rows, cols]), &device);
     expected.assert_eq(&boolean.any_dim(1).into_data(), false);
 }
+
+// `any` folds with OR, whose identity is `false`.
+#[test]
+fn test_any_empty() {
+    let device = Default::default();
+    let expected = TensorData::from([false]);
+
+    expected.assert_eq(
+        &TestTensor::<1>::empty([0], &device).any().into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorInt::<1>::empty([0], &device).any().into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorBool::<1>::empty([0], &device).any().into_data(),
+        false,
+    );
+}
+
+// Shape [3, 0]: the identity has to be written once per surviving position, which the whole-tensor
+// case above cannot cover.
+#[test]
+fn test_any_dim_empty_axis() {
+    let device = Default::default();
+    let expected = TensorData::from([[false], [false], [false]]);
+
+    expected.assert_eq(
+        &TestTensor::<2>::empty([3, 0], &device)
+            .any_dim(1)
+            .into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorInt::<2>::empty([3, 0], &device)
+            .any_dim(1)
+            .into_data(),
+        false,
+    );
+    expected.assert_eq(
+        &TestTensorBool::<2>::empty([3, 0], &device)
+            .any_dim(1)
+            .into_data(),
+        false,
+    );
+}

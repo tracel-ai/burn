@@ -21,19 +21,17 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "pytorch", "safetensors", "burnpack", "memmap"]
+default = ["std", "pytorch", "safetensors", "memmap"]
 memmap = ["std", "dep:memmap2"]
 std = [
     "dep:memmap2",
     "safetensors/std",
     "burn-core/std",
-    "burn-pack?/std",
+    "burn-pack/std",
     "dep:regex",
     "byteorder/std",
 ]
 
-# The burnpack format lives in the `burn-pack` crate; this enables the BurnpackStore over it.
-burnpack = ["dep:burn-pack"]
 cuda = ["burn-core/cuda"]
 metal = ["wgpu", "burn-core/metal"]
 tch = ["burn-core/tch"]
@@ -45,7 +43,7 @@ pytorch = ["std", "zip", "serde", "tar", "dep:thiserror", "dep:num-traits", "dep
 
 [dependencies]
 burn-core = { workspace = true }
-burn-pack = { workspace = true, optional = true }
+burn-pack = { workspace = true }
 burn-tensor = { workspace = true, optional = true }
 
 # External dependencies

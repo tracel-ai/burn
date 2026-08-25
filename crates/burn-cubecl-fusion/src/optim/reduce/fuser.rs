@@ -55,6 +55,7 @@ impl<R: Runtime> ReduceFuser<R> {
             // Inplace would work, but not when we have a concrete output to write too.
             inplace: true,
             ref_layout: RefLayoutSetting::OnlyContiguous,
+            choose_output_layout: false,
             broadcast: false,
             output_shape_updates: true,
             vectorization: VectorizationSetting::Activated,
@@ -65,6 +66,7 @@ impl<R: Runtime> ReduceFuser<R> {
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
             broadcast: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
+            choose_output_layout: false,
         };
         let settings_fallback = FuseSettings::default();
 

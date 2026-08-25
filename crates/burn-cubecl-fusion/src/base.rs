@@ -1,6 +1,10 @@
 use burn_fusion::stream::Context;
-use burn_std::{DType, Shape, Strides, quantization::QParamTensor, strides};
-use cubecl::quant::scheme::{QuantParam, QuantScheme};
+use burn_std::{
+    DType, Shape, Strides,
+    quantization::{QParamTensor, global_scale_dtype},
+    strides,
+};
+use cubecl::quant::scheme::{QuantScheme, ScaleDtype};
 use cubecl::{
     Runtime,
     client::ComputeClient,
@@ -91,6 +95,12 @@ impl<R: Runtime> CubeFusionHandle<R> {
     /// Construct a separate tensor for the quantization scales, if present
     pub fn params(&self, scheme: QuantScheme) -> Option<Self> {
         let qparams = self.qparams.as_ref()?;
+        // Only the block scale is threaded through below; a two-level scheme's per-tensor scale
+        // would be silently dropped, so refuse rather than build a handle short one factor.
+        assert!(
+            global_scale_dtype(&scheme).is_none(),
+            "fused kernels don't yet support a two-level scheme's per-tensor scale"
+        );
         let mut handle = self.handle.clone();
         handle.offset_start = Some(qparams.scales.offset_start as u64);
         handle.offset_end = Some(qparams.scales.offset_end as u64);
@@ -99,11 +109,11 @@ impl<R: Runtime> CubeFusionHandle<R> {
             client: self.client.clone(),
             handle,
             device: self.device.clone(),
-            dtype: match scheme.param {
-                QuantParam::F32 => DType::F32,
-                QuantParam::F16 => DType::F16,
-                QuantParam::BF16 => DType::BF16,
-                QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
+            dtype: match scheme.scale_dtype() {
+                ScaleDtype::F32 => DType::F32,
+                ScaleDtype::F16 => DType::F16,
+                ScaleDtype::BF16 => DType::BF16,
+                ScaleDtype::UE8M0 | ScaleDtype::UE4M3 => unimplemented!("Not yet supported"),
             },
             strides: qparams.scales.metadata.strides().clone(),
             qparams: None,

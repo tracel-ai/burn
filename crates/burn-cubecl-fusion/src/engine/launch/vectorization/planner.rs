@@ -1,3 +1,4 @@
+use super::axis::VectorAxes;
 use super::{
     super::{BlockPlan, HandleOutput, LaunchPlan},
     Vect,
@@ -19,7 +20,7 @@ use burn_ir::TensorId;
 use cubecl::{
     Runtime,
     client::ComputeClient,
-    ir::{ElemType, StorageType, UIntKind},
+    ir::{ElemType, UIntKind},
 };
 use cubecl::{
     ir::VectorSize,
@@ -42,6 +43,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             _r: PhantomData,
         }
     }
+
     pub fn run<Runner: Vectorization<R>>(
         self,
         client: &ComputeClient<R>,
@@ -83,11 +85,11 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             TensorView::NhwcStrides { .. } => None,
         });
 
-        let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);
+        let mut ref_elem = (ElemType::UInt(UIntKind::U64), 8);
         let mut quants_vector_sizes: Option<Vec<VectorSize>> = None;
 
         for input in plan.handle_inputs.iter() {
-            let elem: StorageType = match input {
+            let elem: ElemType = match input {
                 HandleInput::Normal(h) => dtype_to_storage_type(h.global_ir.dtype),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
                     burn_std::DType::QFloat(scheme) => {
@@ -105,7 +107,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
         for r in plan.global_outputs.iter() {
-            let elem: StorageType = dtype_to_storage_type(r.dtype);
+            let elem: ElemType = dtype_to_storage_type(r.dtype);
             let elem_size = elem.size();
 
             if ref_elem.1 >= elem_size {
@@ -132,7 +134,8 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 .io_optimized_vector_sizes(ref_elem.0.size())
                 .collect::<Vec<_>>(),
         };
-        let vectorization_axis = runner.axis(plan);
+        let (vectorization_axis, refusals) =
+            VectorAxes::resolve(runner, self.resources, context, plan).split();
 
         runner.vectorization(
             context,
@@ -174,6 +177,10 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 plan.vectorizations.insert(global.id, Vect::Aligned(1));
             }
         }
+
+        // Tensors whose own layout cannot be lined up with the one their block
+        // iterates in.
+        refusals.apply(&mut plan.vectorizations);
 
         let mut block_vectorization = Vec::with_capacity(self.blocks.len());
         for _ in 0..self.blocks.len() {

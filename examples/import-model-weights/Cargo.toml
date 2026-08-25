@@ -18,9 +18,4 @@ burn = { workspace = true, features = [
     "vision",
 ] }
 
-burn-store = { workspace = true, features = [
-    "std",
-    "pytorch",
-    "safetensors",
-    "burnpack",
-] }
+burn-store = { workspace = true, features = ["std", "pytorch", "safetensors"] }

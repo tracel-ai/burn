@@ -23,7 +23,7 @@ fn grid_sample_bilinear_kernel<F: Float>(
     shape_spatial: Sequence<FastDivmod<usize>>, // [N, H_out, W_out] for thread decomposition
     #[comptime] align_corners: bool,
     #[comptime] pad_mode: PaddingMode,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     // Thread index maps to spatial position (n, h_out, w_out) only
     let spatial_idx = ABSOLUTE_POS;

@@ -1,6 +1,6 @@
 use burn_backend::{
     AllocationProperty, DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
+    quantization::{QuantMode, QuantScheme},
 };
 use burn_std::BoolStore;
 
@@ -678,8 +678,10 @@ impl NdArrayTensor {
             ($data: expr, [$($dtype: pat => $ty: ty),*]) => {
                 match $data.dtype {
                     $( $dtype => {
-                        match data.into_vec::<$ty>() {
-                            Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
+                        match data.try_into_vec::<$ty>() {
+                            Ok(vec) => ArrayD::from_shape_vec(shape, vec)
+                                .expect("Data should have as many elements as the shape")
+                                .into_shared(),
                             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
                         }.into()
                     }, )*
@@ -704,57 +706,35 @@ pub struct NdArrayQTensor {
     pub qtensor: NdArrayTensor,
     /// The quantization scheme.
     pub scheme: QuantScheme,
-    /// The quantization parameters.
-    pub qparams: Vec<QParams<f32>>,
+    /// The block scales.
+    pub qparams: Vec<f32>,
+    /// The per-tensor scale that [`qparams`](Self::qparams) are expressed relative to, for a
+    /// two-level scheme.
+    pub global: Option<f32>,
 }
 
 impl NdArrayQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
-        match self.scheme {
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::E4M3
-                    | QuantValue::E5M2
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::E2M1
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                ..
-            } => QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                self.qparams[0].scales,
-                self.scheme.value,
-            )),
-            QuantScheme {
-                level: QuantLevel::Block(block_size),
-                mode: QuantMode::Symmetric,
-                value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::E4M3
-                    | QuantValue::E5M2
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::E2M1
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                ..
-            } => QuantizationStrategy::PerBlockSymmetric(
+        match (self.scheme.mode, self.scheme.block_size()) {
+            (QuantMode::Symmetric, None) => QuantizationStrategy::PerTensorSymmetric(
+                SymmetricQuantization::init(self.qparams[0], self.scheme.value),
+            ),
+            (QuantMode::Symmetric, Some(block_size)) => QuantizationStrategy::PerBlockSymmetric(
                 self.qparams
                     .iter()
-                    .map(|q| SymmetricQuantization::init(q.scales, self.scheme.value))
+                    .map(|&s| {
+                        SymmetricQuantization::init(
+                            self.global.unwrap_or(1.0) * s,
+                            self.scheme.value,
+                        )
+                    })
                     .collect(),
                 block_size,
             ),
-            QuantScheme {
-                level: QuantLevel::BlockTensor { .. },
-                ..
-            } => unimplemented!("two-level quantization is not supported yet"),
+            (QuantMode::Lookup, _) => {
+                unimplemented!("lookup quantization is not supported by the ndarray backend")
+            }
         }
     }
 }
@@ -791,7 +771,7 @@ mod tests {
     use burn_backend::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},
-        quantization::{QuantStore, QuantizationParametersPrimitive},
+        quantization::{QuantStore, QuantValue, QuantizationParametersPrimitive},
     };
     use burn_std::rand::get_seeded_rng;
 
@@ -863,6 +843,7 @@ mod tests {
             .with_store(QuantStore::Native);
         let qparams = QuantizationParametersPrimitive {
             scales: B::float_from_data(TensorData::from([scale]), &device),
+            global: None,
         };
         let qtensor: NdArrayQTensor = B::quantize(tensor, &scheme, qparams);
 
@@ -971,5 +952,15 @@ mod tests {
         let result = tensor.into_data();
 
         assert_eq!(data, result, "Data should round-trip correctly");
+    }
+
+    #[test]
+    #[should_panic(expected = "Data should have as many elements as the shape")]
+    fn should_panic_when_data_bytes_shorter_than_shape() {
+        // 4 bytes of payload for a shape claiming 1000 f32 elements: building the array
+        // unchecked would read and write out of bounds.
+        let data = TensorData::from_bytes_vec(vec![0u8, 0, 128, 63], [1000usize], DType::F32);
+
+        let _ = NdArrayTensor::from_data(data);
     }
 }

@@ -439,7 +439,11 @@ fn apply_permutations_to_tensor<const D: usize>(
     let tensor_dims = tensor.dims();
     let n_rows = tensor_dims[D - 2];
     let n_pivots = piv.dims()[D - 2];
-    let piv_data: Vec<f32> = piv.into_data().convert::<f32>().into_vec::<f32>().unwrap();
+    let piv_data: Vec<f32> = piv
+        .try_into_data_as::<f32>()
+        .unwrap()
+        .try_into_vec()
+        .unwrap();
 
     // Compute total batch size (product of all batch dimensions)
     let batch_size: usize = tensor_dims[..D - 2].iter().product();

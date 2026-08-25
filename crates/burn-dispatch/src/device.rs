@@ -2,6 +2,9 @@ use burn_backend::{DeviceId, DeviceOps, DeviceSettings};
 
 use crate::backends::*;
 
+#[cfg(feature = "capture")]
+use burn_capture::CaptureDevice;
+
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 
@@ -73,6 +76,10 @@ pub enum DispatchDevice {
     #[cfg(feature = "remote")]
     Remote(RemoteDevice),
 
+    /// A non-executing graph capture device.
+    #[cfg(feature = "capture")]
+    Capture(CaptureDevice),
+
     /// The [autodiff enabled backend](Autodiff) device.
     #[cfg(feature = "autodiff")]
     Autodiff(AutodiffDevice),
@@ -85,8 +92,7 @@ impl DispatchDevice {
     /// Only cubecl-backed devices can measure throughput; other backends
     /// (ndarray, libtorch, remote, ...) return an empty vector. An autodiff
     /// device reports the peaks of the device it wraps. Each returned
-    /// [`ThroughputValue`](burn_backend::cubecl::ThroughputValue) corresponds
-    /// positionally to the key at the same index.
+    /// [`ThroughputValue`] corresponds positionally to the key at the same index.
     pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputValue> {
         // No catch-all arm: a new backend must fail to compile here rather
         // than silently report no peaks.
@@ -120,6 +126,8 @@ impl DispatchDevice {
             // The kernels run on the server, which this local API cannot reach.
             #[cfg(feature = "remote")]
             DispatchDevice::Remote(_) => Vec::new(),
+            #[cfg(feature = "capture")]
+            DispatchDevice::Capture(_) => Vec::new(),
         }
     }
 }
@@ -129,15 +137,36 @@ impl DispatchDevice {
 /// A wrapper that enables automatic differentiation for a [`DispatchDevice`].
 ///
 /// Use [`DispatchDevice::autodiff`] to construct this type.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct AutodiffDevice {
     pub(crate) inner: Box<DispatchDevice>,
-    pub(crate) checkpointing: CheckpointingStrategy,
+    pub(crate) checkpointing: GradientCheckpointingStrategy,
+}
+
+/// Compares on hardware identity only, ignoring the checkpointing strategy, so that this agrees
+/// with [`DispatchDevice`]'s own [`PartialEq`] — which has to ignore it, since comparing an
+/// `Autodiff` device against a raw one has no strategy to compare against. A derived impl would
+/// make `Autodiff(a) == Autodiff(b)` disagree with `DispatchDevice::Autodiff(a) ==
+/// DispatchDevice::Autodiff(b)`.
+///
+/// Use [`gradient_checkpointing_strategy`](Self::gradient_checkpointing_strategy) when the
+/// strategy is what you actually need to compare.
+#[cfg(feature = "autodiff")]
+impl PartialEq for AutodiffDevice {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
 }
 
 #[cfg(feature = "autodiff")]
+impl Eq for AutodiffDevice {}
+
+#[cfg(feature = "autodiff")]
 impl AutodiffDevice {
-    pub(crate) fn new(device: DispatchDevice, checkpointing: CheckpointingStrategy) -> Self {
+    pub(crate) fn new(
+        device: DispatchDevice,
+        checkpointing: GradientCheckpointingStrategy,
+    ) -> Self {
         Self {
             inner: Box::new(device),
             checkpointing,
@@ -147,6 +176,11 @@ impl AutodiffDevice {
     /// Returns the underlying device, removing the autodiff capability.
     pub fn inner(self) -> DispatchDevice {
         *self.inner
+    }
+
+    /// Returns the gradient checkpointing strategy.
+    pub fn gradient_checkpointing_strategy(&self) -> GradientCheckpointingStrategy {
+        self.checkpointing
     }
 }
 
@@ -162,24 +196,26 @@ impl core::ops::Deref for AutodiffDevice {
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-/// Checkpointing strategy for autodiff.
+/// Gradient checkpointing strategy for autodiff.
 #[repr(u8)]
-pub enum CheckpointingStrategy {
+pub enum GradientCheckpointingStrategy {
+    /// Recompute selected activations during backpropagation to reduce peak memory usage.
     Balanced,
+    /// Disable gradient checkpointing while retaining autodiff tracking.
     #[default]
-    None,
+    Disabled,
 }
 
 #[cfg(feature = "autodiff")]
 pub(crate) fn validate_checkpointing(
-    lhs: Option<crate::CheckpointingStrategy>,
-    rhs: Option<crate::CheckpointingStrategy>,
-) -> Option<crate::CheckpointingStrategy> {
+    lhs: Option<crate::GradientCheckpointingStrategy>,
+    rhs: Option<crate::GradientCheckpointingStrategy>,
+) -> Option<crate::GradientCheckpointingStrategy> {
     match (lhs, rhs) {
         (Some(lhs), Some(rhs)) => {
             assert_eq!(
                 lhs, rhs,
-                "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
+                "Gradient checkpointing strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
             );
             Some(lhs)
         }
@@ -217,9 +253,15 @@ impl core::fmt::Debug for DispatchDevice {
             Self::LibTorch(device) => f.debug_tuple("LibTorch").field(device).finish(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => f.debug_tuple("Remote").field(device).finish(),
+            #[cfg(feature = "capture")]
+            Self::Capture(device) => f.debug_tuple("Capture").field(device).finish(),
             #[cfg(feature = "autodiff")]
             // Format without `AutodiffDevice` wrapper
-            Self::Autodiff(device) => f.debug_tuple("Autodiff").field(&device.inner).finish(),
+            Self::Autodiff(device) => f
+                .debug_struct("Autodiff")
+                .field("device", &device.inner)
+                .field("checkpointing", &device.checkpointing)
+                .finish(),
         }
     }
 }
@@ -361,7 +403,9 @@ impl PartialEq for DispatchDevice {
         match (self, other) {
             // If both are Autodiff, compare the inner devices
             #[cfg(feature = "autodiff")]
-            (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => a == b,
+            (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => {
+                a.inner.as_ref() == b.inner.as_ref()
+            }
             // If one is Autodiff, compare it to the raw device
             #[cfg(feature = "autodiff")]
             (DispatchDevice::Autodiff(a), b) => a.inner.as_ref() == b,
@@ -389,6 +433,8 @@ impl PartialEq for DispatchDevice {
             (Self::LibTorch(a), Self::LibTorch(b)) => a == b,
             #[cfg(feature = "remote")]
             (Self::Remote(a), Self::Remote(b)) => a == b,
+            #[cfg(feature = "capture")]
+            (Self::Capture(a), Self::Capture(b)) => a == b,
             #[allow(unreachable_patterns)]
             (_, _) => false,
         }
@@ -399,16 +445,24 @@ const INTERNAL_ID_MASK: u16 = 0x00FF;
 const BACKEND_SHIFT: u32 = 8;
 
 impl DispatchDevice {
+    /// Create the dispatch representation used by the high-level graph-capture device.
+    #[cfg(feature = "capture")]
+    #[doc(hidden)]
+    pub fn capture() -> Self {
+        Self::Capture(CaptureDevice::default())
+    }
+
     #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
-        Self::autodiff_checkpointed(device, CheckpointingStrategy::None)
+        Self::autodiff_with_gradient_checkpointing(device, GradientCheckpointingStrategy::Disabled)
     }
     #[cfg(feature = "autodiff")]
-    /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
-    pub fn autodiff_checkpointed(
+    /// Creates a new [`DispatchDevice`] with automatic differentiation and the provided gradient
+    /// checkpointing strategy enabled.
+    pub fn autodiff_with_gradient_checkpointing(
         device: impl Into<DispatchDevice>,
-        checkpointing: CheckpointingStrategy,
+        checkpointing: GradientCheckpointingStrategy,
     ) -> DispatchDevice {
         let device = device.into();
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
@@ -449,6 +503,8 @@ impl DispatchDevice {
             Self::LibTorch(_) => DispatchDeviceId::LibTorch,
             #[cfg(feature = "remote")]
             Self::Remote(_) => DispatchDeviceId::Remote,
+            #[cfg(feature = "capture")]
+            Self::Capture(_) => DispatchDeviceId::Capture,
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.backend_id(),
         }
@@ -489,6 +545,7 @@ pub enum DispatchDeviceId {
     Vulkan = 8,
     WebGpu = 9,
     Remote = 10,
+    Capture = 11,
 }
 
 impl From<DispatchDeviceId> for u16 {
@@ -524,6 +581,8 @@ impl TryFrom<u16> for DispatchDeviceId {
             9 => Ok(Self::WebGpu),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
+            #[cfg(feature = "capture")]
+            11 => Ok(Self::Capture),
             _ => Err(()),
         }
     }
@@ -554,6 +613,8 @@ impl DeviceOps for DispatchDevice {
             Self::LibTorch(device) => device.defaults(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.defaults(),
+            #[cfg(feature = "capture")]
+            Self::Capture(device) => device.defaults(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.defaults(),
         }
@@ -588,6 +649,8 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Self::Remote(RemoteDevice::from_id(device_id)),
+            #[cfg(feature = "capture")]
+            DispatchDeviceId::Capture => Self::Capture(CaptureDevice::from_id(device_id)),
             _ => unreachable!("No backend feature enabled."),
         }
     }
@@ -616,6 +679,8 @@ impl burn_backend::Device for DispatchDevice {
             Self::LibTorch(device) => device.to_id(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.to_id(),
+            #[cfg(feature = "capture")]
+            Self::Capture(device) => device.to_id(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.to_id(),
         };
@@ -707,5 +772,19 @@ impl From<LibTorchDevice> for DispatchDevice {
 impl From<RemoteDevice> for DispatchDevice {
     fn from(device: RemoteDevice) -> Self {
         DispatchDevice::Remote(device)
+    }
+}
+
+#[cfg(all(test, feature = "capture"))]
+mod tests {
+    use super::*;
+    use burn_backend::Device;
+
+    #[test]
+    fn capture_device_id_round_trips_through_dispatch() {
+        let device = DispatchDevice::capture();
+        let restored = DispatchDevice::from_id(device.to_id());
+
+        assert_eq!(restored, device);
     }
 }

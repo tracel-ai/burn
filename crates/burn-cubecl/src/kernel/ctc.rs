@@ -150,7 +150,7 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     output: &mut Tensor<F>,     // [N]
     blank: u32,
     #[comptime] alpha_capacity: u32,
-    #[define(F, I)] _dtypes: [StorageType; 2],
+    #[define(F, I)] _dtypes: [ElemType; 2],
 ) {
     let n = CUBE_POS_X as usize;
     let cube_dim = CUBE_DIM_X as usize;
@@ -376,7 +376,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     nll_out: &mut Tensor<F>,    // [N]
     blank: u32,
     #[comptime] alpha_capacity: u32,
-    #[define(F, I)] _dtypes: [StorageType; 2],
+    #[define(F, I)] _dtypes: [ElemType; 2],
 ) {
     let n = CUBE_POS_X as usize;
     let cube_dim = CUBE_DIM_X as usize;

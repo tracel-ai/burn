@@ -45,8 +45,8 @@ pub fn rfft<R: CubeRuntime>(
     n: Option<usize>,
 ) -> (CubeTensor<R>, CubeTensor<R>) {
     let dtype = match signal.dtype {
-        DType::F64 => f64::as_type_native_unchecked().storage_type(),
-        DType::F32 => f32::as_type_native_unchecked().storage_type(),
+        DType::F64 => f64::elem_type_native(),
+        DType::F32 => f32::elem_type_native(),
         _ => panic!("Unsupported type {:?}", signal.dtype),
     };
 
@@ -117,8 +117,8 @@ pub fn irfft<R: CubeRuntime>(
     );
 
     let dtype = match spectrum_re.dtype {
-        DType::F64 => f64::as_type_native_unchecked().storage_type(),
-        DType::F32 => f32::as_type_native_unchecked().storage_type(),
+        DType::F64 => f64::elem_type_native(),
+        DType::F32 => f32::elem_type_native(),
         _ => panic!("Unsupported type {:?}", spectrum_re.dtype),
     };
 

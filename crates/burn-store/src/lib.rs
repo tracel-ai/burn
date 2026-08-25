@@ -69,11 +69,15 @@
 //! - [`PathFilter`]: Flexible filtering system for selective tensor loading/saving
 //! - [`KeyRemapper`]: Advanced tensor name remapping with regex patterns
 //! - [`ModuleAdapter`]: Framework adapters for cross-framework compatibility
+//! - [`bridge`]: Conversions between burn-core tensors and the [`burn_pack::Tensor`] entries the stores move around
 //!
 //! ## Feature Flags
 //!
 //! - `std`: Enables file I/O and other std-only features (default)
 //! - `safetensors`: Enables SafeTensors format support (default)
+//! - `pytorch`: Enables loading PyTorch `.pt`/`.pth` files (default)
+//! - `memmap`: Implied by `std` and adds nothing on top of it. Loading a SafeTensors file
+//!   memory-maps it whenever `std` is on, regardless of this flag.
 
 extern crate alloc;
 
@@ -82,18 +86,18 @@ mod applier;
 mod apply_result;
 mod collector;
 mod filter;
-mod tensor_snapshot;
 mod traits;
+
+pub mod bridge;
 
 pub use adapter::{
     BurnToPyTorchAdapter, ChainAdapter, FloatCastAdapter, HalfPrecisionAdapter, IdentityAdapter,
-    ModuleAdapter, PyTorchToBurnAdapter,
+    ModuleAdapter, ModuleContext, PyTorchToBurnAdapter,
 };
 pub use applier::Applier;
 pub use apply_result::{ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
-pub use tensor_snapshot::{TensorSnapshot, TensorSnapshotError};
 pub use traits::{ModuleSnapshot, ModuleStore};
 
 #[cfg(feature = "std")]
@@ -116,9 +120,31 @@ mod safetensors;
 #[cfg(feature = "safetensors")]
 pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 
-#[cfg(feature = "burnpack")]
-mod bridge;
-#[cfg(feature = "burnpack")]
 mod burnpack;
-#[cfg(feature = "burnpack")]
 pub use burnpack::BurnpackStore;
+
+/// The burnpack format crate, re-exported.
+///
+/// [`burn_pack::Tensor`] is burn-store's tensor-transport type: what
+/// [`ModuleSnapshot::collect`] returns and what [`ModuleSnapshot::apply`] takes. A crate
+/// holding some can drive a [`burn_pack::Writer`] itself instead of going through
+/// [`BurnpackStore`], which is what you want when the tensors did not come from a
+/// [`Module`](burn_core::module::Module) (weights read out of an ONNX file during codegen,
+/// say). Nothing is materialized by collecting; each tensor is read back only when the writer
+/// reaches it:
+///
+/// ```
+/// use burn_store::burn_pack::{Bytes, Error, Tensor, Writer};
+///
+/// fn pack(tensors: Vec<Tensor>) -> Result<Bytes, Error> {
+///     Writer::new(tensors).into_bytes()
+/// }
+/// ```
+///
+/// With burn-pack's `std` feature, `Writer::write_to_file` is the better choice for a large
+/// model: it streams to disk instead of building the container in memory. This example uses
+/// [`into_bytes`](burn_pack::Writer::into_bytes) so it compiles in no-std builds too.
+///
+/// Reach for this rather than depending on `burn-pack` directly, so the version always matches
+/// the one burn-store was built against.
+pub use burn_pack;

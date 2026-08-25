@@ -10,14 +10,19 @@ mod quantize;
 //   the pack factor (4 int8s per u32), which most of these test shapes violate, so the
 //   quantized tensors can't even be constructed (`q_from_data` panics with "Can't store in u32").
 //
-// - candle, router, tch and autodiff are excluded too. We dropped their `unimplemented!()`
-//   overrides for `q_gather`/`q_select`/`q_slice`/`q_expand` so they fall back to the default
+// - router and tch are excluded too. We dropped their `unimplemented!()` overrides for
+//   `q_gather`/`q_select`/`q_slice`/`q_expand` so they fall back to the default
 //   `dequantize -> float op -> quantize` path, but that does NOT make them functional: their
 //   other quantized methods are largely unimplemented. The quantization primitives themselves
 //   (`q_from_data`, `quantize`, `dequantize`, ...) are still `unimplemented!()`/`todo!()`, so the
-//   fallback simply moves the panic into `dequantize`. Running `extended` against any of these
-//   backends would fail. (They also don't enable the `quantization` feature, so they aren't
-//   selected here in the first place.)
+//   fallback simply moves the panic into `dequantize`. Running `extended` against either would
+//   fail. (They also don't enable the `quantization` feature, so they aren't selected here in the
+//   first place.)
+//
+// - autodiff is excluded for a different reason: its `QTensorOps` impl delegates every method to
+//   the inner backend, so `Autodiff<NdArray>` quantizes fine. It simply never reaches this module,
+//   because the autodiff suite is a separate test target (`tests/autodiff.rs`) that does not
+//   include `tests/tensor/`.
 //
 // Enabling `flex` here means the `extended` suite now also runs under the `tensor_f16` target.
 // That f16 path is why a couple of `maxmin` tests use a slightly

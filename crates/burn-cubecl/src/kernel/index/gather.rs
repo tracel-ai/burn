@@ -22,7 +22,7 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     in_strides: Sequence<usize>, // zeroed out for broadcast dims and `dim`
     out_shape: Sequence<FastDivmod<usize>>,
     dim: usize,
-    #[define(T, I)] _dtypes: [StorageType; 2],
+    #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
     if !indices.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

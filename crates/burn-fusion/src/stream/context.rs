@@ -147,6 +147,15 @@ pub(crate) trait RelativeOps {
 }
 
 impl OperationConverter {
+    /// How many relative shape ids have been handed out so far.
+    ///
+    /// Ids are dense from zero, so this is also one past the highest valid id, and therefore
+    /// what a cached plan's
+    /// [`max_relative_shape_id`](crate::NumOperations::max_relative_shape_id) has to fit under.
+    pub(crate) fn num_relative_shapes(&self) -> usize {
+        self.shapes_relative2global.len()
+    }
+
     pub(crate) fn clear(&mut self) {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
@@ -208,6 +217,15 @@ impl RelativeOps for OperationIr {
 impl RelativeOps for ModuleOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
+            ModuleOperationIr::BatchNorm(desc) => ModuleOperationIr::BatchNorm(BatchNormOpIr {
+                x: desc.x.to_relative(converter),
+                gamma: desc.gamma.to_relative(converter),
+                beta: desc.beta.to_relative(converter),
+                mean: desc.mean.to_relative(converter),
+                variance: desc.variance.to_relative(converter),
+                epsilon: desc.epsilon.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             ModuleOperationIr::Embedding(desc) => ModuleOperationIr::Embedding(EmbeddingOpIr {
                 weights: desc.weights.to_relative(converter),
                 indices: desc.indices.to_relative(converter),
@@ -803,6 +821,11 @@ impl RelativeOps for FloatOperationIr {
                 tensor: desc.tensor.to_relative(converter),
                 qparams: QuantizationParametersIr {
                     scales: desc.qparams.scales.to_relative(converter),
+                    global: desc
+                        .qparams
+                        .global
+                        .as_ref()
+                        .map(|global| global.to_relative(converter)),
                 },
                 scheme: desc.scheme,
                 out: desc.out.to_relative(converter),

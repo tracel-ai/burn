@@ -167,9 +167,30 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         kernel::equal(lhs, rhs, out_dtype.into())
     }
 
+    fn int_not_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        kernel::not_equal(lhs, rhs, out_dtype.into())
+    }
+
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
+    }
+
+    fn int_not_equal_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        let dtype = lhs.dtype;
+        kernel::not_equal_elem(
             lhs,
             InputScalar::new(rhs, dtype_to_storage_type(dtype)),
             out_dtype.into(),

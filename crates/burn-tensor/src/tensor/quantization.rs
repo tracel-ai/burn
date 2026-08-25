@@ -50,6 +50,9 @@ pub fn compute_q_params(scheme: &QuantScheme, range: CalibrationRange) -> Quanti
             let qparams = quantization::compute_q_params::<Dispatch>(scheme, min, max);
             QuantizationParameters {
                 scales: Tensor::new(BridgeTensor::float(qparams.scales)),
+                global: qparams
+                    .global
+                    .map(|global| Tensor::new(BridgeTensor::float(global))),
             }
         }
         _ => unreachable!(),

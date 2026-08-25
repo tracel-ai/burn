@@ -102,7 +102,7 @@ mod tests {
         let snapshots = model.collect(None, None, false);
 
         for snapshot in snapshots {
-            let path = snapshot.full_path();
+            let path = snapshot.name.clone();
             let dtype = snapshot.dtype;
 
             if path.contains("float_tensor") || path.contains("linear") {
@@ -385,7 +385,7 @@ mod tests {
         let snapshots = model.collect(None, None, false);
 
         // Verify we have all expected tensors
-        let paths: Vec<String> = snapshots.iter().map(|s| s.full_path()).collect();
+        let paths: Vec<String> = snapshots.iter().map(|s| s.name.clone()).collect();
         assert!(paths.iter().any(|p| p.contains("linear1")));
         assert!(paths.iter().any(|p| p.contains("conv2d")));
         assert!(paths.iter().any(|p| p.contains("float32_weights")));

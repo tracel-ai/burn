@@ -875,6 +875,225 @@ fn test_conv2d_groups_stride_2_no_pad() {
     test.assert_grads(grads);
 }
 
+/// A depthwise weight gradient folds the batch into the channels, and no batch
+/// element may be lost in the fold.
+///
+/// Every other grouped case here has a batch of one, where that rearrangement
+/// cannot be wrong.
+#[test]
+fn test_conv2d_groups_depthwise_batched() {
+    let test = Conv2dTestCase {
+        batch_size: 2,
+        channels_in: 2,
+        channels_out: 2,
+        kernel_size_1: 3,
+        kernel_size_2: 3,
+        padding_1: 1,
+        padding_2: 1,
+        stride_1: 1,
+        stride_2: 1,
+        dilation_1: 1,
+        dilation_2: 1,
+        groups: 2,
+        height: 4,
+        width: 4,
+    };
+    let device = AutodiffDevice::new();
+    let grads = Grads {
+        x: TestTensor::from_data(
+            [
+                [
+                    [
+                        [8., 15., 15., 12.],
+                        [21., 36., 36., 27.],
+                        [21., 36., 36., 27.],
+                        [20., 33., 33., 24.],
+                    ],
+                    [
+                        [44., 69., 69., 48.],
+                        [75., 117., 117., 81.],
+                        [75., 117., 117., 81.],
+                        [56., 87., 87., 60.],
+                    ],
+                ],
+                [
+                    [
+                        [8., 15., 15., 12.],
+                        [21., 36., 36., 27.],
+                        [21., 36., 36., 27.],
+                        [20., 33., 33., 24.],
+                    ],
+                    [
+                        [44., 69., 69., 48.],
+                        [75., 117., 117., 81.],
+                        [75., 117., 117., 81.],
+                        [56., 87., 87., 60.],
+                    ],
+                ],
+            ],
+            &device,
+        ),
+        weight: TestTensor::from_data(
+            [
+                [[[378., 516., 396.], [552., 752., 576.], [450., 612., 468.]]],
+                [[[666., 900., 684.], [936., 1264., 960.], [738., 996., 756.]]],
+            ],
+            &device,
+        ),
+        bias: TestTensor::from_data([32., 32.], &device),
+    };
+    test.assert_grads(grads);
+}
+
+/// The same fold, where a filter's group is not its own index: two output
+/// channels per group rather than one.
+#[test]
+fn test_conv2d_groups_depthwise_batched_multiplier() {
+    let test = Conv2dTestCase {
+        batch_size: 2,
+        channels_in: 2,
+        channels_out: 4,
+        kernel_size_1: 3,
+        kernel_size_2: 3,
+        padding_1: 0,
+        padding_2: 0,
+        stride_1: 1,
+        stride_2: 1,
+        dilation_1: 1,
+        dilation_2: 1,
+        groups: 2,
+        height: 4,
+        width: 4,
+    };
+    let device = AutodiffDevice::new();
+    let grads = Grads {
+        x: TestTensor::from_data(
+            [
+                [
+                    [
+                        [9., 20., 24., 13.],
+                        [24., 52., 60., 32.],
+                        [36., 76., 84., 44.],
+                        [21., 44., 48., 25.],
+                    ],
+                    [
+                        [45., 92., 96., 49.],
+                        [96., 196., 204., 104.],
+                        [108., 220., 228., 116.],
+                        [57., 116., 120., 61.],
+                    ],
+                ],
+                [
+                    [
+                        [9., 20., 24., 13.],
+                        [24., 52., 60., 32.],
+                        [36., 76., 84., 44.],
+                        [21., 44., 48., 25.],
+                    ],
+                    [
+                        [45., 92., 96., 49.],
+                        [96., 196., 204., 104.],
+                        [108., 220., 228., 116.],
+                        [57., 116., 120., 61.],
+                    ],
+                ],
+            ],
+            &device,
+        ),
+        weight: TestTensor::from_data(
+            [
+                [[[148., 156., 164.], [180., 188., 196.], [212., 220., 228.]]],
+                [[[148., 156., 164.], [180., 188., 196.], [212., 220., 228.]]],
+                [[[276., 284., 292.], [308., 316., 324.], [340., 348., 356.]]],
+                [[[276., 284., 292.], [308., 316., 324.], [340., 348., 356.]]],
+            ],
+            &device,
+        ),
+        bias: TestTensor::from_data([8., 8., 8., 8.], &device),
+    };
+    test.assert_grads(grads);
+}
+
+/// A pointwise convolution's gradients drop the convolution entirely and
+/// matmul, so a mis-oriented weight or a mis-chosen reduction axis is the whole
+/// failure mode.
+///
+/// The channel counts differ from each other and are not powers of two, so a
+/// pitched allocator pads the rows both matmuls read.
+#[test]
+fn test_conv2d_pointwise() {
+    let test = Conv2dTestCase {
+        batch_size: 2,
+        channels_in: 3,
+        channels_out: 5,
+        kernel_size_1: 1,
+        kernel_size_2: 1,
+        padding_1: 0,
+        padding_2: 0,
+        stride_1: 1,
+        stride_2: 1,
+        dilation_1: 1,
+        dilation_2: 1,
+        groups: 1,
+        height: 3,
+        width: 5,
+    };
+    let device = AutodiffDevice::new();
+    let grads = Grads {
+        x: TestTensor::from_data(
+            [
+                [
+                    [
+                        [30., 30., 30., 30., 30.],
+                        [30., 30., 30., 30., 30.],
+                        [30., 30., 30., 30., 30.],
+                    ],
+                    [
+                        [35., 35., 35., 35., 35.],
+                        [35., 35., 35., 35., 35.],
+                        [35., 35., 35., 35., 35.],
+                    ],
+                    [
+                        [40., 40., 40., 40., 40.],
+                        [40., 40., 40., 40., 40.],
+                        [40., 40., 40., 40., 40.],
+                    ],
+                ],
+                [
+                    [
+                        [30., 30., 30., 30., 30.],
+                        [30., 30., 30., 30., 30.],
+                        [30., 30., 30., 30., 30.],
+                    ],
+                    [
+                        [35., 35., 35., 35., 35.],
+                        [35., 35., 35., 35., 35.],
+                        [35., 35., 35., 35., 35.],
+                    ],
+                    [
+                        [40., 40., 40., 40., 40.],
+                        [40., 40., 40., 40., 40.],
+                        [40., 40., 40., 40., 40.],
+                    ],
+                ],
+            ],
+            &device,
+        ),
+        weight: TestTensor::from_data(
+            [
+                [[[885.]], [[1335.]], [[1785.]]],
+                [[[885.]], [[1335.]], [[1785.]]],
+                [[[885.]], [[1335.]], [[1785.]]],
+                [[[885.]], [[1335.]], [[1785.]]],
+                [[[885.]], [[1335.]], [[1785.]]],
+            ],
+            &device,
+        ),
+        bias: TestTensor::from_data([30., 30., 30., 30., 30.], &device),
+    };
+    test.assert_grads(grads);
+}
+
 struct Conv2dTestCase {
     batch_size: usize,
     channels_in: usize,

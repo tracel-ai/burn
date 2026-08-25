@@ -219,6 +219,9 @@ pub enum FloatOperationIr {
 /// Operation intermediate representation specific to module.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum ModuleOperationIr {
+    /// Batch normalization with explicitly supplied statistics, corresponding
+    /// to [batch_norm](burn_backend::ops::ModuleOps::batch_norm).
+    BatchNorm(BatchNormOpIr),
     /// Operation corresponding to [embedding](burn_backend::ops::ModuleOps::embedding).
     Embedding(EmbeddingOpIr),
     /// Operation corresponding to [embedding_backward](burn_backend::ops::ModuleOps::embedding_backward).
@@ -1228,6 +1231,21 @@ pub struct EmbeddingBackwardOpIr {
     pub out: TensorIr,
 }
 
+/// Batch normalization using explicitly supplied channel statistics.
+///
+/// This operation neither calculates nor updates the supplied statistics.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct BatchNormOpIr {
+    pub x: TensorIr,
+    pub gamma: TensorIr,
+    pub beta: TensorIr,
+    pub mean: TensorIr,
+    pub variance: TensorIr,
+    pub epsilon: ScalarIr,
+    pub out: TensorIr,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct LinearOpIr {
@@ -1506,8 +1524,11 @@ pub struct ConvTranspose3dOptionsIr {
 /// Quantization parameters intermediate representation.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QuantizationParametersIr {
-    /// The scaling factor.
+    /// The scaling factor, one per block or a single one for a per-tensor level.
     pub scales: TensorIr,
+    /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
+    /// two-level scheme.
+    pub global: Option<TensorIr>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -3160,9 +3181,11 @@ impl FloatOperationIr {
             FloatOperationIr::Ceil(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::Trunc(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IntoInt(repr) => Box::new([&repr.input].into_iter()),
-            FloatOperationIr::Quantize(repr) => {
-                Box::new([&repr.tensor, &repr.qparams.scales].into_iter())
-            }
+            FloatOperationIr::Quantize(repr) => Box::new(
+                [&repr.tensor, &repr.qparams.scales]
+                    .into_iter()
+                    .chain(repr.qparams.global.iter()),
+            ),
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.input].into_iter()),
@@ -3281,6 +3304,9 @@ impl FloatOperationIr {
             FloatOperationIr::Quantize(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
                 repr.qparams.scales.mark_read_only(nodes, &mut output);
+                if let Some(global) = &mut repr.qparams.global {
+                    global.mark_read_only(nodes, &mut output);
+                }
             }
             FloatOperationIr::Dequantize(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
@@ -3403,6 +3429,9 @@ impl FloatOperationIr {
             FloatOperationIr::Quantize(repr) => {
                 v.visit_tensor_mut(&mut repr.tensor);
                 v.visit_tensor_mut(&mut repr.qparams.scales);
+                if let Some(global) = &mut repr.qparams.global {
+                    v.visit_tensor_mut(global);
+                }
                 v.visit_tensor_mut(&mut repr.out);
             }
             FloatOperationIr::Dequantize(repr) => {
@@ -3724,6 +3753,9 @@ impl BoolOperationIr {
 impl ModuleOperationIr {
     fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         match self {
+            ModuleOperationIr::BatchNorm(repr) => {
+                Box::new([&repr.x, &repr.gamma, &repr.beta, &repr.mean, &repr.variance].into_iter())
+            }
             ModuleOperationIr::Embedding(repr) => {
                 Box::new([&repr.weights, &repr.indices].into_iter())
             }
@@ -3946,6 +3978,7 @@ impl ModuleOperationIr {
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         match self {
+            ModuleOperationIr::BatchNorm(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Embedding(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::EmbeddingBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Linear(repr) => Box::new([&repr.out].into_iter()),
@@ -4061,6 +4094,13 @@ impl ModuleOperationIr {
         let mut output = Vec::new();
 
         match self {
+            ModuleOperationIr::BatchNorm(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.gamma.mark_read_only(nodes, &mut output);
+                repr.beta.mark_read_only(nodes, &mut output);
+                repr.mean.mark_read_only(nodes, &mut output);
+                repr.variance.mark_read_only(nodes, &mut output);
+            }
             ModuleOperationIr::Embedding(repr) => {
                 repr.weights.mark_read_only(nodes, &mut output);
                 repr.indices.mark_read_only(nodes, &mut output);
@@ -4354,6 +4394,15 @@ impl ModuleOperationIr {
 
     fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
         match self {
+            ModuleOperationIr::BatchNorm(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.gamma);
+                v.visit_tensor_mut(&mut repr.beta);
+                v.visit_tensor_mut(&mut repr.mean);
+                v.visit_tensor_mut(&mut repr.variance);
+                v.visit_scalar_mut(&mut repr.epsilon);
+                v.visit_tensor_mut(&mut repr.out);
+            }
             ModuleOperationIr::Embedding(repr) => {
                 v.visit_tensor_mut(&mut repr.weights);
                 v.visit_tensor_mut(&mut repr.indices);

@@ -81,8 +81,12 @@ impl<O: core::fmt::Debug> Policy<O> {
             );
         }
 
-        if let Some((id, _length)) = self.found {
-            return Action::Execute(id);
+        if let Some((id, length)) = self.found {
+            // A plan covering `length` operations cannot be applied to a shorter
+            // segment.
+            if length <= operations.len() {
+                return Action::Execute(id);
+            }
         }
 
         match mode {
@@ -272,6 +276,22 @@ mod tests {
         stream::store::{ExecutionPlan, ExecutionStrategy, ExecutionTrigger},
     };
     use std::ops::Range;
+    use std::sync::Arc;
+
+    #[derive(Debug)]
+    struct ShapeIds(Option<usize>);
+
+    impl crate::NumOperations for ShapeIds {
+        fn len(&self) -> usize {
+            1
+        }
+        fn name(&self) -> &'static str {
+            "shape-ids"
+        }
+        fn max_relative_shape_id(&self) -> Option<usize> {
+            self.0
+        }
+    }
 
     #[test]
     fn given_no_optimization_should_explore() {
@@ -313,6 +333,58 @@ mod tests {
 
         let action = policy.action(&store, &stream.operations[0..2], ExecutionMode::Sync);
         assert_eq!(action, Action::Execute(id_1));
+    }
+
+    #[test]
+    fn should_not_execute_a_plan_longer_than_the_segment() {
+        let mut store = ExecutionPlanStore::<()>::default();
+        let mut policy = Policy::<()>::new();
+        let stream = TestStream::new(3);
+
+        let id = store.add(ExecutionPlan {
+            operations: stream.operations[0..3].to_vec(),
+            triggers: vec![ExecutionTrigger::Always],
+            optimization: BlockOptimization::new(ExecutionStrategy::operations(3), Vec::new()),
+        });
+
+        for operation in stream.operations[0..3].iter() {
+            policy.update(&store, operation);
+        }
+
+        assert_eq!(
+            policy.action(&store, &stream.operations[0..3], ExecutionMode::Lazy),
+            Action::Execute(id),
+        );
+        assert_ne!(
+            policy.action(&store, &stream.operations[0..1], ExecutionMode::Lazy),
+            Action::Execute(id),
+        );
+    }
+
+    #[test]
+    fn strategy_reports_the_highest_relative_shape_id_it_holds() {
+        let strategy = ExecutionStrategy::Composed(vec![
+            Box::new(ExecutionStrategy::operations(2)),
+            Box::new(ExecutionStrategy::Optimization {
+                opt: ShapeIds(Some(4)),
+                ordering: Arc::new(vec![0, 1]),
+                score: 0,
+            }),
+            Box::new(ExecutionStrategy::Optimization {
+                opt: ShapeIds(Some(7)),
+                ordering: Arc::new(vec![2]),
+                score: 0,
+            }),
+        ]);
+
+        assert_eq!(strategy.max_relative_shape_id(), Some(7));
+    }
+
+    #[test]
+    fn operations_only_strategy_names_no_relative_shape_id() {
+        let strategy = ExecutionStrategy::<ShapeIds>::operations(3);
+
+        assert_eq!(strategy.max_relative_shape_id(), None);
     }
 
     #[test]

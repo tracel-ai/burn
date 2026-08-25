@@ -2,15 +2,20 @@ use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use burn_pack::Tensor as PackTensor;
+
+use burn_core::tensor::kind::Basic;
 use burn_core::tensor::{Bool, Int, Tensor};
 
-use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
-use burn_core::module::{ModuleVisitor, Param, ParamId};
+use crate::bridge;
+use crate::{ModuleAdapter, ModuleContext, PathFilter};
+use burn_core::module::{ModuleVisitor, Param, ParamId, Parameter};
 
-/// Collects tensor views from modules without copying data.
+/// Collects a module's tensors without copying data.
 ///
-/// This collector traverses a module hierarchy and creates lightweight views
-/// of tensors that can be materialized to `TensorData` on demand.
+/// This collector traverses a module hierarchy and produces [`burn_pack::Tensor`]s whose data
+/// is read back from the device only on demand, so a module can be walked for its structure
+/// and metadata alone.
 ///
 /// # Examples
 ///
@@ -42,8 +47,8 @@ use burn_core::module::{ModuleVisitor, Param, ParamId};
 /// // Collects tensors matching ANY of the patterns
 /// ```
 pub struct Collector {
-    /// Collection of tensor views
-    pub tensors: Vec<TensorSnapshot>,
+    /// The collected tensors, already adapted.
+    pub tensors: Vec<PackTensor>,
     path_stack: Vec<String>,
     container_stack: Vec<String>,
     filter: Option<PathFilter>,
@@ -60,14 +65,14 @@ impl Default for Collector {
 }
 
 impl Collector {
-    /// Create a new tensor view collector with an optional filter and adapter.
+    /// Create a new collector with an optional filter and adapter.
     ///
     /// # Arguments
     ///
     /// * `filter` - An optional [`PathFilter`] to determine which tensors to collect.
     ///   When `None`, all tensors are collected.
     /// * `adapter` - Optional adapter to transform tensors based on container types.
-    ///   Applied to all collected tensors before returning.
+    ///   Applied to each tensor as it is collected.
     /// * `skip_enum_variants` - Skip enum variant names when building paths.
     ///   When true, paths will not include enum variant names (e.g., "feature.weight"
     ///   instead of "feature.BaseConv.weight"). Useful when exporting to formats
@@ -104,16 +109,9 @@ impl Collector {
         }
     }
 
-    /// Apply the adapter to collected tensors and return the result.
-    pub fn into_tensors(self) -> Vec<TensorSnapshot> {
-        if let Some(adapter) = self.adapter {
-            self.tensors
-                .into_iter()
-                .map(|snapshot| adapter.adapt(&snapshot))
-                .collect()
-        } else {
-            self.tensors
-        }
+    /// Return the collected tensors.
+    pub fn into_tensors(self) -> Vec<PackTensor> {
+        self.tensors
     }
 
     fn should_collect(&self, path: &[String], container_stack: &[String]) -> bool {
@@ -122,6 +120,64 @@ impl Collector {
             None => true,
             Some(f) => f.matches_with_container_path(path, container_stack),
         }
+    }
+
+    /// Collect a parameter reached at the collector's current path.
+    ///
+    /// One method covers float, int and bool parameters: [`Basic`] is what supplies `dtype`,
+    /// `shape` and `to_data` for all three kinds.
+    fn collect_param<const D: usize, K: Basic + 'static>(&mut self, param: &Param<Tensor<D, K>>)
+    where
+        Tensor<D, K>: Parameter,
+    {
+        if !self.should_collect(&self.path_stack, &self.container_stack) {
+            return;
+        }
+
+        // The `on_save` form is what the load side validates against and un-maps with
+        // `on_load`; saving `val()` breaks any param whose mapper changes the shape.
+        let tensor = param.transform_for_save().val();
+        let tensor = bridge::from_tensor(&tensor, self.path_stack.join("."), Some(param.id.val()));
+
+        let tensor = adapt(self.adapter.as_deref(), tensor, &self.container_stack);
+        self.tensors.push(tensor);
+    }
+
+    /// Collect a tensor reached at an explicit path rather than through the path stack.
+    fn collect_at<const D: usize, K: Basic + 'static>(
+        &mut self,
+        path: &[String],
+        id: ParamId,
+        tensor: &Tensor<D, K>,
+    ) {
+        // Path-based visits still use the current container stack for filtering.
+        if !self.should_collect(path, &self.container_stack) {
+            return;
+        }
+
+        let tensor = bridge::from_tensor(tensor, path.join("."), Some(id.val()));
+
+        let tensor = adapt(self.adapter.as_deref(), tensor, &self.container_stack);
+        self.tensors.push(tensor);
+    }
+}
+
+/// Adapt a tensor with the module position live on the traversal stack.
+///
+/// Adapting during the walk rather than at the end is what lets a collected tensor be a plain
+/// [`PackTensor`]: the stacks an adapter needs are in scope only here, so consuming them now
+/// means they never have to ride along on the tensor.
+///
+/// Free rather than a method so the borrow of the collector's container stack ends before its
+/// `tensors` field is borrowed mutably to push the result.
+fn adapt(
+    adapter: Option<&dyn ModuleAdapter>,
+    tensor: PackTensor,
+    containers: &[String],
+) -> PackTensor {
+    match adapter {
+        Some(adapter) => adapter.adapt(tensor, ModuleContext::new(containers)),
+        None => tensor,
     }
 }
 
@@ -147,36 +203,15 @@ impl ModuleVisitor for Collector {
     }
 
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
-        if self.should_collect(&self.path_stack, &self.container_stack) {
-            self.tensors.push(TensorSnapshot::from_float(
-                &param.transform_for_save().val(),
-                self.path_stack.clone(),
-                self.container_stack.clone(),
-                param.id,
-            ));
-        }
+        self.collect_param(param);
     }
 
     fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
-        if self.should_collect(&self.path_stack, &self.container_stack) {
-            self.tensors.push(TensorSnapshot::from_int(
-                &param.transform_for_save().val(),
-                self.path_stack.clone(),
-                self.container_stack.clone(),
-                param.id,
-            ));
-        }
+        self.collect_param(param);
     }
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
-        if self.should_collect(&self.path_stack, &self.container_stack) {
-            self.tensors.push(TensorSnapshot::from_bool(
-                &param.transform_for_save().val(),
-                self.path_stack.clone(),
-                self.container_stack.clone(),
-                param.id,
-            ));
-        }
+        self.collect_param(param);
     }
 
     fn visit_float_with_path<const D: usize>(
@@ -185,15 +220,7 @@ impl ModuleVisitor for Collector {
         id: ParamId,
         tensor: &Tensor<D>,
     ) {
-        // For path-based visits, we use the current container stack for filtering
-        if self.should_collect(path, &self.container_stack) {
-            self.tensors.push(TensorSnapshot::from_float(
-                tensor,
-                path.to_vec(),
-                self.container_stack.clone(),
-                id,
-            ));
-        }
+        self.collect_at(path, id, tensor);
     }
 
     fn visit_int_with_path<const D: usize>(
@@ -202,14 +229,7 @@ impl ModuleVisitor for Collector {
         id: ParamId,
         tensor: &Tensor<D, Int>,
     ) {
-        if self.should_collect(path, &self.container_stack) {
-            self.tensors.push(TensorSnapshot::from_int(
-                tensor,
-                path.to_vec(),
-                self.container_stack.clone(),
-                id,
-            ));
-        }
+        self.collect_at(path, id, tensor);
     }
 
     fn visit_bool_with_path<const D: usize>(
@@ -218,14 +238,7 @@ impl ModuleVisitor for Collector {
         id: ParamId,
         tensor: &Tensor<D, Bool>,
     ) {
-        if self.should_collect(path, &self.container_stack) {
-            self.tensors.push(TensorSnapshot::from_bool(
-                tensor,
-                path.to_vec(),
-                self.container_stack.clone(),
-                id,
-            ));
-        }
+        self.collect_at(path, id, tensor);
     }
 }
 
@@ -242,7 +255,7 @@ mod tests {
     use burn_nn::LinearConfig;
 
     #[test]
-    fn tensor_snapshot_collector() {
+    fn collector_collects_a_tensor() {
         let device = Default::default();
         let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -253,11 +266,11 @@ mod tests {
         collector.visit_float_with_path(&["model".to_string(), "weight".to_string()], id, &tensor);
 
         assert_eq!(collector.tensors.len(), 1);
-        assert_eq!(collector.tensors[0].full_path(), "model.weight");
+        assert_eq!(collector.tensors[0].name, "model.weight");
 
         // Verify the tensor can be converted to data
         let view = &collector.tensors[0];
-        let data = view.to_data().unwrap();
+        let data = bridge::to_data(view).unwrap();
         assert_eq!(data.shape, shape![2, 2]);
     }
 
@@ -288,19 +301,17 @@ mod tests {
         assert_eq!(collector.tensors.len(), 2);
 
         // Verify paths are correct (single-element paths)
-        assert_eq!(collector.tensors[0].full_path(), "weight");
-        assert_eq!(collector.tensors[1].full_path(), "bias");
+        assert_eq!(collector.tensors[0].name, "weight");
+        assert_eq!(collector.tensors[1].name, "bias");
 
         // Verify data is correct
-        let weight_data = collector.tensors[0]
-            .to_data()
+        let weight_data = bridge::to_data(&collector.tensors[0])
             .unwrap()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
-        let bias_data = collector.tensors[1]
-            .to_data()
+        let bias_data = bridge::to_data(&collector.tensors[1])
             .unwrap()
-            .to_vec::<f32>()
+            .try_into_vec::<f32>()
             .unwrap();
 
         assert_eq!(weight_data, vec![1.0, 2.0, 3.0, 4.0]);
@@ -309,7 +320,7 @@ mod tests {
 
     #[test]
     #[cfg(target_has_atomic = "ptr")]
-    fn tensor_snapshot_collector_with_filter() {
+    fn collector_with_filter() {
         let device = Default::default();
         let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -331,12 +342,12 @@ mod tests {
         );
 
         assert_eq!(collector.tensors.len(), 1);
-        assert_eq!(collector.tensors[0].full_path(), "encoder.weight");
+        assert_eq!(collector.tensors[0].name, "encoder.weight");
     }
 
     #[test]
     #[cfg(target_has_atomic = "ptr")]
-    fn tensor_snapshot_collector_with_multiple_filters() {
+    fn collector_with_multiple_filters() {
         let device = Default::default();
         let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -364,7 +375,7 @@ mod tests {
         ); // matches neither
 
         assert_eq!(collector.tensors.len(), 3);
-        let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
+        let paths: Vec<String> = collector.tensors.iter().map(|v| v.name.clone()).collect();
         assert!(paths.contains(&"encoder.weight".to_string()));
         assert!(paths.contains(&"decoder.bias".to_string()));
         assert!(paths.contains(&"encoder.bias".to_string()));
@@ -372,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_snapshot_collector_with_predicate() {
+    fn collector_with_predicate() {
         let device = Default::default();
         let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -402,7 +413,7 @@ mod tests {
         collector.visit_float_with_path(&["other".to_string(), "tensor".to_string()], id, &tensor);
 
         assert_eq!(collector.tensors.len(), 3);
-        let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
+        let paths: Vec<String> = collector.tensors.iter().map(|v| v.name.clone()).collect();
         assert!(paths.contains(&"encoder.weight".to_string()));
         assert!(paths.contains(&"encoder.bias".to_string()));
         assert!(paths.contains(&"decoder.bias".to_string()));
@@ -411,7 +422,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_snapshot_collector_predicate_with_complex_logic() {
+    fn collector_predicate_with_complex_logic() {
         let device = Default::default();
         let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -474,7 +485,7 @@ mod tests {
         ); // wrong structure
 
         assert_eq!(collector.tensors.len(), 2);
-        let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
+        let paths: Vec<String> = collector.tensors.iter().map(|v| v.name.clone()).collect();
         assert!(paths.contains(&"model.layer1.weight".to_string()));
         assert!(paths.contains(&"model.layer2.weight".to_string()));
         assert!(!paths.contains(&"model.layer1.bias".to_string()));
@@ -701,7 +712,7 @@ mod tests {
         model.visit(&mut collector);
 
         let views = collector.tensors;
-        let paths: Vec<String> = views.iter().map(|v| v.full_path()).collect();
+        let paths: Vec<String> = views.iter().map(|v| v.name.clone()).collect();
 
         // Test 5-level deep paths
         assert!(paths.contains(&"backbone.encoder.block1.layer.weight".to_string()));
@@ -734,9 +745,9 @@ mod tests {
         // Verify data can be materialized
         let view = views
             .iter()
-            .find(|v| v.full_path() == "backbone.encoder.block1.layer.weight")
+            .find(|v| v.name == "backbone.encoder.block1.layer.weight")
             .unwrap();
-        let data = view.to_data().unwrap();
+        let data = bridge::to_data(view).unwrap();
         assert_eq!(data.shape, shape![2, 2]);
     }
 
@@ -788,7 +799,7 @@ mod tests {
             // - 1 head weight
             assert_eq!(collector.tensors.len(), 9);
 
-            let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
+            let paths: Vec<String> = collector.tensors.iter().map(|v| v.name.clone()).collect();
             assert!(paths.contains(&"backbone.encoder.block1.layer.weight".to_string()));
             assert!(paths.contains(&"backbone.decoder.block1.layer.bias".to_string()));
             assert!(paths.contains(&"head.weight".to_string()));
@@ -797,8 +808,9 @@ mod tests {
     }
 
     use crate::traits::ModuleSnapshot;
-    use burn_nn::Linear;
+    use burn_nn::{BatchNorm, BatchNormConfig, Linear};
     use hashbrown::HashMap;
+    use std::sync::{Arc, Mutex};
 
     // Test module with Option fields
     #[derive(Module, Debug)]
@@ -828,10 +840,10 @@ mod tests {
         let device = Default::default();
         let module = OptionalFieldModule::new_with_optional(&device);
 
-        let views: HashMap<String, TensorSnapshot> = module
+        let views: HashMap<String, PackTensor> = module
             .collect(None, None, false)
             .into_iter()
-            .map(|v| (v.full_path(), v))
+            .map(|v| (v.name.clone(), v))
             .collect();
 
         assert_eq!(views.len(), 2);
@@ -844,10 +856,10 @@ mod tests {
         let device = Default::default();
         let module = OptionalFieldModule::new_without_optional(&device);
 
-        let views: HashMap<String, TensorSnapshot> = module
+        let views: HashMap<String, PackTensor> = module
             .collect(None, None, false)
             .into_iter()
-            .map(|v| (v.full_path(), v))
+            .map(|v| (v.name.clone(), v))
             .collect();
 
         assert_eq!(views.len(), 1);
@@ -894,10 +906,10 @@ mod tests {
         let device = Default::default();
         let module = VecModule::new(&device, 3);
 
-        let views: HashMap<String, TensorSnapshot> = module
+        let views: HashMap<String, PackTensor> = module
             .collect(None, None, false)
             .into_iter()
-            .map(|v| (v.full_path(), v))
+            .map(|v| (v.name.clone(), v))
             .collect();
 
         // With the fix, all Vec items should now be properly indexed and visited
@@ -917,11 +929,11 @@ mod tests {
         let device = Default::default();
         let module = TupleModule::new(&device);
 
-        let snapshots = module.collect(None, None, false);
-        assert_eq!(snapshots.len(), 6);
+        let tensors = module.collect(None, None, false);
+        assert_eq!(tensors.len(), 6);
 
-        let views: HashMap<String, TensorSnapshot> =
-            snapshots.into_iter().map(|v| (v.full_path(), v)).collect();
+        let views: HashMap<String, PackTensor> =
+            tensors.into_iter().map(|v| (v.name.clone(), v)).collect();
 
         assert_eq!(views.len(), 6);
 
@@ -956,10 +968,10 @@ mod tests {
         let device = Default::default();
         let module = ArrayModule::new(&device);
 
-        let views: HashMap<String, TensorSnapshot> = module
+        let views: HashMap<String, PackTensor> = module
             .collect(None, None, false)
             .into_iter()
-            .map(|v| (v.full_path(), v))
+            .map(|v| (v.name.clone(), v))
             .collect();
 
         // All array items should be properly indexed
@@ -986,10 +998,10 @@ mod tests {
 
         // Test variant A
         let module_a = EnumModule::LayerA(LinearConfig::new(10, 20).init(&device));
-        let views_a: HashMap<String, TensorSnapshot> = module_a
+        let views_a: HashMap<String, PackTensor> = module_a
             .collect(None, None, false)
             .into_iter()
-            .map(|v| (v.full_path(), v))
+            .map(|v| (v.name.clone(), v))
             .collect();
 
         // Should have the variant name in the path
@@ -999,15 +1011,56 @@ mod tests {
 
         // Test variant B
         let module_b = EnumModule::LayerB(LinearConfig::new(10, 20).init(&device));
-        let views_b: HashMap<String, TensorSnapshot> = module_b
+        let views_b: HashMap<String, PackTensor> = module_b
             .collect(None, None, false)
             .into_iter()
-            .map(|v| (v.full_path(), v))
+            .map(|v| (v.name.clone(), v))
             .collect();
 
         assert_eq!(views_b.len(), 2);
         assert!(views_b.contains_key("LayerB.weight"));
         assert!(views_b.contains_key("LayerB.bias"));
+    }
+    /// A tensor's path paired with the module type it was seen in.
+    type Sighting = (String, Option<String>);
+
+    /// Records the module context each tensor was seen in, and changes nothing.
+    ///
+    /// The container stack is consumed during the walk rather than kept on the collected
+    /// tensor, so this is how the traversal's view of it is observed. Asserting through a real
+    /// adapter's dtype output would instead couple these tests to that adapter's (documented as
+    /// changeable) module allowlist.
+    #[derive(Clone, Default)]
+    struct RecordingAdapter {
+        seen: Arc<Mutex<Vec<Sighting>>>,
+    }
+
+    impl RecordingAdapter {
+        /// The sightings recorded so far, sorted by path.
+        fn seen(&self) -> Vec<Sighting> {
+            let mut seen = self.seen.lock().unwrap().clone();
+            seen.sort();
+            seen
+        }
+    }
+
+    impl ModuleAdapter for RecordingAdapter {
+        fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor {
+            self.seen.lock().unwrap().push((
+                tensor.name.clone(),
+                ctx.module_type().map(|t| t.to_string()),
+            ));
+            tensor
+        }
+
+        fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+            Box::new(self.clone())
+        }
+    }
+
+    /// The module type a sighting is expected to carry.
+    fn module(module: &str) -> Option<String> {
+        Some(module.to_string())
     }
 
     // Container type tracking tests
@@ -1018,35 +1071,33 @@ mod tests {
         #[derive(Module, Debug)]
         struct ModelWithLinear {
             linear: Linear,
+            norm: BatchNorm,
         }
 
         impl ModelWithLinear {
             fn new(device: &Device) -> Self {
                 Self {
                     linear: LinearConfig::new(10, 20).init(device),
+                    norm: BatchNormConfig::new(20).init(device),
                 }
             }
         }
 
         let model = ModelWithLinear::new(&device);
+        let adapter = RecordingAdapter::default();
+        model.collect(None, Some(Box::new(adapter.clone())), false);
 
-        let views: HashMap<String, TensorSnapshot> = model
-            .collect(None, None, false)
-            .into_iter()
-            .map(|v| (v.full_path(), v))
-            .collect();
-
-        // Check that tensors inside Linear layers have "Struct:Linear" as their module type
-        for (path, view) in views.iter() {
-            if path == "linear.weight" || path == "linear.bias" {
-                assert_eq!(
-                    view.module_type(),
-                    Some("Struct:Linear".to_string()),
-                    "Tensor '{}' should have module type 'Struct:Linear'",
-                    path
-                );
-            }
-        }
+        assert_eq!(
+            adapter.seen(),
+            vec![
+                ("linear.bias".to_string(), module("Struct:Linear")),
+                ("linear.weight".to_string(), module("Struct:Linear")),
+                ("norm.beta".to_string(), module("Struct:BatchNorm")),
+                ("norm.gamma".to_string(), module("Struct:BatchNorm")),
+                ("norm.running_mean".to_string(), module("Struct:BatchNorm")),
+                ("norm.running_var".to_string(), module("Struct:BatchNorm")),
+            ]
+        );
     }
 
     #[test]
@@ -1077,19 +1128,22 @@ mod tests {
         }
 
         let model = ComplexModel::new(&device);
-
-        let views: HashMap<String, TensorSnapshot> = model
-            .collect(None, None, false)
-            .into_iter()
-            .map(|v| (v.full_path(), v))
-            .collect();
+        let adapter = RecordingAdapter::default();
+        model.collect(None, Some(Box::new(adapter.clone())), false);
 
         // Should have 10 tensors total
-        assert_eq!(views.len(), 10);
+        let seen = adapter.seen();
+        assert_eq!(seen.len(), 10);
 
-        // Verify different module types
-        for (_path, view) in views.iter() {
-            assert_eq!(view.module_type(), Some("Struct:Linear".to_string()));
+        // Every one is inside a Linear, including those reached through an array or a Vec: the
+        // collection wrapper sits above the module on the container stack, and looking past it
+        // is exactly what `ModuleContext::module_type` does.
+        for (name, module_type) in seen {
+            assert_eq!(
+                module_type,
+                module("Struct:Linear"),
+                "'{name}' should have been seen as a Linear parameter"
+            );
         }
     }
 
@@ -1100,6 +1154,7 @@ mod tests {
         #[derive(Module, Debug)]
         struct FilterTestModel {
             layers: Vec<Linear>,
+            norm: BatchNorm,
         }
 
         impl FilterTestModel {
@@ -1109,6 +1164,7 @@ mod tests {
                         LinearConfig::new(10, 10).init(device),
                         LinearConfig::new(10, 10).init(device),
                     ],
+                    norm: BatchNormConfig::new(10).init(device),
                 }
             }
         }
@@ -1120,18 +1176,19 @@ mod tests {
             container_path.split('.').next_back() == Some("Struct:Linear")
         });
 
-        let linear_views: Vec<TensorSnapshot> = model.collect(Some(filter), None, false);
+        let linear_views: Vec<PackTensor> = model.collect(Some(filter), None, false);
 
-        // All collected tensors should be from Linear modules
-        for view in linear_views.iter() {
-            assert_eq!(
-                view.module_type(),
-                Some("Struct:Linear".to_string()),
-                "All tensors should be from Linear modules"
-            );
-        }
-
-        // Should have collected all Linear tensors
-        assert_eq!(linear_views.len(), 4);
+        // Only the Linear tensors, not the BatchNorm ones the model also has.
+        let mut paths: Vec<String> = linear_views.iter().map(|v| v.name.clone()).collect();
+        paths.sort();
+        assert_eq!(
+            paths,
+            vec![
+                "layers.0.bias",
+                "layers.0.weight",
+                "layers.1.bias",
+                "layers.1.weight"
+            ]
+        );
     }
 }

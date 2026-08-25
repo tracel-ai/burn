@@ -2,7 +2,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
 use cubecl::{
-    ir::StorageType,
+    ir::ElemType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
 use cubek::convolution::AcceleratedTileKind;
@@ -12,6 +12,7 @@ use crate::{
     kernel::conv::{
         ConvAutotuneKey,
         backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
+        im2col::dgrad_im2col_1x1,
     },
     tensor::CubeTensor,
 };
@@ -36,6 +37,15 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
                 "wgrad_fallback",
                 |(out_grad, weights, input_shape, options)| {
                     conv_data_backward_fallback::<R, N>(out_grad, weights, input_shape, options)
+                },
+            ))
+            // Declines every shape but the pointwise one. It earns its place
+            // because a device with no accelerated matmul for the dtype
+            // declines every candidate below, leaving the fallback unopposed.
+            .with(Tunable::new(
+                "dgrad_im2col_1x1",
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_im2col_1x1::<R, N>(out_grad, weights, input_shape, options)
                 },
             ))
             .with(Tunable::new(
@@ -164,7 +174,7 @@ fn create_key<R: CubeRuntime, const N: usize>(
 const MAX_STRIDE_FACTOR: u32 = 10;
 
 /// Defines the non-contiguous stride alignment in terms of powers of two
-fn stride_align(strides: &[usize], elem: StorageType) -> u8 {
+fn stride_align(strides: &[usize], elem: ElemType) -> u8 {
     let max = MAX_STRIDE_FACTOR;
     let dim_c = strides.len() - 1;
     let factor = strides[..dim_c]

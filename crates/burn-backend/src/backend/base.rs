@@ -7,11 +7,13 @@ use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{TensorData, TensorMetadata};
 use alloc::string::String;
+use alloc::vec::Vec;
 use enumset::{EnumSet, EnumSetType};
 
 use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
+use super::{InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport};
 
 /// The mapping of types used by Backend and traits.
 pub trait BackendTypes: Clone + Send + Sync + core::fmt::Debug + 'static {
@@ -149,6 +151,67 @@ pub trait Backend:
     /// Manually triggers a memory cleanup on the given device.
     #[allow(unused_variables)]
     fn memory_cleanup(device: &Self::Device) {}
+
+    /// Install a layout for the device's dynamic memory pools.
+    ///
+    /// A per-workload setting: the calling stream's pools are rebuilt in place
+    /// when nothing is live in them — so install at a quiescent point, after
+    /// the previous workload's tensors have dropped and a
+    /// [`memory_cleanup`](Self::memory_cleanup) — and streams created
+    /// afterwards use the new layout.
+    ///
+    /// Sizing a layout from a measurement means installing twice: once
+    /// growable, to run the workload and read
+    /// [`memory_pool_report`](Self::memory_pool_report), and once capped at
+    /// what that reported.
+    ///
+    /// # Errors
+    ///
+    /// [`InstallMemoryPoolsError::PoolsInUse`] when something is still live in
+    /// the pools being rebuilt, worth retrying once it drains;
+    /// [`StreamUnavailable`](InstallMemoryPoolsError::StreamUnavailable) when
+    /// the calling stream has already failed;
+    /// [`InvalidLayout`](InstallMemoryPoolsError::InvalidLayout) when the
+    /// layout cannot be honoured; and
+    /// [`Unsupported`](InstallMemoryPoolsError::Unsupported) — the default — on
+    /// a backend with no configurable pools. Neither of the last two is worth a
+    /// retry. The layout in force is unchanged in every case, so a caller that
+    /// cannot proceed without it has to say so rather than assume the
+    /// reservation it asked for.
+    #[allow(unused_variables)]
+    fn memory_install_pools(
+        device: &Self::Device,
+        layout: MemoryPoolLayout,
+    ) -> Result<(), InstallMemoryPoolsError> {
+        Err(InstallMemoryPoolsError::Unsupported)
+    }
+
+    /// The dynamic pools' measured state, in the order allocations are routed
+    /// through them. `None` on a backend that does not report one, or whose
+    /// stream has failed.
+    ///
+    /// Entries pair one-to-one with the pools of a
+    /// [`Sliced`](MemoryPoolLayout::Sliced) or
+    /// [`Direct`](MemoryPoolLayout::Direct) layout this caller installed, which
+    /// is what a measured layout is rebuilt from. A layout nobody installed —
+    /// the runtime's default, or a preset — also routes through pools of other
+    /// kinds, which are left out, so its entries carry no rebuildable position.
+    ///
+    /// Reporting and installing are separate capabilities: a runtime may
+    /// describe the pools it has while refusing to be given different ones, so
+    /// a report is not proof that a layout was installed. Only the result of
+    /// [`memory_install_pools`](Self::memory_install_pools) says that.
+    #[allow(unused_variables)]
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        None
+    }
+
+    /// The device allocator's current state. `None` on a backend that does not
+    /// report one, or whose stream has failed.
+    #[allow(unused_variables)]
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        None
+    }
 
     /// Name of the backend.
     fn name(device: &Self::Device) -> String;

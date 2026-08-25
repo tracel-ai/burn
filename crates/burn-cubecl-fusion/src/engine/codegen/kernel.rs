@@ -3,10 +3,12 @@ use crate::engine::codegen::{DynElem, DynSize};
 use super::{io::*, ir::*};
 use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
-    ir::{ElemType, FloatKind, StorageType, UIntKind},
+    ir::{ElemType, FloatKind, UIntKind},
     prelude::*,
 };
-use cubek::quantization::{dequantize::dequantize_symmetric_packed_value_at, scheme::QuantMode};
+use cubek::quantization::{
+    dequantize::dequantize_symmetric_packed_value_at, scale::Scales, scheme::QuantMode,
+};
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -88,6 +90,16 @@ pub fn fuse_on_read<E: Scalar, N: Size>(
 }
 
 #[cube]
+/// Canonicalizes the harmless zero stride produced by metadata-only broadcasts.
+///
+/// A singleton dimension always has coordinate zero, but reference strides are
+/// used as divisors throughout fused indexing and therefore must be nonzero. Keep
+/// every other physical stride unchanged.
+fn normalize_reference_stride(shape: usize, stride: usize) -> usize {
+    select(shape == 1, stride.max(1usize), stride)
+}
+
+#[cube]
 /// Initializes [LocalArgs] given the input and output [arguments](GlobalArgs) with the [FuseBlockConfig].
 ///
 /// # Notes
@@ -110,8 +122,11 @@ pub fn init_locals(
 
                 #[unroll]
                 for i in 0..config.rank {
-                    ref_shape[i] = layout.tensor.shape(i);
-                    ref_strides[i] = layout.tensor.stride(i);
+                    let shape = layout.tensor.shape(i);
+                    let stride = layout.tensor.stride(i);
+
+                    ref_shape[i] = shape;
+                    ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
 
                 LocalArgs::new(
@@ -125,8 +140,11 @@ pub fn init_locals(
 
                 #[unroll]
                 for i in 0..config.rank {
-                    ref_shape[i] = layout.tensor.shape(i);
-                    ref_strides[i] = layout.tensor.stride(i);
+                    let shape = layout.tensor.shape(i);
+                    let stride = layout.tensor.stride(i);
+
+                    ref_shape[i] = shape;
+                    ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
 
                 LocalArgs::new(
@@ -196,9 +214,11 @@ pub fn init_locals(
                 for i in 0..config.rank {
                     let shape_index = start_shape + i;
                     let strides_index = start_strides + i;
+                    let shape = *inputs.runtime_layouts.index(shape_index);
+                    let stride = *inputs.runtime_layouts.index(strides_index);
 
-                    ref_shape[i] = *inputs.runtime_layouts.index(shape_index);
-                    ref_strides[i] = *inputs.runtime_layouts.index(strides_index);
+                    ref_shape[i] = shape;
+                    ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
 
                 LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width)
@@ -416,9 +436,9 @@ macro_rules! binary_func {
 }
 
 macro_rules! comparison_op {
-    ($ident:ident, $op:tt) => {
+    ($ident:ident, $func:expr) => {
         #[cube]
-        fn $ident<C: Scalar + core::cmp::PartialOrd, N: Size>(
+        fn $ident<C: Scalar + ScalarPartialOrd, N: Size>(
             inputs: &GlobalArgs,
             outputs: &mut GlobalArgs,
             locals: &mut LocalArgs,
@@ -428,7 +448,7 @@ macro_rules! comparison_op {
         ) {
             let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
             let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
-            let result = Vector::new(lhs $op rhs);
+            let result = $func(&lhs, &rhs);
 
             write::<bool, N>(inputs, outputs, locals, write_pos, result, op.out, config);
         }
@@ -557,12 +577,12 @@ fn gather<C: Numeric, N: Size>(
                 inputs,
                 &*locals,
                 pos_input,
-                index + (offset.extract(0) as usize * stride_input_dim),
+                index + (offset.extract(0usize) as usize * stride_input_dim),
                 LayoutInfo::IsRef,
                 config,
                 None,
             );
-            result.insert(i, input.extract(0));
+            result.insert(i, input.extract(0usize));
         }
     } else {
         let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
@@ -579,8 +599,9 @@ fn gather<C: Numeric, N: Size>(
                 None,
             );
 
-            let current_index =
-                index + (offset.extract(0) as usize * stride_input_dim) + (i * stride_input_vector);
+            let current_index = index
+                + (offset.extract(0usize) as usize * stride_input_dim)
+                + (i * stride_input_vector);
 
             let input = read_input::<C, Const<1>>(
                 inputs,
@@ -592,7 +613,7 @@ fn gather<C: Numeric, N: Size>(
                 None,
             );
 
-            result.insert(i, input.extract(0));
+            result.insert(i, input.extract(0usize));
         }
     }
 
@@ -677,7 +698,7 @@ fn select_indices<C: Numeric, N: Size>(
             None,
         );
 
-        index += offset_dim.extract(0) as usize * stride_input_dim;
+        index += offset_dim.extract(0usize) as usize * stride_input_dim;
 
         #[unroll]
         for i in 0..vector_size_ref {
@@ -690,7 +711,7 @@ fn select_indices<C: Numeric, N: Size>(
                 config,
                 None,
             );
-            result.insert(i, input.extract(0));
+            result.insert(i, input.extract(0usize));
         }
     } else {
         // In this scenario the select is actually performed on the last dimension we're working on.
@@ -743,12 +764,12 @@ fn select_indices<C: Numeric, N: Size>(
                 inputs,
                 &*locals,
                 pos_input,
-                index + (offset_dim.extract(0) as usize * stride_input_dim),
+                index + (offset_dim.extract(0usize) as usize * stride_input_dim),
                 LayoutInfo::IsRef,
                 config,
                 None,
             );
-            result.insert(i, input.extract(0));
+            result.insert(i, input.extract(0usize));
         }
     }
 
@@ -775,7 +796,7 @@ fn concat<C: Scalar, N: Size>(
     let mut result = Vector::<C, N>::empty();
     let write_pos_elem = write_pos * vector_size_ref;
 
-    if comptime![dim != config.rank - 1] {
+    if comptime![dim != config.vector_axis] {
         // The concatenation axis isn't the vectorization axis, therefore the whole vector is
         // contained in a single input tensor.
         let coordinate_dim = write_pos_elem / stride_dim_ref % shape_dim_ref;
@@ -804,7 +825,7 @@ fn concat<C: Scalar, N: Size>(
                 );
 
                 let stride_tensor_vector =
-                    global_stride(inputs, comptime![config.rank - 1], pos_tensor);
+                    global_stride(inputs, comptime![config.vector_axis], pos_tensor);
 
                 #[unroll]
                 for i in 0..vector_size_ref {
@@ -817,7 +838,7 @@ fn concat<C: Scalar, N: Size>(
                         config,
                         None,
                     );
-                    result.insert(i, input.extract(0));
+                    result.insert(i, input.extract(0usize));
                 }
             }
 
@@ -861,7 +882,7 @@ fn concat<C: Scalar, N: Size>(
                         config,
                         None,
                     );
-                    result.insert(i, input.extract(0));
+                    result.insert(i, input.extract(0usize));
                 }
 
                 offset_dim_start = offset_dim_end;
@@ -987,35 +1008,24 @@ fn dequantize<C: Float, N: Size>(
 
     let quant_ty = comptime![match scheme.store {
         QuantStore::Native => match scheme.value {
-            QuantValue::Q8F | QuantValue::Q8S => StorageType::Scalar(ElemType::UInt(UIntKind::U8)),
-            QuantValue::E4M3 => StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
-            QuantValue::E5M2 => StorageType::Scalar(ElemType::Float(FloatKind::E5M2)),
+            QuantValue::Q8F | QuantValue::Q8S => ElemType::UInt(UIntKind::U8),
+            QuantValue::E4M3 => ElemType::Float(FloatKind::E4M3),
+            QuantValue::E5M2 => ElemType::Float(FloatKind::E5M2),
             QuantValue::Q4F
             | QuantValue::Q4S
             | QuantValue::Q2F
             | QuantValue::Q2S
             | QuantValue::E2M1 => unreachable!("Can't store native sub-byte values"),
         },
-        QuantStore::PackedU32(_) => ElemType::UInt(UIntKind::U32).into(),
+        QuantStore::PackedU32(_) => ElemType::UInt(UIntKind::U32),
         QuantStore::PackedNative(_) => match scheme.value {
-            QuantValue::E2M1 => StorageType::Packed(ElemType::Float(FloatKind::E4M3), 2),
+            QuantValue::E2M1 => ElemType::Float(FloatKind::E2M1x2),
             other => panic!("{other:?} doesn't support native packing"),
         },
     }];
-    let param_ty = comptime![match scheme.param {
-        cubecl::quant::scheme::QuantParam::F32 =>
-            StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-        cubecl::quant::scheme::QuantParam::F16 =>
-            StorageType::Scalar(ElemType::Float(FloatKind::F16)),
-        cubecl::quant::scheme::QuantParam::BF16 =>
-            StorageType::Scalar(ElemType::Float(FloatKind::BF16)),
-        cubecl::quant::scheme::QuantParam::UE8M0 =>
-            StorageType::Scalar(ElemType::Float(FloatKind::UE8M0)),
-        cubecl::quant::scheme::QuantParam::UE4M3 =>
-            StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
-    }];
+    let scale_ty = comptime![ElemType::from_scale_dtype(scheme.scale_dtype())];
     let define!(QStoreType) = quant_ty;
-    let define!(QParamType) = param_ty;
+    let define!(QScaleType) = scale_ty;
     let size!(NumQuant) = scheme.num_quants();
 
     let tensor_pos = comptime!(match input {
@@ -1030,8 +1040,10 @@ fn dequantize<C: Float, N: Size>(
     let num_quants = scheme.num_quants();
 
     set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
-    let scales =
-        input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
+    let grid =
+        input_as_scales_view::<QScaleType, Const<1>>(inputs, pos, tensor_pos, scheme, config);
+    // A two-level scheme never reaches a fused kernel, so there is no per-tensor scale to apply.
+    let scales = Scales::<QScaleType>::new(&grid, ComptimeOption::new_None());
 
     let mut vector = Vector::empty();
     let packed_dim = comptime![match scheme.store {
@@ -1048,7 +1060,7 @@ fn dequantize<C: Float, N: Size>(
         let result = dequantize_symmetric_packed_value_at::<
             C,
             NumQuant,
-            QParamType,
+            QScaleType,
             QStoreType,
             QStoreSize,
         >(write_pos * num_quants, input, &scales, scheme);
@@ -1098,11 +1110,11 @@ fn dequantize<C: Float, N: Size>(
             let result = dequantize_symmetric_packed_value_at::<
                 C,
                 NumQuant,
-                QParamType,
+                QScaleType,
                 QStoreType,
                 Const<1>,
             >(logical_position, input, &scales, scheme);
-            vector.insert(i, result[0].extract(packed_index));
+            vector.insert(i, result[0].extract_dynamic(packed_index));
         }
     }
 
@@ -1121,11 +1133,11 @@ binary_int_op!(bitwise_left_shift, <<);
 binary_int_op!(bitwise_right_shift, >>);
 unary_int_op!(bitwise_not, !);
 
-comparison_op!(equal, ==);
-comparison_op!(greater, >);
-comparison_op!(greater_equal, >=);
-comparison_op!(lower, <);
-comparison_op!(lower_equal, <=);
+comparison_op!(equal, Vector::<C, N>::equal);
+comparison_op!(greater, Vector::<C, N>::greater_than);
+comparison_op!(greater_equal, Vector::<C, N>::greater_equal);
+comparison_op!(lower, Vector::<C, N>::less_than);
+comparison_op!(lower_equal, Vector::<C, N>::less_equal);
 
 binary_func!(powf, Vector::<C, N>::powf, Float);
 binary_func!(rem, Vector::<C, N>::mod_floor, Float);
@@ -1140,3 +1152,16 @@ unary_func!(tanh, Vector::<C, N>::tanh, Float);
 unary_func!(erf, Vector::<C, N>::erf, Float);
 unary_func!(recip, Vector::<C, N>::recip, Float);
 unary_func!(abs, Vector::<C, N>::abs, Numeric);
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_reference_stride;
+
+    #[test]
+    fn zero_stride_on_a_singleton_reference_dimension_is_normalized() {
+        assert_eq!(normalize_reference_stride(1, 0), 1);
+        assert_eq!(normalize_reference_stride(1, 48), 48);
+        assert_eq!(normalize_reference_stride(16, 48), 48);
+        assert_eq!(normalize_reference_stride(16, 0), 0);
+    }
+}

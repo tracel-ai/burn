@@ -2,7 +2,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
 use cubecl::{
-    ir::StorageType,
+    ir::ElemType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
 use cubek::convolution::AcceleratedTileKind;
@@ -12,6 +12,7 @@ use crate::{
     kernel::conv::{
         ConvAutotuneKey,
         backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
+        im2col::{wgrad_im2col, wgrad_im2col_1x1, wgrad_im2col_1x1_split},
     },
     tensor::CubeTensor,
 };
@@ -33,6 +34,29 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
                 "wgrad_fallback",
                 |(input, grad, shape, options)| {
                     conv_weight_backward_fallback::<R, N>(input, grad, shape, options)
+                },
+            ))
+            // The dense case, which the two pointwise candidates decline and
+            // the fallback computes as a convolution by the gradient.
+            .with(Tunable::new(
+                "wgrad_im2col",
+                |(input, grad, shape, options)| wgrad_im2col::<R, N>(input, grad, shape, options),
+            ))
+            // The same matmul with its contraction cut into pieces, which is
+            // what a weight gradient's shape asks for — see `split_count`.
+            .with(Tunable::new(
+                "wgrad_im2col_1x1_split",
+                |(input, grad, shape, options)| {
+                    wgrad_im2col_1x1_split::<R, N>(input, grad, shape, options)
+                },
+            ))
+            // Declines every shape but the pointwise one. It earns its place
+            // because a device with no accelerated matmul for the dtype
+            // declines every candidate below, leaving the fallback unopposed.
+            .with(Tunable::new(
+                "wgrad_im2col_1x1",
+                |(input, grad, shape, options)| {
+                    wgrad_im2col_1x1::<R, N>(input, grad, shape, options)
                 },
             ))
             .with(Tunable::new(
@@ -167,7 +191,7 @@ fn create_key<R: CubeRuntime, const N: usize>(
 const MAX_STRIDE_FACTOR: u32 = 10;
 
 /// Defines the non-contiguous stride alignment in terms of powers of two
-fn stride_align(strides: &[usize], elem: StorageType) -> u8 {
+fn stride_align(strides: &[usize], elem: ElemType) -> u8 {
     let max = MAX_STRIDE_FACTOR;
     let dim_c = strides.len() - 1;
     let factor = strides[..dim_c]

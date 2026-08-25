@@ -151,8 +151,8 @@ fn dtype_and_byte_len_preserved() {
         assert_eq!(t.dtype, *dtype, "dtype preserved for t{i}");
         assert_eq!(t.shape.to_vec(), vec![n]);
         assert_eq!(t.byte_len(), n * elem, "byte_len preserved for t{i}");
-        let materialized: &[u8] = &t.bytes;
-        assert_eq!(materialized, &vec![i as u8 + 1; n * elem][..]);
+        let materialized = t.clone().into_bytes().unwrap();
+        assert_eq!(&materialized[..], &vec![i as u8 + 1; n * elem][..]);
     }
 }
 
@@ -203,9 +203,9 @@ fn shared_tensor_chunked_write_round_trip() {
     let read = reader.into_tensors().unwrap();
 
     assert_eq!(read.len(), 1);
-    let materialized: &[u8] = &read[0].bytes;
+    let materialized = read.into_iter().next().unwrap().into_bytes().unwrap();
     assert_eq!(materialized.len(), len);
-    assert_eq!(materialized, &data[..]);
+    assert_eq!(&materialized[..], &data[..]);
 }
 
 #[test]
@@ -220,7 +220,9 @@ fn read_single_tensor_data_by_name() {
     let reader = Reader::from_bytes(packed).unwrap();
     let raw = reader.tensor_data("a").unwrap();
     let values: Vec<f32> = raw
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
     assert_eq!(values, vec![1.0, 2.0]);

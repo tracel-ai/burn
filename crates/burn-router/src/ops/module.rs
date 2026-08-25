@@ -12,6 +12,31 @@ use burn_std::IntDType;
 use crate::{BackendRouter, RouterChannel, RouterClient};
 
 impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
+    fn batch_norm(
+        x: FloatTensor<Self>,
+        gamma: FloatTensor<Self>,
+        beta: FloatTensor<Self>,
+        mean: FloatTensor<Self>,
+        variance: FloatTensor<Self>,
+        epsilon: f64,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let x = x.into_ir();
+        let epsilon = ScalarIr::new(epsilon, &x.dtype);
+        let desc = BatchNormOpIr::create(
+            x,
+            gamma.into_ir(),
+            beta.into_ir(),
+            mean.into_ir(),
+            variance.into_ir(),
+            epsilon,
+            || client.create_empty_handle(),
+        );
+        client
+            .register(OperationIr::Module(ModuleOperationIr::BatchNorm(desc)))
+            .output()
+    }
+
     fn embedding(weights: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
         let client = weights.client.clone();
         let desc = EmbeddingOpIr::create(weights.into_ir(), indices.into_ir(), || {

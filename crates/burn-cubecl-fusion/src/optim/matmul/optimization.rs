@@ -26,26 +26,31 @@ use cubecl::{
 };
 use cubek::{
     matmul::{
-        components::tile::TileMatmulKind,
         definition::{
             MatmulElems, MatmulGlobalElems, MatmulProblem, MatmulSetupError, MatmulVectorSizes,
         },
-        routines::{
-            BatchMatmulRoutine, BlueprintStrategy,
-            batch::{
-                double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
-                double_unit::DoubleUnitAlgorithm,
-                gemv_innerproduct::{
-                    DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm,
+        multi_level::{
+            BatchMatmulRoutine,
+            components::tile::TileMatmulKind,
+            launch_kernel_virtual,
+            routines::{
+                batch::{
+                    double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
+                    double_unit::DoubleUnitAlgorithm,
+                    gemv_innerproduct::{
+                        DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm,
+                    },
+                    ordered_double_buffering::{
+                        OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs,
+                    },
+                    simple::{SimpleAlgorithm, SimpleArgs},
+                    simple_unit::SimpleUnitAlgorithm,
                 },
-                ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
-                simple::{SimpleAlgorithm, SimpleArgs},
-                simple_unit::SimpleUnitAlgorithm,
+                gemm::GemmRoutine,
+                gemv_unit_perpendicular::GemvUnitPerpendicularRoutine,
             },
-            gemm::GemmRoutine,
-            gemv_unit_perpendicular::GemvUnitPerpendicularRoutine,
         },
-        strategy::launch_kernel_virtual,
+        routine::BlueprintStrategy,
     },
     std::MatrixLayout,
 };
@@ -712,6 +717,16 @@ fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
 pub const NAME: &str = "Matmul";
 
 impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        [
+            self.info.trace.max_relative_shape_id(),
+            self.info.trace_fallback.max_relative_shape_id(),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+    }
+
     const NAME: &'static str = self::NAME;
     type State = MatmulOptimizationState;
 
