@@ -26,6 +26,7 @@ impl Default for AccuracyMetric {
 
 impl AccuracyMetric {
     /// Creates the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: MetricName::new("Accuracy".to_string()),
@@ -35,6 +36,7 @@ impl AccuracyMetric {
     }
 
     /// Sets the pad token.
+    #[must_use]
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self
@@ -76,7 +78,7 @@ impl Metric for AccuracyMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

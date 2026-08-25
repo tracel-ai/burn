@@ -6,7 +6,7 @@ use burn_core::tensor::{Int, Tensor};
 ///
 /// Supported metrics:
 /// - Accuracy
-/// - TopKAccuracy
+/// - `TopKAccuracy`
 /// - Perplexity
 /// - Loss
 /// - CER

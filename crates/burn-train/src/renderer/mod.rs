@@ -20,6 +20,7 @@ use crate::Interrupter;
 ///     a terminal, or
 ///   - `CliMetricsRenderer`, when the `tui` feature is not enabled, or `stdout`
 ///     is not a terminal.
+#[must_use]
 pub fn default_renderer(
     #[cfg_attr(not(feature = "tui"), allow(unused_variables))] interuptor: Interrupter,
     #[cfg_attr(not(feature = "tui"), allow(unused_variables))] checkpoint: Option<usize>,

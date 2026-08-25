@@ -98,7 +98,7 @@ impl<RLC: RLComponentsTypes> AgentEnvAsyncLoop<RLC> {
                     env_action,
                     Tensor::from_data([step_result.reward], &device),
                     Tensor::from_data(
-                        [(step_result.done || step_result.truncated) as i32 as f64],
+                        [f64::from(i32::from(step_result.done || step_result.truncated))],
                         &device,
                     ),
                 );
@@ -108,7 +108,7 @@ impl<RLC: RLComponentsTypes> AgentEnvAsyncLoop<RLC> {
                     let request = match request_receiver.recv() {
                         Ok(req) => req,
                         Err(err) => {
-                            log::error!("Error in env runner : {}", err);
+                            log::error!("Error in env runner : {err}");
                             break;
                         }
                     };
@@ -131,7 +131,7 @@ impl<RLC: RLComponentsTypes> AgentEnvAsyncLoop<RLC> {
                 current_steps.push(time_step.clone());
 
                 if !request_episode && let Err(err) = loop_transition_sender.send(time_step) {
-                    log::error!("Error in env runner : {}", err);
+                    log::error!("Error in env runner : {err}");
                     break;
                 }
 
@@ -351,7 +351,7 @@ impl<RLC: RLComponentsTypes> MultiAgentEnvLoop<RLC> {
         // Double batching : The environments are always one step ahead.
         request_senders.iter().for_each(|s| {
             s.send(RequestMessage::Step())
-                .expect("Main thread can send step requests.")
+                .expect("Main thread can send step requests.");
         });
 
         Self {

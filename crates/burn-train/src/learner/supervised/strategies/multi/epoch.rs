@@ -68,9 +68,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
     ) {
         let epoch = global_progress.items_processed;
         log::info!(
-            "Executing training step for epoch {} on devices {:?}",
-            epoch,
-            devices
+            "Executing training step for epoch {epoch} on devices {devices:?}"
         );
 
         let mut iterators = self
@@ -103,7 +101,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             learner.lr_step();
 
             let mut progress_items = Vec::with_capacity(items.len());
-            for item in items.into_iter() {
+            for item in items {
                 let grads = item.output.grads.to_device(&device_main, &learner.model());
                 accumulator.accumulate(&learner.model(), grads);
                 progress_items.push(item.output.item);
@@ -145,9 +143,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
     ) {
         let epoch = global_progress.items_processed;
         log::info!(
-            "Executing training step for epoch {} on devices {:?}",
-            epoch,
-            devices
+            "Executing training step for epoch {epoch} on devices {devices:?}"
         );
 
         let mut iterators = self
@@ -179,7 +175,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             learner.lr_step();
 
             let mut progress_items = Vec::with_capacity(items.len());
-            for item in items.into_iter() {
+            for item in items {
                 let accumulator = &mut accumulators[item.device_id];
                 accumulator.accumulate(&learner.model(), item.output.grads);
                 progress_items.push(item.output.item);

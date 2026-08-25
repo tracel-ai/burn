@@ -60,12 +60,9 @@ pub struct MetricEarlyStoppingStrategy {
 impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
     fn should_stop(&mut self, epoch: usize, store: &EventStoreClient) -> bool {
         let current_value =
-            match store.find_metric(&self.metric_name, epoch, self.aggregate, &self.split) {
-                Some(value) => value,
-                None => {
-                    log::warn!("Can't find metric for early stopping.");
-                    return false;
-                }
+            if let Some(value) = store.find_metric(&self.metric_name, epoch, self.aggregate, &self.split) { value } else {
+                log::warn!("Can't find metric for early stopping.");
+                return false;
             };
 
         let is_best = match self.direction {
@@ -148,6 +145,7 @@ impl MetricEarlyStoppingStrategy {
     /// Get the warmup period.
     ///
     /// Early stopping will not trigger during the warmup epochs.
+    #[must_use]
     pub fn warmup_epochs(&self) -> Option<usize> {
         self.warmup_epochs
     }
@@ -158,6 +156,7 @@ impl MetricEarlyStoppingStrategy {
     ///
     /// # Arguments
     /// - `warmup`: the number of warmup epochs, or None.
+    #[must_use]
     pub fn with_warmup_epochs(self, warmup: Option<usize>) -> Self {
         Self {
             warmup_epochs: warmup,

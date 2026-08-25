@@ -29,6 +29,7 @@ impl Default for LossMetric {
 
 impl LossMetric {
     /// Create the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("Loss".to_string()),
@@ -62,7 +63,7 @@ impl Metric for LossMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

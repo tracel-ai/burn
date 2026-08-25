@@ -11,7 +11,7 @@ use burn_core::prelude::Device;
 use burn_core::tensor::distributed::{DistributedConfig, DistributedContext};
 use std::sync::Arc;
 
-/// A reference to an implementation of SupervisedLearningStrategy.
+/// A reference to an implementation of `SupervisedLearningStrategy`.
 pub type CustomLearningStrategy<M> = Arc<dyn SupervisedLearningStrategy<M>>;
 
 #[derive(Clone, Copy, Debug)]
@@ -42,6 +42,7 @@ pub enum ExecutionStrategy {
 
 impl ExecutionStrategy {
     /// Returns the primary device responsible for coordination.
+    #[must_use]
     pub fn main_device(&self) -> &Device {
         match self {
             ExecutionStrategy::SingleDevice(device) => device,
@@ -54,11 +55,13 @@ impl ExecutionStrategy {
     }
 
     /// Creates a strategy for a single device.
+    #[must_use]
     pub fn single(device: Device) -> Self {
         Self::SingleDevice(device)
     }
 
     /// Creates a multi-device strategy.
+    #[must_use]
     pub fn multi(devices: Vec<Device>, optim: MultiDeviceOptim) -> Self {
         Self::MultiDevice(devices, optim)
     }
@@ -66,6 +69,7 @@ impl ExecutionStrategy {
 
 impl ExecutionStrategy {
     /// Creates a distributed data parallel (DDP) strategy.
+    #[must_use]
     pub fn ddp(devices: Vec<Device>, config: DistributedConfig) -> Self {
         let context = DistributedContext::init(devices.clone(), config);
         Self::DistributedDataParallel { devices, context }
@@ -92,7 +96,7 @@ impl<M: LearnerModel> Default for TrainingStrategy<M> {
     }
 }
 
-/// Struct to minimise parameters passed to [SupervisedLearningStrategy::train].
+/// Struct to minimise parameters passed to [`SupervisedLearningStrategy::train`].
 /// These components are used during training.
 pub struct TrainingComponents<M: LearnerModel> {
     /// The total number of epochs
@@ -107,7 +111,7 @@ pub struct TrainingComponents<M: LearnerModel> {
     pub interrupter: Interrupter,
     /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
-    /// An [EventProcessor](crate::EventProcessorTraining) that processes events happening during training and validation.
+    /// An [`EventProcessor`](crate::EventProcessorTraining) that processes events happening during training and validation.
     pub event_processor: SupervisedTrainingEventProcessor<M>,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,

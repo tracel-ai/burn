@@ -55,10 +55,10 @@ pub trait AgentEnvLoop<RLC: RLComponentsTypes> {
     ///
     /// # Arguments
     ///
-    /// * `num_steps` - The number of time_steps to run.
+    /// * `num_steps` - The number of `time_steps` to run.
     /// * `processor` - An [crate::EventProcessorTraining](crate::EventProcessorTraining).
     /// * `interrupter` - An [crate::Interrupter](crate::Interrupter).
-    /// * `num_steps` - The number of time_steps to run.
+    /// * `num_steps` - The number of `time_steps` to run.
     /// * `progress` - A mutable reference to the learning progress.
     ///
     /// # Returns
@@ -167,7 +167,7 @@ where
                 RLC::Action::from(action),
                 Tensor::from_data([step_result.reward], &device),
                 Tensor::from_data(
-                    [(step_result.done || step_result.truncated) as i32 as f64],
+                    [f64::from(i32::from(step_result.done || step_result.truncated))],
                     &device,
                 ),
             );

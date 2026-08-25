@@ -25,6 +25,7 @@ pub struct HammingScoreInput {
 
 impl HammingScore {
     /// Creates the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -34,6 +35,7 @@ impl HammingScore {
     }
 
     /// Sets the threshold.
+    #[must_use]
     pub fn with_threshold(mut self, threshold: f32) -> Self {
         self.threshold = threshold;
         self.update_name();
@@ -41,6 +43,7 @@ impl HammingScore {
     }
 
     /// Sets the sigmoid activation function usage.
+    #[must_use]
     pub fn with_sigmoid(mut self, sigmoid: bool) -> Self {
         self.sigmoid = sigmoid;
         self.update_name();
@@ -52,7 +55,7 @@ impl Default for HammingScore {
     /// Creates a new metric instance with default values.
     fn default() -> Self {
         let threshold = 0.5;
-        let name = Arc::new(format!("Hamming Score @ Threshold({})", threshold));
+        let name = Arc::new(format!("Hamming Score @ Threshold({threshold})"));
 
         Self {
             name,
@@ -95,7 +98,7 @@ impl Metric for HammingScore {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

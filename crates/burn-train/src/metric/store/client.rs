@@ -48,6 +48,7 @@ impl EventStoreClient {
     }
 
     /// Find the epoch following the given criteria from the collected data.
+    #[must_use]
     pub fn find_epoch(
         &self,
         name: &str,
@@ -73,6 +74,7 @@ impl EventStoreClient {
     }
 
     /// Find the metric value for the current epoch following the given criteria.
+    #[must_use]
     pub fn find_metric(
         &self,
         name: &str,
@@ -109,7 +111,7 @@ where
     C: EventStore,
 {
     fn run(mut self) {
-        for item in self.receiver.iter() {
+        for item in &self.receiver {
             match item {
                 Message::End => {
                     return;
@@ -129,7 +131,7 @@ where
                 Message::OnEventTrain(event) => self.store.add_event(event, Split::Train),
                 Message::OnEventValid(event) => self.store.add_event(event, Split::Valid),
                 Message::OnEventTest(event, tag) => {
-                    self.store.add_event(event, Split::Test(Some(tag)))
+                    self.store.add_event(event, Split::Test(Some(tag)));
                 }
             }
         }

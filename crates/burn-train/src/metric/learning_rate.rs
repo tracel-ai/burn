@@ -15,6 +15,7 @@ pub struct LearningRateMetric {
 
 impl LearningRateMetric {
     /// Creates a new learning rate metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("Learning Rate".to_string()),
@@ -34,7 +35,7 @@ impl Metric for LearningRateMetric {
 
     fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> SerializedEntry {
         // TODO: We only log the default learning rate. Yet another motivation to introduce metric groups.
-        let lr = metadata.lr.as_ref().map(|val| val.base()).unwrap_or(0.0);
+        let lr = metadata.lr.as_ref().map_or(0.0, burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate::base);
 
         self.state.update(lr, 1);
         self.state
@@ -47,7 +48,7 @@ impl Metric for LearningRateMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

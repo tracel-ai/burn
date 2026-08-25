@@ -60,7 +60,7 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
                 &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
-                self.devices.to_vec(),
+                self.devices.clone(),
                 self.optim,
             );
             event_processor.process_train(LearnerEvent::EndSplit(epoch));

@@ -38,6 +38,7 @@ pub struct FormatOptions {
 
 impl PredictionAccumulatorState {
     /// Create a new [prediction accumulator state](PredictionAccumulatorState).
+    #[must_use]
     pub fn new() -> Self {
         Self {
             predictions: vec![],
@@ -53,6 +54,7 @@ impl PredictionAccumulatorState {
     }
 
     /// All accumulated predictions and targets, concatenated along the samples.
+    #[must_use]
     pub fn tensors(&self) -> (Tensor<2>, Tensor<2, Bool>) {
         (
             Tensor::cat(self.predictions.clone(), 0),
@@ -110,6 +112,7 @@ impl Default for PredictionAccumulatorState {
 
 impl FormatOptions {
     /// Create the [formatting options](FormatOptions) with a name.
+    #[must_use]
     pub fn new(name: MetricName) -> Self {
         Self {
             name: name.clone(),
@@ -119,28 +122,33 @@ impl FormatOptions {
     }
 
     /// Specify the metric unit.
+    #[must_use]
     pub fn unit(mut self, unit: &str) -> Self {
         self.unit = Some(unit.to_string());
         self
     }
 
     /// Specify the floating point precision.
+    #[must_use]
     pub fn precision(mut self, precision: usize) -> Self {
         self.precision = Some(precision);
         self
     }
 
     /// Get the metric name.
+    #[must_use]
     pub fn name(&self) -> &Arc<String> {
         &self.name
     }
 
     /// Get the metric unit.
+    #[must_use]
     pub fn unit_value(&self) -> &Option<String> {
         &self.unit
     }
 
     /// Get the precision.
+    #[must_use]
     pub fn precision_value(&self) -> Option<usize> {
         self.precision
     }
@@ -148,6 +156,7 @@ impl FormatOptions {
 
 impl NumericMetricState {
     /// Create a new [numeric metric state](NumericMetricState).
+    #[must_use]
     pub fn new() -> Self {
         Self {
             sum: 0.0,
@@ -178,11 +187,13 @@ impl NumericMetricState {
     }
 
     /// Compute the metric for the current update.
+    #[must_use]
     pub fn compute_update(&self, format: FormatOptions) -> SerializedEntry {
         self.compute(format, false)
     }
 
     /// Compute the final metric for the accumulated global state.
+    #[must_use]
     pub fn compute_final(&self, format: FormatOptions) -> SerializedEntry {
         self.compute(format, true)
     }
@@ -222,6 +233,7 @@ impl NumericMetricState {
     }
 
     /// Get the numeric value.
+    #[must_use]
     pub fn current_value(&self) -> NumericEntry {
         NumericEntry::Aggregated {
             aggregated_value: self.current,
@@ -230,6 +242,7 @@ impl NumericMetricState {
     }
 
     /// Get the running aggregated value.
+    #[must_use]
     pub fn running_value(&self) -> NumericEntry {
         NumericEntry::Aggregated {
             aggregated_value: self.sum / self.count as f64,
@@ -238,6 +251,7 @@ impl NumericMetricState {
     }
 
     /// Get the final aggregated value.
+    #[must_use]
     pub fn final_value(&self) -> NumericEntry {
         NumericEntry::Final(self.sum / self.count as f64)
     }
@@ -253,7 +267,7 @@ impl Default for NumericMetricState {
 ///
 /// Used by metrics derived from confusion-matrix ratios (precision, recall, etc.)
 /// which must accumulate raw counts and compute the ratio over the summed counts.
-/// Averaging the per-batch ratios (using [NumericMetricState]) is not equivalent;
+/// Averaging the per-batch ratios (using [`NumericMetricState`]) is not equivalent;
 /// it is biased whenever per-batch class support varies.
 /// Accumulates confusion-matrix counts (TP, FP, FN) across an epoch using native tensors.
 #[derive(Clone)]
@@ -282,7 +296,8 @@ impl Default for ConfusionStatsState {
 }
 
 impl ConfusionStatsState {
-    /// Create a new [ConfusionStatsState].
+    /// Create a new [`ConfusionStatsState`].
+    #[must_use]
     pub fn new() -> Self {
         Self {
             true_positive: None,
@@ -419,6 +434,7 @@ impl ConfusionStatsState {
     }
 
     /// Get the current batch value.
+    #[must_use]
     pub fn current_value(&self) -> Option<NumericEntry> {
         (!self.current_value.is_nan()).then_some(NumericEntry::Aggregated {
             aggregated_value: self.current_value,
@@ -427,6 +443,7 @@ impl ConfusionStatsState {
     }
 
     /// Get the running aggregated value.
+    #[must_use]
     pub fn running_value(&self) -> Option<NumericEntry> {
         (!self.running_value.is_nan()).then_some(NumericEntry::Aggregated {
             aggregated_value: self.running_value,
@@ -435,6 +452,7 @@ impl ConfusionStatsState {
     }
 
     /// Get the final value of the metric.
+    #[must_use]
     pub fn final_value(&self) -> NumericEntry {
         // The running value holds the epoch-level value from accumulated totals, which should hold
         // the correct final value after all batches have been processed

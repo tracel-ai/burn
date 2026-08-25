@@ -33,17 +33,18 @@ impl Default for AucPrMetric {
 impl AucPrMetric {
     fn new(class_reduction: ClassReduction) -> Self {
         let state = Default::default();
-        let name = Arc::new(format!("AUC-PR [{:?}]", class_reduction));
+        let name = Arc::new(format!("AUC-PR [{class_reduction:?}]"));
 
         Self {
+            name,
             state,
             class_reduction,
-            name,
         }
     }
 
     /// AUC-PR metric for binary classification.
     #[allow(dead_code)]
+    #[must_use]
     pub fn binary() -> Self {
         Self::new(ClassReduction::default())
     }
@@ -54,6 +55,7 @@ impl AucPrMetric {
     ///
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multiclass(class_reduction: ClassReduction) -> Self {
         Self::new(class_reduction)
     }
@@ -64,6 +66,7 @@ impl AucPrMetric {
     ///
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multilabel(class_reduction: ClassReduction) -> Self {
         Self::new(class_reduction)
     }
@@ -160,7 +163,7 @@ impl Metric for AucPrMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

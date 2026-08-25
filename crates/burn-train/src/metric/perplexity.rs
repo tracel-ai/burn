@@ -8,7 +8,7 @@ use burn_core::tensor::{Int, Tensor};
 /// Unlike other metrics that can be averaged, perplexity requires special handling:
 /// - Accumulate total negative log-likelihood across all tokens
 /// - Accumulate total number of effective tokens
-/// - Compute perplexity as exp(total_nll / total_tokens) only at the end
+/// - Compute perplexity as `exp(total_nll` / `total_tokens`) only at the end
 #[derive(Clone)]
 struct PerplexityState {
     /// Sum of negative log-likelihood across all tokens
@@ -142,17 +142,17 @@ fn entry_value(value: f64, count: usize) -> f64 {
 /// indicates that the model is more confident in its predictions.
 ///
 /// Mathematically, perplexity is defined as the exponentiation of the cross-entropy loss:
-/// PPL = exp(H(p, q)) = exp(-1/N * Σ log(p(x_i)))
+/// PPL = exp(H(p, q)) = exp(-1/N * Σ `log(p(x_i))`)
 ///
 /// where:
 /// - H(p, q) is the cross-entropy between the true distribution p and predicted distribution q
 /// - N is the number of tokens
-/// - p(x_i) is the predicted probability of the i-th token
+/// - `p(x_i)` is the predicted probability of the i-th token
 ///
 /// # Aggregation
 /// Unlike other metrics, perplexity cannot be simply averaged across batches.
 /// This implementation correctly accumulates the total negative log-likelihood and
-/// total token count across batches, then computes perplexity as exp(total_nll / total_tokens).
+/// total token count across batches, then computes perplexity as `exp(total_nll` / `total_tokens`).
 #[derive(Clone)]
 pub struct PerplexityMetric {
     name: MetricName,
@@ -163,9 +163,9 @@ pub struct PerplexityMetric {
 /// The [perplexity metric](PerplexityMetric) input type.
 #[derive(new)]
 pub struct PerplexityInput {
-    /// Logits tensor of shape [batch_size * sequence_length, vocab_size]
+    /// Logits tensor of shape [`batch_size` * `sequence_length`, `vocab_size`]
     outputs: Tensor<2>,
-    /// Target tokens tensor of shape [batch_size * sequence_length]
+    /// Target tokens tensor of shape [`batch_size` * `sequence_length`]
     targets: Tensor<1, Int>,
 }
 
@@ -177,6 +177,7 @@ impl Default for PerplexityMetric {
 
 impl PerplexityMetric {
     /// Creates the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: MetricName::new("Perplexity".to_string()),
@@ -190,6 +191,7 @@ impl PerplexityMetric {
     /// When a pad token is set, predictions for padding tokens are masked out
     /// and do not contribute to the perplexity calculation. This is important
     /// for variable-length sequences where padding is used.
+    #[must_use]
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self
@@ -213,25 +215,22 @@ impl Metric for PerplexityMetric {
             .gather(1, targets.clone().unsqueeze_dim(1))
             .squeeze_dim(1);
 
-        let (sum_log_prob, effective_tokens) = match self.pad_token {
-            Some(pad_token) => {
-                // Create a mask for non-padding tokens
-                let mask = targets.clone().not_equal_scalar(pad_token as i64);
+        let (sum_log_prob, effective_tokens) = if let Some(pad_token) = self.pad_token {
+            // Create a mask for non-padding tokens
+            let mask = targets.clone().not_equal_scalar(pad_token as i64);
 
-                // Apply mask to log probabilities (set padding log probs to 0)
-                let masked_log_probs = target_log_probs.mask_fill(mask.clone().bool_not(), 0.0);
+            // Apply mask to log probabilities (set padding log probs to 0)
+            let masked_log_probs = target_log_probs.mask_fill(mask.clone().bool_not(), 0.0);
 
-                // Sum the log probabilities and count effective tokens
-                let sum_log_prob = masked_log_probs.sum().into_scalar::<f64>();
-                let effective_tokens = mask.int().sum().into_scalar::<i64>() as usize;
+            // Sum the log probabilities and count effective tokens
+            let sum_log_prob = masked_log_probs.sum().into_scalar::<f64>();
+            let effective_tokens = mask.int().sum().into_scalar::<i64>() as usize;
 
-                (sum_log_prob, effective_tokens)
-            }
-            None => {
-                // No padding, use all tokens
-                let sum_log_prob = target_log_probs.sum().into_scalar::<f64>();
-                (sum_log_prob, total_tokens)
-            }
+            (sum_log_prob, effective_tokens)
+        } else {
+            // No padding, use all tokens
+            let sum_log_prob = target_log_probs.sum().into_scalar::<f64>();
+            (sum_log_prob, total_tokens)
         };
 
         // Pass the sum_log_prob and effective_tokens to the state
@@ -247,7 +246,7 @@ impl Metric for PerplexityMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

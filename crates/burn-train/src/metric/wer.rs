@@ -35,6 +35,7 @@ impl Default for WordErrorRate {
 
 impl WordErrorRate {
     /// Creates the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("WER".to_string()),
@@ -44,6 +45,7 @@ impl WordErrorRate {
     }
 
     /// Sets the pad token.
+    #[must_use]
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self

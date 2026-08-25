@@ -15,6 +15,7 @@ pub struct CumulativeRewardMetric {
 
 impl CumulativeRewardMetric {
     /// Creates a new episode length metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("Cum. Reward".to_string()),
@@ -54,7 +55,7 @@ impl Metric for CumulativeRewardMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

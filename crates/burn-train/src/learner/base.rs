@@ -140,6 +140,7 @@ pub struct LearningCheckpointer<M: LearnerModel> {
 
 impl<M: LearnerModel> LearningCheckpointer<M> {
     /// Create a new learning checkpointer.
+    #[must_use]
     pub fn new(
         model: AsyncCheckpointer<ModuleRecord>,
         optim: AsyncCheckpointer<OptimizerRecord>,
@@ -228,6 +229,7 @@ pub struct Interrupter {
 
 impl Interrupter {
     /// Create a new instance.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -248,12 +250,14 @@ impl Interrupter {
         self.state.store(false, Ordering::Relaxed);
     }
 
-    /// True if .stop() has been called.
+    /// True if .`stop()` has been called.
+    #[must_use]
     pub fn should_stop(&self) -> bool {
         self.state.load(Ordering::Relaxed)
     }
 
     /// Get the message associated with the interrupt.
+    #[must_use]
     pub fn get_message(&self) -> Option<String> {
         let message = self.message.lock().unwrap();
         message.clone()

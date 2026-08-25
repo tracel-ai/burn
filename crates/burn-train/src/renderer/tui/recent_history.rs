@@ -51,9 +51,8 @@ impl RecentHistoryPlot {
                 let has_points = !self.points.get(&tag).unwrap().points.is_empty();
                 if has_points {
                     return; // Ignore the N+1 artifact
-                } else {
-                    Some(val) // Fallback for global-only metrics
                 }
+                Some(val) // Fallback for global-only metrics
             }
             Some(entry) => Some(entry.current()),
             None => None,
@@ -68,7 +67,7 @@ impl RecentHistoryPlot {
             0.0
         };
 
-        for (s, entry) in self.points.iter_mut() {
+        for (s, entry) in &mut self.points {
             if let Some(y) = plot_value
                 && s == &tag
             {
@@ -83,7 +82,7 @@ impl RecentHistoryPlot {
     pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
         let mut datasets = Vec::new();
 
-        for (tag, points) in self.points.iter() {
+        for (tag, points) in &self.points {
             datasets.push(points.dataset(format!("{tag}"), tag.split.color()));
         }
 
@@ -132,7 +131,7 @@ impl RecentHistoryPoints {
             self.max_y = y;
         }
         if y < self.min_y {
-            self.min_y = y
+            self.min_y = y;
         }
         self.points.push((x, y));
     }
@@ -152,7 +151,7 @@ impl RecentHistoryPoints {
             }
 
             if *y == self.max_y {
-                update_y_max = true
+                update_y_max = true;
             }
             if *y == self.min_y {
                 update_y_min = true;
@@ -211,7 +210,7 @@ impl RecentHistoryPoints {
         self.cursor = 0;
     }
 
-    fn dataset<'a>(&'a self, name: String, color: Color) -> Dataset<'a> {
+    fn dataset(&self, name: String, color: Color) -> Dataset<'_> {
         let data = &self.points[self.cursor..self.points.len()];
 
         Dataset::default()

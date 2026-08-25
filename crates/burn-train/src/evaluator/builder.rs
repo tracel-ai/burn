@@ -74,6 +74,7 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
     /// By default, Rust logs are captured and written into
     /// `evaluation.log`. If disabled, standard Rust log handling
     /// will apply.
+    #[must_use]
     pub fn with_application_logger(
         mut self,
         logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -109,6 +110,7 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
     /// # Arguments
     ///
     /// * `renderer` - The custom renderer.
+    #[must_use]
     pub fn renderer(mut self, renderer: Box<dyn MetricsRenderer + 'static>) -> Self {
         self.renderer = Some(renderer);
         self
@@ -117,6 +119,7 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
     /// Enable the evaluation summary report.
     ///
     /// The summary will be displayed at the end of `.eval()`.
+    #[must_use]
     pub fn summary(mut self) -> Self {
         self.summary = true;
         self

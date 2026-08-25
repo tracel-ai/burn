@@ -15,6 +15,7 @@ pub struct EpisodeLengthMetric {
 
 impl EpisodeLengthMetric {
     /// Creates a new episode length metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("Episode length".to_string()),
@@ -50,7 +51,7 @@ impl Metric for EpisodeLengthMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

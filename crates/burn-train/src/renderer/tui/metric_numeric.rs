@@ -291,13 +291,13 @@ impl NumericMetricsState {
             .x_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(axes.labels_x.clone().into_iter().map(|s| s.bold()))
+                    .labels(axes.labels_x.clone().into_iter().map(ratatui::prelude::Stylize::bold))
                     .bounds(axes.bounds_x),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(axes.labels_y.clone().into_iter().map(|s| s.bold()))
+                    .labels(axes.labels_y.clone().into_iter().map(ratatui::prelude::Stylize::bold))
                     .bounds(axes.bounds_y),
             )
             .legend_position(Some(LegendPosition::Right))
@@ -429,7 +429,7 @@ fn render_tab_strip(
         return;
     }
 
-    let titles_str: Vec<String> = titles.iter().map(|t| t.to_string()).collect();
+    let titles_str: Vec<String> = titles.iter().map(std::string::ToString::to_string).collect();
     let widths: Vec<u16> = titles_str.iter().map(|s| tab_cell_width(s)).collect();
 
     let inner_width = area.width.saturating_sub(2);
@@ -529,23 +529,23 @@ fn visible_tab_window(widths: &[u16], selected: usize, available: u16) -> (usize
         return (0, 0);
     }
     let selected = selected.min(widths.len() - 1);
-    let available = available as u32;
-    let divider = TAB_DIVIDER as u32;
+    let available = u32::from(available);
+    let divider = u32::from(TAB_DIVIDER);
 
     // Width of titles[start..=selected] including dividers between them. Maintained
     // incrementally so the windowing loop is O(N) over the full title list.
     let mut width: u32 =
-        widths[..=selected].iter().map(|&w| w as u32).sum::<u32>() + selected as u32 * divider;
+        widths[..=selected].iter().map(|&w| u32::from(w)).sum::<u32>() + selected as u32 * divider;
 
     let mut start = 0;
     while width > available && start < selected {
-        width -= widths[start] as u32 + divider;
+        width -= u32::from(widths[start]) + divider;
         start += 1;
     }
 
     let mut end = selected + 1;
     while end < widths.len() {
-        let next = width + widths[end] as u32 + divider;
+        let next = width + u32::from(widths[end]) + divider;
         if next > available {
             break;
         }

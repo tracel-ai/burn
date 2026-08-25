@@ -32,7 +32,7 @@ pub enum BleuSmoothing {
     /// running multiplier `k` (starting at 1 and doubling on every zero) and
     /// replace the precision with `1 / (k * total_n)`. Corresponds to
     /// method 3 in Chen & Cherry (2014) and the default smoothing in
-    /// SacreBLEU for sentence-level BLEU.
+    /// `SacreBLEU` for sentence-level BLEU.
     Exponential,
 }
 
@@ -41,7 +41,7 @@ pub enum BleuSmoothing {
 ///
 /// BLEU measures the quality of machine-translated text by comparing n-gram
 /// overlap between the candidate (prediction) and reference sequences. The
-/// score combines modified n-gram precision for n = 1..max_n with a brevity
+/// score combines modified n-gram precision for n = `1..max_n` with a brevity
 /// penalty that discourages overly short translations.
 ///
 /// The metric operates on integer token IDs (not raw text), matching the
@@ -98,6 +98,7 @@ impl BleuScore {
     /// # Panics
     ///
     /// Panics if `max_n` is zero.
+    #[must_use]
     pub fn with_max_n(max_n: usize) -> Self {
         assert!(max_n >= 1, "max_n must be at least 1");
         Self {
@@ -110,12 +111,14 @@ impl BleuScore {
     }
 
     /// Creates a BLEU-4 metric (the most common configuration).
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Sets the pad token index. Tokens matching this value are stripped from
     /// the right of each sequence before scoring.
+    #[must_use]
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self
@@ -125,6 +128,7 @@ impl BleuScore {
     ///
     /// Smoothing is recommended when evaluating short sentences where
     /// higher-order n-gram matches are sparse.
+    #[must_use]
     pub fn with_smoothing(mut self, smoothing: BleuSmoothing) -> Self {
         self.smoothing = smoothing;
         self
@@ -208,7 +212,7 @@ fn corpus_bleu(
         return 0.0;
     }
 
-    let score = bp * (log_avg / counted_orders as f64).exp();
+    let score = bp * (log_avg / f64::from(counted_orders)).exp();
     score * 100.0
 }
 

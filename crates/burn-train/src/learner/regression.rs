@@ -8,10 +8,10 @@ pub struct RegressionOutput {
     /// The loss.
     pub loss: Tensor<1>,
 
-    /// The predicted values. Shape: \[batch_size, num_targets\].
+    /// The predicted values. Shape: \[`batch_size`, `num_targets`\].
     pub output: Tensor<2>,
 
-    /// The ground truth values. Shape: \[batch_size, num_targets\].
+    /// The ground truth values. Shape: \[`batch_size`, `num_targets`\].
     pub targets: Tensor<2>,
 }
 

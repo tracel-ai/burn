@@ -16,10 +16,10 @@ impl CudaMetric {
     pub fn new() -> Self {
         Self {
             name: Arc::new("Cuda".to_string()),
-            nvml: Arc::new(Nvml::init().map(Some).unwrap_or_else(|err| {
+            nvml: Arc::new(Nvml::init().map_or_else(|err| {
                 log::warn!("Unable to initialize CUDA Metric: {err}");
                 None
-            })),
+            }, Some)),
         }
     }
 }
@@ -90,7 +90,7 @@ impl Metric for CudaMetric {
 
                 // Power is the currency for perf/W. NVML reports milliwatts.
                 if let Ok(power_mw) = device.power_usage() {
-                    let power_w = power_mw as f64 / 1000.0;
+                    let power_w = f64::from(power_mw) / 1000.0;
                     formatted = format!("{formatted} - Power {power_w:.1} W");
                 }
             }

@@ -49,7 +49,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.env_step.push(Box::new(metric))
+        self.env_step.push(Box::new(metric));
     }
 
     /// Register a training metric.
@@ -59,7 +59,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.env_step_numeric.push(Box::new(metric))
+        self.env_step_numeric.push(Box::new(metric));
     }
 
     /// Register a training metric.
@@ -69,7 +69,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.train_step.push(Box::new(metric))
+        self.train_step.push(Box::new(metric));
     }
 
     /// Register a training metric.
@@ -79,7 +79,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.train_step_numeric.push(Box::new(metric))
+        self.train_step_numeric.push(Box::new(metric));
     }
 
     /// Register a validation env-step metric.
@@ -89,7 +89,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.env_step_valid.push(Box::new(metric))
+        self.env_step_valid.push(Box::new(metric));
     }
 
     /// Register a validation env-step numeric metric.
@@ -99,7 +99,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.env_step_valid_numeric.push(Box::new(metric))
+        self.env_step_valid_numeric.push(Box::new(metric));
     }
 
     /// Register an episode-end metric.
@@ -109,7 +109,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.episode_end.push(Box::new(metric))
+        self.episode_end.push(Box::new(metric));
     }
 
     /// Register an episode-end numeric metric.
@@ -119,7 +119,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.episode_end_numeric.push(Box::new(metric))
+        self.episode_end_numeric.push(Box::new(metric));
     }
 
     /// Register an episode-end metric for validation.
@@ -129,7 +129,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.episode_end_valid.push(Box::new(metric))
+        self.episode_end_valid.push(Box::new(metric));
     }
 
     /// Register an episode-end numeric metric for validation.
@@ -141,7 +141,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
-        self.episode_end_valid_numeric.push(Box::new(metric))
+        self.episode_end_valid_numeric.push(Box::new(metric));
     }
 
     fn register_definition<Me: Metric>(&mut self, metric: &MetricWrapper<Me>) {
@@ -165,12 +165,12 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
         let mut entries = Vec::with_capacity(self.train_step.len());
         let mut entries_numeric = Vec::with_capacity(self.train_step_numeric.len());
 
-        for metric in self.train_step.iter_mut() {
+        for metric in &mut self.train_step {
             let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
-        for metric in self.train_step_numeric.iter_mut() {
+        for metric in &mut self.train_step_numeric {
             let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
@@ -187,12 +187,12 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
         let mut entries = Vec::with_capacity(self.env_step.len());
         let mut entries_numeric = Vec::with_capacity(self.env_step_numeric.len());
 
-        for metric in self.env_step.iter_mut() {
+        for metric in &mut self.env_step {
             let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
-        for metric in self.env_step_numeric.iter_mut() {
+        for metric in &mut self.env_step_numeric {
             let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
@@ -209,12 +209,12 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
         let mut entries = Vec::with_capacity(self.env_step_valid.len());
         let mut entries_numeric = Vec::with_capacity(self.env_step_valid_numeric.len());
 
-        for metric in self.env_step_valid.iter_mut() {
+        for metric in &mut self.env_step_valid {
             let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
-        for metric in self.env_step_valid_numeric.iter_mut() {
+        for metric in &mut self.env_step_valid_numeric {
             let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
@@ -231,12 +231,12 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
         let mut entries = Vec::with_capacity(self.episode_end.len());
         let mut entries_numeric = Vec::with_capacity(self.episode_end_numeric.len());
 
-        for metric in self.episode_end.iter_mut() {
+        for metric in &mut self.episode_end {
             let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
-        for metric in self.episode_end_numeric.iter_mut() {
+        for metric in &mut self.episode_end_numeric {
             let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
@@ -253,12 +253,12 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
         let mut entries = Vec::with_capacity(self.episode_end_valid.len());
         let mut entries_numeric = Vec::with_capacity(self.episode_end_valid_numeric.len());
 
-        for metric in self.episode_end_valid.iter_mut() {
+        for metric in &mut self.episode_end_valid {
             let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
-        for metric in self.episode_end_valid_numeric.iter_mut() {
+        for metric in &mut self.episode_end_valid_numeric {
             let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }

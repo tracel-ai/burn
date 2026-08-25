@@ -15,6 +15,7 @@ pub struct CpuTemperature {
 
 impl CpuTemperature {
     /// Creates a new CPU temp metric
+    #[must_use]
     pub fn new() -> Self {
         let name = Arc::new("CPU Temperature".to_string());
 
@@ -45,10 +46,7 @@ impl Metric for CpuTemperature {
             Err(_) => self.temp_celsius = f32::NAN,
         }
 
-        let formatted = match self.temp_celsius.is_nan() {
-            true => format!("{}: NaN °C", self.name()),
-            false => format!("{}: {:.2} °C", self.name(), self.temp_celsius),
-        };
+        let formatted = if self.temp_celsius.is_nan() { format!("{}: NaN °C", self.name()) } else { format!("{}: {:.2} °C", self.name(), self.temp_celsius) };
         let raw = format!("{:.2}", self.temp_celsius);
 
         SerializedEntry::new(formatted, raw)
@@ -71,14 +69,14 @@ impl Metric for CpuTemperature {
 
 impl Numeric for CpuTemperature {
     fn value(&self) -> Option<NumericEntry> {
-        Some(NumericEntry::Value(self.temp_celsius as f64))
+        Some(NumericEntry::Value(f64::from(self.temp_celsius)))
     }
 
     fn running_value(&self) -> Option<NumericEntry> {
-        Some(NumericEntry::Value(self.temp_celsius as f64))
+        Some(NumericEntry::Value(f64::from(self.temp_celsius)))
     }
 
     fn final_value(&self) -> NumericEntry {
-        NumericEntry::Value(self.temp_celsius as f64)
+        NumericEntry::Value(f64::from(self.temp_celsius))
     }
 }

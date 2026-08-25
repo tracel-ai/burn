@@ -31,9 +31,9 @@ impl PrecisionMetric {
         ));
 
         Self {
+            name,
             state,
             config,
-            name,
         }
     }
     /// Precision metric for binary classification.
@@ -42,6 +42,7 @@ impl PrecisionMetric {
     ///
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
+    #[must_use]
     pub fn binary(threshold: f64) -> Self {
         Self::new(ClassificationMetricConfig {
             decision_rule: DecisionRule::Threshold(threshold),
@@ -57,6 +58,7 @@ impl PrecisionMetric {
     /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
         Self::new(ClassificationMetricConfig {
             decision_rule: DecisionRule::TopK(
@@ -73,6 +75,7 @@ impl PrecisionMetric {
     /// * `threshold` - The threshold to transform a probability into a binary value.
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
@@ -116,7 +119,7 @@ impl Metric for PrecisionMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

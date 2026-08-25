@@ -9,21 +9,21 @@ use burn_core::tensor::{Int, Tensor};
 /// Supported metrics:
 /// - Accuracy
 /// - AUROC
-/// - TopKAccuracy
+/// - `TopKAccuracy`
 /// - Perplexity
-/// - Precision (via ConfusionStatsInput)
-/// - Recall (via ConfusionStatsInput)
-/// - FBetaScore (via ConfusionStatsInput)
+/// - Precision (via `ConfusionStatsInput`)
+/// - Recall (via `ConfusionStatsInput`)
+/// - `FBetaScore` (via `ConfusionStatsInput`)
 /// - Loss.
 #[derive(new)]
 pub struct ClassificationOutput {
     /// The loss.
     pub loss: Tensor<1>,
 
-    /// The class logits or probabilities. Shape: \[batch_size, num_classes\].
+    /// The class logits or probabilities. Shape: \[`batch_size`, `num_classes`\].
     pub output: Tensor<2>,
 
-    /// The ground truth class index for each sample. Shape: \[batch_size\].
+    /// The ground truth class index for each sample. Shape: \[`batch_size`\].
     pub targets: Tensor<1, Int>,
 }
 
@@ -89,20 +89,20 @@ impl Adaptor<ConfusionStatsInput> for ClassificationOutput {
 /// Multi-label classification output adapted for multiple metrics.
 ///
 /// Supported metrics:
-/// - HammingScore
-/// - Precision (via ConfusionStatsInput)
-/// - Recall (via ConfusionStatsInput)
-/// - FBetaScore (via ConfusionStatsInput)
+/// - `HammingScore`
+/// - Precision (via `ConfusionStatsInput`)
+/// - Recall (via `ConfusionStatsInput`)
+/// - `FBetaScore` (via `ConfusionStatsInput`)
 /// - Loss
 #[derive(new)]
 pub struct MultiLabelClassificationOutput {
     /// The loss.
     pub loss: Tensor<1>,
 
-    /// The label logits or probabilities. Shape: \[batch_size, num_classes\].
+    /// The label logits or probabilities. Shape: \[`batch_size`, `num_classes`\].
     pub output: Tensor<2>,
 
-    /// The ground truth labels. Shape: \[batch_size, num_classes\].
+    /// The ground truth labels. Shape: \[`batch_size`, `num_classes`\].
     pub targets: Tensor<2, Int>,
 }
 

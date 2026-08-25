@@ -121,11 +121,12 @@ impl<M: LearnerModel> SupervisedTraining<M> {
 }
 
 impl<M: LearnerModel> SupervisedTraining<M> {
-    /// Replace the default training strategy (SingleDeviceTrainingStrategy) with the provided one.
+    /// Replace the default training strategy (`SingleDeviceTrainingStrategy`) with the provided one.
     ///
     /// # Arguments
     ///
     /// * `training_strategy` - The training strategy.
+    #[must_use]
     pub fn with_training_strategy(mut self, training_strategy: TrainingStrategy<M>) -> Self {
         self.training_strategy = Some(training_strategy);
         self
@@ -162,7 +163,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
         self
     }
 
-    /// Update the checkpointing_strategy.
+    /// Update the `checkpointing_strategy`.
     pub fn with_checkpointing_strategy<CS: CheckpointingStrategy + 'static>(
         mut self,
         strategy: CS,
@@ -176,6 +177,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     /// # Arguments
     ///
     /// * `renderer` - The custom renderer.
+    #[must_use]
     pub fn renderer(mut self, renderer: Box<dyn MetricsRenderer + 'static>) -> Self {
         self.renderer = Some(renderer);
         self
@@ -219,6 +221,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     ///
     /// The effect is similar to increasing the `batch size` and the `learning rate` by the `accumulation`
     /// amount.
+    #[must_use]
     pub fn grads_accumulation(mut self, accumulation: usize) -> Self {
         self.grad_accumulation = Some(accumulation);
         self
@@ -231,6 +234,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     /// marked as memory-bound, while compute-bound operations still cache their
     /// output. This reduces peak memory usage at the cost of additional computation
     /// for memory-bound ops.
+    #[must_use]
     pub fn gradient_checkpointing(mut self) -> Self {
         self.grad_checkpointing = true;
         self
@@ -258,23 +262,27 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     }
 
     /// The number of epochs the training should last.
+    #[must_use]
     pub fn num_epochs(mut self, num_epochs: usize) -> Self {
         self.num_epochs = num_epochs;
         self
     }
 
     /// The epoch from which the training must resume.
+    #[must_use]
     pub fn checkpoint(mut self, checkpoint: usize) -> Self {
         self.checkpoint = Some(checkpoint);
         self
     }
 
     /// Provides a handle that can be used to interrupt training.
+    #[must_use]
     pub fn interrupter(&self) -> Interrupter {
         self.interrupter.clone()
     }
 
     /// Override the handle for stopping training with an externally provided handle
+    #[must_use]
     pub fn with_interrupter(mut self, interrupter: Interrupter) -> Self {
         self.interrupter = interrupter;
         self
@@ -293,6 +301,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
+    #[must_use]
     pub fn with_application_logger(
         mut self,
         logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -303,6 +312,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
 
     /// Register a checkpointer that will save the [optimizer](burn_optim::ModuleOptimizer), the
     /// [model](LearnerModel) and the [learning rate scheduler](burn_optim::lr_scheduler::module_lr_scheduler::ModuleLrScheduler) to separate burnpack files.
+    #[must_use]
     pub fn with_default_checkpointers(mut self) -> Self {
         let checkpoint_dir = self.directory.join("checkpoint");
         let checkpointer_model = FileCheckpointer::new(&checkpoint_dir, "model");
@@ -343,6 +353,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     /// Enable the training summary report.
     ///
     /// The summary will be displayed after `.fit()`, when the renderer is dropped.
+    #[must_use]
     pub fn summary(mut self) -> Self {
         self.summary = true;
         self
@@ -441,20 +452,16 @@ impl<M: LearnerModel> SupervisedTraining<M> {
                     )
                 }
                 ExecutionStrategy::MultiDevice(devices, multi_device_optim) => {
-                    let strategy: Box<dyn SupervisedLearningStrategy<M>> = match devices.len() == 1
-                    {
-                        true => Box::new(SingleDeviceTrainingStrategy::new(autodiff_device(
-                            devices[0].clone(),
-                            self.grad_checkpointing,
-                        ))),
-                        false => Box::new(MultiDeviceLearningStrategy::new(
-                            devices
-                                .into_iter()
-                                .map(|d| autodiff_device(d, self.grad_checkpointing))
-                                .collect(),
-                            multi_device_optim,
-                        )),
-                    };
+                    let strategy: Box<dyn SupervisedLearningStrategy<M>> = if devices.len() == 1 { Box::new(SingleDeviceTrainingStrategy::new(autodiff_device(
+                        devices[0].clone(),
+                        self.grad_checkpointing,
+                    ))) } else { Box::new(MultiDeviceLearningStrategy::new(
+                        devices
+                            .into_iter()
+                            .map(|d| autodiff_device(d, self.grad_checkpointing))
+                            .collect(),
+                        multi_device_optim,
+                    )) };
                     strategy.train(
                         learner,
                         self.dataloader_train,

@@ -94,16 +94,15 @@ impl StatusView {
         };
 
         let width = progress
-            .map(|p| {
+            .map_or(0, |p| {
                 p.global
                     .unit
                     .as_deref()
-                    .map_or(0, |s| s.len())
-                    .max(p.split.unit.as_deref().map_or(0, |s| s.len()))
+                    .map_or(0, str::len)
+                    .max(p.split.unit.as_deref().map_or(0, str::len))
             })
-            .unwrap_or(0)
             .max("Mode".len())
-            .max(event_counters.keys().map(|k| k.len()).max().unwrap_or(0));
+            .max(event_counters.keys().map(std::string::String::len).max().unwrap_or(0));
 
         let mut lines = vec![vec![
             title(&format!("{: <width$} :", "Mode")),
@@ -131,7 +130,7 @@ impl StatusView {
 
         for (key, val) in event_counters {
             lines.push(vec![
-                title(&format!("{: <width$} :", key)),
+                title(&format!("{key: <width$} :")),
                 value(format!("{val}")),
             ]);
         }

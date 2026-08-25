@@ -30,17 +30,18 @@ impl Default for AurocMetric {
 impl AurocMetric {
     fn new(class_reduction: ClassReduction) -> Self {
         let state = Default::default();
-        let name = Arc::new(format!("AUROC [{:?}]", class_reduction));
+        let name = Arc::new(format!("AUROC [{class_reduction:?}]"));
 
         Self {
+            name,
             state,
             class_reduction,
-            name,
         }
     }
 
     /// AUROC metric for binary classification.
     #[allow(dead_code)]
+    #[must_use]
     pub fn binary() -> Self {
         Self::new(ClassReduction::default())
     }
@@ -51,6 +52,7 @@ impl AurocMetric {
     ///
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multiclass(class_reduction: ClassReduction) -> Self {
         Self::new(class_reduction)
     }
@@ -61,6 +63,7 @@ impl AurocMetric {
     ///
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multilabel(class_reduction: ClassReduction) -> Self {
         Self::new(class_reduction)
     }
@@ -154,7 +157,7 @@ impl Metric for AurocMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

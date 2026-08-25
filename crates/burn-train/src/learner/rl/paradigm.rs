@@ -136,7 +136,7 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
         self
     }
 
-    /// Update the checkpointing_strategy.
+    /// Update the `checkpointing_strategy`.
     pub fn with_checkpointing_strategy<CS: CheckpointingStrategy + 'static>(
         mut self,
         strategy: CS,

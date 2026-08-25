@@ -25,7 +25,7 @@ where
     R: Checkpoint,
 {
     fn run(self) {
-        for item in self.receiver.iter() {
+        for item in &self.receiver {
             match item {
                 Message::Restore(epoch, callback, interrupter) => {
                     let record = self.checkpointer.restore(epoch);
@@ -37,7 +37,7 @@ where
                                 )
                             },
                             |int| int.stop(Some(&err.to_string())),
-                        )
+                        );
                     });
                 }
                 Message::Save(epoch, state, interrupter) => {
@@ -45,7 +45,7 @@ where
                         interrupter.map_or_else(
                             || panic!("Error when saving the state: {err}"),
                             |int| int.stop(Some(&err.to_string())),
-                        )
+                        );
                     });
                 }
                 Message::Delete(epoch, interrupter) => {
@@ -53,14 +53,14 @@ where
                         interrupter.map_or_else(
                             || panic!("Error when deleting the state: {err}"),
                             |int| int.stop(Some(&err.to_string())),
-                        )
+                        );
                     });
                 }
 
                 Message::End => {
                     return;
                 }
-            };
+            }
         }
     }
 }
@@ -102,6 +102,7 @@ where
     }
 
     /// Assign a handle used to interrupt training in case of checkpointing error.
+    #[must_use]
     pub fn with_interrupter(mut self, interrupter: Interrupter) -> Self {
         self.interrupter = Some(interrupter);
         self
@@ -128,7 +129,7 @@ where
 
         if let Ok(record) = receiver.recv() {
             return record;
-        };
+        }
 
         Err(CheckpointerError::Unknown("Channel error.".to_string()))
     }

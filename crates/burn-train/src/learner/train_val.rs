@@ -43,7 +43,7 @@ impl<TO> TrainOutput<TO> {
 /// # Notes
 ///
 /// To be used with the [Learner](crate::Learner) struct, the struct which implements this trait must
-/// also implement the [AutodiffModule] trait, which is done automatically with the
+/// also implement the [`AutodiffModule`] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
 pub trait TrainStep {
     /// Type of input for a step of the training stage.

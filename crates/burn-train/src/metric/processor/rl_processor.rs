@@ -76,7 +76,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
                 self.renderer.update_train(MetricState::Numeric(
                     numeric_update.entry,
                     numeric_update.numeric_entry,
-                ))
+                ));
             });
     }
 
@@ -96,7 +96,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
                 self.renderer.update_valid(MetricState::Numeric(
                     numeric_update.entry,
                     numeric_update.numeric_entry,
-                ))
+                ));
             });
     }
 }

@@ -191,20 +191,17 @@ impl FileMetricLogger {
         let key = logger_key(name, split);
         let value = &item.serialized_entry.serialized;
 
-        let logger = match self.loggers.get_mut(&key) {
-            Some(val) => val,
-            None => {
-                self.create_directory(epoch, split);
+        let logger = if let Some(val) = self.loggers.get_mut(&key) { val } else {
+            self.create_directory(epoch, split);
 
-                let file_path = self.file_path(name, epoch, split);
-                let logger = FileLogger::new(file_path);
-                let logger = AsyncLogger::new(logger);
+            let file_path = self.file_path(name, epoch, split);
+            let logger = FileLogger::new(file_path);
+            let logger = AsyncLogger::new(logger);
 
-                self.loggers.insert(key.clone(), logger);
-                self.loggers
-                    .get_mut(&key)
-                    .expect("Can get the previously saved logger.")
-            }
+            self.loggers.insert(key.clone(), logger);
+            self.loggers
+                .get_mut(&key)
+                .expect("Can get the previously saved logger.")
         };
 
         logger.log(value.clone());
@@ -234,8 +231,8 @@ impl MetricLogger for FileMetricLogger {
             .cloned()
             .collect();
 
-        let epoch = if !self.is_eval { Some(epoch) } else { None };
-        for item in entries.iter() {
+        let epoch = if self.is_eval { None } else { Some(epoch) };
+        for item in &entries {
             self.log_item(item, epoch, split);
         }
     }
@@ -247,7 +244,7 @@ impl MetricLogger for FileMetricLogger {
         split: &Split,
     ) -> Result<Vec<NumericEntry>, String> {
         if let Some(value) = self.loggers.get(name) {
-            value.sync()
+            value.sync();
         }
 
         let file_path = self.file_path(name, Some(epoch), split);
@@ -315,6 +312,7 @@ pub struct InMemoryMetricLogger {
 
 impl InMemoryMetricLogger {
     /// Create a new in-memory metric logger.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -341,13 +339,13 @@ impl MetricLogger for InMemoryMetricLogger {
             .cloned()
             .collect();
 
-        for item in entries.iter() {
+        for item in &entries {
             let name = &self.metric_definitions.get(&item.metric_id).unwrap().name;
             let key = logger_key(name, split);
 
             if !self.values.contains_key(&key) {
                 self.values
-                    .insert(key.to_string(), vec![InMemoryLogger::default()]);
+                    .insert(key.clone(), vec![InMemoryLogger::default()]);
             }
 
             let values = self.values.get_mut(&key).unwrap();

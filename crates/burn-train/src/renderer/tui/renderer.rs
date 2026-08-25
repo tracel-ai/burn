@@ -75,6 +75,7 @@ pub struct TuiMetricsRendererWrapper {
 
 impl TuiMetricsRendererWrapper {
     /// Create a new terminal UI renderer.
+    #[must_use]
     pub fn new(interrupter: Interrupter, checkpoint: Option<usize>) -> Self {
         let (sender, receiver) = mpsc::channel();
         let (kill_signal_sender, kill_signal_receiver) = mpsc::channel();
@@ -144,6 +145,7 @@ impl TuiMetricsRendererWrapper {
     }
 
     /// Set the renderer to persistent mode.
+    #[must_use]
     pub fn persistent(self) -> Self {
         self.send_event(TuiRendererEvent::Persistent);
         self
@@ -342,7 +344,7 @@ impl TuiMetricsRenderer {
                     .push(TuiTag::new(split, group.clone()), name.clone(), value);
                 self.metrics_text.update(split, group, entry, name);
             }
-        };
+        }
     }
 
     pub fn new(
@@ -468,20 +470,17 @@ impl TuiMetricsRenderer {
         self.terminal.draw(|frame| {
             let size = frame.area();
 
-            match self.popup.view() {
-                Some(view) => view.render(frame, size),
-                None => {
-                    let view = MetricsView::new(
-                        self.metrics_numeric.view(),
-                        self.metrics_text.view(),
-                        self.progress.view(),
-                        ControlsView,
-                        self.status.view(),
-                    );
+            if let Some(view) = self.popup.view() { view.render(frame, size) } else {
+                let view = MetricsView::new(
+                    self.metrics_numeric.view(),
+                    self.metrics_text.view(),
+                    self.progress.view(),
+                    ControlsView,
+                    self.status.view(),
+                );
 
-                    view.render(frame, size);
-                }
-            };
+                view.render(frame, size);
+            }
         })?;
 
         Ok(())

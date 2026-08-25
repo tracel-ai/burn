@@ -68,7 +68,7 @@ impl PopupState {
                     }
                 }
             }
-        };
+        }
 
         if reset {
             *self = Self::Empty;
@@ -103,7 +103,7 @@ impl<'a> PopupView<'a> {
                         Span::from(format!("{} ", callback.title)).yellow().bold(),
                     ]),
                     Line::from(Span::from("")),
-                    Line::from(Span::from(callback.description.to_string()).italic()),
+                    Line::from(Span::from(callback.description.clone()).italic()),
                     Line::from(Span::from("")),
                 ]
             })

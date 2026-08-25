@@ -8,7 +8,7 @@ use crate::{
     metric::{processor::EventProcessorTraining, store::EventStoreClient},
 };
 
-/// Struct to minimise parameters passed to [RLStrategy::train].
+/// Struct to minimise parameters passed to [`RLStrategy::train`].
 pub struct RLComponents<RLC: RLComponentsTypes> {
     /// The total number of environment steps.
     pub num_steps: usize,
@@ -20,7 +20,7 @@ pub struct RLComponents<RLC: RLComponentsTypes> {
     pub grad_accumulation: Option<usize>,
     /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
     pub interrupter: Interrupter,
-    /// An [EventProcessor](crate::EventProcessorTraining) that processes events happening during training and evaluation.
+    /// An [`EventProcessor`](crate::EventProcessorTraining) that processes events happening during training and evaluation.
     pub event_processor: RLEventProcessorType<RLC>,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
@@ -39,7 +39,7 @@ pub enum RLStrategies<RLC: RLComponentsTypes> {
     Custom(CustomRLStrategy<RLC>),
 }
 
-/// A reference to an implementation of [RLStrategy].
+/// A reference to an implementation of [`RLStrategy`].
 pub type CustomRLStrategy<LC> = Arc<dyn RLStrategy<LC>>;
 
 /// Provides the `fit` function for any learning strategy

@@ -57,6 +57,7 @@ impl Default for CharErrorRate {
 
 impl CharErrorRate {
     /// Creates the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("CER".to_string()),
@@ -66,6 +67,7 @@ impl CharErrorRate {
     }
 
     /// Sets the pad token.
+    #[must_use]
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self

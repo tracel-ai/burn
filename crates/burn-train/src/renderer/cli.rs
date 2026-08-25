@@ -14,6 +14,7 @@ pub struct CliMetricsRenderer {
 #[allow(clippy::new_without_default)]
 impl CliMetricsRenderer {
     /// Create a new instance.
+    #[must_use]
     pub fn new() -> Self {
         let init = Progress::new(0, 0, Some(String::new()));
         Self {

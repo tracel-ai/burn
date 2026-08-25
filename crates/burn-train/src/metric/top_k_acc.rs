@@ -23,23 +23,25 @@ pub struct TopKAccuracyMetric {
 /// The [top-k accuracy metric](TopKAccuracyMetric) input type.
 #[derive(new)]
 pub struct TopKAccuracyInput {
-    /// The outputs (batch_size, num_classes)
+    /// The outputs (`batch_size`, `num_classes`)
     outputs: Tensor<2>,
-    /// The labels (batch_size)
+    /// The labels (`batch_size`)
     targets: Tensor<1, Int>,
 }
 
 impl TopKAccuracyMetric {
     /// Creates the metric.
+    #[must_use]
     pub fn new(k: usize) -> Self {
         Self {
-            name: Arc::new(format!("Top-K Accuracy @ TopK({})", k)),
+            name: Arc::new(format!("Top-K Accuracy @ TopK({k})")),
             k,
             ..Default::default()
         }
     }
 
     /// Sets the pad token.
+    #[must_use]
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self
@@ -90,7 +92,7 @@ impl Metric for TopKAccuracyMetric {
             .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

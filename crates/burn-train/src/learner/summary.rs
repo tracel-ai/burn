@@ -238,7 +238,7 @@ fn collect_test_split_metrics<P: AsRef<Path>, S: AsRef<str>>(
             .collect::<Vec<_>>();
 
         // Untagged marked with empty string
-        map.insert("".to_string(), summaries);
+        map.insert(String::new(), summaries);
     } else {
         // Tagged splits
         for tag in dirs {
@@ -263,13 +263,13 @@ impl Display for LearnerSummary {
         // Compute the max length for each column
         let mut max_split_len = 5; // "Train"
         let mut max_metric_len = "Metric".len();
-        for metric in self.metrics.train.iter() {
+        for metric in &self.metrics.train {
             max_metric_len = max_metric_len.max(metric.name.len());
         }
-        for metric in self.metrics.valid.iter() {
+        for metric in &self.metrics.valid {
             max_metric_len = max_metric_len.max(metric.name.len());
         }
-        for (tag, metrics) in self.metrics.test.iter() {
+        for (tag, metrics) in &self.metrics.test {
             let split_name = if tag.is_empty() {
                 "Test".to_string()
             } else {
@@ -330,7 +330,7 @@ impl Display for LearnerSummary {
 
         let mut write_metrics_summary =
             |metrics: &[MetricSummary], split: String| -> std::fmt::Result {
-                for metric in metrics.iter() {
+                for metric in metrics {
                     if metric.entries.is_empty() {
                         continue; // skip metrics with no recorded values
                     }

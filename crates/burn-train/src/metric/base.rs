@@ -120,7 +120,7 @@ pub type MetricName = Arc<String>;
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
 /// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
-/// registered with the specific learning paradigm (i.e. [SupervisedTraining](crate::SupervisedTraining)).
+/// registered with the specific learning paradigm (i.e. [`SupervisedTraining`](crate::SupervisedTraining)).
 pub trait Adaptor<T> {
     /// Adapt the type to be passed to a [metric](Metric).
     fn adapt(&self) -> T;
@@ -192,6 +192,7 @@ impl SerializedEntry {
     pub const NOT_AVAILABLE: &'static str = "N/A";
 
     /// Convenience helper for standard placeholder entries when no valid data is ready.
+    #[must_use]
     pub fn not_available(unit: Option<&str>) -> Self {
         let na = Self::NOT_AVAILABLE;
         let formatted = match unit {
@@ -202,6 +203,7 @@ impl SerializedEntry {
     }
 
     /// Returns whether this entry represents an un-serializable/skipped placeholder.
+    #[must_use]
     pub fn is_not_available(&self) -> bool {
         self.serialized == Self::NOT_AVAILABLE || self.serialized.is_empty()
     }
@@ -218,6 +220,7 @@ pub struct MetricEntry {
 
 impl MetricEntry {
     /// Create a new metric.
+    #[must_use]
     pub fn new(metric_id: MetricId, serialized_entry: SerializedEntry) -> Self {
         Self {
             metric_id,
@@ -245,6 +248,7 @@ pub enum NumericEntry {
 
 impl NumericEntry {
     /// Gets the current aggregated value of the metric.
+    #[must_use]
     pub fn current(&self) -> f64 {
         match self {
             NumericEntry::Value(val) => *val,
@@ -255,7 +259,8 @@ impl NumericEntry {
         }
     }
 
-    /// Returns a String representing the NumericEntry
+    /// Returns a String representing the `NumericEntry`
+    #[must_use]
     pub fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
@@ -267,7 +272,7 @@ impl NumericEntry {
         }
     }
 
-    /// De-serializes a string representing a NumericEntry and returns a Result containing the corresponding NumericEntry.
+    /// De-serializes a string representing a `NumericEntry` and returns a Result containing the corresponding `NumericEntry`.
     pub fn deserialize(entry: &str) -> Result<Self, String> {
         // Check for comma separated values
         let values = entry.split(',').collect::<Vec<_>>();
@@ -306,17 +311,16 @@ impl NumericEntry {
     }
 
     /// Compare this numeric metric's value with another one using the specified direction.
+    #[must_use]
     pub fn better_than(&self, other: &NumericEntry, higher_is_better: bool) -> bool {
         (self.current() > other.current()) == higher_is_better
     }
 }
 
 /// Format a float with the given precision. Will use scientific notation if necessary.
+#[must_use]
 pub fn format_float(float: f64, precision: usize) -> String {
     let scientific_notation_threshold = 0.1_f64.powf(precision as f64 - 1.0);
 
-    match scientific_notation_threshold >= float {
-        true => format!("{float:.precision$e}"),
-        false => format!("{float:.precision$}"),
-    }
+    if scientific_notation_threshold >= float { format!("{float:.precision$e}") } else { format!("{float:.precision$}") }
 }

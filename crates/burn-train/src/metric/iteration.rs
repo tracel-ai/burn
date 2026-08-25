@@ -24,6 +24,7 @@ impl Default for IterationSpeedMetric {
 
 impl IterationSpeedMetric {
     /// Create the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("Iteration Speed".to_string()),
@@ -36,20 +37,17 @@ impl IterationSpeedMetric {
 impl Metric for IterationSpeedMetric {
     type Input = ();
 
-    fn update(&mut self, _: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry {
-        let raw = match self.instant {
-            Some(val) => {
-                // If iteration is not logged, compute the speed over the number of items processed.
-                // 1 iteration should equal 1 item when iteration is not logged.
-                metadata
-                    .iteration
-                    .unwrap_or(metadata.progress.items_processed) as f64
-                    / val.elapsed().as_secs_f64()
-            }
-            None => {
-                self.instant = Some(std::time::Instant::now());
-                0.0
-            }
+    fn update(&mut self, (): &Self::Input, metadata: &MetricMetadata) -> SerializedEntry {
+        let raw = if let Some(val) = self.instant {
+            // If iteration is not logged, compute the speed over the number of items processed.
+            // 1 iteration should equal 1 item when iteration is not logged.
+            metadata
+                .iteration
+                .unwrap_or(metadata.progress.items_processed) as f64
+                / val.elapsed().as_secs_f64()
+        } else {
+            self.instant = Some(std::time::Instant::now());
+            0.0
         };
 
         self.state.update(raw, 1);

@@ -35,7 +35,7 @@ impl<M: LearnerModel> DdpValidEpoch<M> {
         interrupter: &Interrupter,
     ) {
         let epoch = global_progress.items_processed;
-        log::info!("Executing validation step for epoch {}", epoch);
+        log::info!("Executing validation step for epoch {epoch}");
         let model = model.valid();
 
         let mut iterator = self.dataloader.iter();
@@ -87,7 +87,7 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
         peer_count: usize,
     ) {
         let epoch = global_progress.items_processed;
-        log::info!("Executing training step for epoch {}", epoch,);
+        log::info!("Executing training step for epoch {epoch}");
 
         let mut iterator = self.dataloader.iter();
         let mut iteration = 0;

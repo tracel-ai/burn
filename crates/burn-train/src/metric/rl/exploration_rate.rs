@@ -15,6 +15,7 @@ pub struct ExplorationRateMetric {
 
 impl ExplorationRateMetric {
     /// Creates a new episode length metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("Exploration rate".to_string()),
@@ -54,7 +55,7 @@ impl Metric for ExplorationRateMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> MetricName {

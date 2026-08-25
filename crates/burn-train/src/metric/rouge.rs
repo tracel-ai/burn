@@ -32,7 +32,7 @@ pub struct RougeLScore {
     pad_token: Option<usize>,
 }
 
-/// Input for [RougeLScore].
+/// Input for [`RougeLScore`].
 #[derive(new)]
 pub struct RougeLInput {
     /// Predicted token sequences.
@@ -49,6 +49,7 @@ impl Default for RougeLScore {
 
 impl RougeLScore {
     /// Creates a new ROUGE-L metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: Arc::new("ROUGE-L".to_string()),
@@ -59,6 +60,7 @@ impl RougeLScore {
 
     /// Sets the pad token index. Tokens matching this value are stripped
     /// from the right of each sequence before scoring.
+    #[must_use]
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self

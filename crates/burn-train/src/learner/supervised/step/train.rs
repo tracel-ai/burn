@@ -112,7 +112,8 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
     ///
     /// # Returns
     ///
-    /// MultiDevicesTrainStep instance.
+    /// `MultiDevicesTrainStep` instance.
+    #[must_use]
     pub fn new(devices: &[Device]) -> Self {
         let (sender_output, receiver_output) = std::sync::mpsc::channel();
         let workers = devices

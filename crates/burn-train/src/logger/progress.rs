@@ -104,6 +104,7 @@ pub struct ProgressSnapshot {
 
 impl ProgressSnapshot {
     /// Create a new overall progress snapshot.
+    #[must_use]
     pub fn new(global: Progress, split: Progress) -> Self {
         Self { global, split }
     }

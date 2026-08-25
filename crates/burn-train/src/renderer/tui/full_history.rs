@@ -61,18 +61,14 @@ impl FullHistoryPlot {
     /// Register a training data point.
     pub(crate) fn push(&mut self, tag: TuiTag, data: Option<NumericEntry>) {
         let x_current = self.next_x_state as f64;
-        let points = match self.points.get_mut(&tag) {
-            Some(val) => val,
-            None => {
-                let max_samples = self
-                    .max_samples_ratio
-                    .get(&tag.split)
-                    .map(|ratio| (*ratio * self.max_samples as f64) as usize)
-                    .unwrap_or(self.max_samples);
-                self.points
-                    .insert(tag.clone(), FullHistoryPoints::new(max_samples));
-                self.points.get_mut(&tag).unwrap()
-            }
+        let points = if let Some(val) = self.points.get_mut(&tag) { val } else {
+            let max_samples = self
+                .max_samples_ratio
+                .get(&tag.split)
+                .map_or(self.max_samples, |ratio| (*ratio * self.max_samples as f64) as usize);
+            self.points
+                .insert(tag.clone(), FullHistoryPoints::new(max_samples));
+            self.points.get_mut(&tag).unwrap()
         };
 
         match data {
@@ -101,7 +97,7 @@ impl FullHistoryPlot {
     pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
         let mut datasets = Vec::with_capacity(2);
 
-        for (tag, points) in self.points.iter() {
+        for (tag, points) in &self.points {
             datasets.push(points.dataset(format!("{tag}"), tag.split.color()));
         }
 
@@ -111,7 +107,7 @@ impl FullHistoryPlot {
     pub(crate) fn bars(&self, max: u64, bar_width: &mut usize) -> Vec<Bar<'_>> {
         let mut bars = Vec::new();
 
-        for (tag, points) in self.points.iter() {
+        for (tag, points) in &self.points {
             if let Some((bar, width)) = points.bar(tag, max) {
                 *bar_width = usize::max(*bar_width, width);
                 bars.push(bar);
@@ -187,7 +183,7 @@ impl FullHistoryPoints {
             self.max_y = y;
         }
         if y < self.min_y {
-            self.min_y = y
+            self.min_y = y;
         }
 
         self.points.push((x, y));
@@ -241,7 +237,7 @@ impl FullHistoryPoints {
         self.max_y = max_y;
     }
 
-    fn dataset<'a>(&'a self, name: String, color: Color) -> Dataset<'a> {
+    fn dataset(&self, name: String, color: Color) -> Dataset<'_> {
         Dataset::default()
             .name(name)
             .marker(symbols::Marker::Braille)
@@ -266,7 +262,7 @@ impl FullHistoryPoints {
             Bar::default()
                 .value((avg * factor) as u64)
                 .style(tag.split.color())
-                .text_value(format!("{:.2}", avg))
+                .text_value(format!("{avg:.2}"))
                 .label(label),
             width,
         ))

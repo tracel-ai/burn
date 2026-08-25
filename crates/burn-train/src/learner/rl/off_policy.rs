@@ -48,6 +48,7 @@ pub struct OffPolicyStrategy {
 }
 impl OffPolicyStrategy {
     /// Create a new off-policy base strategy.
+    #[must_use]
     pub fn new(config: OffPolicyConfig) -> Self {
         Self { config }
     }

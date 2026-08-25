@@ -67,7 +67,7 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
                 self.renderer.update_train(MetricState::Numeric(
                     numeric_update.entry,
                     numeric_update.numeric_entry,
-                ))
+                ));
             });
     }
 
@@ -87,7 +87,7 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
                 self.renderer.update_valid(MetricState::Numeric(
                     numeric_update.entry,
                     numeric_update.numeric_entry,
-                ))
+                ));
             });
     }
 }
@@ -158,7 +158,7 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
                 update.entries.into_iter().for_each(|entry| {
                     self.renderer
-                        .update_test(name.clone(), MetricState::Generic(entry))
+                        .update_test(name.clone(), MetricState::Generic(entry));
                 });
 
                 update
@@ -171,7 +171,7 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                                 numeric_update.entry,
                                 numeric_update.numeric_entry,
                             ),
-                        )
+                        );
                     });
 
                 if let Some(logger) = &mut self.progress_logger {
@@ -275,7 +275,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_epoch(epoch);
                 }
-                self.renderer.update_epoch(epoch)
+                self.renderer.update_epoch(epoch);
             }
             LearnerEvent::End(summary) => {
                 if let Some(logger) = &mut self.progress_logger {

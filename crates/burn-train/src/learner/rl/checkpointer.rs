@@ -39,7 +39,7 @@ where
                         .expect("Can delete policy checkpoint.");
                     self.learning_agent
                         .delete(epoch)
-                        .expect("Can delete learning agent checkpoint.")
+                        .expect("Can delete learning agent checkpoint.");
                 }
                 CheckpointingAction::Save => {
                     self.policy

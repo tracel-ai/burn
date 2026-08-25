@@ -48,13 +48,10 @@ impl MetricGroup {
         }
     }
     fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
-        match self.groups.get_mut(&group) {
-            Some(value) => value.update(split, metric),
-            None => {
-                let value = MetricSplits::new(split, metric);
+        if let Some(value) = self.groups.get_mut(&group) { value.update(split, metric) } else {
+            let value = MetricSplits::new(split, metric);
 
-                self.groups.insert(group, value);
-            }
+            self.groups.insert(group, value);
         }
     }
 }
@@ -169,8 +166,8 @@ impl<'a> TextMetricView<'a> {
 
             let entry = data.get(name.as_ref()).unwrap();
 
-            for (name, group) in entry.groups.iter() {
-                for (split, entry) in group.splits.iter() {
+            for (name, group) in &entry.groups {
+                for (split, entry) in &group.splits {
                     lines.push(format_line(name, split, &entry.serialized_entry.formatted));
                 }
             }
