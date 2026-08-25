@@ -16,6 +16,7 @@ pub type Cuda = CubeBackend<CudaRuntime>;
 pub type Cuda = burn_fusion::Fusion<CubeBackend<CudaRuntime>>;
 
 /// Measure peak throughput on a CUDA `device` for each of the given `keys`.
+#[must_use]
 pub fn device_throughput(
     device: &CudaDevice,
     keys: &[ThroughputKey],
