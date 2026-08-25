@@ -225,7 +225,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     ) {
         if !matches!(ir.status, burn_ir::TensorStatus::ReadWrite) {
             return;
-        };
+        }
 
         let stream = match self.streams.get_mut(&id) {
             Some(val) => val,
@@ -362,12 +362,12 @@ impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
     }
 
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<R::Optimization>) {
-        self.queue.execute(id, self.handles, store, self.id)
+        self.queue.execute(id, self.handles, store, self.id);
     }
 
     fn execute_unfused(&mut self, optimization: BlockOptimization<R::Optimization>) {
         self.queue
-            .execute_unfused(optimization, self.handles, self.id)
+            .execute_unfused(optimization, self.handles, self.id);
     }
 }
 

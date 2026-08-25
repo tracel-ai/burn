@@ -20,7 +20,7 @@ use crate::{
 ///
 /// The contract is that the length of operations executed must include all operations. If we don't
 /// find an optimization that can be executed with that constraint, we return a
-/// [BlocksOptimizerResult::WithHoles].
+/// [`BlocksOptimizerResult::WithHoles`].
 pub struct BlocksOptimizer<O> {
     blocks: Vec<Block<O>>,
     num_ops: usize,
@@ -84,7 +84,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
 
         for block in blocks {
             let mut block_opt = block.optimize();
-            for pos in block_opt.ordering.iter() {
+            for pos in &block_opt.ordering {
                 resolved[*pos] = true;
             }
             ordering.append(&mut block_opt.ordering);
@@ -94,11 +94,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         // An unresolved position is a hole only if some position *after* it
         // is resolved (it's interleaved, not trailing). A trailing run of
         // unresolved positions is a drained tail — left for the processor.
-        let last_resolved_end = resolved
-            .iter()
-            .rposition(|&r| r)
-            .map(|i| i + 1)
-            .unwrap_or(0);
+        let last_resolved_end = resolved.iter().rposition(|&r| r).map_or(0, |i| i + 1);
         let holes: Vec<usize> = (0..last_resolved_end).filter(|i| !resolved[*i]).collect();
 
         let num_strategies = strategies.len();

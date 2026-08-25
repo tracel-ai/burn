@@ -90,7 +90,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 
     fn memory_cleanup(device: &Self::Device) {
-        B::memory_cleanup(device)
+        B::memory_cleanup(device);
     }
 
     fn memory_install_pools(
@@ -150,7 +150,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn flush(device: &Self::Device) {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        client.sync(move || B::flush(&device))
+        client.sync(move || B::flush(&device));
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -218,7 +218,7 @@ pub struct FuserProperties {
 /// the speed and efficiency of the computational graph. It doesn't mean that all registered
 /// operations should be fused, but that another way of executing them is more efficient.
 ///
-/// Also, it is important to return (FuserStatus::Closed) when no more registered operation can
+/// Also, it is important to return (`FuserStatus::Closed`) when no more registered operation can
 /// improve the performance.
 pub trait OperationFuser<O>: Send {
     /// Register a new [tensor operation](OperationIr).

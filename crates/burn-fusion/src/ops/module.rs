@@ -10,7 +10,19 @@ use burn_backend::{
     },
     tensor::{FloatTensor, IntTensor},
 };
-use burn_ir::*;
+use burn_ir::{
+    AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr, AdaptiveAvgPool2dBackwardOpIr,
+    AdaptiveAvgPool2dOpIr, AdaptiveAvgPool3dBackwardOpIr, AdaptiveAvgPool3dOpIr, AttentionOpIr,
+    AvgPool1dBackwardOpIr, AvgPool1dOpIr, AvgPool2dBackwardOpIr, AvgPool2dOpIr,
+    Conv1dBiasBackwardOpIr, Conv1dOpIr, Conv1dWeightBackwardOpIr, Conv1dXBackwardOpIr,
+    Conv2dBiasBackwardOpIr, Conv2dOpIr, Conv2dWeightBackwardOpIr, Conv2dXBackwardOpIr,
+    Conv3dBiasBackwardOpIr, Conv3dOpIr, Conv3dWeightBackwardOpIr, Conv3dXBackwardOpIr,
+    ConvTranspose1dOpIr, ConvTranspose2dOpIr, ConvTranspose3dOpIr, CtcLossBackwardOpIr,
+    CtcLossOpIr, DeformConv2dBackwardOpIr, DeformConv2dOpIr, HandleContainer, IRfftOpIr,
+    InterpolateBackwardOpIr, InterpolateOpIr, MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr,
+    MaxPool1dWithIndicesOpIr, MaxPool2dOpIr, MaxPool2dWithIndicesBackwardOpIr,
+    MaxPool2dWithIndicesOpIr, ModuleOperationIr, OperationIr, OperationOutput, RfftOpIr,
+};
 use burn_std::IntDType;
 use std::marker::PhantomData;
 
@@ -62,7 +74,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let desc = Conv1dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::FusionTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -218,7 +230,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let desc = Conv2dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::FusionTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -383,8 +395,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             offset.into_ir(),
             weight.into_ir(),
-            mask.map(|mask| mask.into_ir()),
-            bias.map(|bias| bias.into_ir()),
+            mask.map(super::super::tensor::FusionTensor::into_ir),
+            bias.map(super::super::tensor::FusionTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -456,8 +468,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             offset.into_ir(),
             weight.into_ir(),
-            mask.map(|mask| mask.into_ir()),
-            bias.map(|bias| bias.into_ir()),
+            mask.map(super::super::tensor::FusionTensor::into_ir),
+            bias.map(super::super::tensor::FusionTensor::into_ir),
             output_grad.into_ir(),
             options.into(),
             || client.create_empty_handle(),
@@ -511,7 +523,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let desc = Conv3dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::FusionTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -667,7 +679,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let desc = ConvTranspose1dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::FusionTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -709,7 +721,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let desc = ConvTranspose2dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::FusionTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -751,7 +763,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let desc = ConvTranspose3dOpIr::create(
             x.into_ir(),
             weight.into_ir(),
-            bias.map(|bias| bias.into_ir()),
+            bias.map(super::super::tensor::FusionTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );
@@ -1577,8 +1589,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             query.into_ir(),
             key.into_ir(),
             value.into_ir(),
-            mask.map(|m| m.into_ir()),
-            attn_bias.map(|ab| ab.into_ir()),
+            mask.map(super::super::tensor::FusionTensor::into_ir),
+            attn_bias.map(super::super::tensor::FusionTensor::into_ir),
             options.into(),
             || client.create_empty_handle(),
         );

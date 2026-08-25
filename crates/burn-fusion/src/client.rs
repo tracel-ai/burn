@@ -419,7 +419,7 @@ where
     {
         // Ensure that all operations are resolved before calling sync_collective.
         self.sync(|| ());
-        B::sync_collective(device)
+        B::sync_collective(device);
     }
 
     /// Ensure that communication between the given devices is initialized.

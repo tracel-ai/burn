@@ -29,7 +29,7 @@ mod tensor;
 pub mod inspect;
 
 pub use op::UnfusedOp;
-pub(crate) use server::*;
+pub(crate) use server::{FusionServer, FusionUtilities};
 
 pub use backend::*;
 pub use ops::NoOp;

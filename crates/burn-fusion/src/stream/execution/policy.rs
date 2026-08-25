@@ -75,11 +75,10 @@ impl<O: core::fmt::Debug> Policy<O> {
         operations: &[OperationIr],
         mode: ExecutionMode,
     ) -> Action {
-        if self.num_operations < operations.len() {
-            panic!(
-                "Internal Error: Can't retrieve the policy action on a list of operations bigger than what is analyzed."
-            );
-        }
+        assert!(
+            self.num_operations >= operations.len(),
+            "Internal Error: Can't retrieve the policy action on a list of operations bigger than what is analyzed."
+        );
 
         if let Some((id, length)) = self.found {
             // A plan covering `length` operations cannot be applied to a shorter
@@ -128,7 +127,7 @@ impl<O: core::fmt::Debug> Policy<O> {
     fn check_candidates(&mut self, store: &ExecutionPlanStore<O>) {
         let mut candidates_to_remove = Vec::new();
 
-        for candidate in self.candidates.iter() {
+        for candidate in &self.candidates {
             match candidate.state {
                 ValidatorState::Found { size } => {
                     let item = store.get_unchecked(candidate.id);
@@ -153,7 +152,7 @@ impl<O: core::fmt::Debug> Policy<O> {
                     candidates_to_remove.push(candidate.id);
                 }
                 ValidatorState::Validating => {}
-            };
+            }
         }
 
         let mut updated_candidates = Vec::new();
@@ -166,8 +165,8 @@ impl<O: core::fmt::Debug> Policy<O> {
     }
 
     fn check_availables(&mut self) {
-        for available in self.availables.iter() {
-            for trigger in available.triggers.iter() {
+        for available in &self.availables {
+            for trigger in &available.triggers {
                 match trigger {
                     TriggerValidator::OnOperations {
                         matching,
@@ -226,12 +225,12 @@ impl<O: core::fmt::Debug> Policy<O> {
             return Action::Defer;
         }
 
-        for available in self.availables.iter() {
+        for available in &self.availables {
             if available.size == operations.len() {
                 return Action::Defer;
             }
 
-            for trigger in available.triggers.iter() {
+            for trigger in &available.triggers {
                 if let TriggerValidator::OnOperations {
                     matching,
                     progress: _,
@@ -247,13 +246,13 @@ impl<O: core::fmt::Debug> Policy<O> {
     }
 
     fn action_sync(&self, operations: &[OperationIr], store: &ExecutionPlanStore<O>) -> Action {
-        for available in self.availables.iter() {
+        for available in &self.availables {
             if available.size == operations.len() {
                 return Action::Execute(available.id);
             }
         }
 
-        for candidate in self.candidates.iter() {
+        for candidate in &self.candidates {
             let item = store.get_unchecked(candidate.id);
 
             if item.operations.len() == operations.len() {

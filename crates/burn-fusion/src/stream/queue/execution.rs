@@ -102,8 +102,8 @@ impl<R: FusionRuntime> OperationQueue<R> {
             .for_each(|tensor| {
                 if tensor.status == TensorStatus::ReadWrite {
                     self.variables.remove(&tensor.id);
-                };
-                R::free_handle(handles, tensor)
+                }
+                R::free_handle(handles, tensor);
             });
 
         self.global.drain(0..num_drained);
@@ -118,7 +118,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.shapes_assigned.clear();
         self.converter.clear();
 
-        for node in self.global.iter() {
+        for node in &self.global {
             let relative = node.to_relative(&mut self.converter);
             self.relative.push(relative);
             self.shapes_assigned

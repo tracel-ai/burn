@@ -76,9 +76,10 @@ impl<O: core::fmt::Debug> ExecutionPlanStore<O> {
     }
 
     pub fn add(&mut self, exploration: ExecutionPlan<O>) -> ExecutionPlanId {
-        if exploration.operations.is_empty() {
-            panic!("Can't add an empty optimization.");
-        }
+        assert!(
+            !exploration.operations.is_empty(),
+            "Can't add an empty optimization."
+        );
 
         let id = self.plans.len();
 

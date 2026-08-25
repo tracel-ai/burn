@@ -427,7 +427,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let streams = StreamId::current();
 
         let client = tensors.first().unwrap().client.clone();
-        let tensors = tensors.into_iter().map(|t| t.into_ir()).collect();
+        let tensors = tensors
+            .into_iter()
+            .map(super::super::tensor::FusionTensor::into_ir)
+            .collect();
         let desc = CatOpIr::create(tensors, dim, || client.create_empty_handle());
 
         client

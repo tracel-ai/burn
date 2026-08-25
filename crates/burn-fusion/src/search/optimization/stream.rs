@@ -42,7 +42,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
     /// Register a new [operation](OperationIr) in the optimizer.
     ///
-    /// You can use the function [Self::still_optimizing] to know if the operations are actually
+    /// You can use the function [`Self::still_optimizing`] to know if the operations are actually
     /// being registered.
     pub fn register(&mut self, operation: &OperationIr) {
         if self.stopped {
@@ -125,7 +125,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
                     let mut operations_holes = Vec::with_capacity(holes.len());
 
-                    for index in holes.iter() {
+                    for index in &holes {
                         let op = &operations[*index];
                         operations_holes.push(op.clone());
                         search.register(op);
@@ -174,9 +174,9 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
         let mut num_stopped = 0;
 
-        for block in self.blocks.iter() {
+        for block in &self.blocks {
             if !block.still_optimizing() {
-                num_stopped += 1
+                num_stopped += 1;
             }
         }
 
@@ -232,7 +232,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
     fn register_inner(&mut self, operation: &OperationIr, force: bool) -> usize {
         let mut added_count = 0;
-        for block in self.blocks.iter_mut() {
+        for block in &mut self.blocks {
             match block.register(operation, self.length, force) {
                 RegistrationResult::Accepted => {
                     added_count += 1;
@@ -283,17 +283,20 @@ impl<O: NumOperations> StreamOptimizer<O> {
             .blocks
             .iter()
             .enumerate()
-            .filter_map(|(i, g)| match block_merges.contains(&i) {
-                true => Some(g),
-                false => None,
+            .filter_map(|(i, g)| {
+                if block_merges.contains(&i) {
+                    Some(g)
+                } else {
+                    None
+                }
             })
             .collect::<Vec<_>>();
 
         let merged = merge_blocks(&blocks_to_merge, false, &guard);
 
         let mut clear_blocks = || {
-            let mut indices = block_merges.to_vec();
-            indices.sort();
+            let mut indices = block_merges.clone();
+            indices.sort_unstable();
 
             for g in indices.into_iter().rev() {
                 self.blocks.remove(g);
@@ -403,7 +406,7 @@ enum MergeBlockStep {
 /// Blocks and re-optimized holes are placed by separate, incremental heuristics that can't see the
 /// whole picture (a hole may depend on another hole spliced later). This final pass treats each
 /// top-level strategy as an atomic [Chunk] node and orders the chunks topologically (see
-/// [GraphNode] for the hazard rules deriving the edges). Ties keep the earliest stream position
+/// [`GraphNode`] for the hazard rules deriving the edges). Ties keep the earliest stream position
 /// first, reproducing the historical order when there are no hazards.
 ///
 /// If the chunk graph has a cycle — the chunking can't be linearized as atomic units — unfused
@@ -444,7 +447,7 @@ fn repair_order<O>(opt: BlockOptimization<O>, operations: &[OperationIr]) -> Blo
     assemble(strategies, &chunks, &order, operations)
 }
 
-/// Retry [repair_order] with every [Operations](ExecutionStrategy::Operations) chunk split into
+/// Retry [`repair_order`] with every [Operations](ExecutionStrategy::Operations) chunk split into
 /// single-operation chunks, keeping fused optimizations atomic. Splitting only removes ordering
 /// constraints, so this resolves any cycle that isn't between fused chunks themselves.
 fn repair_order_split<O>(
@@ -526,7 +529,7 @@ fn unfused_stream_order<O>(mut positions: Vec<usize>) -> BlockOptimization<O> {
 }
 
 /// Whether the execution order respects tensor handle lifetimes: every operation's inputs must be
-/// live when it runs (see [is_valid_execution_order]).
+/// live when it runs (see [`is_valid_execution_order`]).
 fn ordering_is_valid(ordering: &[usize], operations: &[OperationIr]) -> bool {
     is_valid_execution_order(ordering.iter().map(|&position| OperationNode {
         operation: &operations[position],
@@ -543,7 +546,7 @@ fn strategy_len<O>(strategy: &ExecutionStrategy<O>) -> usize {
     }
 }
 
-/// One top-level strategy of a composed optimization, viewed as a single atomic [GraphNode]
+/// One top-level strategy of a composed optimization, viewed as a single atomic [`GraphNode`]
 /// covering the stream positions of its operations.
 struct Chunk {
     positions: Vec<usize>,

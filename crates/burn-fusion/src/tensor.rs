@@ -267,8 +267,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                         .register_foreign_drop(self.stream, ir, DropOp { id: self.id });
                 }
             }
-            TensorStatus::ReadOnly => {}
-            TensorStatus::NotInit => {}
+            TensorStatus::ReadOnly | TensorStatus::NotInit => {}
         }
     }
 }

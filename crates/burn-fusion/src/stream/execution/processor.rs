@@ -86,7 +86,7 @@ impl<O: NumOperations> Processor<O> {
                     segment.execute(id, store);
                     self.reset(store, segment.operations());
                 }
-            };
+            }
         }
     }
 
@@ -148,7 +148,7 @@ impl<O: NumOperations> Processor<O> {
         self.policy.reset();
 
         // Reset the policy state with the remaining operations
-        for operation in operations.iter() {
+        for operation in operations {
             self.policy.update(store, operation);
         }
     }
@@ -190,27 +190,23 @@ impl<O: NumOperations> Processor<O> {
                     ExecutionTrigger::OnOperations(next_ops.to_vec())
                 };
 
-                match policy.action(store, relative, ExecutionMode::Sync) {
-                    Action::Execute(id) => {
-                        store.add_trigger(id, trigger);
-                        id
-                    }
-                    _ => {
-                        let plan = ExecutionPlan {
-                            operations: relative.to_vec(),
-                            triggers: vec![trigger],
-                            optimization,
-                        };
-                        store.add(plan)
-                    }
+                if let Action::Execute(id) = policy.action(store, relative, ExecutionMode::Sync) {
+                    store.add_trigger(id, trigger);
+                    id
+                } else {
+                    let plan = ExecutionPlan {
+                        operations: relative.to_vec(),
+                        triggers: vec![trigger],
+                        optimization,
+                    };
+                    store.add(plan)
                 }
             }
-            ExecutionMode::Sync => match policy.action(store, relative, ExecutionMode::Sync) {
-                Action::Execute(id) => {
+            ExecutionMode::Sync => {
+                if let Action::Execute(id) = policy.action(store, relative, ExecutionMode::Sync) {
                     store.add_trigger(id, ExecutionTrigger::OnSync);
                     id
-                }
-                _ => {
+                } else {
                     let plan = ExecutionPlan {
                         operations: relative.to_vec(),
                         triggers: vec![ExecutionTrigger::OnSync],
@@ -218,7 +214,7 @@ impl<O: NumOperations> Processor<O> {
                     };
                     store.add(plan)
                 }
-            },
+            }
         }
     }
 }

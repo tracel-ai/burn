@@ -16,6 +16,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     ///
     /// This is useful to implement fallback for optimizations.
     #[allow(clippy::borrowed_box)]
+    #[must_use]
     pub fn operation_within_optimization(&self, index: usize) -> UnfusedOp<R> {
         match &self.ordering {
             Some(val) => {
@@ -45,17 +46,16 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         context: &mut Context<R::FusionHandle>,
         ordering: Arc<Vec<usize>>,
     ) {
-        if ordering.len() > self.operations.len() {
-            panic!(
-                "Ordering is bigger than operations: ordering len {}, operations len {}, \
-                 num_executed {}, optimization len {}, ordering {:?}",
-                ordering.len(),
-                self.operations.len(),
-                self.num_executed,
-                optimization.len(),
-                ordering,
-            );
-        }
+        assert!(
+            ordering.len() <= self.operations.len(),
+            "Ordering is bigger than operations: ordering len {}, operations len {}, \
+             num_executed {}, optimization len {}, ordering {:?}",
+            ordering.len(),
+            self.operations.len(),
+            self.num_executed,
+            optimization.len(),
+            ordering,
+        );
         self.ordering = Some(ordering);
         let num_drained = optimization.len();
         optimization.execute(context, self);

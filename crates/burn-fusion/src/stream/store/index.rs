@@ -49,7 +49,7 @@ impl ExecutionPlanIndex {
         match query {
             InsertQuery::NewPlan { operations, id } => {
                 if let Some(operation) = operations.first() {
-                    self.insert_new_operation(operation, id)
+                    self.insert_new_operation(operation, id);
                 }
             }
         }
@@ -81,26 +81,24 @@ impl ExecutionPlanIndex {
     /// Update the index for an execution plan starting with operation `ops`
     fn insert_new_operation(&mut self, ops: &OperationIr, new_id: ExecutionPlanId) {
         let key = self.operation_key(ops);
-        let values = match self.mapping.get_mut(&key) {
-            Some(val) => val,
-            None => {
-                // New starter ops.
-                let index = self.starters.len();
-                self.starters.push(vec![new_id]);
-                self.mapping.insert(key, vec![(ops.clone(), index)]);
+        let values = if let Some(val) = self.mapping.get_mut(&key) {
+            val
+        } else {
+            // New starter ops.
+            let index = self.starters.len();
+            self.starters.push(vec![new_id]);
+            self.mapping.insert(key, vec![(ops.clone(), index)]);
 
-                return;
-            }
+            return;
         };
-        let (_, index) = match values.iter_mut().find(|value| &value.0 == ops) {
-            Some(val) => val,
-            None => {
-                // New with hash collision.
-                let index = self.starters.len();
-                self.starters.push(vec![new_id]);
-                values.push((ops.clone(), index));
-                return;
-            }
+        let (_, index) = if let Some(val) = values.iter_mut().find(|value| &value.0 == ops) {
+            val
+        } else {
+            // New with hash collision.
+            let index = self.starters.len();
+            self.starters.push(vec![new_id]);
+            values.push((ops.clone(), index));
+            return;
         };
 
         // New optimization for an existing starter.

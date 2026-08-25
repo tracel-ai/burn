@@ -217,7 +217,7 @@ fn debug_head(s: &str) -> &str {
     &s[..end]
 }
 
-/// Produce a "Outer::Inner" kind string for every variant that has an inner enum,
+/// Produce a "`Outer::Inner`" kind string for every variant that has an inner enum,
 /// so the table shows the concrete operation (e.g. `BaseFloat::Reshape`) rather than
 /// just the category.
 pub(crate) fn op_kind(op: &OperationIr) -> String {

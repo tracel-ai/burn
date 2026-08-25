@@ -19,7 +19,7 @@ pub struct Block<O> {
     produced: HashSet<TensorId>,
     /// Tensor ids consumed by this block but produced elsewhere (external inputs).
     read: HashSet<TensorId>,
-    /// Tensor ids this block reads with [ReadWrite](TensorStatus::ReadWrite) status — i.e. it is
+    /// Tensor ids this block reads with [`ReadWrite`](TensorStatus::ReadWrite) status — i.e. it is
     /// the last use and frees/reuses the buffer in place.
     freed: HashSet<TensorId>,
     /// The original blocks this block subsumes.
@@ -66,7 +66,7 @@ impl<O> Block<O> {
     }
 }
 
-/// A single operation at its stream position, viewed as a [GraphNode].
+/// A single operation at its stream position, viewed as a [`GraphNode`].
 pub struct OperationNode<'a> {
     /// The operation.
     pub operation: &'a OperationIr,
@@ -98,7 +98,7 @@ impl GraphNode for OperationNode<'_> {
 }
 
 /// The dependency edges between blocks are derived from what each block reads, produces, and
-/// frees — see [GraphNode].
+/// frees — see [`GraphNode`].
 impl<O> GraphNode for Block<O> {
     type Resource = TensorId;
 
@@ -289,9 +289,9 @@ impl<O: NumOperations> Block<O> {
     pub fn still_optimizing(&self) -> bool {
         let mut num_stopped = 0;
 
-        for optimization in self.builders.iter() {
+        for optimization in &self.builders {
             if let FuserStatus::Closed = optimization.status() {
-                num_stopped += 1
+                num_stopped += 1;
             }
         }
 
@@ -309,7 +309,7 @@ impl<O: NumOperations> Block<O> {
             self.end_pos = pos + 1;
         }
 
-        for builder in self.builders.iter_mut() {
+        for builder in &mut self.builders {
             builder.fuse(operation);
         }
 
@@ -339,7 +339,7 @@ impl<O: NumOperations> Block<O> {
 impl<O> BlockOptimization<O> {
     /// Maps the ordering of the current block optimization using the given mapping.
     pub fn map_ordering(&mut self, mapping: &[usize]) {
-        for i in self.ordering.iter_mut() {
+        for i in &mut self.ordering {
             *i = mapping[*i];
         }
         self.strategy.map_ordering(mapping);
@@ -402,7 +402,7 @@ impl<O> ExecutionStrategy<O> {
             ExecutionStrategy::Optimization { ordering, .. } => {
                 let mut ordering_mapped = ordering.to_vec();
 
-                for o in ordering_mapped.iter_mut() {
+                for o in &mut ordering_mapped {
                     *o = mapping[*o];
                 }
                 *ordering = Arc::new(ordering_mapped);
@@ -410,7 +410,7 @@ impl<O> ExecutionStrategy<O> {
             ExecutionStrategy::Operations { ordering } => {
                 let mut ordering_mapped = ordering.to_vec();
 
-                for o in ordering_mapped.iter_mut() {
+                for o in &mut ordering_mapped {
                     *o = mapping[*o];
                 }
 
@@ -458,8 +458,8 @@ impl<O> PartialEq for Block<O> {
         // blocks.
         let mut sorted_a = self.ordering.clone();
         let mut sorted_b = other.ordering.clone();
-        sorted_a.sort();
-        sorted_b.sort();
+        sorted_a.sort_unstable();
+        sorted_b.sort_unstable();
 
         sorted_a == sorted_b
     }

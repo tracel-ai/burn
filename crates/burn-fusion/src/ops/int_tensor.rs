@@ -12,7 +12,15 @@ use burn_backend::{
     ops::IntTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
-use burn_ir::*;
+use burn_ir::{
+    BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr, FlipOpIr,
+    FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, HandleContainer, InitOperationIr,
+    IntOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr,
+    OperationOutput, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr,
+    RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,
+    ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, TopKWithIndicesOpIr, UnaryOpIr,
+    UnfoldOpIr,
+};
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
@@ -645,7 +653,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = StreamId::current();
 
         let client = tensors.first().unwrap().client.clone();
-        let tensors = tensors.into_iter().map(|t| t.into_ir()).collect();
+        let tensors = tensors
+            .into_iter()
+            .map(super::super::tensor::FusionTensor::into_ir)
+            .collect();
         let desc = CatOpIr::create(tensors, dim, || client.create_empty_handle());
 
         client

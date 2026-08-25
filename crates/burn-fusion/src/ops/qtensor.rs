@@ -74,7 +74,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let client = tensor.client.clone();
         let qparams = QuantizationParametersIr {
             scales: qparams.scales.into_ir(),
-            global: qparams.global.map(|global| global.into_ir()),
+            global: qparams
+                .global
+                .map(super::super::tensor::FusionTensor::into_ir),
         };
         let desc = QuantizeOpIr::create(tensor.into_ir(), qparams, *scheme, || {
             client.create_empty_handle()
@@ -426,17 +428,15 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for MatmulOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let lhs = match self.lhs_quantized {
-                    true => {
-                        TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.lhs))
-                    }
-                    false => TensorPrimitive::Float(handles.get_float_tensor::<B>(&self.desc.lhs)),
+                let lhs = if self.lhs_quantized {
+                    TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.lhs))
+                } else {
+                    TensorPrimitive::Float(handles.get_float_tensor::<B>(&self.desc.lhs))
                 };
-                let rhs = match self.rhs_quantized {
-                    true => {
-                        TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.rhs))
-                    }
-                    false => TensorPrimitive::Float(handles.get_float_tensor::<B>(&self.desc.rhs)),
+                let rhs = if self.rhs_quantized {
+                    TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.rhs))
+                } else {
+                    TensorPrimitive::Float(handles.get_float_tensor::<B>(&self.desc.rhs))
                 };
                 let output = B::q_matmul(lhs, rhs);
                 match output {
@@ -483,12 +483,10 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         };
 
         let lhs = match lhs {
-            TensorPrimitive::Float(lhs) => lhs.into_ir(),
-            TensorPrimitive::QFloat(lhs) => lhs.into_ir(),
+            TensorPrimitive::Float(lhs) | TensorPrimitive::QFloat(lhs) => lhs.into_ir(),
         };
         let rhs = match rhs {
-            TensorPrimitive::Float(rhs) => rhs.into_ir(),
-            TensorPrimitive::QFloat(rhs) => rhs.into_ir(),
+            TensorPrimitive::Float(rhs) | TensorPrimitive::QFloat(rhs) => rhs.into_ir(),
         };
 
         let desc = MatmulOpIr::create_mixed(lhs, rhs, dtype, || client.create_empty_handle());

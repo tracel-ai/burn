@@ -1,5 +1,30 @@
 use burn_backend::{Shape, Slice};
-use burn_ir::*;
+use burn_ir::{
+    ActivationOperationIr, AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr,
+    AdaptiveAvgPool2dBackwardOpIr, AdaptiveAvgPool2dOpIr, AdaptiveAvgPool3dBackwardOpIr,
+    AdaptiveAvgPool3dOpIr, AllReduceOpIr, AttentionOpIr, AvgPool1dBackwardOpIr, AvgPool1dOpIr,
+    AvgPool2dBackwardOpIr, AvgPool2dOpIr, BaseOperationIr, BatchNormOpIr, BinaryOpIr,
+    BoolOperationIr, CastOpIr, CatOpIr, ClampOpIr, Conv1dBiasBackwardOpIr, Conv1dOpIr,
+    Conv1dWeightBackwardOpIr, Conv1dXBackwardOpIr, Conv2dBiasBackwardOpIr, Conv2dOpIr,
+    Conv2dWeightBackwardOpIr, Conv2dXBackwardOpIr, Conv3dBiasBackwardOpIr, Conv3dOpIr,
+    Conv3dWeightBackwardOpIr, Conv3dXBackwardOpIr, ConvTranspose1dBiasBackwardOpIr,
+    ConvTranspose1dOpIr, ConvTranspose1dWeightBackwardOpIr, ConvTranspose2dBiasBackwardOpIr,
+    ConvTranspose2dOpIr, ConvTranspose2dWeightBackwardOpIr, ConvTranspose3dBiasBackwardOpIr,
+    ConvTranspose3dOpIr, ConvTranspose3dWeightBackwardOpIr, CreationOpIr, CrossOpIr,
+    CtcLossBackwardOpIr, CtcLossOpIr, CustomOpIr, DeformConv2dBackwardOpIr, DeformConv2dOpIr,
+    DequantizeOpIr, DimOpIr, DistributedOperationIr, EmbeddingBackwardOpIr, EmbeddingOpIr,
+    FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, GridSample2dOpIr,
+    HandleContainer, HardSigmoidOpIr, IRfftOpIr, InitOperationIr, IntOperationIr,
+    InterpolateBackwardOpIr, InterpolateOpIr, LayerNormOpIr, LinearBiasBackwardOpIr, LinearOpIr,
+    LinearWeightBackwardOpIr, LinearXBackwardOpIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr,
+    MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr, MaxPool1dWithIndicesOpIr, MaxPool2dOpIr,
+    MaxPool2dWithIndicesBackwardOpIr, MaxPool2dWithIndicesOpIr, ModuleOperationIr,
+    NumericOperationIr, OperationIr, PermuteOpIr, QuantizationParametersIr, QuantizeOpIr,
+    RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, RfftOpIr,
+    ScalarIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr,
+    SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, TensorId, TensorIr,
+    TopKWithIndicesOpIr, UnaryOpIr, Unfold4dOpIr, UnfoldOpIr,
+};
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
@@ -29,6 +54,7 @@ impl<H: Clone> Context<H> {
     /// benchmark run a sandbox — mutations stay local until the caller merges new handles
     /// back. `HandleContainer::fork` clones the id→handle map; actual GPU buffers are
     /// refcounted so only the map itself is duplicated.
+    #[must_use]
     pub fn fork(&self) -> Self {
         Self {
             tensors: self.tensors.clone(),

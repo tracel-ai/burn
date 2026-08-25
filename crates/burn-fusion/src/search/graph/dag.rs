@@ -3,16 +3,16 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
 /// A dependency graph over a fixed list of nodes, with edges derived from the nodes' data-flow
-/// sets (see [GraphNode]).
+/// sets (see [`GraphNode`]).
 ///
 /// The graph is not guaranteed to be acyclic — a cycle means the nodes cannot be linearized and
-/// is reported by [topological_order](Self::topological_order) returning `None`.
+/// is reported by [`topological_order`](Self::topological_order) returning `None`.
 pub struct Dag {
     /// `dependencies[i]` = nodes that must execute before node `i` (direct edges only).
     dependencies: Vec<SubGraph>,
     /// `dependents[j]` = nodes that directly depend on node `j` (transpose of `dependencies`).
     dependents: Vec<SubGraph>,
-    /// Tie-break position of each node (see [GraphNode::position]).
+    /// Tie-break position of each node (see [`GraphNode::position`]).
     positions: Vec<usize>,
 }
 
@@ -35,7 +35,7 @@ impl Dag {
         Self {
             dependencies,
             dependents,
-            positions: nodes.iter().map(|n| n.position()).collect(),
+            positions: nodes.iter().map(super::node::GraphNode::position).collect(),
         }
     }
 
@@ -183,7 +183,7 @@ impl Reachability {
 /// Whether `node` must execute after `other`: read-after-write (`node` reads a resource `other`
 /// produces) or write-after-read (`node` frees a resource `other` reads).
 ///
-/// Works directly on the nodes' own data-flow sets through the [GraphNode] membership queries —
+/// Works directly on the nodes' own data-flow sets through the [`GraphNode`] membership queries —
 /// no intermediate collection.
 fn depends_on<N: GraphNode>(node: &N, other: &N) -> bool {
     node.read().any(|r| other.produces(r)) || node.freed().any(|r| other.reads(r))

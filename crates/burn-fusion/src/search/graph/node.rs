@@ -4,7 +4,7 @@ use core::hash::Hash;
 ///
 /// A node reads and produces resources (tensors, buffers, …) identified by
 /// [Resource](Self::Resource). Dependencies between nodes are never declared explicitly: they are
-/// derived from the resource sets by [Dag::new](super::Dag::new) using two hazard rules.
+/// derived from the resource sets by [`Dag::new`](super::Dag::new) using two hazard rules.
 ///
 /// - **Read-after-write**: a node reading a resource depends on the node producing it.
 /// - **Write-after-read**: a node freeing a resource depends on every other node reading it —

@@ -17,18 +17,19 @@ std::thread_local! {
 
 /// An [operation](Operation) that isn't fused.
 ///
-/// This can be executed with [Self::execute].
+/// This can be executed with [`Self::execute`].
 pub struct UnfusedOp<R: FusionRuntime> {
     kind: UnfusedOpKind<R>,
     stream_id: StreamId,
 }
 
 impl<R: FusionRuntime> UnfusedOp<R> {
-    /// Creates a new unfused [operation](Operation) that will execute on the given [StreamId].
+    /// Creates a new unfused [operation](Operation) that will execute on the given [`StreamId`].
     pub fn new<O: Operation<R> + 'static>(op: O, stream_id: StreamId) -> Self {
-        let arena_item = match Arena::accept::<O>() {
-            true => ARENA.with_borrow_mut(|arena| arena.reserve()),
-            false => None,
+        let arena_item = if Arena::accept::<O>() {
+            ARENA.with_borrow_mut(burn_std::arena::Arena::reserve)
+        } else {
+            None
         };
 
         let reserved = match arena_item {
@@ -57,7 +58,7 @@ impl<R: FusionRuntime> UnfusedOp<R> {
         self.stream_id.executes(|| match &self.kind {
             UnfusedOpKind::Arena(o) => o.execute(handles),
             UnfusedOpKind::Alloc(o) => o.execute(handles),
-        })
+        });
     }
 }
 
@@ -88,7 +89,7 @@ fn shim_execute<R: FusionRuntime, O: Operation<R>>(
     ptr_data: *const Data,
     handles: &mut HandleContainer<R::FusionHandle>,
 ) {
-    let operation: &O = unsafe { (ptr_data as *const O).as_ref().unwrap() };
+    let operation: &O = unsafe { ptr_data.cast::<O>().as_ref().unwrap() };
     operation.execute(handles);
 }
 

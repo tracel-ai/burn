@@ -54,15 +54,14 @@ impl<ID> OperationsValidator<ID> {
             ValidatorState::Found { size: _ } => return,
             ValidatorState::Invalidated => return,
             ValidatorState::Validating => {}
-        };
+        }
 
         let item = store.get(self.id);
-        let operation_candidate = match item.get(added_position) {
-            Some(val) => val,
-            None => {
-                self.state = ValidatorState::Invalidated;
-                return;
-            }
+        let operation_candidate = if let Some(val) = item.get(added_position) {
+            val
+        } else {
+            self.state = ValidatorState::Invalidated;
+            return;
         };
 
         if operation_candidate != added {
