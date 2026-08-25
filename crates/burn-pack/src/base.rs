@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// Magic number identifying a Burnpack file: "BURN" in ASCII (0x4255524E)
 /// When written to file in little-endian format, appears as "NRUB" bytes
-pub const MAGIC_NUMBER: u32 = 0x4255524E;
+pub const MAGIC_NUMBER: u32 = 0x4255_524E;
 
 /// Current format version
 pub const FORMAT_VERSION: u16 = 0x0001;
@@ -40,7 +40,7 @@ pub const HEADER_SIZE: usize = MAGIC_SIZE + VERSION_SIZE + METADATA_SIZE_FIELD_S
 ///
 /// Industry alignment choices:
 /// - 256-byte: GGUF, MLX, ncnn, MNN, TNN, vLLM-AWQ, Marlin (15+ formats)
-/// - 64-byte: SafeTensors (minimum for AVX-512)
+/// - 64-byte: `SafeTensors` (minimum for AVX-512)
 /// - 4096-byte: Core ML
 ///
 /// 256-byte alignment has negligible overhead for typical tensor sizes while
@@ -55,6 +55,7 @@ pub const TENSOR_ALIGNMENT: u64 = 256;
 ///
 /// This function must be used consistently by both writer and reader.
 #[inline]
+#[must_use]
 pub fn aligned_data_section_start(metadata_size: usize) -> usize {
     let unaligned_start = (HEADER_SIZE + metadata_size) as u64;
     // Keep multiplication in u64 space to avoid overflow on 32-bit systems
@@ -236,7 +237,7 @@ impl From<f64> for Scalar {
 
 impl From<f32> for Scalar {
     fn from(value: f32) -> Self {
-        Scalar::Float(value as f64)
+        Scalar::Float(value.into())
     }
 }
 
@@ -253,7 +254,7 @@ impl TryFrom<Scalar> for f64 {
             Scalar::Float(v) => Ok(v),
             Scalar::Int(v) => Ok(v as f64),
             Scalar::UInt(v) => Ok(v as f64),
-            _ => Err(ScalarConversionError),
+            Scalar::Bool(_) => Err(ScalarConversionError),
         }
     }
 }
@@ -266,7 +267,7 @@ impl TryFrom<Scalar> for f32 {
             Scalar::Float(v) => Ok(v as f32),
             Scalar::Int(v) => Ok(v as f32),
             Scalar::UInt(v) => Ok(v as f32),
-            _ => Err(ScalarConversionError),
+            Scalar::Bool(_) => Err(ScalarConversionError),
         }
     }
 }
@@ -332,17 +333,17 @@ impl core::fmt::Display for Error {
             Error::InvalidMagicNumber => write!(f, "Invalid magic number"),
             Error::InvalidVersion => write!(f, "Unsupported version"),
             Error::MetadataSerializationError(e) => {
-                write!(f, "Metadata serialization error: {}", e)
+                write!(f, "Metadata serialization error: {e}")
             }
             Error::MetadataDeserializationError(e) => {
-                write!(f, "Metadata deserialization error: {}", e)
+                write!(f, "Metadata deserialization error: {e}")
             }
-            Error::IoError(e) => write!(f, "I/O error: {}", e),
-            Error::TensorNotFound(name) => write!(f, "Tensor not found: {}", name),
+            Error::IoError(e) => write!(f, "I/O error: {e}"),
+            Error::TensorNotFound(name) => write!(f, "Tensor not found: {name}"),
             Error::TensorBytesSizeMismatch(e) => {
-                write!(f, "Tensor bytes size mismatch: {}", e)
+                write!(f, "Tensor bytes size mismatch: {e}")
             }
-            Error::ValidationError(e) => write!(f, "Validation error: {}", e),
+            Error::ValidationError(e) => write!(f, "Validation error: {e}"),
         }
     }
 }
