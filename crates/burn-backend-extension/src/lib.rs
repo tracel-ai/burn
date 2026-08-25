@@ -116,7 +116,7 @@ impl BackendKind {
             "Remote" => Ok(BackendKind::Remote),
             other => Err(syn::Error::new_spanned(
                 ident,
-                format!("Unsupported backend `{}`", other),
+                format!("Unsupported backend `{other}`"),
             )),
         }
     }
@@ -245,22 +245,10 @@ impl TensorKind {
 
                 match last.as_str() {
                     // Shorthand
-                    "Float" => Some(Self::Float),
-                    "Int" => Some(Self::Int),
-                    "Bool" => Some(Self::Bool),
-                    "Quantized" => Some(Self::Quantized),
-
-                    // Full tensor types
-                    "FloatTensor" => Some(Self::Float),
-                    "IntTensor" => Some(Self::Int),
-                    "BoolTensor" => Some(Self::Bool),
-                    "QuantizedTensor" => Some(Self::Quantized),
-
-                    // Associated primitive types
-                    "FloatTensorPrimitive" => Some(Self::Float),
-                    "IntTensorPrimitive" => Some(Self::Int),
-                    "BoolTensorPrimitive" => Some(Self::Bool),
-                    "QuantizedTensorPrimitive" => Some(Self::Quantized),
+                    "Float" | "FloatTensor" | "FloatTensorPrimitive" => Some(Self::Float),
+                    "Int" | "IntTensor" | "IntTensorPrimitive" => Some(Self::Int),
+                    "Bool" | "BoolTensor" | "BoolTensorPrimitive" => Some(Self::Bool),
+                    "Quantized" | "QuantizedTensor" | "QuantizedTensorPrimitive" => Some(Self::Quantized),
 
                     _ => None,
                 }
@@ -297,7 +285,7 @@ impl TensorKind {
 
     fn unwrap_method(self) -> Ident {
         // e.g. tensor.float() (BackendTensor method)
-        format_ident!("{}", format!("{:?}", self).to_lowercase())
+        format_ident!("{}", format!("{self:?}").to_lowercase())
     }
 }
 
@@ -470,8 +458,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
                 }
                 // Keep the original `Struct<Self>` type. Inside `impl Trait for Dispatch`, `Self`
                 // resolves to `Dispatch`, so the incoming value is the dispatch form `Struct<Dispatch>`.
-                ArgKind::Extension(ty) => quote! { #name: #ty },
-                ArgKind::Other(ty) => quote! { #name: #ty },
+                ArgKind::Extension(ty) | ArgKind::Other(ty) => quote! { #name: #ty },
             }
         })
         .collect();
@@ -929,7 +916,7 @@ fn gen_output_wrap(op: &Operation, b_ident: &Ident, is_ad: bool) -> TokenStream2
 
     match &op.output {
         OperationOutput::Tensor(kind) => {
-            let wrapped = gen_tensor_wrap(kind, quote! { _out }, b_ident, is_ad);
+            let wrapped = gen_tensor_wrap(*kind, quote! { _out }, b_ident, is_ad);
             quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
         }
         OperationOutput::Tuple(elems) => {
@@ -937,7 +924,7 @@ fn gen_output_wrap(op: &Operation, b_ident: &Ident, is_ad: bool) -> TokenStream2
                 let idx = syn::Index::from(i);
                 match elem {
                     OutputKind::Tensor(kind) => {
-                        let wrapped = gen_tensor_wrap(kind, quote! { _out.#idx }, b_ident, is_ad);
+                        let wrapped = gen_tensor_wrap(*kind, quote! { _out.#idx }, b_ident, is_ad);
                         quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
                     }
                     OutputKind::Custom(_) => wrap_custom(quote! { _out.#idx }),
@@ -981,7 +968,7 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
                 );
             })
         }
-        _ => None,
+        ArgKind::Other(_) => None,
     });
 
     let call_args = op.inputs.iter().map(|a| &a.name);
@@ -1001,13 +988,13 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
 }
 
 fn gen_tensor_wrap(
-    kind: &TensorKind,
+    kind: TensorKind,
     val: TokenStream2,
     b_ident: &Ident,
     is_ad: bool,
 ) -> TokenStream2 {
     let variant = kind.variant();
-    if is_ad && *kind == TensorKind::Float {
+    if is_ad && kind == TensorKind::Float {
         quote! {
             burn::backend::DispatchTensorKind::Autodiff(
                 Box::new(burn::backend::DispatchTensorKind::#b_ident(
