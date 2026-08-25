@@ -15,6 +15,7 @@ pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 use alloc::vec::Vec;
 use core::any::TypeId;
 use cubecl_common::e4m3;
+use cubecl_common::quant::scheme::{f32_to_ue8m0, ue8m0_to_f32};
 use num_traits::PrimInt;
 use serde::{Deserialize, Serialize};
 
@@ -364,7 +365,7 @@ impl QuantizedBytes {
 pub fn scale_to_dtype(scale: f32, dtype: ScaleDtype) -> f32 {
     dtype
         .round_up(scale)
-        .expect("UE8M0 scales are not yet supported")
+        .expect("every scale dtype has a round-up rule")
 }
 
 /// Bytes taken by the per-tensor scale, zero for a scheme that does not carry one over blocks.
@@ -437,7 +438,7 @@ fn decode_scales(bytes: &[u8], dtype: ScaleDtype) -> Vec<f32> {
             .map(|c| crate::bf16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
         ScaleDtype::UE4M3 => bytes.iter().map(|b| e4m3::from_bits(*b).to_f32()).collect(),
-        ScaleDtype::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
+        ScaleDtype::UE8M0 => bytes.iter().map(|b| ue8m0_to_f32(*b)).collect(),
     }
 }
 
@@ -457,7 +458,9 @@ fn encode_scales(scales: &[f32], dtype: ScaleDtype) -> Vec<u8> {
             .iter()
             .map(|s| e4m3::from_f32(*s).to_bits())
             .collect(),
-        ScaleDtype::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
+        // `ue8m0::from_f32` rounds up, which is the rule for a scale and matches
+        // `scale_to_dtype`; a scale reaching here has already been rounded onto the grid anyway.
+        ScaleDtype::UE8M0 => scales.iter().map(|s| f32_to_ue8m0(*s)).collect(),
     }
 }
 
@@ -683,6 +686,33 @@ mod tests {
         assert_eq!(scales.global, Some(global));
     }
 
+    /// MXFP4's scale level: one `ue8m0` byte per block, no per-tensor scale. Serialization has to
+    /// carry it like any other, or a model in that format cannot be written or read back.
+    ///
+    /// The scales here are powers of two, which is every value `ue8m0` has — so the round trip is
+    /// exact and a mismatch is a real defect rather than the format's own rounding.
+    #[test]
+    fn should_pack_unpack_ue8m0_block_scales() {
+        let block_scales = [0.25f32, 8.0];
+        let values = vec![0i8, 25, 51, 76, 102, 127, -128, -1];
+
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .per_block([4], ScaleDtype::UE8M0);
+
+        let q_bytes = QuantizedBytes::new(values.clone(), [8], scheme, &block_scales, None);
+
+        // 8 values and one byte per block scale; no per-tensor scale rides along.
+        assert_eq!(q_bytes.bytes.len(), 8 + 2);
+
+        let (q_values, scales) = q_bytes.into_vec_i8();
+
+        assert_eq!(q_values, values);
+        assert_eq!(scales.block, block_scales);
+        assert_eq!(scales.global, None);
+    }
+
     #[test]
     #[should_panic(expected = "requires a per-tensor scale")]
     fn two_level_scheme_without_a_global_scale_is_rejected() {
@@ -721,12 +751,18 @@ mod tests {
                 .per_tensor(ScaleDtype::F32)
         ));
 
-        // No round-up rule, so quantizing cannot store the scale it divides by.
-        assert!(!quantizable(
+        // `ue8m0` stores a bare exponent, so its round-up is to the next power of two.
+        assert!(quantizable(
             &QuantScheme::default().per_block([4], ScaleDtype::UE8M0)
         ));
-        assert!(!quantizable(
+        assert!(quantizable(
             &QuantScheme::default().per_tensor(ScaleDtype::UE8M0)
+        ));
+        // MXFP4, whose whole definition is that pairing.
+        assert!(quantizable(
+            &QuantScheme::default()
+                .with_value(QuantValue::E2M1)
+                .per_block([32], ScaleDtype::UE8M0)
         ));
 
         // Block scales reaching f32's range leave the per-tensor scale subnormal, and a narrower
