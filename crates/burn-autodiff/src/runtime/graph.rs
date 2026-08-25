@@ -33,7 +33,7 @@ use spin::{Mutex, MutexGuard};
 ///
 /// # Notes
 ///
-/// The [AutodiffServer] fully supports multiple graphs with sharing nodes, however those type of
+/// The [`AutodiffServer`] fully supports multiple graphs with sharing nodes, however those type of
 /// graphs will be stored under a single mutex-protected graph by the client, limiting
 /// parallelisation.
 #[derive(Clone, new, Debug)]
@@ -58,7 +58,7 @@ pub struct GraphLocator {
 
 /// Represents a single computation graph with a mutex-protected server.
 ///
-/// Each `Graph` contains an [AutodiffServer] and the original [NodeId] where the server was
+/// Each `Graph` contains an [`AutodiffServer`] and the original [`NodeId`] where the server was
 /// first created.
 pub(crate) struct Graph {
     origin: NodeId,
@@ -81,7 +81,7 @@ impl core::fmt::Debug for Graph {
 static STATE: Mutex<Option<GraphLocator>> = Mutex::new(None);
 
 impl GraphMutexClient {
-    /// Retrieves or creates a graph for the given [NodeId] and parent dependencies.
+    /// Retrieves or creates a graph for the given [`NodeId`] and parent dependencies.
     ///
     /// # Parameters
     /// - `node`: The unique identifier for the stream.
@@ -92,14 +92,13 @@ impl GraphMutexClient {
     fn graph(node: NodeId, parents: &[Parent]) -> Arc<Graph> {
         let mut state = STATE.lock();
 
-        match state.as_mut() {
-            Some(locator) => locator.select(node, parents),
-            None => {
-                let mut locator = GraphLocator::default();
-                let stream = locator.select(node, parents);
-                *state = Some(locator);
-                stream
-            }
+        if let Some(locator) = state.as_mut() {
+            locator.select(node, parents)
+        } else {
+            let mut locator = GraphLocator::default();
+            let stream = locator.select(node, parents);
+            *state = Some(locator);
+            stream
         }
     }
 }
@@ -134,7 +133,7 @@ struct GraphCleaner<'a> {
     guard: MutexGuard<'a, Option<GraphLocator>>,
 }
 
-impl<'a> GraphCleaner<'a> {
+impl GraphCleaner<'_> {
     fn cleanup_orphaned_entries() {
         let graphs = {
             // Get the available graphs and release the lock
@@ -177,7 +176,7 @@ impl<'a> GraphCleaner<'a> {
     }
 }
 
-impl<'a> NodeCleaner for GraphCleaner<'a> {
+impl NodeCleaner for GraphCleaner<'_> {
     fn init() -> Self {
         let guard = STATE.lock();
         Self { guard }
@@ -191,7 +190,7 @@ impl<'a> NodeCleaner for GraphCleaner<'a> {
 }
 
 impl GraphLocator {
-    /// Selects a single graph for the given [NodeId], considering parent dependencies.
+    /// Selects a single graph for the given [`NodeId`], considering parent dependencies.
     ///
     /// If multiple graphs are found, they are merged into a single one.
     ///
@@ -225,7 +224,7 @@ impl GraphLocator {
                 None => self.new_graph(node),
             };
             return GraphAnalysis::NoCollision(graph);
-        };
+        }
 
         // We collect all graphs of parents and of the current node based on their origin node id.
         let mut graphs = BTreeMap::<NodeId, Arc<Graph>>::new();
@@ -301,7 +300,7 @@ impl GraphLocator {
 
         // Move all keys (node IDs) from the merged graph to the main graph
         if let Some(locator_keys) = self.keys.remove(&merged.origin) {
-            for k in locator_keys.iter() {
+            for k in &locator_keys {
                 self.graphs.insert(*k, main.clone());
             }
 

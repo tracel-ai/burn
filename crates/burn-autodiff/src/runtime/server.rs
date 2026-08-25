@@ -100,7 +100,7 @@ impl AutodiffServer {
                 NC::clean(&mut cleaner, node_id);
             });
         for node_id in consumed {
-            cleaner.clean(node_id)
+            cleaner.clean(node_id);
         }
     }
 
@@ -119,7 +119,7 @@ impl AutodiffServer {
         mut builder: CheckpointerBuilder,
         consumed: &mut Vec<NodeId>,
     ) -> TapeResult {
-        let mut tape = (0..node_step.depth() + 1)
+        let mut tape = (0..=node_step.depth())
             .map(|_| Vec::with_capacity(1))
             .collect::<Vec<_>>();
 
@@ -182,11 +182,11 @@ impl AutodiffServer {
         mut grads: Gradients,
         mut checkpointer: Checkpointer,
     ) -> Gradients {
-        tape.into_iter().rev().for_each(|steps| {
-            steps
-                .into_iter()
-                .for_each(|step| step.step(&mut grads, &mut checkpointer))
-        });
+        for steps in tape.into_iter().rev() {
+            for step in steps {
+                step.step(&mut grads, &mut checkpointer);
+            }
+        }
 
         // For checkpointing tests
         #[cfg(feature = "export_tests")]

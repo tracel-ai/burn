@@ -36,7 +36,7 @@ pub(crate) mod runtime;
 
 pub use backend::*;
 
-/// A facade around for HashMap and HashSet.
+/// A facade around for `HashMap` and `HashSet`.
 /// This avoids elaborate import wrangling having to happen in every module.
 mod collections {
     #[cfg(not(feature = "std"))]

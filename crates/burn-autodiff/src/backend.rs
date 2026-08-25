@@ -52,7 +52,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     }
 
     fn seed(device: &B::Device, seed: u64) {
-        B::seed(device, seed)
+        B::seed(device, seed);
     }
 
     fn sync(device: &B::Device) -> Result<(), ExecutionError> {
@@ -72,7 +72,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     }
 
     fn memory_cleanup(device: &Self::Device) {
-        B::memory_cleanup(device)
+        B::memory_cleanup(device);
     }
 
     fn memory_install_pools(
@@ -110,7 +110,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     }
 
     fn flush(device: &Self::Device) {
-        B::flush(device)
+        B::flush(device);
     }
 }
 

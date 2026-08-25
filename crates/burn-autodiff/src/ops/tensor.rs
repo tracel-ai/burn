@@ -750,7 +750,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_swap_dims(input, self.dim1, self.dim2);
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -803,7 +803,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_permute(input, &self.axes);
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -858,7 +858,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_flip(input, &self.axes);
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -908,7 +908,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_reshape(input, self.shape.clone());
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -1491,7 +1491,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_select(input, self.dim, self.indices.clone());
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -1557,7 +1557,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
                 let out = B::float_select_add(tensor, self.dim, self.indices.clone(), value);
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -1639,7 +1639,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                             value,
                             IndexingUpdateOp::Assign,
                         );
-                        states.save(out_node, out)
+                        states.save(out_node, out);
                     }
                 }
 
@@ -1731,7 +1731,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let out = B::float_slice(tensor, &self.slices);
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -1793,7 +1793,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
                 let out = B::float_slice_assign(tensor, &self.slices, value);
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -2723,7 +2723,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let lhs = states.get_state::<B::FloatTensorPrimitive>(&self.lhs_id);
                 let out = B::float_powf_scalar(lhs, self.rhs.into());
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -3415,7 +3415,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (shape, device) = ops.state;
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_zeros(shape, &device, grad.dtype().into())
-                })
+                });
             }
         }
 
@@ -3451,7 +3451,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (shape, device) = ops.state;
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_zeros(shape, &device, grad.dtype().into())
-                })
+                });
             }
         }
 
@@ -3487,7 +3487,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (shape, device) = ops.state;
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_zeros(shape, &device, grad.dtype().into())
-                })
+                });
             }
         }
 
@@ -3523,7 +3523,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (shape, device) = ops.state;
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_zeros(shape, &device, grad.dtype().into())
-                })
+                });
             }
         }
 
@@ -3644,11 +3644,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         let mut primitives = Vec::with_capacity(tensors.len());
         let mut dim_sizes = Vec::with_capacity(tensors.len());
 
-        tensors.into_iter().for_each(|tensor| {
+        for tensor in tensors {
             dim_sizes.push(tensor.primitive.shape()[dim]);
             nodes.push(tensor.node);
             primitives.push(tensor.primitive);
-        });
+        }
 
         let requirement = Requirement::from_nodes(&nodes);
 
@@ -3952,7 +3952,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_expand(input, self.shape.clone());
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 
@@ -4085,7 +4085,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let out = B::float_repeat_dim(tensor, self.dim, self.times);
-                states.save(out_node, out)
+                states.save(out_node, out);
             }
         }
 

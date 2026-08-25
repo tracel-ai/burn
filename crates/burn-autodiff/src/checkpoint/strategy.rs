@@ -69,7 +69,7 @@ pub struct BalancedCheckpointing {}
 
 impl CheckpointStrategy for BalancedCheckpointing {
     /// An operation marked as memory bound is memory bound.
-    /// When memory bound, an operation needs to save its RetroForward
+    /// When memory bound, an operation needs to save its `RetroForward`
     fn compute_property<R: RetroForward>(retro_forward: R) -> ComputingProperty {
         ComputingProperty::MemoryBound {
             retro_forward: Arc::new(retro_forward),
@@ -89,7 +89,7 @@ impl CheckpointStrategy for BalancedCheckpointing {
     {
         let mut can_checkpoint = true;
 
-        for tensor in parents.into_iter() {
+        for tensor in parents {
             if let crate::graph::Requirement::None = tensor.node.requirement {
                 can_checkpoint = false;
             } else {

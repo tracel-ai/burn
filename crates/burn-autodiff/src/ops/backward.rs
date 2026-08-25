@@ -63,12 +63,12 @@ pub fn binary<B, FLhs, FRhs>(
 
     if let Some(node) = node_lhs {
         let grad = func_lhs(grad_4lhs.unwrap());
-        grads.register::<B>(node.id, grad)
+        grads.register::<B>(node.id, grad);
     }
 
     if let Some(node) = node_rhs {
         let grad = func_rhs(grad_4rhs.unwrap());
-        grads.register::<B>(node.id, grad)
+        grads.register::<B>(node.id, grad);
     }
 }
 
@@ -83,6 +83,6 @@ where
 
     if let Some(node) = parent_node {
         let grad = func(grad);
-        grads.register::<B>(node.id, grad)
+        grads.register::<B>(node.id, grad);
     }
 }

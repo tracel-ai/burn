@@ -148,13 +148,12 @@ impl<B: Backend> AutodiffTensor<B> {
 
         let client = parent_nodes
             .first()
-            .map(|node| node.client.clone())
-            .unwrap_or_else(AutodiffClientImpl::new);
+            .map_or_else(AutodiffClientImpl::new, |node| node.client.clone());
 
         let node: NodeRef = Node::new(
             parent_nodes
                 .iter()
-                .filter_map(|node| node.clone_if_require_grad())
+                .filter_map(Node::clone_if_require_grad)
                 .map(|node| Parent::new(node.id))
                 .collect(),
             order,

@@ -21,7 +21,7 @@ use super::{
 };
 
 #[derive(Debug)]
-/// Determines if a node should checkpoint its computed output or its retro_forward for recomputation
+/// Determines if a node should checkpoint its computed output or its `retro_forward` for recomputation
 /// The action is normally created by the child of the node, once the node is determined to be needed
 pub enum CheckpointingAction {
     /// The node's already computed output should be saved
@@ -50,8 +50,8 @@ impl CheckpointingAction {
             CheckpointingAction::Computed {
                 node_id: node_ref,
                 state_content: _,
-            } => *node_ref,
-            CheckpointingAction::Recompute {
+            }
+            | CheckpointingAction::Recompute {
                 node_id: node_ref,
                 retro_forward: _,
             } => *node_ref,
@@ -67,7 +67,7 @@ pub struct CheckpointerBuilder {
     backup_actions: Vec<CheckpointingAction>,
 }
 
-/// Determines if a checkpoint should impact the n_required values (Main)
+/// Determines if a checkpoint should impact the `n_required` values (Main)
 /// or if it should just keep the state in case it's required (Backup)
 ///
 pub(crate) enum ActionType {
@@ -75,7 +75,7 @@ pub(crate) enum ActionType {
     Explicit,
     /// Backup actions are not always needed. They exist to save the output of an operation
     /// whose child is memory bound, in case the state is indirectly needed when computing
-    /// the child's retro_forward. If no explicit action ever asks for the child's output, then
+    /// the child's `retro_forward`. If no explicit action ever asks for the child's output, then
     /// the backup output will go out of scope when the checkpointer is built.
     Backup,
 }
@@ -95,23 +95,23 @@ impl CheckpointerBuilder {
                 action_list.push(CheckpointingAction::Computed {
                     node_id: tensor.node.id,
                     state_content: Box::new(tensor.primitive.clone()),
-                })
+                });
             }
             ComputingProperty::MemoryBound { retro_forward } => {
                 action_list.push(CheckpointingAction::Recompute {
                     node_id: tensor.node.id,
                     retro_forward: retro_forward.clone(),
-                })
+                });
             }
         }
     }
 
     pub(crate) fn extend(&mut self, other: CheckpointerBuilder) {
         for other_action in other.explicit_actions {
-            self.explicit_actions.push(other_action)
+            self.explicit_actions.push(other_action);
         }
         for other_unsure in other.backup_actions {
-            self.backup_actions.push(other_unsure)
+            self.backup_actions.push(other_unsure);
         }
     }
 
@@ -167,7 +167,7 @@ impl CheckpointerBuilder {
     ) -> HashMap<NodeId, usize> {
         let mut n_required_map = HashMap::<NodeId, usize>::default();
 
-        for action in self.explicit_actions.iter() {
+        for action in &self.explicit_actions {
             match action {
                 CheckpointingAction::Computed {
                     node_id: node_ref,
@@ -181,7 +181,7 @@ impl CheckpointerBuilder {
                         None => {
                             n_required_map.insert(id, 1);
                         }
-                    };
+                    }
                 }
                 CheckpointingAction::Recompute {
                     node_id: node_ref,
@@ -215,29 +215,34 @@ impl CheckpointerBuilder {
             // so we check there first, otherwise it will be in backup.
             // Technically it can be there several times but can never be of both types, so we can assume the first we find is fine
 
-            let action = match self
-                .explicit_actions
-                .iter()
-                .position(|action| action.id() == node_id)
-            {
-                Some(pos) => self.explicit_actions.remove(pos),
-                None => {
+            let action =
+                if let Some(pos) = self
+                    .explicit_actions
+                    .iter()
+                    .position(|action| action.id() == node_id)
+                {
+                    self.explicit_actions.remove(pos)
+                } else {
                     let pos = self
                         .backup_actions
                         .iter()
                         .position(|action| action.id() == node_id);
                     self.backup_actions.remove(pos.unwrap_or_else(|| {
-                        panic!("Node {:?} is needed but never checkpointed", node_id)
+                        panic!("Node {node_id:?} is needed but never checkpointed")
                     }))
-                }
-            };
+                };
 
             match action {
                 CheckpointingAction::Computed {
                     node_id: _,
                     state_content,
                 } => {
-                    self.checkpoint_compute(backward_states_map, node_id, state_content, n_required)
+                    self.checkpoint_compute(
+                        backward_states_map,
+                        node_id,
+                        state_content,
+                        n_required,
+                    );
                 }
                 CheckpointingAction::Recompute {
                     node_id: _,
@@ -249,7 +254,7 @@ impl CheckpointerBuilder {
                     retro_forward,
                     n_required,
                 ),
-            };
+            }
         }
     }
 
@@ -259,23 +264,15 @@ impl CheckpointerBuilder {
         node_tree: &NodeTree,
         stop_nodes: &Vec<NodeId>,
     ) {
-        match n_required_map.remove(&id) {
-            Some(n) => {
-                n_required_map.insert(id, n + 1);
-            }
-            None => {
-                n_required_map.insert(id, 1);
-                if !stop_nodes.contains(&id)
-                    && let Some(parents) = node_tree.parents(&id)
-                {
-                    for p in parents {
-                        Self::update_n_required_of_parents(
-                            p,
-                            n_required_map,
-                            node_tree,
-                            stop_nodes,
-                        );
-                    }
+        if let Some(n) = n_required_map.remove(&id) {
+            n_required_map.insert(id, n + 1);
+        } else {
+            n_required_map.insert(id, 1);
+            if !stop_nodes.contains(&id)
+                && let Some(parents) = node_tree.parents(&id)
+            {
+                for p in parents {
+                    Self::update_n_required_of_parents(p, n_required_map, node_tree, stop_nodes);
                 }
             }
         }

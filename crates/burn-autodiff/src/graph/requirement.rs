@@ -30,9 +30,10 @@ impl Requirement {
     }
 
     fn infer(&self, other: &Self) -> Self {
-        match self.is_none() && other.is_none() {
-            true => Self::None,
-            false => Self::GradInBackward,
+        if self.is_none() && other.is_none() {
+            Self::None
+        } else {
+            Self::GradInBackward
         }
     }
 }

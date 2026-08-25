@@ -35,7 +35,7 @@ impl<B: Backend, C: CheckpointStrategy> DistributedOps<Self> for Autodiff<B, C> 
 
     fn submit_gradient_sync(tensor: TensorRef<Self>, distributed_params: DistributedParams) {
         let mut tensor = unsafe { (*tensor.0).clone() };
-        B::submit_gradient_sync(TensorRef(&mut tensor.primitive), distributed_params);
+        B::submit_gradient_sync(TensorRef(&raw mut tensor.primitive), distributed_params);
     }
 
     fn all_reduce(

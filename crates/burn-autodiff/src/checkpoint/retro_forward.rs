@@ -13,21 +13,21 @@ use super::state::{BackwardStates, State};
 
 /// Definition of the forward function of a node, called during retropropagation only.
 /// This is different from the normal forward function because it reads and writes from
-/// the [BackwardStates] map instead of having a clear function signature.
+/// the [`BackwardStates`] map instead of having a clear function signature.
 pub trait RetroForward: Debug + Send + 'static {
     /// Applies the forward pass for retropropagation.
     fn forward(&self, states: &mut BackwardStates, out_node: NodeId);
 }
 
 #[derive(new, Debug)]
-/// Links [NodeId]s to their corresponding [RetroForward]
+/// Links [`NodeId`]s to their corresponding [`RetroForward`]
 pub(crate) struct RetroForwards {
     map: HashMap<NodeId, Arc<dyn RetroForward>>,
 }
 
 impl RetroForwards {
-    /// Executes the [RetroForward] for a given [NodeId] if the node's
-    /// [State] is [State::Recompute], otherwise does nothing.
+    /// Executes the [`RetroForward`] for a given [`NodeId`] if the node's
+    /// [State] is [`State::Recompute`], otherwise does nothing.
     pub(crate) fn execute_retro_forward(
         &mut self,
         node_id: NodeId,
@@ -49,7 +49,7 @@ impl RetroForwards {
 }
 
 #[macro_export]
-/// Creates a RetroForward struct for unary scalar operations
+/// Creates a `RetroForward` struct for unary scalar operations
 macro_rules! retro_unary_scalar {
     (
         $name:ident,
@@ -73,7 +73,7 @@ macro_rules! retro_unary_scalar {
 }
 
 #[macro_export]
-/// Creates a RetroForward struct for unary scalar operations
+/// Creates a `RetroForward` struct for unary scalar operations
 macro_rules! retro_unary {
     (
         $name:ident,
@@ -96,7 +96,7 @@ macro_rules! retro_unary {
 }
 
 #[macro_export]
-/// Creates a RetroForward struct for binary operations
+/// Creates a `RetroForward` struct for binary operations
 macro_rules! retro_binary {
     (
         $name:ident,

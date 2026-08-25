@@ -56,8 +56,8 @@ impl State {
     /// Returns the number of time the state is required
     pub(crate) fn n_required(&self) -> usize {
         match self {
-            State::Recompute { n_required } => *n_required,
-            State::Computed {
+            State::Recompute { n_required }
+            | State::Computed {
                 state_content: _,
                 n_required,
             } => *n_required,
@@ -66,13 +66,13 @@ impl State {
 }
 
 #[derive(new, Default, Debug)]
-/// Links [NodeId]s to their current state
+/// Links [`NodeId`]s to their current state
 pub struct BackwardStates {
     map: HashMap<NodeId, State>,
 }
 
 impl BackwardStates {
-    /// Returns the output in the state of the given [NodeId],
+    /// Returns the output in the state of the given [`NodeId`],
     /// and decrements the number of times this state is required.
     /// This function always gives ownership of the output, but will clone it if needed for further uses.
     pub fn get_state<T>(&mut self, node_id: &NodeId) -> T
@@ -118,12 +118,12 @@ impl BackwardStates {
         self.map.get(node_id)
     }
 
-    /// Associates a [State] to its [NodeId]
+    /// Associates a [State] to its [`NodeId`]
     pub(crate) fn insert_state(&mut self, node_id: NodeId, state: State) {
         self.map.insert(node_id, state);
     }
 
-    /// Saves the output to the state of the given [NodeId].
+    /// Saves the output to the state of the given [`NodeId`].
     pub fn save<T>(&mut self, node_id: NodeId, saved_output: T)
     where
         T: Clone + Send + 'static,

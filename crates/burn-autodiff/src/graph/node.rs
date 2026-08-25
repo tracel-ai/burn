@@ -27,11 +27,11 @@ pub enum ComputingProperty {
     Ambiguous, // Maybe autotune someday
 }
 
-/// This is safe only because we only call RetroForward on the autodiff server.
+/// This is safe only because we only call `RetroForward` on the autodiff server.
 /// Therefore, the trait will never be used by multiple threads at the same time.
 ///
 /// TODO: Find a way to avoid cloning the compute property, which will remove the need to add the
-/// Arc, which will make (dyn RetroForward) safely implement Send.
+/// Arc, which will make (dyn `RetroForward`) safely implement Send.
 unsafe impl Send for ComputingProperty {}
 /// unsafe Sync is required because Send is only implemented for Arc<Sync>, not Arc<Send>.
 unsafe impl Sync for ComputingProperty {}
@@ -57,9 +57,10 @@ pub struct Parent {
 impl Node {
     /// Returns the [node](Node) only if gradients are required.
     pub fn clone_if_require_grad(self: &Arc<Self>) -> Option<NodeRef> {
-        match self.requirement.is_none() {
-            true => None,
-            false => Some(self.clone()),
+        if self.requirement.is_none() {
+            None
+        } else {
+            Some(self.clone())
         }
     }
 }
@@ -82,9 +83,7 @@ impl NodeId {
     pub fn new() -> Self {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         let value = COUNTER.fetch_add(1, Ordering::Relaxed);
-        if value == u64::MAX {
-            panic!("NodeId overflowed");
-        }
+        assert!(value != u64::MAX, "NodeId overflowed");
         Self { value }
     }
 }

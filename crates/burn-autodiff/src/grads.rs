@@ -98,12 +98,12 @@ impl Gradients {
             Requirement::Grad => self
                 .container
                 .get::<TensorPrimitive<B>>(&node.id.value)
-                .map(|tensor| tensor.tensor())
+                .map(TensorPrimitive::tensor)
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::GradInBackward => self
                 .container
                 .remove::<TensorPrimitive<B>>(&node.id.value)
-                .map(|tensor| tensor.tensor())
+                .map(TensorPrimitive::tensor)
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
         }
@@ -113,14 +113,14 @@ impl Gradients {
     pub fn remove<B: Backend>(&mut self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
         self.container
             .remove::<TensorPrimitive<B>>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor())
+            .map(TensorPrimitive::tensor)
     }
 
     /// Gets a grad tensor from the container.
     pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
         self.container
             .get::<TensorPrimitive<B>>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor())
+            .map(TensorPrimitive::tensor)
     }
 
     /// Register a grad tensor in the container.

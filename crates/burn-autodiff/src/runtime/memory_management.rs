@@ -39,7 +39,7 @@ impl GraphMemoryManagement {
     pub fn register(&mut self, node: NodeRefCount, parents: &[Parent]) {
         let node_id = *node.as_ref();
 
-        for parent in parents.iter() {
+        for parent in parents {
             self.leaves.remove(&parent.id);
         }
 
@@ -92,7 +92,7 @@ impl GraphMemoryManagement {
         self.statuses.clear();
         for node_to_delete in deletables {
             self.nodes.remove(&node_to_delete);
-            on_free_graph(&node_to_delete)
+            on_free_graph(&node_to_delete);
         }
     }
 
@@ -107,7 +107,7 @@ impl GraphMemoryManagement {
     }
 
     fn clear_unused_roots(&self, to_delete: &mut Vec<NodeId>) {
-        for (id, parents) in self.nodes.iter() {
+        for (id, parents) in &self.nodes {
             let is_useful = matches!(
                 self.statuses.get(id.as_ref()),
                 Some(NodeMemoryStatus::Useful)
@@ -117,7 +117,7 @@ impl GraphMemoryManagement {
             let parents_absent = parents.iter().all(|p| !self.nodes.contains_key(p));
 
             if !is_useful && Arc::strong_count(id) == 1 && parents_absent {
-                to_delete.push(*id.as_ref())
+                to_delete.push(*id.as_ref());
             }
         }
     }
@@ -128,27 +128,24 @@ impl GraphMemoryManagement {
             return status.clone();
         }
 
-        match self.nodes.get(&node_id).cloned() {
+        if let Some(parents) = self.nodes.get(&node_id).cloned() {
             // If node exists and any of its parents is unavailable, it is unavailable as well
             // If node exists but the parents vec is empty, it is a tensor that never had parents;
             //  the status remains unknown
-            Some(parents) => {
-                let mut node_status = NodeMemoryStatus::Unknown;
-                for parent in parents {
-                    let parent_status = self.unavailable_propagation(parent);
-                    if let NodeMemoryStatus::Unavailable = parent_status {
-                        node_status = NodeMemoryStatus::Unavailable;
-                    }
+            let mut node_status = NodeMemoryStatus::Unknown;
+            for parent in parents {
+                let parent_status = self.unavailable_propagation(parent);
+                if let NodeMemoryStatus::Unavailable = parent_status {
+                    node_status = NodeMemoryStatus::Unavailable;
                 }
-                self.statuses.insert(node_id, node_status.clone());
-                node_status
             }
+            self.statuses.insert(node_id, node_status.clone());
+            node_status
+        } else {
             // If node does not exist, it was
             // deleted, so this and all its descendants are unavailable
-            None => {
-                self.statuses.insert(node_id, NodeMemoryStatus::Unavailable);
-                NodeMemoryStatus::Unavailable
-            }
+            self.statuses.insert(node_id, NodeMemoryStatus::Unavailable);
+            NodeMemoryStatus::Unavailable
         }
     }
 
@@ -183,9 +180,10 @@ impl GraphMemoryManagement {
                             .to_owned();
 
                         if let NodeMemoryStatus::Unknown = node_status {
-                            match self.is_referenced(node_id) {
-                                true => (node_id, NodeMemoryStatus::Useful),
-                                false => (node_id, NodeMemoryStatus::Unknown),
+                            if self.is_referenced(node_id) {
+                                (node_id, NodeMemoryStatus::Useful)
+                            } else {
+                                (node_id, NodeMemoryStatus::Unknown)
                             }
                         } else {
                             (node_id, node_status)
@@ -198,22 +196,19 @@ impl GraphMemoryManagement {
                 },
             };
 
-            match status {
-                NodeMemoryStatus::Useful => {
-                    tagged_useful.insert(node_id);
-                    for parent in parents(node_id) {
-                        // The node can be explored, as long as it's not already tagged useful
-                        if !(tagged_useful.contains(&parent) || to_tag_useful.contains(&parent)) {
-                            to_tag_useful.insert(parent);
-                        }
+            if status == NodeMemoryStatus::Useful {
+                tagged_useful.insert(node_id);
+                for parent in parents(node_id) {
+                    // The node can be explored, as long as it's not already tagged useful
+                    if !(tagged_useful.contains(&parent) || to_tag_useful.contains(&parent)) {
+                        to_tag_useful.insert(parent);
                     }
                 }
-                _ => {
-                    explored.insert(node_id);
-                    for parent in parents(node_id) {
-                        if !(explored.contains(&parent) || to_explore.contains(&parent)) {
-                            to_explore.insert(parent);
-                        }
+            } else {
+                explored.insert(node_id);
+                for parent in parents(node_id) {
+                    if !(explored.contains(&parent) || to_explore.contains(&parent)) {
+                        to_explore.insert(parent);
                     }
                 }
             }
@@ -234,30 +229,22 @@ impl GraphMemoryManagement {
         while let Some(node_id) = to_visit.pop() {
             visited.insert(node_id);
 
-            match self
+            if self
                 .statuses
                 .get(&node_id)
                 .expect("Node should have status")
+                == &NodeMemoryStatus::Useful
             {
-                NodeMemoryStatus::Useful => {
-                    new_leaves.insert(node_id);
-                }
-                _ => {
-                    to_delete.push(node_id);
+                new_leaves.insert(node_id);
+            } else {
+                to_delete.push(node_id);
 
-                    for parent in self
-                        .nodes
-                        .get(&node_id)
-                        .cloned()
-                        .unwrap_or_default()
-                        .into_iter()
-                    {
-                        if !visited.contains(&parent) {
-                            to_visit.push(parent);
-                        }
+                for parent in self.nodes.get(&node_id).cloned().unwrap_or_default() {
+                    if !visited.contains(&parent) {
+                        to_visit.push(parent);
                     }
                 }
-            };
+            }
         }
     }
 
@@ -280,7 +267,6 @@ struct PopNodeSet {
 }
 
 impl PopNodeSet {
-    #[inline(always)]
     fn pop(&mut self) -> Option<NodeId> {
         self.hash_set
             .iter()
@@ -289,12 +275,10 @@ impl PopNodeSet {
             .and_then(|node_id| self.hash_set.take(&node_id))
     }
 
-    #[inline(always)]
     fn contains(&self, node_id: &NodeId) -> bool {
         self.hash_set.contains(node_id)
     }
 
-    #[inline(always)]
     fn insert(&mut self, node_id: NodeId) {
         self.hash_set.insert(node_id);
     }

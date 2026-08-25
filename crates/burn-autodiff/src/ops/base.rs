@@ -37,7 +37,7 @@ pub struct OpsPrep<Backward, B, S, C, const N: usize, Mode = Init> {
 pub struct Init;
 /// Operation has been tagged as memory bound
 pub struct MemoryBound;
-/// Memory bound operation has received its RetroForward
+/// Memory bound operation has received its `RetroForward`
 pub struct MemoryBoundRetroForward;
 /// Operation's compute property is fixed
 pub struct ComputePropertyDone;
@@ -147,21 +147,22 @@ where
 {
     /// Prepare an operation that requires a state during the backward pass.
     pub fn stateful(self) -> OpsKind<BO, B, S, C, N> {
-        match self.requirement.is_none() {
-            false => OpsKind::Tracked(OpsPrep::new(
+        if self.requirement.is_none() {
+            OpsKind::UnTracked(OpsPrep::new(
                 self.nodes,
                 self.requirement,
                 self.backward,
                 self.compute_property,
                 self.checkpointer_builder,
-            )),
-            true => OpsKind::UnTracked(OpsPrep::new(
+            ))
+        } else {
+            OpsKind::Tracked(OpsPrep::new(
                 self.nodes,
                 self.requirement,
                 self.backward,
                 self.compute_property,
                 self.checkpointer_builder,
-            )),
+            ))
         }
     }
 }
@@ -313,12 +314,13 @@ pub fn broadcast_shape<B: Backend>(mut grad: FloatTensor<B>, shape: &Shape) -> F
 
     for i in 0..ndims {
         if shape_grad[i] != shape[i] {
-            if shape[i] != 1 {
-                panic!(
-                    "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
-                    shape, shape_grad, "Expected the shape of the next grad to be 1."
-                );
-            }
+            assert!(
+                shape[i] == 1,
+                "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
+                shape,
+                shape_grad,
+                "Expected the shape of the next grad to be 1."
+            );
             grad = B::float_sum_dim(grad, i);
         }
     }

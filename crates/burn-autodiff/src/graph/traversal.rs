@@ -38,9 +38,8 @@ impl BreadthFirstSearch {
         callback(root_id, root_step);
 
         while let Some(id) = parents.pop() {
-            let step = match steps.remove(&id) {
-                Some(step) => step,
-                None => continue,
+            let Some(step) = steps.remove(&id) else {
+                continue;
             };
 
             let step_node = step.id();
@@ -52,7 +51,7 @@ impl BreadthFirstSearch {
 
             visited.insert(step_node);
 
-            for id in step_parents.iter() {
+            for id in &step_parents {
                 if !visited.contains(id) {
                     parents.push(*id);
                 }
