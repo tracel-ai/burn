@@ -92,6 +92,7 @@ pub enum SizeConfig {
 
 impl SizeConfig {
     /// Construct a source which will have the same size as the source dataset.
+    #[must_use]
     pub fn source() -> Self {
         Self::Default
     }
@@ -105,6 +106,11 @@ impl SizeConfig {
     /// ## Returns
     ///
     /// The resolved size of the wrapper dataset.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a ratio configuration is negative.
+    #[must_use]
     pub fn resolve(self, source_size: usize) -> usize {
         match self {
             SizeConfig::Default => source_size,

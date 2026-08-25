@@ -5,7 +5,7 @@ use rand::prelude::SliceRandom;
 use rand::{RngExt, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
-/// Options to configure a [SamplerDataset].
+/// Options to configure a [`SamplerDataset`].
 #[derive(Debug, PartialEq)]
 pub struct SamplerDatasetOptions {
     /// The sampling mode.
@@ -48,6 +48,7 @@ impl From<usize> for SamplerDatasetOptions {
 
 impl SamplerDatasetOptions {
     /// Set the replacement mode.
+    #[must_use]
     pub fn with_replace_samples(self, replace_samples: bool) -> Self {
         Self {
             replace_samples,
@@ -55,17 +56,20 @@ impl SamplerDatasetOptions {
         }
     }
 
-    /// Set the replacement mode to WithReplacement.
+    /// Set the replacement mode to `WithReplacement`.
+    #[must_use]
     pub fn with_replacement(self) -> Self {
         self.with_replace_samples(true)
     }
 
-    /// Set the replacement mode to WithoutReplacement.
+    /// Set the replacement mode to `WithoutReplacement`.
+    #[must_use]
     pub fn without_replacement(self) -> Self {
         self.with_replace_samples(false)
     }
 
     /// Set the size source.
+    #[must_use]
     pub fn with_size<S>(self, source: S) -> Self
     where
         S: Into<SizeConfig>,
@@ -77,21 +81,25 @@ impl SamplerDatasetOptions {
     }
 
     /// Set the size to the size of the source.
+    #[must_use]
     pub fn with_source_size(self) -> Self {
         self.with_size(SizeConfig::Default)
     }
 
     /// Set the size to a fixed size.
+    #[must_use]
     pub fn with_fixed_size(self, size: usize) -> Self {
         self.with_size(size)
     }
 
     /// Set the size to be a multiple of the ration and the source size.
+    #[must_use]
     pub fn with_size_ratio(self, size_ratio: f64) -> Self {
         self.with_size(size_ratio)
     }
 
     /// Set the `RngSource`.
+    #[must_use]
     pub fn with_rng<R>(self, rng: R) -> Self
     where
         R: Into<RngSource>,
@@ -103,11 +111,13 @@ impl SamplerDatasetOptions {
     }
 
     /// Use the system rng.
+    #[must_use]
     pub fn with_system_rng(self) -> Self {
         self.with_rng(RngSource::Default)
     }
 
     /// Use a rng, built from a seed.
+    #[must_use]
     pub fn with_seed(self, seed: u64) -> Self {
         self.with_rng(seed)
     }
@@ -197,9 +207,10 @@ where
         Self {
             dataset,
             size,
-            state: Mutex::new(match options.replace_samples {
-                true => SamplerState::WithReplacement(rng),
-                false => SamplerState::WithoutReplacement(rng, Vec::with_capacity(size)),
+            state: Mutex::new(if options.replace_samples {
+                SamplerState::WithReplacement(rng)
+            } else {
+                SamplerState::WithoutReplacement(rng, Vec::with_capacity(size))
             }),
             input: PhantomData,
         }
@@ -248,6 +259,10 @@ where
     /// # Returns
     /// - `true`: If the sampler is configured to sample with replacement.
     /// - `false`: If the sampler is configured to sample without replacement.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal sampler state mutex is poisoned.
     pub fn is_with_replacement(&self) -> bool {
         match self.state.lock().unwrap().deref_mut() {
             SamplerState::WithReplacement(_) => true,
@@ -268,7 +283,7 @@ where
                         // No need to `.choose_multiple` here because we're using
                         // the entire source range; and `.choose_multiple` will
                         // not return a random sample anyway.
-                        indices.extend(idx_range.clone())
+                        indices.extend(idx_range.clone());
                     }
 
                     // From `choose_multiple` documentation:

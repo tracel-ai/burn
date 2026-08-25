@@ -15,6 +15,7 @@ pub struct InMemDataset<I> {
 
 impl<I> InMemDataset<I> {
     /// Creates a new in memory dataset from the given items.
+    #[must_use]
     pub fn new(items: Vec<I>) -> Self {
         InMemDataset { items }
     }
@@ -54,6 +55,14 @@ where
     /// Create from a json rows file (one json per line).
     ///
     /// [Supported field types](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or a line is not valid JSON.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a line cannot be read from the reader or deserialized.
     pub fn from_json_rows<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
@@ -78,6 +87,10 @@ where
     /// See:
     /// - [Reading with Serde](https://docs.rs/csv/latest/csv/tutorial/index.html#reading-with-serde)
     /// - [Delimiters, quotes and variable length records](https://docs.rs/csv/latest/csv/tutorial/index.html#delimiters-quotes-and-variable-length-records)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the CSV file cannot be read or a row cannot be deserialized.
     pub fn from_csv<P: AsRef<Path>>(
         path: P,
         builder: &csv::ReaderBuilder,

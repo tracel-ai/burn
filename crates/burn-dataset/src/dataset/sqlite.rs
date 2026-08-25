@@ -11,6 +11,7 @@ use crate::Dataset;
 use gix_tempfile::{
     AutoRemove, ContainingDirectory, Handle,
     handle::{Writable, persist},
+    signal::handler::Mode,
 };
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::{SqliteConnectionManager, rusqlite::OpenFlags};
@@ -106,6 +107,10 @@ pub struct SqliteDataset<I> {
 
 impl<I> SqliteDataset<I> {
     /// Initializes a `SqliteDataset` from a SQLite database file and a split name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database cannot be opened or the split metadata is invalid.
     pub fn from_db_file<P: AsRef<Path>>(db_file: P, split: &str) -> Result<Self> {
         // Create a connection pool
         let conn_pool = create_conn_pool(&db_file, false)?;
@@ -135,7 +140,7 @@ impl<I> SqliteDataset<I> {
         })
     }
 
-    /// Returns true if table has two columns: row_id (integer) and item (blob).
+    /// Returns true if table has two columns: `row_id` (integer) and item (blob).
     ///
     /// This is used to determine if the table is row serialized or not.
     fn check_if_row_serialized(
@@ -175,23 +180,25 @@ impl<I> SqliteDataset<I> {
             columns.push(column?);
         }
 
-        if columns.len() != 2 {
-            Ok(false)
-        } else {
+        if columns.len() == 2 {
             // Check if the column names and types match the expected values
             Ok(columns[0].name == "row_id"
                 && columns[0].ty == "integer"
                 && columns[1].name == "item"
                 && columns[1].ty == "blob")
+        } else {
+            Ok(false)
         }
     }
 
     /// Get the database file name.
+    #[must_use]
     pub fn db_file(&self) -> PathBuf {
         self.db_file.clone()
     }
 
     /// Get the split name.
+    #[must_use]
     pub fn split(&self) -> &str {
         self.split.as_str()
     }
@@ -368,6 +375,7 @@ impl SqliteDatasetStorage {
     /// # Arguments
     ///
     /// * `name` - A string slice that holds the name of the dataset.
+    #[must_use]
     pub fn from_name(name: &str) -> Self {
         SqliteDatasetStorage {
             name: Some(name.to_string()),
@@ -404,6 +412,7 @@ impl SqliteDatasetStorage {
     /// # Returns
     ///
     /// * A boolean value indicating whether the file exists or not.
+    #[must_use]
     pub fn exists(&self) -> bool {
         self.db_file().exists()
     }
@@ -413,13 +422,13 @@ impl SqliteDatasetStorage {
     /// # Returns
     ///
     /// * A `PathBuf` instance representing the file path.
+    #[must_use]
     pub fn db_file(&self) -> PathBuf {
-        match &self.db_file {
-            Some(db_file) => db_file.clone(),
-            None => {
-                let name = sanitize(self.name.as_ref().expect("Name is not set"));
-                Self::base_dir(self.base_dir.to_owned()).join(format!("{name}.db"))
-            }
+        if let Some(db_file) = &self.db_file {
+            db_file.clone()
+        } else {
+            let name = sanitize(self.name.as_ref().expect("Name is not set"));
+            Self::base_dir(self.base_dir.clone()).join(format!("{name}.db"))
         }
     }
 
@@ -432,6 +441,7 @@ impl SqliteDatasetStorage {
     /// # Returns
     ///
     /// * A `PathBuf` instance representing the base directory.
+    #[must_use]
     pub fn base_dir(base_dir: Option<PathBuf>) -> PathBuf {
         match base_dir {
             Some(base_dir) => base_dir,
@@ -470,9 +480,7 @@ impl SqliteDatasetStorage {
     where
         I: Clone + Send + Sync + Serialize + DeserializeOwned,
     {
-        if !self.exists() {
-            panic!("The database file does not exist");
-        }
+        assert!(self.exists(), "The database file does not exist");
 
         SqliteDataset::from_db_file(self.db_file(), split)
     }
@@ -562,7 +570,7 @@ where
         // Create the temp database file and wrap it with a gix_tempfile::Handle
         // This will ensure that the temp file is deleted when the writer is dropped
         // or when process exits with SIGINT or SIGTERM (tempfile crate does not do this)
-        gix_tempfile::signal::setup(Default::default());
+        gix_tempfile::signal::setup(Mode::default());
         self.db_file_tmp = Some(gix_tempfile::writable_at(
             &db_file_tmp,
             ContainingDirectory::Exists,
@@ -587,6 +595,15 @@ where
     /// # Returns
     ///
     /// * A `Result` containing the index of the inserted row if successful, an error otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the writer is completed, the split table cannot be created, or the
+    /// insert fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal completion lock is poisoned.
     pub fn write(&self, split: &str, item: &I) -> Result<usize> {
         // Acquire the read lock (wont't block other reads)
         let is_completed = self.is_completed.read().unwrap();
@@ -627,6 +644,14 @@ where
     }
 
     /// Marks the dataset as completed and persists the temporary database file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the temporary database file cannot be persisted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal completion lock is poisoned or no temporary file is present.
     pub fn set_completed(&mut self) -> Result<()> {
         let mut is_completed = self.is_completed.write().unwrap();
 
@@ -686,7 +711,7 @@ where
 
 /// Runs a pragma update and ignores the `ExecuteReturnedResults` error.
 ///
-/// Sometimes ExecuteReturnedResults is returned when running a pragma update. This is not an error
+/// Sometimes `ExecuteReturnedResults` is returned when running a pragma update. This is not an error
 /// and can be ignored. This function runs the pragma update and ignores the error if it is
 /// `ExecuteReturnedResults`.
 fn pragma_update_with_error_handling(

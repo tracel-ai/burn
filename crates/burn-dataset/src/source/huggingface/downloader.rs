@@ -75,6 +75,7 @@ pub struct HuggingfaceDatasetLoader {
 
 impl HuggingfaceDatasetLoader {
     /// Create a huggingface dataset loader.
+    #[must_use]
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -93,6 +94,7 @@ impl HuggingfaceDatasetLoader {
     /// The subset name must be one of the subsets listed in the dataset page.
     ///
     /// If no subset names are listed, then do not use this method.
+    #[must_use]
     pub fn with_subset(mut self, subset: &str) -> Self {
         self.subset = Some(subset.to_string());
         self
@@ -101,6 +103,7 @@ impl HuggingfaceDatasetLoader {
     /// Specify a base directory to store the dataset.
     ///
     /// If not specified, the dataset will be stored in the system cache directory under `burn-dataset`.
+    #[must_use]
     pub fn with_base_dir(mut self, base_dir: &str) -> Self {
         self.base_dir = Some(base_dir.into());
         self
@@ -109,6 +112,7 @@ impl HuggingfaceDatasetLoader {
     /// Specify a huggingface token to download datasets behind authentication.
     ///
     /// You can get a token from [tokens settings](https://huggingface.co/settings/tokens)
+    #[must_use]
     pub fn with_huggingface_token(mut self, huggingface_token: &str) -> Self {
         self.huggingface_token = Some(huggingface_token.to_string());
         self
@@ -117,6 +121,7 @@ impl HuggingfaceDatasetLoader {
     /// Specify a huggingface cache directory to store the downloaded datasets.
     ///
     /// If not specified, the dataset will be stored in the system cache directory under `huggingface/datasets`.
+    #[must_use]
     pub fn with_huggingface_cache_dir(mut self, huggingface_cache_dir: &str) -> Self {
         self.huggingface_cache_dir = Some(huggingface_cache_dir.to_string());
         self
@@ -125,8 +130,9 @@ impl HuggingfaceDatasetLoader {
     /// Specify a relative path to a subset of a dataset. This is used in some datasets for the
     /// manual steps of dataset download process.
     ///
-    /// Unless you've encountered a ManualDownloadError
+    /// Unless you've encountered a `ManualDownloadError`
     /// when loading your dataset you probably don't have to worry about this setting.
+    #[must_use]
     pub fn with_huggingface_data_dir(mut self, huggingface_data_dir: &str) -> Self {
         self.huggingface_data_dir = Some(huggingface_data_dir.to_string());
         self
@@ -135,6 +141,7 @@ impl HuggingfaceDatasetLoader {
     /// Specify whether or not to trust remote code.
     ///
     /// If not specified, trust remote code is set to true.
+    #[must_use]
     pub fn with_trust_remote_code(mut self, trust_remote_code: bool) -> Self {
         self.trust_remote_code = trust_remote_code;
         self
@@ -145,12 +152,17 @@ impl HuggingfaceDatasetLoader {
     /// `python3`'s environment is used.
     ///
     /// If not specified, the virtualenv is used.
+    #[must_use]
     pub fn with_use_python_venv(mut self, use_python_venv: bool) -> Self {
         self.use_python_venv = use_python_venv;
         self
     }
 
     /// Load the dataset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the dataset cannot be downloaded, imported, or opened.
     pub fn dataset<I: DeserializeOwned + Clone>(
         self,
         split: &str,
@@ -163,6 +175,14 @@ impl HuggingfaceDatasetLoader {
     /// Get the path to the sqlite database file.
     ///
     /// If the database file does not exist, it will be downloaded and imported.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the import process fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache directory cannot be created.
     pub fn db_file(self) -> Result<PathBuf, ImporterError> {
         // determine (and create if needed) the base directory
         let base_dir = SqliteDatasetStorage::base_dir(self.base_dir);
@@ -189,7 +209,7 @@ impl HuggingfaceDatasetLoader {
                 self.name,
                 self.subset,
                 db_file.clone(),
-                base_dir,
+                &base_dir,
                 self.huggingface_token,
                 self.huggingface_cache_dir,
                 self.huggingface_data_dir,
@@ -208,7 +228,7 @@ fn import(
     name: String,
     subset: Option<String>,
     base_file: PathBuf,
-    base_dir: PathBuf,
+    base_dir: &Path,
     huggingface_token: Option<String>,
     huggingface_cache_dir: Option<String>,
     huggingface_data_dir: Option<String>,
@@ -216,14 +236,14 @@ fn import(
     use_python_venv: bool,
 ) -> Result<(), ImporterError> {
     let python_path = if use_python_venv {
-        install_python_deps(&base_dir)?
+        install_python_deps(base_dir)?
     } else {
         get_python_name()?.into()
     };
 
     let mut command = Command::new(python_path);
 
-    command.arg(importer_script_path(&base_dir));
+    command.arg(importer_script_path(base_dir));
 
     command.arg("--name");
     command.arg(name);
@@ -290,7 +310,7 @@ fn check_python_version_is_3(python: &str) -> bool {
 /// get python3 name `python` `python3` or `py`
 fn get_python_name() -> Result<&'static str, ImporterError> {
     let python_name_list = ["python3", "python", "py"];
-    for python_name in python_name_list.iter() {
+    for python_name in &python_name_list {
         if check_python_version_is_3(python_name) {
             return Ok(python_name);
         }

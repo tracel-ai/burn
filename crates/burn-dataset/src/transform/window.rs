@@ -6,6 +6,10 @@ use crate::{Dataset, DatasetError};
 pub trait Window<I> {
     /// Creates a window of a collection.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying dataset cannot be queried.
+    ///
     /// # Returns
     ///
     /// A `Vec<I>` representing the window, or `None` if the window doesn't fit within the
@@ -96,7 +100,7 @@ impl<I> Iterator for WindowsIterator<'_, I> {
             self.current += 1;
             match window {
                 Ok(Some(window)) => return Some(Ok(window)),
-                Ok(None) => continue,
+                Ok(None) => {}
                 Err(err) => return Some(Err(err)),
             }
         }
@@ -134,6 +138,10 @@ where
     ///
     /// - `dataset`: The dataset over which windows will be created.
     /// - `size`: The size of the windows.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.
     pub fn new(dataset: D, size: usize) -> Self
     where
         D:,

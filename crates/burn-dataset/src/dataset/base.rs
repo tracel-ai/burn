@@ -16,16 +16,24 @@ where
 {
     /// Gets the item at the given index.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the item cannot be retrieved for an in-bounds index.
+    ///
     /// # Panics
     ///
     /// Panics if `index >= len()`.
     fn get(&self, index: usize) -> Result<I, E>;
 
-    /// Gets the items at given indexes
+    /// Gets the items at given indexes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any in-bounds item cannot be retrieved.
     ///
     /// # Panics
     ///
-    /// panics if `indexes[i] >= len()`
+    /// Panics if `indexes[i] >= len()`.
     fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, E> {
         let len = self.len();
         let mut items = Vec::new();

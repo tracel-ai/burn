@@ -15,7 +15,8 @@ use std::sync::Arc;
 /// # Returns
 ///
 /// A vector containing indices from 0 to size - 1.
-#[inline(always)]
+#[inline]
+#[must_use]
 pub fn iota(size: usize) -> Vec<usize> {
     (0..size).collect()
 }
@@ -29,7 +30,7 @@ pub fn iota(size: usize) -> Vec<usize> {
 /// # Returns
 ///
 /// A vector of shuffled indices.
-#[inline(always)]
+#[inline]
 pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
     let mut indices = iota(size);
     indices.shuffle(rng);
@@ -164,7 +165,7 @@ where
         R: Into<RngSource>,
     {
         let mut rng: StdRng = rng_source.into().into();
-        self.indices.shuffle(&mut rng)
+        self.indices.shuffle(&mut rng);
     }
 
     /// Creates a new dataset that is a slice of the current selection dataset.
@@ -179,6 +180,7 @@ where
     /// * `start` - The start of the range.
     /// * `end` - The end of the range (exclusive).
     // TODO: SliceArg in burn-tensor should be lifted to burn-std; this should use SliceArg.
+    #[must_use]
     pub fn slice(&self, start: usize, end: usize) -> Self {
         Self::from_indices_unchecked(self.wrapped.clone(), self.indices[start..end].to_vec())
     }
@@ -196,6 +198,7 @@ where
     /// # Returns
     ///
     /// A vector of `SelectionDataset` instances, each containing a subset of the indices.
+    #[must_use]
     pub fn split(&self, num: usize) -> Vec<Self> {
         let n = self.indices.len();
 

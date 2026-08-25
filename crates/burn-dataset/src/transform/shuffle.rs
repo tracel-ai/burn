@@ -3,10 +3,10 @@ use crate::transform::{RngSource, SelectionDataset};
 
 /// A Shuffled a dataset.
 ///
-/// This is a thin wrapper around a [SelectionDataset] which selects and shuffles
+/// This is a thin wrapper around a [`SelectionDataset`] which selects and shuffles
 /// the full indices of the original dataset.
 ///
-/// Consider using [SelectionDataset] if you are only interested in
+/// Consider using [`SelectionDataset`] if you are only interested in
 /// shuffling mechanisms.
 ///
 /// Consider using [sampler dataset](crate::transform::SamplerDataset) if you
