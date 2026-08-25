@@ -33,6 +33,7 @@ pub struct Mlp {
 
 impl Mlp {
     /// Create the module from the given configuration.
+    #[must_use]
     pub fn new(config: &MlpConfig, device: &Device) -> Self {
         let mut linears = Vec::with_capacity(config.num_layers);
 
@@ -53,10 +54,11 @@ impl Mlp {
     ///
     /// - input: `[batch_size, d_model]`
     /// - output: `[batch_size, d_model]`
+    #[must_use]
     pub fn forward(&self, input: Tensor<2>) -> Tensor<2> {
         let mut x = input;
 
-        for linear in self.linears.iter() {
+        for linear in &self.linears {
             x = linear.forward(x);
             x = self.dropout.forward(x);
             x = self.activation.forward(x);

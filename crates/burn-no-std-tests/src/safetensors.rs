@@ -8,7 +8,7 @@ use burn::{
 
 use burn_store::{ModuleSnapshot, SafetensorsStore};
 
-/// Simple model for testing SafeTensors storage
+/// Simple model for testing `SafeTensors` storage
 #[derive(Module, Debug)]
 pub struct TestModel {
     linear1: nn::Linear,
@@ -16,6 +16,7 @@ pub struct TestModel {
 }
 
 impl TestModel {
+    #[must_use]
     pub fn new(device: &Device) -> Self {
         Self {
             linear1: nn::LinearConfig::new(10, 20).init(device),
@@ -23,13 +24,18 @@ impl TestModel {
         }
     }
 
+    #[must_use]
     pub fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         let x = self.linear1.forward(x);
         self.linear2.forward(x)
     }
 }
 
-/// Test basic SafeTensors save and load in no-std
+/// Test basic `SafeTensors` save and load in no-std.
+///
+/// # Panics
+///
+/// Panics if serialization or deserialization fails.
 pub fn test_safetensors_basic(device: &Device) {
     // Create a model
     let model = TestModel::new(device);
@@ -55,7 +61,11 @@ pub fn test_safetensors_basic(device: &Device) {
     let _output = loaded_model.forward(input);
 }
 
-/// Test SafeTensors with filtering in no-std
+/// Test `SafeTensors` with filtering in no-std.
+///
+/// # Panics
+///
+/// Panics if saving the filtered model, reading bytes, or loading the partial model fails.
 pub fn test_safetensors_filtering(device: &Device) {
     let model = TestModel::new(device);
 
@@ -81,7 +91,11 @@ pub fn test_safetensors_filtering(device: &Device) {
     assert!(!result.missing.is_empty(), "Should have missing tensors");
 }
 
-/// Test SafeTensors with metadata in no-std
+/// Test `SafeTensors` with metadata in no-std.
+///
+/// # Panics
+///
+/// Panics if saving the model with metadata, reading bytes, or loading it back fails.
 pub fn test_safetensors_metadata(device: &Device) {
     let model = TestModel::new(device);
 
@@ -103,7 +117,7 @@ pub fn test_safetensors_metadata(device: &Device) {
         .expect("Failed to load model with metadata");
 }
 
-/// Run all SafeTensors no-std tests
+/// Run all `SafeTensors` no-std tests
 pub fn run_all_tests(device: &Device) {
     test_safetensors_basic(device);
     test_safetensors_filtering(device);

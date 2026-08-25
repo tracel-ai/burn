@@ -17,6 +17,7 @@ pub struct TestModel {
 }
 
 impl TestModel {
+    #[must_use]
     pub fn new(device: &Device) -> Self {
         Self {
             linear1: nn::LinearConfig::new(10, 20).init(device),
@@ -25,6 +26,7 @@ impl TestModel {
         }
     }
 
+    #[must_use]
     pub fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         let x = self.linear1.forward(x);
         let x = self.linear2.forward(x);
@@ -35,7 +37,11 @@ impl TestModel {
     }
 }
 
-/// Test basic Burnpack save and load in no-std
+/// Test basic Burnpack save and load in no-std.
+///
+/// # Panics
+///
+/// Panics if serialization or deserialization fails, or if tensor loading is unsuccessful.
 pub fn test_burnpack_basic(device: &Device) {
     // Create a model
     let model = TestModel::new(device);
@@ -65,7 +71,11 @@ pub fn test_burnpack_basic(device: &Device) {
     let _output = loaded_model.forward(input);
 }
 
-/// Test Burnpack with filtering in no-std
+/// Test Burnpack with filtering in no-std.
+///
+/// # Panics
+///
+/// Panics if saving the filtered model, reading bytes, or loading the partial model fails.
 pub fn test_burnpack_filtering(device: &Device) {
     let model = TestModel::new(device);
 
@@ -92,7 +102,11 @@ pub fn test_burnpack_filtering(device: &Device) {
     assert!(!result.missing.is_empty(), "Should have missing tensors");
 }
 
-/// Test Burnpack with metadata in no-std
+/// Test Burnpack with metadata in no-std.
+///
+/// # Panics
+///
+/// Panics if saving the model with metadata, reading bytes, or loading it back fails.
 pub fn test_burnpack_metadata(device: &Device) {
     let model = TestModel::new(device);
 
@@ -121,7 +135,11 @@ pub fn test_burnpack_metadata(device: &Device) {
 
 // Note: Regex filtering test is omitted as with_regex requires std feature
 
-/// Test Burnpack with match_all in no-std
+/// Test Burnpack with `match_all` in no-std.
+///
+/// # Panics
+///
+/// Panics if saving the model, reading bytes, or loading it back fails.
 pub fn test_burnpack_match_all(device: &Device) {
     let model = TestModel::new(device);
 

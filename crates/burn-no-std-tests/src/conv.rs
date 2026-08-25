@@ -22,6 +22,7 @@ pub struct ConvBlockConfig {
 }
 
 impl ConvBlock {
+    #[must_use]
     pub fn new(config: &ConvBlockConfig, device: &Device) -> Self {
         let conv = nn::conv::Conv2dConfig::new(config.channels, config.kernel_size)
             .with_padding(nn::PaddingConfig2d::Same)
@@ -39,6 +40,7 @@ impl ConvBlock {
         }
     }
 
+    #[must_use]
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let x = self.conv.forward(input.clone());
         let x = self.pool.forward(x);

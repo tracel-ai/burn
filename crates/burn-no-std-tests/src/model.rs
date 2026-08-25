@@ -36,6 +36,7 @@ pub struct Model {
 }
 
 impl Model {
+    #[must_use]
     pub fn new(config: &MnistConfig, device: &Device) -> Self {
         let mlp = Mlp::new(&config.mlp, device);
         let input = nn::LinearConfig::new(config.input_size, config.mlp.d_model).init(device);
@@ -51,6 +52,7 @@ impl Model {
         }
     }
 
+    #[must_use]
     pub fn forward(&self, input: Tensor<3>) -> Tensor<2> {
         let [batch_size, height, width] = input.dims();
 
