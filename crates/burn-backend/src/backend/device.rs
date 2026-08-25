@@ -20,7 +20,7 @@ use std::sync::{LazyLock, OnceLock};
 #[cfg(not(feature = "std"))]
 pub use hashbrown::HashMap;
 #[cfg(not(feature = "std"))]
-use spin::{Lazy as LazyLock, Once as OnceLock};
+use spin::{LazyLock, Once as OnceLock};
 
 use crate::Backend;
 
