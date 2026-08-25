@@ -14,6 +14,7 @@ pub trait SliceAccess: Clone + Sized {
     fn zeros_like(sample: &Self, capacity: usize, device: &Device) -> Self;
 
     /// Select rows at the given indices along the specified dimension.
+    #[must_use]
     fn select(self, dim: usize, indices: Tensor<1, Int>) -> Self;
 
     /// Assign `value` at row `index` along the first dimension, in place.

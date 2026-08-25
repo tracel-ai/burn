@@ -204,9 +204,13 @@ where
     ///
     /// * `autobatch_size` - Number of observations to accumulate before running a pass of inference.
     /// * `inner_policy` - The policy used to take actions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a thread message to the inference server cannot be sent.
     pub fn new(autobatch_size: usize, inner_policy: P) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut autobatcher = PolicyInferenceServer::new(autobatch_size, inner_policy.clone());
+        let mut autobatcher = PolicyInferenceServer::new(autobatch_size, inner_policy);
         spawn(move || {
             loop {
                 match receiver.recv() {
@@ -222,7 +226,7 @@ where
                         InferenceMessage::DecrementAgents(num) => autobatcher.decrement_agents(num),
                     },
                     Err(err) => {
-                        log::error!("Error in AsyncPolicy : {}", err);
+                        log::error!("Error in AsyncPolicy : {err}");
                         break;
                     }
                 }
@@ -235,17 +239,25 @@ where
     }
 
     /// Increment the number of agents using the inference server.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the message cannot be sent to the autobatcher.
     pub fn increment_agents(&self, num: usize) {
         self.inference_state_sender
             .send(InferenceMessage::IncrementAgents(num))
-            .expect("Can send message to autobatcher.")
+            .expect("Can send message to autobatcher.");
     }
 
     /// Decrement the number of agents using the inference server.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the message cannot be sent to the autobatcher.
     pub fn decrement_agents(&self, num: usize) {
         self.inference_state_sender
             .send(InferenceMessage::DecrementAgents(num))
-            .expect("Can send message to autobatcher.")
+            .expect("Can send message to autobatcher.");
     }
 }
 
@@ -297,7 +309,7 @@ where
     fn update(&mut self, update: Self::PolicyState) {
         self.inference_state_sender
             .send(InferenceMessage::PolicyUpdate(update))
-            .expect("AsyncPolicy should be able to send policy state.")
+            .expect("AsyncPolicy should be able to send policy state.");
     }
 
     fn state(&self) -> Self::PolicyState {

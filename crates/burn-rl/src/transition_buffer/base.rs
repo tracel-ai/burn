@@ -51,6 +51,7 @@ pub struct TransitionBuffer<SB: SliceAccess, AB: SliceAccess> {
 
 impl<SB: SliceAccess, AB: SliceAccess> TransitionBuffer<SB, AB> {
     /// Creates a new buffer. Storage is lazily allocated on the first `push`.
+    #[must_use]
     pub fn new(capacity: usize, device: &Device) -> Self {
         Self {
             states: None,
@@ -76,6 +77,10 @@ impl<SB: SliceAccess, AB: SliceAccess> TransitionBuffer<SB, AB> {
     }
 
     /// Add a transition, overwriting the oldest if full.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the buffer storage has not been initialized.
     pub fn push(&mut self, state: SB, next_state: SB, action: AB, reward: f32, done: bool) {
         self.ensure_init(&state, &next_state, &action);
 
@@ -114,15 +119,17 @@ impl<SB: SliceAccess, AB: SliceAccess> TransitionBuffer<SB, AB> {
     }
 
     /// Sample a random batch of transitions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `batch_size` is greater than the number of stored transitions.
     pub fn sample(&self, batch_size: usize) -> TransitionBatch<SB, AB> {
         assert!(batch_size <= self.len, "batch_size exceeds buffer length");
 
-        let indices = Tensor::<1>::random(
-            [batch_size],
-            Distribution::Uniform(0.0, self.len as f64),
-            &self.device,
-        )
-        .int();
+        #[allow(clippy::cast_precision_loss)]
+        let len = self.len as f64;
+        let indices =
+            Tensor::<1>::random([batch_size], Distribution::Uniform(0.0, len), &self.device).int();
 
         TransitionBatch {
             states: self
@@ -154,6 +161,7 @@ impl<SB: SliceAccess, AB: SliceAccess> TransitionBuffer<SB, AB> {
     }
 
     /// Current number of stored transitions.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.len
     }

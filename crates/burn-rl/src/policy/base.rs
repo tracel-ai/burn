@@ -21,6 +21,7 @@ pub trait PolicyState {
     /// Convert the state to a record.
     fn into_record(self) -> Self::Record;
     /// Load the state from a record.
+    #[must_use]
     fn load_record(&self, record: Self::Record) -> Self;
 }
 
@@ -65,8 +66,10 @@ pub trait Policy: Clone {
     fn state(&self) -> Self::PolicyState;
 
     /// Loads the policy on the given device.
+    #[must_use]
     fn to_device(self, device: &Device) -> Self;
     /// Loads the policy parameters from a record.
+    #[must_use]
     fn load_record(self, record: <Self::PolicyState as PolicyState>::Record) -> Self;
 }
 
@@ -86,7 +89,7 @@ pub struct RLTrainOutput<TO, P> {
     pub item: TO,
 }
 
-/// Batched transitions for a PolicyLearner.
+/// Batched transitions for a `PolicyLearner`.
 pub type LearnerTransitionBatch<P> =
     TransitionBatch<<P as Policy>::Observation, <P as Policy>::Action>;
 
@@ -116,6 +119,7 @@ where
     /// Convert the learner's state into a record.
     fn record(&self) -> Self::Record;
     /// Load the learner's state from a record.
+    #[must_use]
     fn load_record(self, record: Self::Record) -> Self;
     /// Returns the device used for training.
     fn device(&self) -> Device;
