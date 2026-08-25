@@ -38,7 +38,7 @@ impl ModuleCodegen for StructModuleCodegen {
 
     fn gen_visit(&self) -> TokenStream {
         let struct_name = self.name.to_string();
-        let container_type = format!("Struct:{}", struct_name);
+        let container_type = format!("Struct:{struct_name}");
         let body = self.gen_fields_fn(|name, field_type| {
             if field_type.is_parameter_module() || field_type.maybe_generic_module() {
                 let name_str = name.to_string();
@@ -121,7 +121,7 @@ impl ModuleCodegen for StructModuleCodegen {
 
     fn gen_map(&self) -> TokenStream {
         let struct_name = self.name.to_string();
-        let container_type = format!("Struct:{}", struct_name);
+        let container_type = format!("Struct:{struct_name}");
         let (names, body) = self.gen_fields_fn_names(|name, field_type| {
             if field_type.is_parameter_module() || field_type.maybe_generic_module() {
                 let name_str = name.to_string();
@@ -248,7 +248,7 @@ impl StructModuleCodegen {
         let mut body = quote! {};
         let mut names = Vec::new();
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             let name = field.ident();
 
             names.push(name.clone());
@@ -264,7 +264,7 @@ impl StructModuleCodegen {
     {
         let mut body = quote! {};
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             body.extend(func(field.ident(), &field.field_type));
         }
 
@@ -327,7 +327,7 @@ pub(crate) fn parse_module_fields(
 
     match &ast.data {
         syn::Data::Struct(struct_data) => {
-            for field in struct_data.fields.iter() {
+            for field in &struct_data.fields {
                 let field_type = parse_module_field_type(field, generics)?;
                 if field_type.is_module {
                     module_generics.extend(field_type.generic_idents.iter().cloned());
@@ -337,9 +337,8 @@ pub(crate) fn parse_module_fields(
                 fields.push(ModuleField::new(field.clone(), field_type));
             }
         }
-        syn::Data::Enum(_) => panic!("Only struct can be derived"),
-        syn::Data::Union(_) => panic!("Only struct can be derived"),
-    };
+        syn::Data::Enum(_) | syn::Data::Union(_) => panic!("Only struct can be derived"),
+    }
 
     for ident in module_generics.intersection(&skip_generics) {
         if let Some(param) = ast.generics.params.iter().find_map(|p| match p {
@@ -390,7 +389,7 @@ pub(crate) fn parse_module_field_type(
                     Ok(())
                 } else {
                     let path = meta.path.to_token_stream().to_string();
-                    Err(meta.error(format!("Unsupported module attribute: {}", path)))
+                    Err(meta.error(format!("Unsupported module attribute: {path}")))
                 }?;
 
                 if is_param && field_type.attr.is_some() {
@@ -446,9 +445,8 @@ fn is_primitive_type(ty: &syn::Type) -> bool {
     match ty {
         // e.g. usize, String, or Option<T>
         syn::Type::Path(type_path) => {
-            let segment = match type_path.path.segments.last() {
-                Some(seg) => seg,
-                None => return false,
+            let Some(segment) = type_path.path.segments.last() else {
+                return false;
             };
 
             let ident = segment.ident.to_string();

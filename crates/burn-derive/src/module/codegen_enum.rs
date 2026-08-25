@@ -95,7 +95,7 @@ impl ModuleCodegen for EnumModuleCodegen {
 
     fn gen_map(&self) -> TokenStream {
         let enum_name = self.name.to_string();
-        let container_type = format!("Enum:{}", enum_name);
+        let container_type = format!("Enum:{enum_name}");
         let match_body = self.gen_variants_match_fn(|variant| {
             let variant_str = variant.to_string();
             quote! {
@@ -248,14 +248,13 @@ pub(crate) fn parse_variants(
     ast: &syn::DeriveInput,
     generics: &mut ModuleGenerics,
 ) -> syn::Result<Vec<EnumVariant>> {
-    let enum_data = match &ast.data {
-        syn::Data::Enum(data) => data,
-        _ => return Err(syn::Error::new_spanned(ast, "Only enums are supported")),
+    let syn::Data::Enum(enum_data) = &ast.data else {
+        return Err(syn::Error::new_spanned(ast, "Only enums are supported"));
     };
 
     let mut variants = Vec::new();
 
-    for variant in enum_data.variants.iter() {
+    for variant in &enum_data.variants {
         for attr in &variant.attrs {
             if attr.path().is_ident("module") {
                 Err(syn::Error::new_spanned(

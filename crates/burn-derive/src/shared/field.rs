@@ -29,14 +29,14 @@ impl FieldTypeAnalyzer {
     #[allow(dead_code)]
     pub fn first_generic_field(&self) -> TypePath {
         let err = || panic!("Field {} as no generic", self.field.ident.clone().unwrap());
-        match &self.field.ty {
-            syn::Type::Path(path) => Self::path_generic_argument(path),
-            _ => err(),
-        }
+        let syn::Type::Path(path) = &self.field.ty else {
+            return err();
+        };
+        Self::path_generic_argument(path)
     }
     pub fn path_generic_argument(path: &TypePath) -> TypePath {
         let segment = path.path.segments.last().unwrap();
-        let err = || panic!("Path segment {} has no generic", segment.ident.clone(),);
+        let err = || panic!("Path segment {} has no generic", segment.ident.clone());
         match &segment.arguments {
             syn::PathArguments::None => err(),
             syn::PathArguments::AngleBracketed(param) => {

@@ -30,8 +30,7 @@ impl ModuleGenerics {
     pub fn is_bounded_module(&self, ident: &Ident) -> bool {
         self.kinds
             .get(ident)
-            .map(|kind| matches!(kind, GenericKind::Module))
-            .unwrap_or(false)
+            .is_some_and(|kind| matches!(kind, GenericKind::Module))
     }
 
     pub fn update(&mut self, ident: &Ident, kind: GenericKind) {
@@ -107,8 +106,8 @@ pub fn parse_ty_generics(ty: &Type, declared: &ModuleGenerics) -> HashSet<Ident>
         declared: &'a ModuleGenerics,
     }
 
-    impl<'ast, 'a> Visit<'ast> for Collector<'a> {
-        fn visit_type_path(&mut self, type_path: &'ast syn::TypePath) {
+    impl Visit<'_> for Collector<'_> {
+        fn visit_type_path(&mut self, type_path: &syn::TypePath) {
             if type_path.qself.is_none()
                 && let Some(ident) = type_path.path.get_ident()
                 && (self.declared.contains(ident))
