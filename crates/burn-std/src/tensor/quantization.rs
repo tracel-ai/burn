@@ -458,8 +458,8 @@ fn encode_scales(scales: &[f32], dtype: ScaleDtype) -> Vec<u8> {
             .iter()
             .map(|s| e4m3::from_f32(*s).to_bits())
             .collect(),
-        // `ue8m0::from_f32` rounds up, which is the rule for a scale and matches
-        // `scale_to_dtype`; a scale reaching here has already been rounded onto the grid anyway.
+        // `f32_to_ue8m0` rounds up, which is the rule for a scale and matches `scale_to_dtype`;
+        // a scale reaching here has already been rounded onto the grid anyway.
         ScaleDtype::UE8M0 => scales.iter().map(|s| f32_to_ue8m0(*s)).collect(),
     }
 }
@@ -641,6 +641,7 @@ mod tests {
             ScaleDtype::F16,
             ScaleDtype::BF16,
             ScaleDtype::UE4M3,
+            ScaleDtype::UE8M0,
         ] {
             let rounded: Vec<f32> = scales.iter().map(|s| scale_to_dtype(*s, dtype)).collect();
             let via_codec = decode_scales(&encode_scales(&rounded, dtype), dtype);
@@ -783,6 +784,7 @@ mod tests {
     /// wider or narrower than it claims silently misreads every scale.
     #[test]
     fn encoded_scale_width_matches_scale_size() {
+        // Powers of two, so `ue8m0` carries them exactly like the wider dtypes do.
         let scales = [0.5f32, 0.25, 0.125];
 
         for dtype in [
@@ -790,6 +792,7 @@ mod tests {
             ScaleDtype::F16,
             ScaleDtype::BF16,
             ScaleDtype::UE4M3,
+            ScaleDtype::UE8M0,
         ] {
             assert_eq!(
                 encode_scales(&scales, dtype).len(),
