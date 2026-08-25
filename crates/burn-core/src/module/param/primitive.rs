@@ -14,7 +14,7 @@ where
 {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         if let Some(module) = self {
-            module.visit(visitor)
+            module.visit(visitor);
         }
     }
 
@@ -55,7 +55,7 @@ where
     T: AutodiffModule + Debug + Send + Clone,
 {
     fn valid(&self) -> Self {
-        self.as_ref().map(|module| module.valid())
+        self.as_ref().map(super::super::base::AutodiffModule::valid)
     }
 
     fn from_inner(module: Self) -> Self {
@@ -69,7 +69,7 @@ where
 {
     fn num_params(&self) -> usize {
         let mut num_params = 0;
-        for module in self.iter() {
+        for module in self {
             num_params += module.num_params();
         }
 
@@ -78,7 +78,7 @@ where
 
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         for (i, module) in self.iter().enumerate() {
-            let index_str = alloc::format!("{}", i);
+            let index_str = alloc::format!("{i}");
             visitor.enter_module(&index_str, "Vec");
             module.visit(visitor);
             visitor.exit_module(&index_str, "Vec");
@@ -89,7 +89,7 @@ where
         self.into_iter()
             .enumerate()
             .map(|(i, module)| {
-                let index_str = alloc::format!("{}", i);
+                let index_str = alloc::format!("{i}");
                 mapper.enter_module(&index_str, "Vec");
                 let mapped = module.map(mapper);
                 mapper.exit_module(&index_str, "Vec");
@@ -109,7 +109,7 @@ where
     }
 
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
-        for module in self.iter() {
+        for module in self {
             devices = module.collect_devices(devices);
         }
 
@@ -137,7 +137,9 @@ where
     T: AutodiffModule + Debug + Send + Clone,
 {
     fn valid(&self) -> Self {
-        self.iter().map(|module| module.valid()).collect()
+        self.iter()
+            .map(super::super::base::AutodiffModule::valid)
+            .collect()
     }
 
     fn from_inner(module: Self) -> Self {
@@ -153,7 +155,7 @@ where
     T: Module + Debug + Send + Clone,
 {
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
-        for module in self.iter() {
+        for module in self {
             devices = module.collect_devices(devices);
         }
 
@@ -162,7 +164,7 @@ where
 
     fn num_params(&self) -> usize {
         let mut num_params = 0;
-        for module in self.iter() {
+        for module in self {
             num_params += module.num_params();
         }
 
@@ -171,7 +173,7 @@ where
 
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         for (i, module) in self.iter().enumerate() {
-            let index_str = alloc::format!("{}", i);
+            let index_str = alloc::format!("{i}");
             visitor.enter_module(&index_str, "Array");
             module.visit(visitor);
             visitor.exit_module(&index_str, "Array");
@@ -181,7 +183,7 @@ where
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         let mut result = Vec::with_capacity(N);
         for (i, module) in IntoIterator::into_iter(self).enumerate() {
-            let index_str = alloc::format!("{}", i);
+            let index_str = alloc::format!("{i}");
             mapper.enter_module(&index_str, "Array");
             let mapped = module.map(mapper);
             mapper.exit_module(&index_str, "Array");

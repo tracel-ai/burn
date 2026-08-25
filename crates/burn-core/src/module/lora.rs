@@ -2,12 +2,12 @@ use burn_tensor::{Distribution, FloatDType, Tensor};
 
 use crate::module::{LoraAdapter, Param, ParamGroup, Quantizer, Reparameterizer};
 
-/// A [`Reparameterizer`] that attaches LoRA adapters to 2-D weight parameters.
+/// A [`Reparameterizer`] that attaches `LoRA` adapters to 2-D weight parameters.
 ///
 /// It is applied via [`Module::apply_lora`](crate::module::Module::apply_lora).
 ///
 /// All existing floating-point parameters are frozen. Matching rank-2 parameters receive
-/// trainable LoRA [adapter](LoraAdapter)s; other parameters remain frozen without adapters. No
+/// trainable `LoRA` [adapter](LoraAdapter)s; other parameters remain frozen without adapters. No
 /// model or layer code needs to change—the same `Linear` (and any other module) keeps working, now
 /// producing `base + scale * (a @ b)` for adapted weights.
 #[derive(Debug, Clone)]
@@ -23,12 +23,12 @@ pub struct Lora {
     /// half precision over a packed base must say so here — the factors meet
     /// its activations and gradients in elementwise ops that do not promote.
     pub dtype: Option<FloatDType>,
-    /// The parameter group on which to apply the LoRA.
+    /// The parameter group on which to apply the `LoRA`.
     pub param_group: ParamGroup,
 }
 
 impl Lora {
-    /// Create a new LoRA reparameterizer with the given rank and alpha.
+    /// Create a new `LoRA` reparameterizer with the given rank and alpha.
     pub fn new(rank: usize, alpha: f64) -> Self {
         Self {
             rank,
@@ -39,7 +39,7 @@ impl Lora {
         }
     }
 
-    /// Set the parameter group on which to apply LoRA adapters.
+    /// Set the parameter group on which to apply `LoRA` adapters.
     pub fn set_param_group(mut self, group: ParamGroup) -> Self {
         self.param_group = group;
         self
@@ -121,8 +121,8 @@ impl Reparameterizer for Lora {
     }
 }
 
-/// A [`Reparameterizer`] implementing QLoRA: it quantizes the (frozen) base weights and
-/// attaches full-precision trainable LoRA adapters to 2-D weights.
+/// A [`Reparameterizer`] implementing `QLoRA`: it quantizes the (frozen) base weights and
+/// attaches full-precision trainable `LoRA` adapters to 2-D weights.
 ///
 /// It is applied via [`Module::apply_qlora`](crate::module::Module::apply_qlora).
 ///
@@ -134,7 +134,7 @@ pub struct QLora {
 }
 
 impl QLora {
-    /// Create a new QLoRA reparameterizer from LoRA settings and a quantizer.
+    /// Create a new `QLoRA` reparameterizer from `LoRA` settings and a quantizer.
     pub fn new(lora: Lora, quantizer: Quantizer) -> Self {
         Self { lora, quantizer }
     }

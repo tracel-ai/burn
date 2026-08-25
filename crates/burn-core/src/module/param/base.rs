@@ -61,7 +61,7 @@ fn new_init_fn<P: Parameter, F: FnOnce(&Device, bool) -> P + Send + Sync + 'stat
 /// The transition from uninitialized to initialized happens exactly once and is synchronized
 /// across all clones.
 pub(crate) struct LazyInitState<T: Parameter> {
-    /// The SyncOnceCell holding the initialized parameter value.
+    /// The `SyncOnceCell` holding the initialized parameter value.
     /// Empty for uninitialized parameters, populated after first access or explicit initialization.
     pub value: SyncOnceCell<T>,
     /// The deferred initialization state for lazy parameters.
@@ -259,7 +259,7 @@ pub(crate) struct Uninitialized<P: Parameter> {
 impl<P: Parameter> Uninitialized<P> {
     /// Runs the initialization function.
     ///
-    /// This is called by [Param::val] when accessing an uninitialized parameter for the first time.
+    /// This is called by [`Param::val`] when accessing an uninitialized parameter for the first time.
     /// The function is given the stored device and gradient requirement, and returns the initialized parameter.
     fn initialize(self) -> P {
         (self.init)(&self.device, self.is_require_grad)
@@ -334,7 +334,7 @@ impl<T: Parameter> Param<T> {
         self.reparameterization_dyn()?.as_any().downcast_ref()
     }
 
-    /// The LoRA [adapter](LoraAdapter) attached to this parameter, if any.
+    /// The `LoRA` [adapter](LoraAdapter) attached to this parameter, if any.
     pub fn adapter(&self) -> Option<&LoraAdapter> {
         self.reparameterization()
     }
@@ -404,7 +404,7 @@ impl<T: Parameter> Param<T> {
     /// Create an initialized parameter with the given id, value, and param mapper.
     ///
     /// This is a helper method for creating parameters while preserving the param mapper,
-    /// typically used in ModuleMapper implementations.
+    /// typically used in `ModuleMapper` implementations.
     pub fn from_mapped_value(id: ParamId, value: T, param_mapper: ParamMapper<T>) -> Self {
         let require_grad = value.is_require_grad();
         Self {
@@ -485,7 +485,7 @@ impl<T: Parameter> Param<T> {
     /// we need to know the target device to move the loaded tensor appropriately, but we don't want to
     /// trigger the initialization function (which would allocate an unnecessary tensor).
     ///
-    /// Use this instead of [crate::tensor::Tensor::device] when you need the device but want to
+    /// Use this instead of [`crate::tensor::Tensor::device`] when you need the device but want to
     /// preserve lazy initialization.
     pub fn lazy_device(&self) -> Device {
         let initialization = match &self.state.initialization {
@@ -503,7 +503,7 @@ impl<T: Parameter> Param<T> {
 
     /// The gradient requirement on which the parameter is or will be initialized, **without triggering initialization**.
     ///
-    /// Similar to [lazy_device](Self::lazy_device), this is critical for the load optimization.
+    /// Similar to [`lazy_device`](Self::lazy_device), this is critical for the load optimization.
     /// When loading tensors into an uninitialized parameter, we need to apply the correct gradient
     /// setting to the loaded tensor without triggering the initialization function.
     ///
@@ -556,7 +556,7 @@ impl<T: Parameter> Param<T> {
     /// uninitialized parameter, we need to validate the shape without triggering the
     /// initialization function (which would allocate an unnecessary tensor).
     ///
-    /// Use this instead of [crate::tensor::Tensor::shape] when you need the shape but want to
+    /// Use this instead of [`crate::tensor::Tensor::shape`] when you need the shape but want to
     /// preserve lazy initialization.
     pub fn lazy_shape(&self) -> burn_tensor::Shape {
         let initialization = match &self.state.initialization {
@@ -576,7 +576,7 @@ impl<T: Parameter> Param<T> {
     ///
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
     /// It ensures the tensor is moved to the expected device, applies the param mapper's
-    /// `on_load` transformation, and preserves the autodiff settings (require_grad).
+    /// `on_load` transformation, and preserves the autodiff settings (`require_grad`).
     pub fn transform_for_load(self, tensor: T, param_id: ParamId) -> Self {
         let mut new_tensor = tensor;
 

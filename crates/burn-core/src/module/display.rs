@@ -29,8 +29,8 @@ pub trait ModuleDisplayDefault {
 /// Trait to implement custom display settings for a module.
 ///
 /// In order to implement custom display settings for a module,
-/// 1. Add #[module(custom_display)] attribute to the module struct after #[derive(Module)]
-/// 2. Implement ModuleDisplay trait for the module
+/// 1. Add #[`module(custom_display)`] attribute to the module struct after #[derive(Module)]
+/// 2. Implement `ModuleDisplay` trait for the module
 pub trait ModuleDisplay: ModuleDisplayDefault {
     /// Formats the module with provided display settings.
     ///
@@ -57,7 +57,10 @@ pub trait ModuleDisplay: ModuleDisplayDefault {
 
         // Use custom content if it is implemented and show_all_attributes is false,
         // otherwise use default content
-        let content = if !settings.show_all_attributes() {
+        let content = if settings.show_all_attributes() {
+            self.content(Content::new(settings.clone()))
+                .unwrap_or_else(|| panic!("Default content should be implemented for {self_type}."))
+        } else {
             self.custom_content(Content::new(settings.clone()))
                 .unwrap_or_else(|| {
                     self.content(Content::new(settings.clone()))
@@ -65,9 +68,6 @@ pub trait ModuleDisplay: ModuleDisplayDefault {
                             panic!("Default content should be implemented for {self_type}.")
                         })
                 })
-        } else {
-            self.content(Content::new(settings.clone()))
-                .unwrap_or_else(|| panic!("Default content should be implemented for {self_type}."))
         };
 
         let top_level_type = if let Some(top_level_type) = content.top_level_type {
@@ -297,7 +297,7 @@ impl DisplaySettings {
         updated
     }
 
-    /// A convenience method to wrap the DisplaySettings struct in an option.
+    /// A convenience method to wrap the `DisplaySettings` struct in an option.
     ///
     /// # Returns
     ///

@@ -34,7 +34,7 @@ impl Quantizer {
 
     /// Set the parameter group to quantize.
     pub fn set_param_group(&mut self, group: ParamGroup) {
-        self.group = group
+        self.group = group;
     }
 
     pub(crate) fn map_float_at_path<const D: usize>(

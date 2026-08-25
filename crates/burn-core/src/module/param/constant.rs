@@ -117,7 +117,7 @@ impl<const D: usize, K: Basic> Module for Tensor<D, K> {
         let device = self.device();
 
         if !devices.contains(&device) {
-            devices.push(device)
+            devices.push(device);
         }
 
         devices

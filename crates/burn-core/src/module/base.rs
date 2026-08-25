@@ -115,7 +115,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// # Notes
     ///
-    /// This is similar to [to_device](Module::to_device), but it ensures the output module on the
+    /// This is similar to [`to_device`](Module::to_device), but it ensures the output module on the
     /// new device will have its own autodiff graph.
     fn fork(self, device: &Device) -> Self;
 
@@ -146,12 +146,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Set `require_grad` to `false` for every parameter in the given group, leaving the rest
     /// of the module untouched.
     ///
-    /// This is the group-scoped counterpart to [no_grad](Module::no_grad): where `no_grad` freezes
+    /// This is the group-scoped counterpart to [`no_grad`](Module::no_grad): where `no_grad` freezes
     /// the whole module tree, `freeze_group` freezes only the parameters matched by `group`.  
     ///
     /// # Warnings
     ///
-    /// Like [no_grad](Module::no_grad), this should not be used for inference; use
+    /// Like [`no_grad`](Module::no_grad), this should not be used for inference; use
     /// [valid](AutodiffModule::valid) with AD modules instead.
     fn freeze_group(self, group: ParamGroup) -> Self {
         module!(
@@ -164,7 +164,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Set `require_grad` to `true` for every parameter in the given group, leaving the rest
     /// of the module untouched.
     ///
-    /// The inverse of [freeze_group](Module::freeze_group): it re-enables gradient tracking for the
+    /// The inverse of [`freeze_group`](Module::freeze_group): it re-enables gradient tracking for the
     /// parameters matched by `group`, e.g. to unfreeze a previously frozen module.
     fn unfreeze_group(self, group: ParamGroup) -> Self {
         module!(
@@ -234,7 +234,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         self.map(&mut ApplyReparameterization::new(reparameterizer))
     }
 
-    /// Attach LoRA adapters to the module's 2-D weights, freezing the base weights.
+    /// Attach `LoRA` adapters to the module's 2-D weights, freezing the base weights.
     ///
     /// The same module keeps working without any code changes; adapted weights now produce
     /// `base + scale * (a @ b)`, and only the adapter factors are trainable.
@@ -245,7 +245,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         self.apply_reparameterization(lora)
     }
 
-    /// Apply QLoRA to the module: quantize the (frozen) base weights and attach trainable LoRA
+    /// Apply `QLoRA` to the module: quantize the (frozen) base weights and attach trainable `LoRA`
     /// adapters to 2-D weights.
     fn apply_qlora(self, qlora: QLora) -> Self
     where
@@ -388,7 +388,7 @@ pub trait ModuleVisitor {
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
     ///
-    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// Note: Option containers do not call `enter_module/exit_module` to preserve
     /// the field name in the path (e.g., "bias" instead of "bias.Some")
     #[allow(unused_variables)]
     fn enter_module(&mut self, name: &str, container_type: &str) {}
@@ -404,7 +404,7 @@ pub trait ModuleVisitor {
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
     ///
-    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// Note: Option containers do not call `enter_module/exit_module` to preserve
     /// the field name in the path (e.g., "bias" instead of "bias.Some")
     #[allow(unused_variables)]
     fn exit_module(&mut self, name: &str, container_type: &str) {}
@@ -474,7 +474,7 @@ pub trait ModuleMapper {
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
     ///
-    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// Note: Option containers do not call `enter_module/exit_module` to preserve
     /// the field name in the path (e.g., "bias" instead of "bias.Some")
     #[allow(unused_variables)]
     fn enter_module(&mut self, name: &str, container_type: &str) {}
@@ -490,7 +490,7 @@ pub trait ModuleMapper {
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
     ///
-    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// Note: Option containers do not call `enter_module/exit_module` to preserve
     /// the field name in the path (e.g., "bias" instead of "bias.Some")
     #[allow(unused_variables)]
     fn exit_module(&mut self, name: &str, container_type: &str) {}

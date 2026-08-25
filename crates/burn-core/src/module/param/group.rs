@@ -13,7 +13,7 @@ use regex::Regex;
 use burn_std::id::ParamId;
 use burn_tensor::{Bool, Int, Tensor};
 
-/// Errors tied to [ParamGroup]'s.
+/// Errors tied to [`ParamGroup`]'s.
 #[derive(Debug)]
 pub enum ParamGroupError {
     /// Use of an invalid Regex pattern.
@@ -85,7 +85,7 @@ impl ParamGroup {
     pub fn from_paths(paths: Vec<impl Into<String>>) -> Self {
         Self {
             matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Exact(
-                paths.into_iter().map(|p| p.into()).collect(),
+                paths.into_iter().map(std::convert::Into::into).collect(),
             ))),
             excludes: None,
         }
@@ -101,7 +101,7 @@ impl ParamGroup {
     pub fn from_predicates(paths: Vec<impl Into<String>>) -> Self {
         Self {
             matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Include(
-                paths.into_iter().map(|p| p.into()).collect(),
+                paths.into_iter().map(std::convert::Into::into).collect(),
             ))),
             excludes: None,
         }
@@ -123,9 +123,9 @@ impl ParamGroup {
             };
         };
 
-        matchers
-            .iter()
-            .for_each(|m| main_matcher = main_matcher.clone().fuse(m));
+        for m in &matchers {
+            main_matcher = main_matcher.clone().fuse(m);
+        }
 
         Self {
             matcher: main_matcher,
@@ -137,7 +137,7 @@ impl ParamGroup {
     /// Matches parameters by regex pattern (e.g., "^model\.layer\.\d+$")
     ///
     /// # Errors
-    /// Returns a [ParamGroupError::InvalidPatternError] if the string cannot be compiled into a valid regex.
+    /// Returns a [`ParamGroupError::InvalidPatternError`] if the string cannot be compiled into a valid regex.
     pub fn from_regex<S: AsRef<str>>(pattern: S) -> Result<Self, ParamGroupError> {
         ParamGroup::from_regexes(vec![pattern])
     }
@@ -147,7 +147,7 @@ impl ParamGroup {
     /// (e.g., "^encoder\.layer\.\d+", and "bias$" )
     ///
     /// # Errors
-    /// Returns a [ParamGroupError::InvalidPatternError] if the strings cannot be compiled into a valid regex.
+    /// Returns a [`ParamGroupError::InvalidPatternError`] if the strings cannot be compiled into a valid regex.
     pub fn from_regexes<S: AsRef<str>>(patterns: Vec<S>) -> Result<Self, ParamGroupError> {
         let mut new_patterns = vec![];
         for pattern in patterns {
@@ -171,7 +171,7 @@ impl ParamGroup {
     /// (e.g., "^encoder\.layer\.\d+$", or "^decoder\.layer\.\d+$" )
     ///
     /// # Errors
-    /// Returns a [ParamGroupError::InvalidPatternError] if the strings cannot be compiled into a valid regex.
+    /// Returns a [`ParamGroupError::InvalidPatternError`] if the strings cannot be compiled into a valid regex.
     pub fn from_any_regexes<S: AsRef<str>>(patterns: Vec<S>) -> Result<Self, ParamGroupError> {
         let mut matchers = vec![];
         for pattern in patterns {
@@ -179,7 +179,7 @@ impl ParamGroup {
                 Ok(re) => {
                     matchers.push(ParamGroupMatcher::Path(Arc::new(PathMatcher::Regex(vec![
                         re,
-                    ]))))
+                    ]))));
                 }
                 Err(e) => {
                     return Err(ParamGroupError::InvalidPatternError(format!(
@@ -198,9 +198,9 @@ impl ParamGroup {
             });
         };
 
-        matchers
-            .iter()
-            .for_each(|m| main_matcher = main_matcher.clone().fuse(m));
+        for m in &matchers {
+            main_matcher = main_matcher.clone().fuse(m);
+        }
 
         Ok(Self {
             matcher: main_matcher,
@@ -350,7 +350,7 @@ mod regex_serde {
     where
         S: Serializer,
     {
-        let v: Vec<&str> = regexes.iter().map(|r| r.as_str()).collect();
+        let v: Vec<&str> = regexes.iter().map(regex::Regex::as_str).collect();
         v.serialize(serializer)
     }
 

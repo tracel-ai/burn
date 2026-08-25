@@ -4,7 +4,7 @@ use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
     ModuleVisitor,
 };
-use alloc::{boxed::Box, format, string::ToString, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
 
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
@@ -36,10 +36,10 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
     }
 
     fn load_to_device(self, device: &Device) -> Self {
-        if self.device() != *device {
-            Tensor::to_device(self, device).detach()
-        } else {
+        if self.device() == *device {
             self
+        } else {
+            Tensor::to_device(self, device).detach()
         }
     }
 }
@@ -62,10 +62,10 @@ impl<const D: usize> Parameter for Tensor<D, Int> {
     }
 
     fn load_to_device(self, device: &Device) -> Self {
-        if self.device() != *device {
-            Tensor::to_device(self, device)
-        } else {
+        if self.device() == *device {
             self
+        } else {
+            Tensor::to_device(self, device)
         }
     }
 }
@@ -88,10 +88,10 @@ impl<const D: usize> Parameter for Tensor<D, Bool> {
     }
 
     fn load_to_device(self, device: &Device) -> Self {
-        if self.device() != *device {
-            Tensor::to_device(self, device)
-        } else {
+        if self.device() == *device {
             self
+        } else {
+            Tensor::to_device(self, device)
         }
     }
 }
@@ -101,7 +101,7 @@ impl<const D: usize> Param<Tensor<D>> {
     ///
     /// # Warnings
     ///
-    /// We strongly recommend using [Param::uninitialized] if you are using this method to
+    /// We strongly recommend using [`Param::uninitialized`] if you are using this method to
     /// initialize parameters inside a module, since the tensor initialization will be lazy,
     /// making the loading of weights more performant.
     pub fn from_tensor(value: Tensor<D>) -> Self {
@@ -195,7 +195,7 @@ impl<const D: usize> Module for Param<Tensor<D>> {
         let device = self.base().device();
 
         if !devices.contains(&device) {
-            devices.push(device)
+            devices.push(device);
         }
 
         if let Some(reparameterization) = self.reparameterization_dyn() {
@@ -211,7 +211,7 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D>> {
         let id = if content.display_settings.show_param_id() {
             format!(", id: {}", self.id)
         } else {
-            "".to_string()
+            String::new()
         };
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: float{id}}}",
@@ -224,7 +224,7 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D>> {}
 
 impl<const D: usize> Module for Param<Tensor<D, Int>> {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
-        visitor.visit_int(self)
+        visitor.visit_int(self);
     }
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
@@ -243,7 +243,7 @@ impl<const D: usize> Module for Param<Tensor<D, Int>> {
         let device = self.val().device();
 
         if !devices.contains(&device) {
-            devices.push(device)
+            devices.push(device);
         }
 
         devices
@@ -255,7 +255,7 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Int>> {
         let id = if content.display_settings.show_param_id() {
             format!(", id: {}", self.id)
         } else {
-            "".to_string()
+            String::new()
         };
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: int{id}}}",
@@ -268,7 +268,7 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D, Int>> {}
 
 impl<const D: usize> Module for Param<Tensor<D, Bool>> {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
-        visitor.visit_bool(self)
+        visitor.visit_bool(self);
     }
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
@@ -287,7 +287,7 @@ impl<const D: usize> Module for Param<Tensor<D, Bool>> {
         let device = self.val().device();
 
         if !devices.contains(&device) {
-            devices.push(device)
+            devices.push(device);
         }
 
         devices
@@ -299,7 +299,7 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Bool>> {
         let id = if content.display_settings.show_param_id() {
             format!(", id: {}", self.id)
         } else {
-            "".to_string()
+            String::new()
         };
 
         let string = format!(

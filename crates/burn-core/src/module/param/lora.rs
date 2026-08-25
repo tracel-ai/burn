@@ -3,7 +3,7 @@ use crate as burn;
 use crate::module::Module;
 use burn_tensor::Tensor;
 
-/// A LoRA (Low-Rank Adaptation) adapter attached to a frozen weight [parameter](Param).
+/// A `LoRA` (Low-Rank Adaptation) adapter attached to a frozen weight [parameter](Param).
 ///
 /// When present on a `Param<Tensor<2>>`, the parameter materializes its effective value as
 /// `base + scale * (a @ b)`, where `base` is the frozen (and optionally quantized) weight and

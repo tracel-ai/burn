@@ -304,19 +304,19 @@ impl<V: ModuleVisitor> DynModuleVisitor for DynVisitor<'_, V> {
     fn visit_float(&mut self, param: DynParamRef<'_>) {
         dispatch_rank!(param.rank, D => {
             self.visitor.visit_float(param.value.downcast_ref::<Param<Tensor<D>>>().unwrap());
-        })
+        });
     }
 
     fn visit_int(&mut self, param: DynParamRef<'_>) {
         dispatch_rank!(param.rank, D => {
             self.visitor.visit_int(param.value.downcast_ref::<Param<Tensor<D, Int>>>().unwrap());
-        })
+        });
     }
 
     fn visit_bool(&mut self, param: DynParamRef<'_>) {
         dispatch_rank!(param.rank, D => {
             self.visitor.visit_bool(param.value.downcast_ref::<Param<Tensor<D, Bool>>>().unwrap());
-        })
+        });
     }
 
     fn enter_module(&mut self, name: &str, container_type: &str) {

@@ -75,7 +75,7 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         let tensor = self.value.lock();
         let param = Param::initialized(self.id, tensor.clone());
-        visitor.visit_float(&param)
+        visitor.visit_float(&param);
     }
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
@@ -108,7 +108,7 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
         let device = self.value.lock().device();
 
         if !devices.contains(&device) {
-            devices.push(device)
+            devices.push(device);
         }
 
         devices

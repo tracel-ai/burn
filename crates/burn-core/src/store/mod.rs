@@ -324,7 +324,7 @@ impl ModuleVisitor for Collector {
 /// save/load cycles.
 struct ModuleRecordMapper {
     path: Vec<String>,
-    /// Map from module path to (persisted ParamId, tensor data).
+    /// Map from module path to (persisted `ParamId`, tensor data).
     tensors: HashMap<String, (ParamId, TensorData)>,
     dtype_policy: DTypePolicy,
     missing: Vec<String>,
