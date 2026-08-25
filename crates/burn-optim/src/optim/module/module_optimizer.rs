@@ -32,7 +32,7 @@ struct OptimizerGroup {
 
 impl OptimizerGroup {
     pub(crate) fn set_gradient_clipping(&mut self, gradient_clipping: GradientClipping) {
-        self.grad_clipping = Some(gradient_clipping)
+        self.grad_clipping = Some(gradient_clipping);
     }
 }
 
@@ -53,7 +53,7 @@ struct OptimizationContext {
 /// `OptimizerConfig::init()`.
 ///
 /// It is possible to use different optimizers for different parameters. To do so, use the
-/// [ModuleOptimizer::with_group] function to add an optimizer for all parameters matching the
+/// [`ModuleOptimizer::with_group`] function to add an optimizer for all parameters matching the
 /// provided group.
 #[derive(Clone)]
 pub struct ModuleOptimizer {
@@ -80,12 +80,14 @@ where
 impl ModuleOptimizer {
     /// Check if the optimizer has gradient clipping.
     /// If there are multiple optimizers, checks if any group has gradient clipping.
+    #[must_use]
     pub fn has_gradient_clipping(&self) -> bool {
         self.optimizers.iter().any(|g| g.grad_clipping.is_some())
     }
 
     /// Access the gradient clipping.
-    /// If there are multiple optimizers, returns the first optimizer's [GradientClipping].
+    /// If there are multiple optimizers, returns the first optimizer's [`GradientClipping`].
+    #[must_use]
     pub fn grad_clipping(&self) -> Option<&GradientClipping> {
         self.optimizers
             .first()
@@ -104,6 +106,7 @@ impl ModuleOptimizer {
     /// # Returns
     ///
     /// The optimizer.
+    #[must_use]
     pub fn with_grad_clipping(mut self, gradient_clipping: GradientClipping) -> Self {
         self.optimizers
             .first_mut()
@@ -196,12 +199,13 @@ impl ModuleOptimizer {
     }
 
     /// Decompose the optimizer state into a serializable [`OptimizerRecord`].
+    #[must_use]
     pub fn to_record(&self) -> OptimizerRecord {
         let mut tensors = Vec::new();
         let mut scalars = BTreeMap::new();
         let mut paths = BTreeMap::new();
 
-        for (id, param_state) in self.param_context.iter() {
+        for (id, param_state) in &self.param_context {
             let prefix = id.val().to_string();
             let mut sink = StateSink::default();
             param_state
@@ -246,6 +250,7 @@ impl ModuleOptimizer {
     /// each parameter's state is migrated to that parameter's (gradient's) device on the next
     /// [`step`](ModuleOptimizer::step) — see the `to_device` call in the step path. The load device
     /// is therefore irrelevant to correctness.
+    #[must_use]
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();
@@ -254,7 +259,7 @@ impl ModuleOptimizer {
         // Recover each parameter's rank from its persisted `__rank` scalar (authoritative). Keys
         // are `"{param_id}.__rank"`, so strip the dotted suffix to recover the id.
         let suffix = alloc::format!(".{RANK_KEY}");
-        for (name, value) in record.scalars.iter() {
+        for (name, value) in &record.scalars {
             if let Some(id_str) = name.strip_suffix(&suffix)
                 && let (Ok(id), Ok(rank)) = (id_str.parse::<u64>(), usize::try_from(*value))
             {
@@ -262,9 +267,9 @@ impl ModuleOptimizer {
             }
         }
 
-        for (name, path) in record.paths.iter() {
+        for (name, path) in &record.paths {
             if let Ok(id) = name.parse::<u64>() {
-                paths.insert(id, path.to_string());
+                paths.insert(id, path.clone());
             }
         }
 
@@ -287,7 +292,7 @@ impl ModuleOptimizer {
             let prefix = id.to_string();
             let path = paths.get(&id);
             let (optim, grad_clipping) =
-                self.optim_from_param(id.into(), path.map(|path| path.as_str()));
+                self.optim_from_param(id.into(), path.map(std::string::String::as_str));
             // Skip parameters whose state can't be reconstructed (truncated/foreign record); they
             // are re-initialized lazily on the next step rather than aborting the load.
             if let Some(state) = optim.state_unflatten(rank, &prefix, &mut source, &device) {
@@ -330,7 +335,7 @@ impl ModuleOptimizer {
     }
 }
 
-/// Wrapper to unify the `remove` method for [GradientsParams] and [MultiGradientsParams].
+/// Wrapper to unify the `remove` method for [`GradientsParams`] and [`MultiGradientsParams`].
 pub enum GradAdaptor {
     /// Wrapper for [`GradientsParams`].
     Single(GradientsParams),
@@ -428,25 +433,25 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
 
             let entry = self.states.remove_entry(&id);
             let key = entry.as_ref().map(|(k, _)| *k);
-            let tensor = if tensor.device() != device {
-                tensor.to_device(&device)
-            } else {
+            let tensor = if tensor.device() == device {
                 tensor
+            } else {
+                tensor.to_device(&device)
             };
 
             let path = self.path.join(".");
-            let (optim, grad_clipping, existing_dyn_state) = match entry.map(|(_, s)| s) {
-                Some(OptimizationContext {
-                    optim,
-                    grad_clipping,
-                    state,
-                    ..
-                }) => (optim, grad_clipping, Some(state)),
-                None => {
-                    let (optim, grad_clipping) =
-                        self.optimizer_from_param(id, Some(path.as_str())).clone();
-                    (optim, grad_clipping, None)
-                }
+            let (optim, grad_clipping, existing_dyn_state) = if let Some(OptimizationContext {
+                optim,
+                grad_clipping,
+                state,
+                ..
+            }) = entry.map(|(_, s)| s)
+            {
+                (optim, grad_clipping, Some(state))
+            } else {
+                let (optim, grad_clipping) =
+                    self.optimizer_from_param(id, Some(path.as_str())).clone();
+                (optim, grad_clipping, None)
             };
 
             debug_assert_eq!(
@@ -494,7 +499,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
             }
             #[cfg(feature = "std")]
             if is_distributed {
-                tensor = tensor.set_distributed(id)
+                tensor = tensor.set_distributed(id);
             }
 
             tensor

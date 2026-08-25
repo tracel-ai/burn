@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
-/// AdaGrad configuration.
+/// `AdaGrad` configuration.
 #[derive(Config, Debug)]
 pub struct AdaGradConfig {
     #[config(default = 0.)]
@@ -26,14 +26,14 @@ pub struct AdaGradConfig {
     grad_clipping: Option<GradientClippingConfig>,
 }
 
-/// AdaGrad optimizer
+/// `AdaGrad` optimizer
 #[derive(Clone)]
 pub struct AdaGrad {
     lr_decay: LrDecay,
     weight_decay: Option<WeightDecay>,
 }
 
-/// AdaGrad state.
+/// `AdaGrad` state.
 #[derive(RecordState, Clone, new)]
 pub struct AdaGradState<const D: usize> {
     lr_decay: LrDecayState<D>,
@@ -89,11 +89,12 @@ impl AdaGradConfig {
         }
     }
 
-    /// Initialize AdaGrad optimizer.
+    /// Initialize `AdaGrad` optimizer.
     ///
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
+    #[must_use]
     pub fn init(&self) -> ModuleOptimizer {
         let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
@@ -151,6 +152,7 @@ impl<const D: usize> LrDecayState<D> {
     /// # Returns
     ///
     /// Returns state moved to device.
+    #[must_use]
     pub fn to_device(mut self, device: &Device) -> Self {
         self.sum = self.sum.to_device(device);
         self

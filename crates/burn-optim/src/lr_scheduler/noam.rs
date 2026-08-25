@@ -58,7 +58,7 @@ impl NoamLrSchedulerConfig {
     /// * `warmup_steps` is 0
     /// * `model_size` is 0
     pub fn init(&self) -> Result<ModuleLrScheduler, String> {
-        self.build().map(|s| s.into())
+        self.build().map(std::convert::Into::into)
     }
 }
 

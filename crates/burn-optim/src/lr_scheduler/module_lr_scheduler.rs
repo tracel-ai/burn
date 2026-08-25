@@ -33,6 +33,7 @@ impl From<LearningRate> for ModuleLearningRate {
 
 impl ModuleLearningRate {
     /// Get the effective learning rate for the given parameter.
+    #[must_use]
     pub fn lr_from_param(&self, id: ParamId, path: Option<&str>) -> LearningRate {
         self.groups
             .iter()
@@ -42,6 +43,7 @@ impl ModuleLearningRate {
     }
 
     /// Get the base learning rate value which's group matches all parameters.
+    #[must_use]
     pub fn base(&self) -> LearningRate {
         self.groups
             .first()
@@ -62,7 +64,7 @@ struct LrSchedulerGroup {
     scheduler: DynLrScheduler,
 }
 
-/// Configuration for a [ModuleLrScheduler].
+/// Configuration for a [`ModuleLrScheduler`].
 #[derive(Config, Debug)]
 pub struct ModuleLrSchedulerConfig {
     base: LrSchedulerConfig,
@@ -90,7 +92,7 @@ impl ModuleLrSchedulerConfig {
             scheduler: base,
         });
 
-        for group in self.scheduler_groups.iter() {
+        for group in &self.scheduler_groups {
             let scheduler = group.scheduler.build()?;
             groups.push(LrSchedulerGroup::new(group.group.clone(), scheduler));
         }
@@ -113,7 +115,7 @@ impl ModuleLrSchedulerConfig {
 }
 
 impl ModuleLrScheduler {
-    /// Create a [ModuleLrScheduler].
+    /// Create a [`ModuleLrScheduler`].
     ///
     /// # Arguments
     ///
@@ -146,6 +148,7 @@ impl ModuleLrScheduler {
     }
 
     /// Get the current state of the schedulers as a [record](LrSchedulerRecord).
+    #[must_use]
     pub fn to_record(&self) -> super::LrSchedulerRecord {
         let mut record = LrSchedulerRecord::new();
         for (index, item) in self.groups.iter().enumerate() {
@@ -157,6 +160,7 @@ impl ModuleLrScheduler {
     }
 
     /// Load the state of the schedulers from a [record](LrSchedulerRecord).
+    #[must_use]
     pub fn load_record(mut self, record: super::LrSchedulerRecord) -> Self {
         self.groups = self
             .groups
@@ -177,6 +181,7 @@ impl ModuleLrScheduler {
     }
 
     /// Add a new parameter group to the scheduler's policy.
+    #[must_use]
     pub fn with_group(mut self, group: ParamGroup, scheduler: impl Into<DynLrScheduler>) -> Self {
         self.groups.push(LrSchedulerGroup {
             group,

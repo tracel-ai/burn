@@ -23,6 +23,6 @@ pub mod lr_scheduler;
 
 /// Type alias for the learning rate.
 ///
-/// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
+/// `LearningRate` also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
 /// can be used for constant learning rate.
 pub type LearningRate = f64; // We could potentially change the type.

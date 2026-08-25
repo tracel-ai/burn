@@ -17,13 +17,14 @@ pub struct GradientsParams {
 
 impl GradientsParams {
     /// Creates a new [GradientsParams](GradientsParams).
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Extract each tensor gradients for the given [module](AutodiffModule).
     ///
-    /// Note: This consumes the gradients. See ['from_module'] to extract gradients only for
+    /// Note: This consumes the gradients. See ['`from_module`'] to extract gradients only for
     ///  a specific module.
     pub fn from_grads<M: AutodiffModule>(grads: Gradients, module: &M) -> Self {
         let mut grads = grads;
@@ -57,6 +58,7 @@ impl GradientsParams {
     ///
     /// You should use [remove](GradientsParams::remove) if you want to get the gradients
     /// only one time.
+    #[must_use]
     pub fn get<const D: usize>(&self, id: ParamId) -> Option<Tensor<D>> {
         self.container.get(&id)
     }
@@ -73,15 +75,17 @@ impl GradientsParams {
     /// If a tensor is already registered for the given [parameter id](ParamId), it will be replaced.
     pub fn register<const D: usize>(&mut self, id: ParamId, value: Tensor<D>) {
         // TODO: always call value.inner() to make sure?
-        self.container.register(id, value)
+        self.container.register(id, value);
     }
 
     /// The number of gradients tensors registered.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.container.len()
     }
 
     /// If any tensor is contained.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

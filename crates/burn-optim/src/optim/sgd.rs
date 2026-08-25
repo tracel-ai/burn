@@ -53,6 +53,7 @@ impl SgdConfig {
     }
 
     /// Initializes the SGD optimizer from the configuration.
+    #[must_use]
     pub fn init(&self) -> ModuleOptimizer {
         let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.gradient_clipping {

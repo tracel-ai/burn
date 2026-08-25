@@ -72,7 +72,7 @@ impl Optimizer for Adan {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
 
-        let decay_rate = lr * (self.weight_decay as f64);
+        let decay_rate = lr * f64::from(self.weight_decay);
         let delta = raw_delta.mul_scalar(lr);
 
         let tensor_updated = if self.no_prox {
@@ -106,6 +106,7 @@ impl AdanConfig {
     /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
     /// optimize one parameter group. [`init`](Self::init) is the whole-module
     /// counterpart, and the only one that applies the configured gradient clipping.
+    #[must_use]
     pub fn build(&self) -> Adan {
         Adan {
             momentum: AdaptiveNesterovMomentum {
@@ -124,6 +125,7 @@ impl AdanConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
+    #[must_use]
     pub fn init(&self) -> ModuleOptimizer {
         let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {

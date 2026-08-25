@@ -51,10 +51,10 @@ fn cubic_interpolate(
         };
         min_pos.max(min_bound).min(max_bound)
     } else {
-        (min_bound + max_bound) / 2.0
+        f64::midpoint(min_bound, max_bound)
     }
 }
-/// Auxiliary Struct For Strong_Wolfe
+/// Auxiliary Struct For `Strong_Wolfe`
 struct LineSearchSample {
     // step size
     t: f64,
@@ -258,14 +258,7 @@ where
 
         let armijo_holds = f_new <= (f + c1 * t * gtd) && f_new < bracket[low_idx].f;
 
-        if !armijo_holds {
-            bracket[high_idx] = LineSearchSample {
-                t,
-                f: f_new,
-                g: g_new,
-                gtd: gtd_new,
-            };
-        } else {
+        if armijo_holds {
             if gtd_new.abs() <= -c2 * gtd {
                 return (f_new, g_new, t, ls_func_evals);
             }
@@ -279,6 +272,13 @@ where
                 };
             }
             bracket[low_idx] = LineSearchSample {
+                t,
+                f: f_new,
+                g: g_new,
+                gtd: gtd_new,
+            };
+        } else {
+            bracket[high_idx] = LineSearchSample {
                 t,
                 f: f_new,
                 g: g_new,
@@ -330,10 +330,10 @@ pub struct LBFGSConfig {
     /// Termination tolerance on function value/parameter changes (default: 1e-9).
     #[config(default = 1e-9)]
     pub tolerance_change: f64,
-    /// Maximal number of function evaluations per optimization step (default: max_iter * 1.25).
+    /// Maximal number of function evaluations per optimization step (default: `max_iter` * 1.25).
     #[config(default = "None")]
     pub max_eval: Option<usize>,
-    /// Either ‘strong_wolfe’ or None (default: None).
+    /// Either ‘`strong_wolfe`’ or None (default: None).
     #[config(default = "LineSearchFn::None")]
     pub line_search_fn: LineSearchFn,
 }
@@ -344,6 +344,7 @@ impl LBFGSConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module
+    #[must_use]
     pub fn init(&self) -> LBFGS {
         // by default max_eval = max_iter * 5/4
         let max_eval = self.max_eval.unwrap_or(self.max_iter * 5 / 4);
@@ -476,10 +477,11 @@ impl LBFGSState {
             .as_ref()
             .or(self.d.as_ref())
             .or(self.history_s.first())
-            .map(|t| t.device())
+            .map(burn_core::Tensor::device)
     }
 
     /// Moves all historical tensors to the target device.
+    #[must_use]
     pub fn to_device(self, device: &Device) -> Self {
         Self {
             history_s: self
@@ -534,6 +536,7 @@ impl LBFGS {
     ///
     /// L-BFGS keeps a single global state rather than per-parameter state, so its tensors are
     /// named directly (e.g. `history_s.0`) and carry no parameter id.
+    #[must_use]
     pub fn to_record(&self) -> OptimizerRecord {
         let mut sink = StateSink::default();
         RecordState::state_flatten(&self.state, "", &mut sink);
@@ -558,6 +561,7 @@ impl LBFGS {
     ///
     /// State tensors are materialized on the default device; the state is migrated to the gradient
     /// device on the next [`step`](LBFGS::step), so no device argument is needed.
+    #[must_use]
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut source = StateSource::new(record.scalars);
@@ -805,6 +809,7 @@ impl LBFGS {
         (module, loss)
     }
     /// Moves the optimizer state to the specified device.
+    #[must_use]
     pub fn to_device(self, device: &Device) -> Self {
         Self {
             config: self.config,

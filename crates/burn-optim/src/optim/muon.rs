@@ -44,8 +44,8 @@ pub enum AdjustLrFn {
 
     /// Moonshot's method: `lr * 0.2 * sqrt(max(A, B))`
     ///
-    /// This method is designed to match AdamW's RMS, allowing Muon to directly reuse
-    /// learning rates and weight decay values tuned for AdamW without retuning.
+    /// This method is designed to match `AdamW`'s RMS, allowing Muon to directly reuse
+    /// learning rates and weight decay values tuned for `AdamW` without retuning.
     ///
     /// # Example
     ///
@@ -89,7 +89,7 @@ impl AdjustLrFn {
 ///
 /// Muon is an optimizer specifically designed for 2D parameters of neural network
 /// hidden layers (weight matrices). Other parameters such as biases and embeddings
-/// should be optimized using a standard method such as AdamW.
+/// should be optimized using a standard method such as `AdamW`.
 ///
 /// # Learning Rate Adjustment
 ///
@@ -99,8 +99,8 @@ impl AdjustLrFn {
 /// - **Original**: Uses `sqrt(max(1, A/B))` where A and B are the first two dimensions.
 ///   This is Keller Jordan's method and is the default.
 ///
-/// - **MatchRmsAdamW**: Uses `0.2 * sqrt(max(A, B))`. This is Moonshot's method
-///   designed to match AdamW's RMS, allowing direct reuse of AdamW hyperparameters.
+/// - **`MatchRmsAdamW`**: Uses `0.2 * sqrt(max(A, B))`. This is Moonshot's method
+///   designed to match `AdamW`'s RMS, allowing direct reuse of `AdamW` hyperparameters.
 ///
 /// # Example
 ///
@@ -166,6 +166,7 @@ impl MuonConfig {
     /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
     /// optimize one parameter group. [`init`](Self::init) is the whole-module
     /// counterpart.
+    #[must_use]
     pub fn build(&self) -> Muon {
         let momentum = Momentum::new(&self.momentum);
         let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
@@ -211,6 +212,7 @@ impl MuonConfig {
     ///     .with_ns_steps(7)
     ///     .init();
     /// ```
+    #[must_use]
     pub fn init(&self) -> ModuleOptimizer {
         ModuleOptimizer::from(self.build())
     }
@@ -245,7 +247,7 @@ impl NewtonSchulzParams {
 ///
 /// # Important Notes
 ///
-/// 1. **Only for 2D+ parameters**: Muon is designed for weight matrices. Use AdamW
+/// 1. **Only for 2D+ parameters**: Muon is designed for weight matrices. Use `AdamW`
 ///    or SGD for biases, embeddings, and layer norms.
 ///
 /// 2. **Learning rate adjustment**: Muon automatically adjusts the learning rate based
@@ -300,8 +302,8 @@ impl Muon {
     ///
     /// # References
     ///
-    /// - Original: https://github.com/KellerJordan/Muon/blob/master/muon.py
-    /// - PyTorch: https://github.com/pytorch/pytorch/blob/main/torch/optim/muon.py
+    /// - Original: <https://github.com/KellerJordan/Muon/blob/master/muon.py>
+    /// - `PyTorch`: <https://github.com/pytorch/pytorch/blob/main/torch/optim/muon.py>
     fn zeropower_via_newtonschulz<const D: usize>(&self, g: Tensor<D>) -> Tensor<D> {
         let shape = g.shape();
         let dim_m2 = shape[D - 2];
@@ -390,8 +392,7 @@ impl Optimizer for Muon {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         assert!(
             D == 2,
-            "Newton-Schulz iteration requires 2D tensors, got {}D",
-            D
+            "Newton-Schulz iteration requires 2D tensors, got {D}D"
         );
 
         // Step 1: Apply momentum
@@ -407,7 +408,7 @@ impl Optimizer for Muon {
         // Step 4: Apply weight decay (using ORIGINAL lr, not adjusted)
         // Muon applies weight decay AFTER orthogonalization
         let tensor = if let Some(penalty) = self.weight_decay_penalty {
-            let decay_factor = 1.0 - lr * penalty as f64;
+            let decay_factor = 1.0 - lr * f64::from(penalty);
             tensor.mul_scalar(decay_factor)
         } else {
             tensor

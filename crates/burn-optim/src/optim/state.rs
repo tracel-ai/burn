@@ -24,6 +24,7 @@ pub use burn_derive::RecordState;
 /// Join a `prefix` and a `leaf` into a dot-separated path (`"prefix.leaf"`).
 ///
 /// An empty prefix yields the leaf unchanged, so a top-level call can pass `""`.
+#[must_use]
 pub fn join_path(prefix: &str, leaf: &str) -> String {
     if prefix.is_empty() {
         return String::from(leaf);
@@ -38,6 +39,7 @@ pub fn join_path(prefix: &str, leaf: &str) -> String {
 /// Join a `prefix` and a numeric `index` into a dot-separated path (`"prefix.3"`).
 ///
 /// Used by the derive to name the elements of a `Vec<Tensor>` field.
+#[must_use]
 pub fn join_index(prefix: &str, index: usize) -> String {
     format!("{prefix}.{index}")
 }
@@ -75,6 +77,7 @@ pub struct StateSource {
 
 impl StateSource {
     /// Create a source from an existing scalar map (e.g. the burnpack scalars).
+    #[must_use]
     pub fn new(scalars: BTreeMap<String, Scalar>) -> Self {
         Self {
             tensors: BTreeMap::new(),
@@ -102,6 +105,7 @@ impl StateSource {
     ///
     /// Used by the derive to tell an absent optional nested state (nothing recorded) apart from a
     /// present one whose leaves all happen to be optional.
+    #[must_use]
     pub fn has_under(&self, prefix: &str) -> bool {
         let pat = join_path(prefix, "");
         self.tensors.keys().any(|k| k.starts_with(&pat))

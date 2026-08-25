@@ -43,7 +43,7 @@ impl ComposedLrSchedulerConfig {
     /// Initialize the learning rate scheduler.
     pub(crate) fn build(&self) -> Result<ComposedLrScheduler, String> {
         let mut schedulers: Vec<DynLrScheduler> = Vec::with_capacity(self.schedulers.len());
-        for config in self.schedulers.iter() {
+        for config in &self.schedulers {
             schedulers.push(config.build()?);
         }
 
@@ -55,46 +55,53 @@ impl ComposedLrSchedulerConfig {
 
     /// Initializes a [module learning rate scheduler](ModuleLrScheduler).
     pub fn init(&self) -> Result<ModuleLrScheduler, String> {
-        self.build().map(|s| s.into())
+        self.build().map(std::convert::Into::into)
     }
 
     /// Appends a [constant learning rate](crate::lr_scheduler::constant::ConstantLr).
+    #[must_use]
     pub fn constant(mut self, lr: LearningRate) -> Self {
         self.schedulers.push(LrSchedulerConfig::Constant(lr));
         self
     }
 
     /// Appends a [linear scheduler](crate::lr_scheduler::linear::LinearLrScheduler).
+    #[must_use]
     pub fn linear(mut self, config: LinearLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Linear(config));
         self
     }
 
     /// Appends a [cosine scheduler](ComposedLrSchedulerConfig).
+    #[must_use]
     pub fn cosine(mut self, config: CosineAnnealingLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Cosine(config));
         self
     }
 
     /// Appends an [exponential scheduler](crate::lr_scheduler::exponential::ExponentialLrScheduler).
+    #[must_use]
     pub fn exponential(mut self, config: ExponentialLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Exponential(config));
         self
     }
 
     /// Appends a [noam scheduler](crate::lr_scheduler::noam::NoamLrScheduler).
+    #[must_use]
     pub fn noam(mut self, config: NoamLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Noam(config));
         self
     }
 
     /// Appends a [step scheduler](crate::lr_scheduler::step::StepLrScheduler).
+    #[must_use]
     pub fn step(mut self, config: StepLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Step(config));
         self
     }
 
     /// Appends a [composed scheduler](ComposedLrScheduler).
+    #[must_use]
     pub fn composed(mut self, config: Self) -> Self {
         self.schedulers.push(LrSchedulerConfig::Composed(config));
         self
@@ -118,7 +125,11 @@ impl LrScheduler for ComposedLrScheduler {
         };
         let num_scheduler = self.schedulers.len() as f64;
 
-        for lr in self.schedulers.iter_mut().map(|s| s.step()) {
+        for lr in self
+            .schedulers
+            .iter_mut()
+            .map(super::base::DynLrScheduler::step)
+        {
             step = match self.reduction {
                 SchedulerReduction::Avg => step + (lr / num_scheduler),
                 SchedulerReduction::Sum => step + lr,

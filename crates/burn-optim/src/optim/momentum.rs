@@ -36,6 +36,7 @@ pub struct Momentum {
 
 impl Momentum {
     /// Creates a new [momentum](Momentum) from a [config](MomentumConfig).
+    #[must_use]
     pub fn new(config: &MomentumConfig) -> Self {
         Self {
             momentum: config.momentum.elem(),
@@ -55,6 +56,7 @@ impl Momentum {
     ///
     /// * `grad` - Transformed gradient.
     /// * `state` - State of the optimizer.
+    #[must_use]
     pub fn transform<const D: usize>(
         &self,
         grad: Tensor<D>,
@@ -68,9 +70,10 @@ impl Momentum {
             grad.clone()
         };
 
-        let grad = match self.nesterov {
-            true => velocity.clone().mul_scalar(self.momentum).add(grad),
-            false => velocity.clone(),
+        let grad = if self.nesterov {
+            velocity.clone().mul_scalar(self.momentum).add(grad)
+        } else {
+            velocity.clone()
         };
 
         (grad, MomentumState::new(velocity))
@@ -87,6 +90,7 @@ impl<const D: usize> MomentumState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
+    #[must_use]
     pub fn to_device(mut self, device: &Device) -> Self {
         self.velocity = self.velocity.to_device(device);
         self

@@ -29,7 +29,7 @@ pub struct AdamConfig {
     /// A value required for numerical stability.
     #[config(default = 1e-5)]
     epsilon: f32,
-    /// Whether to use AMSGrad algorithm
+    /// Whether to use `AMSGrad` algorithm
     #[config(default = false)]
     amsgrad: bool,
     /// [Weight decay](WeightDecayConfig) config.
@@ -114,6 +114,7 @@ impl AdamConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
+    #[must_use]
     pub fn init(&self) -> ModuleOptimizer {
         let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
@@ -132,7 +133,7 @@ pub struct AdaptiveMomentumState<const D: usize> {
     pub moment_1: Tensor<D>,
     /// The second order momentum.
     pub moment_2: Tensor<D>,
-    /// Max of second  order momentum (for AMSGrad)
+    /// Max of second  order momentum (for `AMSGrad`)
     #[new(default)]
     pub max_moment_2: Option<Tensor<D>>,
 }
@@ -221,6 +222,7 @@ impl<const D: usize> AdaptiveMomentumState<D> {
     /// # Returns
     ///
     /// Returns state moved to device.
+    #[must_use]
     pub fn to_device(mut self, device: &Device) -> Self {
         self.moment_1 = self.moment_1.to_device(device);
         self.moment_2 = self.moment_2.to_device(device);

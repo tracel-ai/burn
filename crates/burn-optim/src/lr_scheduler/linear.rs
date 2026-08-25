@@ -52,13 +52,13 @@ impl LinearLrSchedulerConfig {
     /// * `final_lr` is out of range [0.0, 1.0]
     /// * `num_iters` is 0
     pub fn init(&self) -> Result<ModuleLrScheduler, String> {
-        self.build().map(|s| s.into())
+        self.build().map(std::convert::Into::into)
     }
 }
 
 /// A linear learning rate scheduler.
 ///
-/// See [LinearLrSchedulerConfig] for more information.
+/// See [`LinearLrSchedulerConfig`] for more information.
 #[derive(Clone, Copy, Debug)]
 pub struct LinearLrScheduler {
     // The final learning rate after the linear changing process stops.
@@ -71,7 +71,7 @@ pub struct LinearLrScheduler {
 
 impl LrScheduler for LinearLrScheduler {
     fn step(&mut self) -> LearningRate {
-        self.remaining_iters -= (self.remaining_iters != 0) as usize;
+        self.remaining_iters -= usize::from(self.remaining_iters != 0);
         self.final_lr - self.step_size * self.remaining_iters as f64
     }
 

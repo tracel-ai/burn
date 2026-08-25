@@ -36,11 +36,13 @@ impl core::fmt::Debug for OptimizerRecord {
 
 impl OptimizerRecord {
     /// The number of tensors in the record.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.tensors.len()
     }
 
     /// Whether the record holds no tensors.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.tensors.is_empty()
     }

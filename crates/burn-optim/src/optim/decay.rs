@@ -26,6 +26,7 @@ pub struct WeightDecay {
 
 impl WeightDecay {
     /// Creates a new [weight decay](WeightDecay) from a [config](WeightDecayConfig).
+    #[must_use]
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
             penalty: config.penalty,
@@ -42,6 +43,7 @@ impl WeightDecay {
     /// # Returns
     ///
     /// * `grad` - Transformed gradient.
+    #[must_use]
     pub fn transform<const D: usize>(&self, grad: Tensor<D>, tensor: Tensor<D>) -> Tensor<D> {
         tensor.mul_scalar(self.penalty).add(grad)
     }
@@ -57,6 +59,7 @@ impl<const D: usize> WeightDecayState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
+    #[must_use]
     pub fn to_device(mut self, device: &Device) -> Self {
         self.grad_last_step = self.grad_last_step.to_device(device);
         self

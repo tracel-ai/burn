@@ -62,6 +62,7 @@ impl DynState {
     /// Recover the concrete state by value, moving it out when this is the only handle and
     /// cloning only when the underlying state is still shared. Panics if `T` does not match the
     /// stored type.
+    #[must_use]
     pub fn downcast<T: Clone + Send + Sync + 'static>(self) -> T {
         let state = self
             .state
@@ -71,6 +72,7 @@ impl DynState {
     }
 
     /// Borrow the concrete state without cloning. Panics if `T` does not match the stored type.
+    #[must_use]
     pub fn downcast_ref<T: 'static>(&self) -> &T {
         self.state
             .downcast_ref::<T>()
@@ -78,6 +80,7 @@ impl DynState {
     }
 
     /// The rank of the parameter this state belongs to.
+    #[must_use]
     pub fn rank(&self) -> usize {
         self.rank
     }
@@ -175,7 +178,7 @@ impl<O: Optimizer> DynOptimizer for O {
                 lr,
                 Tensor::<D>::from_bridge(tensor),
                 Tensor::<D>::from_bridge(grad),
-                state.map(|state| state.downcast::<O::State<D>>()),
+                state.map(DynState::downcast::<O::State<D>>),
             );
 
             (tensor.into_bridge(), state.map(|state| DynState::create(state, D)))
@@ -192,7 +195,7 @@ impl<O: Optimizer> DynOptimizer for O {
     fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut StateSink) {
         dispatch_rank!(state.rank(), D => {
             RecordState::state_flatten(state.downcast_ref::<O::State<D>>(), prefix, out);
-        })
+        });
     }
 
     fn state_unflatten(

@@ -15,10 +15,10 @@ use num_traits::Float as _;
 /// [`AdamW`] Configuration.
 #[derive(Config, Debug)]
 pub struct AdamWConfig {
-    /// Parameter for AdamW.
+    /// Parameter for `AdamW`.
     #[config(default = 0.9)]
     beta_1: f32,
-    /// Parameter for AdamW.
+    /// Parameter for `AdamW`.
     #[config(default = 0.999)]
     beta_2: f32,
     /// A value required for numerical stability.
@@ -34,14 +34,14 @@ pub struct AdamWConfig {
     #[config(default = false)]
     cautious_weight_decay: bool,
 
-    /// Whether to use AMSGrad algorithm
+    /// Whether to use `AMSGrad` algorithm
     #[config(default = false)]
     amsgrad: bool,
     /// [Gradient Clipping](GradientClippingConfig) config.
     grad_clipping: Option<GradientClippingConfig>,
 }
 
-/// AdamW optimizer.
+/// `AdamW` optimizer.
 ///
 /// See:
 /// - [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
@@ -56,7 +56,7 @@ pub struct AdamW {
     cautious_weight_decay: bool,
 }
 
-/// AdamW state.
+/// `AdamW` state.
 #[derive(RecordState, Clone, new)]
 pub struct AdamWState<const D: usize> {
     /// Th current adaptive momentum state.
@@ -80,7 +80,7 @@ impl Optimizer for AdamW {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
 
-        let decay_rate = lr * (self.weight_decay as f64);
+        let decay_rate = lr * f64::from(self.weight_decay);
 
         let decayed_tensor = if decay_rate == 0.0 {
             tensor.clone()
@@ -119,6 +119,7 @@ impl AdamWConfig {
     /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
     /// optimize one parameter group. [`init`](Self::init) is the whole-module
     /// counterpart, and the only one that applies the configured gradient clipping.
+    #[must_use]
     pub fn build(&self) -> AdamW {
         AdamW {
             momentum: AdaptiveMomentumW {
@@ -132,11 +133,12 @@ impl AdamWConfig {
         }
     }
 
-    /// Initialize AdamW optimizer.
+    /// Initialize `AdamW` optimizer.
     ///
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
+    #[must_use]
     pub fn init(&self) -> ModuleOptimizer {
         let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {

@@ -18,6 +18,7 @@ impl GradientClippingConfig {
     /// # Returns
     ///
     /// The gradient clipping.
+    #[must_use]
     pub fn init(&self) -> GradientClipping {
         match self {
             GradientClippingConfig::Value(val) => GradientClipping::Value(*val),
@@ -48,6 +49,7 @@ impl GradientClipping {
     /// # Returns
     ///
     /// The clipped gradient.
+    #[must_use]
     pub fn clip_gradient<const D: usize>(&self, grad: Tensor<D>) -> Tensor<D> {
         match self {
             GradientClipping::Value(threshold) => self.clip_by_value(grad, *threshold),

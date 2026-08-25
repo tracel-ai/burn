@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 #[derive(Default)]
 /// Exposes multiple gradients for each parameter.
 pub struct MultiGradientsParams {
-    /// Each [GradientsParams] has its associated [Device].
+    /// Each [`GradientsParams`] has its associated [Device].
     pub grads: Vec<(GradientsParams, Device)>,
 }
 

@@ -69,7 +69,7 @@ impl StepLrSchedulerConfig {
     ///
     /// An error will be returned if `step_size` is 0.
     pub fn init(&self) -> Result<ModuleLrScheduler, String> {
-        self.build().map(|s| s.into())
+        self.build().map(std::convert::Into::into)
     }
 }
 

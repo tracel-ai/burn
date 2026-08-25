@@ -18,13 +18,13 @@ pub struct RmsPropConfig {
     /// Smoothing constant.
     #[config(default = 0.99)]
     alpha: f32,
-    /// momentum for RmsProp.
+    /// momentum for `RmsProp`.
     #[config(default = 0.9)]
     momentum: f32,
     /// A value required for numerical stability.
     #[config(default = 1e-5)]
     epsilon: f32,
-    /// if True, compute the centered RmsProp, the gradient is normalized by an estimation of its variance
+    /// if True, compute the centered `RmsProp`, the gradient is normalized by an estimation of its variance
     #[config(default = false)]
     centered: bool,
     /// [Weight decay](WeightDecayConfig) config.
@@ -53,11 +53,12 @@ impl RmsPropConfig {
         }
     }
 
-    /// Initialize RmsProp optimizer.
+    /// Initialize `RmsProp` optimizer.
     ///
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
+    #[must_use]
     pub fn init(&self) -> ModuleOptimizer {
         let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
@@ -158,20 +159,17 @@ pub struct SquareAvgState<const D: usize> {
 }
 
 impl<const D: usize> SquareAvgState<D> {
-    /// transform [SquareAvgState] to the next step
+    /// transform [`SquareAvgState`] to the next step
     fn transform(alpha: f32, grad: Tensor<D>, state: Option<Self>) -> (Tensor<D>, Self) {
-        match state {
-            Some(state) => {
-                let square_avg = state
-                    .square_avg
-                    .mul_scalar(alpha)
-                    .add(grad.clone().square().mul_scalar(1. - alpha));
-                (grad, Self { square_avg })
-            }
-            _ => {
-                let square_avg = grad.clone().square().mul_scalar(1. - alpha);
-                (grad, Self { square_avg })
-            }
+        if let Some(state) = state {
+            let square_avg = state
+                .square_avg
+                .mul_scalar(alpha)
+                .add(grad.clone().square().mul_scalar(1. - alpha));
+            (grad, Self { square_avg })
+        } else {
+            let square_avg = grad.clone().square().mul_scalar(1. - alpha);
+            (grad, Self { square_avg })
         }
     }
 
@@ -184,6 +182,7 @@ impl<const D: usize> SquareAvgState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
+    #[must_use]
     pub fn to_device(mut self, device: &Device) -> Self {
         self.square_avg = self.square_avg.to_device(device);
         self
@@ -200,7 +199,7 @@ pub struct CenteredState<const D: usize> {
 }
 
 impl<const D: usize> CenteredState<D> {
-    /// transform [CenteredState] to the next step
+    /// transform [`CenteredState`] to the next step
     fn transform(
         alpha: f32,
         centered: bool,
@@ -252,6 +251,7 @@ impl<const D: usize> CenteredState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
+    #[must_use]
     pub fn to_device(mut self, device: &Device) -> Self {
         self.grad_avg = self.grad_avg.map(|grad_avg| grad_avg.to_device(device));
         self.avg = self.avg.to_device(device);
@@ -268,7 +268,7 @@ pub struct RmsPropMomentum {
 }
 
 impl RmsPropMomentum {
-    /// transform [grad](Tensor) and [RmsPropMomentumState] to the next step
+    /// transform [grad](Tensor) and [`RmsPropMomentumState`] to the next step
     fn transform<const D: usize>(
         &self,
         grad: Tensor<D>,
@@ -309,6 +309,7 @@ impl<const D: usize> RmsPropMomentumState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
+    #[must_use]
     pub fn to_device(mut self, device: &Device) -> Self {
         self.buf = self.buf.to_device(device);
         self

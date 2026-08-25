@@ -7,7 +7,7 @@ use burn::tensor::Tensor;
 
 use super::GradientsParams;
 
-/// Accumulate gradients into a single [GradientsParams] object.
+/// Accumulate gradients into a single [`GradientsParams`] object.
 pub struct GradientsAccumulator<M> {
     grads: GradientsParams,
     phantom: PhantomData<M>,
@@ -21,6 +21,7 @@ impl<M> Default for GradientsAccumulator<M> {
 
 impl<M> GradientsAccumulator<M> {
     /// Create a new gradients accumulator.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             grads: GradientsParams::new(),

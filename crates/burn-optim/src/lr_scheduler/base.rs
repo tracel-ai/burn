@@ -80,11 +80,13 @@ impl DynLrScheduler {
     }
 
     /// Get the current state of the scheduler as a [record](LrSchedulerRecord).
+    #[must_use]
     pub fn to_record(&self) -> LrSchedulerRecord {
         self.scheduler.to_record()
     }
 
     /// Load the state of the scheduler from a [record](LrSchedulerRecord).
+    #[must_use]
     pub fn load_record(mut self, record: LrSchedulerRecord) -> Self {
         self.scheduler.load_record(record);
         self
@@ -115,22 +117,26 @@ pub struct LrSchedulerRecord {
 
 impl LrSchedulerRecord {
     /// Create an empty record.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Whether the record holds no scalars.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.scalars.is_empty()
     }
 
     /// Store a scalar under `key`.
+    #[must_use]
     pub fn with_scalar<V: Into<Scalar>>(mut self, key: &str, value: V) -> Self {
         self.scalars.insert(String::from(key), value.into());
         self
     }
 
     /// Read the scalar stored under `key`, if present and of a compatible type.
+    #[must_use]
     pub fn scalar<V: TryFrom<Scalar>>(&self, key: &str) -> Option<V> {
         self.scalars
             .get(key)
@@ -139,6 +145,7 @@ impl LrSchedulerRecord {
     }
 
     /// Merge a child `record`'s scalars under `prefix` (used to compose schedulers).
+    #[must_use]
     pub fn with_record(mut self, prefix: &str, record: LrSchedulerRecord) -> Self {
         for (key, value) in record.scalars {
             self.scalars.insert(join_path(prefix, &key), value);
@@ -147,6 +154,7 @@ impl LrSchedulerRecord {
     }
 
     /// Extract the child record previously merged under `prefix`.
+    #[must_use]
     pub fn record(&self, prefix: &str) -> LrSchedulerRecord {
         let head = join_path(prefix, "");
         let scalars = self
@@ -179,17 +187,26 @@ impl LrSchedulerRecord {
     /// Reconstruct a scheduler [state](RecordState) from this record.
     ///
     /// Uses the default device; scheduler state is scalar-only so no tensor is ever allocated.
+    #[must_use]
     pub fn into_state<S: RecordState>(&self) -> Option<S> {
         let mut source = StateSource::new(self.scalars.clone());
         S::state_unflatten("", &mut source, &Device::default())
     }
 
     /// Serialize the record to an in-memory burnpack byte buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization to the burnpack format fails.
     pub fn into_bytes(self) -> Result<Bytes, RecordError> {
         Ok(self.into_writer().into_bytes()?)
     }
 
     /// Reconstruct a record from an in-memory burnpack byte buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte buffer is not a valid burnpack record.
     pub fn from_bytes(bytes: Bytes) -> Result<Self, RecordError> {
         let reader = Reader::from_bytes(bytes)?;
         Ok(Self {
@@ -198,6 +215,10 @@ impl LrSchedulerRecord {
     }
 
     /// Save the record to a burnpack file on disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be written.
     #[cfg(feature = "std")]
     pub fn save<P: AsRef<std::path::Path>>(self, path: P) -> Result<(), RecordError> {
         self.into_writer().write_to_file(path)?;
@@ -205,6 +226,10 @@ impl LrSchedulerRecord {
     }
 
     /// Load the record from a burnpack file on disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or is not a valid burnpack record.
     #[cfg(feature = "std")]
     pub fn load<P: AsRef<std::path::Path>>(path: P) -> Result<Self, RecordError> {
         let reader = Reader::from_file(path)?;

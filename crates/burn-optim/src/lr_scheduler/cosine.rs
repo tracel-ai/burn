@@ -14,7 +14,7 @@ use burn::config::Config;
 /// `min_lr` over `num_iters` steps. After `num_iters` steps, the learning rate
 /// continues along the cosine curve without restarting.
 ///
-/// This corresponds to PyTorch's `CosineAnnealingLR` and is based on the
+/// This corresponds to `PyTorch`'s `CosineAnnealingLR` and is based on the
 /// closed-form schedule proposed in [SGDR: Stochastic Gradient Descent with Warm
 /// Restarts](https://arxiv.org/abs/1608.03983).
 #[derive(Config, Debug)]
@@ -63,7 +63,7 @@ impl CosineAnnealingLrSchedulerConfig {
     /// * `min_lr` is out of range [0.0, `initial_lr`]
     /// * `num_iters` is 0
     pub fn init(&self) -> Result<ModuleLrScheduler, String> {
-        self.build().map(|s| s.into())
+        self.build().map(std::convert::Into::into)
     }
 }
 
@@ -75,7 +75,7 @@ impl CosineAnnealingLrSchedulerConfig {
 /// restarts. The iteration counter increases monotonically, so the learning
 /// rate continues along the cosine curve past `num_iters` without resetting.
 ///
-/// See [CosineAnnealingLrSchedulerConfig] for configuration options.
+/// See [`CosineAnnealingLrSchedulerConfig`] for configuration options.
 #[derive(Clone, Copy, Debug)]
 pub struct CosineAnnealingLrScheduler {
     min_lr: LearningRate,

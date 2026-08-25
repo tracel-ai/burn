@@ -46,13 +46,13 @@ impl ExponentialLrSchedulerConfig {
     /// * `initial_lr` is out of range (0.0, 1.0]
     /// * `gamma` is out of range (0.0, 1.0]
     pub fn init(&self) -> Result<ModuleLrScheduler, String> {
-        self.build().map(|s| s.into())
+        self.build().map(std::convert::Into::into)
     }
 }
 
 /// A exponential learning rate scheduler.
 ///
-/// See [ExponentialLrSchedulerConfig] for more information.
+/// See [`ExponentialLrSchedulerConfig`] for more information.
 #[derive(Clone, Copy, Debug)]
 pub struct ExponentialLrScheduler {
     // The previous iteration's learning rate.
