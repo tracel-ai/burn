@@ -24,16 +24,19 @@ pub struct Address {
 
 impl Address {
     /// The scheme component (e.g. `ws`), lowercased. Defaults to `ws` when none was given.
+    #[must_use]
     pub fn scheme(&self) -> &str {
         &self.scheme
     }
 
     /// The host component (host name or IP literal), exactly as written.
+    #[must_use]
     pub fn host(&self) -> &str {
         &self.host
     }
 
     /// The port component, if one was specified.
+    #[must_use]
     pub fn port(&self) -> Option<u16> {
         self.port
     }
@@ -138,6 +141,7 @@ pub trait ProtocolServer: Sized + Send + Sync + 'static {
 
     /// Defines an endpoint with the function that responds.
     /// TODO Docs: does it need a slash?
+    #[must_use]
     fn route<C, Fut>(self, path: &str, callback: C) -> Self
     where
         C: FnOnce(Self::Channel) -> Fut + Clone + Send + Sync + 'static,

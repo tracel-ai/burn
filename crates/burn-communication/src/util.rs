@@ -1,4 +1,8 @@
 /// Utilities to help handle communication termination.
+///
+/// # Panics
+///
+/// Panics if the OS signal handlers (Ctrl-C or terminate) cannot be installed.
 pub async fn os_shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
@@ -18,7 +22,7 @@ pub async fn os_shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => (),
+        () = terminate => (),
     }
 }
