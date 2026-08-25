@@ -42,6 +42,31 @@ fn test_conv2d_simple() {
 }
 
 #[test]
+fn test_conv2d_1x1_strided() {
+    let test = Conv2dTestCase {
+        batch_size: 1,
+        channels_in: 2,
+        channels_out: 2,
+        kernel_size_1: 1,
+        kernel_size_2: 1,
+        padding_1: 0,
+        padding_2: 0,
+        stride_1: 2,
+        stride_2: 2,
+        dilation_1: 1,
+        dilation_2: 1,
+        groups: 1,
+        height: 4,
+        width: 4,
+    };
+
+    test.assert_output(TestTensor::from([[
+        [[16., 18.], [24., 26.]],
+        [[49., 59.], [89., 99.]],
+    ]]));
+}
+
+#[test]
 fn test_conv2d_simple_implicit() {
     let test = Conv2dTestCase {
         batch_size: 1,

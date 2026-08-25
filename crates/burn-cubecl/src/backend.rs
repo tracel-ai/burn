@@ -2,11 +2,15 @@ use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
+    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
     TensorData,
 };
 use burn_std::{BoolStore, DType, quantization::quantizable};
 use cubecl::{
+    MemoryConfiguration, MemoryPoolKind,
     client::ComputeClient,
+    config::memory::{MemoryPoolConfig, MemoryPoolsConfig, MemoryPoolsPreset},
+    config::size::MemorySize,
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
     server::ComputeServer,
@@ -132,6 +136,74 @@ where
     fn memory_cleanup(device: &Self::Device) {
         let client = R::client(device);
         client.memory_cleanup();
+    }
+
+    fn memory_install_pools(
+        device: &Self::Device,
+        layout: MemoryPoolLayout,
+    ) -> Result<(), InstallMemoryPoolsError> {
+        let client = R::client(device);
+        let properties = &client.properties().memory;
+        let config = pool_config(layout, properties.alignment.max(1))?;
+
+        // The runtime panics on an unhonourable layout, on a device thread the
+        // caller cannot catch and taking the device with it. Resolving it here
+        // first turns that into this method's error, by the runtime's own rules
+        // rather than a second copy of them.
+        MemoryConfiguration::default()
+            .resolve(Some(&config), properties)
+            .map_err(|err| InstallMemoryPoolsError::InvalidLayout {
+                reason: err.to_string(),
+            })?;
+
+        client
+            .install_memory_pools(&config)
+            .map_err(runtime_install_error)
+    }
+
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        // A failed stream reports nothing, same as a runtime that has nothing
+        // to report: the failure itself surfaces at the next flush or sync.
+        let report = R::client(device).memory_report().ok()?;
+
+        // The pools a layout can be paired with, in the order allocations are
+        // routed through them: a `Sliced` layout maps onto them one to one, and
+        // a `Direct` layout is the single entry with no page size. The presets
+        // mix in pools of other kinds, dropped here — so their entries keep the
+        // routing order but not the positions of any layout.
+        Some(
+            report
+                .dynamic
+                .iter()
+                .filter_map(|pool| match pool.kind {
+                    MemoryPoolKind::Sliced { page_size, .. } => Some(SlicedPoolReport {
+                        page_size,
+                        pages: pool.pages,
+                        pages_peak: pool.pages_peak,
+                        largest_alloc: pool.largest_alloc,
+                    }),
+                    MemoryPoolKind::Direct => Some(SlicedPoolReport {
+                        page_size: 0,
+                        pages: pool.pages,
+                        pages_peak: pool.pages_peak,
+                        largest_alloc: pool.largest_alloc,
+                    }),
+                    _ => None,
+                })
+                .collect(),
+        )
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        // As with the report: a failed stream reads as nothing to report.
+        let usage = R::client(device).memory_usage().ok()?;
+
+        Some(MemoryPoolUsage {
+            number_allocs: usage.number_allocs,
+            bytes_in_use: usage.bytes_in_use,
+            bytes_padding: usage.bytes_padding,
+            bytes_reserved: usage.bytes_reserved,
+        })
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -273,5 +345,87 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor
+    }
+}
+
+/// A pool layout in the runtime's own vocabulary, with sizes aligned to
+/// `alignment` — the rounding the runtime applies anyway, done here because the
+/// cap has to be counted in the pages it will actually build. Multiplying the
+/// *requested* page size instead buys fewer aligned pages than were asked for,
+/// and for a single-page pool a cap that cannot fit its page at all.
+fn pool_config(
+    layout: MemoryPoolLayout,
+    alignment: u64,
+) -> Result<MemoryPoolsConfig, InstallMemoryPoolsError> {
+    let config = match layout {
+        MemoryPoolLayout::Sliced(pools) => MemoryPoolsConfig::Explicit(
+            pools
+                .into_iter()
+                .map(
+                    |SlicedPool {
+                         page_size,
+                         pages,
+                         max_slice,
+                     }| {
+                        let page_size = align_up(page_size, alignment)?;
+                        let max_pool_size = pages
+                            .map(|pages| {
+                                page_size.checked_mul(pages).ok_or_else(|| {
+                                    InstallMemoryPoolsError::InvalidLayout {
+                                        reason: format!(
+                                            "a cap of {pages} pages of {page_size} B overflows"
+                                        ),
+                                    }
+                                })
+                            })
+                            .transpose()?;
+
+                        Ok(MemoryPoolConfig::Sliced {
+                            page_size: MemorySize(page_size),
+                            max_slice_size: max_slice
+                                .map(|size| align_up(size, alignment))
+                                .transpose()?
+                                .map(MemorySize),
+                            max_pool_size: max_pool_size.map(MemorySize),
+                            dealloc_period: None,
+                        })
+                    },
+                )
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+        // Never reclaiming on its own: a direct pool is installed to measure
+        // what a workload allocates, which is a short window with an explicit
+        // cleanup on either side of it.
+        MemoryPoolLayout::Direct => {
+            MemoryPoolsConfig::Explicit(vec![MemoryPoolConfig::Direct { reclaim_at: None }])
+        }
+        MemoryPoolLayout::SubSlices => MemoryPoolsConfig::Preset(MemoryPoolsPreset::SubSlices),
+        MemoryPoolLayout::ExclusivePages => {
+            MemoryPoolsConfig::Preset(MemoryPoolsPreset::ExclusivePages)
+        }
+    };
+
+    Ok(config)
+}
+
+/// A size rounded up to the device's alignment. Zero stays zero, for the
+/// layout's own validation to reject by field.
+fn align_up(size: u64, alignment: u64) -> Result<u64, InstallMemoryPoolsError> {
+    size.checked_next_multiple_of(alignment)
+        .ok_or_else(|| InstallMemoryPoolsError::InvalidLayout {
+            reason: format!("{size} B cannot be aligned up to {alignment} B"),
+        })
+}
+
+/// The runtime's refusal, in the backend's vocabulary.
+fn runtime_install_error(err: cubecl::InstallMemoryPoolsError) -> InstallMemoryPoolsError {
+    match err {
+        cubecl::InstallMemoryPoolsError::PoolsInUse { bytes_in_use } => {
+            InstallMemoryPoolsError::PoolsInUse { bytes_in_use }
+        }
+        cubecl::InstallMemoryPoolsError::StreamUnavailable => {
+            InstallMemoryPoolsError::StreamUnavailable
+        }
+        cubecl::InstallMemoryPoolsError::Unsupported => InstallMemoryPoolsError::Unsupported,
     }
 }

@@ -4,7 +4,8 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError,
+    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, InstallMemoryPoolsError,
+    MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -90,6 +91,41 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
+    }
+
+    fn memory_install_pools(
+        device: &Self::Device,
+        layout: MemoryPoolLayout,
+    ) -> Result<(), InstallMemoryPoolsError> {
+        // Pools belong to a stream, and fused operations allocate on the fusion
+        // server thread's — so the rebuild has to be issued from that thread to
+        // reach the right one. `sync` also drains what has already been
+        // recorded, so the rebuild sees a quiescent stream rather than refusing
+        // over operations that have not run yet.
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+
+        client.sync(move || B::memory_install_pools(&device, layout))
+    }
+
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        // Reads the *calling* stream, which is the one the layout was installed
+        // on and the one fused operations allocate from, so it hops exactly as
+        // the install does.
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+
+        client.sync(move || B::memory_pool_report(&device))
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        // Combined across the runtime's streams, so no hop is needed for the
+        // reading itself — but recorded operations have to be drained first or
+        // they are missing from it.
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+
+        client.sync(move || B::memory_pool_usage(&device))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

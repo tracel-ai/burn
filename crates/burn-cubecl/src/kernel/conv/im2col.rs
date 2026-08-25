@@ -1,5 +1,8 @@
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{DType, ops::ConvOptions};
+use burn_backend::{
+    DType,
+    ops::{ConvOptions, conv::calculate_conv_output_sizes},
+};
 use burn_std::{Metadata, Shape, Slice};
 use core::iter;
 use cubecl::{
@@ -71,11 +74,23 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
 
     let out_channels = weight.meta.shape()[0];
 
-    check_pointwise(&weight.meta.shape()[1..dim_c], &options)?;
+    check_pointwise_strided(&weight.meta.shape()[1..dim_c], &options)?;
 
-    // A pointwise convolution's output has the input's spatial shape.
+    let out_shape = calculate_conv_output_sizes(
+        &weight.meta.shape()[1..dim_c],
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+        &input.meta.shape()[1..dim_c],
+    );
+
     let mut split_m = vec![input.meta.shape()[0]];
-    split_m.extend(input.meta.shape()[1..dim_c].iter().copied());
+    split_m.extend(out_shape.iter().copied());
+
+    let input = match options.stride.iter().all(|stride| *stride == 1) {
+        true => input,
+        false => strided_spatial_view(input, &out_shape, &options.stride),
+    };
 
     let input = reshape_input(input); // [(NHW), C] : [M, K]
     let dtype = input.dtype;
@@ -172,12 +187,27 @@ fn check_pointwise<const N: usize>(
     kernel_shape: &[usize],
     options: &ConvOptions<N>,
 ) -> Result<(), ConvSetupError> {
+    check_pointwise_strided(kernel_shape, options)?;
+
+    match options.stride.iter().all(|stride| *stride == 1) {
+        true => Ok(()),
+        false => Err(ConvSetupError::Unknown),
+    }
+}
+
+/// The same, minus the stride: a strided pointwise convolution reads a regular
+/// subset of its input, which a view can hold exactly, so the forward pass
+/// still lowers to one matmul. The gradient paths have no such view and keep
+/// [`check_pointwise`].
+fn check_pointwise_strided<const N: usize>(
+    kernel_shape: &[usize],
+    options: &ConvOptions<N>,
+) -> Result<(), ConvSetupError> {
     if options.groups != 1 {
         return Err(ConvSetupError::Groups(options.groups));
     }
 
     let pointwise = kernel_shape.iter().all(|size| *size == 1)
-        && options.stride.iter().all(|stride| *stride == 1)
         && options.padding.iter().all(|padding| *padding == 0)
         && options.dilation.iter().all(|dilation| *dilation == 1);
 
@@ -185,6 +215,26 @@ fn check_pointwise<const N: usize>(
         true => Ok(()),
         false => Err(ConvSetupError::Unknown),
     }
+}
+
+/// The view a strided pointwise convolution actually reads: every `stride`-th
+/// position along each spatial dim. Multiplying the spatial strides leaves the
+/// contiguous copy in [`reshape_input`] to gather exactly those rows.
+fn strided_spatial_view<R: CubeRuntime>(
+    mut input: CubeTensor<R>,
+    out_shape: &[usize],
+    stride: &[usize],
+) -> CubeTensor<R> {
+    let mut shape = input.meta.shape().to_vec();
+    let mut strides = input.meta.strides().to_vec();
+
+    for (dim, (out, step)) in out_shape.iter().zip(stride).enumerate() {
+        shape[dim + 1] = *out;
+        strides[dim + 1] *= *step;
+    }
+
+    *input.meta = Metadata::new(shape, strides);
+    input
 }
 
 /// Drops a pointwise weight's unit kernel dimensions, giving `[C_out, C_in]`.
