@@ -41,6 +41,7 @@ impl ScalarIr {
     }
 
     /// Converts and returns the converted element.
+    #[must_use]
     pub fn elem<E: Element>(self) -> E {
         match self {
             ScalarIr::Float(x) => x.elem(),

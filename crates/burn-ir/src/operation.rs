@@ -48,6 +48,7 @@ pub struct CustomOpIr {
 
 impl CustomOpIr {
     /// Create a new custom operation intermediate representation (without scalar arguments).
+    #[must_use]
     pub fn new(id: &'static str, inputs: &[TensorIr], outputs: &[TensorIr]) -> Self {
         Self {
             id: id.to_owned(),
@@ -58,6 +59,7 @@ impl CustomOpIr {
     }
 
     /// Create a new custom operation intermediate representation with scalar arguments.
+    #[must_use]
     pub fn with_scalars(
         id: &'static str,
         inputs: &[TensorIr],
@@ -73,6 +75,7 @@ impl CustomOpIr {
     }
 
     /// Cast the intermediate representation, and get the in and output tensors.
+    #[must_use]
     pub fn as_fixed<const N_IN: usize, const N_OUT: usize>(
         &self,
     ) -> (&[TensorIr; N_IN], &[TensorIr; N_OUT]) {
@@ -95,13 +98,13 @@ impl CustomOpIr {
     }
 
     fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
-        for t in self.inputs.iter_mut() {
+        for t in &mut self.inputs {
             v.visit_tensor_mut(t);
         }
-        for t in self.outputs.iter_mut() {
+        for t in &mut self.outputs {
             v.visit_tensor_mut(t);
         }
-        for s in self.scalars.iter_mut() {
+        for s in &mut self.scalars {
             v.visit_scalar_mut(s);
         }
     }
@@ -152,7 +155,7 @@ pub enum FloatOperationIr {
     Log1p(UnaryOpIr),
     /// Operation corresponding to [erf](burn_backend::ops::FloatTensorOps::float_erf).
     Erf(UnaryOpIr),
-    /// Operation corresponding to [powf_scalar](burn_backend::ops::FloatTensorOps::float_powf_scalar).
+    /// Operation corresponding to [`powf_scalar`](burn_backend::ops::FloatTensorOps::float_powf_scalar).
     PowfScalar(ScalarOpIr),
     /// Operation corresponding to [sqrt](burn_backend::ops::FloatTensorOps::float_sqrt).
     Sqrt(UnaryOpIr),
@@ -190,7 +193,7 @@ pub enum FloatOperationIr {
     Ceil(UnaryOpIr),
     /// Operation corresponding to [trunc](burn_backend::ops::FloatTensorOps::float_trunc).
     Trunc(UnaryOpIr),
-    /// Operation corresponding to [into_int](burn_backend::ops::FloatTensorOps::float_into_int).
+    /// Operation corresponding to [`into_int`](burn_backend::ops::FloatTensorOps::float_into_int).
     IntoInt(CastOpIr),
     /// Operation corresponding to [matmul](burn_backend::ops::FloatTensorOps::float_matmul).
     Matmul(MatmulOpIr),
@@ -200,15 +203,15 @@ pub enum FloatOperationIr {
     Random(RandomOpIr),
     /// Operation corresponding to [recip](burn_backend::ops::FloatTensorOps::float_recip).
     Recip(UnaryOpIr),
-    /// Operation corresponding to [is_nan](burn_backend::ops::FloatTensorOps::float_is_nan).
+    /// Operation corresponding to [`is_nan`](burn_backend::ops::FloatTensorOps::float_is_nan).
     IsNan(UnaryOpIr),
-    /// Operation corresponding to [is_nan](burn_backend::ops::FloatTensorOps::float_is_inf).
+    /// Operation corresponding to [`is_nan`](burn_backend::ops::FloatTensorOps::float_is_inf).
     IsInf(UnaryOpIr),
     /// Operation corresponding to [quantize](burn_backend::ops::QTensorOps::quantize).
     Quantize(QuantizeOpIr),
     /// Operation corresponding to [dequantize](burn_backend::ops::QTensorOps::dequantize).
     Dequantize(DequantizeOpIr),
-    /// Operation corresponding to [grid_sample_2d](burn_backend::ops::FloatTensorOps::float_grid_sample_2d).
+    /// Operation corresponding to [`grid_sample_2d`](burn_backend::ops::FloatTensorOps::float_grid_sample_2d).
     GridSample2d(GridSample2dOpIr),
     /// Operation corresponding to [powf](burn_backend::ops::FloatTensorOps::float_powi).
     Powf(BinaryOpIr),
@@ -220,47 +223,47 @@ pub enum FloatOperationIr {
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum ModuleOperationIr {
     /// Batch normalization with explicitly supplied statistics, corresponding
-    /// to [batch_norm](burn_backend::ops::ModuleOps::batch_norm).
+    /// to [`batch_norm`](burn_backend::ops::ModuleOps::batch_norm).
     BatchNorm(BatchNormOpIr),
     /// Operation corresponding to [embedding](burn_backend::ops::ModuleOps::embedding).
     Embedding(EmbeddingOpIr),
-    /// Operation corresponding to [embedding_backward](burn_backend::ops::ModuleOps::embedding_backward).
+    /// Operation corresponding to [`embedding_backward`](burn_backend::ops::ModuleOps::embedding_backward).
     EmbeddingBackward(EmbeddingBackwardOpIr),
     /// Operation corresponding to [linear](burn_backend::ops::ModuleOps::linear).
     Linear(LinearOpIr),
-    /// Operation corresponding to [linear_x_backward](burn_backend::ops::ModuleOps::linear_x_backward).
+    /// Operation corresponding to [`linear_x_backward`](burn_backend::ops::ModuleOps::linear_x_backward).
     LinearXBackward(LinearXBackwardOpIr),
-    /// Operation corresponding to [linear_weight_backward](burn_backend::ops::ModuleOps::linear_weight_backward).
+    /// Operation corresponding to [`linear_weight_backward`](burn_backend::ops::ModuleOps::linear_weight_backward).
     LinearWeightBackward(LinearWeightBackwardOpIr),
-    /// Operation corresponding to [linear_bias_backward](burn_backend::ops::ModuleOps::linear_bias_backward).
+    /// Operation corresponding to [`linear_bias_backward`](burn_backend::ops::ModuleOps::linear_bias_backward).
     LinearBiasBackward(LinearBiasBackwardOpIr),
     /// Operation corresponding to [conv1d](burn_backend::ops::ModuleOps::conv1d).
     Conv1d(Conv1dOpIr),
-    /// Operation corresponding to [conv1d_x_backward](burn_backend::ops::ModuleOps::conv1d_x_backward).
+    /// Operation corresponding to [`conv1d_x_backward`](burn_backend::ops::ModuleOps::conv1d_x_backward).
     Conv1dXBackward(Conv1dXBackwardOpIr),
-    /// Operation corresponding to [conv1d_weight_backward](burn_backend::ops::ModuleOps::conv1d_weight_backward).
+    /// Operation corresponding to [`conv1d_weight_backward`](burn_backend::ops::ModuleOps::conv1d_weight_backward).
     Conv1dWeightBackward(Conv1dWeightBackwardOpIr),
-    /// Operation corresponding to [conv1d_bias_backward](burn_backend::ops::ModuleOps::conv1d_bias_backward).
+    /// Operation corresponding to [`conv1d_bias_backward`](burn_backend::ops::ModuleOps::conv1d_bias_backward).
     Conv1dBiasBackward(Conv1dBiasBackwardOpIr),
     /// Operation corresponding to [conv2d](burn_backend::ops::ModuleOps::conv2d).
     Conv2d(Conv2dOpIr),
-    /// Operation corresponding to [conv2d_x_backward](burn_backend::ops::ModuleOps::conv2d_x_backward).
+    /// Operation corresponding to [`conv2d_x_backward`](burn_backend::ops::ModuleOps::conv2d_x_backward).
     Conv2dXBackward(Conv2dXBackwardOpIr),
-    /// Operation corresponding to [conv2d_weight_backward](burn_backend::ops::ModuleOps::conv2d_weight_backward).
+    /// Operation corresponding to [`conv2d_weight_backward`](burn_backend::ops::ModuleOps::conv2d_weight_backward).
     Conv2dWeightBackward(Conv2dWeightBackwardOpIr),
-    /// Operation corresponding to [conv2d_bias_backward](burn_backend::ops::ModuleOps::conv2d_bias_backward).
+    /// Operation corresponding to [`conv2d_bias_backward`](burn_backend::ops::ModuleOps::conv2d_bias_backward).
     Conv2dBiasBackward(Conv2dBiasBackwardOpIr),
     /// Operation corresponding to [conv3d](burn_backend::ops::ModuleOps::conv3d).
     Conv3d(Conv3dOpIr),
-    /// Operation corresponding to [conv3d_x_backward](burn_backend::ops::ModuleOps::conv3d_x_backward).
+    /// Operation corresponding to [`conv3d_x_backward`](burn_backend::ops::ModuleOps::conv3d_x_backward).
     Conv3dXBackward(Conv3dXBackwardOpIr),
-    /// Operation corresponding to [conv3d_weight_backward](burn_backend::ops::ModuleOps::conv3d_weight_backward).
+    /// Operation corresponding to [`conv3d_weight_backward`](burn_backend::ops::ModuleOps::conv3d_weight_backward).
     Conv3dWeightBackward(Conv3dWeightBackwardOpIr),
-    /// Operation corresponding to [conv3d_bias_backward](burn_backend::ops::ModuleOps::conv3d_bias_backward).
+    /// Operation corresponding to [`conv3d_bias_backward`](burn_backend::ops::ModuleOps::conv3d_bias_backward).
     Conv3dBiasBackward(Conv3dBiasBackwardOpIr),
-    /// Operation corresponding to [deform_conv2d](burn_backend::ops::ModuleOps::deform_conv2d)
+    /// Operation corresponding to [`deform_conv2d`](burn_backend::ops::ModuleOps::deform_conv2d)
     DeformableConv2d(Box<DeformConv2dOpIr>),
-    /// Operation corresponding to [deform_conv2d_backward](burn_backend::ops::ModuleOps::deform_conv2d_backward)
+    /// Operation corresponding to [`deform_conv2d_backward`](burn_backend::ops::ModuleOps::deform_conv2d_backward)
     DeformableConv2dBackward(Box<DeformConv2dBackwardOpIr>),
     /// Operation corresponding to [conv transpose 1d](burn_backend::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dOpIr),
@@ -324,32 +327,32 @@ pub enum ModuleOperationIr {
     IRfft(IRfftOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
-    /// Operation corresponding to [ctc_loss](burn_backend::ops::ModuleOps::ctc_loss).
+    /// Operation corresponding to [`ctc_loss`](burn_backend::ops::ModuleOps::ctc_loss).
     CtcLoss(CtcLossOpIr),
     /// Operation corresponding to
-    /// [ctc_loss_backward](burn_backend::ops::ModuleOps::ctc_loss_backward).
+    /// [`ctc_loss_backward`](burn_backend::ops::ModuleOps::ctc_loss_backward).
     CtcLossBackward(CtcLossBackwardOpIr),
-    /// Operation corresponding to [layer_norm](burn_backend::ops::ModuleOps::layer_norm).
+    /// Operation corresponding to [`layer_norm`](burn_backend::ops::ModuleOps::layer_norm).
     LayerNorm(LayerNormOpIr),
     /// Operation corresponding to [unfold4d](burn_backend::ops::ModuleOps::unfold4d).
     Unfold4d(Unfold4dOpIr),
     /// Operation corresponding to
-    /// [conv_transpose1d_weight_backward](burn_backend::ops::ModuleOps::conv_transpose1d_weight_backward).
+    /// [`conv_transpose1d_weight_backward`](burn_backend::ops::ModuleOps::conv_transpose1d_weight_backward).
     ConvTranspose1dWeightBackward(ConvTranspose1dWeightBackwardOpIr),
     /// Operation corresponding to
-    /// [conv_transpose1d_bias_backward](burn_backend::ops::ModuleOps::conv_transpose1d_bias_backward).
+    /// [`conv_transpose1d_bias_backward`](burn_backend::ops::ModuleOps::conv_transpose1d_bias_backward).
     ConvTranspose1dBiasBackward(ConvTranspose1dBiasBackwardOpIr),
     /// Operation corresponding to
-    /// [conv_transpose2d_weight_backward](burn_backend::ops::ModuleOps::conv_transpose2d_weight_backward).
+    /// [`conv_transpose2d_weight_backward`](burn_backend::ops::ModuleOps::conv_transpose2d_weight_backward).
     ConvTranspose2dWeightBackward(ConvTranspose2dWeightBackwardOpIr),
     /// Operation corresponding to
-    /// [conv_transpose2d_bias_backward](burn_backend::ops::ModuleOps::conv_transpose2d_bias_backward).
+    /// [`conv_transpose2d_bias_backward`](burn_backend::ops::ModuleOps::conv_transpose2d_bias_backward).
     ConvTranspose2dBiasBackward(ConvTranspose2dBiasBackwardOpIr),
     /// Operation corresponding to
-    /// [conv_transpose3d_weight_backward](burn_backend::ops::ModuleOps::conv_transpose3d_weight_backward).
+    /// [`conv_transpose3d_weight_backward`](burn_backend::ops::ModuleOps::conv_transpose3d_weight_backward).
     ConvTranspose3dWeightBackward(ConvTranspose3dWeightBackwardOpIr),
     /// Operation corresponding to
-    /// [conv_transpose3d_bias_backward](burn_backend::ops::ModuleOps::conv_transpose3d_bias_backward).
+    /// [`conv_transpose3d_bias_backward`](burn_backend::ops::ModuleOps::conv_transpose3d_bias_backward).
     ConvTranspose3dBiasBackward(ConvTranspose3dBiasBackwardOpIr),
 }
 
@@ -365,9 +368,9 @@ pub enum BaseOperationIr {
 
     /// Operation corresponding to:
     ///
-    /// Float => [swap_dims](burn_backend::ops::FloatTensorOps::float_swap_dims).
-    /// Int => [swap_dims](burn_backend::ops::IntTensorOps::int_swap_dims).
-    /// Bool => [swap_dims](burn_backend::ops::BoolTensorOps::bool_swap_dims).
+    /// Float => [`swap_dims`](burn_backend::ops::FloatTensorOps::float_swap_dims).
+    /// Int => [`swap_dims`](burn_backend::ops::IntTensorOps::int_swap_dims).
+    /// Bool => [`swap_dims`](burn_backend::ops::BoolTensorOps::bool_swap_dims).
     SwapDims(SwapDimsOpIr),
 
     /// Operation corresponding to:
@@ -492,15 +495,15 @@ pub enum BaseOperationIr {
     Zeros(CreationOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [not_equal](burn_backend::ops::FloatTensorOps::float_not_equal).
-    /// Int => [not_equal](burn_backend::ops::IntTensorOps::int_not_equal).
-    /// Bool => [not_equal](burn_backend::ops::BoolTensorOps::bool_not_equal).
+    /// Float => [`not_equal`](burn_backend::ops::FloatTensorOps::float_not_equal).
+    /// Int => [`not_equal`](burn_backend::ops::IntTensorOps::int_not_equal).
+    /// Bool => [`not_equal`](burn_backend::ops::BoolTensorOps::bool_not_equal).
     NotEqual(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [not_equal_elem](burn_backend::ops::FloatTensorOps::float_not_equal_elem).
-    /// Int => [not_equal_elem](burn_backend::ops::IntTensorOps::int_not_equal_elem).
-    /// Bool => [not_equal_elem](burn_backend::ops::BoolTensorOps::bool_not_equal_elem).
+    /// Float => [`not_equal_elem`](burn_backend::ops::FloatTensorOps::float_not_equal_elem).
+    /// Int => [`not_equal_elem`](burn_backend::ops::IntTensorOps::int_not_equal_elem).
+    /// Bool => [`not_equal_elem`](burn_backend::ops::BoolTensorOps::bool_not_equal_elem).
     NotEqualElem(ScalarOpIr),
     /// Reduce-`all` over the input tensor.
     ///
@@ -705,13 +708,13 @@ pub enum NumericOperationIr {
     MinDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max_abs](burn_backend::ops::FloatTensorOps::float_max_abs).
-    /// Int => [max_abs](burn_backend::ops::IntTensorOps::int_max_abs).
+    /// Float => [`max_abs`](burn_backend::ops::FloatTensorOps::float_max_abs).
+    /// Int => [`max_abs`](burn_backend::ops::IntTensorOps::int_max_abs).
     MaxAbs(ReduceOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max_abs dim](burn_backend::ops::FloatTensorOps::float_max_abs_dim).
-    /// Int => [max_abs dim](burn_backend::ops::IntTensorOps::int_max_abs_dim).
+    /// Float => [`max_abs` dim](burn_backend::ops::FloatTensorOps::float_max_abs_dim).
+    /// Int => [`max_abs` dim](burn_backend::ops::IntTensorOps::int_max_abs_dim).
     MaxAbsDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
@@ -729,8 +732,8 @@ pub enum NumericOperationIr {
     Powi(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [powi_scalar](burn_backend::ops::FloatTensorOps::float_powi_scalar).
-    /// Int => [powi_scalar](burn_backend::ops::IntTensorOps::int_powi_scalar).
+    /// Float => [`powi_scalar`](burn_backend::ops::FloatTensorOps::float_powi_scalar).
+    /// Int => [`powi_scalar`](burn_backend::ops::IntTensorOps::int_powi_scalar).
     PowiScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
@@ -764,13 +767,13 @@ pub enum NumericOperationIr {
     Sign(UnaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [clamp_min](burn_backend::ops::FloatTensorOps::float_clamp_min).
-    /// Int => [clamp_min](burn_backend::ops::IntTensorOps::int_clamp_min).
+    /// Float => [`clamp_min`](burn_backend::ops::FloatTensorOps::float_clamp_min).
+    /// Int => [`clamp_min`](burn_backend::ops::IntTensorOps::int_clamp_min).
     ClampMin(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [clamp_max](burn_backend::ops::FloatTensorOps::float_clamp_max).
-    /// Int => [clamp_max](burn_backend::ops::IntTensorOps::int_clamp_max).
+    /// Float => [`clamp_max`](burn_backend::ops::FloatTensorOps::float_clamp_max).
+    /// Int => [`clamp_max`](burn_backend::ops::IntTensorOps::int_clamp_max).
     ClampMax(ScalarOpIr),
     /// Sort along a dim. Output shares the input's shape and dtype.
     Sort(SortOpIr),
@@ -857,10 +860,10 @@ pub enum BoolOperationIr {
 #[allow(clippy::large_enum_variant)]
 pub enum DistributedOperationIr {
     /// Operation corresponding to:
-    /// [all_reduce](burn_backend::distributed::DistributedOps::all_reduce).
+    /// [`all_reduce`](burn_backend::distributed::DistributedOps::all_reduce).
     AllReduce(AllReduceOpIr),
     /// Resolve the pending collective operations on the executing device. Corresponds to
-    /// [sync_collective](burn_backend::distributed::DistributedOps::sync_collective).
+    /// [`sync_collective`](burn_backend::distributed::DistributedOps::sync_collective).
     ///
     /// Fire-and-forget and payload-free: it syncs whichever device the interpreter is bound to.
     /// Modeled as an operation (not a side-channel call) so it travels the normal op stream
@@ -936,7 +939,7 @@ pub struct RandomOpIr {
 }
 
 /// Creation operation intermediate representation.
-/// As opposed to [InitOperationIr], creation operations are lazy initialized.
+/// As opposed to [`InitOperationIr`], creation operations are lazy initialized.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct CreationOpIr {
     /// Output tensor intermediate representation.
@@ -1999,8 +2002,8 @@ pub struct AttentionOptionsIr {
 impl From<AttentionOptionsIr> for AttentionModuleOptions {
     fn from(ir: AttentionOptionsIr) -> Self {
         AttentionModuleOptions {
-            scale: ir.scale.map(|s| s.elem()),
-            softcap: ir.softcap.map(|s| s.elem()),
+            scale: ir.scale.map(super::scalar::ScalarIr::elem),
+            softcap: ir.softcap.map(super::scalar::ScalarIr::elem),
             is_causal: ir.is_causal,
         }
     }
@@ -2207,6 +2210,7 @@ impl OperationIr {
     }
 
     /// Get all [tensor](TensorIr) involved with the current operation.
+    #[must_use]
     pub fn nodes(&self) -> Vec<&TensorIr> {
         self.inputs().chain(self.outputs()).collect()
     }
@@ -2235,7 +2239,7 @@ impl OperationIr {
             OperationIr::Custom(repr) => {
                 let mut output = Vec::new();
 
-                for input in repr.inputs.iter_mut() {
+                for input in &mut repr.inputs {
                     input.mark_read_only(nodes, &mut output);
                 }
 
@@ -2426,7 +2430,7 @@ impl BaseOperationIr {
                 repr.tensor.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Cat(repr) => {
-                for t in repr.tensors.iter_mut() {
+                for t in &mut repr.tensors {
                     t.mark_read_only(nodes, &mut output);
                 }
             }
@@ -2458,7 +2462,7 @@ impl BaseOperationIr {
             BaseOperationIr::AnyDim(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
-        };
+        }
 
         output
     }
@@ -2556,7 +2560,7 @@ impl BaseOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
             }
             BaseOperationIr::Cat(repr) => {
-                for t in repr.tensors.iter_mut() {
+                for t in &mut repr.tensors {
                     v.visit_tensor_mut(t);
                 }
                 v.visit_tensor_mut(&mut repr.out);
@@ -2906,7 +2910,7 @@ impl NumericOperationIr {
             NumericOperationIr::ArgSort(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
-        };
+        }
 
         output
     }
@@ -3345,7 +3349,7 @@ impl FloatOperationIr {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
-        };
+        }
 
         output
     }
@@ -3592,7 +3596,7 @@ impl IntOperationIr {
             IntOperationIr::BitwiseRightShiftScalar(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
             }
-        };
+        }
 
         output
     }
@@ -3712,7 +3716,7 @@ impl BoolOperationIr {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
-        };
+        }
 
         output
     }
@@ -4215,7 +4219,7 @@ impl ModuleOperationIr {
                         bias.mark_read_only(nodes, &mut output);
                     }
                     (None, None) => {}
-                };
+                }
             }
             ModuleOperationIr::DeformableConv2dBackward(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
@@ -4387,7 +4391,7 @@ impl ModuleOperationIr {
                 repr.bias.mark_read_only(nodes, &mut output);
                 repr.output_grad.mark_read_only(nodes, &mut output);
             }
-        };
+        }
 
         output
     }
@@ -5019,10 +5023,10 @@ pub struct HardSigmoidOpIr {
 pub enum ActivationOperationIr {
     /// [relu](burn_backend::ops::ActivationOps::relu).
     Relu(UnaryOpIr),
-    /// [relu_backward](burn_backend::ops::ActivationOps::relu_backward).
+    /// [`relu_backward`](burn_backend::ops::ActivationOps::relu_backward).
     /// `lhs` = output of the forward pass, `rhs` = upstream gradient.
     ReluBackward(BinaryOpIr),
-    /// [leaky_relu](burn_backend::ops::ActivationOps::leaky_relu).
+    /// [`leaky_relu`](burn_backend::ops::ActivationOps::leaky_relu).
     /// `lhs` = input, `rhs` = `negative_slope` scalar.
     LeakyRelu(ScalarOpIr),
     /// [prelu](burn_backend::ops::ActivationOps::prelu).
@@ -5030,24 +5034,24 @@ pub enum ActivationOperationIr {
     PRelu(BinaryOpIr),
     /// [gelu](burn_backend::ops::ActivationOps::gelu).
     Gelu(UnaryOpIr),
-    /// [gelu_backward](burn_backend::ops::ActivationOps::gelu_backward).
+    /// [`gelu_backward`](burn_backend::ops::ActivationOps::gelu_backward).
     /// `lhs` = forward input, `rhs` = upstream gradient.
     GeluBackward(BinaryOpIr),
     /// [sigmoid](burn_backend::ops::ActivationOps::sigmoid).
     Sigmoid(UnaryOpIr),
-    /// [sigmoid_backward](burn_backend::ops::ActivationOps::sigmoid_backward).
+    /// [`sigmoid_backward`](burn_backend::ops::ActivationOps::sigmoid_backward).
     /// `lhs` = output of the forward pass, `rhs` = upstream gradient.
     SigmoidBackward(BinaryOpIr),
-    /// [hard_sigmoid](burn_backend::ops::ActivationOps::hard_sigmoid).
+    /// [`hard_sigmoid`](burn_backend::ops::ActivationOps::hard_sigmoid).
     HardSigmoid(HardSigmoidOpIr),
-    /// [log_sigmoid](burn_backend::ops::ActivationOps::log_sigmoid).
+    /// [`log_sigmoid`](burn_backend::ops::ActivationOps::log_sigmoid).
     LogSigmoid(UnaryOpIr),
-    /// [log_sigmoid_backward](burn_backend::ops::ActivationOps::log_sigmoid_backward).
+    /// [`log_sigmoid_backward`](burn_backend::ops::ActivationOps::log_sigmoid_backward).
     /// `lhs` = forward input, `rhs` = upstream gradient.
     LogSigmoidBackward(BinaryOpIr),
     /// [softmax](burn_backend::ops::ActivationOps::softmax).
     Softmax(DimOpIr),
-    /// [log_softmax](burn_backend::ops::ActivationOps::log_softmax).
+    /// [`log_softmax`](burn_backend::ops::ActivationOps::log_softmax).
     LogSoftmax(DimOpIr),
     /// [softmin](burn_backend::ops::ActivationOps::softmin).
     Softmin(DimOpIr),
@@ -5092,7 +5096,11 @@ impl ActivationOperationIr {
                 v.visit_tensor_mut(&mut repr.input);
                 v.visit_tensor_mut(&mut repr.out);
             }
-            ActivationOperationIr::ReluBackward(repr) => {
+            ActivationOperationIr::ReluBackward(repr)
+            | ActivationOperationIr::PRelu(repr)
+            | ActivationOperationIr::GeluBackward(repr)
+            | ActivationOperationIr::SigmoidBackward(repr)
+            | ActivationOperationIr::LogSigmoidBackward(repr) => {
                 v.visit_tensor_mut(&mut repr.lhs);
                 v.visit_tensor_mut(&mut repr.rhs);
                 v.visit_tensor_mut(&mut repr.out);
@@ -5102,27 +5110,10 @@ impl ActivationOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
                 v.visit_scalar_mut(&mut repr.rhs);
             }
-            ActivationOperationIr::PRelu(repr) => {
-                v.visit_tensor_mut(&mut repr.lhs);
-                v.visit_tensor_mut(&mut repr.rhs);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            ActivationOperationIr::Gelu(repr) => {
+            ActivationOperationIr::Gelu(repr)
+            | ActivationOperationIr::Sigmoid(repr)
+            | ActivationOperationIr::LogSigmoid(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            ActivationOperationIr::GeluBackward(repr) => {
-                v.visit_tensor_mut(&mut repr.lhs);
-                v.visit_tensor_mut(&mut repr.rhs);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            ActivationOperationIr::Sigmoid(repr) => {
-                v.visit_tensor_mut(&mut repr.input);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            ActivationOperationIr::SigmoidBackward(repr) => {
-                v.visit_tensor_mut(&mut repr.lhs);
-                v.visit_tensor_mut(&mut repr.rhs);
                 v.visit_tensor_mut(&mut repr.out);
             }
             ActivationOperationIr::HardSigmoid(repr) => {
@@ -5131,24 +5122,9 @@ impl ActivationOperationIr {
                 v.visit_scalar_mut(&mut repr.alpha);
                 v.visit_scalar_mut(&mut repr.beta);
             }
-            ActivationOperationIr::LogSigmoid(repr) => {
-                v.visit_tensor_mut(&mut repr.input);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            ActivationOperationIr::LogSigmoidBackward(repr) => {
-                v.visit_tensor_mut(&mut repr.lhs);
-                v.visit_tensor_mut(&mut repr.rhs);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            ActivationOperationIr::Softmax(repr) => {
-                v.visit_tensor_mut(&mut repr.input);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            ActivationOperationIr::LogSoftmax(repr) => {
-                v.visit_tensor_mut(&mut repr.input);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            ActivationOperationIr::Softmin(repr) => {
+            ActivationOperationIr::Softmax(repr)
+            | ActivationOperationIr::LogSoftmax(repr)
+            | ActivationOperationIr::Softmin(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
                 v.visit_tensor_mut(&mut repr.out);
             }

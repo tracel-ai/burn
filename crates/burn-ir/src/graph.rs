@@ -42,6 +42,7 @@ impl GraphIr {
     /// Intermediate tensors that are produced and then consumed in place or explicitly dropped
     /// appear in neither boundary. Input and output identifiers retain their first-use and
     /// production order, respectively, making construction deterministic.
+    #[must_use]
     pub fn new(operations: Vec<OperationIr>) -> Self {
         let boundary = Self::classify(&operations);
         Self {
@@ -55,6 +56,7 @@ impl GraphIr {
     ///
     /// This applies the same rules as [`GraphIr::new`] and is useful to validate an explicitly
     /// declared logical boundary or to estimate graph binding costs.
+    #[must_use]
     pub fn classify(operations: &[OperationIr]) -> GraphBoundary {
         let mut referenced = Vec::new();
         let mut referenced_set = HashSet::new();
@@ -95,11 +97,13 @@ impl GraphIr {
     }
 
     /// Number of operations in the graph.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.operations.len()
     }
 
     /// Whether the graph contains no operations.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.operations.is_empty()
     }

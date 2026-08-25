@@ -21,10 +21,11 @@ impl<H> Default for HandleContainer<H> {
 
 impl<H: Clone> HandleContainer<H> {
     /// Fork the container, useful for autotune.
+    #[must_use]
     pub fn fork(&self) -> Self {
         let mut handles = HashMap::with_capacity(self.handles.len());
 
-        for (id, handle) in self.handles.iter() {
+        for (id, handle) in &self.handles {
             handles.insert(*id, handle.clone());
         }
 
@@ -54,7 +55,8 @@ pub enum Handle<H> {
 }
 
 impl<H: Clone> HandleContainer<H> {
-    /// Create a new HandleContainer
+    /// Create a new `HandleContainer`
+    #[must_use]
     pub fn new() -> Self {
         Self {
             handles: HashMap::new(),
@@ -68,11 +70,13 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Whether a handle exists.
+    #[must_use]
     pub fn has_handle(&self, id: &TensorId) -> bool {
         self.handles.contains_key(id)
     }
 
     /// Get the reference to a handle.
+    #[must_use]
     pub fn get_handle_ref(&self, id: &TensorId) -> Option<&H> {
         self.handles
             .get(id)
@@ -207,10 +211,11 @@ impl<H: Clone> HandleContainer<H> {
             TensorStatus::ReadWrite => {
                 self.handles.remove(&tensor.id);
             }
-        };
+        }
     }
 
     /// Returns the number of handles.
+    #[must_use]
     pub fn num_handles(&self) -> usize {
         self.handles.len()
     }

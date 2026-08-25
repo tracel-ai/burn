@@ -16,7 +16,32 @@ use burn_backend::{
 
 use crate::{ScalarIr, TensorId, TensorIr};
 
-use super::operation::*;
+use super::operation::{
+    AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr, AdaptiveAvgPool2dBackwardOpIr,
+    AdaptiveAvgPool2dOpIr, AdaptiveAvgPool3dBackwardOpIr, AdaptiveAvgPool3dOpIr, AllReduceOpIr,
+    AttentionOpIr, AttentionOptionsIr, AvgPool1dBackwardOpIr, AvgPool1dOpIr, AvgPool2dBackwardOpIr,
+    AvgPool2dOpIr, BatchNormOpIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, Conv1dBiasBackwardOpIr,
+    Conv1dOpIr, Conv1dOptionsIr, Conv1dWeightBackwardOpIr, Conv1dXBackwardOpIr,
+    Conv2dBiasBackwardOpIr, Conv2dOpIr, Conv2dOptionsIr, Conv2dWeightBackwardOpIr,
+    Conv2dXBackwardOpIr, Conv3dBiasBackwardOpIr, Conv3dOpIr, Conv3dOptionsIr,
+    Conv3dWeightBackwardOpIr, Conv3dXBackwardOpIr, ConvTranspose1dBiasBackwardOpIr,
+    ConvTranspose1dOpIr, ConvTranspose1dOptionsIr, ConvTranspose1dWeightBackwardOpIr,
+    ConvTranspose2dBiasBackwardOpIr, ConvTranspose2dOpIr, ConvTranspose2dOptionsIr,
+    ConvTranspose2dWeightBackwardOpIr, ConvTranspose3dBiasBackwardOpIr, ConvTranspose3dOpIr,
+    ConvTranspose3dOptionsIr, ConvTranspose3dWeightBackwardOpIr, CreationOpIr, CrossOpIr,
+    CtcLossBackwardOpIr, CtcLossOpIr, DeformConv2dBackwardOpIr, DeformConv2dOpIr,
+    DeformableConv2dOptionsIr, DequantizeOpIr, DeviceIdIr, DimOpIr, EmbeddingBackwardOpIr,
+    EmbeddingOpIr, FlipOpIr, FullOpIr, GatherNdOpIr, GatherOpIr, GridSample2dOpIr,
+    GridSampleOptionsIr, HardSigmoidOpIr, InitOperationIr, InterpolateBackwardOpIr,
+    InterpolateOpIr, InterpolateOptionsIr, LayerNormOpIr, LinearBiasBackwardOpIr, LinearOpIr,
+    LinearWeightBackwardOpIr, LinearXBackwardOpIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr,
+    MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr, MaxPool1dWithIndicesOpIr, MaxPool2dOpIr,
+    MaxPool2dWithIndicesBackwardOpIr, MaxPool2dWithIndicesOpIr, PermuteOpIr,
+    QuantizationParametersIr, QuantizeOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr,
+    ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr,
+    SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr,
+    TopKWithIndicesOpIr, UnaryOpIr, Unfold4dOpIr, Unfold4dOptionsIr, UnfoldOpIr,
+};
 
 fn permute_quantized_dtype(dtype: DType, rank: usize, axes: &[usize]) -> DType {
     let DType::QFloat(mut scheme) = dtype else {
@@ -362,7 +387,7 @@ impl_ir_create!(
 );
 
 impl GatherNdOpIr {
-    /// Create a new GatherNd IR operation.
+    /// Create a new `GatherNd` IR operation.
     pub fn create(
         data: TensorIr,
         indices: TensorIr,
