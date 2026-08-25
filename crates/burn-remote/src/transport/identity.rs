@@ -61,6 +61,7 @@ pub enum PeerAddr {
 
 impl PeerAddr {
     /// Return the stable peer identity, excluding dialing hints.
+    #[must_use]
     pub fn id(&self) -> PeerId {
         match self {
             #[cfg(feature = "iroh")]
@@ -71,6 +72,7 @@ impl PeerAddr {
     }
 
     /// Return true when this is an Iroh peer.
+    #[must_use]
     pub fn is_iroh(&self) -> bool {
         match self {
             #[cfg(feature = "iroh")]

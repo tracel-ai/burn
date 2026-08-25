@@ -35,6 +35,10 @@ pub struct AuthorizationRequest<'a> {
 /// Application authorization policy for incoming compute sessions.
 pub trait PeerAuthorizer: Send + Sync + 'static {
     /// Return `Ok(())` to allow the session, or a user-facing rejection reason.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(String)` when the authorization request is rejected.
     fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), String>;
 }
 
@@ -77,6 +81,7 @@ impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
 
 impl<B: BackendIr> IrohRemoteProtocol<B> {
     /// Create a handler hosting `devices` on `node`.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn new(
         endpoint: Endpoint,
         devices: Vec<Device<B>>,
@@ -88,7 +93,7 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
         let transfer = Arc::new(IrohTransfer::new(node.clone()));
 
         let sessions = Arc::new(
-            SessionManager::new(devices.to_vec(), transfer.clone())
+            SessionManager::new(devices.clone(), transfer.clone())
                 .with_telemetry(probe.clone())
                 .with_custom_ops(custom_ops.clone()),
         );

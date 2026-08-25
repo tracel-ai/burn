@@ -9,21 +9,25 @@ pub struct RemoteSecret(iroh::SecretKey);
 
 impl RemoteSecret {
     /// A fresh random identity. Persist [`to_bytes`](Self::to_bytes) to reuse the same address later.
+    #[must_use]
     pub fn random() -> Self {
         Self(iroh::SecretKey::generate())
     }
 
     /// A deterministic identity from 32 seed bytes (e.g. a hash of an application name).
+    #[must_use]
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(iroh::SecretKey::from_bytes(&bytes))
     }
 
     /// The raw 32 bytes, to persist and reload a stable identity.
+    #[must_use]
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
     }
 
     /// The public identity clients dial.
+    #[must_use]
     pub fn id(&self) -> iroh::EndpointId {
         self.0.public()
     }

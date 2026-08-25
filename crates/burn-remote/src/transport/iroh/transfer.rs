@@ -106,7 +106,7 @@ impl<B: BackendIr> IrohTransfer<B> {
             }
         })
         .await
-        .map_err(|_| format!("Timed out waiting for tensor transfer {capability:?}"))?
+        .map_err(|()| format!("Timed out waiting for tensor transfer {capability:?}"))?
     }
 
     async fn expose_response(

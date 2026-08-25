@@ -93,6 +93,7 @@ impl OpClass {
     ];
 
     /// Stable lowercase label for display and aggregation.
+    #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             OpClass::Matmul => "matmul",
@@ -116,6 +117,7 @@ impl OpClass {
 }
 
 /// Classify an [`OperationIr`] into a coarse [`OpClass`].
+#[must_use]
 pub fn classify(op: &OperationIr) -> OpClass {
     use OperationIr as O;
     match op {
@@ -286,24 +288,23 @@ pub enum TelemetryEvent {
 
 impl TelemetryEvent {
     pub(crate) fn unfused_op(session: SessionId, stream: StreamId, op: &OperationIr) -> Self {
-        match op {
-            OperationIr::Drop(tensor) => TelemetryEvent::TensorDropped {
+        if let OperationIr::Drop(tensor) = op {
+            TelemetryEvent::TensorDropped {
                 session,
                 tensor: tensor.id,
-            },
-            _ => {
-                let GraphOp {
-                    kind,
-                    inputs,
-                    outputs,
-                } = GraphOp::summarize(op);
-                TelemetryEvent::Op {
-                    session,
-                    stream,
-                    kind,
-                    inputs,
-                    outputs,
-                }
+            }
+        } else {
+            let GraphOp {
+                kind,
+                inputs,
+                outputs,
+            } = GraphOp::summarize(op);
+            TelemetryEvent::Op {
+                session,
+                stream,
+                kind,
+                inputs,
+                outputs,
             }
         }
     }
@@ -347,12 +348,14 @@ pub struct TelemetryProbe {
 
 impl TelemetryProbe {
     /// A probe that drops everything. Worker emit points compile to a cheap no-op against it.
+    #[must_use]
     pub fn disabled() -> Self {
         Self { tx: None }
     }
 
     /// Create an active probe with no initial subscription. Subscribers attach later with
     /// [`subscribe`](Self::subscribe); the probe stays inert until at least one is listening.
+    #[must_use]
     pub fn new(capacity: usize) -> Self {
         let (tx, _rx) = broadcast::channel(capacity);
         Self { tx: Some(tx) }
@@ -360,12 +363,14 @@ impl TelemetryProbe {
 
     /// Create an active probe and its first subscription. `capacity` bounds the per-subscriber
     /// backlog; older events are dropped once a subscriber falls that far behind.
+    #[must_use]
     pub fn channel(capacity: usize) -> (Self, TelemetrySubscription) {
         let (tx, rx) = broadcast::channel(capacity);
         (Self { tx: Some(tx) }, TelemetrySubscription { rx })
     }
 
     /// Attach another subscription, or `None` if this probe is disabled.
+    #[must_use]
     pub fn subscribe(&self) -> Option<TelemetrySubscription> {
         self.tx
             .as_ref()
@@ -374,6 +379,7 @@ impl TelemetryProbe {
 
     /// Whether building and emitting an event is worthwhile right now.
     #[inline]
+    #[must_use]
     pub fn is_active(&self) -> bool {
         self.tx.as_ref().is_some_and(|tx| tx.receiver_count() > 0)
     }
@@ -425,7 +431,7 @@ impl TelemetrySubscription {
         loop {
             match self.rx.recv().await {
                 Ok(event) => return Some(event),
-                Err(RecvError::Lagged(_)) => continue,
+                Err(RecvError::Lagged(_)) => {}
                 Err(RecvError::Closed) => return None,
             }
         }
@@ -486,6 +492,7 @@ impl TrafficAggregator {
         }
     }
 
+    #[must_use]
     pub fn snapshot(&self) -> FusionSnapshot {
         FusionSnapshot {
             fused_ops: self.fused_ops,
@@ -496,6 +503,7 @@ impl TrafficAggregator {
     }
 
     /// Unfused-op tally by class, highest first.
+    #[must_use]
     pub fn unfused_by_kind(&self) -> Vec<(OpClass, u64)> {
         let mut entries: Vec<_> = self
             .unfused_by_kind
@@ -516,17 +524,17 @@ pub struct FusionSnapshot {
 
 impl FusionSnapshot {
     /// Baseline a non-fusion peer would have moved, minus what fusion actually moved.
+    #[must_use]
     pub fn saved(&self) -> u64 {
         self.baseline.saturating_sub(self.actual)
     }
 
+    #[must_use]
     pub fn total_ops(&self) -> u64 {
         self.fused_ops + self.unfused_ops
     }
 }
 
 pub(crate) fn serialized_len<T: Serialize>(value: &T) -> usize {
-    rmp_serde::to_vec(value)
-        .map(|bytes| bytes.len())
-        .unwrap_or(0)
+    rmp_serde::to_vec(value).map_or(0, |bytes| bytes.len())
 }

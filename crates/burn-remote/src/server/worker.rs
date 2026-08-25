@@ -189,6 +189,7 @@ where
     /// right pending callback on the client. Async work (data-service transfers,
     /// `read_tensor_async`) runs without a stream context — the relevant stream id is captured into
     /// the future at construction time via `executes`.
+    #[allow(clippy::too_many_lines)]
     async fn process_task(&mut self, task: Task) -> Result<(), String> {
         match task {
             Task::RegisterOperation(stream_id, op) => {
@@ -255,22 +256,19 @@ where
                 );
                 let peer = Some(format!("{:?}", remote.peer));
                 self.emit_transfer(peer.clone(), TransferScope::Remote, TransferPhase::Started);
-                let data = match self
+                let data = if let Some(data) = self
                     .transfer
                     .download_tensor(remote.peer.clone(), remote.capability)
                     .await
                 {
-                    Some(data) => {
-                        self.emit_transfer(peer, TransferScope::Remote, TransferPhase::Completed);
-                        data
-                    }
-                    None => {
-                        self.emit_transfer(peer, TransferScope::Remote, TransferPhase::Failed);
-                        return Err(format!(
-                            "Failed to download tensor for transfer {:?} from {:?}",
-                            remote.capability, remote.peer,
-                        ));
-                    }
+                    self.emit_transfer(peer, TransferScope::Remote, TransferPhase::Completed);
+                    data
+                } else {
+                    self.emit_transfer(peer, TransferScope::Remote, TransferPhase::Failed);
+                    return Err(format!(
+                        "Failed to download tensor for transfer {:?} from {:?}",
+                        remote.capability, remote.peer,
+                    ));
                 };
                 // Register on the client stream that will consume `new_id`, carried over the
                 // wire — not the arbitrary tokio worker running this task.

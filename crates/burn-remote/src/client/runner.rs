@@ -99,7 +99,9 @@ impl RouterClient for RemoteClient {
     }
 
     fn flush(&self) {
-        self.handle.submit_blocking(|s| s.flush()).unwrap();
+        self.handle
+            .submit_blocking(super::service::RemoteService::flush)
+            .unwrap();
     }
 
     fn register_and_execute_graph(
@@ -110,7 +112,7 @@ impl RouterClient for RemoteClient {
     ) {
         let stream_id = StreamId::current();
         self.handle.submit(move |s| {
-            s.register_and_execute_graph(stream_id, graph_id, relative_graph, bindings)
+            s.register_and_execute_graph(stream_id, graph_id, relative_graph, bindings);
         });
     }
 
@@ -140,10 +142,11 @@ impl RemoteClient {
 
         if let OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) = &mut op {
             let local_peer = self.device.peer_id();
-            for id in desc.device_ids.iter_mut() {
-                let (endpoint, device_index) = service::endpoint_for(id.index_id as u32).expect(
-                    "an all_reduce device must be a registered remote device on this process",
-                );
+            for id in &mut desc.device_ids {
+                let (endpoint, device_index) = service::endpoint_for(u32::from(id.index_id))
+                    .expect(
+                        "an all_reduce device must be a registered remote device on this process",
+                    );
                 assert_eq!(
                     endpoint.peer_id(),
                     local_peer,
@@ -152,7 +155,10 @@ impl RemoteClient {
                     endpoint.peer_id(),
                 );
                 id.type_id = 0;
-                id.index_id = device_index as u16;
+                #[allow(clippy::cast_possible_truncation)]
+                {
+                    id.index_id = device_index as u16;
+                }
             }
             log::trace!("All-reduce on {:?} ({local_peer}): {desc:?}", self.device);
         }
@@ -164,7 +170,7 @@ impl RemoteClient {
 #[derive(Clone, Debug)]
 /// A remote compute device identified by its endpoint and device index.
 ///
-/// Two RemoteDevices with the same endpoint but different indices point at distinct devices on
+/// Two `RemoteDevices` with the same endpoint but different indices point at distinct devices on
 /// the same peer; each gets its own registry id and service connection, and transfers between
 /// them take the same-peer fast path.
 pub struct RemoteDevice {
@@ -178,11 +184,13 @@ pub struct RemoteDevice {
 impl RemoteDevice {
     /// Create a legacy WebSocket device from a URL.
     #[cfg(feature = "websocket")]
+    #[must_use]
     pub fn websocket(address: &str, device_index: usize) -> Self {
         let endpoint = RemoteEndpoint::WebSocket {
             address: burn_communication::Address::from(address),
             authorization: Arc::from([]),
         };
+        #[allow(clippy::cast_possible_truncation)]
         let device_index = device_index as u32;
         let id = service::register_endpoint(endpoint.clone(), Executor::capture(), device_index);
         Self {
@@ -196,12 +204,14 @@ impl RemoteDevice {
     ///
     /// The application owns the Iroh endpoint; Burn dials the compute peer from it.
     #[cfg(feature = "iroh")]
+    #[must_use]
     pub fn iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr, device_index: usize) -> Self {
         Self::iroh_authorized(endpoint, peer, device_index, Vec::new())
     }
 
-    /// Like [`iroh`](Self::iroh), but carries an authorization credential the server's PeerAuthorizer will check.
+    /// Like [`iroh`](Self::iroh), but carries an authorization credential the server's `PeerAuthorizer` will check.
     #[cfg(feature = "iroh")]
+    #[must_use]
     pub fn iroh_authorized(
         endpoint: &iroh::Endpoint,
         peer: iroh::EndpointAddr,
@@ -214,6 +224,7 @@ impl RemoteDevice {
             peer,
             authorization: authorization.into(),
         };
+        #[allow(clippy::cast_possible_truncation)]
         let device_index = device_index as u32;
         let id = service::register_endpoint(endpoint.clone(), Executor::capture(), device_index);
         Self {
@@ -250,21 +261,25 @@ impl RemoteDevice {
     }
 
     /// The stable identity of the compute peer.
+    #[must_use]
     pub fn peer_id(&self) -> PeerId {
         self.endpoint.peer_id()
     }
 
     /// The peer identity plus its current dialing hints.
+    #[must_use]
     pub fn peer_addr(&self) -> PeerAddr {
         self.endpoint.peer_addr()
     }
 
     /// The peer address as a string. Prefer `peer_addr` for typed access.
+    #[must_use]
     pub fn address(&self) -> String {
         self.peer_addr().to_string()
     }
 
     /// The index of this device on its server.
+    #[must_use]
     pub fn device_index(&self) -> usize {
         self.device_index as usize
     }
@@ -272,9 +287,15 @@ impl RemoteDevice {
     /// List every device hosted by the WebSocket server at `address`.
     ///
     /// Connects to index 0 to read the device count from the init handshake, then returns one
-    /// RemoteDevice per index. Remaining indices connect lazily on first use, matching the
+    /// `RemoteDevice` per index. Remaining indices connect lazily on first use, matching the
     /// behavior of [`Device::enumerate`](burn_backend::tensor::Device) for local backends.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the device-count cell for the registry is not populated after connecting to
+    /// index 0. That indicates the server did not complete the init handshake as expected.
     #[cfg(feature = "websocket")]
+    #[must_use]
     pub fn enumerate_websocket(address: &str) -> Vec<Self> {
         // Device 0 always exists (a server must host at least one device); connecting to it
         // populates the device-count cell for its registry id.
@@ -290,8 +311,14 @@ impl RemoteDevice {
     }
 
     /// List every device hosted by an Iroh peer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the device-count cell for the registry is not populated after connecting to
+    /// index 0. That indicates the peer did not complete the init handshake as expected.
     #[cfg(feature = "iroh")]
-    pub fn enumerate_iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr) -> Vec<Self> {
+    #[must_use]
+    pub fn enumerate_iroh(endpoint: &iroh::Endpoint, peer: &iroh::EndpointAddr) -> Vec<Self> {
         let device = Self::iroh(endpoint, peer.clone(), 0);
         device.connect();
         let count = service::device_count_for(device.id)
@@ -330,21 +357,23 @@ impl Default for RemoteDevice {
 
 impl burn_std::device::Device for RemoteDevice {
     fn from_id(device_id: DeviceId) -> Self {
-        if device_id.type_id != 0 {
-            panic!("Invalid device id: {device_id} (expected type 0)");
-        }
-        let (endpoint, device_index) = service::endpoint_for(device_id.index_id as u32)
+        assert!(
+            device_id.type_id == 0,
+            "Invalid device id: {device_id} (expected type 0)"
+        );
+        let (endpoint, device_index) = service::endpoint_for(u32::from(device_id.index_id))
             .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
         Self {
             endpoint,
             device_index,
-            id: device_id.index_id as u32,
+            id: u32::from(device_id.index_id),
         }
     }
 
     fn to_id(&self) -> DeviceId {
         DeviceId {
             type_id: 0,
+            #[allow(clippy::cast_possible_truncation)]
             index_id: self.id as u16,
         }
     }
@@ -383,16 +412,13 @@ static TRANSFER_COUNTER: Mutex<Option<LocalTransferId>> = Mutex::new(None);
 /// concurrency).
 fn get_next_transfer_id() -> LocalTransferId {
     let mut transfer_counter = TRANSFER_COUNTER.lock().unwrap();
-    match transfer_counter.as_mut() {
-        Some(id) => {
-            id.next();
-            *id
-        }
-        None => {
-            let id = LocalTransferId::from(0);
-            *transfer_counter = Some(id);
-            id
-        }
+    if let Some(id) = transfer_counter.as_mut() {
+        id.next();
+        *id
+    } else {
+        let id = LocalTransferId::from(0);
+        *transfer_counter = Some(id);
+        id
     }
 }
 

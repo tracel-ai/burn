@@ -86,6 +86,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     /// `devices` is indexed by the device index a client selects at session init; `devices[0]` is
     /// the default device. Must be non-empty. Defaults to WebSocket on port `3000` (or Iroh when
     /// WebSocket is not compiled in) with no custom ops.
+    #[must_use]
     pub fn new(devices: Vec<Device<B>>) -> Self {
         Self {
             devices,
@@ -95,6 +96,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     }
 
     /// Select the transport (protocol and its configuration).
+    #[must_use]
     pub fn channel(mut self, channel: Channel) -> Self {
         self.channel = channel;
         self
@@ -102,6 +104,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
 
     /// Set the port, keeping the WebSocket transport. Convenience over [`channel`](Self::channel).
     #[cfg(feature = "websocket")]
+    #[must_use]
     pub fn port(mut self, port: u16) -> Self {
         self.channel = Channel::WebSocket { port };
         self
@@ -111,6 +114,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     ///
     /// The `id` must match the one the client puts in its [`CustomOpIr`]. Chainable; registering
     /// the same id twice keeps the last handler.
+    #[must_use]
     pub fn custom_op<F>(mut self, id: &str, handler: F) -> Self
     where
         F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
@@ -120,6 +124,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     }
 
     /// Replace the custom-op handlers with a prebuilt [`CustomOpRegistry`].
+    #[must_use]
     pub fn custom_ops(mut self, custom_ops: CustomOpRegistry<B>) -> Self {
         self.custom_ops = custom_ops;
         self
@@ -155,6 +160,10 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     }
 
     /// Start the server, blocking the current thread until shutdown.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the Tokio runtime cannot be created.
     #[cfg(not(target_family = "wasm"))]
     pub fn start(self) {
         let runtime = tokio::runtime::Runtime::new().expect("Failed to build the tokio runtime");

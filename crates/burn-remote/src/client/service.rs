@@ -136,7 +136,7 @@ impl RemoteService {
     /// Resolve a device id to its registry index, parsed network [`Address`], and the device
     /// index to select on the server.
     fn resolve_endpoint(device_id: DeviceId) -> (u32, RemoteEndpoint, u32) {
-        let id = device_id.index_id as u32;
+        let id = u32::from(device_id.index_id);
         let (endpoint, device_index) = endpoint_for(id)
             .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
         (id, endpoint, device_index)
@@ -187,11 +187,10 @@ impl RemoteService {
                     device_count,
                     ..
                 }) => {
-                    if version != PROTOCOL_VERSION {
-                        panic!(
-                            "Server uses Burn Remote protocol version {version}, expected {PROTOCOL_VERSION}"
-                        );
-                    }
+                    assert!(
+                        version == PROTOCOL_VERSION,
+                        "Server uses Burn Remote protocol version {version}, expected {PROTOCOL_VERSION}"
+                    );
                     Ok((settings, device_count))
                 }
                 other => panic!("Expected Init response, got {other:?}"),
@@ -521,7 +520,9 @@ impl RemoteService {
         match self.executor.block_on(rx) {
             Ok(TaskResponseContent::DTypeUsage(set)) => set,
             Ok(other) => panic!("Invalid response for DTypeUsage: {other:?}"),
-            Err(_) => panic!("Remote response channel closed before dtype_usage completed"),
+            Err(err) => {
+                panic!("Remote response channel closed before dtype_usage completed: {err}")
+            }
         }
     }
 

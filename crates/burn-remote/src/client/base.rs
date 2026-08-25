@@ -28,7 +28,7 @@ impl RemoteClient {
     /// connect on the service's runner thread, so it can't sit under cubecl's global lock.
     pub(crate) fn ensure_connected(&self) {
         self.handle
-            .submit_blocking(|s| s.ensure_connected())
+            .submit_blocking(super::service::RemoteService::ensure_connected)
             .expect("Service call failed");
     }
 

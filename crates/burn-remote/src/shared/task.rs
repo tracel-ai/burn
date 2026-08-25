@@ -81,7 +81,7 @@ impl SessionId {
     }
 
     /// The underlying numeric identifier.
-    pub fn value(&self) -> u64 {
+    pub fn value(self) -> u64 {
         self.id
     }
 }

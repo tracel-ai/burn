@@ -139,6 +139,7 @@ fn format_unfused_by_kind(entries: &[(OpClass, u64)]) -> String {
 
 /// `part` as a percentage of `whole`. Zero when `whole` is 0 (nothing measured yet), so the first
 /// log line can't divide by zero.
+#[allow(clippy::cast_precision_loss)]
 fn percentage(part: u64, whole: u64) -> f64 {
     if whole == 0 {
         0.0

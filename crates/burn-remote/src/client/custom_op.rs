@@ -39,6 +39,7 @@ pub struct CustomOpClient {
 
 impl CustomOpClient {
     /// Create a client bound to the given remote device.
+    #[must_use]
     pub fn new(device: &RemoteDevice) -> Self {
         #[cfg(not(feature = "fusion"))]
         let inner = burn_router::get_client::<Channel>(device);
@@ -58,6 +59,7 @@ impl CustomOpClient {
     /// [`register`](Self::register). The id is allocated by the same client that registers the op, so
     /// it is consistent with how that client tracks tensors (fusion ids under `fusion`, router ids
     /// otherwise).
+    #[must_use]
     pub fn create_empty_handle(&self) -> TensorId {
         #[cfg(not(feature = "fusion"))]
         {
@@ -71,6 +73,7 @@ impl CustomOpClient {
     }
 
     /// Register a custom op and return its (uninitialized) output tensors.
+    #[must_use]
     pub fn register(&self, op: CustomOpIr) -> Vec<FloatTensor<RemoteBackend>> {
         #[cfg(not(feature = "fusion"))]
         {

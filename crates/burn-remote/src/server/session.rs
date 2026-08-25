@@ -203,6 +203,7 @@ where
 
     /// The total number of devices this server hosts. Sent to the client on the init handshake so
     /// it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
+    #[allow(clippy::cast_possible_truncation)]
     fn device_count(&self) -> u32 {
         self.devices.len() as u32
     }

@@ -14,6 +14,7 @@ impl FrameSink for SendStream {
         send_frame(self, &frame).await
     }
 
+    #[allow(clippy::unused_async_trait_impl)]
     async fn close(&mut self) -> Result<(), String> {
         self.finish()
             .map_err(|err| format!("Failed to finish Iroh stream: {err}"))

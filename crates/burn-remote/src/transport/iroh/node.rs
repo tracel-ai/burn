@@ -223,10 +223,11 @@ pub(crate) async fn send_frame(send: &mut SendStream, bytes: &[u8]) -> Result<()
 pub(crate) async fn recv_frame(recv: &mut RecvStream) -> Result<Option<Vec<u8>>, String> {
     let mut length = [0u8; 8];
     match recv.read_exact(&mut length).await {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(iroh::endpoint::ReadExactError::FinishedEarly(0)) => return Ok(None),
         Err(err) => return Err(format!("Failed to read Iroh frame length: {err}")),
     }
+    #[allow(clippy::cast_possible_truncation)]
     let length = u64::from_le_bytes(length) as usize;
     if length > MAX_FRAME_SIZE {
         return Err(format!(

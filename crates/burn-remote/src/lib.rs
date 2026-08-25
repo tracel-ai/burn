@@ -35,9 +35,9 @@ pub use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]
 mod __client {
-    use super::*;
-
     use burn_router::BackendRouter;
+
+    pub use crate::client::{CustomOpClient, RemoteChannel, RemoteDevice};
 
     /// The remote backend allows you to run computation on a remote device.
     ///
@@ -59,14 +59,13 @@ mod __client {
     pub type RemoteBackend = BackendRouter<RemoteChannel>;
 
     /// With the `fusion` feature enabled, the remote backend is wrapped in
-    /// [`Fusion`](burn_fusion::Fusion) — exactly like the CubeCL backends — so recurring groups of
+    /// [`Fusion`](burn_fusion::Fusion) — exactly like the [`CubeCL`](crate::ir) backends — so recurring groups of
     /// operations are cached on the server and invoked by id, sending a repeated computation
     /// (e.g. a model block per step) over the network once instead of every step.
     #[cfg(feature = "fusion")]
     pub type RemoteBackend = burn_fusion::Fusion<BackendRouter<RemoteChannel>>;
-
-    pub use client::{CustomOpClient, RemoteChannel, RemoteDevice};
 }
+
 #[cfg(feature = "client")]
 pub use __client::*;
 
