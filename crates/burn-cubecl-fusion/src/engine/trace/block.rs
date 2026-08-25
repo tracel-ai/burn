@@ -83,16 +83,15 @@ impl FuseBlockBuilder {
         }
         let precision = tensor.dtype.into();
 
-        let out = match self.locals.get(precision, tensor.id) {
-            Some(local) => local,
-            None => {
-                let out = self.locals.create(precision, tensor.id);
+        let out = if let Some(local) = self.locals.get(precision, tensor.id) {
+            local
+        } else {
+            let out = self.locals.create(precision, tensor.id);
 
-                self.outputs.insert(precision, tensor.clone());
-                resources.outputs.insert(precision, tensor.clone());
+            self.outputs.insert(precision, tensor.clone());
+            resources.outputs.insert(precision, tensor.clone());
 
-                out
-            }
+            out
         };
 
         Some(out)
@@ -136,12 +135,11 @@ impl FuseBlockBuilder {
             )
         };
 
-        let ops = match self.writes.get_mut(&tensor.id) {
-            Some(ops) => ops,
-            None => {
-                self.writes.insert(tensor.id, Vec::new());
-                self.writes.get_mut(&tensor.id).unwrap()
-            }
+        let ops = if let Some(ops) = self.writes.get_mut(&tensor.id) {
+            ops
+        } else {
+            self.writes.insert(tensor.id, Vec::new());
+            self.writes.get_mut(&tensor.id).unwrap()
         };
         ops.push(FuseOp::Assign(UnaryFuseArgs {
             input: val,
@@ -166,41 +164,38 @@ impl FuseBlockBuilder {
             return Some(val.clone());
         }
 
-        let arg = match self.locals.get(precision, tensor.id) {
-            Some(local) => {
-                resources.inputs.update(tensor);
+        let arg = if let Some(local) = self.locals.get(precision, tensor.id) {
+            resources.inputs.update(tensor);
 
-                local
-            }
-            None => {
-                let input = if resources.outputs.get_index(tensor.id).is_some() {
-                    if let Some(val) = resources.registers.get(&tensor.id) {
-                        return Some(val.clone());
-                    };
+            local
+        } else {
+            let input = if resources.outputs.get_index(tensor.id).is_some() {
+                if let Some(val) = resources.registers.get(&tensor.id) {
+                    return Some(val.clone());
+                }
 
-                    let pos = resources.buffers.insert(precision, tensor.clone());
-                    FuseArg::Output(pos, precision, LayoutInfo::Unknown)
-                } else {
-                    let pos = resources.inputs.insert(precision, tensor.clone());
-                    FuseArg::Input(pos, precision, LayoutInfo::Unknown)
-                };
+                let pos = resources.buffers.insert(precision, tensor.clone());
+                FuseArg::Output(pos, precision, LayoutInfo::Unknown)
+            } else {
+                let pos = resources.inputs.insert(precision, tensor.clone());
+                FuseArg::Input(pos, precision, LayoutInfo::Unknown)
+            };
 
-                let out = self.locals.create(precision, tensor.id);
+            let out = self.locals.create(precision, tensor.id);
 
-                let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
-                    e.insert(Vec::with_capacity(1));
-                    self.reads.get_mut(&tensor.id).unwrap()
-                } else {
-                    self.reads.get_mut(&tensor.id).unwrap()
-                };
+            let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
+                e.insert(Vec::with_capacity(1));
+                self.reads.get_mut(&tensor.id).unwrap()
+            } else {
+                self.reads.get_mut(&tensor.id).unwrap()
+            };
 
-                reads.push(FuseOp::Assign(UnaryFuseArgs {
-                    input,
-                    out: out.clone(),
-                }));
+            reads.push(FuseOp::Assign(UnaryFuseArgs {
+                input,
+                out: out.clone(),
+            }));
 
-                out
-            }
+            out
         };
 
         Some(arg)
@@ -224,25 +219,22 @@ impl FuseBlockBuilder {
             _ => return None,
         };
 
-        let arg = match self.locals.get(precision, tensor.id) {
-            Some(local) => {
-                resources.inputs.update(tensor);
-                QuantInput::AlreadyDequantized { local }
+        let arg = if let Some(local) = self.locals.get(precision, tensor.id) {
+            resources.inputs.update(tensor);
+            QuantInput::AlreadyDequantized { local }
+        } else {
+            let (new_input, q_index) = resources.inputs.insert_quant(tensor.clone());
+            let input = FuseArg::Input(new_input, precision, LayoutInfo::Unknown);
+            let scales = FuseArg::Input(q_index, precision_scales, LayoutInfo::Unknown);
+
+            // Important to flag that there is a read, even if no operation is registered.
+            if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
+                e.insert(Vec::new());
             }
-            None => {
-                let (new_input, q_index) = resources.inputs.insert_quant(tensor.clone());
-                let input = FuseArg::Input(new_input, precision, LayoutInfo::Unknown);
-                let scales = FuseArg::Input(q_index, precision_scales, LayoutInfo::Unknown);
 
-                // Important to flag that there is a read, even if no operation is registered.
-                if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
-                    e.insert(Vec::new());
-                };
-
-                QuantInput::Quantized {
-                    values: input,
-                    params: scales,
-                }
+            QuantInput::Quantized {
+                values: input,
+                params: scales,
             }
         };
 
@@ -421,12 +413,11 @@ impl FuseBlockBuilder {
             if let Some(local) = self.locals.get_any_precision(tensor.id) {
                 let out_index = outputs.insert(*precision, tensor.clone());
 
-                let ops = match writes.get_mut(&tensor.id) {
-                    Some(ops) => ops,
-                    None => {
-                        writes.insert(tensor.id, Vec::new());
-                        writes.get_mut(&tensor.id).unwrap()
-                    }
+                let ops = if let Some(ops) = writes.get_mut(&tensor.id) {
+                    ops
+                } else {
+                    writes.insert(tensor.id, Vec::new());
+                    writes.get_mut(&tensor.id).unwrap()
                 };
 
                 ops.push(FuseOp::Assign(UnaryFuseArgs {
@@ -502,7 +493,7 @@ impl LocalVariablePool {
     }
 
     fn get_any_precision(&self, tensor_id: TensorId) -> Option<FuseArg> {
-        for (precision, indexes) in self.values.iter() {
+        for (precision, indexes) in &self.values {
             if let Some(index) = indexes.get(&tensor_id) {
                 return Some(FuseArg::BlockLocal {
                     pos: *index,

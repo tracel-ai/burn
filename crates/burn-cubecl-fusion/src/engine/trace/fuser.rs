@@ -31,8 +31,8 @@ impl TraceFuser {
         Self {
             settings,
             block_current: FuseBlockBuilder::new(settings),
-            blocks_previous: Default::default(),
-            resources: Default::default(),
+            blocks_previous: Vec::default(),
+            resources: FuseResources::default(),
         }
     }
 
@@ -57,7 +57,7 @@ impl TraceFuser {
     pub fn num_ops_fused(&self) -> u32 {
         let mut num_ops_fused = 0;
 
-        for block in self.blocks_previous.iter() {
+        for block in &self.blocks_previous {
             num_ops_fused += block.ops.len();
         }
 
@@ -81,7 +81,7 @@ impl TraceFuser {
         let mut estimation = 1; // Metadata takes one.
 
         // We assume we are not going to write multiple times in the same output buffer.
-        for b in self.blocks_previous.iter() {
+        for b in &self.blocks_previous {
             estimation += b.tensor_writes(&self.resources, &mut buffers).len() as u32;
         }
 
@@ -113,15 +113,14 @@ impl TraceFuser {
     ) -> FuseArg {
         let block = &mut self.blocks_previous[block_pos];
 
-        let src_arg = match block.multi_block_variable(block_pos, tensor, global) {
-            Some(val) => val,
-            None => {
-                // We try to read the input if not present.
-                block.input(tensor, &mut self.resources);
-                block
-                    .multi_block_variable(block_pos, tensor, global)
-                    .unwrap()
-            }
+        let src_arg = if let Some(val) = block.multi_block_variable(block_pos, tensor, global) {
+            val
+        } else {
+            // We try to read the input if not present.
+            block.input(tensor, &mut self.resources);
+            block
+                .multi_block_variable(block_pos, tensor, global)
+                .unwrap()
         };
 
         self.resources.outputs.update(tensor);
@@ -169,9 +168,10 @@ impl TraceFuser {
     ///
     /// It is therefore the responsibility of the operation to read the given tensor.
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> FuseArg {
-        if self.resources.indexed.contains_key(&tensor.id) {
-            panic!("Can't add a new input that is already used in an index operation");
-        }
+        assert!(
+            !self.resources.indexed.contains_key(&tensor.id),
+            "Can't add a new input that is already used in an index operation"
+        );
 
         self.resources.outputs.update(tensor);
 
@@ -185,9 +185,10 @@ impl TraceFuser {
 
     /// Register an input tensor.
     pub fn input_quantized_unhandled(&mut self, tensor: &TensorIr) -> Option<(FuseArg, FuseArg)> {
-        if self.resources.indexed.contains_key(&tensor.id) {
-            panic!("Can't add a new input that is already used in an index operation");
-        }
+        assert!(
+            !self.resources.indexed.contains_key(&tensor.id),
+            "Can't add a new input that is already used in an index operation"
+        );
 
         let (precision, precision_scales) = match tensor.dtype {
             DType::QFloat(scheme) => (
@@ -241,7 +242,7 @@ impl TraceFuser {
         if let Some(val) = self.resources.indexed.get(&tensor.id) {
             self.resources.outputs.update(tensor);
             return Some(val.clone());
-        };
+        }
 
         if self.resources.inputs.get(tensor.id).is_some() {
             return None;
@@ -317,7 +318,7 @@ impl TraceFuser {
             blocks.push(block);
         };
 
-        for block in self.blocks_previous.iter() {
+        for block in &self.blocks_previous {
             register_block(block);
         }
         self.block_current.shape_ref = shape_ref;

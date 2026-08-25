@@ -127,11 +127,11 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
 
         launcher
             .launch(&self.client, &self.device, context)
-            .map_err(|err| TraceError::RunnerError(format!("{:?}", err)))
+            .map_err(|err| TraceError::RunnerError(format!("{err:?}")))
     }
 
     pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle<R>>) {
-        for fallback in self.fallbacks.iter() {
+        for fallback in &self.fallbacks {
             fallback.execute_fallback(context);
         }
     }
@@ -186,13 +186,14 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
         arg.execute_fallback(context);
     }
 
+    #[must_use]
     pub fn to_state(&self) -> ReduceBroadcastedOptimizationState {
         ReduceBroadcastedOptimizationState {
             fallbacks: self
                 .info
                 .fallbacks
                 .iter()
-                .map(|info| info.to_state())
+                .map(ReduceBlockOptimInfo::to_state)
                 .collect(),
             broadcasted: self.info.broadcasted.as_ref().clone(),
             num_ops: self.num_ops,
@@ -214,6 +215,7 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
     }
 
     /// Returns the number of output buffers added by fusion.
+    #[must_use]
     pub fn num_ops_fused(&self) -> usize {
         self.num_ops
     }
@@ -256,7 +258,7 @@ impl<R: Runtime> FusedOperation<R> for ReduceBroadcastedOptimization<R> {
         context: &mut Context<CubeFusionHandle<R>>,
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        Self::execute(self, context, |index| fallback(index))
+        Self::execute(self, context, |index| fallback(index));
     }
 
     fn to_state(&self) -> Self::State {

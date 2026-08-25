@@ -120,11 +120,12 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             blocks.push(arg);
         }
 
-        let block_end = match configs.len() > index {
-            true => ComptimeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
+        let block_end = if configs.len() > index {
+            ComptimeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
                 configs.last().cloned().unwrap(),
-            )),
-            false => ComptimeOptionArgs::None,
+            ))
+        } else {
+            ComptimeOptionArgs::None
         };
 
         let out_vec_axis = output_vectorization_axis(

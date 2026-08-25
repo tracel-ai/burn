@@ -14,12 +14,12 @@ use std::sync::Arc;
 /// When the block kind is reduce, it supports fuse-on-read and fuse-on-write fusion.
 /// Broadcasting isn't supported; another block should handle it instead.
 pub struct ReduceBlockFuser<R: Runtime> {
-    /// We use [ReduceFuser] for both elementwise and reduce blocks, keeping only the
+    /// We use [`ReduceFuser`] for both elementwise and reduce blocks, keeping only the
     /// fuse-on-read trace if the block is tagged as elementwise.
     ///
     /// # Notes
     ///
-    /// A single elementwise block can only exist at the end of a full [ReduceBlockFuser],
+    /// A single elementwise block can only exist at the end of a full [`ReduceBlockFuser`],
     /// otherwise the optimization will be included in the reduce fusion block.
     pub fuser: ReduceFuser<R>,
     pub(crate) ops: Vec<OperationIr>,
@@ -43,10 +43,10 @@ pub enum ReduceBroadcastedStatus {
     Abort,
 }
 
-/// The [ReduceBlockFuser] capacity to accept an [OperationIr].
+/// The [`ReduceBlockFuser`] capacity to accept an [`OperationIr`].
 #[derive(Clone, Copy, Debug)]
 pub enum ReduceBlockFusionAnalysis {
-    /// The operation can be fused; call [ReduceBlockFuser::fuse()].
+    /// The operation can be fused; call [`ReduceBlockFuser::fuse()`].
     Accept,
     /// The operation cannot be fused; the optimization should close.
     Refuse,
@@ -152,7 +152,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
     ///
     /// # Warning
     ///
-    /// Ensure [Self::analyze()] is called before this function to confirm the operation is accepted.
+    /// Ensure [`Self::analyze()`] is called before this function to confirm the operation is accepted.
     pub fn fuse(&mut self, op: &OperationIr) {
         self.fuser.fuse(op);
         self.ops.push(op.clone());

@@ -189,6 +189,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     }
 
     /// Number of operations fused.
+    #[must_use]
     pub fn num_ops_fused(&self) -> usize {
         self.info.num_ops_fused()
     }
@@ -210,6 +211,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     }
 
     /// Convert the optimization to its [state](MatmulOptimizationState).
+    #[must_use]
     pub fn to_state(&self) -> MatmulOptimizationState {
         MatmulOptimizationState {
             trace: self.info.trace.clone(),
@@ -243,6 +245,7 @@ pub enum FusedMatmulSelector {
 
 impl FusedMatmulSelector {
     /// Not efficient, but only called once when initializing the tunables.
+    #[must_use]
     pub fn name(&self) -> String {
         let name = match self {
             FusedMatmulSelector::Simple {
@@ -310,7 +313,7 @@ impl From<MatmulSetupError> for FusedMatmulError {
     }
 }
 
-impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
+impl<R: Runtime> Vectorization<R> for FusedMatmulLaunch<'_> {
     fn axis(&self, plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
         let lhs_id = self.matmul.op.lhs.id;
         let rhs_id = self.matmul.op.rhs.id;
@@ -318,7 +321,7 @@ impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
         let mut tensor_lhs = None;
         let mut tensor_rhs = None;
 
-        for input in plan.handle_inputs.iter() {
+        for input in &plan.handle_inputs {
             match input {
                 HandleInput::Normal(input) => {
                     if input.relative_id == lhs_id {
@@ -492,7 +495,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &BlueprintStrategy::Inferred(args),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -524,7 +527,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &BlueprintStrategy::Inferred(args),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -560,7 +563,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &BlueprintStrategy::Inferred(args),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -581,7 +584,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &Default::default(),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -602,7 +605,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &Default::default(),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -623,7 +626,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &Default::default(),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -644,7 +647,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &Default::default(),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -665,7 +668,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &Default::default(),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -686,7 +689,7 @@ impl FusedMatmulLaunch<'_> {
                     vector_sizes,
                     &Default::default(),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -739,7 +742,7 @@ impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
         context: &mut Context<CubeFusionHandle<R>>,
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        Self::execute(self, context, |index| fallback(index))
+        Self::execute(self, context, |index| fallback(index));
     }
 
     fn to_state(&self) -> Self::State {

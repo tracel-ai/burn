@@ -27,8 +27,8 @@ use cubecl::ir::ElemType;
 ///
 /// # Notes
 ///
-/// It is responsible to translate [OperationIr] into [FuseOp] and it uses the [TraceFuser]
-/// to actually fuse the [FuseOp] when possible.
+/// It is responsible to translate [`OperationIr`] into [`FuseOp`] and it uses the [`TraceFuser`]
+/// to actually fuse the [`FuseOp`] when possible.
 #[derive(Debug, Clone)]
 pub(crate) struct TraceOperationFuser {
     pub(crate) fuser: TryTraceFuser,
@@ -147,7 +147,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
                 self.log_closed(op, prev_num_ops, "unsupported op variant");
                 return;
             }
-        };
+        }
 
         self.status = FuserStatus::Open;
         self.scoring.register(op);
@@ -256,7 +256,7 @@ impl TraceOperationFuser {
     /// # Arguments
     ///
     /// - arguments: Tensors that are logical outputs of the current block and inputs of the following blocks.
-    /// - settings: [FuseSettings] to be used by the next block.
+    /// - settings: [`FuseSettings`] to be used by the next block.
     ///
     /// # Returns
     ///
@@ -426,7 +426,7 @@ impl TraceOperationFuser {
                 self.fuser.fuse(|build| {
                     let mut tensors = Vec::with_capacity(desc.tensors.len());
 
-                    for tensor in desc.tensors.iter() {
+                    for tensor in &desc.tensors {
                         tensors.push(build.input_indexed(tensor)?);
                     }
 

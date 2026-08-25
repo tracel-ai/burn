@@ -137,7 +137,7 @@ fn elemwise_fuse(
     let length = ref_len(inputs, &*outputs, &locals, &config);
 
     if pos < length {
-        fuse_on_write::<f32, DynSize>(inputs, outputs, &mut locals, pos, values, args, &config)
+        fuse_on_write::<f32, DynSize>(inputs, outputs, &mut locals, pos, values, args, &config);
     }
 }
 
@@ -161,7 +161,7 @@ impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
         context: &mut Context<CubeFusionHandle<R>>,
         _fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        Self::execute(self, context)
+        Self::execute(self, context);
     }
 
     fn to_state(&self) -> Self::State {

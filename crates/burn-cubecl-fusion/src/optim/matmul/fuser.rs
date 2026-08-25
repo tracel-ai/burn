@@ -76,22 +76,19 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
                 let lhs = self.matmul_arg(&op.lhs, op.out.dtype);
                 let rhs = self.matmul_arg(&op.rhs, op.out.dtype);
 
-                match (lhs, rhs) {
-                    (Some(lhs), Some(rhs)) => {
-                        let out = self.fuser.output_unhandled(&op.out);
+                if let (Some(lhs), Some(rhs)) = (lhs, rhs) {
+                    let out = self.fuser.output_unhandled(&op.out);
 
-                        self.matmul = Some(FusedMatmul::new(
-                            lhs,
-                            rhs,
-                            out,
-                            op.clone().into(),
-                            Default::default(),
-                        ));
-                    }
-                    _ => {
-                        self.fuser.close();
-                        self.fuser_fallback.close();
-                    }
+                    self.matmul = Some(FusedMatmul::new(
+                        lhs,
+                        rhs,
+                        out,
+                        op.clone().into(),
+                        Default::default(),
+                    ));
+                } else {
+                    self.fuser.close();
+                    self.fuser_fallback.close();
                 }
             } else {
                 self.fuser.close();
@@ -101,16 +98,13 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
             let can_register =
                 self.fuser.can_fuse(operation) && self.fuser_fallback.can_fuse(operation);
 
-            match can_register {
-                true => {
-                    self.fuser.fuse(operation);
-                    self.fuser_fallback.fuse(operation);
-                }
-                false => {
-                    self.fuser.close();
-                    self.fuser_fallback.close();
-                }
-            };
+            if can_register {
+                self.fuser.fuse(operation);
+                self.fuser_fallback.fuse(operation);
+            } else {
+                self.fuser.close();
+                self.fuser_fallback.close();
+            }
         }
     }
 

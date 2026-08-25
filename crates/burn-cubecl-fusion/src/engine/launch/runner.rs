@@ -37,7 +37,7 @@ pub enum VectorizationHandle<'a, R: Runtime> {
     QuantParams,
 }
 
-impl<'a, R: Runtime> VectorizationHandle<'a, R> {
+impl<R: Runtime> VectorizationHandle<'_, R> {
     /// Returns if the current vectorization handle is from the given tensor id.
     pub fn is_from_tensor(&self, id: TensorId) -> bool {
         match self {
@@ -91,6 +91,6 @@ pub trait Vectorization<R: Runtime> {
             &Default::default(),
             max,
             &axis,
-        )
+        );
     }
 }

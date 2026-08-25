@@ -63,7 +63,7 @@ impl ReduceBroadcastedFullFuser {
     pub fn num_ops_fused(&self) -> usize {
         let mut fused = self.fuser.num_ops;
 
-        for block in self.blocks.iter() {
+        for block in &self.blocks {
             match block {
                 ReduceBlockKind::Elemwise => {}
                 // The base fuser doesn't hold the reduce ops.
@@ -79,7 +79,7 @@ impl ReduceBroadcastedFullFuser {
         let mut reduce_axis = 0;
         let mut blocks = Vec::new();
 
-        for block in self.blocks.iter() {
+        for block in &self.blocks {
             match block {
                 ReduceBlockKind::Elemwise => {}
                 ReduceBlockKind::Reduce { reduce, .. } => {
@@ -116,7 +116,7 @@ impl ReduceBroadcastedFullFuser {
         }
     }
 
-    /// Registers a [ReduceBlockFuser] to build the trace.
+    /// Registers a [`ReduceBlockFuser`] to build the trace.
     pub fn register<R: Runtime>(&mut self, block: &ReduceBlockFuser<R>) {
         // Helper to close previous blocks if necessary
         if !self.fuser.is_empty() {

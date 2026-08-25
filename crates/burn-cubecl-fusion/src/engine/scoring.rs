@@ -34,7 +34,7 @@ impl Scoring {
         let mut num_writes_fused = 0;
         let mut num_penalty = 0;
 
-        for b in trace.blocks.iter() {
+        for b in &trace.blocks {
             // Count reads in block
             for ops in b.reads.values() {
                 let result = self.count_fused_io(ops, |args| &args.input);
@@ -62,9 +62,10 @@ impl Scoring {
         let num_fused = reads_fused + writes_fused;
         let num_unfused = self.num_reads + self.num_writes;
 
-        let score_io = match num_fused >= num_unfused {
-            true => 0,
-            false => (num_unfused - num_fused) as u64 * FACTOR_IO,
+        let score_io = if num_fused >= num_unfused {
+            0
+        } else {
+            (num_unfused - num_fused) as u64 * FACTOR_IO
         };
 
         // We minus 1 since at least one kernel launch is necessary.
@@ -82,18 +83,18 @@ impl Scoring {
         let mut num_io = 0;
         let mut penalty = 0;
 
-        for op in ops.iter() {
+        for op in ops {
             let FuseOp::Assign(args) = op else {
                 unreachable!()
             };
-            let count_normal = matches!(
+            let count_normal = usize::from(matches!(
                 arg_extractor(args),
                 FuseArg::Input(..) | FuseArg::Output(..)
-            ) as usize;
-            let count_view = matches!(
+            ));
+            let count_view = usize::from(matches!(
                 arg_extractor(args),
                 FuseArg::InputReshaped { .. } | FuseArg::InputSwapDims { .. }
-            ) as usize;
+            ));
             num_io += count_normal + count_view;
             penalty += count_view;
         }

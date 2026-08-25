@@ -21,7 +21,7 @@ pub struct FuseSettings {
     /// Writing an output in any dense layout costs the same, so a block whose
     /// inputs are permuted — everything downstream of a convolution, which hands
     /// over an NCHW view of NHWC memory — is better off adopting their order than
-    /// reading them strided. Only meaningful together with [RefLayoutSetting::Any];
+    /// reading them strided. Only meaningful together with [`RefLayoutSetting::Any`];
     /// the settings that constrain the reference already rule a permuted layout out.
     ///
     /// Off by default, because it is only safe for a runner that reads and writes
@@ -48,9 +48,9 @@ impl Default for FuseSettings {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 /// How vectorization is handled during fusion.
 pub enum VectorizationSetting {
-    /// The biggest vector_size possible will be used.
+    /// The biggest `vector_size` possible will be used.
     Activated,
-    /// Equivalent to using vector_size of one.
+    /// Equivalent to using `vector_size` of one.
     Deactivated,
     /// This is a good setting when a block processes values calculated from a previous block.
     SmallerOrEqualThanPreviousBlock { block_pos: usize },

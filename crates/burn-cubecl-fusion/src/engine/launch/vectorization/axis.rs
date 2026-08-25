@@ -8,8 +8,8 @@
 //! Every tensor a block touches has to be measured along the *same* axis the
 //! block iterates along, or a vector of the reference and a vector of that tensor
 //! cover different elements. So the facts are gathered per tensor
-//! ([VectorAxisAnalysis]), a rule turns them into a decision
-//! ([VectorAxisPolicy]), and the decision is applied ([VectorAxisAction]).
+//! ([`VectorAxisAnalysis`]), a rule turns them into a decision
+//! ([`VectorAxisPolicy`]), and the decision is applied ([`VectorAxisAction`]).
 
 use super::super::{
     HandleOutput, LaunchPlan, ReferenceSelection,
@@ -46,9 +46,10 @@ impl VectorAxisAction {
     /// that is not its own. A refusal therefore absorbs whatever is merged into
     /// it, which matters because blocks are analysed in whatever order they come.
     pub fn merged_with(self, other: Self) -> Self {
-        match self == other {
-            true => self,
-            false => VectorAxisAction::Refuse,
+        if self == other {
+            self
+        } else {
+            VectorAxisAction::Refuse
         }
     }
 }
@@ -68,7 +69,7 @@ pub struct VectorAxisAnalysis {
 impl VectorAxisAnalysis {
     /// The facts for a tensor the block reads.
     ///
-    /// No stride: [vectorization_input](super::base) makes that check itself, and
+    /// No stride: [`vectorization_input`](super::base) makes that check itself, and
     /// unlike this analysis it tells a broadcast dimension from one it merely
     /// cannot line up — a distinction worth keeping, since a broadcast operand
     /// does not constrain the block's width and a refused one does.
@@ -82,7 +83,7 @@ impl VectorAxisAnalysis {
 
     /// The facts for a tensor the block writes.
     ///
-    /// [vectorization_output](super::base) is handed a shape and never sees a
+    /// [`vectorization_output`](super::base) is handed a shape and never sees a
     /// stride, so an output allocated in an order its block does not iterate in
     /// has to be caught here or not at all.
     pub fn written(reference: &ReferenceSelection, rank: usize, strides: &[usize]) -> Self {
@@ -118,13 +119,14 @@ impl VectorAxisPolicy {
     /// Unless some block iterates in a permuted order there is nothing to decide,
     /// and saying so up front skips the whole analysis.
     pub fn of_plan<R: Runtime>(plan: &LaunchPlan<'_, R>) -> Self {
-        match plan
+        if plan
             .blocks
             .iter()
             .any(|block| block_axis(&block.reference).is_some())
         {
-            true => VectorAxisPolicy::LineUpWithBlock,
-            false => VectorAxisPolicy::AlwaysDefault,
+            VectorAxisPolicy::LineUpWithBlock
+        } else {
+            VectorAxisPolicy::AlwaysDefault
         }
     }
 
@@ -163,7 +165,7 @@ pub struct VectorAxes {
     refused: Refusals,
 }
 
-/// The tensors [VectorAxisAction::Refuse] applies to, pinned to a vector size of
+/// The tensors [`VectorAxisAction::Refuse`] applies to, pinned to a vector size of
 /// one once the vectorization pass has run — it cannot see what refused them.
 /// Usually empty.
 #[derive(Default)]
@@ -230,7 +232,7 @@ impl Refusals {
     /// element either way, and calling it aligned would drag the whole block's
     /// width down with it.
     pub fn apply(&self, vectorizations: &mut BTreeMap<TensorId, Vect>) {
-        for id in self.ids.iter() {
+        for id in &self.ids {
             if !matches!(vectorizations.get(id), Some(Vect::Broadcasted)) {
                 vectorizations.insert(*id, Vect::Aligned(1));
             }
@@ -265,8 +267,8 @@ impl Actions {
             per_tensor: HashMap::new(),
         };
 
-        for block in plan.blocks.iter() {
-            for input in plan.handle_inputs.iter() {
+        for block in &plan.blocks {
+            for input in &plan.handle_inputs {
                 if let Some(input) = input.as_normal()
                     && block.reads.contains_key(&input.relative_id)
                 {
@@ -281,7 +283,7 @@ impl Actions {
                 }
             }
 
-            for output in plan.handle_outputs.iter() {
+            for output in &plan.handle_outputs {
                 if let HandleOutput::Owned {
                     handle,
                     global_id,
@@ -309,7 +311,7 @@ impl Actions {
         // same mapping [read_input_aligned](crate::engine::codegen::io) applies. Both
         // go wrong only when handed the default while the block iterates elsewhere,
         // and nothing votes for a view's id unless it is done here.
-        for view in resources.views.iter() {
+        for view in &resources.views {
             let (view_id, original_id) = match view {
                 TensorView::Reshape {
                     reshaped, original, ..
@@ -328,7 +330,7 @@ impl Actions {
                 continue;
             };
 
-            for block in plan.blocks.iter() {
+            for block in &plan.blocks {
                 if !block.reads.contains_key(original_id) {
                     continue;
                 }

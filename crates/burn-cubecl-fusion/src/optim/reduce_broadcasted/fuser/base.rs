@@ -78,7 +78,7 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
 
         let mut num_ops_fallback = 0;
 
-        for f in fallbacks.iter() {
+        for f in &fallbacks {
             num_ops_fallback += match f {
                 ReduceBlockOptimInfo::Reduce(info) => info.len,
                 ReduceBlockOptimInfo::Elemwise(info) => info.num_ops_fused(),
@@ -122,13 +122,13 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
                 axis,
             } => {
                 // Only support last axis for now.
-                if axis != shape_input_id.len() - 1 {
-                    self.state = ReduceBroadcastedStatus::Abort;
-                } else {
+                if axis == shape_input_id.len() - 1 {
                     self.state = ReduceBroadcastedStatus::Init {
                         shape_id: shape_input_id,
                         axis,
                     };
+                } else {
+                    self.state = ReduceBroadcastedStatus::Abort;
                 }
             }
             ReduceFuserInfo::FusedElemwise { .. } => {}
@@ -191,7 +191,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
                 return FuserStatus::Closed;
             }
             _ => {}
-        };
+        }
 
         let fuser = self.blocks.last().unwrap();
         fuser.fuser.status()
@@ -206,7 +206,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             _ => true,
         };
         let mut props = FuserProperties { score: 0, ready };
-        for block in self.blocks.iter() {
+        for block in &self.blocks {
             let p = block.properties();
             props.score += p.score;
             props.ready = p.ready && props.ready;

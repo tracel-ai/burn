@@ -10,7 +10,7 @@ use std::hash::Hash;
 ///
 /// # Warning
 ///
-/// The `tensor` field type [Vector<NumericExpand<DYN_ELEM_ID>>] must be set using polyfill before
+/// The `tensor` field type [Vector<`NumericExpand`<`DYN_ELEM_ID`>>] must be set using polyfill before
 /// use.
 #[derive(CubeType, Clone)]
 #[expand(derive(Clone))]

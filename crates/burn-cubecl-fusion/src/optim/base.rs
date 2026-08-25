@@ -60,11 +60,13 @@ impl<R: Runtime> CubeOptimization<R> {
     }
 
     /// The optimization's [name](FusedOperation::NAME).
+    #[must_use]
     pub fn name(&self) -> &'static str {
         self.optimization.name()
     }
 
     /// The number of operations fused.
+    #[must_use]
     pub fn num_ops_fused(&self) -> usize {
         self.optimization.num_ops_fused()
     }
@@ -75,11 +77,12 @@ impl<R: Runtime> CubeOptimization<R> {
         context: &mut Context<CubeFusionHandle<R>>,
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        self.optimization.run(context, fallback)
+        self.optimization.run(context, fallback);
     }
 
     /// Serialize the optimization: its name plus its
     /// [state](FusedOperation::to_state) encoded as bytes.
+    #[must_use]
     pub fn to_state(&self) -> CubeOptimizationState {
         self.optimization.to_state()
     }
@@ -138,7 +141,7 @@ impl<R: Runtime, O: FusedOperation<R>> DynFusedOperation<R> for O {
         context: &mut Context<CubeFusionHandle<R>>,
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        FusedOperation::run(self, context, fallback)
+        FusedOperation::run(self, context, fallback);
     }
 
     fn to_state(&self) -> CubeOptimizationState {
@@ -173,6 +176,7 @@ impl CubeOptimizationState {
     ///
     /// When the bytes don't decode as `T` — the state was produced by a
     /// different optimization sharing the name, or by an incompatible version.
+    #[must_use]
     pub fn decode<T: DeserializeOwned>(&self) -> T {
         rmp_serde::from_slice(&self.state).unwrap_or_else(|err| {
             panic!(

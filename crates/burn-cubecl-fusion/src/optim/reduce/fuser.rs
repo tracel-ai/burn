@@ -82,20 +82,17 @@ impl<R: Runtime> ReduceFuser<R> {
     }
 
     pub fn reduce_info(&self) -> ReduceFuserInfo {
-        match &self.reduce {
-            Some(reduce) => {
-                let shape_input_id = reduce.op.input.shape.clone();
-                let axis = reduce.axis;
+        if let Some(reduce) = &self.reduce {
+            let shape_input_id = reduce.op.input.shape.clone();
+            let axis = reduce.axis;
 
-                ReduceFuserInfo::FusedReduce {
-                    shape_input_id,
-                    axis,
-                }
+            ReduceFuserInfo::FusedReduce {
+                shape_input_id,
+                axis,
             }
-            None => {
-                let shape_id = self.fuser_read_fallback.current_output_shape.clone();
-                ReduceFuserInfo::FusedElemwise { shape_id }
-            }
+        } else {
+            let shape_id = self.fuser_read_fallback.current_output_shape.clone();
+            ReduceFuserInfo::FusedElemwise { shape_id }
         }
     }
 
@@ -163,32 +160,26 @@ impl<R: Runtime> ReduceFuser<R> {
         let can_register =
             self.fuser.can_fuse(operation) && self.fuser_read_fallback.can_fuse(operation);
 
-        match can_register {
-            true => {
-                self.fuser.fuse(operation);
-                self.fuser_read_fallback.fuse(operation);
-            }
-            false => {
-                self.fuser.close();
-                self.fuser_read_fallback.close();
-            }
-        };
+        if can_register {
+            self.fuser.fuse(operation);
+            self.fuser_read_fallback.fuse(operation);
+        } else {
+            self.fuser.close();
+            self.fuser_read_fallback.close();
+        }
     }
 
     fn on_elemwise_write(&mut self, operation: &OperationIr) {
         let can_register =
             self.fuser.can_fuse(operation) && self.fuser_write_fallback.can_fuse(operation);
 
-        match can_register {
-            true => {
-                self.fuser.fuse(operation);
-                self.fuser_write_fallback.fuse(operation);
-            }
-            false => {
-                self.fuser.close();
-                self.fuser_write_fallback.close();
-            }
-        };
+        if can_register {
+            self.fuser.fuse(operation);
+            self.fuser_write_fallback.fuse(operation);
+        } else {
+            self.fuser.close();
+            self.fuser_write_fallback.close();
+        }
     }
 
     /// Build the reduce optimization from the fused operations. The typed
@@ -251,7 +242,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
                     _ => {
                         self.on_elemwise_read(operation);
                     }
-                };
+                }
             } else if let OperationIr::NumericInt(_, op) = operation {
                 match op {
                     NumericOperationIr::SumDim(op) => {
@@ -281,7 +272,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
                     _ => {
                         self.on_elemwise_read(operation);
                     }
-                };
+                }
             } else if let OperationIr::BaseBool(op)
             | OperationIr::BaseFloat(op)
             | OperationIr::BaseInt(op) = operation
@@ -327,7 +318,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
     }
 
     fn len(&self) -> usize {
-        self.fuser.len() + if self.reduce.is_some() { 1 } else { 0 }
+        self.fuser.len() + usize::from(self.reduce.is_some())
     }
 
     fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {

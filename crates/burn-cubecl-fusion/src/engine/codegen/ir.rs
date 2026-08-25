@@ -60,7 +60,7 @@ pub enum FuseArg {
 pub struct MultiBlockPos {
     /// The block position in all blocks included in a fused trace.
     pub block_pos: usize,
-    /// The [FuseArg::BlockLocal] position in the block where the variable is first initialized.
+    /// The [`FuseArg::BlockLocal`] position in the block where the variable is first initialized.
     pub block_local_pos: usize,
 }
 
@@ -247,17 +247,13 @@ impl Display for FuseOp {
                 min,
                 max,
                 out,
-            } => write!(f, "{} = clamp({}, min={}, max={})", out, input, min, max),
+            } => write!(f, "{out} = clamp({input}, min={min}, max={max})"),
             FuseOp::ConditionalAssign {
                 cond,
                 lhs,
                 rhs,
                 out,
-            } => write!(
-                f,
-                "{} = select(cond={}, lhs={}, rhs={})",
-                out, cond, lhs, rhs
-            ),
+            } => write!(f, "{out} = select(cond={cond}, lhs={lhs}, rhs={rhs})"),
             FuseOp::Gather {
                 input,
                 indices,
@@ -265,8 +261,7 @@ impl Display for FuseOp {
                 dim,
             } => write!(
                 f,
-                "{} = gather(input={}, indices={}, dim={})",
-                output, input, indices, dim
+                "{output} = gather(input={input}, indices={indices}, dim={dim})"
             ),
             FuseOp::Select {
                 input,
@@ -275,8 +270,7 @@ impl Display for FuseOp {
                 dim,
             } => write!(
                 f,
-                "{} = select(input={}, indices={}, dim={})",
-                output, input, indices, dim
+                "{output} = select(input={input}, indices={indices}, dim={dim})"
             ),
             FuseOp::Cat {
                 inputs,
@@ -297,11 +291,7 @@ impl Display for FuseOp {
                 params,
                 output,
                 scheme: _,
-            } => write!(
-                f,
-                "{} = dequantize(values={}, params={})",
-                output, values, params
-            ),
+            } => write!(f, "{output} = dequantize(values={values}, params={params})"),
         }
     }
 }
@@ -599,7 +589,7 @@ pub struct LocalArgs {
 
 #[cube]
 impl LocalArgs {
-    /// Creates a new [LocalArgs] container.
+    /// Creates a new [`LocalArgs`] container.
     pub fn new(
         ref_shape: &[usize],
         ref_strides: &[usize],
@@ -645,7 +635,7 @@ pub struct BinaryFuseArgs {
 )]
 /// Precisions supported by [element wise operations](ElemwiseOp).
 ///
-/// This is a custom type instead of [ElemType] so it can implement [CubeType]
+/// This is a custom type instead of [`ElemType`] so it can implement [`CubeType`]
 /// and restricts the supported types for fusion.
 pub enum FuseType {
     F64,
@@ -691,7 +681,7 @@ impl AsRefExpand for FuseBlockConfig {
 
 impl FuseBlockConfig {
     pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, ElemType)>) {
-        for op in self.ops.iter() {
+        for op in &self.ops {
             op.multi_block_variables(registers);
         }
     }
@@ -704,10 +694,10 @@ impl FuseArg {
                 // TODO: we need to init the multi-block local, but at some point we could avoid
                 // that for performance (easier for the underlying compiler).
             | FuseArg::MultiBlockLocal(arg, fuse_type) => {
-                registers.push((arg.clone(), fuse_type.into_storage_type()))
+                registers.push((arg.clone(), fuse_type.into_storage_type()));
             }
             _ => {}
-        };
+        }
     }
 }
 
@@ -926,7 +916,7 @@ impl FuseType {
 
     /// The type quantized values are read as, or `None` when fusion can't read that scheme.
     ///
-    /// Same contract as [Self::from_scale_dtype]: callers must decline to fuse on `None`.
+    /// Same contract as [`Self::from_scale_dtype`]: callers must decline to fuse on `None`.
     pub fn from_quant_scheme(scheme: QuantScheme) -> Option<Self> {
         // No fused kernel applies a per-tensor scale.
         if global_scale_dtype(&scheme).is_some() {

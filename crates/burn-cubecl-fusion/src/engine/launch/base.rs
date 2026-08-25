@@ -13,7 +13,7 @@ use burn_fusion::stream::Context;
 use cubecl::{Runtime, client::ComputeClient};
 use std::marker::PhantomData;
 
-/// The launcher is responsible to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
+/// The launcher is responsible to launch a fused kernel using the [`TraceRunner`] and a [`FuseTrace`].
 ///
 /// TODO: We can reuse the same launcher between runs and avoid a lot of allocation, by simply
 /// resetting the state.
@@ -88,7 +88,7 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
                 HandleInput::QuantParams(_) => {
                     // The scales are part of the quant data handle.
                 }
-            };
+            }
         }
         for output in handle_outputs {
             if let HandleOutput::Owned {

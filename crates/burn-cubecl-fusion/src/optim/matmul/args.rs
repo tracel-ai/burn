@@ -264,7 +264,7 @@ fn global_view<E: CubePrimitive>(
         match comptime![layout_config.matrix_layout] {
             MatrixLayout::RowMajor => shape_col *= num_quants,
             MatrixLayout::ColMajor => shape_row *= num_quants,
-        };
+        }
     }
 
     let shape = (shape_row, shape_col);
@@ -323,7 +323,7 @@ fn global_view<E: CubePrimitive>(
                     GlobalScaleLayout::new_BlockScaled(BlockScaledLayout::new(
                         shape,
                         scales_layout,
-                        comptime![(block_size[0] as u32, block_size[1] as u32)],
+                        comptime![(u32::from(block_size[0]), u32::from(block_size[1]))],
                     ))
                 }
             };
@@ -418,7 +418,7 @@ struct CreateQuantView<'a, E: Numeric, N: Size> {
     _ty: PhantomData<(E, N)>,
 }
 
-impl<'a, E: Numeric, N: Size> RunWithQuantType for CreateQuantView<'a, E, N> {
+impl<E: Numeric, N: Size> RunWithQuantType for CreateQuantView<'_, E, N> {
     type Output = ViewExpand<'static, Vector<E, N>, BatchedCoords>;
 
     fn execute<Q: Scalar, S: Scalar>(self) -> Self::Output {

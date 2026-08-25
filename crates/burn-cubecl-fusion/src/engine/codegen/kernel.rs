@@ -1,6 +1,16 @@
 use crate::engine::codegen::{DynElem, DynSize};
 
-use super::{io::*, ir::*};
+use super::{
+    io::{
+        global_offset, global_shape, global_stride, input_as_scales_view, read, read_input,
+        read_quantized, read_quantized_scalar, read_scalar_shape, reverse_index,
+        set_polyfill_typed, swap_dims_transform, write,
+    },
+    ir::{
+        BinaryFuseArgs, FuseArg, FuseBlockConfig, FuseOp, GlobalArgs, LayoutInfo, LocalArgs,
+        RefLayout, UnaryFuseArgs, VirtualLayout,
+    },
+};
 use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
     ir::{ElemType, FloatKind, UIntKind},
@@ -100,7 +110,7 @@ fn normalize_reference_stride(shape: usize, stride: usize) -> usize {
 }
 
 #[cube]
-/// Initializes [LocalArgs] given the input and output [arguments](GlobalArgs) with the [FuseBlockConfig].
+/// Initializes [`LocalArgs`] given the input and output [arguments](GlobalArgs) with the [`FuseBlockConfig`].
 ///
 /// # Notes
 ///
@@ -252,7 +262,7 @@ pub fn init_locals(
 }
 
 #[cube]
-/// Expands all [operations](FuseOp) registered in the [block config](FuseBlockConfig].
+/// Expands all [operations](FuseOp) registered in the [block config](`FuseBlockConfig`].
 fn fuse(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
@@ -286,7 +296,7 @@ fn fuse(
             FuseOp::Equal(op) => equal::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Greater(op) => greater::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::GreaterEqual(op) => {
-                greater_equal::<E, N>(inputs, outputs, locals, pos, op, config)
+                greater_equal::<E, N>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Lower(op) => lower::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::LowerEqual(op) => lower_equal::<E, N>(inputs, outputs, locals, pos, op, config),
@@ -294,10 +304,10 @@ fn fuse(
             FuseOp::BitwiseOr(op) => bitwise_or::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::BitwiseXor(op) => bitwise_xor::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::BitwiseLeftShift(op) => {
-                bitwise_left_shift::<E, N>(inputs, outputs, locals, pos, op, config)
+                bitwise_left_shift::<E, N>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::BitwiseRightShift(op) => {
-                bitwise_right_shift::<E, N>(inputs, outputs, locals, pos, op, config)
+                bitwise_right_shift::<E, N>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::BitwiseNot(op) => bitwise_not::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::ConditionalAssign {

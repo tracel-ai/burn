@@ -324,7 +324,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
             ViewOperationsExpand::<E, Coords1d>::__expand_is_in_bounds_method(self, scope, pos);
         if_expand(scope, in_bounds, |scope| {
             ViewOperationsMutExpand::<E, Coords1d>::__expand_write_method(self, scope, pos, value);
-        })
+        });
     }
 
     #[allow(clippy::too_many_arguments)]

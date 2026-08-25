@@ -36,12 +36,11 @@ pub struct VectorSizeOverrides {
 #[allow(unused)]
 impl VectorSizeOverrides {
     pub fn overrides(&mut self, tensor_id: &TensorId, vector_sizes: Vec<VectorSize>) {
-        let map = match &mut self.state {
-            Some(val) => val,
-            None => {
-                self.state = Some(BTreeMap::new());
-                self.state.as_mut().unwrap()
-            }
+        let map = if let Some(val) = &mut self.state {
+            val
+        } else {
+            self.state = Some(BTreeMap::new());
+            self.state.as_mut().unwrap()
         };
 
         map.insert(*tensor_id, vector_sizes);
@@ -55,7 +54,7 @@ impl VectorSizeOverrides {
             Some(state) => {
                 let mut state_new = BTreeMap::new();
 
-                for (k, v) in state.iter() {
+                for (k, v) in state {
                     let global = context.tensors.get(k).unwrap();
                     state_new.insert(global.id, v.clone());
                 }
@@ -154,7 +153,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                 VectorizationHandle::QuantParams => {
                     // Doesn't have vectorization for now.
                 }
-            };
+            }
         }
     }
 
@@ -188,7 +187,7 @@ fn multi_reads_vectorization_update(
     original: TensorId,
     vect: Vect,
 ) {
-    if let Some(ori_vect) = vectorizations.get(&original).cloned() {
+    if let Some(ori_vect) = vectorizations.get(&original).copied() {
         match ori_vect {
             Vect::Broadcasted => {
                 // keep the original as is.
@@ -198,11 +197,11 @@ fn multi_reads_vectorization_update(
                     vectorizations.insert(original, Vect::Aligned(1));
                 }
                 Vect::Aligned(new) => {
-                    let val = if new != ori { 1 } else { new };
+                    let val = if new == ori { new } else { 1 };
                     vectorizations.insert(original, Vect::Aligned(val));
                 }
             },
-        };
+        }
     } else {
         vectorizations.insert(original, vect);
     }
@@ -243,7 +242,7 @@ fn vectorization_input<R: Runtime>(
     // vectorization by the num_quants, we need to adapt the stride check accordingly.
     if let burn_std::DType::QFloat(quant_scheme) = handle.dtype {
         next_stride *= quant_scheme.num_quants();
-    };
+    }
 
     let inner = |s: VectorSize| {
         // The last dimension should be a multiple of the vector size or broadcated.
@@ -338,14 +337,7 @@ fn vectorization_reshape(
     }
 
     let inner = |s: VectorSize| {
-        if !multi_reads {
-            // The last dimension should be a multiple of the vector size or broadcated.
-            if reshape_shape_axis.is_multiple_of(s) && s <= max {
-                Some(Vect::Aligned(s))
-            } else {
-                None
-            }
-        } else {
+        if multi_reads {
             // Since the original tensor must share the same vectorization factor as the
             // reshaped tensor, they must have compatible shapes when both are access
             // independently.
@@ -353,6 +345,13 @@ fn vectorization_reshape(
                 && original_shape_axis.is_multiple_of(s)
                 && s <= max
             {
+                Some(Vect::Aligned(s))
+            } else {
+                None
+            }
+        } else {
+            // The last dimension should be a multiple of the vector size or broadcated.
+            if reshape_shape_axis.is_multiple_of(s) && s <= max {
                 Some(Vect::Aligned(s))
             } else {
                 None
@@ -435,7 +434,7 @@ fn vectorization_swapped<R: Runtime>(
     // vectorization by the num_quants, we need to adapt the stride check accordingly.
     if let burn_std::DType::QFloat(quant_scheme) = handle.dtype {
         next_stride *= quant_scheme.num_quants();
-    };
+    }
 
     let inner = |s: VectorSize| {
         // The last dimension should be a multiple of the vector size or broadcated.

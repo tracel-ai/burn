@@ -163,7 +163,7 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
     }
 }
 
-impl<'a, R: Runtime, O> Clone for TuneInput<'a, R, O> {
+impl<R: Runtime, O> Clone for TuneInput<'_, R, O> {
     fn clone(&self) -> Self {
         // `Original` clones come from the wasm fallback path (`operations.fastest(i)
         // .execute(inputs.clone())`) and must track outputs. `Fork` clones inherit the
@@ -182,7 +182,7 @@ impl<'a, R: Runtime, O> Clone for TuneInput<'a, R, O> {
     }
 }
 
-impl<'a, R: Runtime, O> Drop for TuneInput<'a, R, O> {
+impl<R: Runtime, O> Drop for TuneInput<'_, R, O> {
     fn drop(&mut self) {
         match &mut self.state {
             TuneState::Original {

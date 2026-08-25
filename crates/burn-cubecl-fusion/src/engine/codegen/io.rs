@@ -1,7 +1,13 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
 use crate::engine::codegen::{DynElem, DynSize};
 
-use super::{ir::*, tensor::GlobalTensor};
+use super::{
+    ir::{
+        FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LayoutInfo, LocalArgs, RefLayout,
+        VirtualLayout,
+    },
+    tensor::GlobalTensor,
+};
 use burn_std::quantization::QuantScheme;
 use cubecl::quant::scheme::QuantStore;
 use cubecl::{
@@ -385,7 +391,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
                     comptime![shape.clone()],
                 );
                 let index = reshaped_index_to_original_index(&tensor.tensor, index, config.rank);
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)));
             }
         }
         Some(Transform::SwapDims(dim1, dim2)) => {
@@ -401,7 +407,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)));
             }
         }
         None => {
@@ -411,7 +417,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)));
             }
         }
     }
@@ -419,7 +425,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
     result
 }
 
-/// Computes the offset of the given [GlobalTensor] at on the reference position with a linear
+/// Computes the offset of the given [`GlobalTensor`] at on the reference position with a linear
 /// layout.
 #[cube]
 pub fn get_offset_aligned(
@@ -509,14 +515,14 @@ pub fn write<C: Scalar, N: Size>(
         }
         FuseArg::BlockLocal { .. } => write_scalar::<C, N>(locals, value, arg),
         FuseArg::MultiBlockLocal(key, _) | FuseArg::MultiBlockGlobal(key, _) => {
-            outputs.variables.write(key, Vector::cast_from(value))
+            outputs.variables.write(key, Vector::cast_from(value));
         }
         _ => comptime![panic!("Can't write into inputs and scalars")],
     }
 }
 
-/// Writes a [Vector] value element-by-element to an output tensor whose vector_size
-/// differs from the computation width. Mirrors [read_input_aligned] for the write path.
+/// Writes a [Vector] value element-by-element to an output tensor whose `vector_size`
+/// differs from the computation width. Mirrors [`read_input_aligned`] for the write path.
 #[cube]
 fn write_output_aligned<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
@@ -917,5 +923,5 @@ pub(crate) fn set_polyfill_typed<C: CubePrimitive, Dyn: Scalar, DynSize: Size>()
     intrinsic!(|scope| {
         let elem_type = C::__expand_as_type(scope);
         scope.register_value_type::<Dyn, DynSize>(elem_type);
-    })
+    });
 }

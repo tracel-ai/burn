@@ -107,7 +107,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         let mut outputs = Vec::new();
         core::mem::swap(&mut outputs, &mut self.outputs_sorted);
 
-        for output in outputs.into_iter() {
+        for output in outputs {
             let tensor_global = context
                 .tensors
                 .get(&output.tensor_relative.id)
@@ -194,45 +194,42 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
 
         for i in 0..plan.blocks.len() {
-            if !plan.blocks[i].reference.is_found() {
-                match self.blocks[i].settings.ref_layout {
-                    RefLayoutSetting::SameAsBlock { block_pos } => {
-                        plan.blocks[i].reference =
-                            plan.blocks[block_pos as usize].reference.clone();
-                    }
-                    _ => {
-                        let new_runtime = Self::select_reference_from_inputs(
-                            &self.blocks[i],
-                            &mut plan.blocks[i],
-                            &plan.handle_inputs,
-                        );
-
-                        if let Some(shape) = new_runtime {
-                            let pos = plan.runtime_layouts.len();
-                            let mut shape_global = shape.clone();
-                            for (i, s) in shape.iter().enumerate() {
-                                shape_global[i] = *context.shapes_relative2global.get(s).expect(
-                                    "reference shape ids to be assigned by the running stream",
-                                );
-                            }
-
-                            let strides = strides_dyn_rank(&shape_global);
-
-                            plan.blocks[i].reference = ReferenceSelection::Runtime { pos };
-                            plan.runtime_layouts.push(RuntimeLayout {
-                                shape: shape_global,
-                                strides,
-                            });
-                        }
-                    }
-                };
-            } else {
+            if plan.blocks[i].reference.is_found() {
                 Self::add_layout_info_inputs(&mut plan.blocks[i], &plan.handle_inputs);
+            } else if let RefLayoutSetting::SameAsBlock { block_pos } =
+                self.blocks[i].settings.ref_layout
+            {
+                plan.blocks[i].reference = plan.blocks[block_pos as usize].reference.clone();
+            } else {
+                let new_runtime = Self::select_reference_from_inputs(
+                    &self.blocks[i],
+                    &mut plan.blocks[i],
+                    &plan.handle_inputs,
+                );
+
+                if let Some(shape) = new_runtime {
+                    let pos = plan.runtime_layouts.len();
+                    let mut shape_global = shape.clone();
+                    for (i, s) in shape.iter().enumerate() {
+                        shape_global[i] = *context
+                            .shapes_relative2global
+                            .get(s)
+                            .expect("reference shape ids to be assigned by the running stream");
+                    }
+
+                    let strides = strides_dyn_rank(&shape_global);
+
+                    plan.blocks[i].reference = ReferenceSelection::Runtime { pos };
+                    plan.runtime_layouts.push(RuntimeLayout {
+                        shape: shape_global,
+                        strides,
+                    });
+                }
             }
         }
 
         // Make sure dropped are correctly executed.
-        for id in self.resources.dropped.iter() {
+        for id in &self.resources.dropped {
             if let Some(tensor_global) = context.tensors.get(id) {
                 context.handles.remove_handle(tensor_global.id);
             }
@@ -283,9 +280,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                             // buffer: the launch is sized from the logical element count while a
                             // position indexes the buffer.
                             if is_dense(&reference.global_ir.shape, &reference.handle.strides) {
-                                set_ref_as_concrete(block_plan)
+                                set_ref_as_concrete(block_plan);
                             } else {
-                                set_ref_as_virtual(block_plan)
+                                set_ref_as_virtual(block_plan);
                             }
                         }
                         RefLayoutSetting::SameAsBlock { .. } => {
@@ -294,9 +291,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         RefLayoutSetting::OnlyContiguous => {
                             if is_contiguous(&reference.global_ir.shape, &reference.handle.strides)
                             {
-                                set_ref_as_concrete(block_plan)
+                                set_ref_as_concrete(block_plan);
                             } else {
-                                set_ref_as_virtual(block_plan)
+                                set_ref_as_virtual(block_plan);
                             }
                         }
                     }
@@ -321,7 +318,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 InputReference::Reshaped { reshape_pos } => {
                     block_plan.reference = ReferenceSelection::Reshaped { reshape_pos };
                 }
-            };
+            }
             None
         } else {
             Some(block.shape_ref.clone())
@@ -449,21 +446,21 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             // the whole of the traffic a concatenation moves. Without this a
             // concatenation has no voters at all and keeps the contiguous order by
             // default, which is what its consumer then transposes.
-            let voter_shape = match concatenated.get(&pos) {
-                Some(axis) => match joined_only_along(shape, &input.global_ir.shape, *axis) {
-                    true => &input.global_ir.shape,
-                    false => continue,
-                },
-                None => {
-                    if !block.reads.contains_key(&input.relative_id)
-                        || self.resources.indexed.contains_key(&input.relative_id)
-                        || self.resources.inputs_unhandled.contains(&input.relative_id)
-                        || &input.global_ir.shape != shape
-                    {
-                        continue;
-                    }
-                    shape
+            let voter_shape = if let Some(axis) = concatenated.get(&pos) {
+                if joined_only_along(shape, &input.global_ir.shape, *axis) {
+                    &input.global_ir.shape
+                } else {
+                    continue;
                 }
+            } else {
+                if !block.reads.contains_key(&input.relative_id)
+                    || self.resources.indexed.contains_key(&input.relative_id)
+                    || self.resources.inputs_unhandled.contains(&input.relative_id)
+                    || &input.global_ir.shape != shape
+                {
+                    continue;
+                }
+                shape
             };
 
             let Some(order) = dim_order(voter_shape, &input.handle.strides) else {
@@ -487,9 +484,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             (*bytes, is_contiguous_order(order))
         })?;
 
-        match is_contiguous_order(&winner.0) {
-            true => None,
-            false => Some(winner.0),
+        if is_contiguous_order(&winner.0) {
+            None
+        } else {
+            Some(winner.0)
         }
     }
 
@@ -560,8 +558,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                             && is_contiguous(&tensor_global.shape, &pi.strides)
                     }
             })
-            .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
-            .unwrap_or(OutputKind::Normal);
+            .map_or(OutputKind::Normal, |(pos, _)| OutputKind::Inplace {
+                input_pos: pos,
+            });
 
         (kind, block_idx)
     }
@@ -599,7 +598,17 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             "inplace alias selected for a `SameAsBlock` block without a validated reference",
         );
 
-        if !block.reference.is_found() {
+        if block.reference.is_found() {
+            // Already validated, necessary for correctness.
+            if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
+                for op in ops {
+                    if let FuseOp::Assign(op) = op {
+                        op.out.add_layout_info(LayoutInfo::SameAsRef);
+                        break;
+                    }
+                }
+            }
+        } else {
             // The aliased output shares the input's buffer and layout, so the reference
             // is expressed with the output argument. Runners assume references are
             // either output-concrete or virtual; an input-concrete reference here would
@@ -615,7 +624,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     if let FuseOp::Assign(op) = op {
                         op.input.add_layout_info(LayoutInfo::IsRef);
                         break;
-                    };
+                    }
                 }
             }
 
@@ -626,17 +635,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         break;
                     }
                 }
-            };
-        } else {
-            // Already validated, necessary for correctness.
-            if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
-                for op in ops {
-                    if let FuseOp::Assign(op) = op {
-                        op.out.add_layout_info(LayoutInfo::SameAsRef);
-                        break;
-                    }
-                }
-            };
+            }
         }
 
         context
@@ -700,7 +699,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         break;
                     }
                 }
-            };
+            }
         } else if let ReferenceSelection::Concrete {
             shape: ref_shape,
             strides: ref_strides,
@@ -716,7 +715,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     break;
                 }
             }
-        };
+        }
 
         let dtype = tensor_global.dtype;
         let size =
@@ -924,10 +923,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .iter()
             .enumerate()
             .find_map(|(pi, handle)| match handle {
-                HandleInput::Normal(handle) => match handle.relative_id == original {
-                    true => Some((pi, handle)),
-                    false => None,
-                },
+                HandleInput::Normal(handle) => {
+                    if handle.relative_id == original {
+                        Some((pi, handle))
+                    } else {
+                        None
+                    }
+                }
                 _ => None, // Quant tensor can't be reshaped.
             })
             .unwrap()
@@ -947,14 +949,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 /// The matmul one does not: it describes its output to the matmul algorithm as
 /// row-major while building the output view from the reference's last two strides,
 /// so a permuted reference has it writing lines that are not contiguous along the
-/// column. That is what [FuseSettings::choose_output_layout] gates.
+/// column. That is what [`FuseSettings::choose_output_layout`] gates.
 ///
 /// And the block must contain no operation that indexes its operands against the
 /// last dimension directly rather than through the reference. `gather` walks its
 /// lanes with the stride of `rank - 1`; it agrees with the rest of the kernel only
 /// while the reference is contiguous. `concat` used to be counted here and no
 /// longer is — it reaches the vectorization axis through
-/// [FuseBlockConfig::vector_axis](crate::engine::codegen::FuseBlockConfig::vector_axis),
+/// [`FuseBlockConfig::vector_axis`](crate::engine::codegen::FuseBlockConfig::vector_axis),
 /// which follows a permuted reference.
 fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
     if !matches!(settings.ref_layout, RefLayoutSetting::Any) || !settings.choose_output_layout {

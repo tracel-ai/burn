@@ -68,7 +68,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ElementWiseFuser<R> {
     }
 
     fn reset(&mut self) {
-        self.fuser.reset()
+        self.fuser.reset();
     }
 
     fn status(&self) -> burn_fusion::FuserStatus {

@@ -89,7 +89,7 @@ impl<R: Runtime> ReduceOptimizationInfo<R> {
 pub enum ReduceSettings {
     Always,
     /// We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
-    /// vectorization is impossible. Only [VectorizationMode::Perpendicular] supports vectorization.
+    /// vectorization is impossible. Only [`VectorizationMode::Perpendicular`] supports vectorization.
     ///
     /// We could still fuse some output operations, but it would probably lead to worse performance.
     OnlyParallel,
@@ -280,10 +280,12 @@ impl<R: Runtime> ReduceOptimization<R> {
         }
     }
 
+    #[must_use]
     pub fn num_output_buffers(&self) -> usize {
         self.info.trace_read_fallback.resources.outputs.len()
     }
 
+    #[must_use]
     pub fn to_state(&self) -> ReduceOptimizationState {
         ReduceOptimizationState {
             trace: self.info.trace.clone(),
@@ -317,6 +319,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     }
 
     /// Returns the number of output buffers added by fusion.
+    #[must_use]
     pub fn num_ops_fused(&self) -> usize {
         self.info.len
     }
@@ -348,9 +351,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             .map(|(i, s)| if i == self.reduce.axis { 1 } else { *s })
             .product();
 
-        let vectorization_mode = match self.reduce.axis == config_read.rank - 1 {
-            true => VectorizationMode::Parallel,
-            false => VectorizationMode::Perpendicular,
+        let vectorization_mode = if self.reduce.axis == config_read.rank - 1 {
+            VectorizationMode::Parallel
+        } else {
+            VectorizationMode::Perpendicular
         };
         let address_type = inputs
             .required_address_type()
@@ -423,7 +427,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
         );
 
         match result {
-            Ok(_) => Ok(()),
+            Ok(()) => Ok(()),
             Err(err) => Err(FusedReduceError::Reduce(ReduceError::Launch(err))),
         }
     }
@@ -493,7 +497,7 @@ fn launch_reduce<Run: Runtime>(
             dtype_to_storage_type(dtype_input),
             dtype_to_storage_type(dtype_output),
             dtype_to_storage_type(dtype_acc),
-        )
+        );
     };
 
     Ok(())
@@ -561,7 +565,7 @@ impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
         context: &mut Context<CubeFusionHandle<R>>,
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        Self::execute(self, context, |index| fallback(index))
+        Self::execute(self, context, |index| fallback(index));
     }
 
     fn to_state(&self) -> Self::State {

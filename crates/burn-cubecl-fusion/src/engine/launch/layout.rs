@@ -72,11 +72,11 @@ pub fn dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
 /// across trailing degenerate dimensions, which a contiguous layout gives stride
 /// one. Answering `None` there rather than an axis of our own leaves every such
 /// block behaving exactly as it did, and keeps the two callers — the
-/// [vector_axis](crate::engine::codegen::ir::FuseBlockConfig::vector_axis) a kernel
+/// [`vector_axis`](crate::engine::codegen::ir::FuseBlockConfig::vector_axis) a kernel
 /// steps by and the axis the vectorization pass sizes against — from disagreeing
 /// about what a vector is.
 ///
-/// For a permuted order it is the innermost dimension of [dim_order], except that
+/// For a permuted order it is the innermost dimension of [`dim_order`], except that
 /// degenerate dimensions are skipped. Their position in the order is arbitrary —
 /// nothing distinguishes them, since density says nothing about their stride —
 /// and their stride is arbitrary with it: a broadcast dimension carries stride
@@ -96,7 +96,7 @@ pub fn permuted_innermost_axis(shape: &[usize], strides: &[usize]) -> Option<usi
 /// The strides a tensor of this shape has when laid out in the given dimension
 /// order.
 ///
-/// The inverse of [dim_order] for dense tensors: `strides_for(shape,
+/// The inverse of [`dim_order`] for dense tensors: `strides_for(shape,
 /// dim_order(shape, strides))` reproduces `strides` up to the arbitrary strides
 /// of size-one dimensions.
 pub fn strides_for(shape: &[usize], order: &[usize]) -> Strides {

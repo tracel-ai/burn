@@ -180,9 +180,12 @@ pub fn fused_matmul_autotune<R: Runtime>(
                 Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
-                .group(&gemv, move |key| match double_buf {
-                    false => PRIORITY_MAX,
-                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                .group(&gemv, move |key| {
+                    if double_buf {
+                        double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                    } else {
+                        PRIORITY_MAX
+                    }
                 }),
             );
         }
@@ -196,9 +199,12 @@ pub fn fused_matmul_autotune<R: Runtime>(
                 Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
-                .group(&unit, move |key| match double_buf {
-                    false => PRIORITY_MAX,
-                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                .group(&unit, move |key| {
+                    if double_buf {
+                        double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                    } else {
+                        PRIORITY_MAX
+                    }
                 }),
             );
         }
@@ -258,9 +264,10 @@ pub fn fused_matmul_autotune<R: Runtime>(
                             return PRIORITY_MIN;
                         }
 
-                        match double_buf {
-                            false => PRIORITY_MAX,
-                            true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                        if double_buf {
+                            double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                        } else {
+                            PRIORITY_MAX
                         }
                     };
 

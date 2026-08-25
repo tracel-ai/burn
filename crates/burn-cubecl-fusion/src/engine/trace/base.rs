@@ -41,18 +41,18 @@ impl FuseTrace {
 impl core::fmt::Display for FuseTrace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "FuseTrace")?;
-        for b in self.blocks.iter() {
+        for b in &self.blocks {
             writeln!(f, " - Block shape={:?}", b.shape_ref)?;
-            for (tensor, ops) in b.reads.iter() {
-                for op in ops.iter() {
+            for (tensor, ops) in &b.reads {
+                for op in ops {
                     writeln!(f, "   - {op} <== {tensor}")?;
                 }
             }
-            for op in b.ops.iter() {
+            for op in &b.ops {
                 writeln!(f, "   - {op}")?;
             }
-            for (tensor, ops) in b.writes.iter() {
-                for op in ops.iter() {
+            for (tensor, ops) in &b.writes {
+                for op in ops {
                     writeln!(f, "   - {op} <== {tensor}")?;
                 }
             }
@@ -385,7 +385,7 @@ impl RegisteredTensors {
             _ => false,
         }) && let RegisterTensor::Normal(tensor_ir, _) = entry
         {
-            tensor_ir.status = tensor.status
+            tensor_ir.status = tensor.status;
         }
     }
 }

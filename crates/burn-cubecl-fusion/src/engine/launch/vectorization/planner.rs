@@ -53,8 +53,8 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
     ) {
         let has_multiple_read = |tensor: &TensorId| {
             let mut read_count = 0;
-            for block in plan.blocks.iter() {
-                read_count += block.reads.get(tensor).map(|a| a.len()).unwrap_or(0);
+            for block in &plan.blocks {
+                read_count += block.reads.get(tensor).map_or(0, std::vec::Vec::len);
             }
             read_count > 1
         };
@@ -88,7 +88,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         let mut ref_elem = (ElemType::UInt(UIntKind::U64), 8);
         let mut quants_vector_sizes: Option<Vec<VectorSize>> = None;
 
-        for input in plan.handle_inputs.iter() {
+        for input in &plan.handle_inputs {
             let elem: ElemType = match input {
                 HandleInput::Normal(h) => dtype_to_storage_type(h.global_ir.dtype),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
@@ -106,7 +106,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 ref_elem = (elem, elem_size);
             }
         }
-        for r in plan.global_outputs.iter() {
+        for r in &plan.global_outputs {
             let elem: ElemType = dtype_to_storage_type(r.dtype);
             let elem_size = elem.size();
 
@@ -121,8 +121,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             .map(|item| {
                 item.as_normal()
                     // Filter out indexed resources.
-                    .map(|item| !self.resources.indexed.contains_key(&item.relative_id))
-                    .unwrap_or(true)
+                    .is_none_or(|item| !self.resources.indexed.contains_key(&item.relative_id))
             })
             .collect::<Vec<_>>();
 
@@ -171,7 +170,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             plan.vectorizations.insert(global.id, Vect::Aligned(1));
         }
 
-        for view in self.resources.views.iter() {
+        for view in &self.resources.views {
             if let TensorView::NhwcStrides { id, .. } = view {
                 let global = context.tensors.get(id).unwrap();
                 plan.vectorizations.insert(global.id, Vect::Aligned(1));
@@ -238,7 +237,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         // vectorizations in blocks.
         //
         // Unhandled Outputs are correctly vectorized, so this is only necessary for inputs.
-        for input in self.resources.inputs_unhandled.iter() {
+        for input in &self.resources.inputs_unhandled {
             let pos = self
                 .resources
                 .inputs
@@ -428,7 +427,7 @@ fn vector_sizes_quants<R: Runtime>(
                 .io_optimized_vector_sizes(size_of::<u32>())
                 .collect::<Vec<_>>();
 
-            for val in vector_sizes.iter_mut() {
+            for val in &mut vector_sizes {
                 *val *= scheme.num_quants();
             }
 
@@ -469,5 +468,5 @@ fn vector_sizes_quants<R: Runtime>(
         QuantStore::PackedNative(_) => {
             panic!("Not yet supported")
         }
-    };
+    }
 }

@@ -83,7 +83,7 @@ impl<R: Runtime> FusedOperation<R> for NHWCRelayoutOptimization<R> {
         context: &mut Context<CubeFusionHandle<R>>,
         fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        Self::execute(self, context, |index| fallback(index))
+        Self::execute(self, context, |index| fallback(index));
     }
 
     fn to_state(&self) -> Self::State {

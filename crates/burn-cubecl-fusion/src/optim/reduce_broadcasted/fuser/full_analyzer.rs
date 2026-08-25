@@ -14,7 +14,7 @@ impl FullFuserAnalyzer {
     pub fn new<R: Runtime>(blocks: &[ReduceBlockFuser<R>]) -> Self {
         let mut state = AnalysisState::default();
 
-        for block in blocks.iter() {
+        for block in blocks {
             for (pos, op) in block.ops.iter().enumerate() {
                 let potential_from_previous_blocks = op.inputs();
                 let potential_to_next_blocks = op.outputs();

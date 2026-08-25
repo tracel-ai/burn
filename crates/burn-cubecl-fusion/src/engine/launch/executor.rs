@@ -52,7 +52,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         plan: LaunchPlan<'a, R>,
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
-        for b in plan.blocks.iter() {
+        for b in &plan.blocks {
             for writes in b.writes.values() {
                 num_writes += writes.len();
             }
@@ -160,7 +160,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 }
             }
 
-            for op in block.ops.iter() {
+            for op in &block.ops {
                 ops.push(op.clone());
             }
 
@@ -313,7 +313,7 @@ fn register_scalars<'h, R: Runtime>(
                 ScalarIr::Float(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
                 ScalarIr::Int(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
                 ScalarIr::UInt(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::Bool(val) => inputs.scalars.push(InputScalar::new(*val as u8, dtype)),
+                ScalarIr::Bool(val) => inputs.scalars.push(InputScalar::new(u8::from(*val), dtype)),
             },
             None => panic!("Scalar ID not found"),
         }

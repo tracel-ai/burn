@@ -191,7 +191,7 @@ fn reduce_many(
                 values,
                 args,
                 &block.config.clone(),
-            )
+            );
         }
     }
 }

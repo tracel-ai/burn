@@ -35,7 +35,10 @@ fn permutation(rank: usize) -> Shape {
 
 /// Collect tensor that should be relayed out to NHWC for a given module operation.
 fn nhwc_relayout_tensor(ir: &ModuleOperationIr) -> Option<&TensorIr> {
-    use ModuleOperationIr::*;
+    use ModuleOperationIr::{
+        AdaptiveAvgPool1d, AdaptiveAvgPool2d, AvgPool1d, AvgPool2d, Interpolate, MaxPool1d,
+        MaxPool1dWithIndices, MaxPool2d, MaxPool2dWithIndices,
+    };
 
     match ir {
         AvgPool1d(op) => Some(&op.x),
@@ -106,7 +109,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
                 self.fuser.fuse(operation);
                 self.status = self.fuser.status();
             }
-        };
+        }
     }
 
     fn finish(&mut self) -> CubeOptimization<R> {
