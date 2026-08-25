@@ -125,7 +125,7 @@ fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
 
     let workspace_member = WorkspaceMember {
         name: member.into(),
-        path: "".into(), // unused
+        path: String::new(), // unused
     };
 
     if let Err(err) = base_commands::test::run_unit_test(&workspace_member, args) {
@@ -133,8 +133,7 @@ fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
             .downcast_ref::<ProcessExitError>()
             .filter(filter_err)
             // Failed to execute unit test for '{member}'
-            .map(|e| e.message.contains(member))
-            .unwrap_or(false);
+            .is_some_and(|e| e.message.contains(member));
 
         if should_ignore {
             // Ignore intermittent successful failures
@@ -366,8 +365,7 @@ pub(crate) fn handle_command(
             // 2) Specific additional commands to test specific features
             // ---------------------------------------------------------
             match args.ci {
-                CiTestType::Backends | CiTestType::GithubRunner => (),
-                CiTestType::Examples => (),
+                CiTestType::Backends | CiTestType::GithubRunner | CiTestType::Examples => (),
                 CiTestType::Crates => {
                     // Capture is intentionally opt-in, so workspace-default tests don't compile
                     // the dispatch, tensor, core, or facade integration tests that exercise it.
