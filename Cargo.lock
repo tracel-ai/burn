@@ -2713,6 +2713,7 @@ dependencies = [
  "cubecl",
  "cubecl-common",
  "cubek-std",
+ "cubek-tile",
  "half",
  "serde",
 ]
