@@ -80,6 +80,7 @@ fn matmul_transposed_operands_single_row_should_match_reference() {
 // Tall matrix matmul with extreme aspect ratio ([N, 3] x [3, 3]) should not
 // misclassify as GEMV on CPU or cause worker thread stack overflow.
 // https://github.com/tracel-ai/burn/issues/5419
+#[cfg(feature = "cpu")]
 #[test]
 fn matmul_tall_matrix_should_not_overflow_stack() {
     let device = Device::default();
@@ -96,6 +97,26 @@ fn matmul_tall_matrix_should_not_overflow_stack() {
     // Verify row calculation without materializing the full 5.6M row tensor comparison
     let first_row = out.slice([0..1, 0..3]);
     let expected = Tensor::<2>::from_floats([[1.4, 0.2, 1.0]], &device);
+
+    first_row
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::rel_abs(1e-4, 1e-5));
+}
+
+// Keep the CPU GEMV path covered at the same problematic scale. Unlike the
+// general case above, this shape is intentionally classified as `MatVec`.
+#[cfg(feature = "cpu")]
+#[test]
+fn matmul_tall_matrix_vector_should_not_overflow_stack() {
+    let device = Device::default();
+
+    let n = 5_592_405;
+    let lhs: Tensor<2> = Tensor::ones(Shape::new([n, 3]), &device);
+    let rhs: Tensor<2> = Tensor::from_floats([[0.8], [0.6], [0.0]], &device);
+
+    let out = lhs.matmul(rhs);
+    let first_row = out.slice([0..1, 0..1]);
+    let expected = Tensor::<2>::from_floats([[1.4]], &device);
 
     first_row
         .into_data()
