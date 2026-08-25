@@ -10,12 +10,12 @@ use alloc::vec;
 /// See:
 ///  - [torch.nn.functional.affine_grid](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.affine_grid.html)
 ///
-/// * `transform` - Transformation with shape (batch_size, 2, 3)
-/// * `dims` - dimensions as (batch_size, channels, height, width)
+/// * `transform` - Transformation with shape (`batch_size`, 2, 3)
+/// * `dims` - dimensions as (`batch_size`, channels, height, width)
 ///
 /// # Returns
 ///
-/// Tensor with shape (batch_size, height, width, 2), where dim 2 is (x, y)
+/// Tensor with shape (`batch_size`, height, width, 2), where dim 2 is (x, y)
 /// All coordinates are broadcast on the batch dim
 pub fn affine_grid_2d(transform: Tensor<3>, dims: [usize; 4]) -> Tensor<4> {
     let [batch_size, _c, height, width] = dims;

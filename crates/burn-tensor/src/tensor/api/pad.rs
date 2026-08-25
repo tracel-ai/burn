@@ -77,7 +77,7 @@ impl<const D: usize> IntoPadding<D> for Vec<(usize, usize)> {
     }
 }
 
-/// Helper to build a range array for slice_assign, selecting a portion of one dimension.
+/// Helper to build a range array for `slice_assign`, selecting a portion of one dimension.
 fn build_slice_ranges<const D: usize>(
     dims: [usize; D],
     target_dim: usize,

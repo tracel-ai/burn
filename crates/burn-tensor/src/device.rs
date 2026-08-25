@@ -171,7 +171,7 @@ impl<D: Into<DispatchDevice>> From<D> for Device {
 }
 
 /// Selector for the hardware index of a backend whose devices are simply
-/// indexed (e.g. CUDA, ROCm).
+/// indexed (e.g. CUDA, `ROCm`).
 ///
 /// Backend factory methods that take an index (`Device::cuda`, `Device::rocm`,
 /// `Device::libtorch_cuda`) accept `impl Into<DeviceIndex>`, so the common
@@ -627,7 +627,7 @@ impl Device {
     /// operations are dispatched instead of sitting idle. Eager backends, which execute each
     /// operation as it is registered, have nothing buffered and treat this as a no-op.
     pub fn flush(&self) {
-        Dispatch::flush(self.as_dispatch())
+        Dispatch::flush(self.as_dispatch());
     }
 
     /// Seeds the random number generator for this device.
@@ -648,7 +648,7 @@ impl Device {
     /// let t = Tensor::<1>::random([8], Distribution::Default, &device);
     /// ```
     pub fn seed(&self, seed: u64) {
-        Dispatch::seed(self.as_dispatch(), seed)
+        Dispatch::seed(self.as_dispatch(), seed);
     }
 
     /// Returns `true` if autodiff (gradient tracking) is enabled on this device.
@@ -879,7 +879,7 @@ impl Device {
 
             #[allow(unreachable_code)] // need to have one backend enabled, so it is reachable
             for device in Dispatch::enumerate(type_id) {
-                devices.push(Device::new(device))
+                devices.push(Device::new(device));
             }
         }
 

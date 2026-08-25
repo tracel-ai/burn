@@ -21,7 +21,7 @@ pub enum Norm {
     /// L:INFINITY norm (maximum absolute value)
     LInf,
 
-    /// L:NEG_INFINITY norm (minimum absolute value)
+    /// `L:NEG_INFINITY` norm (minimum absolute value)
     LNegInf,
 
     /// Lp norm (generalized norm)
@@ -132,8 +132,8 @@ pub fn vector_norm<const D: usize>(
 /// * 1.0
 /// * 2.0
 /// * 2 * N for integral N,
-/// * f64::INFINITY,
-/// * f64::NEG_INFINITY,
+/// * `f64::INFINITY`,
+/// * `f64::NEG_INFINITY`,
 ///
 /// # Arguments
 ///
@@ -279,8 +279,8 @@ fn lp_signed_norm<const D: usize>(x: Tensor<D>, p: u32, dim: usize) -> Tensor<D>
 ///
 /// This uses no specialized implementations and cannot handle:
 /// * 0.0
-/// * f64::INFINITY,
-/// * f64::NEG_INFINITY,
+/// * `f64::INFINITY`,
+/// * `f64::NEG_INFINITY`,
 fn lp_norm_base<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
     x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
 }
@@ -311,7 +311,7 @@ where
     x.max_abs_dim(dim)
 }
 
-/// Computes the L:NEG_INFINITY norm of a tensor along a specified dimension.
+/// Computes the `L:NEG_INFINITY` norm of a tensor along a specified dimension.
 ///
 /// # Arguments
 ///
@@ -321,7 +321,7 @@ where
 ///
 /// # Returns
 ///
-/// The L:NEG_INFINITY norm of the input tensor.
+/// The `L:NEG_INFINITY` norm of the input tensor.
 pub fn min_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<D, K>
 where
     K: Ordered,

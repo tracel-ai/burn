@@ -15,7 +15,7 @@ pub fn relu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     tensor.relu()
 }
 
-/// Applies the HardTanh function element-wise, clamping each element to the
+/// Applies the `HardTanh` function element-wise, clamping each element to the
 /// range `[min_val, max_val]` (a cheap, piecewise-linear approximation of tanh).
 ///
 #[cfg_attr(not(doc), doc = "`HardTanh(x) = max(min_val, min(max_val, x))`")]
@@ -30,7 +30,7 @@ pub fn tanhshrink<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     tensor.clone().sub(tensor.tanh())
 }
 
-/// Applies the ReLU6 function element-wise, the rectified linear unit clamped to
+/// Applies the `ReLU6` function element-wise, the rectified linear unit clamped to
 /// the range `[0, 6]` (as used in [MobileNetV2](https://arxiv.org/abs/1801.04381)).
 ///
 #[cfg_attr(doc, doc = "$$\\text{ReLU6}\\(x\\) = \\min\\(\\max\\(0, x\\), 6\\)$$")]
@@ -110,7 +110,7 @@ $$
     doc = "`GELU_approx(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))`"
 )]
 pub fn gelu_approximate<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    /// sqrt(2/π) precomputed as FRAC_2_SQRT_PI * FRAC_1_SQRT_2
+    /// sqrt(2/π) precomputed as `FRAC_2_SQRT_PI` * `FRAC_1_SQRT_2`
     const SQRT_2_OVER_PI: f64 =
         core::f64::consts::FRAC_2_SQRT_PI * core::f64::consts::FRAC_1_SQRT_2;
 
@@ -120,7 +120,7 @@ pub fn gelu_approximate<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     (x.clone() * (inner.tanh() + 1)) * 0.5
 }
 
-/// Applies Parametric ReLu activation function as described in the paper
+/// Applies Parametric `ReLu` activation function as described in the paper
 /// [Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification](https://arxiv.org/pdf/1502.01852).
 ///
 /// - The tensor is assumed to be of shape `[batch_size, channels, ...]`.
@@ -233,7 +233,7 @@ fn max_finite_exp_arg(dtype: DType) -> f64 {
     }
 }
 
-/// Applies the SoftPlus function element-wise.
+/// Applies the `SoftPlus` function element-wise.
 ///
 #[cfg_attr(
     doc,
@@ -245,19 +245,19 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`softplus(x_i) = log(1 + exp(beta * x_i)) / beta`")]
 ///
-/// The SoftPlus function is a smooth approximation of the ReLU function.
+/// The `SoftPlus` function is a smooth approximation of the `ReLU` function.
 ///
 /// Uses a default threshold of `20.0` for numerical stability. Use
 /// [`softplus_with_threshold`] to pick a different threshold.
 ///
 /// # Arguments
 ///
-/// - `beta`: Controls the sharpness of the approximation to ReLU.
+/// - `beta`: Controls the sharpness of the approximation to `ReLU`.
 pub fn softplus<const D: usize>(tensor: Tensor<D>, beta: f64) -> Tensor<D> {
     softplus_with_threshold(tensor, beta, DEFAULT_SOFTPLUS_THRESHOLD)
 }
 
-/// Applies the SoftPlus function element-wise, with an explicit stability threshold.
+/// Applies the `SoftPlus` function element-wise, with an explicit stability threshold.
 ///
 /// See [`softplus`] for the function itself, which uses the default threshold of `20.0`.
 ///
@@ -267,7 +267,7 @@ pub fn softplus<const D: usize>(tensor: Tensor<D>, beta: f64) -> Tensor<D> {
 ///
 /// # Arguments
 ///
-/// - `beta`: Controls the sharpness of the approximation to ReLU.
+/// - `beta`: Controls the sharpness of the approximation to `ReLU`.
 /// - `threshold`: The value of `beta * x` above which the linear approximation is used.
 pub fn softplus_with_threshold<const D: usize>(
     tensor: Tensor<D>,
@@ -408,7 +408,7 @@ pub fn log_sigmoid<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     Tensor::new(log_sigmoid_impl(tensor.primitive))
 }
 
-/// Applies the SiLU function (also known as the swish function) element-wise.
+/// Applies the `SiLU` function (also known as the swish function) element-wise.
 ///
 #[cfg_attr(
     doc,
@@ -641,7 +641,7 @@ pub fn softsign<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     tensor.clone().div(tensor.abs() + 1)
 }
 
-/// Applies the HardShrink function element-wise.
+/// Applies the `HardShrink` function element-wise.
 ///
 #[cfg_attr(
     doc,
@@ -667,7 +667,7 @@ pub fn hard_shrink<const D: usize>(tensor: Tensor<D>, lambda: f64) -> Tensor<D> 
     tensor.mask_fill(mask, 0)
 }
 
-/// Applies the SoftShrink function element-wise.
+/// Applies the `SoftShrink` function element-wise.
 ///
 #[cfg_attr(
     doc,

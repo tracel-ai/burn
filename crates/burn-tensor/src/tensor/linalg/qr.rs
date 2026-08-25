@@ -7,7 +7,7 @@ use burn_std::Slice;
 /// This function decomposes the input tensor A into two tensors Q, R
 /// such that A = QR, where Q is an orthonormal matrix and R is an upper triangular matrix.
 /// If `reduced` is true then it returns reduced Q, R.
-/// The reduced QR decomposition agrees with the full QR decomposition when n_cols >= n_rows (wide matrix).
+/// The reduced QR decomposition agrees with the full QR decomposition when `n_cols` >= `n_rows` (wide matrix).
 ///
 /// # Arguments
 /// - `tensor` - The input tensor of shape `[..., n_rows, n_cols]`.

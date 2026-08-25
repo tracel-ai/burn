@@ -1,6 +1,6 @@
 use super::Tensor;
 
-use colored::*;
+use colored::Colorize;
 
 /// Checks the closeness of two tensors and prints the results.
 ///

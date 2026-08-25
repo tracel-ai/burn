@@ -273,7 +273,7 @@ pub fn conv_transpose2d(
     )))
 }
 
-/// Applies a 3D transposed convolution](burn_backend::ops::ModuleOps::conv_transpose3d).
+/// Applies a 3D transposed convolution](`burn_backend::ops::ModuleOps::conv_transpose3d`).
 pub fn conv_transpose3d(
     x: Tensor<5>,
     weight: Tensor<5>,
@@ -307,7 +307,7 @@ pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -
 /// Combines an array of sliding local blocks into a large containing tensor, summing the
 /// values of blocks that overlap. This is the operation performed by
 /// [`torch.nn.Fold`](https://pytorch.org/docs/stable/generated/torch.nn.Fold.html), and is the
-/// adjoint of [unfold4d]: it reuses the same one-hot kernel through a [conv_transpose2d].
+/// adjoint of [unfold4d]: it reuses the same one-hot kernel through a [`conv_transpose2d`].
 ///
 /// # Arguments
 ///
@@ -517,8 +517,8 @@ pub fn interpolate(
 ///
 /// # Compatibility
 ///
-/// This function differs from PyTorch's ``torch.nn.functional.linear`` in that it does not
-/// transpose the weight matrix. In PyTorch, the weight matrix is transposed before
+/// This function differs from `PyTorch`'s ``torch.nn.functional.linear`` in that it does not
+/// transpose the weight matrix. In `PyTorch`, the weight matrix is transposed before
 /// multiplication:
 ///
 /// ```math
@@ -582,12 +582,12 @@ fn linear_impl(
     BridgeTensor::float(Dispatch::linear(
         input.into_float(),
         weight.into_float(),
-        bias.map(|b| b.into_float()),
+        bias.map(BridgeTensor::into_float),
     ))
 }
 
 /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
-/// where scale defaults to 1/sqrt(head_dim) (configurable via `options.scale`).
+/// where scale defaults to `1/sqrt(head_dim)` (configurable via `options.scale`).
 /// Optionally applies masking, additive bias, causal masking, and softcap.
 ///
 /// # Arguments
@@ -597,7 +597,7 @@ fn linear_impl(
 /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
 ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
 /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
-///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+///   added to the attention scores before softmax (e.g. `ALiBi`, relative position biases).
 /// - `options`: Additional attention options (custom scale, softcap, causal masking).
 ///
 /// # Returns
@@ -741,7 +741,7 @@ fn layer_norm_impl(
     BridgeTensor::float(Dispatch::layer_norm(
         input.into_float(),
         gamma.into_float(),
-        beta.map(|b| b.into_float()),
+        beta.map(BridgeTensor::into_float),
         epsilon,
     ))
 }

@@ -83,7 +83,7 @@ pub fn lu<const D: usize, const D1: usize>(
     // Upcast f16 and bf16 to f32
     let needs_upcast = original_dtype == DType::F16 || original_dtype == DType::BF16;
     if needs_upcast {
-        tensor = tensor.cast(FloatDType::F32)
+        tensor = tensor.cast(FloatDType::F32);
     }
 
     let (lu_tensor, p_compact) = compute_lu_decomposition::<D, D1>(tensor);
@@ -491,8 +491,8 @@ fn apply_permutations_to_tensor<const D: usize>(
 /// Solves the equation L_{kk} U_{k, k+1:} = A_{k, k+1:}  for  U_{k, k+1:}.
 ///
 /// # Arguments
-/// - `diagonal_l_block`: The L block L_{k, k}, [k_start..k_end, k_start..k_end]
-/// - `row_blocks`: The row blocks A_{k, k+1}, ..., A_{k, N}, [k_start..k_end, k_end..]
+/// - `diagonal_l_block`: The L block L_{k, k}, [`k_start..k_end`, `k_start..k_end`]
+/// - `row_blocks`: The row blocks A_{k, k+1}, ..., A_{k, N}, [`k_start..k_end`, `k_end`..]
 /// - `block_size`: The size of the current block
 fn solve_for_u_blocks<const D: usize>(
     diagonal_l_block: Tensor<D>,

@@ -185,7 +185,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The median is not unique for input tensors with an even number of elements
     /// in the reduced dimension. In this case, the lower of the two medians is returned,
-    /// following PyTorch's behavior.
+    /// following `PyTorch`'s behavior.
     ///
     /// # Note
     ///
@@ -246,7 +246,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The median is not unique for input tensors with an even number of elements
     /// in the reduced dimension. In this case, the lower of the two medians is returned,
-    /// following PyTorch's behavior.
+    /// following `PyTorch`'s behavior.
     ///
     /// # Note
     ///
@@ -334,7 +334,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         is_require_grad_impl(&self.primitive)
     }
 
-    /// Mark the tensor as tracked or untracked depending on the require_grad argument.
+    /// Mark the tensor as tracked or untracked depending on the `require_grad` argument.
     /// When tracked, the gradients will be available after the backward pass.
     ///
     /// This function does nothing when autodiff is not enabled.
@@ -629,13 +629,13 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// # Arguments
     ///
-    /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+    /// * `grid` - A tensor of locations, with shape (N, `H_out`, `W_out`, 2). Values are [-1, 1].
     ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
-    /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
+    /// * `options` - Grid sampling options (mode, `padding_mode`, `align_corners`)
     ///
     /// # Returns
     ///
-    /// A tensor with shape (N, C, H_out, W_out)
+    /// A tensor with shape (N, C, `H_out`, `W_out`)
     ///
     /// # Example
     ///

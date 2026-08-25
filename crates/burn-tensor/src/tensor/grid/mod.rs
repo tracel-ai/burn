@@ -9,12 +9,12 @@ pub use affine_grid::*;
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GridIndexing {
     /// Dimensions are in the same order as the cardinality of the inputs.
-    /// Equivalent to "ij" indexing in NumPy and PyTorch.
+    /// Equivalent to "ij" indexing in `NumPy` and `PyTorch`.
     #[default]
     Matrix,
 
     /// The same as Matrix, but the first two dimensions are swapped.
-    /// Equivalent to "xy" indexing in NumPy and PyTorch.
+    /// Equivalent to "xy" indexing in `NumPy` and `PyTorch`.
     Cartesian,
 }
 

@@ -87,7 +87,7 @@ pub fn det<const D: usize, const D1: usize, const D2: usize>(mut tensor: Tensor<
         working_float_dtype = FloatDType::F32;
         tensor = tensor.cast(working_float_dtype);
     } else {
-        working_float_dtype = original_dtype.into()
+        working_float_dtype = original_dtype.into();
     };
 
     // Compute determinant for base cases (1x1, 2x2, and 3x3 matrices)

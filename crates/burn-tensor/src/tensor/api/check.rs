@@ -177,7 +177,7 @@ impl TensorCheck {
                 .details(format!(
                     "Source dimensions: {source_dims:?}, Destination dimensions: {destination_dims:?}.",
                 )),
-            )
+            );
         }
 
         check
@@ -395,7 +395,7 @@ impl TensorCheck {
             check = check.register(
                 "One Hot",
                 TensorError::new("Can't create a one hot tensor with less than 2 classes"),
-            )
+            );
         }
         check
     }

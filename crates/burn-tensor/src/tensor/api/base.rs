@@ -1210,7 +1210,7 @@ where
                 "Dimensions must not contain repeats; found {} unique dims and {} total dims",
                 unique_dims.len(),
                 dims.len()
-            )
+            );
         }
 
         let x = self.unchecked_roll_dim(shifts[0], dims[0]);
@@ -1697,7 +1697,7 @@ where
 
     /// Update the given tensor with the value tensor where the mask is true.
     ///
-    /// This is similar to [mask_fill](Tensor::mask_fill), however the value is a tensor instead of
+    /// This is similar to [`mask_fill`](Tensor::mask_fill), however the value is a tensor instead of
     /// a scalar.
     ///
     /// # Example
@@ -1723,7 +1723,7 @@ where
 
     /// Update the given tensor with the value where the mask is true.
     ///
-    /// This is similar to [mask_where](Tensor::mask_where), however the value is a scalar instead of
+    /// This is similar to [`mask_where`](Tensor::mask_where), however the value is a scalar instead of
     /// a tensor.
     ///
     /// # Example
@@ -2447,12 +2447,12 @@ where
         Tensor::new(K::not_equal_scalar(self.primitive, other))
     }
 
-    /// Alias for [equal_scalar](Self::equal_scalar).
+    /// Alias for [`equal_scalar`](Self::equal_scalar).
     pub fn equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
         self.equal_scalar(other)
     }
 
-    /// Alias for [not_equal_scalar](Self::not_equal_scalar).
+    /// Alias for [`not_equal_scalar`](Self::not_equal_scalar).
     pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
         self.not_equal_scalar(other)
     }
@@ -3099,7 +3099,7 @@ where
     }
 }
 
-/// Iterator given by (Tensor::iter_dim).
+/// Iterator given by (`Tensor::iter_dim`).
 pub struct DimIter<const D: usize, K>
 where
     K: Basic,

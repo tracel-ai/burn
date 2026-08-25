@@ -16,7 +16,7 @@ where
     ///
     /// * `dim` - The dimension along which to select elements. Supports negative indexing.
     /// * `indices` - The indices of elements to select. Can be any dimensionality.
-    ///   Must be valid indices in the range [0, dim_size).
+    ///   Must be valid indices in the range [0, `dim_size`).
     ///
     /// # Example
     ///

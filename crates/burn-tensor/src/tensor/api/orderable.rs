@@ -531,22 +531,22 @@ where
         Tensor::new(K::lower_equal_scalar(self.primitive, other))
     }
 
-    /// Alias for [greater_scalar](Self::greater_scalar).
+    /// Alias for [`greater_scalar`](Self::greater_scalar).
     pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         self.greater_scalar(other)
     }
 
-    /// Alias for [greater_equal_scalar](Self::greater_equal_scalar).
+    /// Alias for [`greater_equal_scalar`](Self::greater_equal_scalar).
     pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         self.greater_equal_scalar(other)
     }
 
-    /// Alias for [lower_scalar](Self::lower_scalar).
+    /// Alias for [`lower_scalar`](Self::lower_scalar).
     pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         self.lower_scalar(other)
     }
 
-    /// Alias for [lower_equal_scalar](Self::lower_equal_scalar).
+    /// Alias for [`lower_equal_scalar`](Self::lower_equal_scalar).
     pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<D, Bool> {
         self.lower_equal_scalar(other)
     }

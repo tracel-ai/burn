@@ -23,7 +23,7 @@ pub struct StftOptions {
 }
 
 impl StftOptions {
-    /// Construct default options for the given FFT size, matching PyTorch defaults
+    /// Construct default options for the given FFT size, matching `PyTorch` defaults
     /// (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`).
     pub fn new(n_fft: usize) -> Self {
         Self {

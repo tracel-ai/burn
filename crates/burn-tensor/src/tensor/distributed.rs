@@ -71,7 +71,7 @@ impl<const D: usize> CollectiveTensor<D> {
     }
 }
 
-/// Performs an all_reduce operation on the input tensor.
+/// Performs an `all_reduce` operation on the input tensor.
 ///
 /// # Arguments
 /// - `input`: The input tensor.
@@ -79,7 +79,7 @@ impl<const D: usize> CollectiveTensor<D> {
 /// - `device_ids`: The list of all devices with which to `all_reduce`
 ///
 /// # Returns
-/// A [CollectiveTensor] containing the handle of the result.
+/// A [`CollectiveTensor`] containing the handle of the result.
 pub fn all_reduce<const D: usize>(
     input: Tensor<D>,
     op: ReduceOperation,
