@@ -49,7 +49,7 @@ pub fn might_panic(args: TokenStream, input: TokenStream) -> TokenStream {
 
     // Extract the expected panic reason
     let mut expected_reason = None;
-    for arg in args.args.iter() {
+    for arg in &args.args {
         if let Meta::NameValue(MetaNameValue { path, value, .. }) = arg
             && path.is_ident("reason")
             && let Expr::Lit(lit) = value
@@ -59,16 +59,13 @@ pub fn might_panic(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }
 
-    let expected_reason = match expected_reason {
-        Some(reason) => reason,
-        None => {
-            return syn::Error::new(
-                proc_macro2::Span::call_site(),
-                "The #[might_panic] attribute requires a 'reason' parameter",
-            )
-            .to_compile_error()
-            .into();
-        }
+    let Some(expected_reason) = expected_reason else {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "The #[might_panic] attribute requires a 'reason' parameter",
+        )
+        .to_compile_error()
+        .into();
     };
 
     let fn_name = &input_fn.sig.ident;
