@@ -660,12 +660,26 @@ impl ModuleStore for SafetensorsStore {
                 // Convert to safetensors format
                 let tensors = to_safetensors_views(tensors)?;
 
-                // Use serialize_to_file which streams directly to disk
-                // This calls the lazy closures on-demand without buffering everything
-                let path = p.path.clone();
+                // Tensors materialize during the write (`PackTensorView::data` draws them one
+                // at a time), so a device readback that fails partway must not truncate
+                // whatever was already at this path: `serialize_to_file` opens with
+                // `File::create`, which empties the destination before the first tensor is
+                // even asked for. Build the container beside it and rename it into place, the
+                // way `BurnpackStore` does. See #5479.
+                //
+                // The reserved handle is dropped because `serialize_to_file` opens the path
+                // itself; the exclusive create has already ruled out a pre-existing file or a
+                // symlink planted at the scratch name.
+                let (scratch, _reserved) = burn_pack::AtomicFile::create(&p.path).map_err(pack)?;
+                let scratch_path = scratch.path().to_path_buf();
+
+                // serialize_to_file streams directly to disk, calling the lazy closures
+                // on-demand without buffering everything.
                 caught(move || {
-                    safetensors::serialize_to_file(tensors, Some(std_metadata), &path)
+                    safetensors::serialize_to_file(tensors, Some(std_metadata), &scratch_path)
                 })??;
+
+                scratch.commit(&p.path).map_err(pack)?;
                 Ok(())
             }
             Self::Memory(p) => {
@@ -873,6 +887,15 @@ impl SafetensorsStore {
 
         Ok(())
     }
+}
+
+/// Carry a burn-pack error through as a store error.
+///
+/// Only the atomic-write helper produces these here; the messages already name the file and
+/// what went wrong, so there is nothing to add beyond the change of type.
+#[cfg(feature = "std")]
+fn pack(e: burn_pack::Error) -> SafetensorsStoreError {
+    SafetensorsStoreError::Other(e.to_string())
 }
 
 /// Run a serialization step, turning a panic escaping it into an error.
