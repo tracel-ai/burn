@@ -671,33 +671,38 @@ mod enum_variant_tests {
         }
     }
 
+    /// The traversal has to recognize an enum variant as such. The container stack that
+    /// records it is consumed during the walk rather than kept on the collected tensor, so
+    /// check it through what it controls: the variant name appears in a collected path, and
+    /// `skip_enum_variants` is what takes it back out.
     #[test]
-    fn test_enum_variant_detection_in_container_stack() {
+    fn enum_variant_appears_in_path_unless_skipped() {
         let device = Default::default();
 
         // Create model with enum
         let model = ModelWithEnum::new(&device);
 
-        // Collect snapshots to inspect container stacks
-        let snapshots = model.collect(None, None, false);
+        let names = |skip_enum_variants: bool| {
+            let mut names: Vec<String> = model
+                .collect(None, None, skip_enum_variants)
+                .iter()
+                .map(|t| t.name.clone())
+                .filter(|name| name.starts_with("feature"))
+                .collect();
+            names.sort();
+            names
+        };
 
-        // Find a snapshot from inside the enum
-        let enum_snapshot = snapshots
-            .iter()
-            .find(|s| s.full_path().contains("feature"))
-            .expect("Should have feature snapshots");
-
-        // Verify container stack contains enum marker
-        if let Some(container_stack) = &enum_snapshot.container_stack {
-            let container_str = container_stack.join(".");
-            assert!(
-                container_str.contains("Enum:ConvBlock"),
-                "Container stack should contain Enum:ConvBlock marker. Got: {}",
-                container_str
-            );
-        } else {
-            panic!("Snapshot should have container_stack");
-        }
+        assert_eq!(
+            names(false),
+            vec!["feature.BaseConv.bias", "feature.BaseConv.weight"],
+            "the enum variant should appear in the collected path"
+        );
+        assert_eq!(
+            names(true),
+            vec!["feature.bias", "feature.weight"],
+            "skip_enum_variants should drop the variant it detected"
+        );
     }
 
     #[test]
@@ -763,7 +768,7 @@ mod direct_access_tests {
     use super::*;
 
     #[test]
-    fn test_get_all_snapshots() {
+    fn test_get_all_tensors() {
         let path = pytorch_test_path("linear", "linear.pt");
 
         if !path.exists() {
@@ -772,7 +777,7 @@ mod direct_access_tests {
         }
 
         let mut store = PytorchStore::from_file(path);
-        let snapshots = store.get_all_snapshots().unwrap();
+        let snapshots = store.get_all_tensors().unwrap();
 
         // linear.pt should have fc1.weight, fc1.bias, fc2.weight, fc2.bias
         assert!(!snapshots.is_empty(), "Should have snapshots");
@@ -787,7 +792,7 @@ mod direct_access_tests {
     }
 
     #[test]
-    fn test_get_snapshot_existing() {
+    fn test_get_tensor_existing() {
         let path = pytorch_test_path("linear", "linear.pt");
 
         if !path.exists() {
@@ -798,7 +803,7 @@ mod direct_access_tests {
         let mut store = PytorchStore::from_file(path);
 
         // Get existing snapshot
-        let snapshot = store.get_snapshot("fc1.weight").unwrap();
+        let snapshot = store.get_tensor("fc1.weight").unwrap();
         assert!(snapshot.is_some(), "Should find fc1.weight");
 
         let snapshot = snapshot.unwrap();
@@ -806,12 +811,12 @@ mod direct_access_tests {
         assert_eq!(snapshot.shape.len(), 2, "Weight should be 2D tensor");
 
         // Verify we can load data
-        let data = snapshot.to_data().unwrap();
+        let data = crate::bridge::to_data(snapshot).unwrap();
         assert!(!data.bytes.is_empty(), "Data should not be empty");
     }
 
     #[test]
-    fn test_get_snapshot_not_found() {
+    fn test_get_tensor_not_found() {
         let path = pytorch_test_path("linear", "linear.pt");
 
         if !path.exists() {
@@ -822,7 +827,7 @@ mod direct_access_tests {
         let mut store = PytorchStore::from_file(path);
 
         // Get non-existent snapshot
-        let snapshot = store.get_snapshot("nonexistent.weight").unwrap();
+        let snapshot = store.get_tensor("nonexistent.weight").unwrap();
         assert!(snapshot.is_none(), "Should not find nonexistent tensor");
     }
 
@@ -865,8 +870,8 @@ mod direct_access_tests {
         let keys = store.keys().unwrap();
         assert!(!keys.is_empty(), "Should have keys via fast path");
 
-        // Now call get_all_snapshots to populate cache
-        let snapshots = store.get_all_snapshots().unwrap();
+        // Now call get_all_tensors to populate cache
+        let snapshots = store.get_all_tensors().unwrap();
         assert!(!snapshots.is_empty(), "Should have snapshots");
 
         // keys() should now use the cached data
@@ -886,18 +891,18 @@ mod direct_access_tests {
         let mut store = PytorchStore::from_file(path);
 
         // First call populates cache
-        let snapshots1 = store.get_all_snapshots().unwrap();
+        let snapshots1 = store.get_all_tensors().unwrap();
         let count1 = snapshots1.len();
 
         // Second call uses cache
-        let snapshots2 = store.get_all_snapshots().unwrap();
+        let snapshots2 = store.get_all_tensors().unwrap();
         let count2 = snapshots2.len();
 
         assert_eq!(count1, count2, "Cached results should match");
     }
 
     #[test]
-    fn test_get_all_snapshots_with_remapping() {
+    fn test_get_all_tensors_with_remapping() {
         let path = pytorch_test_path("linear", "linear.pt");
 
         if !path.exists() {
@@ -908,7 +913,7 @@ mod direct_access_tests {
         // Create store with key remapping
         let mut store = PytorchStore::from_file(path).with_key_remapping(r"^fc1\.", "linear1.");
 
-        let snapshots = store.get_all_snapshots().unwrap();
+        let snapshots = store.get_all_tensors().unwrap();
 
         // Should have remapped keys
         assert!(
@@ -929,7 +934,7 @@ mod direct_access_tests {
     }
 
     #[test]
-    fn test_get_snapshot_with_remapped_name() {
+    fn test_get_tensor_with_remapped_name() {
         let path = pytorch_test_path("linear", "linear.pt");
 
         if !path.exists() {
@@ -941,11 +946,11 @@ mod direct_access_tests {
         let mut store = PytorchStore::from_file(path).with_key_remapping(r"^fc1\.", "linear1.");
 
         // Should find by remapped name
-        let snapshot = store.get_snapshot("linear1.weight").unwrap();
+        let snapshot = store.get_tensor("linear1.weight").unwrap();
         assert!(snapshot.is_some(), "Should find tensor by remapped name");
 
         // Should NOT find by original name
-        let snapshot_orig = store.get_snapshot("fc1.weight").unwrap();
+        let snapshot_orig = store.get_tensor("fc1.weight").unwrap();
         assert!(
             snapshot_orig.is_none(),
             "Should not find tensor by original name after remapping"
@@ -953,7 +958,7 @@ mod direct_access_tests {
     }
 
     #[test]
-    fn test_get_all_snapshots_ignores_filter() {
+    fn test_get_all_tensors_ignores_filter() {
         let path = pytorch_test_path("linear", "linear.pt");
 
         if !path.exists() {
@@ -964,8 +969,8 @@ mod direct_access_tests {
         // Create store with filter that only matches fc1
         let mut store = PytorchStore::from_file(path).with_regex(r"^fc1\.");
 
-        // get_all_snapshots should return ALL tensors regardless of filter
-        let snapshots = store.get_all_snapshots().unwrap();
+        // get_all_tensors should return ALL tensors regardless of filter
+        let snapshots = store.get_all_tensors().unwrap();
 
         // Should have both fc1 and fc2 tensors
         assert!(
@@ -974,7 +979,7 @@ mod direct_access_tests {
         );
         assert!(
             snapshots.contains_key("fc2.weight"),
-            "Should contain fc2.weight (filter not applied to get_all_snapshots)"
+            "Should contain fc2.weight (filter not applied to get_all_tensors)"
         );
     }
 }

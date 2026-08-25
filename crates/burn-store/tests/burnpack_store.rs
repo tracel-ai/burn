@@ -1,11 +1,11 @@
 //! End-to-end coverage of `BurnpackStore` in file mode.
 //!
-//! The unit tests reach the writer through hand-built snapshots; these go through the API a
+//! The unit tests reach the writer through hand-built tensors; these go through the API a
 //! user actually calls, so they cover the store's own layers (auto-extension, the `overwrite`
-//! guard) sitting on top of the atomic write, and the adapter path that produces snapshots
+//! guard) sitting on top of the atomic write, and the adapter path that produces tensors
 //! whose declared metadata and eventual bytes come from different code.
 
-#![cfg(all(feature = "burnpack", feature = "std"))]
+#![cfg(feature = "std")]
 
 // The `Module` derive expands to `::burn::...` paths.
 use burn_core as burn;
@@ -105,7 +105,7 @@ fn overwrite_guards_an_existing_file() {
     assert_ne!(first_weight(&loaded), first_weight(&first));
 }
 
-/// Adapters rebuild a snapshot with a declared dtype while the bytes are produced later,
+/// Adapters rebuild a tensor with a declared dtype while the bytes are produced later,
 /// inside the closure. That is the one place in the save path where `byte_len` and
 /// `into_bytes` are computed by different code, so the writer's length check is load-bearing.
 #[test]

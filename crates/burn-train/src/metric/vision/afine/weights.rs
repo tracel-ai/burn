@@ -107,9 +107,8 @@ fn read_scalar_value<P: AsRef<Path>>(
     let reader = PytorchReader::with_top_level_key(cache_path.as_ref(), top_level_key)
         .map_err(|e| log::warn!("Failed to open shard '{top_level_key}': {e:?}"))
         .ok()?;
-    let snapshot = reader.get(field_name)?;
-    let data = snapshot
-        .to_data()
+    let tensor = reader.get(field_name)?;
+    let data = burn_store::bridge::to_data(tensor)
         .map_err(|e| log::warn!("Failed to read '{top_level_key}.{field_name}' tensor data: {e:?}"))
         .ok()?;
     let values = data
