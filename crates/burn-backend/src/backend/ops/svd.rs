@@ -3,458 +3,14 @@
 //!
 //! This is the reference implementation backing the default
 //! [`FloatTensorOps::float_svd`](super::tensor::FloatTensorOps#method.float_svd):
-//! plain-slice math over tensor data with runtime-detected AVX2 kernels for
-//! the hot loops (bit-identical to the portable fallback), deterministic and
-//! identical on every backend. Backends may override the trait method with a
-//! native SVD (tch) or a fused GPU kernel (cubecl); this module stays the
-//! correctness reference and the no-kernel fallback.
+//! pure scalar math over tensor data, deterministic and identical on every
+//! backend. Backends may override the trait method with a native SVD (tch)
+//! or a fused GPU kernel (cubecl); this module stays the correctness
+//! reference and the no-kernel fallback.
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_std::{DType, TensorData};
 use num_traits::float::Float;
-
-/// Whether the process may run the AVX2 kernel bodies for the hot loops.
-///
-/// Every kernel below has a portable fallback; both bodies perform the same
-/// per-element operations in the same order (independent elements, or eight
-/// independent accumulator chains reduced left-to-right), so the output is
-/// bit-identical no matter which one runs. Runtime-detected once.
-///
-/// Test-only override: 1 forces AVX2, 2 forces the fallback, any other value
-/// follows runtime detection. Used to prove both paths are bit-identical.
-#[cfg(all(target_arch = "x86_64", feature = "std"))]
-fn simd_fast() -> bool {
-    #[cfg(test)]
-    match SIMD_TEST_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed) {
-        1 => return true,
-        2 => return false,
-        _ => {}
-    }
-    static AVX2: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *AVX2.get_or_init(|| is_x86_feature_detected!("avx2"))
-}
-
-#[cfg(all(test, target_arch = "x86_64", feature = "std"))]
-static SIMD_TEST_OVERRIDE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
-
-/// `y[i] += t * x[i]` over the full slices.
-#[inline(always)]
-fn slice_axpy<F: Float + Copy>(y: &mut [F], x: &[F], t: F) {
-    debug_assert_eq!(y.len(), x.len());
-    #[cfg(all(target_arch = "x86_64", feature = "std"))]
-    if simd_fast() {
-        // Safety: only `f32`/`f64` element types exist here (asserted); `y`
-        // and `x` point to `len` live, non-overlapping elements of distinct
-        // buffers at every call site.
-        unsafe {
-            if core::mem::size_of::<F>() == 4 {
-                simd::axpy(
-                    y.as_mut_ptr().cast::<f32>(),
-                    x.as_ptr().cast::<f32>(),
-                    t.to_f32().unwrap(),
-                    y.len(),
-                );
-            } else {
-                debug_assert_eq!(core::mem::size_of::<F>(), 8);
-                simd::axpy_f64(
-                    y.as_mut_ptr().cast::<f64>(),
-                    x.as_ptr().cast::<f64>(),
-                    t.to_f64().unwrap(),
-                    y.len(),
-                );
-            }
-        }
-        return;
-    }
-    for (yi, &xi) in y.iter_mut().zip(x.iter()) {
-        *yi = *yi + t * xi;
-    }
-}
-
-/// Dot product `sum a[i] * w[i]` over `lo..hi`, accumulated in independent
-/// chains reduced in fixed left-to-right order so LLVM can vectorize without
-/// fast-math. The chain count matches the AVX2 body's register width for the
-/// element type (8 for f32, 4 for f64).
-#[inline(always)]
-fn slice_dot<F: Float + Copy + core::ops::AddAssign>(a: &[F], w: &[F], lo: usize, hi: usize) -> F {
-    debug_assert!(lo <= hi && hi <= a.len() && hi <= w.len());
-    #[cfg(all(target_arch = "x86_64", feature = "std"))]
-    if simd_fast() {
-        // Safety: `lo..hi` is in bounds for both buffers; reads only.
-        unsafe {
-            if core::mem::size_of::<F>() == 4 {
-                let r = simd::dot(a.as_ptr().cast::<f32>(), w.as_ptr().cast::<f32>(), lo, hi);
-                return F::from(r).unwrap();
-            } else {
-                debug_assert_eq!(core::mem::size_of::<F>(), 8);
-                let r = simd::dot_f64(a.as_ptr().cast::<f64>(), w.as_ptr().cast::<f64>(), lo, hi);
-                return F::from(r).unwrap();
-            }
-        }
-    }
-    // Chain count matches the AVX2 body's register width per element type,
-    // so both accumulation orders are identical.
-    let lanes = if core::mem::size_of::<F>() == 4 { 8 } else { 4 };
-    let mut s = [F::zero(); 8];
-    let mut j = lo;
-    while j + lanes <= hi {
-        for t in 0..lanes {
-            s[t] += a[j + t] * w[j + t];
-        }
-        j += lanes;
-    }
-    let mut r = s[0];
-    for &chain in s.iter().take(lanes).skip(1) {
-        r += chain;
-    }
-    while j < hi {
-        r += a[j] * w[j];
-        j += 1;
-    }
-    r
-}
-
-/// Scaled sum of squares `sum (x[i] / scale)^2` over `lo..hi`, same
-/// structure as [`slice_dot`].
-#[inline(always)]
-fn slice_sumsq_scaled<F: Float + Copy + core::ops::AddAssign>(
-    x: &[F],
-    scale: F,
-    lo: usize,
-    hi: usize,
-) -> F {
-    debug_assert!(lo <= hi && hi <= x.len());
-    #[cfg(all(target_arch = "x86_64", feature = "std"))]
-    if simd_fast() {
-        // Safety: `lo..hi` is in bounds; reads only.
-        unsafe {
-            if core::mem::size_of::<F>() == 4 {
-                let r =
-                    simd::sumsq_scaled(x.as_ptr().cast::<f32>(), scale.to_f32().unwrap(), lo, hi);
-                return F::from(r).unwrap();
-            } else {
-                debug_assert_eq!(core::mem::size_of::<F>(), 8);
-                let r = simd::sumsq_scaled_f64(
-                    x.as_ptr().cast::<f64>(),
-                    scale.to_f64().unwrap(),
-                    lo,
-                    hi,
-                );
-                return F::from(r).unwrap();
-            }
-        }
-    }
-    let lanes = if core::mem::size_of::<F>() == 4 { 8 } else { 4 };
-    let mut s = [F::zero(); 8];
-    let mut j = lo;
-    while j + lanes <= hi {
-        for t in 0..lanes {
-            let d = x[j + t] / scale;
-            s[t] += d * d;
-        }
-        j += lanes;
-    }
-    let mut r = s[0];
-    for &chain in s.iter().take(lanes).skip(1) {
-        r += chain;
-    }
-    while j < hi {
-        let d = x[j] / scale;
-        r += d * d;
-        j += 1;
-    }
-    r
-}
-
-/// Apply one Givens rotation to two contiguous rows of `buf`:
-/// `(a, b) <- (c*a + s*b, -s*a + c*b)` element-wise over `len` entries
-/// starting at offsets `i0` and `i1`.
-///
-/// The two rows must not overlap; every call site rotates distinct adjacent
-/// rows of a single buffer.
-#[inline(always)]
-fn rotate_rows<F: Float + Copy>(buf: &mut [F], i0: usize, i1: usize, c: F, s: F, len: usize) {
-    debug_assert!(i0.checked_add(len).is_some_and(|e| e <= buf.len()));
-    debug_assert!(i1.checked_add(len).is_some_and(|e| e <= buf.len()));
-    #[cfg(all(target_arch = "x86_64", feature = "std"))]
-    if simd_fast() {
-        // Safety: both ranges are in bounds (asserted above); the call sites
-        // rotate disjoint adjacent rows of one buffer.
-        unsafe {
-            if core::mem::size_of::<F>() == 4 {
-                simd::rotate(
-                    buf.as_mut_ptr().cast::<f32>(),
-                    i0,
-                    i1,
-                    c.to_f32().unwrap(),
-                    s.to_f32().unwrap(),
-                    len,
-                );
-            } else {
-                debug_assert_eq!(core::mem::size_of::<F>(), 8);
-                simd::rotate_f64(
-                    buf.as_mut_ptr().cast::<f64>(),
-                    i0,
-                    i1,
-                    c.to_f64().unwrap(),
-                    s.to_f64().unwrap(),
-                    len,
-                );
-            }
-        }
-        return;
-    }
-    for t in 0..len {
-        let (a0, b0) = (buf[i0 + t], buf[i1 + t]);
-        buf[i0 + t] = c * a0 + s * b0;
-        buf[i1 + t] = -s * a0 + c * b0;
-    }
-}
-
-/// AVX2 bodies for the kernels above. Each routine performs exactly the
-/// operations of its fallback (including the sequential tail and the
-/// left-to-right chain reduction), so results match bit for bit. No FMA
-/// contraction is used anywhere: rustc never contracts automatically and
-/// the intrinsics below use separate mul/add.
-#[cfg(all(target_arch = "x86_64", feature = "std"))]
-mod simd {
-    use core::arch::x86_64::*;
-
-    /// # Safety
-    /// `y` and `x` must be valid for `len` elements and must not overlap.
-    #[target_feature(enable = "avx2")]
-    pub(crate) unsafe fn axpy(y: *mut f32, x: *const f32, t: f32, len: usize) {
-        unsafe {
-            let vt = _mm256_set1_ps(t);
-            let mut j = 0;
-            while j + 8 <= len {
-                let xv = _mm256_loadu_ps(x.add(j));
-                let yv = _mm256_loadu_ps(y.add(j));
-                _mm256_storeu_ps(y.add(j), _mm256_add_ps(yv, _mm256_mul_ps(vt, xv)));
-                j += 8;
-            }
-            while j < len {
-                *y.add(j) = *y.add(j) + t * *x.add(j);
-                j += 1;
-            }
-        }
-    }
-
-    /// # Safety
-    /// `y` and `x` must be valid for `len` elements and must not overlap.
-    #[target_feature(enable = "avx2")]
-    pub(crate) unsafe fn axpy_f64(y: *mut f64, x: *const f64, t: f64, len: usize) {
-        unsafe {
-            let vt = _mm256_set1_pd(t);
-            let mut j = 0;
-            while j + 4 <= len {
-                let xv = _mm256_loadu_pd(x.add(j));
-                let yv = _mm256_loadu_pd(y.add(j));
-                _mm256_storeu_pd(y.add(j), _mm256_add_pd(yv, _mm256_mul_pd(vt, xv)));
-                j += 4;
-            }
-            while j < len {
-                *y.add(j) = *y.add(j) + t * *x.add(j);
-                j += 1;
-            }
-        }
-    }
-
-    /// # Safety
-    /// `a` and `w` must be valid for `hi` elements.
-    #[target_feature(enable = "avx2")]
-    pub(crate) unsafe fn dot(a: *const f32, w: *const f32, lo: usize, hi: usize) -> f32 {
-        unsafe {
-            let mut acc = _mm256_setzero_ps();
-            let mut j = lo;
-            while j + 8 <= hi {
-                acc = _mm256_add_ps(
-                    acc,
-                    _mm256_mul_ps(_mm256_loadu_ps(a.add(j)), _mm256_loadu_ps(w.add(j))),
-                );
-                j += 8;
-            }
-            let mut tmp = [0.0f32; 8];
-            _mm256_storeu_ps(tmp.as_mut_ptr(), acc);
-            let mut r = tmp[0];
-            r += tmp[1];
-            r += tmp[2];
-            r += tmp[3];
-            r += tmp[4];
-            r += tmp[5];
-            r += tmp[6];
-            r += tmp[7];
-            while j < hi {
-                r += *a.add(j) * *w.add(j);
-                j += 1;
-            }
-            r
-        }
-    }
-
-    /// # Safety
-    /// `a` and `w` must be valid for `hi` elements.
-    #[target_feature(enable = "avx2")]
-    pub(crate) unsafe fn dot_f64(a: *const f64, w: *const f64, lo: usize, hi: usize) -> f64 {
-        unsafe {
-            let mut acc = _mm256_setzero_pd();
-            let mut j = lo;
-            while j + 4 <= hi {
-                acc = _mm256_add_pd(
-                    acc,
-                    _mm256_mul_pd(_mm256_loadu_pd(a.add(j)), _mm256_loadu_pd(w.add(j))),
-                );
-                j += 4;
-            }
-            let mut tmp = [0.0f64; 4];
-            _mm256_storeu_pd(tmp.as_mut_ptr(), acc);
-            let mut r = tmp[0];
-            r += tmp[1];
-            r += tmp[2];
-            r += tmp[3];
-            while j < hi {
-                r += *a.add(j) * *w.add(j);
-                j += 1;
-            }
-            r
-        }
-    }
-
-    /// # Safety
-    /// `x` must be valid for `hi` elements; `scale` must be non-zero.
-    #[target_feature(enable = "avx2")]
-    pub(crate) unsafe fn sumsq_scaled(x: *const f32, scale: f32, lo: usize, hi: usize) -> f32 {
-        unsafe {
-            let vscale = _mm256_set1_ps(scale);
-            let mut acc = _mm256_setzero_ps();
-            let mut j = lo;
-            while j + 8 <= hi {
-                let d = _mm256_div_ps(_mm256_loadu_ps(x.add(j)), vscale);
-                acc = _mm256_add_ps(acc, _mm256_mul_ps(d, d));
-                j += 8;
-            }
-            let mut tmp = [0.0f32; 8];
-            _mm256_storeu_ps(tmp.as_mut_ptr(), acc);
-            let mut r = tmp[0];
-            r += tmp[1];
-            r += tmp[2];
-            r += tmp[3];
-            r += tmp[4];
-            r += tmp[5];
-            r += tmp[6];
-            r += tmp[7];
-            while j < hi {
-                let d = *x.add(j) / scale;
-                r += d * d;
-                j += 1;
-            }
-            r
-        }
-    }
-
-    /// # Safety
-    /// `x` must be valid for `hi` elements; `scale` must be non-zero.
-    #[target_feature(enable = "avx2")]
-    pub(crate) unsafe fn sumsq_scaled_f64(x: *const f64, scale: f64, lo: usize, hi: usize) -> f64 {
-        unsafe {
-            let vscale = _mm256_set1_pd(scale);
-            let mut acc = _mm256_setzero_pd();
-            let mut j = lo;
-            while j + 4 <= hi {
-                let d = _mm256_div_pd(_mm256_loadu_pd(x.add(j)), vscale);
-                acc = _mm256_add_pd(acc, _mm256_mul_pd(d, d));
-                j += 4;
-            }
-            let mut tmp = [0.0f64; 4];
-            _mm256_storeu_pd(tmp.as_mut_ptr(), acc);
-            let mut r = tmp[0];
-            r += tmp[1];
-            r += tmp[2];
-            r += tmp[3];
-            while j < hi {
-                let d = *x.add(j) / scale;
-                r += d * d;
-                j += 1;
-            }
-            r
-        }
-    }
-
-    /// # Safety
-    /// Ranges `[i0, i0+len)` and `[i1, i1+len)` must lie inside the same
-    /// allocation and must not overlap.
-    #[target_feature(enable = "avx2")]
-    pub(crate) unsafe fn rotate(buf: *mut f32, i0: usize, i1: usize, c: f32, s: f32, len: usize) {
-        unsafe {
-            let vc = _mm256_set1_ps(c);
-            let vs = _mm256_set1_ps(s);
-            let vns = _mm256_set1_ps(-s);
-            let mut j = 0;
-            while j + 8 <= len {
-                let pa = buf.add(i0 + j);
-                let pb = buf.add(i1 + j);
-                let va = _mm256_loadu_ps(pa);
-                let vb = _mm256_loadu_ps(pb);
-                _mm256_storeu_ps(
-                    pa,
-                    _mm256_add_ps(_mm256_mul_ps(vc, va), _mm256_mul_ps(vs, vb)),
-                );
-                _mm256_storeu_ps(
-                    pb,
-                    _mm256_add_ps(_mm256_mul_ps(vns, va), _mm256_mul_ps(vc, vb)),
-                );
-                j += 8;
-            }
-            while j < len {
-                let (a0, b0) = (*buf.add(i0 + j), *buf.add(i1 + j));
-                *buf.add(i0 + j) = c * a0 + s * b0;
-                *buf.add(i1 + j) = -s * a0 + c * b0;
-                j += 1;
-            }
-        }
-    }
-
-    /// # Safety
-    /// Ranges `[i0, i0+len)` and `[i1, i1+len)` must lie inside the same
-    /// allocation and must not overlap.
-    #[target_feature(enable = "avx2")]
-    pub(crate) unsafe fn rotate_f64(
-        buf: *mut f64,
-        i0: usize,
-        i1: usize,
-        c: f64,
-        s: f64,
-        len: usize,
-    ) {
-        unsafe {
-            let vc = _mm256_set1_pd(c);
-            let vs = _mm256_set1_pd(s);
-            let vns = _mm256_set1_pd(-s);
-            let mut j = 0;
-            while j + 4 <= len {
-                let pa = buf.add(i0 + j);
-                let pb = buf.add(i1 + j);
-                let va = _mm256_loadu_pd(pa);
-                let vb = _mm256_loadu_pd(pb);
-                _mm256_storeu_pd(
-                    pa,
-                    _mm256_add_pd(_mm256_mul_pd(vc, va), _mm256_mul_pd(vs, vb)),
-                );
-                _mm256_storeu_pd(
-                    pb,
-                    _mm256_add_pd(_mm256_mul_pd(vns, va), _mm256_mul_pd(vc, vb)),
-                );
-                j += 4;
-            }
-            while j < len {
-                let (a0, b0) = (*buf.add(i0 + j), *buf.add(i1 + j));
-                *buf.add(i0 + j) = c * a0 + s * b0;
-                *buf.add(i1 + j) = -s * a0 + c * b0;
-                j += 1;
-            }
-        }
-    }
-}
 
 /// Run the full host pipeline over tensor data and return the three factors
 /// as data. Layout and dims follow the `swap` convention of
@@ -513,7 +69,7 @@ pub(crate) fn svd_host_data(
 /// a batch are independent, so each thread works on its own slice and the
 /// results are concatenated in batch order (deterministic, same output).
 /// No-std builds fall back to the single-threaded loop.
-fn svd_host<F: Float + Copy + Send + Sync + core::ops::AddAssign>(
+fn svd_host<F: Float + Copy + Send + Sync>(
     a: &[F],
     m: usize,
     n: usize,
@@ -532,8 +88,9 @@ fn svd_host<F: Float + Copy + Send + Sync + core::ops::AddAssign>(
         // Thread spawn+join costs ~10-40us; a single 4x4 element is ~3us, so
         // parallelizing tiny batches makes them slower, not faster. Only
         // spawn when the total work is worth it (~64x64 serial is ~120us).
-        // Element count is a solid work proxy across shapes. The closed forms
-        // (n == 1, 2x2) are allocation-bound: spawning for e.g. 4096
+        // ponytail: element-count heuristic; a calibrated cost model could
+        // refine it, but m*n*batch is a solid proxy across shapes. The closed
+        // forms (n == 1, 2x2) are allocation-bound: spawning for e.g. 4096
         // 1x1 elements is a net loss, so they stay serial.
         if batch * m * n >= 4096 && !(n == 1 || (m == 2 && n == 2)) {
             // available_parallelism is a syscall (~40us); skip it for single
@@ -588,8 +145,7 @@ fn svd_host<F: Float + Copy + Send + Sync + core::ops::AddAssign>(
                             {
                                 let b = t + k * threads;
                                 let a_slice = &a[b * m * n..(b + 1) * m * n];
-                                let (tu, ts, tv) =
-                                    svd_host_seq(a_slice, m, n, 1, max_sweeps, swap, false);
+                                let (tu, ts, tv) = svd_host_seq(a_slice, m, n, 1, max_sweeps, swap);
                                 u_part.copy_from_slice(&tu);
                                 s_part.copy_from_slice(&ts);
                                 v_part.copy_from_slice(&tv);
@@ -602,25 +158,18 @@ fn svd_host<F: Float + Copy + Send + Sync + core::ops::AddAssign>(
         }
     }
 
-    svd_host_seq(a, m, n, batch, max_sweeps, swap, true)
+    svd_host_seq(a, m, n, batch, max_sweeps, swap)
 }
 
-/// Per-batch pipeline (shared by the parallel wrapper and the serial path).
-///
-/// With `par_givens` and the `std` feature, single matrices large enough
-/// split the U and Vt rotation applications across two scoped threads; the
-/// batch wrapper runs this with `false` so worker threads never nest spawns.
-fn svd_host_seq<F: Float + Copy + Send + Sync + core::ops::AddAssign>(
+/// Single-threaded per-batch pipeline (shared by the parallel wrapper).
+fn svd_host_seq<F: Float + Copy>(
     a: &[F],
     m: usize,
     n: usize,
     batch: usize,
     max_sweeps: usize,
     swap: bool,
-    par_givens: bool,
 ) -> (Vec<F>, Vec<F>, Vec<F>) {
-    #[cfg(not(feature = "std"))]
-    let _ = par_givens;
     let mut u = vec![F::zero(); batch * m * n];
     let mut sigma = vec![F::zero(); batch * n];
     let mut vt = vec![F::zero(); batch * n * n];
@@ -640,7 +189,12 @@ fn svd_host_seq<F: Float + Copy + Send + Sync + core::ops::AddAssign>(
             let sv = if scale == F::zero() {
                 F::zero()
             } else {
-                scale * slice_sumsq_scaled(ab, scale, 0, m).sqrt()
+                let mut s = F::zero();
+                for &t in ab.iter() {
+                    let u = t / scale;
+                    s = s + u * u;
+                }
+                scale * s.sqrt()
             };
             sigma[b] = sv;
             for i in 0..m {
@@ -688,41 +242,21 @@ fn svd_host_seq<F: Float + Copy + Send + Sync + core::ops::AddAssign>(
         }
         let (sigma_b, d_final, givens_b) = dbdsqr_host(&d, &e, max_sweeps);
 
-        // Apply the left (U) and right (Vt) rotations. On `std`, a single
-        // large matrix splits the two factor applications across two scoped
-        // threads: the buffers are independent and each thread applies the
-        // same rotation list in the same order, so the result is identical to
-        // the serial path. Batch workers pass `par_givens = false` so they
-        // never nest spawns.
-        #[cfg(not(feature = "std"))]
+        // Apply both the left (U) and right (Vt) rotations in one pass over
+        // the givens list: each entry touches one row pair of each factor, so
+        // a single loop keeps the rotation data in cache for both matrices.
         for &(k, cl, sl, cr, sr) in &givens_b {
-            rotate_rows(&mut u1t, k * m, (k + 1) * m, cl, sl, m);
-            rotate_rows(&mut v1, k * n, (k + 1) * n, cr, sr, n);
-        }
-        #[cfg(feature = "std")]
-        {
-            let split_factors =
-                par_givens && m * n >= 4096 && givens_b.len() * (m + n) >= 128 * 1024;
-            if !split_factors {
-                for &(k, cl, sl, cr, sr) in &givens_b {
-                    rotate_rows(&mut u1t, k * m, (k + 1) * m, cl, sl, m);
-                    rotate_rows(&mut v1, k * n, (k + 1) * n, cr, sr, n);
-                }
-            } else {
-                std::thread::scope(|scope| {
-                    let hu = scope.spawn(|| {
-                        for &(k, cl, sl, _, _) in &givens_b {
-                            rotate_rows(&mut u1t, k * m, (k + 1) * m, cl, sl, m);
-                        }
-                    });
-                    let hv = scope.spawn(|| {
-                        for &(k, _, _, cr, sr) in &givens_b {
-                            rotate_rows(&mut v1, k * n, (k + 1) * n, cr, sr, n);
-                        }
-                    });
-                    hu.join().unwrap();
-                    hv.join().unwrap();
-                });
+            let (k_u, k1_u) = (k * m, (k + 1) * m);
+            let (k_v, k1_v) = (k * n, (k + 1) * n);
+            for i in 0..m {
+                let (a0, b0) = (u1t[k_u + i], u1t[k1_u + i]);
+                u1t[k_u + i] = cl * a0 + sl * b0;
+                u1t[k1_u + i] = -sl * a0 + cl * b0;
+            }
+            for i in 0..n {
+                let (a0, b0) = (v1[k_v + i], v1[k1_v + i]);
+                v1[k_v + i] = cr * a0 + sr * b0;
+                v1[k1_v + i] = -sr * a0 + cr * b0;
             }
         }
         let (ub, sb, vtb) = svd_postprocess(&u1t, &v1, &sigma_b, &d_final, m, n, 1);
@@ -891,17 +425,14 @@ fn svd2x2<F: Float + Copy>(a: &[F]) -> (F, F, [F; 4], [F; 4]) {
     } else {
         (F::zero(), F::zero())
     };
-    // Degenerate rows are replaced by the other row's orthogonal complement
-    // (or a unit basis when both rows are zero). s0 >= s1 always holds, so a
-    // degenerate first row implies a degenerate second row.
-    let (r0c, r0s, r1c, r1s) = if s1 <= zero_tol {
-        if s0 > zero_tol {
-            (r0c, r0s, -r0s, r0c)
-        } else {
-            (F::one(), F::zero(), F::zero(), F::one())
-        }
-    } else {
+    let (r0c, r0s, r1c, r1s) = if s0 > zero_tol && s1 > zero_tol {
         (r0c, r0s, r1c, r1s)
+    } else if s0 > zero_tol {
+        (r0c, r0s, -r0s, r0c)
+    } else if s1 > zero_tol {
+        (-r1s, r1c, r1c, r1s)
+    } else {
+        (F::one(), F::zero(), F::zero(), F::one())
     };
     // Vt = diag(1/s0, 1/s1) UᵀA is already the exact right factor: its rows
     // are orthonormal (orthogonal rows, unit norms), and det(Vt) = +/-1 carries
@@ -922,15 +453,32 @@ fn svd2x2<F: Float + Copy>(a: &[F]) -> (F, F, [F; 4], [F; 4]) {
     }
 }
 
+/// Dot product of `a[lo..hi]` and `w[lo..hi]` as a sum over 8 independent
+/// accumulators. LLVM vectorizes independent chains without fast-math, while
+/// a plain `s = s + ...` reduction is forced to run scalar.
+#[inline]
+fn blk_sum<F: Float + Copy>(a: &[F], w: &[F], lo: usize, hi: usize) -> F {
+    let mut s = [F::zero(); 8];
+    let mut j = lo;
+    while j + 8 <= hi {
+        for t in 0..8 {
+            s[t] = s[t] + a[j + t] * w[j + t];
+        }
+        j += 8;
+    }
+    let mut r = s[0] + s[1] + s[2] + s[3] + s[4] + s[5] + s[6] + s[7];
+    while j < hi {
+        r = r + a[j] * w[j];
+        j += 1;
+    }
+    r
+}
+
 /// Golub-Kahan bidiagonalization on the host: `A = U1 B V1^T` with `B` upper
 /// bidiagonal (row-major `[m, n]`), using Householder reflections on
 /// shrinking submatrices, mirroring the tensor-op version operation for
 /// operation.
-fn bidiag_host<F: Float + Copy + core::ops::AddAssign>(
-    a: &[F],
-    m: usize,
-    n: usize,
-) -> (Vec<F>, Vec<F>, Vec<F>) {
+fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>, Vec<F>) {
     // V1 kept in transposed layout (v1t[j*n+i] = V1[i,j]): the reflection
     // sweeps below then run over contiguous rows, and svd_host_seq consumes
     // the transposed factor directly (no extra transposition pass).
@@ -968,7 +516,7 @@ fn bidiag_host<F: Float + Copy + core::ops::AddAssign>(
             let mut s = F::zero();
             for k in i..m {
                 let t = a[k * n + i] / scale;
-                s += t * t;
+                s = s + t * t;
             }
             scale * s.sqrt()
         };
@@ -992,11 +540,17 @@ fn bidiag_host<F: Float + Copy + core::ops::AddAssign>(
                 *v = F::zero();
             }
             for k in i..m {
-                slice_axpy(&mut wta[i..n], &a[k * n + i..k * n + n], w[k]);
+                let wk = w[k];
+                for j in i..n {
+                    wta[j] = wta[j] + wk * a[k * n + j];
+                }
             }
             let t = tau;
             for k in i..m {
-                slice_axpy(&mut a[k * n + i..k * n + n], &wta[i..n], -(w[k] * t));
+                let wk = w[k] * t;
+                for j in i..n {
+                    a[k * n + j] = a[k * n + j] - wk * wta[j];
+                }
             }
             for (k, &wk) in w.iter().enumerate().take(m) {
                 ws[i * m + k] = wk;
@@ -1019,7 +573,7 @@ fn bidiag_host<F: Float + Copy + core::ops::AddAssign>(
                 let mut s = F::zero();
                 for j in (i + 1)..n {
                     let t = a[i * n + j] / scale;
-                    s += t * t;
+                    s = s + t * t;
                 }
                 scale * s.sqrt()
             };
@@ -1039,11 +593,14 @@ fn bidiag_host<F: Float + Copy + core::ops::AddAssign>(
                 // aw[k] = a[k, :] w, then a_new = a - tau aw w^T. Contiguous
                 // row sweeps again: a[k, j] advances sequentially in both.
                 for k in i..m {
-                    aw[k] = slice_dot(&a[k * n..], &w, i + 1, n);
+                    aw[k] = blk_sum(&a[k * n..], &w, i + 1, n);
                 }
                 let t = tau;
                 for k in i..m {
-                    slice_axpy(&mut a[k * n + i + 1..k * n + n], &w[i + 1..n], -(aw[k] * t));
+                    let awk = aw[k] * t;
+                    for j in (i + 1)..n {
+                        a[k * n + j] = a[k * n + j] - awk * w[j];
+                    }
                 }
                 // V1 = V1 (I - tau w w^T) on the transposed factor: v1t[j, i2]
                 // -= tau w[j] vw[i2] with vw[i2] = sum_j v1t[j, i2] w[j].
@@ -1052,11 +609,15 @@ fn bidiag_host<F: Float + Copy + core::ops::AddAssign>(
                 // scalar reduction).
                 for (j, &wj) in w[i + 1..n].iter().enumerate() {
                     let row = (i + 1 + j) * n;
-                    slice_axpy(&mut vw[..n], &v1[row..row + n], wj);
+                    for i2 in 0..n {
+                        vw[i2] = vw[i2] + v1[row + i2] * wj;
+                    }
                 }
                 for (j, &wj) in w[i + 1..n].iter().enumerate() {
                     let row = (i + 1 + j) * n;
-                    slice_axpy(&mut v1[row..row + n], &vw[..n], -(tau * wj));
+                    for i2 in 0..n {
+                        v1[row + i2] = v1[row + i2] - tau * wj * vw[i2];
+                    }
                 }
                 vw.fill(F::zero());
             }
@@ -1066,20 +627,24 @@ fn bidiag_host<F: Float + Copy + core::ops::AddAssign>(
     for i in 0..n {
         u1[i * n + i] = F::one();
     }
-    // uw is reused across reflectors (zeroed per step), not reallocated.
-    let mut uw = vec![F::zero(); n];
     for i in (0..n).rev() {
         let tau = taus[i];
         if tau != F::zero() {
             // uw[j] = w^T u1[:, j] computed over contiguous column strips:
             // u1[k, :] is row-major, so sweep k outer, j inner.
-            uw.fill(F::zero());
+            let mut uw = vec![F::zero(); n];
             for k in i..m {
-                slice_axpy(&mut uw[..n], &u1[k * n..k * n + n], ws[i * m + k]);
+                let wk = ws[i * m + k];
+                for j in 0..n {
+                    uw[j] = uw[j] + wk * u1[k * n + j];
+                }
             }
             let t = tau;
             for k in i..m {
-                slice_axpy(&mut u1[k * n..k * n + n], &uw[..n], -(ws[i * m + k] * t));
+                let wk = ws[i * m + k] * t;
+                for j in 0..n {
+                    u1[k * n + j] = u1[k * n + j] - wk * uw[j];
+                }
             }
         }
     }
@@ -1185,12 +750,7 @@ fn dbdsqr<F: Float + Copy>(
                 g = sl * e[i + 1];
                 e[i + 1] = cl * e[i + 1];
             }
-            // Identity rotations (sin == 0 on both sides, which happens for
-            // deflated trailing entries) are exact no-ops for the factors;
-            // skipping them keeps the application list shorter.
-            if sl != F::zero() || sr != F::zero() {
-                givens.push((i, cl, sl, cr, sr));
-            }
+            givens.push((i, cl, sl, cr, sr));
         }
         e[m - 2] = f;
         iters += 1;
@@ -1266,82 +826,14 @@ fn dlartg<F: Float + Copy>(f: F, g: F) -> (F, F, F) {
 mod tests {
     use super::*;
 
-    /// Deterministic LCG in [0, 1), shared by the pipeline tests.
-    #[cfg(all(target_arch = "x86_64", feature = "std"))]
-    fn lcg(seed: u64) -> impl FnMut() -> f32 {
-        let mut state = seed;
-        move || {
-            state = state
-                .wrapping_mul(6364136223846793005)
-                .wrapping_add(1442695040888963407);
-            ((state >> 33) as f32) / (1u32 << 31) as f32
-        }
-    }
-
-    /// The AVX2 kernels and the portable fallback must produce identical
-    /// buffers: both paths run the same per-element operations in the same
-    /// order, and this assertion pins that contract. Each shape exercises a
-    /// different kernel subset: 96x48 covers axpy/dot/rotate, the n = 1
-    /// shapes cover the scaled sum of squares, and the last case covers the
-    /// f64 bodies.
-    #[test]
-    #[cfg(all(target_arch = "x86_64", feature = "std"))]
-    fn test_svd_simd_paths_bit_identical() {
-        use std::sync::atomic::Ordering;
-
-        if is_x86_feature_detected!("avx2") {
-            // Forcing the AVX2 path without the hardware would fault; on
-            // such machines every run already uses the fallback.
-            let mut next = lcg(0x5EED_1234_ABCD_EF01);
-            let tall: Vec<f32> = (0..96 * 48).map(|_| next() * 2.0 - 1.0).collect();
-            let col: Vec<f32> = (0..12).map(|_| next() * 2.0 - 1.0).collect();
-            let col_f64: Vec<f64> = (0..10).map(|_| next() as f64 * 0.4 - 0.2).collect();
-
-            macro_rules! compare_paths {
-                ($a:expr, $m:expr, $n:expr, $t:ty) => {{
-                    SIMD_TEST_OVERRIDE.store(1, Ordering::Relaxed); // force AVX2
-                    let avx2 = svd_host::<$t>($a, $m, $n, 1, 15, false);
-                    SIMD_TEST_OVERRIDE.store(2, Ordering::Relaxed); // force fallback
-                    let scalar = svd_host::<$t>($a, $m, $n, 1, 15, false);
-                    SIMD_TEST_OVERRIDE.store(0, Ordering::Relaxed);
-                    assert_eq!(avx2.0, scalar.0, "U differs");
-                    assert_eq!(avx2.1, scalar.1, "sigma differs");
-                    assert_eq!(avx2.2, scalar.2, "Vt differs");
-                }};
-            }
-            compare_paths!(&tall[..], 96, 48, f32);
-            compare_paths!(&col[..], 12, 1, f32);
-            compare_paths!(&col_f64[..], 10, 1, f64);
-        }
-    }
-
-    /// Defensive numeric paths of the LAPACK-style helpers, driven directly:
-    /// all-zero and overflow-scale 2x2 shifts, underflowing Givens
-    /// generation, and the sweep budget bail-out.
-    #[test]
-    fn test_svd_host_numeric_guards() {
-        // dlas2_smax: all-zero block and an f64 block whose squares would
-        // overflow (t ~ 3e400) force the scaled path.
-        assert_eq!(dlas2_smax(0.0f64, 0.0, 0.0), 0.0);
-        assert_eq!(dlas2_smin(0.0f64, 0.0, 0.0), 0.0);
-        let smax = dlas2_smax(1e200f64, 1e200, 1e200);
-        assert!(smax.is_finite() && smax > 1e199 && smax < 2e200, "{smax}");
-        // dlartg: zero vector and an f32 pair whose squares underflow to 0.
-        let (c, s, r) = dlartg(0.0f32, 0.0);
-        assert_eq!((c, s, r), (1.0, 0.0, 0.0));
-        let (c, s, r) = dlartg(1e-30f32, 1e-30);
-        assert!(r.is_finite() && r > 0.0, "{r}");
-        assert!((c * c + s * s - 1.0).abs() < 1e-5, "({c}, {s})");
-        // dbdsqr_host: a zero sweep budget stops after one pass instead of
-        // looping forever; results stay finite.
-        let (sigma, _d, _givens) = dbdsqr_host(&[3.0f64, 1.0], &[0.5], 0);
-        assert!(sigma.iter().all(|x| x.is_finite()), "{sigma:?}");
-    }
-
     fn recon_err<F: Float + Copy>(u: &[F], s: &[F], vt: &[F], a: &[F], m: usize, n: usize) -> F {
-        assert_eq!(
-            (u.len(), s.len(), vt.len(), a.len()),
-            (m * n, n, n * n, m * n)
+        assert!(
+            u.len() == m * n && s.len() == n && vt.len() == n * n && a.len() == m * n,
+            "sizes: u={} s={} vt={} a={} m={m} n={n}",
+            u.len(),
+            s.len(),
+            vt.len(),
+            a.len()
         );
         let mut err = F::zero();
         for i in 0..m {
@@ -1364,8 +856,8 @@ mod tests {
         ];
         let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false);
         // Reference from numpy/LAPACK gesdd (svd_host already sorts descending).
-        assert!((s[0] - 25.46240743603639).abs() < 1e-12);
-        assert!((s[1] - 1.290661675761233).abs() < 1e-12);
+        assert!((s[0] - 25.46240743603639).abs() < 1e-12, "s1 {}", s[0]);
+        assert!((s[1] - 1.290661675761233).abs() < 1e-12, "s2 {}", s[1]);
         assert!(recon_err::<f64>(&u, &s, &vt, &a, 4, 3) < 1e-12);
         // 1x1 and rank-1 edge cases
         let (u, s, vt) = svd_host::<f64>(&[-3.0], 1, 1, 1, 30, false);
@@ -1387,7 +879,11 @@ mod tests {
         // extreme scales stay finite
         let a = [1e200f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         let (u, s, vt) = svd_host::<f64>(&a, 3, 3, 1, 30, false);
-        assert!(s[0].is_finite() && (s[0] - 1e200).abs() < 1e200 * 1e-14);
+        assert!(
+            s[0].is_finite() && (s[0] - 1e200).abs() < 1e200 * 1e-14,
+            "s0 {}",
+            s[0]
+        );
         assert!(recon_err::<f64>(&u, &s, &vt, &a, 3, 3) < 1e200 * 1e-13);
     }
 
