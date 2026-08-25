@@ -16,6 +16,7 @@ pub type Cpu = CubeBackend<CpuRuntime>;
 pub type Cpu = burn_fusion::Fusion<CubeBackend<CpuRuntime>>;
 
 /// Measure peak throughput on a CPU `device` for each of the given `keys`.
+#[must_use]
 pub fn device_throughput(
     device: &CpuDevice,
     keys: &[ThroughputKey],
