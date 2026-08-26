@@ -9,30 +9,23 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
 #[cfg(not(feature = "autotune"))]
-use cubek::interpolate::definition::TileSize;
+use cubek::interpolate::Residence;
 use cubek::interpolate::{
+    InterpolateConfig,
     definition::{
         InterpolateError, InterpolateMode as CubekInterpolateMode,
         InterpolateOptions as CubekInterpolateOptions, NearestMode as CubekNearestMode,
     },
     interpolate as cubek_interpolate, interpolate_backward as cubek_interpolate_backward,
-    launch::InterpolateStrategy as CubekInterpolateStrategy,
-    routines::{
-        BlueprintStrategy, GlobalMemoryRoutine, GlobalMemoryStrategy, SharedMemoryRoutine,
-        SharedMemoryStrategy,
-    },
 };
 
 #[derive(Debug)]
-/// Strategy used to select which interpolate implementation to run.
+/// Strategy used to select how interpolation runs.
 pub enum InterpolateStrategy {
-    /// Default interpolate strategy.
-    GlobalMemory(GlobalMemoryStrategy),
+    /// Run the kernel with the given geometry.
+    Config(InterpolateConfig),
 
-    /// Use shared memory for caching tiles of the input and output.
-    SharedMemory(SharedMemoryStrategy),
-
-    /// Automatically benchmark and select the best strategy at runtime.
+    /// Automatically benchmark and select the best configuration at runtime.
     #[cfg(feature = "autotune")]
     Autotune,
 }
@@ -43,11 +36,10 @@ impl Default for InterpolateStrategy {
         #[cfg(feature = "autotune")]
         return InterpolateStrategy::Autotune;
 
-        // if autotune is disabled, default to global memory with a 16x16 tile size
+        // A guess, not a measurement: it sits mid-box in cubek's benchmark catalogue and has
+        // no recorded sweep behind it. Replace it once cubek publishes one.
         #[cfg(not(feature = "autotune"))]
-        InterpolateStrategy::GlobalMemory(GlobalMemoryStrategy {
-            tile_size: TileSize::new(16, 16),
-        })
+        InterpolateStrategy::Config(InterpolateConfig::new(Residence::InPlace, 4, 2, 1))
     }
 }
 
@@ -61,33 +53,21 @@ pub fn interpolate<R: CubeRuntime>(
     strategy: InterpolateStrategy,
 ) -> Result<CubeTensor<R>, InterpolateError> {
     match strategy {
-        InterpolateStrategy::GlobalMemory(strategy) => execute_interpolate(
-            input,
-            output_size,
-            options,
-            CubekInterpolateStrategy::GlobalMemoryStrategy(
-                BlueprintStrategy::<GlobalMemoryRoutine>::Inferred(strategy),
-            ),
-        ),
-        InterpolateStrategy::SharedMemory(strategy) => execute_interpolate(
-            input,
-            output_size,
-            options,
-            CubekInterpolateStrategy::SharedMemoryStrategy(
-                BlueprintStrategy::<SharedMemoryRoutine>::Inferred(strategy),
-            ),
-        ),
+        InterpolateStrategy::Config(config) => {
+            execute_interpolate(input, output_size, options, config)
+        }
         #[cfg(feature = "autotune")]
         InterpolateStrategy::Autotune => Ok(interpolate_autotune(input, output_size, options)),
     }
 }
 
-/// Execute the given interpolate strategy without autotuning. This is used by the autotune implementation to run each candidate strategy.
+/// Execute interpolation with the given configuration, without autotuning. This is used by the
+/// autotune implementation to run each candidate configuration.
 pub fn execute_interpolate<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
     options: InterpolateOptions,
-    strategy: CubekInterpolateStrategy,
+    config: InterpolateConfig,
 ) -> Result<CubeTensor<R>, InterpolateError> {
     let [batch_size, channels, _, _] = input.meta.shape().dims();
     let [out_height, out_width] = output_size;
@@ -107,7 +87,7 @@ pub fn execute_interpolate<R: CubeRuntime>(
         input.clone().binding(),
         output.clone().binding(),
         map_options(options.clone()),
-        strategy,
+        config,
         dtype_to_storage_type(input.dtype),
     )?;
 
