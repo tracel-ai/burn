@@ -108,6 +108,26 @@ mod tests {
         assert_eq!(tensor.to_data(), output.to_data());
     }
 
+    #[cfg(feature = "std")]
+    #[test]
+    fn frozen_noise_on_a_training_device_passes_its_input_through() {
+        use burn::module::Module;
+        use burn::tensor::Device;
+        // Frozen where partial finetuning leaves it: on the training device,
+        // because that is where the rest of the graph is.
+        let device = Device::default().autodiff();
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
+        let noise = GaussianNoiseConfig::new(0.5).init().no_grad();
+
+        let output = noise.forward(tensor.clone());
+
+        assert_eq!(
+            tensor.to_data(),
+            output.to_data(),
+            "a frozen layer should not perturb a subtree the caller froze"
+        );
+    }
+
     #[test]
     #[should_panic(expected = "Standard deviation is required to be non-negative")]
     fn negative_std_should_panic() {

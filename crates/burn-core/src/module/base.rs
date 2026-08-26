@@ -15,7 +15,7 @@ pub type Devices = Vec<Device>;
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.
 macro_rules! module {
-    (map=$module:ident, ops=$item:expr) => {{
+    (map=$module:ident, ops=$item:expr, training=$training:expr) => {{
         struct Mapper;
         impl ModuleMapper for Mapper {
             fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
@@ -23,6 +23,10 @@ macro_rules! module {
                 let func = $item;
                 let tensor = func(tensor);
                 Param::from_mapped_value(id, tensor, mapper)
+            }
+
+            fn map_training(&mut self, flag: TrainingFlag) -> TrainingFlag {
+                flag.with($training)
             }
         }
         let mut mapper = Mapper;
@@ -137,7 +141,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// target device, use [fork](Module::fork) instead.
     fn to_device(self, device: &Device) -> Self;
 
-    /// Each tensor in the module tree will not require grad.
+    /// Each tensor in the module tree will not require grad, and each layer with no tensor of its
+    /// own — dropout, noise, randomized activations — stops behaving as it does during training.
     ///
     /// # Warnings
     ///
@@ -147,7 +152,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     fn no_grad(self) -> Self {
         module!(
             map = self,
-            ops = |tensor: Tensor<D>| tensor.set_require_grad(false)
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(false),
+            training = false
         )
     }
 

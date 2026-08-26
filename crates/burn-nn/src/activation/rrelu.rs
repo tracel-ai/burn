@@ -137,6 +137,26 @@ mod tests {
         assert_ne!(input.to_data(), output.to_data());
     }
 
+    #[cfg(feature = "std")]
+    #[test]
+    fn frozen_rrelu_on_a_training_device_uses_the_fixed_slope() {
+        use burn::module::Module;
+        use burn::tensor::Device;
+        // Frozen on the training device, so the device alone cannot tell this
+        // apart from a layer that really is being trained. The midpoint slope
+        // is deterministic, which is what makes the randomised path visible.
+        let device = Device::default().autodiff();
+        let model = RReluConfig::new().with_lower(0.1).with_upper(0.3).init();
+
+        let input = Tensor::<2>::from_data(TensorData::from([[-1.0, -2.0], [-3.0, -4.0]]), &device);
+        let output = model.no_grad().forward(input.clone());
+
+        let expected = TensorData::from([[-0.2, -0.4], [-0.6, -0.8]]);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
     #[test]
     fn display() {
         let layer = RReluConfig::new().with_lower(0.1).with_upper(0.3).init();

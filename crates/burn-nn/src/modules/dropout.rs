@@ -113,8 +113,8 @@ mod tests {
     #[test]
     fn dropout_freezing_reaches_through_an_enclosing_module() {
         use burn::tensor::Device;
-        // The flag is cleared by the derive's own recursion, not by the layer
-        // being frozen directly, so nesting is the case that matters.
+        // The flag is cleared by the traversal, not by the layer being frozen
+        // directly, so nesting is the case that matters.
         #[derive(Module, Debug)]
         struct Wrapper {
             dropout: Dropout,
@@ -130,6 +130,35 @@ mod tests {
         let output = wrapper.dropout.forward(tensor.clone());
 
         assert_eq!(output.to_data(), tensor.to_data());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn dropout_freezing_reaches_through_a_container() {
+        // The layout of every stack of blocks. Freezing walks the tree with a
+        // mapper, which containers forward, so a dropout is reached wherever it
+        // is held.
+        #[derive(Module, Debug)]
+        struct Wrapper {
+            blocks: Vec<Dropout>,
+            optional: Option<Dropout>,
+            fixed: [Dropout; 2],
+            pair: (Dropout, Dropout),
+        }
+
+        let dropout = || DropoutConfig::new(0.5).init();
+        let wrapper = Wrapper {
+            blocks: alloc::vec![dropout()],
+            optional: Some(dropout()),
+            fixed: [dropout(), dropout()],
+            pair: (dropout(), dropout()),
+        }
+        .no_grad();
+
+        assert!(!wrapper.blocks[0].training.is_training(), "Vec");
+        assert!(!wrapper.optional.unwrap().training.is_training(), "Option");
+        assert!(!wrapper.fixed[0].training.is_training(), "array");
+        assert!(!wrapper.pair.0.training.is_training(), "tuple");
     }
 
     #[cfg(feature = "std")]
