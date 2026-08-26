@@ -103,7 +103,12 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_string(self.value.unwrap().as_string().unwrap().to_string())
+        match self.value.and_then(|v| v.as_string()) {
+            Some(v) => visitor.visit_string(v),
+            None => Err(de::Error::custom(
+                "expected a string but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -134,7 +139,12 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_bool(self.value.unwrap().as_bool().unwrap())
+        match self.value.and_then(|v| v.as_bool()) {
+            Some(v) => visitor.visit_bool(v),
+            None => Err(de::Error::custom(
+                "expected a bool but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -148,35 +158,60 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i16(self.value.unwrap().as_i16().unwrap().to_owned())
+        match self.value.and_then(|v| v.as_i16()) {
+            Some(v) => visitor.visit_i16(v),
+            None => Err(de::Error::custom(
+                "expected an i16 but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i32(self.value.unwrap().as_i32().unwrap().to_owned())
+        match self.value.and_then(|v| v.as_i32()) {
+            Some(v) => visitor.visit_i32(v),
+            None => Err(de::Error::custom(
+                "expected an i32 but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i64(self.value.unwrap().as_i64().unwrap().to_owned())
+        match self.value.and_then(|v| v.as_i64()) {
+            Some(v) => visitor.visit_i64(v),
+            None => Err(de::Error::custom(
+                "expected an i64 but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u8(self.value.unwrap().as_u8().unwrap().to_owned())
+        match self.value.and_then(|v| v.as_u8()) {
+            Some(v) => visitor.visit_u8(v),
+            None => Err(de::Error::custom(
+                "expected a u8 but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u16(self.value.unwrap().as_u16().unwrap().to_owned())
+        match self.value.and_then(|v| v.as_u16()) {
+            Some(v) => visitor.visit_u16(v),
+            None => Err(de::Error::custom(
+                "expected a u16 but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_u32<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -190,21 +225,36 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u64(self.value.unwrap().as_u64().unwrap().to_owned())
+        match self.value.and_then(|v| v.as_u64()) {
+            Some(v) => visitor.visit_u64(v),
+            None => Err(de::Error::custom(
+                "expected a u64 but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_f32(self.value.unwrap().as_f32().unwrap().to_owned())
+        match self.value.and_then(|v| v.as_f32()) {
+            Some(v) => visitor.visit_f32(v),
+            None => Err(de::Error::custom(
+                "expected an f32 but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_f64(self.value.unwrap().as_f64().unwrap().to_owned())
+        match self.value.and_then(|v| v.as_f64()) {
+            Some(v) => visitor.visit_f64(v),
+            None => Err(de::Error::custom(
+                "expected an f64 but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -218,7 +268,12 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_str(self.value.unwrap().as_string().unwrap().as_ref())
+        match self.value.and_then(|v| v.as_string()) {
+            Some(v) => visitor.visit_str(v.as_ref()),
+            None => Err(de::Error::custom(
+                "expected a string but got a different or missing value",
+            )),
+        }
     }
 
     fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -232,10 +287,14 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let bytes = self.value.unwrap().as_bytes().unwrap();
-        match bytes.try_into_vec::<u8>() {
-            Ok(bytes) => visitor.visit_byte_buf(bytes),
-            Err(bytes) => visitor.visit_bytes(&bytes),
+        match self.value.and_then(|v| v.as_bytes()) {
+            Some(bytes) => match bytes.try_into_vec::<u8>() {
+                Ok(bytes) => visitor.visit_byte_buf(bytes),
+                Err(bytes) => visitor.visit_bytes(&bytes),
+            },
+            None => Err(de::Error::custom(
+                "expected bytes but got a different or missing value",
+            )),
         }
     }
 
@@ -1002,5 +1061,18 @@ impl<'de> MapAccess<'de> for DefaultMapAccess {
     fn size_hint(&self) -> Option<usize> {
         // Since this is a default implementation, we'll just return None.
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::adapter::DefaultAdapter;
+    use super::*;
+    use serde::Deserialize;
+
+    #[test]
+    fn scalar_type_mismatch_returns_error_instead_of_panicking() {
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::String("768".to_string()), false);
+        assert!(i32::deserialize(de).is_err());
     }
 }
