@@ -411,8 +411,11 @@ let mut store = PytorchStore::from_file("model.pt");
 let names = store.keys()?;
 
 // Get specific tensor
-if let Some(snapshot) = store.get_snapshot("encoder.layer0.weight")? {
-    println!("Shape: {:?}, DType: {:?}", snapshot.shape, snapshot.dtype);
+if let Some(tensor) = store.get_tensor("encoder.layer0.weight")? {
+    println!("Shape: {:?}, DType: {:?}", tensor.shape, tensor.dtype);
+
+    // Reading the data is a free function, not a method on the tensor
+    let data = burn_store::bridge::to_data(tensor)?;
 }
 ```
 
@@ -459,8 +462,8 @@ model2.apply(snapshots, Some(filter), None, false);
 | Method                | Description                      |
 | --------------------- | -------------------------------- |
 | `keys()`              | Get ordered list of tensor names |
-| `get_all_snapshots()` | Get all tensors as BTreeMap      |
-| `get_snapshot(name)`  | Get specific tensor by name      |
+| `get_all_tensors()`   | Get all tensors as BTreeMap      |
+| `get_tensor(name)`    | Get specific tensor by name      |
 
 ### Troubleshooting
 

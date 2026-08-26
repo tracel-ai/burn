@@ -69,11 +69,15 @@
 //! - [`PathFilter`]: Flexible filtering system for selective tensor loading/saving
 //! - [`KeyRemapper`]: Advanced tensor name remapping with regex patterns
 //! - [`ModuleAdapter`]: Framework adapters for cross-framework compatibility
+//! - [`bridge`]: Conversions between burn-core tensors and the [`burn_pack::Tensor`] entries the stores move around
 //!
 //! ## Feature Flags
 //!
 //! - `std`: Enables file I/O and other std-only features (default)
 //! - `safetensors`: Enables SafeTensors format support (default)
+//! - `pytorch`: Enables loading PyTorch `.pt`/`.pth` files (default)
+//! - `memmap`: Implied by `std` and adds nothing on top of it. Loading a SafeTensors file
+//!   memory-maps it whenever `std` is on, regardless of this flag.
 
 extern crate alloc;
 
@@ -82,18 +86,18 @@ mod applier;
 mod apply_result;
 mod collector;
 mod filter;
-mod tensor_snapshot;
 mod traits;
+
+pub mod bridge;
 
 pub use adapter::{
     BurnToPyTorchAdapter, ChainAdapter, FloatCastAdapter, HalfPrecisionAdapter, IdentityAdapter,
-    ModuleAdapter, PyTorchToBurnAdapter,
+    ModuleAdapter, ModuleContext, PyTorchToBurnAdapter,
 };
 pub use applier::Applier;
 pub use apply_result::{ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
-pub use tensor_snapshot::{DataFn, TensorSnapshot, TensorSnapshotError};
 pub use traits::{ModuleSnapshot, ModuleStore};
 
 #[cfg(feature = "std")]
@@ -116,28 +120,24 @@ mod safetensors;
 #[cfg(feature = "safetensors")]
 pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 
-#[cfg(feature = "burnpack")]
-mod bridge;
-#[cfg(feature = "burnpack")]
 mod burnpack;
-#[cfg(feature = "burnpack")]
 pub use burnpack::BurnpackStore;
 
 /// The burnpack format crate, re-exported.
 ///
-/// A [`TensorSnapshot`] converts into a deferred [`burn_pack::Tensor`], so a crate holding
-/// snapshots can drive a [`burn_pack::Writer`] itself instead of going through
-/// [`BurnpackStore`] (useful when the tensors did not come from a
-/// [`Module`](burn_core::module::Module) - weights read out of an ONNX file during codegen,
-/// say). Nothing is materialized by the conversion; each snapshot is read back only when the
-/// writer reaches it:
+/// [`burn_pack::Tensor`] is burn-store's tensor-transport type: what
+/// [`ModuleSnapshot::collect`] returns and what [`ModuleSnapshot::apply`] takes. A crate
+/// holding some can drive a [`burn_pack::Writer`] itself instead of going through
+/// [`BurnpackStore`], which is what you want when the tensors did not come from a
+/// [`Module`](burn_core::module::Module) (weights read out of an ONNX file during codegen,
+/// say). Nothing is materialized by collecting; each tensor is read back only when the writer
+/// reaches it:
 ///
 /// ```
 /// use burn_store::burn_pack::{Bytes, Error, Tensor, Writer};
-/// use burn_store::TensorSnapshot;
 ///
-/// fn pack(snapshots: Vec<TensorSnapshot>) -> Result<Bytes, Error> {
-///     Writer::new(snapshots.into_iter().map(Tensor::from).collect()).into_bytes()
+/// fn pack(tensors: Vec<Tensor>) -> Result<Bytes, Error> {
+///     Writer::new(tensors).into_bytes()
 /// }
 /// ```
 ///
@@ -145,9 +145,6 @@ pub use burnpack::BurnpackStore;
 /// model: it streams to disk instead of building the container in memory. This example uses
 /// [`into_bytes`](burn_pack::Writer::into_bytes) so it compiles in no-std builds too.
 ///
-/// Reach for this rather than depending on `burn-pack` directly. The conversion only applies
-/// for the exact `burn-pack` version burn-store was built against, and a separate dependency
-/// that resolves to a different one fails with a confusing "the trait `From<TensorSnapshot>`
-/// is not implemented" rather than a version conflict.
-#[cfg(feature = "burnpack")]
+/// Reach for this rather than depending on `burn-pack` directly, so the version always matches
+/// the one burn-store was built against.
 pub use burn_pack;

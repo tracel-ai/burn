@@ -32,7 +32,7 @@ impl DirectAccessTestModule {
 }
 
 #[test]
-fn test_memory_get_all_snapshots() {
+fn test_memory_get_all_tensors() {
     let device = Default::default();
     let module = DirectAccessTestModule::new(&device);
 
@@ -45,7 +45,7 @@ fn test_memory_get_all_snapshots() {
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
 
     // Get all snapshots
-    let snapshots = load_store.get_all_snapshots().unwrap();
+    let snapshots = load_store.get_all_tensors().unwrap();
 
     assert_eq!(snapshots.len(), 4);
     assert!(snapshots.contains_key("weight"));
@@ -55,7 +55,7 @@ fn test_memory_get_all_snapshots() {
 }
 
 #[test]
-fn test_memory_get_snapshot_existing() {
+fn test_memory_get_tensor_existing() {
     let device = Default::default();
     let module = DirectAccessTestModule::new(&device);
 
@@ -65,21 +65,21 @@ fn test_memory_get_snapshot_existing() {
 
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
 
-    // Get existing snapshot
-    let snapshot = load_store.get_snapshot("weight").unwrap();
+    // Get existing tensor
+    let snapshot = load_store.get_tensor("weight").unwrap();
     assert!(snapshot.is_some());
 
     let snapshot = snapshot.unwrap();
     assert_eq!(snapshot.shape, shape![2, 2]);
 
     // Verify data
-    let data = snapshot.to_data().unwrap();
+    let data = crate::bridge::to_data(snapshot).unwrap();
     let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0]);
 }
 
 #[test]
-fn test_memory_get_snapshot_nested() {
+fn test_memory_get_tensor_nested() {
     let device = Default::default();
     let module = DirectAccessTestModule::new(&device);
 
@@ -89,18 +89,18 @@ fn test_memory_get_snapshot_nested() {
 
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
 
-    // Get nested snapshot
-    let snapshot = load_store.get_snapshot("nested.gamma").unwrap();
+    // Get nested tensor
+    let snapshot = load_store.get_tensor("nested.gamma").unwrap();
     assert!(snapshot.is_some());
 
     let snapshot = snapshot.unwrap();
-    let data = snapshot.to_data().unwrap();
+    let data = crate::bridge::to_data(snapshot).unwrap();
     let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0]);
 }
 
 #[test]
-fn test_memory_get_snapshot_not_found() {
+fn test_memory_get_tensor_not_found() {
     let device = Default::default();
     let module = DirectAccessTestModule::new(&device);
 
@@ -111,7 +111,7 @@ fn test_memory_get_snapshot_not_found() {
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
 
     // Get non-existent snapshot
-    let snapshot = load_store.get_snapshot("nonexistent").unwrap();
+    let snapshot = load_store.get_tensor("nonexistent").unwrap();
     assert!(snapshot.is_none());
 }
 
@@ -145,15 +145,15 @@ fn test_memory_caching_behavior() {
 
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
 
-    // Call get_all_snapshots multiple times - should return same cached data
-    let snapshots1 = load_store.get_all_snapshots().unwrap();
+    // Call get_all_tensors multiple times - should return same cached data
+    let snapshots1 = load_store.get_all_tensors().unwrap();
     assert_eq!(snapshots1.len(), 4);
 
-    let snapshots2 = load_store.get_all_snapshots().unwrap();
+    let snapshots2 = load_store.get_all_tensors().unwrap();
     assert_eq!(snapshots2.len(), 4);
 
-    // Verify we can still access individual snapshots after caching
-    let snapshot = load_store.get_snapshot("bias").unwrap();
+    // Verify we can still access individual tensors after caching
+    let snapshot = load_store.get_tensor("bias").unwrap();
     assert!(snapshot.is_some());
 }
 
@@ -163,20 +163,20 @@ fn test_memory_caching_behavior() {
 
 #[test]
 #[cfg(feature = "std")]
-fn test_file_get_all_snapshots() {
+fn test_file_get_all_tensors() {
     use tempfile::tempdir;
 
     let device = Default::default();
     let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("test_get_all_snapshots.safetensors");
+    let path = temp_dir.path().join("test_get_all_tensors.safetensors");
 
     let mut save_store = SafetensorsStore::from_file(&path);
     save_store.collect_from(&module).unwrap();
 
     let mut load_store = SafetensorsStore::from_file(&path);
-    let snapshots = load_store.get_all_snapshots().unwrap();
+    let snapshots = load_store.get_all_tensors().unwrap();
 
     assert_eq!(snapshots.len(), 4);
     assert!(snapshots.contains_key("weight"));
@@ -187,34 +187,34 @@ fn test_file_get_all_snapshots() {
 
 #[test]
 #[cfg(feature = "std")]
-fn test_file_get_snapshot_existing() {
+fn test_file_get_tensor_existing() {
     use tempfile::tempdir;
 
     let device = Default::default();
     let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("test_get_snapshot.safetensors");
+    let path = temp_dir.path().join("test_get_tensor.safetensors");
 
     let mut save_store = SafetensorsStore::from_file(&path);
     save_store.collect_from(&module).unwrap();
 
     let mut load_store = SafetensorsStore::from_file(&path);
 
-    let snapshot = load_store.get_snapshot("weight").unwrap();
+    let snapshot = load_store.get_tensor("weight").unwrap();
     assert!(snapshot.is_some());
 
     let snapshot = snapshot.unwrap();
     assert_eq!(snapshot.shape, shape![2, 2]);
 
-    let data = snapshot.to_data().unwrap();
+    let data = crate::bridge::to_data(snapshot).unwrap();
     let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0]);
 }
 
 #[test]
 #[cfg(feature = "std")]
-fn test_file_get_snapshot_not_found() {
+fn test_file_get_tensor_not_found() {
     use tempfile::tempdir;
 
     let device = Default::default();
@@ -228,7 +228,7 @@ fn test_file_get_snapshot_not_found() {
 
     let mut load_store = SafetensorsStore::from_file(&path);
 
-    let snapshot = load_store.get_snapshot("nonexistent").unwrap();
+    let snapshot = load_store.get_tensor("nonexistent").unwrap();
     assert!(snapshot.is_none());
 }
 
@@ -277,8 +277,8 @@ fn test_file_keys_fast_path() {
     let keys = load_store.keys().unwrap();
     assert_eq!(keys.len(), 4);
 
-    // Now call get_all_snapshots to populate cache
-    let snapshots = load_store.get_all_snapshots().unwrap();
+    // Now call get_all_tensors to populate cache
+    let snapshots = load_store.get_all_tensors().unwrap();
     assert_eq!(snapshots.len(), 4);
 
     // keys() should now use the cached data
@@ -303,11 +303,11 @@ fn test_file_caching_behavior() {
     let mut load_store = SafetensorsStore::from_file(&path);
 
     // First call populates cache
-    let snapshots1 = load_store.get_all_snapshots().unwrap();
+    let snapshots1 = load_store.get_all_tensors().unwrap();
     assert_eq!(snapshots1.len(), 4);
 
     // Second call uses cache
-    let snapshots2 = load_store.get_all_snapshots().unwrap();
+    let snapshots2 = load_store.get_all_tensors().unwrap();
     assert_eq!(snapshots2.len(), 4);
 }
 
@@ -326,13 +326,13 @@ fn test_file_cache_invalidation_on_save() {
     let mut store = SafetensorsStore::from_file(&path).overwrite(true);
     store.collect_from(&module).unwrap();
 
-    let snapshots1 = store.get_all_snapshots().unwrap();
+    let snapshots1 = store.get_all_tensors().unwrap();
     assert_eq!(snapshots1.len(), 4);
 
     // Save again (this should invalidate cache)
     store.collect_from(&module).unwrap();
 
     // Cache should be repopulated with fresh data
-    let snapshots2 = store.get_all_snapshots().unwrap();
+    let snapshots2 = store.get_all_tensors().unwrap();
     assert_eq!(snapshots2.len(), 4);
 }

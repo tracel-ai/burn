@@ -34,10 +34,10 @@
 //! supported, though full model saves (vs state_dict) may have limitations
 //! as they contain Python code references.
 
-use crate::TensorSnapshot;
 use crate::nested::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use burn_pack::Tensor as PackTensor;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::fs::File;
@@ -45,7 +45,9 @@ use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use super::lazy_data::LazyDataSource;
-use super::pickle_reader::{Object, PickleError, read_pickle, read_pickle_with_data};
+use super::pickle_reader::{
+    Object, PickleError, extract_tensors, read_pickle, read_pickle_with_data,
+};
 use std::sync::Arc;
 
 /// Error type for PyTorch file operations
@@ -189,7 +191,7 @@ pub enum ByteOrder {
 ///
 /// // Access a specific tensor
 /// if let Some(tensor) = reader.get("conv1.weight") {
-///     let data = tensor.to_data(); // Materializes the tensor
+///     let data = burn_store::bridge::to_data(tensor)?; // Materializes the tensor
 /// }
 ///
 /// // Check file metadata
@@ -199,7 +201,7 @@ pub enum ByteOrder {
 /// # }
 /// ```
 pub struct PytorchReader {
-    tensors: HashMap<String, TensorSnapshot>,
+    tensors: HashMap<String, PackTensor>,
     metadata: PytorchMetadata,
 }
 
@@ -267,17 +269,17 @@ impl PytorchReader {
     }
 
     /// Get a tensor by name
-    pub fn get(&self, name: &str) -> Option<&TensorSnapshot> {
+    pub fn get(&self, name: &str) -> Option<&PackTensor> {
         self.tensors.get(name)
     }
 
     /// Get all tensors
-    pub fn tensors(&self) -> &HashMap<String, TensorSnapshot> {
+    pub fn tensors(&self) -> &HashMap<String, PackTensor> {
         &self.tensors
     }
 
     /// Take ownership of all tensors
-    pub fn into_tensors(self) -> HashMap<String, TensorSnapshot> {
+    pub fn into_tensors(self) -> HashMap<String, PackTensor> {
         self.tensors
     }
 
@@ -397,7 +399,7 @@ pub enum PickleValue {
 fn load_pytorch_file_with_metadata(
     path: &Path,
     top_level_key: Option<&str>,
-) -> Result<(HashMap<String, TensorSnapshot>, PytorchMetadata)> {
+) -> Result<(HashMap<String, PackTensor>, PytorchMetadata)> {
     // First, try to read as a zip file
     if let Ok(file) = File::open(path)
         && let Ok(mut archive) = zip::ZipArchive::new(BufReader::new(file))
@@ -629,7 +631,7 @@ fn load_pytorch_file_with_metadata(
 fn load_from_reader<R: Read>(
     reader: R,
     top_level_key: Option<&str>,
-) -> Result<HashMap<String, TensorSnapshot>> {
+) -> Result<HashMap<String, PackTensor>> {
     let mut buf_reader = BufReader::new(reader);
 
     // Try reading without data source
@@ -652,7 +654,7 @@ fn load_from_reader<R: Read>(
 fn extract_tensors_with_data(
     obj: Object,
     top_level_key: Option<&str>,
-) -> Result<HashMap<String, TensorSnapshot>> {
+) -> Result<HashMap<String, PackTensor>> {
     let dict = match obj {
         Object::Dict(dict) => {
             if let Some(key) = top_level_key {
@@ -680,38 +682,15 @@ fn extract_tensors_with_data(
 
     let mut tensors = HashMap::new();
     let mut path = Vec::new();
-    extract_tensors_recursive(&Object::Dict(dict), &mut path, &mut tensors);
+    extract_tensors(&Object::Dict(dict), &mut path, &mut tensors);
     Ok(tensors)
-}
-
-/// Recursively extract tensors from an object
-fn extract_tensors_recursive<'a>(
-    obj: &'a Object,
-    path: &mut Vec<&'a str>,
-    tensors: &mut HashMap<String, TensorSnapshot>,
-) {
-    match obj {
-        Object::Dict(dict) => {
-            for (key, value) in dict {
-                path.push(key);
-                extract_tensors_recursive(value, path, tensors);
-                path.pop();
-            }
-        }
-        Object::TorchParam(snapshot) => {
-            // The TensorSnapshot already contains the data loading closure
-            // Only allocate the string here when we actually insert
-            tensors.insert(path.join("."), snapshot.clone());
-        }
-        _ => {}
-    }
 }
 
 /// Load a legacy PyTorch file with metadata
 fn load_legacy_pytorch_file_with_metadata(
     path: &Path,
     top_level_key: Option<&str>,
-) -> Result<(HashMap<String, TensorSnapshot>, PytorchMetadata)> {
+) -> Result<(HashMap<String, PackTensor>, PytorchMetadata)> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
 
@@ -827,7 +806,7 @@ fn is_tar_file(path: &Path) -> bool {
 fn load_tar_pytorch_file_with_metadata(
     path: &Path,
     top_level_key: Option<&str>,
-) -> Result<(HashMap<String, TensorSnapshot>, PytorchMetadata)> {
+) -> Result<(HashMap<String, PackTensor>, PytorchMetadata)> {
     use tar::Archive;
 
     let file = File::open(path)?;

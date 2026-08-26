@@ -44,7 +44,7 @@ fn builder_pattern_filtering() {
     let filtered_count = views
         .iter()
         .filter(|v| {
-            let path = v.full_path();
+            let path = v.name.clone();
             path.starts_with("encoder.") || path.ends_with(".bias")
         })
         .count();

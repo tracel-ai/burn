@@ -163,11 +163,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
         });
 
         let gemv = TuneGroup::<MatmulAutotuneKey>::new("gemv", move |key| {
-            if num_cpu_cores.is_some() {
-                return PRIORITY_MAX;
-            }
-
             if matches!(key.analysis.kind, MatmulKind::MatVec) {
+                if num_cpu_cores.is_some() {
+                    return PRIORITY_MAX;
+                }
+
                 // LHS is the matrix
                 match key.definition.matrix_layout_lhs {
                     MatrixBatchLayout::Contiguous => PRIORITY_MAX,
@@ -184,6 +184,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     MatrixBatchLayout::HighlyPermuted => PRIORITY_MAX,
                 }
             } else if matches!(key.analysis.kind, MatmulKind::VecMat) {
+                if num_cpu_cores.is_some() {
+                    return PRIORITY_MAX;
+                }
+
                 // RHS is the matrix
                 match key.definition.matrix_layout_rhs {
                     // We don't have good algos for row major vecmat.

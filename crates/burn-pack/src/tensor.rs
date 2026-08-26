@@ -247,6 +247,21 @@ impl Tensor {
     }
 }
 
+/// Shows the format-level metadata and the byte length, but never draws the bytes: a
+/// `Deferred` tensor would have to run its provider, which is exactly what a debug print must
+/// not trigger.
+impl core::fmt::Debug for Tensor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Tensor")
+            .field("name", &self.name)
+            .field("dtype", &self.dtype)
+            .field("shape", &self.shape)
+            .field("param_id", &self.param_id)
+            .field("byte_len", &self.byte_len())
+            .finish()
+    }
+}
+
 // The counting tests below need `fetch_add`, so the whole module wants atomic CAS. Tests are
 // only ever run on a host anyway; this keeps `--tests` compiling for embedded targets.
 #[cfg(all(test, target_has_atomic = "ptr"))]
