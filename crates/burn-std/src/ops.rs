@@ -16,8 +16,8 @@ pub struct ConvOptions<const N: usize> {
     /// Stride (non-zero).
     pub stride: [usize; N],
 
-    /// Padding.
-    pub padding: [usize; N],
+    /// Padding as `(begin, end)` pairs for each spatial dimension.
+    pub padding: [(usize, usize); N],
 
     /// Dilation (non-zero).
     pub dilation: [usize; N],
@@ -36,69 +36,52 @@ impl<const N: usize> ConvOptions<N> {
     ) -> Self {
         Self {
             stride: stride.map(|s| check_nonzero(s, "stride must be non-zero")),
+            padding: padding.map(|padding| (padding, padding)),
+            dilation: dilation.map(|d| check_nonzero(d, "dilation must be non-zero")),
+            groups: check_nonzero(groups, "groups must be non-zero"),
+        }
+    }
+
+    /// Constructs convolution options with explicit per-side padding.
+    pub fn new_with_padding(
+        stride: [usize; N],
+        padding: [(usize, usize); N],
+        dilation: [usize; N],
+        groups: usize,
+    ) -> Self {
+        Self {
+            stride: stride.map(|s| check_nonzero(s, "stride must be non-zero")),
             padding,
             dilation: dilation.map(|d| check_nonzero(d, "dilation must be non-zero")),
             groups: check_nonzero(groups, "groups must be non-zero"),
         }
     }
-}
-
-/// Convolution options with support for asymmetric padding.
-///
-/// Wraps [`ConvOptions`] (which represents symmetric padding for the backend op)
-/// and adds optional asymmetric padding. When asymmetric padding is specified,
-/// the functional convolution layer applies an explicit pad operation before
-/// dispatching to the backend.
-///
-/// Implements `From<ConvOptions<N>>` for backward compatibility.
-#[derive(Debug, Clone)]
-pub struct PaddedConvOptions<const N: usize> {
-    /// The underlying convolution options for the backend.
-    pub options: ConvOptions<N>,
-    /// Padding at the end of each dimension (e.g., bottom/right for 2D).
-    /// If `None`, padding is symmetric (same as `options.padding`).
-    /// If `Some`, specifies different end-padding per dimension.
-    pub padding_end: Option<[usize; N]>,
-}
-
-impl<const N: usize> PaddedConvOptions<N> {
-    /// Creates options with asymmetric padding.
-    ///
-    /// `padding_start` is stored in `ConvOptions::padding`.
-    /// `padding_end` specifies the end padding per dimension.
-    pub fn asymmetric(
-        stride: [usize; N],
-        padding_start: [usize; N],
-        padding_end: [usize; N],
-        dilation: [usize; N],
-        groups: usize,
-    ) -> Self {
-        let options = ConvOptions::new(stride, padding_start, dilation, groups);
-        if padding_start == padding_end {
-            Self {
-                options,
-                padding_end: None,
-            }
-        } else {
-            Self {
-                options,
-                padding_end: Some(padding_end),
-            }
-        }
-    }
 
     /// Returns true if padding is asymmetric.
     pub fn is_asymmetric(&self) -> bool {
-        self.padding_end.is_some()
+        self.padding.iter().any(|(begin, end)| begin != end)
     }
-}
 
-impl<const N: usize> From<ConvOptions<N>> for PaddedConvOptions<N> {
-    fn from(options: ConvOptions<N>) -> Self {
-        Self {
-            options,
-            padding_end: None,
-        }
+    /// Returns the padding at the beginning of every spatial dimension.
+    pub fn padding_begin(&self) -> [usize; N] {
+        self.padding.map(|(begin, _)| begin)
+    }
+
+    /// Returns the padding at the end of every spatial dimension.
+    pub fn padding_end(&self) -> [usize; N] {
+        self.padding.map(|(_, after)| after)
+    }
+
+    /// Returns symmetric padding values.
+    ///
+    /// # Panics
+    /// Panics when any spatial dimension has asymmetric padding.
+    pub fn symmetric_padding(&self) -> [usize; N] {
+        assert!(
+            !self.is_asymmetric(),
+            "expected symmetric convolution padding"
+        );
+        self.padding_begin()
     }
 }
 
@@ -405,6 +388,34 @@ pub enum IndexingUpdateOp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn conv_options_symmetric_constructor() {
+        let options = ConvOptions::new([1, 2], [3, 4], [5, 6], 7);
+
+        assert_eq!(options.padding, [(3, 3), (4, 4)]);
+        assert_eq!(options.padding_begin(), [3, 4]);
+        assert_eq!(options.padding_end(), [3, 4]);
+        assert_eq!(options.symmetric_padding(), [3, 4]);
+        assert!(!options.is_asymmetric());
+    }
+
+    #[test]
+    fn conv_options_explicit_padding_constructor() {
+        let options = ConvOptions::new_with_padding([1, 2], [(3, 4), (5, 6)], [7, 8], 9);
+
+        assert_eq!(options.padding, [(3, 4), (5, 6)]);
+        assert_eq!(options.padding_begin(), [3, 5]);
+        assert_eq!(options.padding_end(), [4, 6]);
+        assert!(options.is_asymmetric());
+    }
+
+    #[test]
+    #[should_panic = "expected symmetric convolution padding"]
+    fn conv_options_symmetric_padding_with_asymmetric_options() {
+        let options = ConvOptions::new_with_padding([1], [(1, 2)], [1], 1);
+        let _ = options.symmetric_padding();
+    }
 
     #[test]
     #[should_panic = "stride must be non-zero"]

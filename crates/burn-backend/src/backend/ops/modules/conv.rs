@@ -45,7 +45,7 @@ pub fn calculate_conv_output_shape<const N: usize>(
     in_shape: &Shape,
     weight_shape: &Shape,
     stride: &[usize; N],
-    padding: &[usize; N],
+    padding: &[(usize, usize); N],
     dilation: &[usize; N],
 ) -> Result<Shape, MetadataError> {
     if weight_shape.rank() != N + 2 {
@@ -67,8 +67,13 @@ pub fn calculate_conv_output_shape<const N: usize>(
     let mut out_shape = in_shape.clone();
     // Spatial dims
     for (i, size_i) in out_shape[2..].iter_mut().enumerate() {
-        *size_i =
-            calculate_conv_output_size(kernel_size[i], stride[i], padding[i], dilation[i], *size_i);
+        *size_i = calculate_conv_output_size_asymmetric(
+            kernel_size[i],
+            stride[i],
+            padding[i],
+            dilation[i],
+            *size_i,
+        );
     }
     // Output channels
     out_shape[1] = weight_shape[0];
@@ -149,11 +154,22 @@ pub fn calculate_conv_output_size(
     (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
 }
 
+/// Calculate the expected output size with explicit `(before, after)` padding.
+pub fn calculate_conv_output_size_asymmetric(
+    kernel_size: usize,
+    stride: usize,
+    padding: (usize, usize),
+    dilation: usize,
+    size_in: usize,
+) -> usize {
+    (size_in + padding.0 + padding.1 - dilation * (kernel_size - 1) - 1) / stride + 1
+}
+
 /// Calculate the expected output sizes when doing a convolution operation.
 pub fn calculate_conv_output_sizes(
     kernel_size: &[usize],
     stride: &[usize],
-    padding: &[usize],
+    padding: &[(usize, usize)],
     dilation: &[usize],
     size_in: &[usize],
 ) -> Vec<usize> {
@@ -161,7 +177,13 @@ pub fn calculate_conv_output_sizes(
         .iter()
         .enumerate()
         .map(|(i, size_in)| {
-            calculate_conv_output_size(kernel_size[i], stride[i], padding[i], dilation[i], *size_in)
+            calculate_conv_output_size_asymmetric(
+                kernel_size[i],
+                stride[i],
+                padding[i],
+                dilation[i],
+                *size_in,
+            )
         })
         .collect()
 }
@@ -261,7 +283,7 @@ pub(crate) fn conv1d_x_backward<B: Backend>(
     let padding_out = calculate_padding_out(
         kernel_size,
         options.stride[0],
-        options.padding[0],
+        options.padding_begin()[0],
         options.dilation[0],
         length_in,
         length_out,
@@ -273,7 +295,7 @@ pub(crate) fn conv1d_x_backward<B: Backend>(
         None,
         ConvTransposeOptions::new(
             options.stride,
-            options.padding,
+            options.padding_begin(),
             [padding_out],
             options.dilation,
             options.groups,
@@ -335,7 +357,7 @@ pub(crate) fn conv2d_x_backward<B: Backend>(
     let padding_1_out = calculate_padding_out(
         kernel_size_1,
         options.stride[0],
-        options.padding[0],
+        options.padding_begin()[0],
         options.dilation[0],
         height_in,
         height_out,
@@ -343,7 +365,7 @@ pub(crate) fn conv2d_x_backward<B: Backend>(
     let padding_2_out = calculate_padding_out(
         kernel_size_2,
         options.stride[1],
-        options.padding[1],
+        options.padding_begin()[1],
         options.dilation[1],
         width_in,
         width_out,
@@ -355,7 +377,7 @@ pub(crate) fn conv2d_x_backward<B: Backend>(
         None,
         ConvTransposeOptions::new(
             options.stride,
-            options.padding,
+            options.padding_begin(),
             [padding_1_out, padding_2_out],
             options.dilation,
             options.groups,
@@ -426,7 +448,7 @@ pub(crate) fn conv3d_x_backward<B: Backend>(
     let padding_1_out = calculate_padding_out(
         kernel_size_1,
         options.stride[0],
-        options.padding[0],
+        options.padding_begin()[0],
         options.dilation[0],
         depth_in,
         depth_out,
@@ -434,7 +456,7 @@ pub(crate) fn conv3d_x_backward<B: Backend>(
     let padding_2_out = calculate_padding_out(
         kernel_size_2,
         options.stride[1],
-        options.padding[1],
+        options.padding_begin()[1],
         options.dilation[1],
         height_in,
         height_out,
@@ -442,7 +464,7 @@ pub(crate) fn conv3d_x_backward<B: Backend>(
     let padding_3_out = calculate_padding_out(
         kernel_size_3,
         options.stride[2],
-        options.padding[2],
+        options.padding_begin()[2],
         options.dilation[2],
         width_in,
         width_out,
@@ -454,7 +476,7 @@ pub(crate) fn conv3d_x_backward<B: Backend>(
         None,
         ConvTransposeOptions::new(
             options.stride,
-            options.padding,
+            options.padding_begin(),
             [padding_1_out, padding_2_out, padding_3_out],
             options.dilation,
             options.groups,
@@ -786,7 +808,7 @@ pub(crate) fn conv1d_from_conv2d<B: Backend>(
         bias,
         ConvOptions::new(
             [options.stride[0], 1],
-            [options.padding[0], 0],
+            [options.padding_begin()[0], 0],
             [options.dilation[0], 1],
             options.groups,
         ),
@@ -839,7 +861,7 @@ fn conv1d_weight_grad_no_groups<B: Backend>(
         x_swapped,
         output_grad_swapped,
         None,
-        ConvOptions::new(options.dilation, options.padding, options.stride, 1),
+        ConvOptions::new(options.dilation, options.padding_begin(), options.stride, 1),
     );
     let mut weight_grad = B::float_swap_dims(weight_grad_swapped, 0, 1);
 
@@ -866,7 +888,7 @@ fn conv2d_weight_grad_no_groups<B: Backend>(
         x_swapped,
         output_grad_swapped,
         None,
-        ConvOptions::new(options.dilation, options.padding, options.stride, 1),
+        ConvOptions::new(options.dilation, options.padding_begin(), options.stride, 1),
     );
     let mut weight_grad = B::float_swap_dims(weight_grad_swapped, 0, 1);
 
@@ -894,7 +916,7 @@ fn conv3d_weight_grad_no_groups<B: Backend>(
         x_swapped,
         output_grad_swapped,
         None,
-        ConvOptions::new(options.dilation, options.padding, options.stride, 1),
+        ConvOptions::new(options.dilation, options.padding_begin(), options.stride, 1),
     );
     let mut weight_grad = B::float_swap_dims(weight_grad_swapped, 0, 1);
 
@@ -945,7 +967,7 @@ fn conv1d_weight_grad_groups<B: Backend>(
             x,
             grad,
             None,
-            ConvOptions::new(options.dilation, options.padding, options.stride, 1),
+            ConvOptions::new(options.dilation, options.padding_begin(), options.stride, 1),
         );
         weight_grad_tmp = B::float_swap_dims(weight_grad_tmp, 0, 1);
         weight_grad = B::float_slice_assign(
@@ -996,7 +1018,7 @@ fn conv2d_weight_grad_groups<B: Backend>(
             x,
             grad,
             None,
-            ConvOptions::new(options.dilation, options.padding, options.stride, 1),
+            ConvOptions::new(options.dilation, options.padding_begin(), options.stride, 1),
         );
         weight_grad_tmp = B::float_swap_dims(weight_grad_tmp, 0, 1);
         let [_, _, kernel_size_1_tmp, kernel_size_2_tmp] = weight_grad_tmp.shape().dims();
@@ -1066,7 +1088,7 @@ fn conv3d_weight_grad_groups<B: Backend>(
             x,
             grad,
             None,
-            ConvOptions::new(options.dilation, options.padding, options.stride, 1),
+            ConvOptions::new(options.dilation, options.padding_begin(), options.stride, 1),
         );
         weight_grad_tmp = B::float_swap_dims(weight_grad_tmp, 0, 1);
         let [
@@ -1518,7 +1540,7 @@ mod tests {
         // size in: [27, 3]
         // kernel size: [5, 3]
         let stride = [2, 1];
-        let padding = [3, 1];
+        let padding = [(3, 3), (1, 1)];
         let dilation = [2, 1];
         let shape = calculate_conv_output_shape(
             &Shape::new([12, 3, 27, 3]),

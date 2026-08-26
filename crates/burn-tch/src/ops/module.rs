@@ -3,8 +3,9 @@ use burn_backend::{
     IntDType, TensorMetadata,
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
-        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
+        DeformConvOptions, FloatTensorOps, InterpolateMode, InterpolateOptions,
+        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, PadMode,
+        attention::attention_fallback,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -66,12 +67,28 @@ impl ModuleOps<Self> for LibTorch {
         bias: Option<TchTensor>,
         options: ConvOptions<1>,
     ) -> TchTensor {
+        let (x, options) = if options.is_asymmetric() {
+            let padding = [
+                (0, 0),
+                (0, 0),
+                (options.padding_begin()[0], options.padding_end()[0]),
+            ];
+            let x = <LibTorch as FloatTensorOps<LibTorch>>::float_pad(
+                x,
+                &padding,
+                PadMode::Constant(0.0),
+            );
+            let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
+            (x, options)
+        } else {
+            (x, options)
+        };
         let tensor = tch::Tensor::conv1d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
@@ -85,12 +102,27 @@ impl ModuleOps<Self> for LibTorch {
         bias: Option<TchTensor>,
         options: ConvOptions<2>,
     ) -> TchTensor {
+        let (x, options) = if options.is_asymmetric() {
+            let begin = options.padding_begin();
+            let end = options.padding_end();
+            let padding = [(0, 0), (0, 0), (begin[0], end[0]), (begin[1], end[1])];
+            let x = <LibTorch as FloatTensorOps<LibTorch>>::float_pad(
+                x,
+                &padding,
+                PadMode::Constant(0.0),
+            );
+            let options =
+                ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
+            (x, options)
+        } else {
+            (x, options)
+        };
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
@@ -109,7 +141,7 @@ impl ModuleOps<Self> for LibTorch {
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );

@@ -127,7 +127,7 @@ fn expand_1d_to_3d(
 
     let options_3d = ConvOptions::new(
         [1, 1, options.stride[0]],
-        [0, 0, options.padding[0]],
+        [0, 0, options.padding_begin()[0]],
         [1, 1, options.dilation[0]],
         options.groups,
     );
@@ -182,7 +182,7 @@ fn expand_2d_to_3d(
 
     let options_3d = ConvOptions::new(
         [1, options.stride[0], options.stride[1]],
-        [0, options.padding[0], options.padding[1]],
+        [0, options.padding_begin()[0], options.padding_begin()[1]],
         [1, options.dilation[0], options.dilation[1]],
         options.groups,
     );
@@ -265,7 +265,7 @@ fn conv3d_impl<
     let kernel_w = w_shape[4];
 
     let [stride_d, stride_h, stride_w] = options.stride;
-    let [pad_d, pad_h, pad_w] = options.padding;
+    let [pad_d, pad_h, pad_w] = options.padding_begin();
     let groups = options.groups;
     let out_channels_per_group = channels_out / groups;
 
@@ -621,7 +621,7 @@ fn is_1x1_conv(
         && kernel_h == 1
         && kernel_w == 1
         && options.stride == [1, 1, 1]
-        && options.padding == [0, 0, 0]
+        && options.padding_begin() == [0, 0, 0]
 }
 
 /// Optimized 1x1 convolution: skip im2col, call gemm directly on NCHW data.
@@ -836,7 +836,7 @@ fn should_use_depthwise_conv(
     if w_shape[2] != 1 || x_shape[2] != 1 {
         return false;
     }
-    if options.stride[0] != 1 || options.padding[0] != 0 || options.dilation[0] != 1 {
+    if options.stride[0] != 1 || options.padding_begin()[0] != 0 || options.dilation[0] != 1 {
         return false;
     }
 
@@ -1207,7 +1207,7 @@ where
     let kernel_w = w_shape[4];
 
     let [_, stride_h, stride_w] = options.stride;
-    let [_, pad_h, pad_w] = options.padding;
+    let [_, pad_h, pad_w] = options.padding_begin();
     let [_, dilation_h, dilation_w] = options.dilation;
 
     let out_h = calculate_conv_output_size(kernel_h, stride_h, pad_h, dilation_h, in_h);
@@ -1364,7 +1364,7 @@ fn should_use_small_channel_conv(
     if w_shape[2] != 1 || x_shape[2] != 1 {
         return false;
     }
-    if options.stride[0] != 1 || options.padding[0] != 0 || options.dilation[0] != 1 {
+    if options.stride[0] != 1 || options.padding_begin()[0] != 0 || options.dilation[0] != 1 {
         return false;
     }
 
@@ -1433,7 +1433,7 @@ where
     let kernel_w = w_shape[4];
 
     let [_, stride_h, stride_w] = options.stride;
-    let [_, pad_h, pad_w] = options.padding;
+    let [_, pad_h, pad_w] = options.padding_begin();
     let [_, dilation_h, dilation_w] = options.dilation;
 
     let out_h = calculate_conv_output_size(kernel_h, stride_h, pad_h, dilation_h, in_h);
@@ -1559,7 +1559,8 @@ where
 /// overhead is significant relative to compute.
 fn should_use_direct_conv(x_shape: &[usize], w_shape: &[usize], options: &ConvOptions<3>) -> bool {
     // Only for groups=1, no padding, dilation=1 (the wav2vec2 case).
-    if options.groups != 1 || options.padding != [0, 0, 0] || options.dilation != [1, 1, 1] {
+    if options.groups != 1 || options.padding_begin() != [0, 0, 0] || options.dilation != [1, 1, 1]
+    {
         return false;
     }
 

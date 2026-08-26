@@ -1507,7 +1507,7 @@ pub struct ConvTranspose3dOpIr {
 #[allow(missing_docs)]
 pub struct Conv1dOptionsIr {
     pub stride: [usize; 1],
-    pub padding: [usize; 1],
+    pub padding: [(usize, usize); 1],
     pub dilation: [usize; 1],
     pub groups: usize,
 }
@@ -1516,7 +1516,7 @@ pub struct Conv1dOptionsIr {
 #[allow(missing_docs)]
 pub struct Conv2dOptionsIr {
     pub stride: [usize; 2],
-    pub padding: [usize; 2],
+    pub padding: [(usize, usize); 2],
     pub dilation: [usize; 2],
     pub groups: usize,
 }
@@ -1535,7 +1535,7 @@ pub struct DeformableConv2dOptionsIr {
 #[allow(missing_docs)]
 pub struct Conv3dOptionsIr {
     pub stride: [usize; 3],
-    pub padding: [usize; 3],
+    pub padding: [(usize, usize); 3],
     pub dilation: [usize; 3],
     pub groups: usize,
 }
