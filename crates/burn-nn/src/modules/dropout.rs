@@ -163,6 +163,17 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
+    fn a_frozen_dropout_comes_back_frozen_from_train() {
+        // `train()` is `from_inner`, which reinstates what the caller asked for
+        // the way it does for a parameter's `require_grad`. A frozen half coming
+        // back armed while its parameters stayed frozen is the bug.
+        let dropout = DropoutConfig::new(0.5).init().no_grad().train();
+
+        assert!(!dropout.training.is_training());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
     fn group_freezing_a_subtree_reaches_the_dropout_in_it() {
         use crate::{Linear, LinearConfig};
         use burn::module::ParamGroup;
