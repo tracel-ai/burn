@@ -77,7 +77,11 @@ impl ModuleDisplay for GaussianNoise {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content.add("std", &self.std).optional()
+        let content = content.add("std", &self.std);
+        match self.training.is_training() {
+            true => content.optional(),
+            false => content.add("training", &self.training).optional(),
+        }
     }
 }
 
@@ -140,5 +144,16 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(alloc::format!("{layer}"), "GaussianNoise {std: 0.5}");
+    }
+
+    #[test]
+    fn display_shows_a_frozen_layer() {
+        use burn::module::Module;
+        let layer = GaussianNoiseConfig::new(0.5).init().no_grad();
+
+        assert_eq!(
+            alloc::format!("{layer}"),
+            "GaussianNoise {std: 0.5, training: eval}"
+        );
     }
 }

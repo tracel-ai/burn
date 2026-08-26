@@ -80,7 +80,13 @@ impl ModuleDisplay for Dropout {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content.add("prob", &self.prob).optional()
+        // A layer behaving as it does during training is the ordinary case and says nothing; a
+        // frozen one is the case worth seeing, and the only way to see it at all.
+        let content = content.add("prob", &self.prob);
+        match self.training.is_training() {
+            true => content.optional(),
+            false => content.add("training", &self.training).optional(),
+        }
     }
 }
 
@@ -246,6 +252,12 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(alloc::format!("{layer}"), "Dropout {prob: 0.5}");
+
+        let frozen = config.init().no_grad();
+        assert_eq!(
+            alloc::format!("{frozen}"),
+            "Dropout {prob: 0.5, training: eval}"
+        );
     }
 
     #[test]

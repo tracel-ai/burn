@@ -66,10 +66,11 @@ impl ModuleDisplay for RRelu {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content
-            .add("lower", &self.lower)
-            .add("upper", &self.upper)
-            .optional()
+        let content = content.add("lower", &self.lower).add("upper", &self.upper);
+        match self.training.is_training() {
+            true => content.optional(),
+            false => content.add("training", &self.training).optional(),
+        }
     }
 }
 
@@ -161,6 +162,21 @@ mod tests {
     fn display() {
         let layer = RReluConfig::new().with_lower(0.1).with_upper(0.3).init();
         assert_eq!(alloc::format!("{layer}"), "RRelu {lower: 0.1, upper: 0.3}");
+    }
+
+    #[test]
+    fn display_shows_a_frozen_layer() {
+        use burn::module::Module;
+        let layer = RReluConfig::new()
+            .with_lower(0.1)
+            .with_upper(0.3)
+            .init()
+            .no_grad();
+
+        assert_eq!(
+            alloc::format!("{layer}"),
+            "RRelu {lower: 0.1, upper: 0.3, training: eval}"
+        );
     }
 
     #[test]
