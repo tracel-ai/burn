@@ -35,6 +35,23 @@ impl<A: BurnModuleAdapter> Deserializer<A> {
             phantom: std::marker::PhantomData,
         }
     }
+
+    /// Extracts a scalar value using `extract`, returning a deserialization error
+    /// instead of panicking when the value is absent or holds a different type.
+    fn scalar<T>(
+        self,
+        expected: &str,
+        extract: impl FnOnce(NestedValue) -> Option<T>,
+    ) -> Result<T, Error> {
+        match self.value {
+            Some(value) => extract(value.clone()).ok_or_else(|| {
+                de::Error::custom(format!("Expected {expected} value but got {value:?}"))
+            }),
+            None => Err(de::Error::custom(format!(
+                "Expected {expected} value but got None"
+            ))),
+        }
+    }
 }
 
 impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
@@ -103,7 +120,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_string(self.value.unwrap().as_string().unwrap().to_string())
+        visitor.visit_string(self.scalar("string", NestedValue::as_string)?)
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -134,7 +151,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_bool(self.value.unwrap().as_bool().unwrap())
+        visitor.visit_bool(self.scalar("bool", NestedValue::as_bool)?)
     }
 
     fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -148,35 +165,35 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i16(self.value.unwrap().as_i16().unwrap().to_owned())
+        visitor.visit_i16(self.scalar("i16", NestedValue::as_i16)?)
     }
 
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i32(self.value.unwrap().as_i32().unwrap().to_owned())
+        visitor.visit_i32(self.scalar("i32", NestedValue::as_i32)?)
     }
 
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i64(self.value.unwrap().as_i64().unwrap().to_owned())
+        visitor.visit_i64(self.scalar("i64", NestedValue::as_i64)?)
     }
 
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u8(self.value.unwrap().as_u8().unwrap().to_owned())
+        visitor.visit_u8(self.scalar("u8", NestedValue::as_u8)?)
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u16(self.value.unwrap().as_u16().unwrap().to_owned())
+        visitor.visit_u16(self.scalar("u16", NestedValue::as_u16)?)
     }
 
     fn deserialize_u32<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -190,21 +207,21 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u64(self.value.unwrap().as_u64().unwrap().to_owned())
+        visitor.visit_u64(self.scalar("u64", NestedValue::as_u64)?)
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_f32(self.value.unwrap().as_f32().unwrap().to_owned())
+        visitor.visit_f32(self.scalar("f32", NestedValue::as_f32)?)
     }
 
     fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_f64(self.value.unwrap().as_f64().unwrap().to_owned())
+        visitor.visit_f64(self.scalar("f64", NestedValue::as_f64)?)
     }
 
     fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -218,7 +235,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_str(self.value.unwrap().as_string().unwrap().as_ref())
+        visitor.visit_str(self.scalar("string", NestedValue::as_string)?.as_ref())
     }
 
     fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -232,7 +249,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let bytes = self.value.unwrap().as_bytes().unwrap();
+        let bytes = self.scalar("bytes", NestedValue::as_bytes)?;
         match bytes.try_into_vec::<u8>() {
             Ok(bytes) => visitor.visit_byte_buf(bytes),
             Err(bytes) => visitor.visit_bytes(&bytes),
@@ -1002,5 +1019,27 @@ impl<'de> MapAccess<'de> for DefaultMapAccess {
     fn size_hint(&self) -> Option<usize> {
         // Since this is a default implementation, we'll just return None.
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::adapter::DefaultAdapter;
+    use super::*;
+    use serde::Deserialize;
+
+    #[test]
+    fn scalar_type_mismatch_returns_error_instead_of_panicking() {
+        // A field stored as a string but read as an i32 used to unwrap a `None` and panic.
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::String("768".to_string()), false);
+        let result: Result<i32, Error> = i32::deserialize(de);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn scalar_deserializes_matching_value() {
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(768), false);
+        let value: i32 = i32::deserialize(de).unwrap();
+        assert_eq!(value, 768);
     }
 }
