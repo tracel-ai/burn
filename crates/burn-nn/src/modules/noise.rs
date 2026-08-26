@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, TrainingFlag};
+use burn::module::{Content, DisplaySettings, Flag, Module, ModuleDisplay, Param};
 use burn::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [GaussianNoise](GaussianNoise) layer using the [init function](GaussianNoiseConfig::init).
@@ -24,10 +24,9 @@ pub struct GaussianNoise {
     /// Standard deviation of the normal noise distribution.
     pub std: f64,
     /// Whether to behave as during training. Cleared by
-    /// [`no_grad`](burn::module::Module::no_grad) and
-    /// [`valid`](burn::module::AutodiffModule::valid), because a layer with no parameters has no
-    /// `require_grad` of its own to read and has to be told.
-    pub training: TrainingFlag,
+    /// [`no_grad`](burn::module::Module::no_grad) and matching
+    /// [`freeze_group`](burn::module::Module::freeze_group) traversals.
+    pub training: Param<Flag>,
 }
 
 impl GaussianNoiseConfig {
@@ -41,7 +40,7 @@ impl GaussianNoiseConfig {
         }
         GaussianNoise {
             std: self.std,
-            training: TrainingFlag::default(),
+            training: Param::from_bool(true),
         }
     }
 }
@@ -56,7 +55,7 @@ impl GaussianNoise {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if self.training.is_training() && input.device().is_autodiff() && self.std != 0.0 {
+        if self.training.is_enabled() && input.device().is_autodiff() && self.std != 0.0 {
             let noise = Tensor::random(
                 input.shape(),
                 Distribution::Normal(0.0, self.std),
@@ -78,7 +77,7 @@ impl ModuleDisplay for GaussianNoise {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         let content = content.add("std", &self.std);
-        match self.training.is_training() {
+        match self.training.is_enabled() {
             true => content.optional(),
             false => content.add("training", &self.training).optional(),
         }
@@ -153,7 +152,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{layer}"),
-            "GaussianNoise {std: 0.5, training: eval}"
+            "GaussianNoise {std: 0.5, training: disabled}"
         );
     }
 }

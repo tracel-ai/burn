@@ -1,6 +1,6 @@
 use burn::config::Config;
 use burn::module::Module;
-use burn::module::{Content, DisplaySettings, ModuleDisplay, TrainingFlag};
+use burn::module::{Content, DisplaySettings, Flag, ModuleDisplay, Param};
 use burn::tensor::{Distribution, Tensor};
 use burn_core as burn;
 
@@ -24,10 +24,9 @@ pub struct RRelu {
     /// The upper bound of the uniform slope range.
     pub upper: f64,
     /// Whether to behave as during training. Cleared by
-    /// [`no_grad`](burn::module::Module::no_grad) and
-    /// [`valid`](burn::module::AutodiffModule::valid), because a layer with no parameters has no
-    /// `require_grad` of its own to read and has to be told.
-    pub training: TrainingFlag,
+    /// [`no_grad`](burn::module::Module::no_grad) and matching
+    /// [`freeze_group`](burn::module::Module::freeze_group) traversals.
+    pub training: Param<Flag>,
 }
 
 /// Configuration to create a [RRelu](RRelu) layer using the [init function](RReluConfig::init).
@@ -53,7 +52,7 @@ impl RReluConfig {
         RRelu {
             lower: self.lower,
             upper: self.upper,
-            training: TrainingFlag::default(),
+            training: Param::from_bool(true),
         }
     }
 }
@@ -67,7 +66,7 @@ impl ModuleDisplay for RRelu {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         let content = content.add("lower", &self.lower).add("upper", &self.upper);
-        match self.training.is_training() {
+        match self.training.is_enabled() {
             true => content.optional(),
             false => content.add("training", &self.training).optional(),
         }
@@ -83,7 +82,7 @@ impl RRelu {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if !self.training.is_training() || !input.device().is_autodiff() {
+        if !self.training.is_enabled() || !input.device().is_autodiff() {
             // Evaluation: fixed midpoint slope (identical to LeakyReLU).
             return leaky_relu(input, (self.lower + self.upper) / 2.0);
         }
@@ -175,7 +174,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{layer}"),
-            "RRelu {lower: 0.1, upper: 0.3, training: eval}"
+            "RRelu {lower: 0.1, upper: 0.3, training: disabled}"
         );
     }
 

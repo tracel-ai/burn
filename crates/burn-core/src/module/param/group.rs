@@ -44,9 +44,9 @@ impl ModuleVisitor for ParamIdCollector {
         self.ids.push(param.id);
     }
 
-    /// A flag is collected like a parameter, so `ids_from_module` over a subtree names the
-    /// training state of the layers in it that have no parameters of their own.
-    fn visit_training(&mut self, flag: &crate::module::TrainingFlag) {
+    /// A flag is collected like any other parameter value, so `ids_from_module` over a subtree
+    /// includes its module-owned control state.
+    fn visit_flag(&mut self, flag: &crate::module::Param<crate::module::Flag>) {
         self.ids.push(flag.id);
     }
 }

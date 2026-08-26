@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, TrainingFlag};
+use burn::module::{Content, DisplaySettings, Flag, Module, ModuleDisplay, Param};
 use burn::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [Dropout](Dropout) layer using the [init function](DropoutConfig::init).
@@ -25,10 +25,9 @@ pub struct Dropout {
     /// The probability of randomly zeroes some elements of the input tensor during training.
     pub prob: f64,
     /// Whether to behave as during training. Cleared by
-    /// [`no_grad`](burn::module::Module::no_grad) and
-    /// [`valid`](burn::module::AutodiffModule::valid), because a layer with no parameters has no
-    /// `require_grad` of its own to read and has to be told.
-    pub training: TrainingFlag,
+    /// [`no_grad`](burn::module::Module::no_grad) and matching
+    /// [`freeze_group`](burn::module::Module::freeze_group) traversals.
+    pub training: Param<Flag>,
 }
 
 impl DropoutConfig {
@@ -42,7 +41,7 @@ impl DropoutConfig {
         }
         Dropout {
             prob: self.prob,
-            training: TrainingFlag::default(),
+            training: Param::from_bool(true),
         }
     }
 }
@@ -60,7 +59,7 @@ impl Dropout {
         // Both, and for different reasons. The device says a backward is possible at all; the
         // flag says this layer takes part in one, which a subtree frozen in place on the training
         // device does not.
-        if !self.training.is_training() || !input.device().is_autodiff() || self.prob == 0.0 {
+        if !self.training.is_enabled() || !input.device().is_autodiff() || self.prob == 0.0 {
             return input;
         }
 
@@ -83,7 +82,7 @@ impl ModuleDisplay for Dropout {
         // A layer behaving as it does during training is the ordinary case and says nothing; a
         // frozen one is the case worth seeing, and the only way to see it at all.
         let content = content.add("prob", &self.prob);
-        match self.training.is_training() {
+        match self.training.is_enabled() {
             true => content.optional(),
             false => content.add("training", &self.training).optional(),
         }
@@ -138,6 +137,23 @@ mod tests {
         assert_eq!(output.to_data(), tensor.to_data());
     }
 
+    #[test]
+    fn no_grad_reaches_flags_inside_module_containers() {
+        let dropouts = alloc::vec![DropoutConfig::new(0.5).init()].no_grad();
+
+        assert!(!dropouts[0].training.is_enabled());
+    }
+
+    #[test]
+    fn backend_transitions_preserve_a_frozen_flag() {
+        use burn::module::AutodiffModule;
+
+        let dropout = DropoutConfig::new(0.5).init().no_grad();
+        let dropout = dropout.valid().train();
+
+        assert!(!dropout.training.is_enabled());
+    }
+
     #[cfg(feature = "std")]
     #[test]
     fn dropout_freezing_reaches_through_a_container() {
@@ -161,10 +177,10 @@ mod tests {
         }
         .no_grad();
 
-        assert!(!wrapper.blocks[0].training.is_training(), "Vec");
-        assert!(!wrapper.optional.unwrap().training.is_training(), "Option");
-        assert!(!wrapper.fixed[0].training.is_training(), "array");
-        assert!(!wrapper.pair.0.training.is_training(), "tuple");
+        assert!(!wrapper.blocks[0].training.is_enabled(), "Vec");
+        assert!(!wrapper.optional.unwrap().training.is_enabled(), "Option");
+        assert!(!wrapper.fixed[0].training.is_enabled(), "array");
+        assert!(!wrapper.pair.0.training.is_enabled(), "tuple");
     }
 
     #[cfg(feature = "std")]
@@ -175,7 +191,7 @@ mod tests {
         // back armed while its parameters stayed frozen is the bug.
         let dropout = DropoutConfig::new(0.5).init().no_grad().train();
 
-        assert!(!dropout.training.is_training());
+        assert!(!dropout.training.is_enabled());
     }
 
     #[cfg(feature = "std")]
@@ -212,11 +228,11 @@ mod tests {
         let model = model.freeze_group(group);
 
         assert!(
-            !model.frozen.dropout.training.is_training(),
+            !model.frozen.dropout.training.is_enabled(),
             "the frozen half's dropout should have been reached"
         );
         assert!(
-            model.trained.dropout.training.is_training(),
+            model.trained.dropout.training.is_enabled(),
             "the half outside the group should be untouched"
         );
         assert!(!model.frozen.linear.weight.is_require_grad());
@@ -256,7 +272,7 @@ mod tests {
         let frozen = config.init().no_grad();
         assert_eq!(
             alloc::format!("{frozen}"),
-            "Dropout {prob: 0.5, training: eval}"
+            "Dropout {prob: 0.5, training: disabled}"
         );
     }
 

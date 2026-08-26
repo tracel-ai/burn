@@ -104,10 +104,12 @@ impl<T: Parameter> LazyInitState<T> {
     }
 }
 
-/// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
-/// serve as containers for [tensors](crate::tensor::Tensor) that can be updated during
-/// training, and loaded during inference. If you don't want to save the tensors
-/// and/or don't want to update it during training, you don't need this type to wrap your tensor.
+/// Parameters are identified, traversable values owned by [modules](crate::module::Module).
+///
+/// Most parameters contain [tensors](crate::tensor::Tensor) that can be updated during training
+/// and loaded during inference. Parameters can also contain module control state such as
+/// [`Flag`](crate::module::Flag), allowing it to participate in module traversal and parameter
+/// group selection without pretending to be a tensor.
 ///
 /// # Cloning
 ///
@@ -221,7 +223,8 @@ pub(crate) mod sealed {
 ///
 /// Although exposed publicly, parameter types are not meant to be extensible:
 /// the parameter loading/saving, module system and optimizers assume a fixed,
-/// closed set of parameter types represented exclusively by [`Tensor`](crate::Tensor) instances.
+/// closed set of parameter types represented by [`Tensor`](crate::Tensor) and
+/// small module-owned control values such as [`Flag`](crate::module::Flag).
 pub trait Parameter: sealed::Sealed + Clone + core::fmt::Debug + Send {
     /// Fetch the device.
     fn device(&self) -> Device;
