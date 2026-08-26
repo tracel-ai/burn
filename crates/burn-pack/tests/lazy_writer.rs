@@ -2,16 +2,14 @@
 
 mod common;
 
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use burn_pack::{Bytes, DType, Error, Reader, Shape, Tensor, Writer};
 use common::f32_tensor;
 
 /// Records every materialization, in the order it happened.
-///
-/// `Arc<Mutex<_>>` rather than `Rc<RefCell<_>>` because a deferred tensor's provider must be
-/// `Send + Sync`: records holding one cross threads through burn-train's async checkpointer.
-type Log = Arc<Mutex<Vec<String>>>;
+type Log = Rc<RefCell<Vec<String>>>;
 
 /// A tensor whose bytes are produced on demand, with every knob the tests need to bend.
 ///
@@ -67,7 +65,7 @@ impl LazyEntry {
 
         let logged = name.clone();
         Tensor::deferred(name, dtype, shape, None, declared_len, move || {
-            log.lock().unwrap().push(logged.clone());
+            log.borrow_mut().push(logged.clone());
             if fails {
                 return Err(Error::IoError("device read failed".to_string()));
             }
@@ -90,7 +88,7 @@ fn deferred_tensors(entries: Vec<LazyEntry>) -> Vec<Tensor> {
 }
 
 fn materialized(log: &Log) -> Vec<String> {
-    log.lock().unwrap().clone()
+    log.borrow().clone()
 }
 
 #[test]

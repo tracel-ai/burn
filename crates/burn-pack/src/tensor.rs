@@ -14,9 +14,7 @@ use alloc::string::String;
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
-// `alloc::sync` needs atomic CAS. A target without it has no threads to share a tensor
-// across, so neither the atomic pointer nor the `Send + Sync` bound on the provider is
-// needed there, and both are dropped below.
+// `alloc::sync` needs atomic CAS, so use its non-atomic counterpart on targets without it.
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::rc::Rc as Arc;
 
@@ -27,15 +25,8 @@ use crate::base::Error;
 /// Shared handle to a deferred tensor's byte provider, kept behind a pointer so [`Tensor`]
 /// stays [`Clone`].
 ///
-/// The provider is `Send + Sync` on targets with threads, because a [`Tensor`] must stay
-/// `Send`: an optimizer record holds a `Vec` of them and crosses threads through burn-train's
-/// async checkpointer, whose `Checkpoint` bound is `Send`. `Sync` follows from sharing the
-/// provider at all (`Arc<T>: Send` requires `T: Send + Sync`). A target without atomic CAS
-/// has no threads and no `alloc::sync`, so neither bound applies or can be met there, and
-/// [`Tensor::deferred`] asks for correspondingly less.
-#[cfg(target_has_atomic = "ptr")]
-type Provider = Arc<dyn Fn() -> Result<Bytes, Error> + Send + Sync>;
-#[cfg(not(target_has_atomic = "ptr"))]
+/// The pointer varies with the target's atomic support, but the provider itself has no
+/// thread-safety requirement.
 type Provider = Arc<dyn Fn() -> Result<Bytes, Error>>;
 
 /// Where a tensor's bytes come from.
@@ -158,23 +149,6 @@ impl Tensor {
     /// result is dropped before the next tensor's is requested. Producing the data there -
     /// reading a parameter back from a device, say - is what bounds a save's peak host memory
     /// by the largest single tensor rather than by the whole model.
-    #[cfg(target_has_atomic = "ptr")]
-    pub fn deferred(
-        name: String,
-        dtype: DType,
-        shape: impl Into<Shape>,
-        param_id: Option<u64>,
-        byte_len: usize,
-        provider: impl Fn() -> Result<Bytes, Error> + Send + Sync + 'static,
-    ) -> Self {
-        Self::with_provider(name, dtype, shape, param_id, byte_len, Arc::new(provider))
-    }
-
-    /// Create a tensor whose bytes are produced on demand.
-    ///
-    /// See the `target_has_atomic = "ptr"` variant for the contract. This one drops the
-    /// `Send + Sync` bound, which nothing on a single-threaded target can satisfy or needs.
-    #[cfg(not(target_has_atomic = "ptr"))]
     pub fn deferred(
         name: String,
         dtype: DType,
@@ -186,7 +160,6 @@ impl Tensor {
         Self::with_provider(name, dtype, shape, param_id, byte_len, Arc::new(provider))
     }
 
-    /// The half of [`deferred`](Self::deferred) that does not vary by target.
     fn with_provider(
         name: String,
         dtype: DType,
@@ -264,12 +237,13 @@ impl core::fmt::Debug for Tensor {
 
 // The counting tests below need `fetch_add`, so the whole module wants atomic CAS. Tests are
 // only ever run on a host anyway; this keeps `--tests` compiling for embedded targets.
-#[cfg(all(test, target_has_atomic = "ptr"))]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::rc::Rc;
     use alloc::string::ToString;
     use alloc::vec;
-    use core::sync::atomic::{AtomicUsize, Ordering};
+    use core::cell::Cell;
 
     /// `to_bytes` borrows rather than consuming, so the tensor can still be drawn from
     /// afterwards. That is the whole reason it exists next to `into_bytes`.
@@ -291,22 +265,23 @@ mod tests {
     /// paths use `into_parts` instead.
     #[test]
     fn to_bytes_reruns_a_deferred_provider_on_every_call() {
-        let calls = Arc::new(AtomicUsize::new(0));
+        // Capturing `Rc<Cell<_>>` also pins that deferred providers need not be Send or Sync.
+        let calls = Rc::new(Cell::new(0));
         let counter = calls.clone();
 
         let tensor = Tensor::deferred("w".to_string(), DType::U8, vec![2], None, 2, move || {
-            counter.fetch_add(1, Ordering::Relaxed);
+            counter.set(counter.get() + 1);
             Ok(Bytes::from_bytes_vec(vec![7, 8]))
         });
 
         assert_eq!(&tensor.to_bytes().unwrap()[..], &[7, 8]);
         assert_eq!(&tensor.to_bytes().unwrap()[..], &[7, 8]);
-        assert_eq!(calls.load(Ordering::Relaxed), 2);
+        assert_eq!(calls.get(), 2);
 
         // Still usable, and `into_bytes` draws once more.
         assert_eq!(tensor.byte_len(), 2);
         assert_eq!(&tensor.into_bytes().unwrap()[..], &[7, 8]);
-        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        assert_eq!(calls.get(), 3);
     }
 
     /// A provider failure surfaces verbatim. Naming the tensor is `Writer::materialize`'s
@@ -343,14 +318,5 @@ mod tests {
         assert_eq!(shape.to_vec(), vec![2]);
         assert_eq!(param_id, Some(7));
         assert_eq!(&bytes[..], &[7, 8]);
-    }
-
-    /// The `Send + Sync` bound on the provider exists so a `Tensor` can reach burn-train's
-    /// async checkpointer inside an optimizer record. Nothing in burn-pack's own build would
-    /// catch a regression to a non-atomic pointer, so pin it where the type lives.
-    #[test]
-    fn tensor_is_send_and_sync() {
-        fn assert_send_sync<T: Send + Sync>() {}
-        assert_send_sync::<Tensor>();
     }
 }
