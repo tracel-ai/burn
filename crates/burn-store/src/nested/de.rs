@@ -51,9 +51,8 @@ impl<A: BurnModuleAdapter> Deserializer<A> {
             .ok_or_else(|| custom_err(format!("expected {expected}, found nothing")))?;
 
         let value_debug = format!("{value:?}");
-        extractor(value).ok_or_else(|| {
-            custom_err(format!("expected {expected} but got {value_debug}"))
-        })
+        extractor(value)
+            .ok_or_else(|| custom_err(format!("expected {expected} but got {value_debug}")))
     }
 }
 
@@ -681,18 +680,16 @@ where
 
     fn unit_variant(self) -> Result<(), Self::Error> {
         match self.value {
-            NestedValue::Map(value) if value.contains_key("DType") => {
-                match value.get("DType") {
-                    Some(NestedValue::String(variant)) => {
-                        if *variant == self.current_variant {
-                            Ok(())
-                        } else {
-                            Err(Error::Other("Wrong variant".to_string()))
-                        }
+            NestedValue::Map(value) if value.contains_key("DType") => match value.get("DType") {
+                Some(NestedValue::String(variant)) => {
+                    if *variant == self.current_variant {
+                        Ok(())
+                    } else {
+                        Err(Error::Other("Wrong variant".to_string()))
                     }
-                    _ => Err(custom_err("expected DType variant as string")),
                 }
-            }
+                _ => Err(custom_err("expected DType variant as string")),
+            },
             _ => unimplemented!(
                 "unit variant is not implemented because it is not used in the burn module"
             ),
