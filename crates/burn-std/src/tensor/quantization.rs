@@ -112,11 +112,6 @@ pub struct QParamTensor {
 /// chosen rather than at the first quantize. Each condition is asserted again where it is relied
 /// on, so bypassing this reports the specific rule rather than this general one.
 pub fn quantizable(scheme: &QuantScheme) -> bool {
-    // Quantizing divides by the scale it will store, which needs the round-up rule.
-    if scheme.scale_dtype().round_up(1.0).is_none() {
-        return false;
-    }
-
     match (scheme.block_scale(), global_scale_dtype(scheme)) {
         (Some(block), Some(global)) => {
             // The per-tensor scale is the largest block scale over the block dtype's maximum, so a
@@ -363,9 +358,7 @@ impl QuantizedBytes {
 /// cover. Rounding down puts that value past the end of the quantized range, where it clips, which
 /// measured several times worse than the coarser step rounding up costs.
 pub fn scale_to_dtype(scale: f32, dtype: ScaleDtype) -> f32 {
-    dtype
-        .round_up(scale)
-        .expect("every scale dtype has a round-up rule")
+    dtype.round_up(scale)
 }
 
 /// Bytes taken by the per-tensor scale, zero for a scheme that does not carry one over blocks.

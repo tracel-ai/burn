@@ -4,7 +4,7 @@ use cubecl::{
     ir::ElemType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::convolution::AcceleratedTileKind;
+use cubek::convolution::{AcceleratedTileKind, DepthwiseStrategy, DepthwiseTiling};
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId,
@@ -14,7 +14,6 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use cubek::convolution::DepthwiseTiling;
 
 /// The tilings the depthwise routine is offered under, beside the one it picks for itself.
 ///
@@ -22,43 +21,30 @@ use cubek::convolution::DepthwiseTiling;
 /// these four are what closes the gap between the routine's own rule (16.6 ms of depthwise
 /// convolution at batch 4) and picking the best tiling per shape (15.7 ms). Adding more moves it
 /// by under 1%, and every one of them costs a dense convolution a setup call that declines.
-const DEPTHWISE_8X4_LINED: DepthwiseTiling = DepthwiseTiling {
+const DEPTHWISE_8X4_LINED: DepthwiseStrategy = DepthwiseStrategy::Fixed(DepthwiseTiling {
     rows: 8,
     cols: 4,
     chans: 1,
     lines: 2,
-};
-const DEPTHWISE_2X4_SCALAR: DepthwiseTiling = DepthwiseTiling {
+});
+const DEPTHWISE_2X4_SCALAR: DepthwiseStrategy = DepthwiseStrategy::Fixed(DepthwiseTiling {
     rows: 2,
     cols: 4,
     chans: 1,
     lines: 1,
-};
-const DEPTHWISE_8X2_LINED: DepthwiseTiling = DepthwiseTiling {
+});
+const DEPTHWISE_8X2_LINED: DepthwiseStrategy = DepthwiseStrategy::Fixed(DepthwiseTiling {
     rows: 8,
     cols: 2,
     chans: 1,
     lines: 2,
-};
-const DEPTHWISE_4X2_SCALAR: DepthwiseTiling = DepthwiseTiling {
+});
+const DEPTHWISE_4X2_SCALAR: DepthwiseStrategy = DepthwiseStrategy::Fixed(DepthwiseTiling {
     rows: 4,
     cols: 2,
     chans: 1,
     lines: 1,
-};
-
-/// What the routine picks for itself, off the shape it is handed.
-fn depthwise_default<R: CubeRuntime, const N: usize>(
-    input: &CubeTensor<R>,
-    weight: &CubeTensor<R>,
-) -> DepthwiseTiling {
-    let rank = input.meta.shape().num_dims();
-    let channels = input.meta.shape()[rank - 1];
-    let taps: usize = weight.meta.shape()[1..rank - 1].iter().product();
-    let lanes = input.client.properties().hardware.plane_size_max as usize;
-
-    DepthwiseTiling::for_problem(channels, taps, lanes)
-}
+});
 
 /// Executes autotune on convolution operations
 pub fn conv_autotune<R: CubeRuntime, const N: usize>(
@@ -88,8 +74,7 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
             .with(Tunable::new(
                 "conv_depthwise",
                 |(input, weight, bias, options)| {
-                    let tiling = depthwise_default::<R, N>(&input, &weight);
-                    conv_depthwise::<R, N>(input, weight, bias, options, tiling)
+                    conv_depthwise::<R, N>(input, weight, bias, options, DepthwiseStrategy::Routine)
                 },
             ))
             .with(Tunable::new(
