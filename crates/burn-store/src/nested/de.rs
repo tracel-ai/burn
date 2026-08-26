@@ -1010,8 +1010,59 @@ mod tests {
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize, PartialEq)]
+    struct AllScalars {
+        b: bool,
+        i16_val: i16,
+        i32_val: i32,
+        i64_val: i64,
+        u8_val: u8,
+        u16_val: u16,
+        u64_val: u64,
+        f32_val: f32,
+        f64_val: f64,
+        s: String,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
     struct Config {
         hidden_size: i32,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Newtype(i32);
+
+    #[test]
+    fn should_deserialize_all_scalars_correctly() {
+        let mut map = HashMap::new();
+        map.insert("b".to_string(), NestedValue::Bool(true));
+        map.insert("i16_val".to_string(), NestedValue::I16(16));
+        map.insert("i32_val".to_string(), NestedValue::I32(32));
+        map.insert("i64_val".to_string(), NestedValue::I64(64));
+        map.insert("u8_val".to_string(), NestedValue::U8(8));
+        map.insert("u16_val".to_string(), NestedValue::U16(16));
+        map.insert("u64_val".to_string(), NestedValue::U64(64));
+        map.insert("f32_val".to_string(), NestedValue::F32(1.25));
+        map.insert("f64_val".to_string(), NestedValue::F64(2.5));
+        map.insert("s".to_string(), NestedValue::String("burn".to_string()));
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let config = AllScalars::deserialize(de).unwrap();
+
+        assert_eq!(
+            config,
+            AllScalars {
+                b: true,
+                i16_val: 16,
+                i32_val: 32,
+                i64_val: 64,
+                u8_val: 8,
+                u16_val: 16,
+                u64_val: 64,
+                f32_val: 1.25,
+                f64_val: 2.5,
+                s: "burn".to_string(),
+            }
+        );
     }
 
     #[test]
@@ -1034,6 +1085,24 @@ mod tests {
         let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
         let result = Config::deserialize(de);
 
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_deserialize_newtype_struct() {
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(42), false);
+        let result = Newtype::deserialize(de).unwrap();
+        assert_eq!(result, Newtype(42));
+    }
+
+    #[test]
+    fn should_return_err_on_invalid_seq() {
+        #[derive(Debug, Deserialize)]
+        #[allow(dead_code)]
+        struct SeqHolder(Vec<i32>);
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(42), false);
+        let result = SeqHolder::deserialize(de);
         assert!(result.is_err());
     }
 }
