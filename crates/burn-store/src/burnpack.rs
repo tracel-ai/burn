@@ -10,6 +10,8 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_core::tensor::Bytes;
+#[cfg(feature = "std")]
+use burn_pack::EXTENSION;
 use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
 
 /// Store mode for BurnpackStore
@@ -326,9 +328,9 @@ impl BurnpackStore {
             return path.to_path_buf();
         }
 
-        // No extension, append .bpk
+        // No extension, append the canonical burnpack extension.
         let mut new_path = path.to_path_buf();
-        new_path.set_extension("bpk");
+        new_path.set_extension(EXTENSION);
         new_path
     }
 
@@ -339,7 +341,9 @@ impl BurnpackStore {
                 #[cfg(feature = "std")]
                 StoreMode::File(path) => {
                     let final_path = self.process_path(path);
-                    Reader::from_file(&final_path)?
+                    // The store has already applied its own extension policy. Loading the exact
+                    // resolved path prevents `auto_extension(false)` from falling back to `.bpk`.
+                    Reader::from_file_exact(&final_path)?
                 }
                 StoreMode::Bytes(Some(bytes)) => Reader::from_bytes(bytes.clone())?,
                 StoreMode::Bytes(None) => {
@@ -393,7 +397,11 @@ impl ModuleStore for BurnpackStore {
                 }
                 // Atomic: tensors materialize mid-write, so a device readback that
                 // fails partway must not truncate whatever was already at this path.
-                writer.write_to_file_atomic(&final_path)?;
+                // The store already applied its own auto-extension policy above. Disable
+                // the writer's default so an explicitly extensionless path stays exact.
+                writer
+                    .auto_extension(false)
+                    .write_to_file_atomic(&final_path)?;
             }
             StoreMode::Bytes(_) => {
                 // Generate and store the bytes

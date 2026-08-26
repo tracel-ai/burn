@@ -240,6 +240,25 @@ fn a_plan_time_rejection_creates_no_file() {
     );
 }
 
+#[test]
+fn an_atomic_write_can_preserve_an_extensionless_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model");
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .auto_extension(false)
+        .write_to_file_atomic(&dest)
+        .unwrap();
+
+    assert!(dest.exists(), "the exact requested path should exist");
+    assert!(
+        !dir.path().join("model.bpk").exists(),
+        "disabling auto-extension must not create a second path"
+    );
+    assert!(Reader::from_file_exact(&dest).is_ok());
+}
+
 /// A deferred provider runs during the write, so its failure has to leave the destination as
 /// it was rather than truncated. Failing on the *last* tensor means the earlier ones were
 /// already streamed out, which is exactly the case a plain `File::create` would corrupt.
