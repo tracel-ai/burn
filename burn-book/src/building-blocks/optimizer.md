@@ -1,8 +1,8 @@
 # Optimizer
 
 Optimizers update a module's trainable parameters from their gradients. Burn provides common
-optimizers such as SGD, Adam, AdamW, AdaGrad, RMSProp, Adan, and Muon in `burn-optim`, re-exported
-under `burn::optim`.
+optimizers such as SGD, Adam, AdamW, AdaGrad, RMSProp, Adan, LAMB, and Muon in `burn-optim`,
+re-exported under `burn::optim`.
 
 Most applications interact with a [`ModuleOptimizer`](#moduleoptimizer). Create one from an
 optimizer configuration, then pass it to a `Learner` or call `step` in a custom training loop:
