@@ -44,7 +44,7 @@ pub(crate) fn svd_host_data(
     }
 
     if data.dtype == DType::F64 {
-        let a = data.into_vec::<f64>().unwrap();
+        let a = data.try_into_vec::<f64>().unwrap();
         let (u, s, vt) = svd_host::<f64>(&a, m, n, batch, sweeps, swap);
         (
             TensorData::new(u, du),
@@ -52,7 +52,7 @@ pub(crate) fn svd_host_data(
             TensorData::new(vt, dv),
         )
     } else {
-        let a = data.into_vec::<f32>().unwrap();
+        let a = data.try_into_vec::<f32>().unwrap();
         let (u, s, vt) = svd_host::<f32>(&a, m, n, batch, sweeps, swap);
         (
             TensorData::new(u, du),
@@ -69,7 +69,7 @@ pub(crate) fn svd_host_data(
 /// a batch are independent, so each thread works on its own slice and the
 /// results are concatenated in batch order (deterministic, same output).
 /// No-std builds fall back to the single-threaded loop.
-fn svd_host<F: Float + Copy + Send + Sync>(
+fn svd_host<F: Float + Copy + Send + Sync + core::ops::AddAssign + core::ops::SubAssign>(
     a: &[F],
     m: usize,
     n: usize,
@@ -162,7 +162,7 @@ fn svd_host<F: Float + Copy + Send + Sync>(
 }
 
 /// Single-threaded per-batch pipeline (shared by the parallel wrapper).
-fn svd_host_seq<F: Float + Copy>(
+fn svd_host_seq<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
     a: &[F],
     m: usize,
     n: usize,
@@ -192,7 +192,7 @@ fn svd_host_seq<F: Float + Copy>(
                 let mut s = F::zero();
                 for &t in ab.iter() {
                     let u = t / scale;
-                    s = s + u * u;
+                    s += u * u;
                 }
                 scale * s.sqrt()
             };
@@ -474,11 +474,56 @@ fn blk_sum<F: Float + Copy>(a: &[F], w: &[F], lo: usize, hi: usize) -> F {
     r
 }
 
+/// Scaled norm sqrt(sum x^2) over `len` entries produced by `x`, computed
+/// through a max-rescale so extreme inputs (|x| up to f32::MAX, down to
+/// subnormals) can neither overflow nor underflow, like the LAPACK dlarfg
+/// norm.
+#[inline]
+fn scaled_norm<F: Float + Copy + core::ops::AddAssign>(
+    mut x: impl FnMut(usize) -> F,
+    len: usize,
+) -> F {
+    let mut scale = F::zero();
+    for k in 0..len {
+        scale = scale.max(x(k).abs());
+    }
+    if scale == F::zero() {
+        return F::zero();
+    }
+    let mut s = F::zero();
+    for k in 0..len {
+        let t = x(k) / scale;
+        s += t * t;
+    }
+    scale * s.sqrt()
+}
+
+/// Pivot of a Householder reflection that maps the vector whose leading
+/// entry is `x0` and whose norm is `norm` onto `-sign(x0) * norm * e0`
+/// (LAPACK dlarfg convention): returns `(u0, tau)` where `u0` is the pivot
+/// denominator and `tau` scales the rank-1 update. `tau == 0` encodes an
+/// already-annihilated vector.
+fn house_pivot<F: Float>(x0: F, norm: F) -> (F, F) {
+    // sign = -(sign(x0)), with zero mapping to -1 (mask_fill in the tensor version).
+    let sign = if x0 >= F::zero() { -F::one() } else { F::one() };
+    let u0 = x0 - norm * sign;
+    let tau = if norm == F::zero() {
+        F::zero()
+    } else {
+        -u0 / (norm * sign)
+    };
+    (u0, tau)
+}
+
 /// Golub-Kahan bidiagonalization on the host: `A = U1 B V1^T` with `B` upper
 /// bidiagonal (row-major `[m, n]`), using Householder reflections on
 /// shrinking submatrices, mirroring the tensor-op version operation for
 /// operation.
-fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>, Vec<F>) {
+fn bidiag_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
+    a: &[F],
+    m: usize,
+    n: usize,
+) -> (Vec<F>, Vec<F>, Vec<F>) {
     // V1 kept in transposed layout (v1t[j*n+i] = V1[i,j]): the reflection
     // sweeps below then run over contiguous rows, and svd_host_seq consumes
     // the transposed factor directly (no extra transposition pass).
@@ -501,35 +546,9 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
 
     for i in 0..n {
         // Left reflection: annihilate the subdiagonal of column i.
-        // Scaled norm (like LAPACK dlarfg): sqrt(sum x^2) without overflow or
-        // underflow for extreme scales (|x| up to f32::MAX, down to subnormals).
-        let mut scale = F::zero();
-        for k in i..m {
-            let t = a[k * n + i].abs();
-            if t > scale {
-                scale = t;
-            }
-        }
-        let norm = if scale == F::zero() {
-            F::zero()
-        } else {
-            let mut s = F::zero();
-            for k in i..m {
-                let t = a[k * n + i] / scale;
-                s = s + t * t;
-            }
-            scale * s.sqrt()
-        };
-        let x0 = a[i * n + i];
-        // sign = -(sign(x0)), with zero mapping to -1 (mask_fill in the tensor version).
-        let sign = if x0 >= F::zero() { -F::one() } else { F::one() };
-        let u0 = x0 - norm * sign;
-        let tau = if norm == F::zero() {
-            F::zero()
-        } else {
-            -u0 / (norm * sign)
-        };
-        if norm != F::zero() {
+        let norm = scaled_norm(|k| a[(i + k) * n + i], m - i);
+        let (u0, tau) = house_pivot(a[i * n + i], norm);
+        if tau != F::zero() {
             w[i] = F::one();
             for k in (i + 1)..m {
                 w[k] = a[k * n + i] / u0;
@@ -542,14 +561,13 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
             for k in i..m {
                 let wk = w[k];
                 for j in i..n {
-                    wta[j] = wta[j] + wk * a[k * n + j];
+                    wta[j] += wk * a[k * n + j];
                 }
             }
-            let t = tau;
             for k in i..m {
-                let wk = w[k] * t;
+                let wk = w[k] * tau;
                 for j in i..n {
-                    a[k * n + j] = a[k * n + j] - wk * wta[j];
+                    a[k * n + j] -= wk * wta[j];
                 }
             }
             for (k, &wk) in w.iter().enumerate().take(m) {
@@ -559,33 +577,10 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
         }
 
         // Right reflection: annihilate row i right of the superdiagonal.
-        if i + 1 < n - 1 {
-            let mut scale = F::zero();
-            for j in (i + 1)..n {
-                let t = a[i * n + j].abs();
-                if t > scale {
-                    scale = t;
-                }
-            }
-            let norm = if scale == F::zero() {
-                F::zero()
-            } else {
-                let mut s = F::zero();
-                for j in (i + 1)..n {
-                    let t = a[i * n + j] / scale;
-                    s = s + t * t;
-                }
-                scale * s.sqrt()
-            };
-            let y0 = a[i * n + i + 1];
-            let sign = if y0 >= F::zero() { -F::one() } else { F::one() };
-            let u0 = y0 - norm * sign;
-            let tau = if norm == F::zero() {
-                F::zero()
-            } else {
-                -u0 / (norm * sign)
-            };
-            if norm != F::zero() {
+        if i + 2 < n {
+            let norm = scaled_norm(|j| a[i * n + i + 1 + j], n - i - 1);
+            let (u0, tau) = house_pivot(a[i * n + i + 1], norm);
+            if tau != F::zero() {
                 w[i + 1] = F::one();
                 for j in (i + 2)..n {
                     w[j] = a[i * n + j] / u0;
@@ -595,11 +590,10 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
                 for k in i..m {
                     aw[k] = blk_sum(&a[k * n..], &w, i + 1, n);
                 }
-                let t = tau;
                 for k in i..m {
-                    let awk = aw[k] * t;
+                    let awk = aw[k] * tau;
                     for j in (i + 1)..n {
-                        a[k * n + j] = a[k * n + j] - awk * w[j];
+                        a[k * n + j] -= awk * w[j];
                     }
                 }
                 // V1 = V1 (I - tau w w^T) on the transposed factor: v1t[j, i2]
@@ -610,13 +604,13 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
                 for (j, &wj) in w[i + 1..n].iter().enumerate() {
                     let row = (i + 1 + j) * n;
                     for i2 in 0..n {
-                        vw[i2] = vw[i2] + v1[row + i2] * wj;
+                        vw[i2] += v1[row + i2] * wj;
                     }
                 }
                 for (j, &wj) in w[i + 1..n].iter().enumerate() {
                     let row = (i + 1 + j) * n;
                     for i2 in 0..n {
-                        v1[row + i2] = v1[row + i2] - tau * wj * vw[i2];
+                        v1[row + i2] -= tau * wj * vw[i2];
                     }
                 }
                 vw.fill(F::zero());
@@ -636,14 +630,14 @@ fn bidiag_host<F: Float + Copy>(a: &[F], m: usize, n: usize) -> (Vec<F>, Vec<F>,
             for k in i..m {
                 let wk = ws[i * m + k];
                 for j in 0..n {
-                    uw[j] = uw[j] + wk * u1[k * n + j];
+                    uw[j] += wk * u1[k * n + j];
                 }
             }
             let t = tau;
             for k in i..m {
                 let wk = ws[i * m + k] * t;
                 for j in 0..n {
-                    u1[k * n + j] = u1[k * n + j] - wk * uw[j];
+                    u1[k * n + j] -= wk * uw[j];
                 }
             }
         }
@@ -943,32 +937,12 @@ mod tests {
             }
         }
         let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
-        let mut err = 0.0f64;
-        for i in 0..m {
-            for j in 0..n {
-                let mut acc = 0.0f64;
-                for k in 0..n {
-                    acc += u[i * n + k] * s[k] * vt[k * n + j];
-                }
-                err = err.max((a[i * n + j] - acc).abs());
-            }
-        }
-        assert!(err < 1e-9, "tall recon err {err}");
+        assert!(recon_err::<f64>(&u, &s, &vt, &a, m, n) < 1e-9);
 
         // same matrix in f32
         let af: Vec<f32> = a.iter().map(|x| *x as f32).collect();
         let (u, s, vt) = svd_host::<f32>(&af, m, n, 1, 30, false);
-        let mut err = 0.0f32;
-        for i in 0..m {
-            for j in 0..n {
-                let mut acc = 0.0f32;
-                for k in 0..n {
-                    acc += u[i * n + k] * s[k] * vt[k * n + j];
-                }
-                err = err.max((af[i * n + j] - acc).abs());
-            }
-        }
-        assert!(err < 1e-3, "tall f32 recon err {err}");
+        assert!(recon_err::<f32>(&u, &s, &vt, &af, m, n) < 1e-3);
     }
 
     #[test]
@@ -1013,17 +987,7 @@ mod tests {
         // B = [[2,1],[0,1]]: exact 2x2 closed-form path
         let a = [2.0f64, 1.0, 0.0, 1.0];
         let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
-        let mut err = 0.0f64;
-        for i in 0..2 {
-            for j in 0..2 {
-                let mut acc = 0.0f64;
-                for k in 0..2 {
-                    acc += u[i * 2 + k] * s[k] * vt[k * 2 + j];
-                }
-                err = err.max((a[i * 2 + j] - acc).abs());
-            }
-        }
-        assert!(err < 1e-12, "2x2 recon {err}");
+        assert!(recon_err::<f64>(&u, &s, &vt, &a, 2, 2) < 1e-12);
 
         // Negative determinant: the right factor must still reconstruct A.
         // (A regression test: a previous "handedness fix" negated Vt row 1
@@ -1034,17 +998,7 @@ mod tests {
             [-3.0f64, 1.0, 2.0, -1.0],
         ] {
             let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
-            let mut err = 0.0f64;
-            for i in 0..2 {
-                for j in 0..2 {
-                    let mut acc = 0.0f64;
-                    for k in 0..2 {
-                        acc += u[i * 2 + k] * s[k] * vt[k * 2 + j];
-                    }
-                    err = err.max((a[i * 2 + j] - acc).abs());
-                }
-            }
-            assert!(err < 1e-12, "neg-det 2x2 recon {err} for {a:?}");
+            assert!(recon_err::<f64>(&u, &s, &vt, &a, 2, 2) < 1e-12);
         }
     }
 
@@ -1064,28 +1018,18 @@ mod tests {
             let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
             assert_eq!(s[1], 0.0, "masked sigma for {a:?}");
             // Vt rows orthonormal: Vt Vt^T = I.
-            let mut ortho = 0.0f64;
-            for i in 0..2 {
-                for j in 0..2 {
-                    let mut acc = 0.0f64;
-                    for k in 0..2 {
-                        acc += vt[i * 2 + k] * vt[j * 2 + k];
-                    }
-                    ortho = ortho.max((acc - if i == j { 1.0 } else { 0.0 }).abs());
-                }
-            }
+            let ortho = (0..2)
+                .map(|i| {
+                    (0..2)
+                        .map(|j| {
+                            let dot = (0..2).map(|k| vt[i * 2 + k] * vt[j * 2 + k]).sum::<f64>();
+                            (dot - if i == j { 1.0 } else { 0.0 }).abs()
+                        })
+                        .fold(0.0f64, f64::max)
+                })
+                .fold(0.0f64, f64::max);
             assert!(ortho < 1e-12, "Vt orthonormal for {a:?}, err {ortho}");
-            let mut err = 0.0f64;
-            for i in 0..2 {
-                for j in 0..2 {
-                    let mut acc = 0.0f64;
-                    for k in 0..2 {
-                        acc += u[i * 2 + k] * s[k] * vt[k * 2 + j];
-                    }
-                    err = err.max((a[i * 2 + j] - acc).abs());
-                }
-            }
-            assert!(err < 1e-12, "rank-def 2x2 recon {err} for {a:?}");
+            assert!(recon_err::<f64>(&u, &s, &vt, &a, 2, 2) < 1e-12);
         }
     }
 
