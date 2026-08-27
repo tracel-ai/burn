@@ -182,7 +182,9 @@ impl IrVisitorMut for BindingVisitor<'_> {
 mod tests {
     use super::*;
     use burn_backend::{DType, Shape, Slice};
-    use burn_ir::{BaseOperationIr, CustomOpIr, ScalarIr, SliceOpIr, TensorStatus};
+    use burn_ir::{
+        BaseOperationIr, CustomOpIr, PadModeIr, PadOpIr, ScalarIr, SliceOpIr, TensorStatus,
+    };
 
     fn tensor(id: u64, shape: [usize; 2]) -> TensorIr {
         TensorIr {
@@ -283,5 +285,38 @@ mod tests {
         };
         assert_eq!(first_head.outputs[0].id, first_tail.inputs[0].id);
         assert_ne!(first_head.outputs[0].id, second_head.outputs[0].id);
+    }
+
+    #[test]
+    fn bind_resolves_pad_constant_scalar() {
+        let relative_input = tensor(0, [0, 1]);
+        let relative_output = tensor(1, [2, 3]);
+        let graph = Graph::new(vec![OperationIr::BaseFloat(BaseOperationIr::Pad(
+            PadOpIr {
+                input: relative_input.clone(),
+                out: relative_output.clone(),
+                padding: vec![(1, 0), (0, 2)],
+                mode: PadModeIr::Constant(ScalarIr::UInt(0)),
+            },
+        ))]);
+
+        let bound = graph.bind(GraphBindings {
+            tensors: vec![
+                (relative_input.id, TensorId::new(100)),
+                (relative_output.id, TensorId::new(101)),
+            ],
+            shapes: vec![2, 3, 3, 5],
+            scalars: vec![ScalarIr::Float(6.5)],
+            ranges: vec![],
+        });
+
+        let OperationIr::BaseFloat(BaseOperationIr::Pad(desc)) = &bound.operations[0] else {
+            panic!("expected bound pad operation");
+        };
+        assert_eq!(desc.input.id, TensorId::new(100));
+        assert_eq!(desc.out.id, TensorId::new(101));
+        assert_eq!(desc.input.shape, Shape::new([2, 3]));
+        assert_eq!(desc.out.shape, Shape::new([3, 5]));
+        assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::Float(6.5)));
     }
 }

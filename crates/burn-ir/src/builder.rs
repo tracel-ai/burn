@@ -112,6 +112,37 @@ impl ShapeOpIr {
     }
 }
 
+impl PadOpIr {
+    pub fn create(
+        input: TensorIr,
+        padding: Vec<(usize, usize)>,
+        mode: PadModeIr,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        assert_eq!(
+            input.shape.rank(),
+            padding.len(),
+            "padding must have one pair per dimension"
+        );
+        let shape = Shape::from(
+            input
+                .shape
+                .iter()
+                .zip(padding.iter())
+                .map(|(size, (before, after))| size + before + after)
+                .collect::<Vec<_>>(),
+        );
+        let out = TensorIr::uninit(new_id(), shape, input.dtype);
+
+        Self {
+            input,
+            out,
+            padding,
+            mode,
+        }
+    }
+}
+
 // "Lower" specific operations into a binary or unary op representation.
 // Useful when collecting inputs and outputs and don't care about the other semantics.
 impl From<MatmulOpIr> for BinaryOpIr {

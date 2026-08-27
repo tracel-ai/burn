@@ -11,7 +11,7 @@ use burn_backend::{
     DType, Distribution, Slice,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
-        GridSamplePaddingMode, InterpolateMode, InterpolateOptions,
+        GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
     },
     quantization::QuantScheme,
 };
@@ -513,6 +513,11 @@ pub enum BaseOperationIr {
     AllDim(ReduceDimOpIr),
     /// Reduce-`any` along a dim.
     AnyDim(ReduceDimOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [pad](burn_backend::ops::FloatTensorOps::float_pad).
+    /// Int => [pad](burn_backend::ops::IntTensorOps::int_pad).
+    Pad(PadOpIr),
 }
 
 /// Numeric operations on int and float tensors.
@@ -926,6 +931,50 @@ pub struct FlipOpIr {
     pub out: TensorIr,
     /// The dimensions to flip.
     pub axes: Vec<usize>,
+}
+
+/// Padding operation intermediate representation.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct PadOpIr {
+    /// Input tensor intermediate representation.
+    pub input: TensorIr,
+    /// Output tensor intermediate representation.
+    pub out: TensorIr,
+    /// One `(before, after)` padding pair per dimension.
+    pub padding: Vec<(usize, usize)>,
+    /// Padding mode.
+    pub mode: PadModeIr,
+}
+
+/// Serializable padding mode intermediate representation.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub enum PadModeIr {
+    /// Fill padded regions with a constant value.
+    Constant(ScalarIr),
+    /// Reflect values at the boundary, excluding the edge value.
+    Reflect,
+    /// Replicate boundary values.
+    Edge,
+}
+
+impl From<PadMode> for PadModeIr {
+    fn from(value: PadMode) -> Self {
+        match value {
+            PadMode::Constant(value) => Self::Constant(ScalarIr::Float(value as f64)),
+            PadMode::Reflect => Self::Reflect,
+            PadMode::Edge => Self::Edge,
+        }
+    }
+}
+
+impl From<PadModeIr> for PadMode {
+    fn from(value: PadModeIr) -> Self {
+        match value {
+            PadModeIr::Constant(value) => Self::Constant(value.elem()),
+            PadModeIr::Reflect => Self::Reflect,
+            PadModeIr::Edge => Self::Edge,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2280,6 +2329,7 @@ impl BaseOperationIr {
             BaseOperationIr::Permute(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Expand(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Flip(repr) => Box::new([&repr.input].into_iter()),
+            BaseOperationIr::Pad(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Slice(repr) => Box::new([&repr.tensor].into_iter()),
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.tensor, &repr.value].into_iter()),
             BaseOperationIr::Gather(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
@@ -2323,6 +2373,7 @@ impl BaseOperationIr {
             BaseOperationIr::Permute(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Expand(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Flip(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::Pad(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Slice(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Gather(repr) => Box::new([&repr.out].into_iter()),
@@ -2370,6 +2421,9 @@ impl BaseOperationIr {
             }
 
             BaseOperationIr::Flip(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::Pad(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Slice(repr) => {
@@ -2484,6 +2538,13 @@ impl BaseOperationIr {
             BaseOperationIr::Flip(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
                 v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Pad(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+                if let PadModeIr::Constant(value) = &mut repr.mode {
+                    v.visit_scalar_mut(value);
+                }
             }
             BaseOperationIr::Slice(repr) => {
                 v.visit_tensor_mut(&mut repr.tensor);
@@ -5250,5 +5311,37 @@ mod visit_mut_tests {
             .collect();
         assert_eq!(ids, vec![110, 111]);
         assert_eq!(visitor.scalars.len(), 0);
+    }
+
+    #[test]
+    fn pad_ir_tracks_shape_tensors_and_constant_value() {
+        let input = TensorIr::uninit(TensorId::new(1), Shape::from([2, 3]), DType::F32);
+        let desc = PadOpIr::create(
+            input,
+            vec![(1, 2), (3, 4)],
+            PadModeIr::Constant(ScalarIr::Float(5.0)),
+            || TensorId::new(2),
+        );
+        assert_eq!(desc.out.shape, Shape::from([5, 10]));
+
+        let mut op = OperationIr::BaseFloat(BaseOperationIr::Pad(desc));
+        let mut visitor = CollectVisitor {
+            rewrite_scalar: Some(ScalarIr::Float(7.0)),
+            ..Default::default()
+        };
+        op.visit_mut(&mut visitor);
+
+        let ids = op
+            .inputs()
+            .chain(op.outputs())
+            .map(|tensor| tensor.id.value())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec![101, 102]);
+        assert_eq!(visitor.scalars, vec![ScalarIr::Float(5.0)]);
+
+        let OperationIr::BaseFloat(BaseOperationIr::Pad(desc)) = op else {
+            panic!("expected pad operation");
+        };
+        assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::Float(7.0)));
     }
 }

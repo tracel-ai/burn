@@ -2,6 +2,7 @@ mod activation;
 mod bool_tensor;
 mod int_tensor;
 mod modules;
+mod pad;
 mod qtensor;
 mod tensor;
 mod transaction;
