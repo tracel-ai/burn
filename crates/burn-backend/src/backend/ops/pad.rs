@@ -21,6 +21,38 @@ fn slices(shape: &Shape, dim: usize, start: usize, len: usize) -> Vec<Slice> {
         .collect()
 }
 
+/// Validates padding arguments shared by backend implementations.
+#[doc(hidden)]
+pub fn validate_padding(shape: &Shape, padding: &[(usize, usize)], mode: PadMode) {
+    assert_eq!(
+        padding.len(),
+        shape.num_dims(),
+        "padding must have one pair per dimension"
+    );
+
+    match mode {
+        PadMode::Constant(_) => {}
+        PadMode::Reflect => {
+            for (dim, (before, after)) in padding.iter().copied().enumerate() {
+                assert!(
+                    before < shape[dim] && after < shape[dim],
+                    "Reflect padding must be less than dimension size"
+                );
+            }
+        }
+        PadMode::Edge => {
+            for (dim, (before, after)) in padding.iter().copied().enumerate() {
+                if before != 0 || after != 0 {
+                    assert!(
+                        shape[dim] != 0,
+                        "cannot apply edge padding to an empty dimension"
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn pad<B, T, Full, Zeros, SliceFn, SliceAssign, Flip, Repeat>(
     tensor: T,
@@ -43,13 +75,8 @@ where
     Flip: Fn(T, &[usize]) -> T,
     Repeat: Fn(T, usize, usize) -> T,
 {
-    assert_eq!(
-        padding.len(),
-        tensor.shape().num_dims(),
-        "padding must have one pair per dimension"
-    );
-
     let original_shape = tensor.shape();
+    validate_padding(&original_shape, padding, mode);
     match mode {
         PadMode::Constant(value) => {
             let mut output_dims = original_shape.to_vec();
@@ -68,20 +95,6 @@ where
             slice_assign(output, &center, tensor)
         }
         PadMode::Reflect | PadMode::Edge => {
-            for (dim, (before, after)) in padding.iter().copied().enumerate() {
-                if matches!(mode, PadMode::Reflect) {
-                    assert!(
-                        before < original_shape[dim] && after < original_shape[dim],
-                        "Reflect padding must be less than dimension size"
-                    );
-                } else if before != 0 || after != 0 {
-                    assert!(
-                        original_shape[dim] != 0,
-                        "cannot apply edge padding to an empty dimension"
-                    );
-                }
-            }
-
             let mut result = tensor;
             for (dim, (before, after)) in padding.iter().copied().enumerate() {
                 if before == 0 && after == 0 {

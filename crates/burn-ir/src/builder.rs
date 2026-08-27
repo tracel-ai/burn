@@ -119,11 +119,7 @@ impl PadOpIr {
         mode: PadModeIr,
         new_id: impl FnOnce() -> TensorId,
     ) -> Self {
-        assert_eq!(
-            input.shape.rank(),
-            padding.len(),
-            "padding must have one pair per dimension"
-        );
+        burn_backend::ops::validate_padding(&input.shape, &padding, mode.into());
         let shape = Shape::from(
             input
                 .shape

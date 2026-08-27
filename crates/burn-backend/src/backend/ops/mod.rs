@@ -16,6 +16,8 @@ pub use activation::*;
 pub use bool_tensor::*;
 pub use int_tensor::*;
 pub use modules::*;
+#[doc(hidden)]
+pub use pad::validate_padding;
 pub use qtensor::*;
 pub use tensor::*;
 pub use transaction::*;
