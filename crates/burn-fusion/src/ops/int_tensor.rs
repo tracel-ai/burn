@@ -9,13 +9,46 @@ use crate::{
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
-    ops::IntTensorOps,
+    ops::{IntTensorOps, PadMode},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
+    fn int_pad(
+        tensor: IntTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct PadOps<B: FusionBackend> {
+            desc: PadOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for PadOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = B::int_pad(tensor, &self.desc.padding, self.desc.mode.into());
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let client = tensor.client.clone();
+        let desc = PadOpIr::create(tensor.into_ir(), padding.into(), mode.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                StreamId::current(),
+                OperationIr::NumericInt(desc.out.dtype, NumericOperationIr::Pad(desc.clone())),
+                PadOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct EmptyOps<B: FusionBackend> {

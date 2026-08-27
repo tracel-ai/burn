@@ -4,7 +4,7 @@ use burn_backend::{
     ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
-use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, PadMode, Shape, Slice};
 
 use crate::{
     Device, Float,
@@ -387,6 +387,10 @@ impl BasicOps for Float {
 }
 
 impl Numeric for Float {
+    fn pad(tensor: BridgeTensor, padding: &[(usize, usize)], mode: PadMode) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_pad(tensor.into_float(), padding, mode))
+    }
+
     fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         q_bin_ops!(lhs, rhs, float_add, q_add)
     }
