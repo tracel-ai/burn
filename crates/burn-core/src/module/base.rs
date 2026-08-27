@@ -602,29 +602,29 @@ mod tests {
         let module = SimpleLinear::new(4, 4, &device);
 
         assert!(module.weight.is_require_grad());
-        assert!(module.weight.require_grad);
+        assert!(module.weight.is_active);
 
         let module = module.valid();
         assert!(!module.weight.is_require_grad());
-        assert!(module.weight.require_grad); // stateful
+        assert!(module.weight.is_active); // stateful
 
         // Without `HasAutodiffModule`, we would need to specify the module type as well, which would be annoying
         // let module: SimpleLinear<TestAutodiffBackend> = module.train();
         let module = module.train();
         assert!(module.weight.is_require_grad());
-        assert!(module.weight.require_grad); // stateful
+        assert!(module.weight.is_active); // stateful
 
         let module = module.no_grad();
         assert!(!module.weight.is_require_grad());
-        assert!(!module.weight.require_grad); // stateful
+        assert!(!module.weight.is_active); // stateful
 
         let module = module.valid();
         assert!(!module.weight.is_require_grad()); // always
-        assert!(!module.weight.require_grad); // stateful
+        assert!(!module.weight.is_active); // stateful
 
         let module = module.train();
         assert!(!module.weight.is_require_grad());
-        assert!(!module.weight.require_grad); // stateful
+        assert!(!module.weight.is_active); // stateful
     }
 
     /// `valid` on a module already on the inner backend returns it unchanged rather than
@@ -660,11 +660,11 @@ mod tests {
         let module = module.freeze_group(ParamGroup::from_path("weight"));
 
         assert!(!module.weight.is_require_grad());
-        assert!(!module.weight.require_grad);
+        assert!(!module.weight.is_active);
 
         let bias = module.bias.as_ref().unwrap();
         assert!(bias.is_require_grad());
-        assert!(bias.require_grad);
+        assert!(bias.is_active);
     }
 
     #[test]
@@ -679,8 +679,8 @@ mod tests {
         let module = module.unfreeze_group(ParamGroup::from_path("weight"));
 
         assert!(module.weight.is_require_grad());
-        assert!(module.weight.require_grad);
+        assert!(module.weight.is_active);
         assert!(!module.bias.as_ref().unwrap().is_require_grad());
-        assert!(!module.bias.as_ref().unwrap().require_grad);
+        assert!(!module.bias.as_ref().unwrap().is_active);
     }
 }

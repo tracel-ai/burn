@@ -1,5 +1,5 @@
 use super::reparameterization_dyn::{self, DynReparameterization};
-use super::{Param, ParamId, Parameter, Reparameterization};
+use super::{Param, ParamId, Parameter, ParameterValue, Reparameterization};
 use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
     ModuleVisitor,
@@ -8,6 +8,10 @@ use alloc::{boxed::Box, format, string::ToString, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
 
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
+    fn is_active(&self) -> bool {
+        Tensor::is_require_grad(self)
+    }
+
     fn materialize(self, reparameterization: &dyn DynReparameterization) -> Self {
         *reparameterization
             .materialize_dyn(Box::new(self))
@@ -15,20 +19,30 @@ impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
             .expect("Reparameterization should preserve tensor rank")
     }
 }
-impl<const D: usize> super::sealed::Sealed for Tensor<D, Int> {}
-impl<const D: usize> super::sealed::Sealed for Tensor<D, Bool> {}
+impl<const D: usize> super::sealed::Sealed for Tensor<D, Int> {
+    fn is_active(&self) -> bool {
+        false
+    }
+}
+impl<const D: usize> super::sealed::Sealed for Tensor<D, Bool> {
+    fn is_active(&self) -> bool {
+        false
+    }
+}
+
+impl<const D: usize> ParameterValue for Tensor<D, Float> {}
 
 impl<const D: usize> Parameter for Tensor<D, Float> {
-    fn device(&self) -> Device {
-        Tensor::device(self)
-    }
-
     fn is_require_grad(&self) -> bool {
         Tensor::is_require_grad(self)
     }
 
     fn set_require_grad(self, require_grad: bool) -> Self {
         Tensor::set_require_grad(self, require_grad)
+    }
+
+    fn device(&self) -> Device {
+        Tensor::device(self)
     }
 
     fn shape(&self) -> burn_std::Shape {
@@ -44,17 +58,19 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
     }
 }
 
-impl<const D: usize> Parameter for Tensor<D, Int> {
-    fn device(&self) -> Device {
-        Tensor::device(self)
-    }
+impl<const D: usize> ParameterValue for Tensor<D, Int> {}
 
+impl<const D: usize> Parameter for Tensor<D, Int> {
     fn is_require_grad(&self) -> bool {
         false
     }
 
     fn set_require_grad(self, _require_grad: bool) -> Self {
         self
+    }
+
+    fn device(&self) -> Device {
+        Tensor::device(self)
     }
 
     fn shape(&self) -> burn_std::Shape {
@@ -70,17 +86,19 @@ impl<const D: usize> Parameter for Tensor<D, Int> {
     }
 }
 
-impl<const D: usize> Parameter for Tensor<D, Bool> {
-    fn device(&self) -> Device {
-        Tensor::device(self)
-    }
+impl<const D: usize> ParameterValue for Tensor<D, Bool> {}
 
+impl<const D: usize> Parameter for Tensor<D, Bool> {
     fn is_require_grad(&self) -> bool {
         false
     }
 
     fn set_require_grad(self, _require_grad: bool) -> Self {
         self
+    }
+
+    fn device(&self) -> Device {
+        Tensor::device(self)
     }
 
     fn shape(&self) -> burn_std::Shape {
@@ -314,19 +332,19 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
     fn valid(&self) -> Self {
-        // Preserve initialized param `require_grad` state, but reset the inner value's.
+        // Preserve whether the parameter was active, but reset the inner value's gradient state.
         // `val()` folds any reparameterization into the base for inference.
-        let require_grad = self.require_grad;
+        let is_active = self.is_active;
         let mut param = Param::initialized(self.id, self.val().no_grad().set_require_grad(false));
-        param.require_grad = require_grad;
+        param.is_active = is_active;
         param
     }
 
     fn from_inner(mut module: Self) -> Self {
         // Keep the reparameterization structure and its parameters on the autodiff backend.
         let reparameterization = module.reparameterization.take();
-        // Reinstate the param's `require_grad` state
-        let tensor = Tensor::from_inner(module.val()).set_require_grad(module.require_grad);
+        // Reinstate the parameter's training state.
+        let tensor = Tensor::from_inner(module.val()).set_require_grad(module.is_active);
         let base = Param::initialized(module.id, tensor);
         match reparameterization {
             None => base,
@@ -369,28 +387,28 @@ mod tests {
 
         let param = Param::initialized(ParamId::new(), tensor);
         assert!(param.is_require_grad());
-        assert!(param.require_grad);
+        assert!(param.is_active);
 
         let param = param.valid();
         assert!(!param.is_require_grad());
-        assert!(param.require_grad); // stateful
+        assert!(param.is_active); // stateful
 
         // Without `HasAutodiffModule`, we would need to specify the param type as well, which would be annoying:
         // let param: Param<Tensor<TestAutodiffBackend, _>> = param.train();
         let param = param.train();
         assert!(param.is_require_grad());
-        assert!(param.require_grad); // stateful
+        assert!(param.is_active); // stateful
 
         let param = param.no_grad();
         assert!(!param.is_require_grad());
-        assert!(!param.require_grad); // stateful
+        assert!(!param.is_active); // stateful
 
         let param = param.valid();
         assert!(!param.is_require_grad()); // always
-        assert!(!param.require_grad); // stateful
+        assert!(!param.is_active); // stateful
 
         let param = param.train();
         assert!(!param.is_require_grad());
-        assert!(!param.require_grad); // stateful
+        assert!(!param.is_active); // stateful
     }
 }

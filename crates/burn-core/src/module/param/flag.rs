@@ -1,11 +1,11 @@
 use alloc::format;
 use core::fmt::{Display, Formatter, Result as FmtResult};
 
-use burn_tensor::{Device, Shape};
+use burn_tensor::Device;
 
 use crate::module::{
     AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor, Param, ParamId, Parameter,
+    ModuleVisitor, Param, ParamId, ParameterValue,
 };
 
 /// A boolean parameter value used for module-owned control state.
@@ -18,9 +18,14 @@ use crate::module::{
 /// # Records
 ///
 /// Flags are runtime configuration, not persisted model state. Module records omit their value,
-/// trainability and [`ParamId`]; loading a record preserves the destination module's flag exactly
-/// as configured. This mirrors tensor parameters, whose values and ids are recorded but whose
-/// `require_grad` configuration comes from the destination module.
+/// lifecycle state and [`ParamId`]; loading a record preserves the destination module's flag
+/// exactly as configured. This mirrors tensor parameters, whose values and ids are recorded but
+/// whose `require_grad` configuration comes from the destination module.
+///
+/// # Devices
+///
+/// Flags are host-side control state and do not reside on a compute device. Moving or forking a
+/// module preserves a flag unchanged, and flags do not contribute entries to [`Module::devices`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Flag(bool);
 
@@ -50,33 +55,13 @@ impl Display for Flag {
     }
 }
 
-impl super::sealed::Sealed for Flag {}
-
-// `Parameter` is currently tensor-oriented. These implementations let `Flag` use the common
-// `Param<T>` identity and traversal machinery until tensor-only capabilities move to a dedicated
-// trait. The `require_grad` sidecar temporarily stores whether the flag should be re-enabled after
-// an inference round trip; the device and shape implementations remain neutral placeholders.
-impl Parameter for Flag {
-    fn device(&self) -> Device {
-        Device::default()
-    }
-
-    fn is_require_grad(&self) -> bool {
+impl super::sealed::Sealed for Flag {
+    fn is_active(&self) -> bool {
         self.is_enabled()
     }
-
-    fn set_require_grad(self, require_grad: bool) -> Self {
-        self.with(require_grad)
-    }
-
-    fn shape(&self) -> Shape {
-        Shape::new([])
-    }
-
-    fn load_to_device(self, _device: &Device) -> Self {
-        self
-    }
 }
+
+impl ParameterValue for Flag {}
 
 impl Param<Flag> {
     /// Create an identified flag with a fresh parameter id.
@@ -118,14 +103,14 @@ impl Module for Param<Flag> {
 
 impl AutodiffModule for Param<Flag> {
     fn valid(&self) -> Self {
-        let enabled = self.require_grad;
+        let enabled = self.is_active;
         let mut flag = Self::initialized(self.id, Flag::new(false));
-        flag.require_grad = enabled;
+        flag.is_active = enabled;
         flag
     }
 
     fn from_inner(module: Self) -> Self {
-        let enabled = module.require_grad;
+        let enabled = module.is_active;
         Self::initialized(module.id, Flag::new(enabled))
     }
 }
@@ -168,5 +153,22 @@ mod tests {
         assert_eq!(flag.clone().with_value(false).id, id);
         assert_eq!(flag.valid().id, id);
         assert_eq!(Param::<Flag>::from_inner(flag).id, id);
+    }
+
+    #[test]
+    fn flags_are_device_independent() {
+        let flag = Param::<Flag>::from_bool(true);
+        let id = flag.id;
+        let device = Device::default();
+
+        let moved = flag.clone().to_device(&device);
+        assert!(moved.is_enabled());
+        assert_eq!(moved.id, id);
+        assert!(moved.devices().is_empty());
+
+        let forked = flag.fork(&device);
+        assert!(forked.is_enabled());
+        assert_eq!(forked.id, id);
+        assert!(forked.devices().is_empty());
     }
 }
