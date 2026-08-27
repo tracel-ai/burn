@@ -24,7 +24,7 @@ where
         epsilon: f64,
     ) -> FloatTensor<Self> {
         let hardware = &tensor.client.properties().hardware;
-        if tensor.dtype == DType::F64
+        if matches!(tensor.dtype, DType::BF16 | DType::F64)
             || hardware.max_cube_dim.0 < 256
             || hardware.max_units_per_cube < 256
         {
