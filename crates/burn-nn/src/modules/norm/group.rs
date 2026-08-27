@@ -150,12 +150,14 @@ pub(crate) fn group_norm<const D: usize>(
     epsilon: f64,
     affine: bool,
 ) -> Tensor<D> {
-    if (beta.is_none() || gamma.is_none()) && affine {
-        panic!("Affine is set to true, but gamma or beta is None");
+    if affine {
+        if beta.is_none() || gamma.is_none() {
+            panic!("Affine is set to true, but gamma or beta is None");
+        }
+        group_norm_op(input, gamma, beta, num_groups, epsilon)
+    } else {
+        group_norm_op(input, None, None, num_groups, epsilon)
     }
-
-    // The operation owns accumulation precision so specialized backends see native storage.
-    group_norm_op(input, gamma, beta, num_groups, epsilon)
 }
 
 #[cfg(test)]
@@ -219,6 +221,20 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn group_norm_affine_false_ignores_parameters() {
+        let device = Default::default();
+        let input =
+            Tensor::<3>::from_data([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]], &device);
+        let gamma = Tensor::<1>::full([4], 2.0, &device);
+        let beta = Tensor::<1>::full([4], 1.0, &device);
+
+        let output = group_norm(input.clone(), Some(gamma), Some(beta), 2, 1e-5, false);
+        let expected = group_norm(input, None, None, 2, 1e-5, false);
+
+        output.to_data().assert_eq(&expected.to_data(), false);
     }
 
     #[test]

@@ -108,9 +108,69 @@ pub fn group_norm_fallback<B: Backend>(
     assert!(rank >= 3, "group_norm: input rank must be at least 3");
     assert!(num_groups > 0, "group_norm: num_groups must be positive");
 
+    let num_channels = shape[1];
+    if let Some(gamma) = &gamma {
+        assert_eq!(
+            gamma.shape(),
+            Shape::new([num_channels]),
+            "group_norm: gamma must have shape [num_channels]"
+        );
+        assert_eq!(
+            gamma.dtype(),
+            tensor.dtype(),
+            "group_norm: gamma must have the same dtype as the input"
+        );
+        assert_eq!(
+            gamma.device(),
+            tensor.device(),
+            "group_norm: gamma must be on the same device as the input"
+        );
+    }
+    if let Some(beta) = &beta {
+        assert_eq!(
+            beta.shape(),
+            Shape::new([num_channels]),
+            "group_norm: beta must have shape [num_channels]"
+        );
+        assert_eq!(
+            beta.dtype(),
+            tensor.dtype(),
+            "group_norm: beta must have the same dtype as the input"
+        );
+        assert_eq!(
+            beta.device(),
+            tensor.device(),
+            "group_norm: beta must be on the same device as the input"
+        );
+    }
+
+    let batch_size = shape[0];
+    assert_eq!(
+        num_channels % num_groups,
+        0,
+        "group_norm: number of channels must be divisible by number of groups"
+    );
+
     // Materialize strided views before folding channels and spatial dimensions together.
-    let tensor_zeros = B::float_zeros(shape.clone(), &tensor.device(), tensor.dtype().into());
-    tensor = B::float_add(tensor_zeros, tensor);
+    let device = tensor.device();
+    if shape.num_elements() == 0 {
+        let tensor_zeros = B::float_zeros(shape.clone(), &device, tensor.dtype().into());
+        let mut output = B::float_add(tensor_zeros, tensor);
+        let mut broadcast_dims = alloc::vec![1; rank];
+        broadcast_dims[1] = num_channels;
+        if let Some(gamma) = gamma {
+            output = B::float_mul(
+                output,
+                B::float_reshape(gamma, Shape::from(broadcast_dims.clone())),
+            );
+        }
+        if let Some(beta) = beta {
+            output = B::float_add(output, B::float_reshape(beta, Shape::from(broadcast_dims)));
+        }
+        return output;
+    }
+    let channel_indices = B::int_arange(0..num_channels as i64, &device, IntDType::I64);
+    tensor = B::float_select(tensor, 1, channel_indices);
 
     let widened = tensor.dtype() == DType::F16;
     if widened {
@@ -118,14 +178,6 @@ pub fn group_norm_fallback<B: Backend>(
         gamma = gamma.map(|gamma| B::float_cast(gamma, FloatDType::F32));
         beta = beta.map(|beta| B::float_cast(beta, FloatDType::F32));
     }
-
-    let batch_size = shape[0];
-    let num_channels = shape[1];
-    assert_eq!(
-        num_channels % num_groups,
-        0,
-        "group_norm: number of channels must be divisible by number of groups"
-    );
 
     let hidden_size = shape[2..].iter().product::<usize>() * num_channels / num_groups;
     let tensor = B::float_reshape(tensor, Shape::new([batch_size, num_groups, hidden_size]));

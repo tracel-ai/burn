@@ -188,6 +188,48 @@ fn test_group_norm_rank_four_and_multiple_batches() {
     );
 }
 
+#[test]
+fn test_group_norm_empty_inputs() {
+    let device = Default::default();
+
+    for shape in [[0, 4, 3], [1, 0, 3], [1, 4, 0]] {
+        let input = TestTensor::<3>::empty(shape, &device);
+        let gamma = TestTensor::<1>::empty([shape[1]], &device);
+        let beta = TestTensor::<1>::empty([shape[1]], &device);
+        let output = group_norm(input, Some(gamma), Some(beta), 2, 1e-5);
+
+        assert_eq!(output.dims(), shape);
+    }
+}
+
+#[test]
+#[should_panic(expected = "group_norm: gamma must have shape [num_channels]")]
+fn test_group_norm_rejects_invalid_gamma_shape() {
+    let input = TestTensor::<3>::zeros([1, 4, 3], &Default::default());
+    let gamma = TestTensor::<1>::zeros([3], &input.device());
+
+    let _ = group_norm(input, Some(gamma), None, 2, 1e-5);
+}
+
+#[test]
+#[should_panic(expected = "group_norm: beta must have shape [num_channels]")]
+fn test_group_norm_rejects_invalid_beta_shape() {
+    let input = TestTensor::<3>::zeros([1, 4, 3], &Default::default());
+    let beta = TestTensor::<1>::zeros([3], &input.device());
+
+    let _ = group_norm(input, None, Some(beta), 2, 1e-5);
+}
+
+#[cfg(any(feature = "cpu", feature = "cuda"))]
+#[test]
+#[should_panic(expected = "group_norm: gamma must have the same dtype as the input")]
+fn test_group_norm_rejects_mixed_affine_dtype() {
+    let input = TestTensor::<3>::zeros([1, 4, 3], &Default::default());
+    let gamma = TestTensor::<1>::ones([4], &input.device()).cast(burn_tensor::DType::F64);
+
+    let _ = group_norm(input, Some(gamma), None, 2, 1e-5);
+}
+
 #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm"))]
 #[test]
 fn test_group_norm_supported_float_dtypes() {

@@ -257,13 +257,27 @@ pub(crate) fn group_norm<R: CubeRuntime>(
         "group_norm: number of channels must be divisible by number of groups"
     );
     if let Some(gamma) = &gamma {
-        assert_eq!(gamma.shape(), Shape::new([num_channels]));
-        assert_eq!(gamma.dtype, input.dtype);
+        assert_eq!(
+            gamma.shape(),
+            Shape::new([num_channels]),
+            "group_norm: gamma must have shape [num_channels]"
+        );
+        assert_eq!(
+            gamma.dtype, input.dtype,
+            "group_norm: gamma must have the same dtype as the input"
+        );
         input.assert_is_on_same_device(gamma);
     }
     if let Some(beta) = &beta {
-        assert_eq!(beta.shape(), Shape::new([num_channels]));
-        assert_eq!(beta.dtype, input.dtype);
+        assert_eq!(
+            beta.shape(),
+            Shape::new([num_channels]),
+            "group_norm: beta must have shape [num_channels]"
+        );
+        assert_eq!(
+            beta.dtype, input.dtype,
+            "group_norm: beta must have the same dtype as the input"
+        );
         input.assert_is_on_same_device(beta);
     }
 

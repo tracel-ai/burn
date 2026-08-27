@@ -754,6 +754,12 @@ fn layer_norm_impl(
 /// - gamma: `[num_channels]`
 /// - beta: `[num_channels]`
 /// - output: `[batch_size, num_channels, ...]`
+///
+/// # Panics
+///
+/// Panics if the input rank is less than three, the group count is zero, the channel count is
+/// not divisible by the group count, or an affine tensor has an incompatible shape, dtype, or
+/// device.
 pub fn group_norm<const D: usize>(
     input: Tensor<D>,
     gamma: Option<Tensor<1>>,
@@ -761,6 +767,48 @@ pub fn group_norm<const D: usize>(
     num_groups: usize,
     epsilon: f64,
 ) -> Tensor<D> {
+    assert!(D >= 3, "group_norm: input rank must be at least 3");
+    assert!(num_groups > 0, "group_norm: num_groups must be positive");
+    let num_channels = input.dims()[1];
+    assert_eq!(
+        num_channels % num_groups,
+        0,
+        "group_norm: number of channels must be divisible by number of groups"
+    );
+    if let Some(gamma) = &gamma {
+        assert_eq!(
+            gamma.dims(),
+            [num_channels],
+            "group_norm: gamma must have shape [num_channels]"
+        );
+        assert_eq!(
+            gamma.dtype(),
+            input.dtype(),
+            "group_norm: gamma must have the same dtype as the input"
+        );
+        assert_eq!(
+            gamma.device(),
+            input.device(),
+            "group_norm: gamma must be on the same device as the input"
+        );
+    }
+    if let Some(beta) = &beta {
+        assert_eq!(
+            beta.dims(),
+            [num_channels],
+            "group_norm: beta must have shape [num_channels]"
+        );
+        assert_eq!(
+            beta.dtype(),
+            input.dtype(),
+            "group_norm: beta must have the same dtype as the input"
+        );
+        assert_eq!(
+            beta.device(),
+            input.device(),
+            "group_norm: beta must be on the same device as the input"
+        );
+    }
     Tensor::new(group_norm_impl(
         input.primitive,
         gamma.map(|gamma| gamma.primitive),
