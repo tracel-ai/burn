@@ -40,6 +40,21 @@ impl<A: BurnModuleAdapter> Deserializer<A> {
             phantom: std::marker::PhantomData,
         }
     }
+
+    fn extract_scalar<T>(
+        self,
+        expected: &'static str,
+        extractor: impl FnOnce(&NestedValue) -> Option<T>,
+    ) -> Result<T, Error> {
+        let value = self
+            .value
+            .ok_or_else(|| custom_err(format!("expected {expected}, found nothing")))?;
+
+        match extractor(&value) {
+            Some(val) => Ok(val),
+            None => Err(custom_err(format!("expected {expected} but got {value:?}"))),
+        }
+    }
 }
 
 impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
@@ -141,11 +156,8 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::Bool(val)) => visitor.visit_bool(val),
-            Some(other) => Err(custom_err(format!("expected bool but got {other:?}"))),
-            None => Err(custom_err("expected bool, found nothing")),
-        }
+        let val = self.extract_scalar("bool", |v| v.clone().as_bool())?;
+        visitor.visit_bool(val)
     }
 
     fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -159,55 +171,40 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::I16(val)) => visitor.visit_i16(val),
-            Some(other) => Err(custom_err(format!("expected i16 but got {other:?}"))),
-            None => Err(custom_err("expected i16, found nothing")),
-        }
+        let val = self.extract_scalar("i16", |v| v.clone().as_i16())?;
+        visitor.visit_i16(val)
     }
 
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::I32(val)) => visitor.visit_i32(val),
-            Some(other) => Err(custom_err(format!("expected i32 but got {other:?}"))),
-            None => Err(custom_err("expected i32, found nothing")),
-        }
+        let val = self.extract_scalar("i32", |v| v.clone().as_i32())?;
+        visitor.visit_i32(val)
     }
 
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::I64(val)) => visitor.visit_i64(val),
-            Some(other) => Err(custom_err(format!("expected i64 but got {other:?}"))),
-            None => Err(custom_err("expected i64, found nothing")),
-        }
+        let val = self.extract_scalar("i64", |v| v.clone().as_i64())?;
+        visitor.visit_i64(val)
     }
 
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::U8(val)) => visitor.visit_u8(val),
-            Some(other) => Err(custom_err(format!("expected u8 but got {other:?}"))),
-            None => Err(custom_err("expected u8, found nothing")),
-        }
+        let val = self.extract_scalar("u8", |v| v.clone().as_u8())?;
+        visitor.visit_u8(val)
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::U16(val)) => visitor.visit_u16(val),
-            Some(other) => Err(custom_err(format!("expected u16 but got {other:?}"))),
-            None => Err(custom_err("expected u16, found nothing")),
-        }
+        let val = self.extract_scalar("u16", |v| v.clone().as_u16())?;
+        visitor.visit_u16(val)
     }
 
     fn deserialize_u32<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -221,33 +218,24 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::U64(val)) => visitor.visit_u64(val),
-            Some(other) => Err(custom_err(format!("expected u64 but got {other:?}"))),
-            None => Err(custom_err("expected u64, found nothing")),
-        }
+        let val = self.extract_scalar("u64", |v| v.clone().as_u64())?;
+        visitor.visit_u64(val)
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::F32(val)) => visitor.visit_f32(val),
-            Some(other) => Err(custom_err(format!("expected f32 but got {other:?}"))),
-            None => Err(custom_err("expected f32, found nothing")),
-        }
+        let val = self.extract_scalar("f32", |v| v.clone().as_f32())?;
+        visitor.visit_f32(val)
     }
 
     fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Some(NestedValue::F64(val)) => visitor.visit_f64(val),
-            Some(other) => Err(custom_err(format!("expected f64 but got {other:?}"))),
-            None => Err(custom_err("expected f64, found nothing")),
-        }
+        let val = self.extract_scalar("f64", |v| v.clone().as_f64())?;
+        visitor.visit_f64(val)
     }
 
     fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -1090,6 +1078,17 @@ mod tests {
                 s: "burn".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn should_deserialize_i64_as_i32_when_in_range() {
+        let mut map = HashMap::new();
+        map.insert("hidden_size".to_string(), NestedValue::I64(768));
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let config = Config::deserialize(de).unwrap();
+
+        assert_eq!(config, Config { hidden_size: 768 });
     }
 
     #[test]
