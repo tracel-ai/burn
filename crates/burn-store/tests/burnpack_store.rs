@@ -69,6 +69,60 @@ fn file_mode_round_trips_a_module() {
     assert_eq!(first_weight(&loaded), first_weight(&model));
 }
 
+#[test]
+fn file_mode_can_preserve_an_extensionless_path() {
+    let device = Device::default();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model");
+
+    let model = TestModel::new(&device);
+    model
+        .save_into(&mut BurnpackStore::from_file(&path).auto_extension(false))
+        .unwrap();
+
+    assert!(path.exists(), "the exact requested path should be used");
+    assert!(
+        !dir.path().join("model.bpk").exists(),
+        "the writer must not re-append the extension"
+    );
+
+    let original = std::fs::read(&path).unwrap();
+    assert!(
+        TestModel::new(&device)
+            .save_into(&mut BurnpackStore::from_file(&path).auto_extension(false))
+            .is_err(),
+        "overwrite protection should check the exact path"
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+
+    let mut loaded = TestModel::new(&device);
+    loaded
+        .load_from(&mut BurnpackStore::from_file(&path).auto_extension(false))
+        .unwrap();
+    assert_eq!(first_weight(&loaded), first_weight(&model));
+}
+
+#[test]
+fn disabled_extension_does_not_fall_back_when_loading() {
+    let device = Device::default();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model");
+
+    TestModel::new(&device)
+        .save_into(&mut BurnpackStore::from_file(&path))
+        .unwrap();
+    assert!(path.with_extension("bpk").exists());
+    assert!(!path.exists());
+
+    let mut loaded = TestModel::new(&device);
+    assert!(
+        loaded
+            .load_from(&mut BurnpackStore::from_file(&path).auto_extension(false))
+            .is_err(),
+        "loading with auto-extension disabled should use the exact path"
+    );
+}
+
 /// `overwrite` is the store's own policy, layered above a writer that always replaces. Pin
 /// both directions, including that a refused save leaves the previous container alone.
 #[test]
