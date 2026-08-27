@@ -4,7 +4,7 @@ use crate::{
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
-    TensorMetadata,
+    DType, TensorMetadata,
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
@@ -16,6 +16,25 @@ impl<R> ModuleOps<Self> for CubeBackend<R>
 where
     R: CubeRuntime,
 {
+    fn group_norm(
+        tensor: FloatTensor<Self>,
+        gamma: Option<FloatTensor<Self>>,
+        beta: Option<FloatTensor<Self>>,
+        num_groups: usize,
+        epsilon: f64,
+    ) -> FloatTensor<Self> {
+        let hardware = &tensor.client.properties().hardware;
+        if tensor.dtype == DType::F64
+            || hardware.max_cube_dim.0 < 256
+            || hardware.max_units_per_cube < 256
+        {
+            return burn_backend::ops::group_norm_fallback::<Self>(
+                tensor, gamma, beta, num_groups, epsilon,
+            );
+        }
+        kernel::group_norm(tensor, gamma, beta, num_groups, epsilon)
+    }
+
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
