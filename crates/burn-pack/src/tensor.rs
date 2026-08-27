@@ -14,7 +14,8 @@ use alloc::string::String;
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
-// `alloc::sync` needs atomic CAS, so use its non-atomic counterpart on targets without it.
+// `alloc::sync` needs atomic CAS. Use `Rc` on targets without it, where `Arc` is unavailable;
+// the `Rc`-backed source means `Tensor` cannot be `Send` or `Sync` on those targets.
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::rc::Rc as Arc;
 
@@ -25,8 +26,12 @@ use crate::base::Error;
 /// Shared handle to a deferred tensor's byte provider, kept behind a pointer so [`Tensor`]
 /// stays [`Clone`].
 ///
-/// The pointer varies with the target's atomic support, but the provider itself has no
-/// thread-safety requirement.
+/// On targets with pointer atomics, the provider is `Send + Sync` so a deferred source
+/// preserves the same thread-safety properties as a resident one. `Sync` is also required
+/// for a shared provider to be `Send` (`Arc<T>: Send` requires `T: Send + Sync`).
+#[cfg(target_has_atomic = "ptr")]
+type Provider = Arc<dyn Fn() -> Result<Bytes, Error> + Send + Sync>;
+#[cfg(not(target_has_atomic = "ptr"))]
 type Provider = Arc<dyn Fn() -> Result<Bytes, Error>>;
 
 /// Where a tensor's bytes come from.
@@ -103,6 +108,13 @@ impl Source {
 /// [`deferred`](Self::deferred) when it is not. A [`Reader`](crate::Reader) produces resident
 /// tensors, though for a file-backed source the bytes are still only read from disk on
 /// access.
+///
+/// # Thread safety
+///
+/// On targets with pointer-width atomics, `Tensor` is `Send + Sync` whether its bytes are
+/// resident or deferred. Accordingly, [`deferred`](Self::deferred) requires its provider to
+/// be `Send + Sync` on those targets. Without pointer-width atomics, deferred providers are
+/// held in an `Rc`, so `Tensor` implements neither trait.
 #[derive(Clone)]
 pub struct Tensor {
     /// Fully-qualified tensor name (e.g. `"encoder.layer1.weight"`).
@@ -149,6 +161,24 @@ impl Tensor {
     /// result is dropped before the next tensor's is requested. Producing the data there -
     /// reading a parameter back from a device, say - is what bounds a save's peak host memory
     /// by the largest single tensor rather than by the whole model.
+    #[cfg(target_has_atomic = "ptr")]
+    pub fn deferred(
+        name: String,
+        dtype: DType,
+        shape: impl Into<Shape>,
+        param_id: Option<u64>,
+        byte_len: usize,
+        provider: impl Fn() -> Result<Bytes, Error> + Send + Sync + 'static,
+    ) -> Self {
+        Self::with_provider(name, dtype, shape, param_id, byte_len, Arc::new(provider))
+    }
+
+    /// Create a tensor whose bytes are produced on demand.
+    ///
+    /// See the `target_has_atomic = "ptr"` variant for the contract. This one drops the
+    /// `Send + Sync` bound because the resulting `Rc`-backed tensor cannot implement either
+    /// trait regardless of the provider's own bounds.
+    #[cfg(not(target_has_atomic = "ptr"))]
     pub fn deferred(
         name: String,
         dtype: DType,
@@ -160,6 +190,7 @@ impl Tensor {
         Self::with_provider(name, dtype, shape, param_id, byte_len, Arc::new(provider))
     }
 
+    /// The half of [`deferred`](Self::deferred) that does not vary by target.
     fn with_provider(
         name: String,
         dtype: DType,
@@ -237,13 +268,12 @@ impl core::fmt::Debug for Tensor {
 
 // The counting tests below need `fetch_add`, so the whole module wants atomic CAS. Tests are
 // only ever run on a host anyway; this keeps `--tests` compiling for embedded targets.
-#[cfg(test)]
+#[cfg(all(test, target_has_atomic = "ptr"))]
 mod tests {
     use super::*;
-    use alloc::rc::Rc;
     use alloc::string::ToString;
     use alloc::vec;
-    use core::cell::Cell;
+    use core::sync::atomic::{AtomicUsize, Ordering};
 
     /// `to_bytes` borrows rather than consuming, so the tensor can still be drawn from
     /// afterwards. That is the whole reason it exists next to `into_bytes`.
@@ -265,23 +295,22 @@ mod tests {
     /// paths use `into_parts` instead.
     #[test]
     fn to_bytes_reruns_a_deferred_provider_on_every_call() {
-        // Capturing `Rc<Cell<_>>` also pins that deferred providers need not be Send or Sync.
-        let calls = Rc::new(Cell::new(0));
+        let calls = Arc::new(AtomicUsize::new(0));
         let counter = calls.clone();
 
         let tensor = Tensor::deferred("w".to_string(), DType::U8, vec![2], None, 2, move || {
-            counter.set(counter.get() + 1);
+            counter.fetch_add(1, Ordering::Relaxed);
             Ok(Bytes::from_bytes_vec(vec![7, 8]))
         });
 
         assert_eq!(&tensor.to_bytes().unwrap()[..], &[7, 8]);
         assert_eq!(&tensor.to_bytes().unwrap()[..], &[7, 8]);
-        assert_eq!(calls.get(), 2);
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
 
         // Still usable, and `into_bytes` draws once more.
         assert_eq!(tensor.byte_len(), 2);
         assert_eq!(&tensor.into_bytes().unwrap()[..], &[7, 8]);
-        assert_eq!(calls.get(), 3);
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
     }
 
     /// A provider failure surfaces verbatim. Naming the tensor is `Writer::materialize`'s
@@ -318,5 +347,12 @@ mod tests {
         assert_eq!(shape.to_vec(), vec![2]);
         assert_eq!(param_id, Some(7));
         assert_eq!(&bytes[..], &[7, 8]);
+    }
+
+    /// A deferred source must preserve the thread-safety properties of a resident tensor.
+    #[test]
+    fn tensor_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Tensor>();
     }
 }

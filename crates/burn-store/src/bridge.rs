@@ -73,6 +73,29 @@ fn guarded(f: impl Fn() -> Result<TensorData, PackError>) -> Result<TensorData, 
     f()
 }
 
+/// The `Send + Sync` bound a data closure carries on a target with pointer-width atomics, and
+/// nothing on one without.
+///
+/// [`PackTensor::deferred`] asks for `Send + Sync` providers only where `alloc::sync` exists so
+/// deferred tensors preserve the thread-safety of resident ones. Without pointer-width atomics,
+/// it uses an `Rc`-backed provider and cannot itself be `Send` or `Sync`, regardless of the
+/// closure's bounds. Naming that difference once keeps every constructor below from having to
+/// be written twice.
+///
+/// Implemented for every type that satisfies it; the blanket impl makes a manual
+/// implementation impossible.
+#[cfg(target_has_atomic = "ptr")]
+pub trait MaybeSendSync: Send + Sync {}
+#[cfg(target_has_atomic = "ptr")]
+impl<T: Send + Sync> MaybeSendSync for T {}
+
+/// Empty on a target without pointer-width atomics, where an `Rc`-backed [`PackTensor`] cannot
+/// be `Send` or `Sync` regardless of the provider's own bounds.
+#[cfg(not(target_has_atomic = "ptr"))]
+pub trait MaybeSendSync {}
+#[cfg(not(target_has_atomic = "ptr"))]
+impl<T> MaybeSendSync for T {}
+
 /// Build a tensor whose data is produced on demand by `data_fn`.
 ///
 /// `dtype` and `shape` describe what `data_fn` will return, and fix the byte length the writer
@@ -85,7 +108,7 @@ pub fn deferred(
     dtype: DType,
     shape: Shape,
     param_id: Option<u64>,
-    data_fn: impl Fn() -> Result<TensorData, PackError> + 'static,
+    data_fn: impl Fn() -> Result<TensorData, PackError> + MaybeSendSync + 'static,
 ) -> PackTensor {
     let byte_len = data_len(dtype, &shape);
     let declared = shape.clone();
@@ -162,7 +185,7 @@ pub fn map_data(
     name: String,
     dtype: DType,
     shape: Shape,
-    f: impl Fn(TensorData) -> TensorData + 'static,
+    f: impl Fn(TensorData) -> TensorData + MaybeSendSync + 'static,
 ) -> PackTensor {
     let param_id = tensor.param_id;
 
