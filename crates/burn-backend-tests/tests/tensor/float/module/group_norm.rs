@@ -42,6 +42,37 @@ fn test_group_norm_forward_without_affine() {
 }
 
 #[test]
+fn test_group_norm_forward_with_partial_affine() {
+    let input = TestTensor::<3>::from([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]]);
+    let gamma = TestTensor::<1>::from([2.0, 2.0, 2.0, 2.0]);
+    let beta = TestTensor::<1>::from([1.0, 1.0, 1.0, 1.0]);
+
+    let scale_only = group_norm(input.clone(), Some(gamma), None, 2, 0.0);
+    let shift_only = group_norm(input, None, Some(beta), 2, 0.0);
+
+    let expected_scale = TensorData::from([[
+        [-2.6832816, -0.8944272],
+        [0.8944272, 2.6832816],
+        [-2.6832816, -0.8944272],
+        [0.8944272, 2.6832816],
+    ]]);
+    let expected_shift = TensorData::from([[
+        [-0.3416408, 0.5527864],
+        [1.4472136, 2.3416408],
+        [-0.3416408, 0.5527864],
+        [1.4472136, 2.3416408],
+    ]]);
+    let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(5e-3);
+
+    scale_only
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_scale, tolerance);
+    shift_only
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_shift, tolerance);
+}
+
+#[test]
 fn test_group_norm_non_contiguous_input() {
     let input =
         TestTensor::<3>::from([[[1.0, 3.0, 5.0, 7.0], [2.0, 4.0, 6.0, 8.0]]]).swap_dims(1, 2);

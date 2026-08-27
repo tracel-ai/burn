@@ -135,16 +135,18 @@ pub fn group_norm_fallback<B: Backend>(
     let denom = B::float_sqrt(B::float_add_scalar(var, epsilon.into()));
     let normalized = B::float_reshape(B::float_div(centered, denom), shape);
 
-    let output = match (gamma, beta) {
-        (Some(gamma), Some(beta)) => {
-            let mut broadcast_dims = alloc::vec![1; rank];
-            broadcast_dims[1] = num_channels;
-            let gamma = B::float_reshape(gamma, Shape::from(broadcast_dims.clone()));
-            let beta = B::float_reshape(beta, Shape::from(broadcast_dims));
-            B::float_add(B::float_mul(normalized, gamma), beta)
-        }
-        (None, None) => normalized,
-        _ => panic!("group_norm: gamma and beta must either both be set or both be absent"),
+    let mut broadcast_dims = alloc::vec![1; rank];
+    broadcast_dims[1] = num_channels;
+    let output = match gamma {
+        Some(gamma) => B::float_mul(
+            normalized,
+            B::float_reshape(gamma, Shape::from(broadcast_dims.clone())),
+        ),
+        None => normalized,
+    };
+    let output = match beta {
+        Some(beta) => B::float_add(output, B::float_reshape(beta, Shape::from(broadcast_dims))),
+        None => output,
     };
 
     if widened {
