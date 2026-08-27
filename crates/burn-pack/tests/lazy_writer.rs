@@ -9,8 +9,8 @@ use common::f32_tensor;
 
 /// Records every materialization, in the order it happened.
 ///
-/// `Arc<Mutex<_>>` rather than `Rc<RefCell<_>>` because a deferred tensor's provider must be
-/// `Send + Sync`: records holding one cross threads through burn-train's async checkpointer.
+/// `Arc<Mutex<_>>` keeps the deferred providers `Send + Sync`, preserving [`Tensor`] as a
+/// thread-safe transport type.
 type Log = Arc<Mutex<Vec<String>>>;
 
 /// A tensor whose bytes are produced on demand, with every knob the tests need to bend.
