@@ -148,8 +148,18 @@ fn should_quantize_dequantize_per_block_reshaped_2d_q8s_packed() {
     )
 }
 
-/// Reshape correctness isolated from quantization error: dequantize the *same*
-/// quantized tensor via both orders. Any difference is the reshape's doing.
+/// Compare a view applied to a quantized tensor with the same view applied after dequantization.
+/// Both paths reconstruct from the same quantized values and scales, so they must be bit-exact.
+fn assert_layout_matches_dequantize<const D: usize>(
+    layout_quantized: TestTensor<D>,
+    layout_dequantized: TestTensor<D>,
+) {
+    layout_quantized
+        .dequantize()
+        .into_data()
+        .assert_eq(&layout_dequantized.into_data(), true);
+}
+
 fn reshape_matches_dequantize_then_reshape<const D1: usize, const D2: usize>(
     value: QuantValue,
     block: Option<BlockSize>,
@@ -169,14 +179,10 @@ fn reshape_matches_dequantize_then_reshape<const D1: usize, const D2: usize>(
 
     let q = TestTensor::<D1>::from_data(data, &device).quantize_dynamic(&scheme);
 
-    let reshaped_then_deq = q
-        .clone()
-        .reshape::<D2, _>(new_shape)
-        .dequantize()
-        .into_data();
-    let deq_then_reshaped = q.dequantize().reshape::<D2, _>(new_shape).into_data();
-
-    reshaped_then_deq.assert_eq(&deq_then_reshaped, true);
+    assert_layout_matches_dequantize(
+        q.clone().reshape::<D2, _>(new_shape),
+        q.dequantize().reshape::<D2, _>(new_shape),
+    );
 }
 
 #[test]
@@ -241,14 +247,10 @@ fn broadcasted_reshape_matches_dequantize_then_reshape() {
         .quantize_dynamic(&scheme)
         .permute([1, 0, 2]);
 
-    let reshaped_then_deq = q
-        .clone()
-        .reshape::<4, _>([1, 4, 2, 8])
-        .dequantize()
-        .into_data();
-    let deq_then_reshaped = q.dequantize().reshape::<4, _>([1, 4, 2, 8]).into_data();
-
-    reshaped_then_deq.assert_eq(&deq_then_reshaped, true);
+    assert_layout_matches_dequantize(
+        q.clone().reshape::<4, _>([1, 4, 2, 8]),
+        q.dequantize().reshape::<4, _>([1, 4, 2, 8]),
+    );
 }
 
 #[test]
