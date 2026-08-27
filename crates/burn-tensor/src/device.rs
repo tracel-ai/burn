@@ -3,7 +3,7 @@ pub use burn_std::{
 };
 
 #[cfg(feature = "cubecl")]
-pub use burn_backend::cubecl::{ThroughputKey, ThroughputMode, ThroughputValue};
+pub use burn_backend::cubecl::{MemoryAccess, ThroughputKey, ThroughputMode, ThroughputValue};
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
     InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
@@ -939,10 +939,11 @@ fn mode_label(mode: &ThroughputMode) -> &'static str {
     match mode {
         ThroughputMode::ComputeDirect { .. } => "compute-direct",
         ThroughputMode::ComputeCmma { .. } => "compute-cmma",
-        ThroughputMode::Memory => "memory",
-        ThroughputMode::MemoryRead => "memory-read",
-        ThroughputMode::MemoryWrite => "memory-write",
-        ThroughputMode::MemoryWorkingSet { .. } => "memory-working-set",
+        ThroughputMode::Memory(spec) => match spec.access {
+            MemoryAccess::Copy => "memory",
+            MemoryAccess::Read => "memory-read",
+            MemoryAccess::Write => "memory-write",
+        },
         ThroughputMode::Launch => "launch",
     }
 }
@@ -962,11 +963,7 @@ impl core::fmt::Display for ThroughputStat {
             ThroughputMode::ComputeDirect { dtype } | ThroughputMode::ComputeCmma { dtype, .. } => {
                 alloc::format!("{dtype}")
             }
-            ThroughputMode::Memory
-            | ThroughputMode::MemoryRead
-            | ThroughputMode::MemoryWrite
-            | ThroughputMode::MemoryWorkingSet { .. }
-            | ThroughputMode::Launch => alloc::string::String::new(),
+            ThroughputMode::Memory(_) | ThroughputMode::Launch => alloc::string::String::new(),
         };
 
         let value = self.value.format(&self.key);
