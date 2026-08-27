@@ -1123,10 +1123,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 }
             }
             IndexingUpdateOp::Mul => {
-                // Unique indices are required for this backward formula.
-                // Forward: out[index] = tensor[index] * value.
-                // Backward:
-                //   grad_tensor = grad * scatter(ones, indices, value, Mul)
+                // Backward assumes unique indices:
+                //   grad_tensor = scatter(grad, indices, value, Mul)
                 //   grad_value  = gather(grad, indices) * gather(tensor, indices)
                 #[derive(Debug)]
                 struct ScatterMul;
@@ -1791,10 +1789,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 }
             }
             IndexingUpdateOp::Mul => {
-                // Unique indices are required for this backward formula.
-                // Forward: out[index] = tensor[index] * value.
-                // Backward:
-                //   grad_tensor = grad * select_assign(ones, indices, value, Mul)
+                // Backward assumes unique indices:
+                //   grad_tensor = select_assign(grad, dim, indices, value, Mul)
                 //   grad_value  = select(grad, indices) * select(tensor, indices)
                 #[derive(Debug)]
                 struct IndexSelectDimAssignMul;
