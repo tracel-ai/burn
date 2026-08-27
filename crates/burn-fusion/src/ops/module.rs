@@ -1592,6 +1592,52 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn group_norm(
+        tensor: FloatTensor<Fusion<B>>,
+        gamma: Option<FloatTensor<Fusion<B>>>,
+        beta: Option<FloatTensor<Fusion<B>>>,
+        num_groups: usize,
+        epsilon: f64,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            GroupNormOps,
+            GroupNormOpIr,
+            |args: &GroupNormOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let input = handles.get_float_tensor::<B>(&args.input);
+                let gamma = args
+                    .gamma
+                    .as_ref()
+                    .map(|gamma| handles.get_float_tensor::<B>(gamma));
+                let beta = args
+                    .beta
+                    .as_ref()
+                    .map(|beta| handles.get_float_tensor::<B>(beta));
+                let output =
+                    B::group_norm(input, gamma, beta, args.num_groups, args.epsilon.elem());
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+        let client = tensor.client.clone();
+        let desc = GroupNormOpIr::create(
+            tensor.into_ir(),
+            gamma.map(|gamma| gamma.into_ir()),
+            beta.map(|beta| beta.into_ir()),
+            num_groups,
+            epsilon,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::GroupNorm(desc.clone())),
+                GroupNormOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn rfft(
         signal: FloatTensor<Fusion<B>>,
         dim: usize,

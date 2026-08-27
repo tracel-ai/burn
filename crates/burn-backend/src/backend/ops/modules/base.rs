@@ -1,13 +1,13 @@
 use super::{conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
-use crate::{Backend, Scalar, TensorMetadata};
+use crate::{Backend, DType, Scalar, TensorMetadata};
 pub use burn_std::ops::{
     AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
     GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
     PaddedConvOptions, UnfoldOptions,
 };
-use burn_std::{IntDType, Shape};
+use burn_std::{FloatDType, IntDType, Shape};
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -93,6 +93,65 @@ pub struct MaxPool2dWithIndices<B: Backend> {
 pub struct InterpolateBackward<B: Backend> {
     /// Gradient.
     pub x_grad: FloatTensor<B>,
+}
+
+/// Portable group normalization implementation used by backend fallbacks.
+pub fn group_norm_fallback<B: Backend>(
+    mut tensor: FloatTensor<B>,
+    mut gamma: Option<FloatTensor<B>>,
+    mut beta: Option<FloatTensor<B>>,
+    num_groups: usize,
+    epsilon: f64,
+) -> FloatTensor<B> {
+    let shape = tensor.shape();
+    let rank = shape.num_dims();
+    assert!(rank >= 3, "group_norm: input rank must be at least 3");
+    assert!(num_groups > 0, "group_norm: num_groups must be positive");
+
+    // Materialize strided views before folding channels and spatial dimensions together.
+    let tensor_zeros = B::float_zeros(shape.clone(), &tensor.device(), tensor.dtype().into());
+    tensor = B::float_add(tensor_zeros, tensor);
+
+    let widened = tensor.dtype() == DType::F16;
+    if widened {
+        tensor = B::float_cast(tensor, FloatDType::F32);
+        gamma = gamma.map(|gamma| B::float_cast(gamma, FloatDType::F32));
+        beta = beta.map(|beta| B::float_cast(beta, FloatDType::F32));
+    }
+
+    let batch_size = shape[0];
+    let num_channels = shape[1];
+    assert_eq!(
+        num_channels % num_groups,
+        0,
+        "group_norm: number of channels must be divisible by number of groups"
+    );
+
+    let hidden_size = shape[2..].iter().product::<usize>() * num_channels / num_groups;
+    let tensor = B::float_reshape(tensor, Shape::new([batch_size, num_groups, hidden_size]));
+    let mean = B::float_mean_dim(tensor.clone(), 2);
+    let centered = B::float_sub(tensor, mean);
+    let var = B::float_mean_dim(B::float_mul(centered.clone(), centered.clone()), 2);
+    let denom = B::float_sqrt(B::float_add_scalar(var, epsilon.into()));
+    let normalized = B::float_reshape(B::float_div(centered, denom), shape);
+
+    let output = match (gamma, beta) {
+        (Some(gamma), Some(beta)) => {
+            let mut broadcast_dims = alloc::vec![1; rank];
+            broadcast_dims[1] = num_channels;
+            let gamma = B::float_reshape(gamma, Shape::from(broadcast_dims.clone()));
+            let beta = B::float_reshape(beta, Shape::from(broadcast_dims));
+            B::float_add(B::float_mul(normalized, gamma), beta)
+        }
+        (None, None) => normalized,
+        _ => panic!("group_norm: gamma and beta must either both be set or both be absent"),
+    };
+
+    if widened {
+        B::float_cast(output, FloatDType::F16)
+    } else {
+        output
+    }
 }
 
 /// Module operations trait.
@@ -873,6 +932,32 @@ pub trait ModuleOps<B: Backend> {
             }
             None => scaled,
         }
+    }
+
+    /// Applies Group Normalization over a mini-batch of inputs.
+    ///
+    /// Computes `(x - mean) / sqrt(var + epsilon) * gamma + beta`, where `mean` and
+    /// (biased) `var` are calculated independently for each sample and group.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - Input tensor of shape `[batch_size, num_channels, ...]`.
+    /// * `gamma` - Optional scale tensor of shape `[num_channels]`.
+    /// * `beta` - Optional bias tensor of shape `[num_channels]`.
+    /// * `num_groups` - Number of groups used to partition the channels.
+    /// * `epsilon` - Numerical stability term added to the variance before the square root.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor`.
+    fn group_norm(
+        tensor: FloatTensor<B>,
+        gamma: Option<FloatTensor<B>>,
+        beta: Option<FloatTensor<B>>,
+        num_groups: usize,
+        epsilon: f64,
+    ) -> FloatTensor<B> {
+        group_norm_fallback::<B>(tensor, gamma, beta, num_groups, epsilon)
     }
 
     /// Computes the Connectionist Temporal Classification (CTC) loss.

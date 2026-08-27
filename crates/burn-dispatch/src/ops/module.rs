@@ -676,6 +676,21 @@ impl ModuleOps<Self> for Dispatch {
         )
     }
 
+    fn group_norm(
+        tensor: FloatTensor<Self>,
+        gamma: Option<FloatTensor<Self>>,
+        beta: Option<FloatTensor<Self>>,
+        num_groups: usize,
+        epsilon: f64,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(tensor, float)],
+            opt_inputs[(gamma, float), (beta, float)],
+            => Float,
+            B::group_norm(tensor, gamma, beta, num_groups, epsilon)
+        )
+    }
+
     fn rfft(
         signal: FloatTensor<Self>,
         dim: usize,

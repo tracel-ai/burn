@@ -149,6 +149,27 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn group_norm(
+        tensor: FloatTensor<Self>,
+        gamma: Option<FloatTensor<Self>>,
+        beta: Option<FloatTensor<Self>>,
+        num_groups: usize,
+        epsilon: f64,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = GroupNormOpIr::create(
+            tensor.into_ir(),
+            gamma.map(|gamma| gamma.into_ir()),
+            beta.map(|beta| beta.into_ir()),
+            num_groups,
+            epsilon,
+            || client.create_empty_handle(),
+        );
+        client
+            .register(OperationIr::Module(ModuleOperationIr::GroupNorm(desc)))
+            .output()
+    }
+
     fn unfold4d(
         x: FloatTensor<Self>,
         kernel_size: [usize; 2],

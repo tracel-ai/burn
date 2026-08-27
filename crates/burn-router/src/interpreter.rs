@@ -1959,6 +1959,20 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::layer_norm(input, gamma, beta, desc.epsilon.elem());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::GroupNorm(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let gamma = desc
+                        .gamma
+                        .as_ref()
+                        .map(|gamma| handles.get_float_tensor::<B>(gamma));
+                    let beta = desc
+                        .beta
+                        .as_ref()
+                        .map(|beta| handles.get_float_tensor::<B>(beta));
+                    let output =
+                        B::group_norm(input, gamma, beta, desc.num_groups, desc.epsilon.elem());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::Unfold4d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let options = burn_backend::ops::UnfoldOptions::new(

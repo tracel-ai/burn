@@ -351,6 +351,8 @@ pub enum ModuleOperationIr {
     /// Operation corresponding to
     /// [conv_transpose3d_bias_backward](burn_backend::ops::ModuleOps::conv_transpose3d_bias_backward).
     ConvTranspose3dBiasBackward(ConvTranspose3dBiasBackwardOpIr),
+    /// Operation corresponding to [group_norm](burn_backend::ops::ModuleOps::group_norm).
+    GroupNorm(GroupNormOpIr),
 }
 
 /// Basic operations that can be done on any tensor type.
@@ -3955,6 +3957,11 @@ impl ModuleOperationIr {
                 Some(beta) => Box::new([&repr.input, &repr.gamma, beta].into_iter()),
                 None => Box::new([&repr.input, &repr.gamma].into_iter()),
             },
+            ModuleOperationIr::GroupNorm(repr) => Box::new(
+                core::iter::once(&repr.input)
+                    .chain(repr.gamma.iter())
+                    .chain(repr.beta.iter()),
+            ),
             ModuleOperationIr::Unfold4d(repr) => Box::new([&repr.x].into_iter()),
             ModuleOperationIr::ConvTranspose1dWeightBackward(repr) => {
                 Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
@@ -4068,6 +4075,7 @@ impl ModuleOperationIr {
             ModuleOperationIr::CtcLoss(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::CtcLossBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::LayerNorm(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::GroupNorm(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Unfold4d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::ConvTranspose1dWeightBackward(repr) => {
                 Box::new([&repr.out].into_iter())
@@ -4350,6 +4358,15 @@ impl ModuleOperationIr {
             ModuleOperationIr::LayerNorm(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
                 repr.gamma.mark_read_only(nodes, &mut output);
+                if let Some(beta) = &mut repr.beta {
+                    beta.mark_read_only(nodes, &mut output);
+                }
+            }
+            ModuleOperationIr::GroupNorm(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+                if let Some(gamma) = &mut repr.gamma {
+                    gamma.mark_read_only(nodes, &mut output);
+                }
                 if let Some(beta) = &mut repr.beta {
                     beta.mark_read_only(nodes, &mut output);
                 }
@@ -4707,6 +4724,17 @@ impl ModuleOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
                 v.visit_scalar_mut(&mut repr.epsilon);
             }
+            ModuleOperationIr::GroupNorm(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                if let Some(gamma) = &mut repr.gamma {
+                    v.visit_tensor_mut(gamma);
+                }
+                if let Some(beta) = &mut repr.beta {
+                    v.visit_tensor_mut(beta);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.epsilon);
+            }
             ModuleOperationIr::Unfold4d(repr) => {
                 v.visit_tensor_mut(&mut repr.x);
                 v.visit_tensor_mut(&mut repr.out);
@@ -4882,6 +4910,23 @@ pub struct LayerNormOpIr {
     pub gamma: TensorIr,
     /// Optional shift (beta) parameter.
     pub beta: Option<TensorIr>,
+    /// Numerical-stability epsilon.
+    pub epsilon: ScalarIr,
+    /// Output tensor.
+    pub out: TensorIr,
+}
+
+/// Operation IR for group normalization with optional affine parameters.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct GroupNormOpIr {
+    /// Input tensor.
+    pub input: TensorIr,
+    /// Optional scale (gamma) parameter.
+    pub gamma: Option<TensorIr>,
+    /// Optional shift (beta) parameter.
+    pub beta: Option<TensorIr>,
+    /// Number of groups used to partition the channels.
+    pub num_groups: usize,
     /// Numerical-stability epsilon.
     pub epsilon: ScalarIr,
     /// Output tensor.

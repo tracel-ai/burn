@@ -745,3 +745,43 @@ fn layer_norm_impl(
         epsilon,
     ))
 }
+
+/// Applies Group Normalization over a mini-batch of inputs.
+///
+/// # Shapes
+///
+/// - input: `[batch_size, num_channels, ...]`
+/// - gamma: `[num_channels]`
+/// - beta: `[num_channels]`
+/// - output: `[batch_size, num_channels, ...]`
+pub fn group_norm<const D: usize>(
+    input: Tensor<D>,
+    gamma: Option<Tensor<1>>,
+    beta: Option<Tensor<1>>,
+    num_groups: usize,
+    epsilon: f64,
+) -> Tensor<D> {
+    Tensor::new(group_norm_impl(
+        input.primitive,
+        gamma.map(|gamma| gamma.primitive),
+        beta.map(|beta| beta.primitive),
+        num_groups,
+        epsilon,
+    ))
+}
+
+fn group_norm_impl(
+    input: BridgeTensor,
+    gamma: Option<BridgeTensor>,
+    beta: Option<BridgeTensor>,
+    num_groups: usize,
+    epsilon: f64,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::group_norm(
+        input.into_float(),
+        gamma.map(|gamma| gamma.into_float()),
+        beta.map(|beta| beta.into_float()),
+        num_groups,
+        epsilon,
+    ))
+}
