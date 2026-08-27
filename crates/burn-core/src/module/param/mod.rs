@@ -1,5 +1,6 @@
 mod base;
 mod constant;
+mod flag;
 mod group;
 mod id;
 mod lora;
@@ -13,6 +14,7 @@ mod visitor;
 
 pub use base::*;
 pub use constant::*;
+pub use flag::*;
 pub use group::*;
 pub use id::*;
 pub use lora::*;
