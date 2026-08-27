@@ -1153,18 +1153,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                             ops.node,
                             grads,
                             |grad| {
-                                let device = grad.device();
-                                let dtype = grad.dtype();
-                                let shape = grad.shape();
-                                let ones = B::float_ones(shape, &device, dtype.into());
-                                let multiplier = B::float_scatter(
+                                B::float_scatter(
                                     dim,
-                                    ones,
+                                    grad,
                                     indices_4lhs.unwrap(),
                                     value_state.unwrap(),
                                     IndexingUpdateOp::Mul,
-                                );
-                                B::float_mul(grad, multiplier)
+                                )
                             },
                             |grad| {
                                 let indices = indices_4rhs.unwrap();
@@ -1848,18 +1843,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                             ops.node,
                             grads,
                             |grad| {
-                                let device = grad.device();
-                                let dtype = grad.dtype();
-                                let shape = grad.shape();
-                                let ones = B::float_ones(shape, &device, dtype.into());
-                                let multiplier = B::float_select_assign(
-                                    ones,
+                                B::float_select_assign(
+                                    grad,
                                     dim,
                                     indices_4lhs.unwrap(),
                                     value_state.unwrap(),
                                     IndexingUpdateOp::Mul,
-                                );
-                                B::float_mul(grad, multiplier)
+                                )
                             },
                             |grad| {
                                 let indices = indices_4rhs.unwrap();
