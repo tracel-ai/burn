@@ -381,6 +381,29 @@ mod tests {
     use crate::{module::Module, test_device};
 
     #[test]
+    fn set_require_grad_updates_lazy_lifecycle_state() {
+        let device = test_device().autodiff();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device,
+            true,
+            [2, 3].into(),
+        );
+
+        let param = param.set_require_grad(false);
+
+        assert!(!param.is_initialized());
+        assert!(!param.is_active);
+        assert!(!param.val().is_require_grad());
+
+        let param = param.valid().train();
+
+        assert!(!param.is_require_grad());
+        assert!(!param.is_active);
+    }
+
+    #[test]
     fn test_param_require_grad_stateful() {
         let device = test_device().autodiff();
         let tensor = Tensor::<2>::ones([3, 3], &device).require_grad();
