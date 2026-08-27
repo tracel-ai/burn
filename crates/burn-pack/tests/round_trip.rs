@@ -281,6 +281,38 @@ fn extensionless_path_appends_bpk() {
 }
 
 #[test]
+fn extensionless_path_can_be_preserved() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model");
+
+    Writer::new(vec![f32_tensor("weight", &[1.0, 2.0], &[2], None)])
+        .auto_extension(false)
+        .write_to_file(&path)
+        .unwrap();
+
+    assert!(path.exists(), "the exact requested path should exist");
+    assert!(
+        !path.with_extension("bpk").exists(),
+        "the canonical extension should not be appended"
+    );
+    assert!(Reader::from_file_exact(&path).is_ok());
+}
+
+#[test]
+fn exact_reader_does_not_fall_back_to_bpk() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model");
+
+    Writer::new(vec![f32_tensor("weight", &[1.0], &[1], None)])
+        .write_to_file(&path)
+        .unwrap();
+
+    assert!(path.with_extension("bpk").exists());
+    assert!(Reader::from_file(&path).is_ok());
+    assert!(Reader::from_file_exact(&path).is_err());
+}
+
+#[test]
 fn typed_scalars_round_trip() {
     let packed = Writer::new(vec![f32_tensor("w", &[1.0], &[1], None)])
         .with_scalar("step", Scalar::UInt(42))

@@ -66,7 +66,23 @@ impl Reader {
             path.to_path_buf()
         };
 
-        let mut file = File::open(&path).map_err(io_err)?;
+        Self::from_resolved_file(&path)
+    }
+
+    /// Load a pack from a file using the exact path provided.
+    ///
+    /// Unlike [`from_file`](Self::from_file), this never appends [`crate::EXTENSION`] when the
+    /// requested path has no extension and does not probe for a fallback path. It is useful when
+    /// a higher-level caller has already applied its own path policy.
+    #[cfg(feature = "std")]
+    pub fn from_file_exact<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        Self::from_resolved_file(path.as_ref())
+    }
+
+    #[cfg(feature = "std")]
+    fn from_resolved_file(path: &Path) -> Result<Self, Error> {
+        let mut file = File::open(path)
+            .map_err(|e| Error::IoError(format!("cannot open '{}': {e}", path.display())))?;
 
         let file_size = file.metadata().map_err(io_err)?.len();
         if file_size > MAX_FILE_SIZE {
@@ -83,7 +99,7 @@ impl Reader {
         file.read_exact(&mut metadata_bytes).map_err(io_err)?;
         let metadata = parse_metadata(&metadata_bytes)?;
 
-        let source = Source::File(Bytes::from_file(path.as_path(), file_size, 0));
+        let source = Source::File(Bytes::from_file(path, file_size, 0));
         Self::assemble(&header, metadata, source, file_size as usize)
     }
 

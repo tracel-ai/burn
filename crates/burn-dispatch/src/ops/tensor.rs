@@ -1,13 +1,21 @@
 use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
-    ops::FloatTensorOps,
+    ops::{FloatTensorOps, PadMode},
     tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 
 use crate::{Dispatch, DispatchDevice};
 
 impl FloatTensorOps<Self> for Dispatch {
+    fn float_pad(
+        tensor: FloatTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> FloatTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_pad(tensor, padding, mode) => Float)
+    }
+
     fn float_from_data(
         data: burn_backend::TensorData,
         device: &DispatchDevice,
