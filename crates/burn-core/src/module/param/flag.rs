@@ -14,6 +14,13 @@ use crate::module::{
 /// select it by id or path just like other module-owned values. The field holding the flag gives
 /// it its meaning; for example, `Dropout::training` uses an enabled flag to permit stochastic
 /// behavior on an autodiff device.
+///
+/// # Records
+///
+/// Flags are runtime configuration, not persisted model state. Module records omit their value,
+/// trainability and [`ParamId`]; loading a record preserves the destination module's flag exactly
+/// as configured. This mirrors tensor parameters, whose values and ids are recorded but whose
+/// `require_grad` configuration comes from the destination module.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Flag(bool);
 

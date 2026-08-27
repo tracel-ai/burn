@@ -270,10 +270,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         self.apply_reparameterization(qlora)
     }
 
-    /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
+    /// Collect this module's tensor parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
     ///
     /// The record can be saved to a burnpack file or byte buffer and applied back with
     /// [`load_record`](Module::load_record).
+    /// Module-owned control values such as [`Flag`] are runtime configuration and are not
+    /// recorded; loading preserves their state and identity from the destination module.
     fn into_record(self) -> crate::store::ModuleRecord
     where
         Self: Sized,
@@ -281,7 +283,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         crate::store::ModuleRecord::from_module(self, None)
     }
 
-    /// Collect the parameters `group` names into a [`ModuleRecord`](crate::store::ModuleRecord).
+    /// Collect the tensor parameters `group` names into a [`ModuleRecord`](crate::store::ModuleRecord).
     ///
     /// The record of a part of the module rather than all of it — what a run that trained a
     /// group writes when the rest of the module is the checkpoint it started from, and what
