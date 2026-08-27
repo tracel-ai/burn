@@ -13,7 +13,7 @@ use burn::tensor::activation::leaky_relu;
 /// distribution `[lower, upper)`; during evaluation the fixed midpoint slope
 /// `(lower + upper) / 2` is used, which is identical to a LeakyReLU. Following
 /// the same convention as [Dropout](crate::Dropout), the training behaviour is
-/// enabled when the input is on an autodiff backend.
+/// enabled when the input is on an autodiff backend and the layer's training flag is enabled.
 ///
 /// Should be created with [RReluConfig](RReluConfig).
 #[derive(Module, Debug)]

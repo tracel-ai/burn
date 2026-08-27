@@ -215,10 +215,10 @@ pub trait Module: Clone + Send + core::fmt::Debug {
             init = || 0
         )
     }
-    /// Visit each tensor parameter in the module with a [visitor](ModuleVisitor).
+    /// Visit each parameter and module-owned control value with a [visitor](ModuleVisitor).
     fn visit<Visitor: ModuleVisitor>(&self, visitor: &mut Visitor);
 
-    /// Map each tensor parameter in the module with a [mapper](ModuleMapper).
+    /// Map each parameter and module-owned control value with a [mapper](ModuleMapper).
     fn map<Mapper: ModuleMapper>(self, mapper: &mut Mapper) -> Self;
 
     /// Quantize the weights of the module.
