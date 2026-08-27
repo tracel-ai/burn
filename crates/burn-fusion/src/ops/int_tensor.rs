@@ -43,7 +43,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client
             .register(
                 StreamId::current(),
-                OperationIr::BaseInt(BaseOperationIr::Pad(desc.clone())),
+                OperationIr::NumericInt(desc.out.dtype, NumericOperationIr::Pad(desc.clone())),
                 PadOps::<B>::new(desc),
             )
             .output()

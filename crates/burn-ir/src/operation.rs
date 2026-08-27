@@ -513,11 +513,6 @@ pub enum BaseOperationIr {
     AllDim(ReduceDimOpIr),
     /// Reduce-`any` along a dim.
     AnyDim(ReduceDimOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [pad](burn_backend::ops::FloatTensorOps::float_pad).
-    /// Int => [pad](burn_backend::ops::IntTensorOps::int_pad).
-    Pad(PadOpIr),
 }
 
 /// Numeric operations on int and float tensors.
@@ -785,6 +780,11 @@ pub enum NumericOperationIr {
     ///
     /// Shares [`SortOpIr`] with [`Sort`](Self::Sort); only the output dtype differs.
     ArgSort(SortOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [pad](burn_backend::ops::FloatTensorOps::float_pad).
+    /// Int => [pad](burn_backend::ops::IntTensorOps::int_pad).
+    Pad(PadOpIr),
 }
 
 /// Operation intermediate representation specific to an int tensor.
@@ -2329,7 +2329,6 @@ impl BaseOperationIr {
             BaseOperationIr::Permute(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Expand(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Flip(repr) => Box::new([&repr.input].into_iter()),
-            BaseOperationIr::Pad(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Slice(repr) => Box::new([&repr.tensor].into_iter()),
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.tensor, &repr.value].into_iter()),
             BaseOperationIr::Gather(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
@@ -2373,7 +2372,6 @@ impl BaseOperationIr {
             BaseOperationIr::Permute(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Expand(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Flip(repr) => Box::new([&repr.out].into_iter()),
-            BaseOperationIr::Pad(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Slice(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Gather(repr) => Box::new([&repr.out].into_iter()),
@@ -2421,9 +2419,6 @@ impl BaseOperationIr {
             }
 
             BaseOperationIr::Flip(repr) => {
-                repr.input.mark_read_only(nodes, &mut output);
-            }
-            BaseOperationIr::Pad(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Slice(repr) => {
@@ -2538,13 +2533,6 @@ impl BaseOperationIr {
             BaseOperationIr::Flip(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
                 v.visit_tensor_mut(&mut repr.out);
-            }
-            BaseOperationIr::Pad(repr) => {
-                v.visit_tensor_mut(&mut repr.input);
-                v.visit_tensor_mut(&mut repr.out);
-                if let PadModeIr::Constant(value) = &mut repr.mode {
-                    v.visit_scalar_mut(value);
-                }
             }
             BaseOperationIr::Slice(repr) => {
                 v.visit_tensor_mut(&mut repr.tensor);
@@ -2726,6 +2714,7 @@ impl NumericOperationIr {
             NumericOperationIr::Sort(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::SortWithIndices(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::ArgSort(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::Pad(repr) => Box::new([&repr.input].into_iter()),
         }
     }
 
@@ -2793,6 +2782,7 @@ impl NumericOperationIr {
                 Box::new([&repr.out, &repr.out_indices].into_iter())
             }
             NumericOperationIr::ArgSort(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::Pad(repr) => Box::new([&repr.out].into_iter()),
         }
     }
     fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
@@ -2965,6 +2955,9 @@ impl NumericOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::ArgSort(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::Pad(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
         };
@@ -3216,6 +3209,13 @@ impl NumericOperationIr {
             NumericOperationIr::ArgSort(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
                 v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Pad(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+                if let PadModeIr::Constant(value) = &mut repr.mode {
+                    v.visit_scalar_mut(value);
+                }
             }
         }
     }
@@ -5324,7 +5324,7 @@ mod visit_mut_tests {
         );
         assert_eq!(desc.out.shape, Shape::from([5, 10]));
 
-        let mut op = OperationIr::BaseFloat(BaseOperationIr::Pad(desc));
+        let mut op = OperationIr::NumericFloat(DType::F32, NumericOperationIr::Pad(desc));
         let mut visitor = CollectVisitor {
             rewrite_scalar: Some(ScalarIr::Float(7.0)),
             ..Default::default()
@@ -5339,7 +5339,7 @@ mod visit_mut_tests {
         assert_eq!(ids, vec![101, 102]);
         assert_eq!(visitor.scalars, vec![ScalarIr::Float(5.0)]);
 
-        let OperationIr::BaseFloat(BaseOperationIr::Pad(desc)) = op else {
+        let OperationIr::NumericFloat(_, NumericOperationIr::Pad(desc)) = op else {
             panic!("expected pad operation");
         };
         assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::Float(7.0)));

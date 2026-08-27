@@ -245,12 +245,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::float_flip(tensor, &desc.axes);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Pad(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
-
-                    let output = B::float_pad(tensor, &desc.padding, desc.mode.into());
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::Expand(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
@@ -431,12 +425,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::int_flip(tensor, &desc.axes);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Pad(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.input);
-
-                    let output = B::int_pad(tensor, &desc.padding, desc.mode.into());
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::Expand(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
 
@@ -613,7 +601,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::bool_flip(tensor, &desc.axes);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Pad(_) => unreachable!("padding isn't supported for bool tensors"),
                 BaseOperationIr::Expand(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
@@ -778,6 +765,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 }
             },
             OperationIr::NumericFloat(_dtype, op) => match op {
+                NumericOperationIr::Pad(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_pad(tensor, &desc.padding, desc.mode.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 NumericOperationIr::Add(desc) => {
                     binary_float_ops!(handles, desc, B::float_add)
                 }
@@ -1015,6 +1007,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 }
             },
             OperationIr::NumericInt(_dtype, op) => match op {
+                NumericOperationIr::Pad(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_pad(tensor, &desc.padding, desc.mode.into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 NumericOperationIr::Add(desc) => {
                     binary_int_ops!(handles, desc, B::int_add)
                 }

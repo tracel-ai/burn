@@ -31,7 +31,10 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::BaseFloat(BaseOperationIr::Pad(desc)))
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Pad(desc),
+            ))
             .output()
     }
 

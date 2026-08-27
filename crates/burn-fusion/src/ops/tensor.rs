@@ -43,7 +43,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 StreamId::current(),
-                OperationIr::BaseFloat(BaseOperationIr::Pad(desc.clone())),
+                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::Pad(desc.clone())),
                 PadOps::<B>::new(desc),
             )
             .output()

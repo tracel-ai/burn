@@ -183,7 +183,8 @@ mod tests {
     use super::*;
     use burn_backend::{DType, Shape, Slice};
     use burn_ir::{
-        BaseOperationIr, CustomOpIr, PadModeIr, PadOpIr, ScalarIr, SliceOpIr, TensorStatus,
+        BaseOperationIr, CustomOpIr, NumericOperationIr, PadModeIr, PadOpIr, ScalarIr, SliceOpIr,
+        TensorStatus,
     };
 
     fn tensor(id: u64, shape: [usize; 2]) -> TensorIr {
@@ -291,14 +292,15 @@ mod tests {
     fn bind_resolves_pad_constant_scalar() {
         let relative_input = tensor(0, [0, 1]);
         let relative_output = tensor(1, [2, 3]);
-        let graph = Graph::new(vec![OperationIr::BaseFloat(BaseOperationIr::Pad(
-            PadOpIr {
+        let graph = Graph::new(vec![OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Pad(PadOpIr {
                 input: relative_input.clone(),
                 out: relative_output.clone(),
                 padding: vec![(1, 0), (0, 2)],
                 mode: PadModeIr::Constant(ScalarIr::UInt(0)),
-            },
-        ))]);
+            }),
+        )]);
 
         let bound = graph.bind(GraphBindings {
             tensors: vec![
@@ -310,7 +312,8 @@ mod tests {
             ranges: vec![],
         });
 
-        let OperationIr::BaseFloat(BaseOperationIr::Pad(desc)) = &bound.operations[0] else {
+        let OperationIr::NumericFloat(_, NumericOperationIr::Pad(desc)) = &bound.operations[0]
+        else {
             panic!("expected bound pad operation");
         };
         assert_eq!(desc.input.id, TensorId::new(100));

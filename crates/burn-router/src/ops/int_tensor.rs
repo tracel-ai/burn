@@ -30,7 +30,10 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::BaseInt(BaseOperationIr::Pad(desc)))
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Pad(desc),
+            ))
             .output()
     }
 

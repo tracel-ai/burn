@@ -1396,6 +1396,15 @@ impl RelativeOps for NumericOperationIr {
                 descending: desc.descending,
                 out: desc.out.to_relative(converter),
             }),
+            NumericOperationIr::Pad(desc) => NumericOperationIr::Pad(PadOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                padding: desc.padding.clone(),
+                mode: match desc.mode {
+                    PadModeIr::Constant(value) => PadModeIr::Constant(value.to_relative(converter)),
+                    mode => mode,
+                },
+            }),
         }
     }
 }
@@ -1433,15 +1442,6 @@ impl RelativeOps for BaseOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
                 axes: desc.axes.clone(),
-            }),
-            BaseOperationIr::Pad(desc) => BaseOperationIr::Pad(PadOpIr {
-                input: desc.input.to_relative(converter),
-                out: desc.out.to_relative(converter),
-                padding: desc.padding.clone(),
-                mode: match desc.mode {
-                    PadModeIr::Constant(value) => PadModeIr::Constant(value.to_relative(converter)),
-                    mode => mode,
-                },
             }),
             BaseOperationIr::Slice(desc) => BaseOperationIr::Slice(SliceOpIr {
                 tensor: desc.tensor.to_relative(converter),
@@ -1856,9 +1856,9 @@ mod tests_ir {
         );
         let mut converter = OperationConverter::default();
 
-        let relative = BaseOperationIr::Pad(desc).to_relative(&mut converter);
+        let relative = NumericOperationIr::Pad(desc).to_relative(&mut converter);
 
-        let BaseOperationIr::Pad(desc) = relative else {
+        let NumericOperationIr::Pad(desc) = relative else {
             panic!("expected pad operation");
         };
         assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::UInt(0)));
