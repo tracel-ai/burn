@@ -148,17 +148,15 @@ fn should_quantize_dequantize_per_block_reshaped_2d_q8s_packed() {
     )
 }
 
-// TODO: add tests for
-// - ND reshape split (validation should panic)
-// - broadcasted
-// - multi-block successful reshape (all current success tests use exactly 1 block, e.g. [4, 32] -> [1, 4, 32] with block_size 32)
-// - packed dimension alignment failure (invalid shape for packed num_quants)
-// - ND-block unsqueeze (should succeed per the is_unsqueeze exemption, but nothing tests it)
-
 /// Reshape correctness isolated from quantization error: dequantize the *same*
 /// quantized tensor via both orders. Any difference is the reshape's doing.
-fn reshape_matches_dequantize_then_reshape(value: QuantValue, block: Option<BlockSize>) {
-    let numel = 32i64;
+fn reshape_matches_dequantize_then_reshape<const D1: usize, const D2: usize>(
+    value: QuantValue,
+    block: Option<BlockSize>,
+    shape: [usize; D1],
+    new_shape: [usize; D2],
+) {
+    let numel = Shape::from(shape).num_elements() as i64;
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
     let scheme = scheme_for(block, value, QuantStore::PackedU32(0));
@@ -166,27 +164,125 @@ fn reshape_matches_dequantize_then_reshape(value: QuantValue, block: Option<Bloc
     let data = TestTensorInt::arange(0..numel, &ref_device)
         .float()
         .div_scalar(numel)
+        .reshape::<D1, _>(shape)
         .into_data();
 
-    let q = TestTensor::<1>::from_data(data, &device).quantize_dynamic(&scheme);
+    let q = TestTensor::<D1>::from_data(data, &device).quantize_dynamic(&scheme);
 
-    let reshaped_then_deq = q.clone().reshape::<2, _>([2, 16]).dequantize().into_data();
-    let deq_then_reshaped = q.dequantize().reshape::<2, _>([2, 16]).into_data();
+    let reshaped_then_deq = q
+        .clone()
+        .reshape::<D2, _>(new_shape)
+        .dequantize()
+        .into_data();
+    let deq_then_reshaped = q.dequantize().reshape::<D2, _>(new_shape).into_data();
 
     reshaped_then_deq.assert_eq(&deq_then_reshaped, true);
 }
 
 #[test]
 fn q8s_reshape_matches_dequantize_then_reshape() {
-    reshape_matches_dequantize_then_reshape(QuantValue::Q8S, None);
+    reshape_matches_dequantize_then_reshape(QuantValue::Q8S, None, [32], [2, 16]);
 }
 
 #[test]
 fn q4s_reshape_matches_dequantize_then_reshape() {
-    reshape_matches_dequantize_then_reshape(QuantValue::Q4S, None);
+    reshape_matches_dequantize_then_reshape(QuantValue::Q4S, None, [32], [2, 16]);
 }
 
 #[test]
 fn q4s_block_reshape_matches_dequantize_then_reshape() {
-    reshape_matches_dequantize_then_reshape(QuantValue::Q4S, Some(BlockSize::new([16])));
+    reshape_matches_dequantize_then_reshape(
+        QuantValue::Q4S,
+        Some(BlockSize::new([16])),
+        [32],
+        [2, 16],
+    );
+}
+
+#[test]
+fn multi_block_reshape_matches_dequantize_then_reshape() {
+    // Four independent blocks make sure the scale grid is reshaped along with the values.
+    reshape_matches_dequantize_then_reshape(
+        QuantValue::Q8S,
+        Some(BlockSize::new([32])),
+        [4, 32],
+        [1, 4, 32],
+    );
+}
+
+#[test]
+fn nd_block_unsqueeze_matches_dequantize_then_reshape() {
+    // Adding a leading unit dimension preserves every two-dimensional block boundary.
+    reshape_matches_dequantize_then_reshape(
+        QuantValue::Q8S,
+        Some(BlockSize::new([2, 4])),
+        [4, 8],
+        [1, 4, 8],
+    );
+}
+
+#[test]
+fn broadcasted_reshape_matches_dequantize_then_reshape() {
+    let shape = [2, 4, 8];
+    let numel = Shape::from(shape).num_elements() as i64;
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+    let scheme = scheme_for(None, QuantValue::Q8S, QuantStore::PackedU32(0));
+
+    let data = TestTensorInt::arange(0..numel, &ref_device)
+        .float()
+        .div_scalar(numel)
+        .reshape(shape)
+        .into_data();
+
+    // Permuting only batch dimensions keeps the packed dimension last while making the tensor
+    // non-contiguous. Prepending a unit dimension then exercises ReshapeAnalysis::Broadcasted.
+    let q = TestTensor::<3>::from_data(data, &device)
+        .quantize_dynamic(&scheme)
+        .permute([1, 0, 2]);
+
+    let reshaped_then_deq = q
+        .clone()
+        .reshape::<4, _>([1, 4, 2, 8])
+        .dequantize()
+        .into_data();
+    let deq_then_reshaped = q.dequantize().reshape::<4, _>([1, 4, 2, 8]).into_data();
+
+    reshaped_then_deq.assert_eq(&deq_then_reshaped, true);
+}
+
+#[test]
+#[should_panic] // "Cannot reshape packed tensor" error is shadowed by the CallError
+fn packed_dimension_alignment_failure_should_panic() {
+    // Q8 packs four values per u32, but the new packed dimension has length six.
+    reshape_matches_dequantize_then_reshape(QuantValue::Q8S, None, [24], [4, 6]);
+}
+
+#[test]
+#[should_panic] // "Split reshape of ND block-quantized tensor" error is shadowed by the CallError
+fn nd_block_split_reshape_should_panic() {
+    let shape = [2, 4, 8];
+    let numel = Shape::from(shape).num_elements() as i64;
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+    let scheme = scheme_for(
+        Some(BlockSize::new([1, 2, 4])),
+        QuantValue::Q8S,
+        QuantStore::PackedU32(0),
+    );
+
+    let data = TestTensorInt::arange(0..numel, &ref_device)
+        .float()
+        .div_scalar(numel)
+        .reshape(shape)
+        .into_data();
+
+    // Make the quantized tensor non-contiguous, then split its first physical dimension while
+    // retaining the packed trailing dimension. This reaches ReshapeAnalysis::Split.
+    let _ = TestTensor::<3>::from_data(data, &device)
+        .quantize_dynamic(&scheme)
+        .permute([1, 0, 2])
+        .reshape::<4, _>([2, 2, 2, 8])
+        .dequantize()
+        .into_data();
 }
