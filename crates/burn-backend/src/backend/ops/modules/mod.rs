@@ -10,6 +10,9 @@ pub mod attention;
 /// Module with CTC loss operations.
 pub mod ctc;
 
+/// Module with group normalization operations.
+pub mod group_norm;
+
 /// Module with unfold operations.
 pub mod unfold;
 

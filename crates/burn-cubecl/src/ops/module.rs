@@ -28,7 +28,7 @@ where
             || hardware.max_cube_dim.0 < 256
             || hardware.max_units_per_cube < 256
         {
-            return burn_backend::ops::group_norm_fallback::<Self>(
+            return burn_backend::ops::group_norm::group_norm_fallback::<Self>(
                 tensor, gamma, beta, num_groups, epsilon,
             );
         }
