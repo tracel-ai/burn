@@ -342,6 +342,28 @@ let mut store = BurnpackStore::from_file("large_model.bpk")
 model.load_from(&mut store)?;
 ```
 
+#### Saving Large Models
+
+Saving to a Burnpack **file** streams one tensor at a time: each parameter is read back from the
+device only when the writer reaches it, and released before the next one is read. Peak host memory
+is bounded by the largest single tensor rather than by the size of the model, so a model whose
+weights live on an accelerator can exceed host RAM and still save.
+
+```rust, ignore
+// Streams to disk; only one tensor is held in host memory at a time.
+let mut store = BurnpackStore::from_file("large_model.bpk").overwrite(true);
+model.save_into(&mut store)?;
+```
+
+This applies to file saves. `BurnpackStore::from_bytes` has to build the whole container in memory
+by definition, so prefer a file path for large models.
+
+File saves through `BurnpackStore` are also all-or-nothing: because parameters are read back
+mid-write, the container is written beside the destination and renamed into place once complete,
+so a save that fails, panics, or has its process killed leaves any existing file untouched rather
+than replacing it with a truncated one. Surviving power loss is a stronger guarantee and holds on
+Unix only; see `Writer::write_to_file_atomic` for the details.
+
 #### Half-Precision Storage
 
 Save models at half precision (F16) to reduce file size by ~50%, then load back at full precision:
@@ -389,8 +411,11 @@ let mut store = PytorchStore::from_file("model.pt");
 let names = store.keys()?;
 
 // Get specific tensor
-if let Some(snapshot) = store.get_snapshot("encoder.layer0.weight")? {
-    println!("Shape: {:?}, DType: {:?}", snapshot.shape, snapshot.dtype);
+if let Some(tensor) = store.get_tensor("encoder.layer0.weight")? {
+    println!("Shape: {:?}, DType: {:?}", tensor.shape, tensor.dtype);
+
+    // Reading the data is a free function, not a method on the tensor
+    let data = burn_store::bridge::to_data(tensor)?;
 }
 ```
 
@@ -437,8 +462,8 @@ model2.apply(snapshots, Some(filter), None, false);
 | Method                | Description                      |
 | --------------------- | -------------------------------- |
 | `keys()`              | Get ordered list of tensor names |
-| `get_all_snapshots()` | Get all tensors as BTreeMap      |
-| `get_snapshot(name)`  | Get specific tensor by name      |
+| `get_all_tensors()`   | Get all tensors as BTreeMap      |
+| `get_tensor(name)`    | Get specific tensor by name      |
 
 ### Troubleshooting
 

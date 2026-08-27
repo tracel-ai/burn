@@ -14,21 +14,25 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
-    components::tile::TileMatmulKind,
-    definition::{MatmulElems, MatmulGlobalElems, MatmulKind, adjust_dtypes},
-    routines::{
-        BlueprintStrategy, TileSizeSelection,
-        batch::{
-            double_buffering::DoubleBufferingArgs, double_unit::DoubleUnitSelectionArgs,
-            ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-            simple_unit::SimpleUnitSelectionArgs,
+    definition::{MatmulElems, MatmulGlobalElems, MatmulKind},
+    multi_level::{
+        Strategy,
+        components::tile::TileMatmulKind,
+        definition::adjust_dtypes,
+        routines::{
+            TileSizeSelection,
+            batch::{
+                double_buffering::DoubleBufferingArgs, double_unit::DoubleUnitSelectionArgs,
+                ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
+                simple_unit::SimpleUnitSelectionArgs,
+            },
+            gemm::GemmStrategy,
         },
-        cpu_gemm::CpuGemmStrategy,
-        gemm::GemmStrategy,
     },
-    strategy::{
-        MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, Strategy,
-        should_tune_double_buffering,
+    routine::BlueprintStrategy,
+    tiled::{Strategy as TiledStrategy, cpu_gemm::CpuGemmStrategy},
+    tune_key::{
+        MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, should_tune_double_buffering,
     },
 };
 
@@ -159,11 +163,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
         });
 
         let gemv = TuneGroup::<MatmulAutotuneKey>::new("gemv", move |key| {
-            if num_cpu_cores.is_some() {
-                return PRIORITY_MAX;
-            }
-
             if matches!(key.analysis.kind, MatmulKind::MatVec) {
+                if num_cpu_cores.is_some() {
+                    return PRIORITY_MAX;
+                }
+
                 // LHS is the matrix
                 match key.definition.matrix_layout_lhs {
                     MatrixBatchLayout::Contiguous => PRIORITY_MAX,
@@ -180,6 +184,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     MatrixBatchLayout::HighlyPermuted => PRIORITY_MAX,
                 }
             } else if matches!(key.analysis.kind, MatmulKind::VecMat) {
+                if num_cpu_cores.is_some() {
+                    return PRIORITY_MAX;
+                }
+
                 // RHS is the matrix
                 match key.definition.matrix_layout_rhs {
                     // We don't have good algos for row major vecmat.
@@ -225,7 +233,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         // First entry should always work, since it is considered the fallback.
         set = set.with(
             Tunable::new("matmul_naive", |(lhs, rhs, out)| {
-                launch_matmul_naive::<R>(&Strategy::Naive, lhs, rhs, out)
+                launch_matmul_naive::<R, _>(&Strategy::Naive, lhs, rhs, out)
                     .map_err(|err| std::format!("{err:?}"))
             })
             .group(&unit, |key| {
@@ -260,7 +268,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         ] {
             set = set.with(
                 Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
-                    launch_matmul::<R>(&strategy, lhs, rhs, out)
+                    launch_matmul::<R, _>(&strategy, lhs, rhs, out)
                         .map_err(|err| std::format!("{err:?}"))
                 })
                 .group(&gemv, move |key| match double_buf {
@@ -291,7 +299,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             ] {
                 set = set.with(
                     Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
-                        launch_matmul::<R>(&strategy, lhs, rhs, out)
+                        launch_matmul::<R, _>(&strategy, lhs, rhs, out)
                             .map_err(|err| format!("{err:?}"))
                     })
                     .group(&unit, move |key| match double_buf {
@@ -311,7 +319,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             Tunable::new(
                 &gemm_no_stage_strategy.to_string(),
                 move |(lhs, rhs, out)| {
-                    launch_matmul::<R>(&gemm_no_stage_strategy, lhs, rhs, out)
+                    launch_matmul::<R, _>(&gemm_no_stage_strategy, lhs, rhs, out)
                         .map_err(|err| format!("{err:?}"))
                 },
             )
@@ -320,10 +328,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
         // CPU GEMM (CPU-only via the `cpu` group; the size limit is specific to this strategy).
         let cpu_gemm_strategy =
-            Strategy::CpuGemm(BlueprintStrategy::Inferred(CpuGemmStrategy::default()));
+            TiledStrategy::CpuGemm(BlueprintStrategy::Inferred(CpuGemmStrategy::default()));
         set = set.with(
             Tunable::new(&cpu_gemm_strategy.to_string(), move |(lhs, rhs, out)| {
-                launch_matmul::<R>(&cpu_gemm_strategy, lhs, rhs, out)
+                launch_matmul::<R, _>(&cpu_gemm_strategy, lhs, rhs, out)
                     .map_err(|err| format!("{err:?}"))
             })
             .group(&cpu, move |_key| PRIORITY_MAX),
@@ -529,7 +537,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             ),
         ] {
             let mut tunable = Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
-                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
+                launch_matmul::<R, _>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
             });
 
             // Accelerated kernels are demoted when the device doesn't support the tile matmul

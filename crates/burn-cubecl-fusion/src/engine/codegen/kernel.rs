@@ -90,6 +90,16 @@ pub fn fuse_on_read<E: Scalar, N: Size>(
 }
 
 #[cube]
+/// Canonicalizes the harmless zero stride produced by metadata-only broadcasts.
+///
+/// A singleton dimension always has coordinate zero, but reference strides are
+/// used as divisors throughout fused indexing and therefore must be nonzero. Keep
+/// every other physical stride unchanged.
+fn normalize_reference_stride(shape: usize, stride: usize) -> usize {
+    select(shape == 1, stride.max(1usize), stride)
+}
+
+#[cube]
 /// Initializes [LocalArgs] given the input and output [arguments](GlobalArgs) with the [FuseBlockConfig].
 ///
 /// # Notes
@@ -112,8 +122,11 @@ pub fn init_locals(
 
                 #[unroll]
                 for i in 0..config.rank {
-                    ref_shape[i] = layout.tensor.shape(i);
-                    ref_strides[i] = layout.tensor.stride(i);
+                    let shape = layout.tensor.shape(i);
+                    let stride = layout.tensor.stride(i);
+
+                    ref_shape[i] = shape;
+                    ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
 
                 LocalArgs::new(
@@ -127,8 +140,11 @@ pub fn init_locals(
 
                 #[unroll]
                 for i in 0..config.rank {
-                    ref_shape[i] = layout.tensor.shape(i);
-                    ref_strides[i] = layout.tensor.stride(i);
+                    let shape = layout.tensor.shape(i);
+                    let stride = layout.tensor.stride(i);
+
+                    ref_shape[i] = shape;
+                    ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
 
                 LocalArgs::new(
@@ -198,9 +214,11 @@ pub fn init_locals(
                 for i in 0..config.rank {
                     let shape_index = start_shape + i;
                     let strides_index = start_strides + i;
+                    let shape = *inputs.runtime_layouts.index(shape_index);
+                    let stride = *inputs.runtime_layouts.index(strides_index);
 
-                    ref_shape[i] = *inputs.runtime_layouts.index(shape_index);
-                    ref_strides[i] = *inputs.runtime_layouts.index(strides_index);
+                    ref_shape[i] = shape;
+                    ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
 
                 LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width)
@@ -778,7 +796,7 @@ fn concat<C: Scalar, N: Size>(
     let mut result = Vector::<C, N>::empty();
     let write_pos_elem = write_pos * vector_size_ref;
 
-    if comptime![dim != config.rank - 1] {
+    if comptime![dim != config.vector_axis] {
         // The concatenation axis isn't the vectorization axis, therefore the whole vector is
         // contained in a single input tensor.
         let coordinate_dim = write_pos_elem / stride_dim_ref % shape_dim_ref;
@@ -807,7 +825,7 @@ fn concat<C: Scalar, N: Size>(
                 );
 
                 let stride_tensor_vector =
-                    global_stride(inputs, comptime![config.rank - 1], pos_tensor);
+                    global_stride(inputs, comptime![config.vector_axis], pos_tensor);
 
                 #[unroll]
                 for i in 0..vector_size_ref {
@@ -1134,3 +1152,16 @@ unary_func!(tanh, Vector::<C, N>::tanh, Float);
 unary_func!(erf, Vector::<C, N>::erf, Float);
 unary_func!(recip, Vector::<C, N>::recip, Float);
 unary_func!(abs, Vector::<C, N>::abs, Numeric);
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_reference_stride;
+
+    #[test]
+    fn zero_stride_on_a_singleton_reference_dimension_is_normalized() {
+        assert_eq!(normalize_reference_stride(1, 0), 1);
+        assert_eq!(normalize_reference_stride(1, 48), 48);
+        assert_eq!(normalize_reference_stride(16, 48), 48);
+        assert_eq!(normalize_reference_stride(16, 0), 0);
+    }
+}

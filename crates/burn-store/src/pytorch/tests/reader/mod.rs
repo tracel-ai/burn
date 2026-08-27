@@ -32,7 +32,7 @@ fn test_float32_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, shape![4]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 4);
     assert!((values[0] - 1.0).abs() < 1e-6);
@@ -49,7 +49,7 @@ fn test_float64_tensor() {
     assert_eq!(tensor.dtype, DType::F64);
     assert_eq!(tensor.shape, shape![3]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f64>().unwrap();
     assert_eq!(values.len(), 3);
     assert!((values[0] - 1.1).abs() < 1e-10);
@@ -65,7 +65,7 @@ fn test_int64_tensor() {
     assert_eq!(tensor.dtype, DType::I64);
     assert_eq!(tensor.shape, shape![4]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<i64>().unwrap();
     assert_eq!(values, &[100, -200, 300, 0]);
 }
@@ -78,7 +78,7 @@ fn test_int32_tensor() {
     assert_eq!(tensor.dtype, DType::I32);
     assert_eq!(tensor.shape, shape![3]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     // Convert to the appropriate element type
     let data_converted = data.convert::<i32>();
     let values = data_converted.as_slice::<i32>().unwrap();
@@ -93,7 +93,7 @@ fn test_int16_tensor() {
     assert_eq!(tensor.dtype, DType::I16);
     assert_eq!(tensor.shape, shape![3]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let data_converted = data.convert::<i16>();
     let values = data_converted.as_slice::<i16>().unwrap();
     assert_eq!(values, &[1000, -2000, 3000]);
@@ -107,7 +107,7 @@ fn test_int8_tensor() {
     assert_eq!(tensor.dtype, DType::I8);
     assert_eq!(tensor.shape, shape![4]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let data_converted = data.convert::<i8>();
     let values = data_converted.as_slice::<i8>().unwrap();
     assert_eq!(values, &[127, -128, 0, 50]);
@@ -121,7 +121,7 @@ fn test_bool_tensor() {
     assert_eq!(tensor.dtype, DType::Bool(BoolStore::Native));
     assert_eq!(tensor.shape, shape![5]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<bool>().unwrap();
     assert_eq!(values, &[true, false, true, true, false]);
 }
@@ -136,7 +136,7 @@ fn test_uint8_tensor() {
     assert_eq!(tensor.shape, shape![4]);
 
     // Verify actual U8 values [0, 128, 255, 42] from test_data.py
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<u8>().unwrap();
     assert_eq!(values, &[0, 128, 255, 42]);
 }
@@ -152,7 +152,7 @@ fn test_float16_tensor() {
     assert_eq!(tensor.shape, shape![3]);
 
     // Verify actual F16 values [1.5, -2.25, 3.125] from test_data.py
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     assert_eq!(data.shape, shape![3]);
     let values = data.as_slice::<f16>().unwrap();
     assert_eq!(values.len(), 3);
@@ -172,7 +172,7 @@ fn test_bfloat16_tensor() {
     assert_eq!(tensor.shape, shape![3]);
 
     // Verify actual BF16 values [1.5, -2.5, 3.5] from test_data.py
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     assert_eq!(data.shape, shape![3]);
     let values = data.as_slice::<bf16>().unwrap();
     assert_eq!(values.len(), 3);
@@ -189,7 +189,7 @@ fn test_2d_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, shape![3, 2]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 6);
     // Check flattened values [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
@@ -206,7 +206,7 @@ fn test_3d_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, shape![2, 3, 4]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     assert_eq!(data.shape, shape![2, 3, 4]);
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 24);
@@ -220,7 +220,7 @@ fn test_4d_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, shape![2, 3, 2, 2]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     assert_eq!(data.shape, shape![2, 3, 2, 2]);
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 24);
@@ -233,7 +233,7 @@ fn test_non_contiguous_tensors() {
 
     let permuted = reader.get("permuted").expect("permuted key not found");
     assert_eq!(permuted.shape, shape![2, 4, 3]);
-    let data = permuted.to_data().unwrap();
+    let data = crate::bridge::to_data(permuted).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(
         values,
@@ -245,7 +245,7 @@ fn test_non_contiguous_tensors() {
 
     let expanded = reader.get("expanded").expect("expanded key not found");
     assert_eq!(expanded.shape, shape![2, 3]);
-    let data = expanded.to_data().unwrap();
+    let data = crate::bridge::to_data(expanded).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values, &[1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
 }
@@ -275,14 +275,14 @@ fn test_state_dict() {
     // Check running_mean (should be zeros)
     let running_mean = reader.get("running_mean").unwrap();
     assert_eq!(running_mean.shape, shape![3]);
-    let mean_data = running_mean.to_data().unwrap();
+    let mean_data = crate::bridge::to_data(running_mean).unwrap();
     let mean_values = mean_data.as_slice::<f32>().unwrap();
     assert!(mean_values.iter().all(|&v| v.abs() < 1e-6));
 
     // Check running_var (should be ones)
     let running_var = reader.get("running_var").unwrap();
     assert_eq!(running_var.shape, shape![3]);
-    let var_data = running_var.to_data().unwrap();
+    let var_data = crate::bridge::to_data(running_var).unwrap();
     let var_values = var_data.as_slice::<f32>().unwrap();
     assert!(var_values.iter().all(|&v| (v - 1.0).abs() < 1e-6));
 }
@@ -303,7 +303,7 @@ fn test_nested_dict() {
     let layer1_weight = reader.get("layer1.weight").unwrap();
     assert_eq!(layer1_weight.shape, shape![2, 3]);
     assert_eq!(layer1_weight.dtype, DType::F32);
-    let data = layer1_weight.to_data().unwrap();
+    let data = crate::bridge::to_data(layer1_weight).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 6); // 2x3 = 6 elements
 
@@ -311,7 +311,7 @@ fn test_nested_dict() {
     let layer2_weight = reader.get("layer2.weight").unwrap();
     assert_eq!(layer2_weight.shape, shape![4, 2]);
     assert_eq!(layer2_weight.dtype, DType::F32);
-    let data = layer2_weight.to_data().unwrap();
+    let data = crate::bridge::to_data(layer2_weight).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 8); // 4x2 = 8 elements
 }
@@ -331,14 +331,14 @@ fn test_checkpoint() {
     // Check fc1.weight dimensions and load data
     let fc1_weight = reader.get("model_state_dict.fc1.weight").unwrap();
     assert_eq!(fc1_weight.shape, shape![10, 5]);
-    let data = fc1_weight.to_data().unwrap();
+    let data = crate::bridge::to_data(fc1_weight).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 50); // 10x5 = 50 elements
 
     // Check fc2.weight dimensions and load data
     let fc2_weight = reader.get("model_state_dict.fc2.weight").unwrap();
     assert_eq!(fc2_weight.shape, shape![3, 10]);
-    let data = fc2_weight.to_data().unwrap();
+    let data = crate::bridge::to_data(fc2_weight).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 30); // 3x10 = 30 elements
 }
@@ -351,7 +351,7 @@ fn test_empty_tensor() {
     assert_eq!(tensor.shape, shape![0]); // Empty tensor has shape [0]
     assert_eq!(tensor.dtype, DType::F32);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     assert!(data.as_slice::<f32>().unwrap().is_empty());
 }
 
@@ -363,7 +363,7 @@ fn test_scalar_tensor() {
     assert_eq!(tensor.shape, shape![]); // Scalar has empty shape
     assert_eq!(tensor.dtype, DType::F32);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 1);
     assert!((values[0] - 42.0).abs() < 1e-6);
@@ -377,7 +377,7 @@ fn test_large_shape() {
     assert_eq!(tensor.shape, shape![100, 100]);
     assert_eq!(tensor.dtype, DType::F32);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 10000);
 
@@ -399,7 +399,7 @@ fn test_mixed_types() {
     let float32 = reader.get("float32").unwrap();
     assert_eq!(float32.dtype, DType::F32);
     assert_eq!(float32.shape, shape![2]);
-    let data = float32.to_data().unwrap();
+    let data = crate::bridge::to_data(float32).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert!((values[0] - 1.0).abs() < 1e-6);
     assert!((values[1] - 2.0).abs() < 1e-6);
@@ -408,7 +408,7 @@ fn test_mixed_types() {
     let int64 = reader.get("int64").unwrap();
     assert_eq!(int64.dtype, DType::I64);
     assert_eq!(int64.shape, shape![2]);
-    let data = int64.to_data().unwrap();
+    let data = crate::bridge::to_data(int64).unwrap();
     let values = data.as_slice::<i64>().unwrap();
     assert_eq!(values, &[100, 200]);
 
@@ -416,7 +416,7 @@ fn test_mixed_types() {
     let bool_tensor = reader.get("bool").unwrap();
     assert_eq!(bool_tensor.dtype, DType::Bool(BoolStore::Native));
     assert_eq!(bool_tensor.shape, shape![2]);
-    let data = bool_tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(bool_tensor).unwrap();
     let values = data.as_slice::<bool>().unwrap();
     assert_eq!(values, &[true, false]);
 
@@ -424,7 +424,7 @@ fn test_mixed_types() {
     let float64 = reader.get("float64").unwrap();
     assert_eq!(float64.dtype, DType::F64);
     assert_eq!(float64.shape, shape![2]);
-    let data = float64.to_data().unwrap();
+    let data = crate::bridge::to_data(float64).unwrap();
     let values = data.as_slice::<f64>().unwrap();
     assert!((values[0] - 1.1).abs() < 1e-10);
     assert!((values[1] - 2.2).abs() < 1e-10);
@@ -438,7 +438,7 @@ fn test_special_values() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, shape![5]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 5);
 
@@ -458,7 +458,7 @@ fn test_extreme_values() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, shape![4]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 4);
 
@@ -484,7 +484,7 @@ fn test_parameter() {
     assert_eq!(param.shape, shape![3, 3]);
     assert_eq!(param.dtype, DType::F32);
 
-    let data = param.to_data().unwrap();
+    let data = crate::bridge::to_data(param).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 9);
 }
@@ -501,7 +501,7 @@ fn test_buffers() {
     let buffer1 = reader.get("buffer1").unwrap();
     assert_eq!(buffer1.dtype, DType::I32);
     assert_eq!(buffer1.shape, shape![3]);
-    let data1 = buffer1.to_data().unwrap();
+    let data1 = crate::bridge::to_data(buffer1).unwrap();
     let data1_converted = data1.convert::<i32>();
     let values1 = data1_converted.as_slice::<i32>().unwrap();
     assert_eq!(values1, &[1, 2, 3]);
@@ -510,7 +510,7 @@ fn test_buffers() {
     let buffer2 = reader.get("buffer2").unwrap();
     assert_eq!(buffer2.dtype, DType::Bool(BoolStore::Native));
     assert_eq!(buffer2.shape, shape![2]);
-    let data2 = buffer2.to_data().unwrap();
+    let data2 = crate::bridge::to_data(buffer2).unwrap();
     let values2 = data2.as_slice::<bool>().unwrap();
     assert_eq!(values2, &[true, false]);
 }
@@ -532,14 +532,14 @@ fn test_complex_structure() {
     // Check encoder layer_0 weight and load data
     let layer0_weight = reader.get("state.encoder.layer_0.weight").unwrap();
     assert_eq!(layer0_weight.shape, shape![4, 3]);
-    let data = layer0_weight.to_data().unwrap();
+    let data = crate::bridge::to_data(layer0_weight).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 12); // 4x3 = 12 elements
 
     // Check decoder weight and load data
     let decoder_weight = reader.get("state.decoder.weight").unwrap();
     assert_eq!(decoder_weight.shape, shape![3, 2]);
-    let data = decoder_weight.to_data().unwrap();
+    let data = crate::bridge::to_data(decoder_weight).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 6); // 3x2 = 6 elements
 }
@@ -557,7 +557,7 @@ fn test_read_pytorch_tensors_convenience() {
 
     // Check that data can be materialized
     let weight = reader.get("weight").unwrap();
-    let weight_data = weight.to_data().unwrap();
+    let weight_data = crate::bridge::to_data(weight).unwrap();
     assert_eq!(weight_data.shape, shape![3, 4]);
     assert_eq!(weight_data.dtype, DType::F32);
 }
@@ -611,7 +611,7 @@ fn test_legacy_format() {
     assert_eq!(bias.dtype, DType::F32);
 
     // Verify bias values are all ones
-    let bias_data = bias.to_data().unwrap();
+    let bias_data = crate::bridge::to_data(bias).unwrap();
     let expected_bias_data = TensorData::new(vec![1.0_f32, 1.0], vec![2]);
     bias_data.assert_approx_eq::<f32>(&expected_bias_data, Tolerance::default());
 
@@ -621,7 +621,7 @@ fn test_legacy_format() {
     assert_eq!(running_mean.dtype, DType::F32);
 
     // Verify running_mean values are accessible
-    let mean_data = running_mean.to_data().unwrap();
+    let mean_data = crate::bridge::to_data(running_mean).unwrap();
     let expected_mean_data = TensorData::new(vec![0.0_f32, 0.0], vec![2]);
     mean_data.assert_approx_eq::<f32>(&expected_mean_data, Tolerance::default());
 }
@@ -646,7 +646,7 @@ fn test_legacy_uncloned_views() {
     let tensor1 = reader.get("tensor1").expect("tensor1 not found");
     assert_eq!(tensor1.shape, shape![10]);
     assert_eq!(tensor1.dtype, DType::F32);
-    let tensor1_data = tensor1.to_data().unwrap();
+    let tensor1_data = crate::bridge::to_data(tensor1).unwrap();
     let expected_tensor1_data =
         TensorData::new(vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19], vec![10]);
     tensor1_data.assert_approx_eq::<f32>(&expected_tensor1_data, Tolerance::default());
@@ -655,7 +655,7 @@ fn test_legacy_uncloned_views() {
     let tensor2 = reader.get("tensor2").expect("tensor2 not found");
     assert_eq!(tensor2.shape, shape![10]);
     assert_eq!(tensor2.dtype, DType::F32);
-    let tensor2_data = tensor2.to_data().unwrap();
+    let tensor2_data = crate::bridge::to_data(tensor2).unwrap();
     let expected_tensor2_data =
         TensorData::new(vec![50, 51, 52, 53, 54, 55, 56, 57, 58, 59], vec![10]);
     tensor2_data.assert_approx_eq::<f32>(&expected_tensor2_data, Tolerance::default());
@@ -672,7 +672,7 @@ fn test_legacy_with_offsets() {
         .get("tensor1")
         .expect("Legacy file should contain tensor1");
     assert_eq!(tensor1.shape, shape![10]);
-    let data1 = tensor1.to_data().unwrap();
+    let data1 = crate::bridge::to_data(tensor1).unwrap();
     let expected_data1 = TensorData::new(
         vec![
             1.00_f32, 1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08, 1.09,
@@ -685,7 +685,7 @@ fn test_legacy_with_offsets() {
         .get("tensor2")
         .expect("Legacy file should contain tensor2");
     assert_eq!(tensor2.shape, shape![5]);
-    let data2 = tensor2.to_data().unwrap();
+    let data2 = crate::bridge::to_data(tensor2).unwrap();
     let expected_data2 = TensorData::new(vec![2.0_f32, 2.1, 2.2, 2.3, 2.4], vec![5]);
     data2.assert_approx_eq::<f32>(&expected_data2, Tolerance::default());
 
@@ -693,7 +693,7 @@ fn test_legacy_with_offsets() {
         .get("tensor3")
         .expect("Legacy file should contain tensor3");
     assert_eq!(tensor3.shape, shape![5]);
-    let data3 = tensor3.to_data().unwrap();
+    let data3 = crate::bridge::to_data(tensor3).unwrap();
     let expected_data3 = TensorData::new(vec![3.0_f32, 3.1, 3.2, 3.3, 3.4], vec![5]);
     data3.assert_approx_eq::<f32>(&expected_data3, Tolerance::default());
 }
@@ -711,7 +711,7 @@ fn test_legacy_shared_storage() {
     for key in &keys {
         assert!(reader.get(key).is_some(), "Should have tensor: {}", key);
         let tensor = reader.get(key).unwrap();
-        let data = tensor.to_data().unwrap();
+        let data = crate::bridge::to_data(tensor).unwrap();
 
         // Verify tensor data can be accessed
         match tensor.dtype {
@@ -1166,7 +1166,7 @@ fn test_tar_float32_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, shape![4]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 4);
     assert!((values[0] - 1.0).abs() < 1e-6);
@@ -1184,7 +1184,7 @@ fn test_tar_float64_tensor() {
     assert_eq!(tensor.dtype, DType::F64);
     assert_eq!(tensor.shape, shape![3]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<f64>().unwrap();
     assert_eq!(values.len(), 3);
     assert!((values[0] - 1.1).abs() < 1e-10);
@@ -1201,7 +1201,7 @@ fn test_tar_int64_tensor() {
     assert_eq!(tensor.dtype, DType::I64);
     assert_eq!(tensor.shape, shape![4]);
 
-    let data = tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(tensor).unwrap();
     let values = data.as_slice::<i64>().unwrap();
     assert_eq!(values, &[100, -200, 300, 0]);
 }
@@ -1217,7 +1217,7 @@ fn test_tar_multiple_tensors() {
     assert_eq!(weight.dtype, DType::F32);
     assert_eq!(weight.shape, shape![2, 3]);
 
-    let data = weight.to_data().unwrap();
+    let data = crate::bridge::to_data(weight).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 6);
     assert!((values[0] - 0.1).abs() < 1e-6);
@@ -1229,7 +1229,7 @@ fn test_tar_multiple_tensors() {
     assert_eq!(bias.dtype, DType::F32);
     assert_eq!(bias.shape, shape![2]);
 
-    let data = bias.to_data().unwrap();
+    let data = crate::bridge::to_data(bias).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 2);
     assert!((values[0] - 0.01).abs() < 1e-6);
@@ -1247,7 +1247,7 @@ fn test_tar_multi_dtype() {
         .get("float_tensor")
         .expect("float_tensor key not found");
     assert_eq!(float_tensor.dtype, DType::F32);
-    let data = float_tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(float_tensor).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert!((values[0] - 1.5).abs() < 1e-6);
 
@@ -1256,14 +1256,14 @@ fn test_tar_multi_dtype() {
         .get("double_tensor")
         .expect("double_tensor key not found");
     assert_eq!(double_tensor.dtype, DType::F64);
-    let data = double_tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(double_tensor).unwrap();
     let values = data.as_slice::<f64>().unwrap();
     assert!((values[0] - 1.111).abs() < 1e-10);
 
     // Int64 tensor
     let int_tensor = reader.get("int_tensor").expect("int_tensor key not found");
     assert_eq!(int_tensor.dtype, DType::I64);
-    let data = int_tensor.to_data().unwrap();
+    let data = crate::bridge::to_data(int_tensor).unwrap();
     let values = data.as_slice::<i64>().unwrap();
     assert_eq!(values, &[10, 20, 30, 40]);
 }
@@ -1278,7 +1278,7 @@ fn test_tar_2d_tensor_shape() {
     assert_eq!(matrix.dtype, DType::F32);
     assert_eq!(matrix.shape, shape![3, 4]); // 3 rows, 4 columns
 
-    let data = matrix.to_data().unwrap();
+    let data = crate::bridge::to_data(matrix).unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 12);
 

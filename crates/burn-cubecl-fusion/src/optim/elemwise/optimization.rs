@@ -145,6 +145,10 @@ fn elemwise_fuse(
 pub const NAME: &str = "ElementWise";
 
 impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        self.trace.max_relative_shape_id()
+    }
+
     const NAME: &'static str = self::NAME;
     type State = ElemwiseOptimizationState;
 

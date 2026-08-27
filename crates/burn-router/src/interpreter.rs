@@ -1,5 +1,3 @@
-use core::sync::atomic::{AtomicU64, Ordering};
-
 use super::{RouterClient, RouterTensor};
 use crate::CustomOpRegistry;
 use crate::{
@@ -18,6 +16,7 @@ use burn_ir::{
     OperationIr, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut};
+use portable_atomic::{AtomicU64, Ordering};
 
 /// An interpreter's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.

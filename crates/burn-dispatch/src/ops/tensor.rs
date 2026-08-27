@@ -740,3 +740,120 @@ impl FloatTensorOps<Self> for Dispatch {
         binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_hypot(lhs, rhs) => Float)
     }
 }
+
+#[cfg(all(test, feature = "capture", any(feature = "flex", default_backend)))]
+mod tests {
+    use super::*;
+    use burn_backend::ops::{BoolTensorOps, IntTensorOps};
+    use burn_capture::CaptureDevice;
+
+    #[test]
+    fn capture_tensor_movement_is_one_way() {
+        let source_device = DispatchDevice::Flex(Default::default());
+        let concrete_capture_device = CaptureDevice::default();
+        let capture_device = DispatchDevice::Capture(concrete_capture_device);
+        let float = Dispatch::float_from_data(TensorData::from([1.0f32, 2.0]), &source_device);
+        let int = Dispatch::int_from_data(TensorData::from([1i64, 2]), &source_device);
+
+        let graph = concrete_capture_device
+            .capture_scope(|scope| {
+                let captured_float = Dispatch::float_to_device(float, &capture_device);
+                let captured_float = Dispatch::float_to_device(captured_float, &capture_device);
+                let captured_int = Dispatch::int_to_device(int, &capture_device);
+                let captured_int = Dispatch::int_to_device(captured_int, &capture_device);
+                let float_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    Dispatch::float_to_device(captured_float, &source_device)
+                }));
+                let int_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    Dispatch::int_to_device(captured_int, &source_device)
+                }));
+
+                assert!(float_result.is_err());
+                assert!(int_result.is_err());
+                scope.complete([], [])
+            })
+            .unwrap();
+        assert_eq!(graph.values.len(), 2);
+    }
+
+    #[test]
+    fn initialized_tensors_can_move_between_capture_devices() {
+        let source_device = DispatchDevice::Flex(Default::default());
+        let first = CaptureDevice::default();
+        let second = CaptureDevice::default();
+        let first_dispatch = DispatchDevice::Capture(first);
+        let second_dispatch = DispatchDevice::Capture(second);
+        let float = Dispatch::float_from_data(TensorData::from([1.0f32]), &source_device);
+        let int = Dispatch::int_from_data(TensorData::from([1i64]), &source_device);
+        let bool = Dispatch::bool_from_data(TensorData::from([true]), &source_device);
+
+        let first_graph = first
+            .capture_scope(|first_scope| {
+                let float = Dispatch::float_to_device(float, &first_dispatch);
+                let int = Dispatch::int_to_device(int, &first_dispatch);
+                let bool = Dispatch::bool_to_device(bool, &first_dispatch);
+
+                let second_graph = second
+                    .capture_scope(|second_scope| {
+                        Dispatch::float_to_device(float, &second_dispatch);
+                        Dispatch::int_to_device(int, &second_dispatch);
+                        Dispatch::bool_to_device(bool, &second_dispatch);
+                        second_scope.complete([], [])
+                    })
+                    .unwrap();
+                assert_eq!(second_graph.values.len(), 3);
+
+                first_scope.complete([], [])
+            })
+            .unwrap();
+
+        assert_eq!(first_graph.values.len(), 3);
+    }
+
+    #[test]
+    fn computed_tensors_cannot_move_between_capture_devices() {
+        let source_device = DispatchDevice::Flex(Default::default());
+        let first = CaptureDevice::default();
+        let second = CaptureDevice::default();
+        let first_dispatch = DispatchDevice::Capture(first);
+        let second_dispatch = DispatchDevice::Capture(second);
+        let float = Dispatch::float_from_data(TensorData::from([1.0f32]), &source_device);
+        let int = Dispatch::int_from_data(TensorData::from([1i64]), &source_device);
+        let bool = Dispatch::bool_from_data(TensorData::from([true]), &source_device);
+
+        let first_graph = first
+            .capture_scope(|first_scope| {
+                let float = Dispatch::float_neg(Dispatch::float_to_device(float, &first_dispatch));
+                let int = Dispatch::int_neg(Dispatch::int_to_device(int, &first_dispatch));
+                let bool = Dispatch::bool_not(Dispatch::bool_to_device(bool, &first_dispatch));
+
+                let second_graph = second
+                    .capture_scope(|second_scope| {
+                        let float_result =
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                Dispatch::float_to_device(float, &second_dispatch)
+                            }));
+                        let int_result =
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                Dispatch::int_to_device(int, &second_dispatch)
+                            }));
+                        let bool_result =
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                Dispatch::bool_to_device(bool, &second_dispatch)
+                            }));
+
+                        assert!(float_result.is_err());
+                        assert!(int_result.is_err());
+                        assert!(bool_result.is_err());
+                        second_scope.complete([], [])
+                    })
+                    .unwrap();
+                assert!(second_graph.values.is_empty());
+
+                first_scope.complete([], [])
+            })
+            .unwrap();
+
+        assert_eq!(first_graph.values.len(), 3);
+    }
+}

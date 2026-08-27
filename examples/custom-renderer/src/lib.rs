@@ -121,7 +121,7 @@ pub fn run(device: Device) {
     // artifact dir does not need to be provided when log_to_file is false
     let training = SupervisedTraining::new("", dataloader_train, dataloader_test)
         .num_epochs(config.num_epochs)
-        .renderer(CustomRenderer {})
+        .renderer(Box::new(CustomRenderer {}))
         .with_application_logger(None);
     // can be used to interrupt training
     let _interrupter = training.interrupter();

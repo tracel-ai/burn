@@ -10,13 +10,12 @@
 //! - Extended PyTorch version compatibility (0.1.10 - 2.x)
 //! - Better separation of pickle parsing and tensor extraction
 //! - Support for both legacy and modern PyTorch formats
-use crate::TensorSnapshot;
+use crate::bridge;
 use crate::pytorch::lazy_data::LazyDataSource;
-use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use burn_core::module::ParamId;
 use burn_core::tensor::{BoolStore, DType, TensorData};
+use burn_pack::{Error as PackError, Tensor as PackTensor};
 use byteorder::{LittleEndian, ReadBytesExt};
 use half::{bf16, f16};
 use std::collections::HashMap;
@@ -231,7 +230,7 @@ pub enum Object {
         callable: Box<Object>,
         args: Box<Object>,
     },
-    TorchParam(TensorSnapshot),
+    TorchParam(PackTensor),
 }
 
 impl Object {
@@ -569,25 +568,19 @@ fn contiguous_tensor_bytes(
     storage_offset: usize,
     element_size: usize,
     num_elements: usize,
-) -> std::result::Result<&[u8], crate::TensorSnapshotError> {
+) -> std::result::Result<&[u8], PackError> {
     let byte_start = storage_offset.checked_mul(element_size).ok_or_else(|| {
-        crate::TensorSnapshotError::DataError(
-            "Tensor byte offset calculation overflows usize".to_string(),
-        )
+        PackError::ValidationError("Tensor byte offset calculation overflows usize".to_string())
     })?;
     let byte_len = num_elements.checked_mul(element_size).ok_or_else(|| {
-        crate::TensorSnapshotError::DataError(
-            "Tensor byte length calculation overflows usize".to_string(),
-        )
+        PackError::ValidationError("Tensor byte length calculation overflows usize".to_string())
     })?;
     let byte_end = byte_start.checked_add(byte_len).ok_or_else(|| {
-        crate::TensorSnapshotError::DataError(
-            "Tensor byte range calculation overflows usize".to_string(),
-        )
+        PackError::ValidationError("Tensor byte range calculation overflows usize".to_string())
     })?;
 
     data.get(byte_start..byte_end).ok_or_else(|| {
-        crate::TensorSnapshotError::DataError(format!(
+        PackError::ValidationError(format!(
             "Contiguous tensor byte range {byte_start}..{byte_end} extends beyond {} available storage bytes",
             data.len()
         ))
@@ -606,19 +599,17 @@ fn reorder_tensor_bytes(
     storage_offset: usize,
     element_size: usize,
     num_elements: usize,
-) -> std::result::Result<Option<Vec<u8>>, crate::TensorSnapshotError> {
+) -> std::result::Result<Option<Vec<u8>>, PackError> {
     if is_contiguous_stride(shape, stride) {
         return Ok(None);
     }
 
     let byte_len = num_elements.checked_mul(element_size).ok_or_else(|| {
-        crate::TensorSnapshotError::DataError(
-            "Tensor byte length calculation overflows usize".to_string(),
-        )
+        PackError::ValidationError("Tensor byte length calculation overflows usize".to_string())
     })?;
     let mut reordered = Vec::new();
     reordered.try_reserve_exact(byte_len).map_err(|err| {
-        crate::TensorSnapshotError::DataError(format!(
+        PackError::ValidationError(format!(
             "Failed to reserve {byte_len} bytes for reordered tensor data: {err}"
         ))
     })?;
@@ -631,31 +622,23 @@ fn reorder_tensor_bytes(
             let coordinate = remaining % dim;
             remaining /= dim;
             let coordinate_offset = coordinate.checked_mul(step).ok_or_else(|| {
-                crate::TensorSnapshotError::DataError(
-                    "Tensor stride calculation overflows usize".to_string(),
-                )
+                PackError::ValidationError("Tensor stride calculation overflows usize".to_string())
             })?;
             storage_index = storage_index
                 .checked_add(coordinate_offset)
                 .ok_or_else(|| {
-                    crate::TensorSnapshotError::DataError(
-                        "Tensor storage index overflows usize".to_string(),
-                    )
+                    PackError::ValidationError("Tensor storage index overflows usize".to_string())
                 })?;
         }
 
         let byte_start = storage_index.checked_mul(element_size).ok_or_else(|| {
-            crate::TensorSnapshotError::DataError(
-                "Tensor byte offset calculation overflows usize".to_string(),
-            )
+            PackError::ValidationError("Tensor byte offset calculation overflows usize".to_string())
         })?;
         let byte_end = byte_start.checked_add(element_size).ok_or_else(|| {
-            crate::TensorSnapshotError::DataError(
-                "Tensor byte range calculation overflows usize".to_string(),
-            )
+            PackError::ValidationError("Tensor byte range calculation overflows usize".to_string())
         })?;
         let bytes = data.get(byte_start..byte_end).ok_or_else(|| {
-            crate::TensorSnapshotError::DataError(format!(
+            PackError::ValidationError(format!(
                 "Tensor stride references storage element {} beyond {} available elements",
                 storage_index,
                 data.len() / element_size
@@ -820,12 +803,19 @@ fn rebuild_tensor_impl(
         source.track_storage_usage(&storage_key, 0, bytes_needed);
     }
 
-    // Create a TensorSnapshot with a closure that loads the actual data on-demand
-    Ok(Object::TorchParam(TensorSnapshot::from_closure(
-        Rc::new(move || {
+    // The tensor's name is not known here: it is a value in the pickle's nested dicts, and
+    // its path is only assembled while walking them, so `PytorchReader` fills it in on insert.
+    // PyTorch carries no parameter identity either, so `param_id` stays empty and loading keeps
+    // the target module's ids.
+    Ok(Object::TorchParam(bridge::deferred(
+        String::new(),
+        dtype,
+        shape.into(),
+        None,
+        move || {
             // Load data only when needed
             let data = data_source_clone.read(&data_file_key).map_err(|err| {
-                crate::TensorSnapshotError::DataError(format!(
+                PackError::ValidationError(format!(
                     "Failed to read storage '{data_file_key}' for tensor with shape {shape_clone:?}: {err}"
                 ))
             })?;
@@ -834,14 +824,14 @@ fn rebuild_tensor_impl(
             let storage_extent =
                 tensor_storage_extent(&shape_clone, &stride_clone, storage_offset).map_err(
                     |err| {
-                        crate::TensorSnapshotError::DataError(format!(
+                        PackError::ValidationError(format!(
                             "Invalid view of storage '{data_file_key}' for tensor with shape {shape_clone:?}: {err}"
                         ))
                     },
                 )?;
             let available_elements = data.len() / element_size;
             if storage_extent > available_elements {
-                return Err(crate::TensorSnapshotError::DataError(format!(
+                return Err(PackError::ValidationError(format!(
                     "Tensor with shape {shape_clone:?} requires {storage_extent} elements from storage '{data_file_key}', but only {available_elements} are available"
                 )));
             }
@@ -988,18 +978,13 @@ fn rebuild_tensor_impl(
                 }
                 _ => {
                     // For any remaining unsupported types, return an error
-                    Err(crate::TensorSnapshotError::DataError(format!(
+                    Err(PackError::ValidationError(format!(
                         "Unsupported dtype for tensor data reading: {:?}",
                         dtype
                     )))
                 }
             }
-        }),
-        dtype,
-        shape.into(),
-        vec![],         // path_stack
-        vec![],         // container_stack
-        ParamId::new(), // tensor_id
+        },
     )))
 }
 
@@ -1673,7 +1658,7 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
 }
 
 /// Load tensors from a pickle file (PyTorch checkpoint format)
-pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String, TensorSnapshot>> {
+pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String, PackTensor>> {
     let obj = read_pickle(reader)?;
 
     // Extract tensors from the loaded object
@@ -1684,10 +1669,15 @@ pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String,
     Ok(tensors)
 }
 
-fn extract_tensors<'a>(
+/// Walk a parsed pickle object tree, collecting each tensor found under a dict path.
+///
+/// Only dicts are descended into: a state_dict is one, and a tensor reached any other way is
+/// ignored. A tensor is built without a name, its path being assembled only here, so this is
+/// also where each one gets its final identity.
+pub(super) fn extract_tensors<'a>(
     obj: &'a Object,
     path: &mut Vec<&'a str>,
-    tensors: &mut HashMap<String, TensorSnapshot>,
+    tensors: &mut HashMap<String, PackTensor>,
 ) {
     match obj {
         Object::Dict(dict) => {
@@ -1697,9 +1687,13 @@ fn extract_tensors<'a>(
                 path.pop();
             }
         }
-        Object::TorchParam(snapshot) => {
-            // Only allocate the string here when we actually insert
-            tensors.insert(path.join("."), snapshot.clone());
+        Object::TorchParam(tensor) => {
+            // The tensor was built without a name; its path is only known here.
+            // Only allocate the string when we actually insert.
+            let name = path.join(".");
+            let mut tensor = tensor.clone();
+            tensor.name = name.clone();
+            tensors.insert(name, tensor);
         }
         _ => {}
     }
@@ -1742,10 +1736,10 @@ mod tests {
         ])
     }
 
-    fn snapshot_from_object(object: Object) -> TensorSnapshot {
+    fn tensor_from_object(object: Object) -> PackTensor {
         match object {
-            Object::TorchParam(snapshot) => snapshot,
-            other => panic!("expected tensor snapshot, got {other:?}"),
+            Object::TorchParam(tensor) => tensor,
+            other => panic!("expected packed tensor, got {other:?}"),
         }
     }
 
@@ -1811,7 +1805,7 @@ mod tests {
         let err = reorder_tensor_bytes(&[0; 4], &[2], &[2], 0, 4, 2).unwrap_err();
         assert!(matches!(
             err,
-            crate::TensorSnapshotError::DataError(msg)
+            PackError::ValidationError(msg)
                 if msg == "Tensor stride references storage element 2 beyond 1 available elements"
         ));
     }
@@ -1821,7 +1815,7 @@ mod tests {
         let short_contiguous = contiguous_tensor_bytes(&[0; 4], 0, 4, 2);
         assert!(matches!(
             short_contiguous,
-            Err(crate::TensorSnapshotError::DataError(msg))
+            Err(PackError::ValidationError(msg))
                 if msg == "Contiguous tensor byte range 0..8 extends beyond 4 available storage bytes"
         ));
     }
@@ -1831,7 +1825,7 @@ mod tests {
         let offset_past_storage = contiguous_tensor_bytes(&[0; 4], 1, 4, 1);
         assert!(matches!(
             offset_past_storage,
-            Err(crate::TensorSnapshotError::DataError(msg))
+            Err(PackError::ValidationError(msg))
                 if msg == "Contiguous tensor byte range 4..8 extends beyond 4 available storage bytes"
         ));
     }
@@ -1861,7 +1855,7 @@ mod tests {
             &fixture_data_source(),
         )
         .unwrap();
-        let data = snapshot_from_object(object).to_data().unwrap();
+        let data = bridge::into_data(tensor_from_object(object)).unwrap();
         assert_eq!(
             data.as_slice::<f32>().unwrap(),
             &[5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
@@ -1876,7 +1870,7 @@ mod tests {
             &fixture_data_source(),
         )
         .unwrap();
-        let data = snapshot_from_object(object).to_data().unwrap();
+        let data = bridge::into_data(tensor_from_object(object)).unwrap();
         assert_eq!(
             data.as_slice::<f32>().unwrap(),
             &[
@@ -1894,7 +1888,7 @@ mod tests {
             &fixture_data_source(),
         )
         .unwrap();
-        let data = snapshot_from_object(object).to_data().unwrap();
+        let data = bridge::into_data(tensor_from_object(object)).unwrap();
         assert_eq!(data.as_slice::<f32>().unwrap(), &[5.0]);
     }
 
@@ -1906,7 +1900,7 @@ mod tests {
             &fixture_data_source(),
         )
         .unwrap();
-        let data = snapshot_from_object(object).to_data().unwrap();
+        let data = bridge::into_data(tensor_from_object(object)).unwrap();
         assert_eq!(data.as_slice::<f32>().unwrap().len(), 24);
     }
 
@@ -1918,10 +1912,10 @@ mod tests {
             &fixture_data_source(),
         )
         .unwrap();
-        let err = snapshot_from_object(object).to_data().unwrap_err();
+        let err = bridge::into_data(tensor_from_object(object)).unwrap_err();
         assert!(matches!(
             err,
-            crate::TensorSnapshotError::DataError(msg)
+            PackError::ValidationError(msg)
                 if msg.contains("Failed to read storage 'data/missing' for tensor with shape [2, 3]")
         ));
     }

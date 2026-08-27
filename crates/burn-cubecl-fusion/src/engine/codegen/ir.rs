@@ -670,6 +670,17 @@ pub struct FuseBlockConfig {
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
     pub width: VectorSize,
+    /// The axis a vector of [width](Self::width) elements runs along.
+    ///
+    /// This is `rank - 1` while the reference layout is in logical dimension order,
+    /// and the dimension the reference is innermost along when it is permuted. The
+    /// aligned read and write paths walk a vector by stepping a tensor's stride
+    /// along this axis, so taking it to be the last dimension — which it used to be,
+    /// unconditionally — reads and writes the wrong elements as soon as the
+    /// reference is not contiguous.
+    ///
+    /// It only matters at a width above one: a single-element vector never steps.
+    pub vector_axis: usize,
 }
 
 impl AsRefExpand for FuseBlockConfig {

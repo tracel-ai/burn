@@ -1,8 +1,9 @@
 //! Core types and constants for the Burnpack file format.
 //!
-//! See the [parent module](crate::burnpack) for the complete file format specification.
+//! See the [crate root](crate) for the complete file format specification.
 
 use alloc::collections::BTreeMap;
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_std::DType;
@@ -343,6 +344,31 @@ impl core::fmt::Display for Error {
             }
             Error::ValidationError(e) => write!(f, "Validation error: {}", e),
         }
+    }
+}
+
+impl Error {
+    /// Name the tensor an error came from, keeping the variant intact.
+    ///
+    /// Used on the write path, where a tensor's bytes are produced by caller code partway
+    /// through the container: without the name, a failure on one tensor of many says only
+    /// that something went wrong somewhere.
+    pub(crate) fn in_tensor(mut self, name: &str) -> Self {
+        match &mut self {
+            Error::MetadataSerializationError(message)
+            | Error::MetadataDeserializationError(message)
+            | Error::IoError(message)
+            | Error::TensorBytesSizeMismatch(message)
+            | Error::ValidationError(message) => *message = format!("tensor '{name}': {message}"),
+            // Header failures carry no message to annotate (and are not expected from an
+            // entry), while `TensorNotFound`'s payload is a tensor name, not a sentence -
+            // prefixing either would garble its Display output.
+            Error::InvalidHeader
+            | Error::InvalidMagicNumber
+            | Error::InvalidVersion
+            | Error::TensorNotFound(_) => {}
+        }
+        self
     }
 }
 

@@ -7,7 +7,7 @@ use burn_backend::{
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
-use core::ops::DerefMut;
+use core::{marker::PhantomData, ops::DerefMut};
 use hashbrown::HashMap;
 use spin::Mutex;
 
@@ -91,9 +91,54 @@ pub(crate) struct RouterClientLocator {
     clients: Mutex<Option<HashMap<Key, Box<dyn core::any::Any + Send>>>>,
 }
 
-/// Get the client for the given device
+/// Get the client currently associated with `device`.
+///
+/// An existing scoped or unscoped registration is returned as-is. On a cache miss, the channel's
+/// [`RouterChannel::init_client`] implementation creates an unscoped client that remains cached in
+/// the global locator. Use [`register_scoped_client`] when the caller, rather than the locator,
+/// must control the client's lifetime.
 pub fn get_client<R: RouterChannel>(device: &R::Device) -> Client<R> {
     CLIENTS.client::<R>(device)
+}
+
+/// Guard owning a router client's registration in the global locator.
+///
+/// The locator stores a clone of the registered client; this guard stores the corresponding lookup
+/// key. Dropping the guard removes that clone. Tensor handles remain safe because they own client
+/// clones independently of the locator. Most router clients are process-long lived and use
+/// [`get_client`]; lifecycle-owned channels use [`register_scoped_client`] and retain this guard.
+#[must_use = "dropping the registration immediately unregisters its router client"]
+pub struct RouterClientRegistration<R: RouterChannel> {
+    key: Key,
+    _channel: PhantomData<R>,
+}
+
+impl<R: RouterChannel> Drop for RouterClientRegistration<R> {
+    fn drop(&mut self) {
+        CLIENTS.remove(self.key);
+    }
+}
+
+/// Register `client` with a locator entry owned by the returned guard.
+///
+/// This inserts the caller-created client directly and does not call
+/// [`RouterChannel::init_client`]. While the guard is alive, [`get_client`] for the same channel and
+/// device returns a clone of this client. Dropping the guard removes the locator entry, allowing a
+/// later scope to associate the same device with a different client.
+///
+/// Unlike [`get_client`], this requires the device not to have a registered client already. The
+/// guard gives one lifecycle owner responsibility for cleanup and prevents exposing unrestricted
+/// client removal to downstream crates. Returns `None` when the device already has a client.
+pub fn register_scoped_client<R: RouterChannel>(
+    device: &R::Device,
+    client: Client<R>,
+) -> Option<RouterClientRegistration<R>> {
+    CLIENTS
+        .register_scoped::<R>(device, client)
+        .map(|key| RouterClientRegistration {
+            key,
+            _channel: PhantomData,
+        })
 }
 
 /// Initialize a new client for the given device.
@@ -138,6 +183,30 @@ impl RouterClientLocator {
                 }
             },
             _ => unreachable!(),
+        }
+    }
+
+    /// Register a client with a unique lifecycle owner.
+    fn register_scoped<R: RouterChannel + 'static>(
+        &self,
+        device: &R::Device,
+        client: Client<R>,
+    ) -> Option<Key> {
+        let key = (core::any::TypeId::of::<R>(), device.id());
+        let mut clients = self.clients.lock();
+        let clients = clients.get_or_insert_with(HashMap::new);
+        if clients.contains_key(&key) {
+            return None;
+        }
+        clients.insert(key, Box::new(client));
+        Some(key)
+    }
+
+    /// Remove the client identified by a scoped registration guard.
+    fn remove(&self, key: Key) {
+        let mut clients = self.clients.lock();
+        if let Some(clients) = clients.as_mut() {
+            clients.remove(&key);
         }
     }
 

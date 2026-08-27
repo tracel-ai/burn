@@ -77,6 +77,7 @@ mod sign;
 mod slice;
 mod slice_assign;
 mod softmax;
+mod softplus;
 mod sort;
 mod sqrt;
 mod sub;

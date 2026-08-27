@@ -1,11 +1,13 @@
 use crate::{Tensor, kind::Autodiff};
 
 #[cfg(feature = "autodiff")]
-use crate::ops::BridgeTensor;
+use crate::ops::{BridgeKind, BridgeTensor};
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
+#[cfg(feature = "autodiff")]
+use burn_dispatch::GradientCheckpointingStrategy;
 
 #[cfg(feature = "autodiff")]
 type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
@@ -131,6 +133,32 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// The tensor converted to the autodiff backend.
     pub fn from_inner(inner: Tensor<D, K>) -> Self {
         Self::new(K::from_inner(inner.primitive))
+    }
+
+    /// Sets the autodiff checkpointing strategy carried by this tensor.
+    ///
+    /// The strategy is normally derived from the device the tensor was created on (see
+    /// [`Device::gradient_checkpointing`](crate::Device::gradient_checkpointing)); this
+    /// method overrides it for a single tensor. A tensor carrying a strategy is treated
+    /// as tracked by autodiff, so this also marks an inner-backend tensor for tracking.
+    ///
+    /// # Panics
+    ///
+    /// Operations combining tensors that carry different strategies panic; make sure all
+    /// operands share the same one.
+    #[cfg(feature = "autodiff")]
+    pub fn with_gradient_checkpointing_strategy(
+        self,
+        strategy: GradientCheckpointingStrategy,
+    ) -> Self {
+        let (kind, mut tensor) = self.primitive.into_parts();
+        tensor.checkpointing = Some(strategy);
+        Self::new(match kind {
+            BridgeKind::Bool => BridgeTensor::bool(tensor),
+            BridgeKind::Int => BridgeTensor::int(tensor),
+            BridgeKind::Float => BridgeTensor::float(tensor),
+            BridgeKind::QFloat => BridgeTensor::qfloat(tensor),
+        })
     }
 }
 

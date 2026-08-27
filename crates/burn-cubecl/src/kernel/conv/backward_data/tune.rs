@@ -12,6 +12,7 @@ use crate::{
     kernel::conv::{
         ConvAutotuneKey,
         backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
+        im2col::dgrad_im2col_1x1,
     },
     tensor::CubeTensor,
 };
@@ -36,6 +37,15 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
                 "wgrad_fallback",
                 |(out_grad, weights, input_shape, options)| {
                     conv_data_backward_fallback::<R, N>(out_grad, weights, input_shape, options)
+                },
+            ))
+            // Declines every shape but the pointwise one. It earns its place
+            // because a device with no accelerated matmul for the dtype
+            // declines every candidate below, leaving the fallback unopposed.
+            .with(Tunable::new(
+                "dgrad_im2col_1x1",
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_im2col_1x1::<R, N>(out_grad, weights, input_shape, options)
                 },
             ))
             .with(Tunable::new(

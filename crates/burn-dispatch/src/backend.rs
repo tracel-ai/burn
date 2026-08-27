@@ -12,7 +12,10 @@ use alloc::vec;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
-use burn_backend::{AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError};
+use burn_backend::{
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError,
+    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport,
+};
 
 /// A captured graph from one of the dispatched backends (see
 /// [`BackendTypes::GraphPrimitive`]).
@@ -64,6 +67,9 @@ pub enum DispatchGraph {
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
     Remote(BackendGraph<Remote>),
+    /// A graph captured by the non-executing capture backend.
+    #[cfg(feature = "capture")]
+    Capture(BackendGraph<Capture>),
 }
 
 /// The error returned when a graph operation cannot be dispatched.
@@ -235,6 +241,8 @@ impl Backend for Dispatch {
             DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
+            #[cfg(feature = "capture")]
+            DispatchDeviceId::Capture => Capture::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
         }
     }
@@ -255,6 +263,24 @@ impl Backend for Dispatch {
 
     fn memory_cleanup(device: &Self::Device) {
         dispatch_device!(device, |device| B::memory_cleanup(device))
+    }
+
+    fn memory_install_pools(
+        device: &Self::Device,
+        layout: MemoryPoolLayout,
+    ) -> Result<(), InstallMemoryPoolsError> {
+        dispatch_device!(device, |device| B::memory_install_pools(
+            device,
+            layout.clone()
+        ))
+    }
+
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        dispatch_device!(device, |device| B::memory_pool_report(device))
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        dispatch_device!(device, |device| B::memory_pool_usage(device))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -306,6 +332,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -376,6 +406,10 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -450,6 +484,10 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -577,6 +615,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -674,6 +716,10 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
                 )))
             }
+            #[cfg(feature = "capture")]
+            DispatchTensorKind::Capture(_) => {
+                panic!("Capture tensors do not support autodiff")
+            }
             DispatchTensorKind::Autodiff(_) => {
                 panic!("Autodiff should not wrap an autodiff tensor.")
             }
@@ -683,7 +729,7 @@ impl AutodiffBackend for Dispatch {
         let checkpointing = if let Some(strategy) = checkpointing {
             Some(strategy)
         } else {
-            Some(crate::CheckpointingStrategy::None)
+            Some(crate::GradientCheckpointingStrategy::Disabled)
         };
         DispatchTensor {
             kind,
@@ -748,7 +794,7 @@ impl AutodiffBackend for Dispatch {
         let checkpointing = if let Some(strategy) = checkpointing {
             Some(strategy)
         } else {
-            Some(crate::CheckpointingStrategy::None)
+            Some(crate::GradientCheckpointingStrategy::Disabled)
         };
         DispatchTensor {
             kind,
@@ -916,6 +962,10 @@ impl Dispatch {
             // `enumerate` can't carry. Use [`Dispatch::enumerate_remote_websocket`] to list the devices
             // behind a given address.
             DispatchDeviceId::Remote => Vec::new(),
+            #[cfg(feature = "capture")]
+            // Capture devices are created together with a lifecycle handle and therefore
+            // cannot be reconstructed from a type ID alone.
+            DispatchDeviceId::Capture => Vec::new(),
             _ => unreachable!("No backend feature enabled."),
         }
     }

@@ -1,6 +1,7 @@
 use core::f32;
 
 use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::checked::CheckedCastError;
 use rand::Rng;
@@ -93,6 +94,7 @@ impl DataError {
 
 /// Data structure for tensors.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "TensorDataDe")]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
     pub bytes: Bytes,
@@ -103,6 +105,46 @@ pub struct TensorData {
 
     /// The data type of the tensor.
     pub dtype: DType,
+}
+
+/// Unvalidated wire form of [`TensorData`], used so that deserialization enforces the same
+/// byte-length invariant as the constructors instead of trusting the encoded shape.
+#[derive(Deserialize)]
+struct TensorDataDe {
+    bytes: Bytes,
+    #[serde(with = "shape_inner")]
+    shape: Shape,
+    dtype: DType,
+}
+
+impl TryFrom<TensorDataDe> for TensorData {
+    type Error = String;
+
+    fn try_from(data: TensorDataDe) -> Result<Self, Self::Error> {
+        // `dtype.size()` is not the stored width of quantized data (sub-byte values plus
+        // appended scales), so only the other dtypes have a shape-derived byte length. The
+        // product is checked as well: an encoded shape that overflows `usize` would otherwise
+        // wrap into a small element count that matches the payload.
+        let expected = data
+            .shape
+            .iter()
+            .try_fold(1usize, |numel, dim| numel.checked_mul(*dim))
+            .and_then(|numel| numel.checked_mul(data.dtype.size()));
+
+        if !matches!(data.dtype, DType::QFloat(_)) && expected != Some(data.bytes.len()) {
+            return Err(format!(
+                "Shape {:?} is invalid for input of size {:?} bytes",
+                data.shape,
+                data.bytes.len(),
+            ));
+        }
+
+        Ok(Self {
+            bytes: data.bytes,
+            shape: data.shape,
+            dtype: data.dtype,
+        })
+    }
 }
 
 // For backward compatibility with shape `Vec<usize>`
@@ -528,6 +570,7 @@ mod tests {
         SeedableRng,
         rngs::{StdRng, SysRng},
     };
+    use alloc::string::ToString;
     use alloc::vec;
     use core::mem::{MaybeUninit, align_of, size_of};
 
@@ -700,6 +743,32 @@ mod tests {
         assert_eq!(
             data.as_slice::<f32>().unwrap(),
             &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        );
+    }
+
+    #[test]
+    fn should_not_deserialize_tensor_data_with_shape_larger_than_bytes() {
+        // A crafted record whose shape claims 1000 f32 over a 4-byte payload must be rejected,
+        // otherwise the resulting tensor reads and writes out of bounds.
+        let serialized = r#"{"bytes": [0, 0, 128, 63], "shape": [1000], "dtype": "F32"}"#;
+
+        let err = serde_json::from_str::<TensorData>(serialized).unwrap_err();
+        assert!(
+            err.to_string().contains("is invalid for input of size"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn should_not_deserialize_tensor_data_with_overflowing_shape() {
+        // The dimensions multiply to 2 with a wrapped product, matching the payload, so an
+        // unchecked product would accept a shape that claims 2^63 + 1 rows.
+        let serialized = r#"{"bytes": [0, 0, 128, 63, 0, 0, 0, 64], "shape": [9223372036854775809, 2], "dtype": "F32"}"#;
+
+        let err = serde_json::from_str::<TensorData>(serialized).unwrap_err();
+        assert!(
+            err.to_string().contains("is invalid for input of size"),
+            "unexpected error: {err}"
         );
     }
 

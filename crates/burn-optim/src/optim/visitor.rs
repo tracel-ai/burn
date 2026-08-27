@@ -34,6 +34,11 @@ where
             return;
         }
 
+        // Prevents `grad_remove` from panicking if one of the tensor is not autodiff.
+        if !param.is_require_grad() {
+            return;
+        }
+
         let Some(grad) = param.val().grad_remove(self.grads) else {
             return;
         };

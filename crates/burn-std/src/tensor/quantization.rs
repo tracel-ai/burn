@@ -15,6 +15,7 @@ pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 use alloc::vec::Vec;
 use core::any::TypeId;
 use cubecl_common::e4m3;
+use cubecl_common::quant::scheme::{f32_to_ue8m0, ue8m0_to_f32};
 use num_traits::PrimInt;
 use serde::{Deserialize, Serialize};
 
@@ -111,11 +112,6 @@ pub struct QParamTensor {
 /// chosen rather than at the first quantize. Each condition is asserted again where it is relied
 /// on, so bypassing this reports the specific rule rather than this general one.
 pub fn quantizable(scheme: &QuantScheme) -> bool {
-    // Quantizing divides by the scale it will store, which needs the round-up rule.
-    if scheme.scale_dtype().round_up(1.0).is_none() {
-        return false;
-    }
-
     match (scheme.block_scale(), global_scale_dtype(scheme)) {
         (Some(block), Some(global)) => {
             // The per-tensor scale is the largest block scale over the block dtype's maximum, so a
@@ -362,9 +358,7 @@ impl QuantizedBytes {
 /// cover. Rounding down puts that value past the end of the quantized range, where it clips, which
 /// measured several times worse than the coarser step rounding up costs.
 pub fn scale_to_dtype(scale: f32, dtype: ScaleDtype) -> f32 {
-    dtype
-        .round_up(scale)
-        .expect("UE8M0 scales are not yet supported")
+    dtype.round_up(scale)
 }
 
 /// Bytes taken by the per-tensor scale, zero for a scheme that does not carry one over blocks.
@@ -372,11 +366,33 @@ pub fn global_scale_size(scheme: &QuantScheme) -> usize {
     global_scale_dtype(scheme).map_or(0, scale_size)
 }
 
+/// Number of storage elements a tensor of `shape` occupies under `scheme`.
+///
+/// A packed store divides only the packed dimension, rounding that extent up on its own and
+/// leaving the others intact, so a non-divisible extent pads once per line rather than once
+/// over the flattened tensor. This mirrors the storage shape the allocation actually uses (see
+/// `CubeTensor::quantized_storage` in burn-cubecl); flattening first would under-count, e.g. a
+/// `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not `ceil(9 / 8) = 2`.
+fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
+    let num_quants = scheme.num_quants();
+
+    match scheme.store {
+        QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim)
+            if num_quants > 1 && !shape.is_empty() =>
+        {
+            let packed_dim = shape.num_dims() - packed_dim - 1;
+            let mut storage = shape.clone();
+            storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
+            storage.num_elements()
+        }
+        _ => shape.num_elements().div_ceil(num_quants),
+    }
+}
+
 /// Total bytes a tensor of `shape` occupies under `scheme`, laid out as [`QuantizedBytes::new`]
 /// writes it: values, then block scales, then (for a two-level scheme) the per-tensor scale.
 pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
-    let num_storage_elements = shape.num_elements().div_ceil(scheme.num_quants());
-    let value_bytes = num_storage_elements * scheme.size_bits_stored().div_ceil(8);
+    let value_bytes = storage_elements(scheme, shape) * scheme.size_bits_stored().div_ceil(8);
 
     let num_params = params_shape(shape, scheme).num_elements();
     let scale_bytes = num_params * scale_size(scheme.scale_dtype());
@@ -397,19 +413,25 @@ pub fn scale_size(dtype: ScaleDtype) -> usize {
 fn decode_scales(bytes: &[u8], dtype: ScaleDtype) -> Vec<f32> {
     match dtype {
         ScaleDtype::F32 => bytes
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|c| f32::from_ne_bytes([c[0], c[1], c[2], c[3]]))
             .collect(),
         ScaleDtype::F16 => bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| crate::f16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
         ScaleDtype::BF16 => bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| crate::bf16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
         ScaleDtype::UE4M3 => bytes.iter().map(|b| e4m3::from_bits(*b).to_f32()).collect(),
-        ScaleDtype::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
+        ScaleDtype::UE8M0 => bytes.iter().map(|b| ue8m0_to_f32(*b)).collect(),
     }
 }
 
@@ -429,7 +451,9 @@ fn encode_scales(scales: &[f32], dtype: ScaleDtype) -> Vec<u8> {
             .iter()
             .map(|s| e4m3::from_f32(*s).to_bits())
             .collect(),
-        ScaleDtype::UE8M0 => unimplemented!("UE8M0 scales are not yet supported"),
+        // `f32_to_ue8m0` rounds up, which is the rule for a scale and matches `scale_to_dtype`;
+        // a scale reaching here has already been rounded onto the grid anyway.
+        ScaleDtype::UE8M0 => scales.iter().map(|s| f32_to_ue8m0(*s)).collect(),
     }
 }
 
@@ -610,6 +634,7 @@ mod tests {
             ScaleDtype::F16,
             ScaleDtype::BF16,
             ScaleDtype::UE4M3,
+            ScaleDtype::UE8M0,
         ] {
             let rounded: Vec<f32> = scales.iter().map(|s| scale_to_dtype(*s, dtype)).collect();
             let via_codec = decode_scales(&encode_scales(&rounded, dtype), dtype);
@@ -655,6 +680,33 @@ mod tests {
         assert_eq!(scales.global, Some(global));
     }
 
+    /// MXFP4's scale level: one `ue8m0` byte per block, no per-tensor scale. Serialization has to
+    /// carry it like any other, or a model in that format cannot be written or read back.
+    ///
+    /// The scales here are powers of two, which is every value `ue8m0` has — so the round trip is
+    /// exact and a mismatch is a real defect rather than the format's own rounding.
+    #[test]
+    fn should_pack_unpack_ue8m0_block_scales() {
+        let block_scales = [0.25f32, 8.0];
+        let values = vec![0i8, 25, 51, 76, 102, 127, -128, -1];
+
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .per_block([4], ScaleDtype::UE8M0);
+
+        let q_bytes = QuantizedBytes::new(values.clone(), [8], scheme, &block_scales, None);
+
+        // 8 values and one byte per block scale; no per-tensor scale rides along.
+        assert_eq!(q_bytes.bytes.len(), 8 + 2);
+
+        let (q_values, scales) = q_bytes.into_vec_i8();
+
+        assert_eq!(q_values, values);
+        assert_eq!(scales.block, block_scales);
+        assert_eq!(scales.global, None);
+    }
+
     #[test]
     #[should_panic(expected = "requires a per-tensor scale")]
     fn two_level_scheme_without_a_global_scale_is_rejected() {
@@ -693,12 +745,18 @@ mod tests {
                 .per_tensor(ScaleDtype::F32)
         ));
 
-        // No round-up rule, so quantizing cannot store the scale it divides by.
-        assert!(!quantizable(
+        // `ue8m0` stores a bare exponent, so its round-up is to the next power of two.
+        assert!(quantizable(
             &QuantScheme::default().per_block([4], ScaleDtype::UE8M0)
         ));
-        assert!(!quantizable(
+        assert!(quantizable(
             &QuantScheme::default().per_tensor(ScaleDtype::UE8M0)
+        ));
+        // MXFP4, whose whole definition is that pairing.
+        assert!(quantizable(
+            &QuantScheme::default()
+                .with_value(QuantValue::E2M1)
+                .per_block([32], ScaleDtype::UE8M0)
         ));
 
         // Block scales reaching f32's range leave the per-tensor scale subnormal, and a narrower
@@ -719,6 +777,7 @@ mod tests {
     /// wider or narrower than it claims silently misreads every scale.
     #[test]
     fn encoded_scale_width_matches_scale_size() {
+        // Powers of two, so `ue8m0` carries them exactly like the wider dtypes do.
         let scales = [0.5f32, 0.25, 0.125];
 
         for dtype in [
@@ -726,6 +785,7 @@ mod tests {
             ScaleDtype::F16,
             ScaleDtype::BF16,
             ScaleDtype::UE4M3,
+            ScaleDtype::UE8M0,
         ] {
             assert_eq!(
                 encode_scales(&scales, dtype).len(),

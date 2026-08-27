@@ -22,6 +22,12 @@ pub trait FusedOperation<R: Runtime>: Send + 'static {
     /// The number of operations fused.
     fn num_ops_fused(&self) -> usize;
 
+    /// The highest relative shape id this operation's traces name, if any. See
+    /// [`NumOperations::max_relative_shape_id`](burn_fusion::NumOperations::max_relative_shape_id).
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        None
+    }
+
     /// Run the fused operation. `fallback` builds the unfused operation at
     /// the given index within the segment, for implementations that need to
     /// run part of it unfused (autotune fallbacks).
@@ -90,6 +96,10 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
         self.num_ops_fused()
     }
 
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        self.optimization.max_relative_shape_id()
+    }
+
     fn name(&self) -> &'static str {
         Self::name(self)
     }
@@ -101,6 +111,7 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
 trait DynFusedOperation<R: Runtime>: Send {
     fn name(&self) -> &'static str;
     fn num_ops_fused(&self) -> usize;
+    fn max_relative_shape_id(&self) -> Option<usize>;
     fn run(
         &mut self,
         context: &mut Context<CubeFusionHandle<R>>,
@@ -116,6 +127,10 @@ impl<R: Runtime, O: FusedOperation<R>> DynFusedOperation<R> for O {
 
     fn num_ops_fused(&self) -> usize {
         FusedOperation::num_ops_fused(self)
+    }
+
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        FusedOperation::max_relative_shape_id(self)
     }
 
     fn run(

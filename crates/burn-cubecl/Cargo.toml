@@ -66,6 +66,8 @@ cubecl = { workspace = true, features = ["stdlib"] }
 cubek = { workspace = true, features = [
     "attention",
     "matmul",
+    "matmul-multi-level",
+    "matmul-tiled",
     "convolution",
     "interpolate",
     "pool",

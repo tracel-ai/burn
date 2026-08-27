@@ -95,7 +95,7 @@ pub(crate) fn handle_backend_tests(
         let mut fusion_args = test_args.clone();
         fusion_args.extend(["--features", "fusion"]);
 
-        helpers::custom_crates_tests(
+        build_helpers::custom_crates_tests(
             vec!["burn-backend-tests"],
             handle_test_args(&fusion_args, args.release),
             None,
@@ -106,7 +106,7 @@ pub(crate) fn handle_backend_tests(
     }
 
     // base_commands::test::handle_command(args, env, context)
-    helpers::custom_crates_tests(
+    build_helpers::custom_crates_tests(
         vec!["burn-backend-tests"],
         handle_test_args(&test_args, args.release),
         None,
@@ -203,7 +203,7 @@ pub(crate) fn handle_command(
                 if *test_target != "Default" {
                     test_args.extend(vec!["--target", *test_target]);
                 }
-                helpers::custom_crates_tests(
+                build_helpers::custom_crates_tests(
                     no_std_test_crates.clone(),
                     handle_test_args(&test_args, args.release),
                     None,
@@ -369,8 +369,18 @@ pub(crate) fn handle_command(
                 CiTestType::Backends | CiTestType::GithubRunner => (),
                 CiTestType::Examples => (),
                 CiTestType::Crates => {
+                    // Capture is intentionally opt-in, so workspace-default tests don't compile
+                    // the dispatch, tensor, core, or facade integration tests that exercise it.
+                    build_helpers::custom_crates_tests(
+                        vec!["burn-dispatch", "burn-tensor", "burn-core", "burn"],
+                        handle_test_args(&["--features", "capture"], args.release),
+                        None,
+                        None,
+                        "std with graph capture",
+                    )?;
+
                     // burn-dataset
-                    helpers::custom_crates_tests(
+                    build_helpers::custom_crates_tests(
                         vec!["burn-dataset"],
                         handle_test_args(&["--all-features"], args.release),
                         None,
@@ -380,7 +390,7 @@ pub(crate) fn handle_command(
 
                     // burn-core
                     set_burn_device("tch"); // test-tch
-                    helpers::custom_crates_tests(
+                    build_helpers::custom_crates_tests(
                         vec!["burn-core"],
                         handle_test_args(&["--features", "tch"], args.release),
                         None,
@@ -395,7 +405,7 @@ pub(crate) fn handle_command(
                     // }
                     // burn-vision
                     set_burn_device("flex");
-                    helpers::custom_crates_tests(
+                    build_helpers::custom_crates_tests(
                         vec!["burn-vision"],
                         handle_test_args(&["--features", "flex", "loss"], args.release),
                         None,
@@ -404,7 +414,7 @@ pub(crate) fn handle_command(
                     )?;
 
                     // burn-train vision (LPIPS, DISTS metrics)
-                    helpers::custom_crates_tests(
+                    build_helpers::custom_crates_tests(
                         vec!["burn-train"],
                         handle_test_args(&["--features", "vision"], args.release),
                         None,
@@ -416,7 +426,7 @@ pub(crate) fn handle_command(
                 CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
                 CiTestType::GithubMacRunner => {
                     // burn-ndarray
-                    helpers::custom_crates_tests(
+                    build_helpers::custom_crates_tests(
                         vec!["burn-ndarray"],
                         handle_test_args(&["--features", "blas-accelerate"], args.release),
                         None,
@@ -425,14 +435,14 @@ pub(crate) fn handle_command(
                     )?;
 
                     set_burn_device("metal");
-                    helpers::custom_crates_tests(
+                    build_helpers::custom_crates_tests(
                         vec!["burn-core"],
                         handle_test_args(&["--features", "metal"], args.release),
                         None,
                         None,
                         "std metal",
                     )?;
-                    helpers::custom_crates_tests(
+                    build_helpers::custom_crates_tests(
                         vec!["burn-vision"],
                         handle_test_args(&["--features", "metal"], args.release),
                         None,

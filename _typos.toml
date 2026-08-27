@@ -1,5 +1,5 @@
 [default]
-extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND", "log_lik", ".*ue4m3.*"]
+extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND", "log_lik", ".*ue4m3.*", ".*ue8m0.*"]
 
 [default.extend-identifiers]
 UE4M3 = "UE4M3"
@@ -23,3 +23,5 @@ arange = "arange"
 convnet = "convnet"
 # Don't correct "Nd" in convNd / conv_nd (N-dimensional)
 Nd = "Nd"
+# Don't correct "mis" from a hyphenated prefix (mis-oriented, mis-chosen)
+mis = "mis"

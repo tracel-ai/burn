@@ -4,8 +4,8 @@ use burn_core::module::ParamGroup;
 use super::Optimizer;
 use crate::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 use crate::{
-    DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, StateSink, StateSource,
-    grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
+    DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, RecordTensor, StateSink,
+    StateSource, grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
 };
 
 use alloc::collections::BTreeMap;
@@ -14,7 +14,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
 use burn::store::RecordError;
-use burn::tensor::{Bytes, Device, Tensor, TensorData};
+use burn::tensor::{Bytes, Device, Tensor};
 use hashbrown::HashMap;
 
 /// Scalar key (per parameter) under which the parameter's state rank is persisted.
@@ -220,13 +220,11 @@ impl ModuleOptimizer {
             }
 
             for (name, data) in sink.tensors {
-                tensors.push(burn_pack::Tensor::new(
+                tensors.push(RecordTensor {
                     name,
-                    data.dtype,
-                    data.shape,
-                    Some(id.val()),
-                    data.bytes,
-                ));
+                    param_id: Some(id.val()),
+                    data,
+                });
             }
             for (name, value) in sink.scalars {
                 scalars.insert(name, value);
@@ -271,11 +269,12 @@ impl ModuleOptimizer {
         let mut source = StateSource::new(record.scalars);
 
         for tensor in record.tensors {
-            let id = tensor
-                .param_id
-                .expect("Optimizer record tensors should carry a parameter id.");
-            let name = tensor.name;
-            let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
+            let RecordTensor {
+                name,
+                param_id,
+                data,
+            } = tensor;
+            let id = param_id.expect("Optimizer record tensors should carry a parameter id.");
             // Fall back to inferring rank from a tensor shape if no `__rank` scalar was present.
             ranks.entry(id).or_insert(data.shape.len());
             source.insert_tensor(name, data);

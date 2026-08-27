@@ -206,15 +206,15 @@ impl ModuleRecord {
             .into_tensors()?
             .into_iter()
             .map(|t| {
-                let id = t.param_id.map(ParamId::from).unwrap_or_else(ParamId::new);
-                let data = TensorData::from_bytes(t.bytes, t.shape, t.dtype);
-                RecordTensor {
-                    path: t.name,
-                    id,
-                    data,
-                }
+                // Infallible for reader-produced tensors, which are always resident.
+                let (path, dtype, shape, param_id, bytes) = t.into_parts()?;
+                Ok(RecordTensor {
+                    path,
+                    id: param_id.map(ParamId::from).unwrap_or_else(ParamId::new),
+                    data: TensorData::from_bytes(bytes, shape, dtype),
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, RecordError>>()?;
         Ok(Self::from_tensors(tensors))
     }
 

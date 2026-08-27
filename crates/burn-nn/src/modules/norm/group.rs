@@ -181,10 +181,12 @@ pub(crate) fn group_norm<const D: usize>(
         None => input,
     };
 
-    let mean = input.clone().sum_dim(2) / hidden_size as f64;
+    // Keep the denominator inside the backend reduction so it is applied in
+    // the accumulator precision instead of through a narrow `div_scalar`.
+    let mean = input.clone().mean_dim(2);
     let input = input.sub(mean);
 
-    let var = input.clone().square().sum_dim(2) / hidden_size as f64;
+    let var = input.clone().square().mean_dim(2);
     let input_normalized = input.div(var.add_scalar(epsilon).sqrt());
 
     let input_normalized = match widened {
@@ -335,6 +337,25 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);
+    }
+
+    #[test]
+    fn group_norm_f16_large_group_does_not_underflow_mean() {
+        use burn::tensor::DType;
+        let device = Default::default();
+        let module = GroupNormConfig::new(4, 64).with_affine(false).init(&device);
+
+        // 64 / 4 channels * 64 * 64 spatial elements = 65_536 values per
+        // group. Applying the denominator through f16 `div_scalar` turns the
+        // mean into zero on Vulkan, producing a large non-zero output.
+        let input = Tensor::<4>::full([1, 64, 64, 64], 0.5, (&device, DType::F16));
+        assert_eq!(input.dtype(), DType::F16);
+
+        let output = module.forward(input);
+        assert_eq!(output.dtype(), DType::F16);
+
+        let max_abs: f32 = output.abs().max().into_scalar();
+        assert_eq!(max_abs, 0.0);
     }
 
     #[test]
