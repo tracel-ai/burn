@@ -6,7 +6,7 @@ use crate::{Backend, Distribution, TensorData, TensorMetadata};
 use crate::{ExecutionError, Scalar, get_device_settings};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, PadMode, Shape, Slice};
 use core::ops::Range;
 
 /// Int Tensor API for basic and numeric operations, see
@@ -1572,4 +1572,9 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
     fn int_unfold(tensor: IntTensor<B>, dim: usize, size: usize, step: usize) -> IntTensor<B>;
+
+    /// Pads a tensor with one `(before, after)` pair per dimension.
+    fn int_pad(tensor: IntTensor<B>, padding: &[(usize, usize)], mode: PadMode) -> IntTensor<B> {
+        super::pad::int_pad::<B>(tensor, padding, mode)
+    }
 }

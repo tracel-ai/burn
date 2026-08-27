@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Flag, Module, ModuleDisplay, Param};
 use burn::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [Dropout](Dropout) layer using the [init function](DropoutConfig::init).
@@ -24,6 +24,10 @@ pub struct DropoutConfig {
 pub struct Dropout {
     /// The probability of randomly zeroes some elements of the input tensor during training.
     pub prob: f64,
+    /// Whether to behave as during training. Cleared by
+    /// [`no_grad`](burn::module::Module::no_grad) and matching
+    /// [`freeze_group`](burn::module::Module::freeze_group) traversals.
+    pub training: Param<Flag>,
 }
 
 impl DropoutConfig {
@@ -35,7 +39,10 @@ impl DropoutConfig {
                 self.prob
             );
         }
-        Dropout { prob: self.prob }
+        Dropout {
+            prob: self.prob,
+            training: Param::from_bool(true),
+        }
     }
 }
 
@@ -49,7 +56,10 @@ impl Dropout {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if !input.device().is_autodiff() || self.prob == 0.0 {
+        // Both, and for different reasons. The device says a backward is possible at all; the
+        // flag says this layer takes part in one, which a subtree frozen in place on the training
+        // device does not.
+        if !self.training.is_enabled() || !input.device().is_autodiff() || self.prob == 0.0 {
             return input;
         }
 
@@ -69,7 +79,13 @@ impl ModuleDisplay for Dropout {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content.add("prob", &self.prob).optional()
+        // A layer behaving as it does during training is the ordinary case and says nothing; a
+        // frozen one is the case worth seeing, and the only way to see it at all.
+        let content = content.add("prob", &self.prob);
+        match self.training.is_enabled() {
+            true => content.optional(),
+            false => content.add("training", &self.training).optional(),
+        }
     }
 }
 
@@ -77,6 +93,151 @@ impl ModuleDisplay for Dropout {
 mod tests {
     use super::*;
     use burn::tensor::Shape;
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn frozen_dropout_on_a_training_device_passes_its_input_through() {
+        use burn::tensor::Device;
+        // Frozen where partial finetuning leaves it: on the training device,
+        // because that is where the rest of the graph is. The device alone
+        // cannot tell this apart from a layer that really is being trained.
+        let device = Device::default().autodiff();
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
+        let dropout = DropoutConfig::new(0.5).init().no_grad();
+
+        let output = dropout.forward(tensor.clone());
+
+        assert_eq!(
+            output.to_data(),
+            tensor.to_data(),
+            "a frozen dropout should not perturb a subtree the caller froze"
+        );
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn dropout_freezing_reaches_through_an_enclosing_module() {
+        use burn::tensor::Device;
+        // The flag is cleared by the traversal, not by the layer being frozen
+        // directly, so nesting is the case that matters.
+        #[derive(Module, Debug)]
+        struct Wrapper {
+            dropout: Dropout,
+        }
+
+        let device = Device::default().autodiff();
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
+        let wrapper = Wrapper {
+            dropout: DropoutConfig::new(0.5).init(),
+        }
+        .no_grad();
+
+        let output = wrapper.dropout.forward(tensor.clone());
+
+        assert_eq!(output.to_data(), tensor.to_data());
+    }
+
+    #[test]
+    fn no_grad_reaches_flags_inside_module_containers() {
+        let dropouts = alloc::vec![DropoutConfig::new(0.5).init()].no_grad();
+
+        assert!(!dropouts[0].training.is_enabled());
+    }
+
+    #[test]
+    fn backend_transitions_preserve_a_frozen_flag() {
+        use burn::module::AutodiffModule;
+
+        let dropout = DropoutConfig::new(0.5).init().no_grad();
+        let dropout = dropout.valid().train();
+
+        assert!(!dropout.training.is_enabled());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn dropout_freezing_reaches_through_a_container() {
+        // The layout of every stack of blocks. Freezing walks the tree with a
+        // mapper, which containers forward, so a dropout is reached wherever it
+        // is held.
+        #[derive(Module, Debug)]
+        struct Wrapper {
+            blocks: Vec<Dropout>,
+            optional: Option<Dropout>,
+            fixed: [Dropout; 2],
+            pair: (Dropout, Dropout),
+        }
+
+        let dropout = || DropoutConfig::new(0.5).init();
+        let wrapper = Wrapper {
+            blocks: alloc::vec![dropout()],
+            optional: Some(dropout()),
+            fixed: [dropout(), dropout()],
+            pair: (dropout(), dropout()),
+        }
+        .no_grad();
+
+        assert!(!wrapper.blocks[0].training.is_enabled(), "Vec");
+        assert!(!wrapper.optional.unwrap().training.is_enabled(), "Option");
+        assert!(!wrapper.fixed[0].training.is_enabled(), "array");
+        assert!(!wrapper.pair.0.training.is_enabled(), "tuple");
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_frozen_dropout_comes_back_frozen_from_train() {
+        // `train()` is `from_inner`, which reinstates what the caller asked for
+        // the way it does for a parameter's `require_grad`. A frozen half coming
+        // back armed while its parameters stayed frozen is the bug.
+        let dropout = DropoutConfig::new(0.5).init().no_grad().train();
+
+        assert!(!dropout.training.is_enabled());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn group_freezing_a_subtree_reaches_the_dropout_in_it() {
+        use crate::{Linear, LinearConfig};
+        use burn::module::ParamGroup;
+        use burn::tensor::Device;
+
+        // A group built off a subtree, which is how a caller says "freeze this
+        // half": `ids_from_module` collects the ids under it, and the flag is
+        // collected with them because it carries one.
+        #[derive(Module, Debug)]
+        struct Half {
+            linear: Linear,
+            dropout: Dropout,
+        }
+        #[derive(Module, Debug)]
+        struct Whole {
+            frozen: Half,
+            trained: Half,
+        }
+
+        let device = Device::default().autodiff();
+        let half = |device: &Device| Half {
+            linear: LinearConfig::new(4, 4).init(device),
+            dropout: DropoutConfig::new(0.5).init(),
+        };
+        let model = Whole {
+            frozen: half(&device),
+            trained: half(&device),
+        };
+        let group = ParamGroup::ids_from_module(model.frozen.clone());
+        let model = model.freeze_group(group);
+
+        assert!(
+            !model.frozen.dropout.training.is_enabled(),
+            "the frozen half's dropout should have been reached"
+        );
+        assert!(
+            model.trained.dropout.training.is_enabled(),
+            "the half outside the group should be untouched"
+        );
+        assert!(!model.frozen.linear.weight.is_require_grad());
+        assert!(model.trained.linear.weight.is_require_grad());
+    }
 
     #[cfg(feature = "std")]
     #[test]
@@ -107,6 +268,12 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(alloc::format!("{layer}"), "Dropout {prob: 0.5}");
+
+        let frozen = config.init().no_grad();
+        assert_eq!(
+            alloc::format!("{frozen}"),
+            "Dropout {prob: 0.5, training: disabled}"
+        );
     }
 
     #[test]

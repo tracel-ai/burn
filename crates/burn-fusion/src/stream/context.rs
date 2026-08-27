@@ -1396,6 +1396,15 @@ impl RelativeOps for NumericOperationIr {
                 descending: desc.descending,
                 out: desc.out.to_relative(converter),
             }),
+            NumericOperationIr::Pad(desc) => NumericOperationIr::Pad(PadOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                padding: desc.padding.clone(),
+                mode: match desc.mode {
+                    PadModeIr::Constant(value) => PadModeIr::Constant(value.to_relative(converter)),
+                    mode => mode,
+                },
+            }),
         }
     }
 }
@@ -1833,6 +1842,29 @@ mod tests_ir {
         assert_eq!(
             converter.scalars.get(&ScalarId { value: 0 }),
             Some(&ScalarIr::Bool(true))
+        );
+    }
+
+    #[test]
+    fn pad_constant_to_relative_tracks_scalar() {
+        let input = TensorIr::uninit(TensorId::new(10), Shape::new([2, 3]), DType::F32);
+        let desc = PadOpIr::create(
+            input,
+            vec![(1, 0), (0, 2)],
+            PadModeIr::Constant(ScalarIr::Float(4.5)),
+            || TensorId::new(11),
+        );
+        let mut converter = OperationConverter::default();
+
+        let relative = NumericOperationIr::Pad(desc).to_relative(&mut converter);
+
+        let NumericOperationIr::Pad(desc) = relative else {
+            panic!("expected pad operation");
+        };
+        assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::UInt(0)));
+        assert_eq!(
+            converter.scalars.get(&ScalarId { value: 0 }),
+            Some(&ScalarIr::Float(4.5))
         );
     }
 }
