@@ -40,20 +40,6 @@ impl<A: BurnModuleAdapter> Deserializer<A> {
             phantom: std::marker::PhantomData,
         }
     }
-
-    fn extract_scalar<T>(
-        self,
-        expected: &'static str,
-        extractor: impl FnOnce(NestedValue) -> Option<T>,
-    ) -> Result<T, Error> {
-        let value = self
-            .value
-            .ok_or_else(|| custom_err(format!("expected {expected}, found nothing")))?;
-
-        let value_debug = format!("{value:?}");
-        extractor(value)
-            .ok_or_else(|| custom_err(format!("expected {expected} but got {value_debug}")))
-    }
 }
 
 impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
@@ -120,8 +106,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("string", |v| v.as_string())?;
-        visitor.visit_string(val)
+        match self.value {
+            Some(NestedValue::String(val)) => visitor.visit_string(val),
+            Some(other) => Err(custom_err(format!("expected string but got {other:?}"))),
+            None => Err(custom_err("expected string, found nothing")),
+        }
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -152,8 +141,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("bool", |v| v.as_bool())?;
-        visitor.visit_bool(val)
+        match self.value {
+            Some(NestedValue::Bool(val)) => visitor.visit_bool(val),
+            Some(other) => Err(custom_err(format!("expected bool but got {other:?}"))),
+            None => Err(custom_err("expected bool, found nothing")),
+        }
     }
 
     fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -167,40 +159,55 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("i16", |v| v.as_i16())?;
-        visitor.visit_i16(val)
+        match self.value {
+            Some(NestedValue::I16(val)) => visitor.visit_i16(val),
+            Some(other) => Err(custom_err(format!("expected i16 but got {other:?}"))),
+            None => Err(custom_err("expected i16, found nothing")),
+        }
     }
 
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("i32", |v| v.as_i32())?;
-        visitor.visit_i32(val)
+        match self.value {
+            Some(NestedValue::I32(val)) => visitor.visit_i32(val),
+            Some(other) => Err(custom_err(format!("expected i32 but got {other:?}"))),
+            None => Err(custom_err("expected i32, found nothing")),
+        }
     }
 
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("i64", |v| v.as_i64())?;
-        visitor.visit_i64(val)
+        match self.value {
+            Some(NestedValue::I64(val)) => visitor.visit_i64(val),
+            Some(other) => Err(custom_err(format!("expected i64 but got {other:?}"))),
+            None => Err(custom_err("expected i64, found nothing")),
+        }
     }
 
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("u8", |v| v.as_u8())?;
-        visitor.visit_u8(val)
+        match self.value {
+            Some(NestedValue::U8(val)) => visitor.visit_u8(val),
+            Some(other) => Err(custom_err(format!("expected u8 but got {other:?}"))),
+            None => Err(custom_err("expected u8, found nothing")),
+        }
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("u16", |v| v.as_u16())?;
-        visitor.visit_u16(val)
+        match self.value {
+            Some(NestedValue::U16(val)) => visitor.visit_u16(val),
+            Some(other) => Err(custom_err(format!("expected u16 but got {other:?}"))),
+            None => Err(custom_err("expected u16, found nothing")),
+        }
     }
 
     fn deserialize_u32<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -214,24 +221,33 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("u64", |v| v.as_u64())?;
-        visitor.visit_u64(val)
+        match self.value {
+            Some(NestedValue::U64(val)) => visitor.visit_u64(val),
+            Some(other) => Err(custom_err(format!("expected u64 but got {other:?}"))),
+            None => Err(custom_err("expected u64, found nothing")),
+        }
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("f32", |v| v.as_f32())?;
-        visitor.visit_f32(val)
+        match self.value {
+            Some(NestedValue::F32(val)) => visitor.visit_f32(val),
+            Some(other) => Err(custom_err(format!("expected f32 but got {other:?}"))),
+            None => Err(custom_err("expected f32, found nothing")),
+        }
     }
 
     fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("f64", |v| v.as_f64())?;
-        visitor.visit_f64(val)
+        match self.value {
+            Some(NestedValue::F64(val)) => visitor.visit_f64(val),
+            Some(other) => Err(custom_err(format!("expected f64 but got {other:?}"))),
+            None => Err(custom_err("expected f64, found nothing")),
+        }
     }
 
     fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -245,8 +261,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("str", |v| v.as_string())?;
-        visitor.visit_str(&val)
+        match self.value {
+            Some(NestedValue::String(val)) => visitor.visit_str(&val),
+            Some(other) => Err(custom_err(format!("expected str but got {other:?}"))),
+            None => Err(custom_err("expected str, found nothing")),
+        }
     }
 
     fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -260,16 +279,15 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let value = self
-            .value
-            .ok_or_else(|| custom_err("expected byte buffer, found nothing"))?;
-        let value_debug = format!("{value:?}");
-        let bytes = value
-            .as_bytes()
-            .ok_or_else(|| custom_err(format!("expected byte buffer but got {value_debug}")))?;
-        match bytes.try_into_vec::<u8>() {
-            Ok(bytes) => visitor.visit_byte_buf(bytes),
-            Err(bytes) => visitor.visit_bytes(&bytes),
+        match self.value {
+            Some(NestedValue::Bytes(bytes)) => match bytes.try_into_vec::<u8>() {
+                Ok(bytes) => visitor.visit_byte_buf(bytes),
+                Err(bytes) => visitor.visit_bytes(&bytes),
+            },
+            Some(other) => Err(custom_err(format!(
+                "expected byte buffer but got {other:?}"
+            ))),
+            None => Err(custom_err("expected byte buffer, found nothing")),
         }
     }
 
@@ -680,7 +698,7 @@ where
 
     fn unit_variant(self) -> Result<(), Self::Error> {
         match self.value {
-            NestedValue::Map(value) if value.contains_key("DType") => match value.get("DType") {
+            NestedValue::Map(value) => match value.get("DType") {
                 Some(NestedValue::String(variant)) => {
                     if *variant == self.current_variant {
                         Ok(())
@@ -688,11 +706,14 @@ where
                         Err(Error::Other("Wrong variant".to_string()))
                     }
                 }
-                _ => Err(custom_err("expected DType variant as string")),
+                Some(other) => Err(custom_err(format!(
+                    "expected DType variant as string, got {other:?}"
+                ))),
+                None => Err(custom_err("expected map containing 'DType' key for enum")),
             },
-            _ => unimplemented!(
-                "unit variant is not implemented because it is not used in the burn module"
-            ),
+            other => Err(custom_err(format!(
+                "expected map for enum variant, got {other:?}"
+            ))),
         }
     }
 
@@ -1031,6 +1052,12 @@ mod tests {
     #[derive(Debug, Deserialize, PartialEq)]
     struct Newtype(i32);
 
+    #[derive(Debug, Deserialize, PartialEq)]
+    enum MockDType {
+        Float32,
+        Int32,
+    }
+
     #[test]
     fn should_deserialize_all_scalars_correctly() {
         let mut map = HashMap::new();
@@ -1103,6 +1130,46 @@ mod tests {
 
         let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(42), false);
         let result = SeqHolder::deserialize(de);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_deserialize_dtype_enum() {
+        let mut map = HashMap::new();
+        map.insert(
+            "DType".to_string(),
+            NestedValue::String("Float32".to_string()),
+        );
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let result = MockDType::deserialize(de).unwrap();
+        assert_eq!(result, MockDType::Float32);
+    }
+
+    #[test]
+    fn should_return_err_on_missing_dtype_key() {
+        let mut map = HashMap::new();
+        map.insert(
+            "OtherKey".to_string(),
+            NestedValue::String("Float32".to_string()),
+        );
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let result = MockDType::deserialize(de);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_return_err_on_invalid_enum_shape() {
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(42), false);
+        let result = MockDType::deserialize(de);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_return_err_on_invalid_dtype_variant_type() {
+        let mut map = HashMap::new();
+        map.insert("DType".to_string(), NestedValue::I32(42));
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let result = MockDType::deserialize(de);
         assert!(result.is_err());
     }
 }
