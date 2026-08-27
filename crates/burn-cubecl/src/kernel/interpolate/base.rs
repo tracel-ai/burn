@@ -8,10 +8,8 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
-#[cfg(not(feature = "autotune"))]
-use cubek::interpolate::Residence;
 use cubek::interpolate::{
-    InterpolateConfig,
+    InterpolateStrategy as CubekInterpolateStrategy,
     definition::{
         InterpolateError, InterpolateMode as CubekInterpolateMode,
         InterpolateOptions as CubekInterpolateOptions, NearestMode as CubekNearestMode,
@@ -22,10 +20,12 @@ use cubek::interpolate::{
 #[derive(Debug)]
 /// Strategy used to select how interpolation runs.
 pub enum InterpolateStrategy {
-    /// Run the kernel with the given geometry.
-    Config(InterpolateConfig),
+    /// Run the strategy given rather than searching for one. cubek resolves it against the device
+    /// and the problem, so an intent states what the launch optimizes for and leaves the geometry
+    /// to cubek, while [`Forced`](CubekInterpolateStrategy::Forced) pins the geometry outright.
+    Specific(CubekInterpolateStrategy),
 
-    /// Automatically benchmark and select the best configuration at runtime.
+    /// Automatically benchmark and select the best strategy at runtime.
     #[cfg(feature = "autotune")]
     Autotune,
 }
@@ -36,10 +36,10 @@ impl Default for InterpolateStrategy {
         #[cfg(feature = "autotune")]
         return InterpolateStrategy::Autotune;
 
-        // A guess, not a measurement: it sits mid-box in cubek's benchmark catalogue and has
-        // no recorded sweep behind it. Replace it once cubek publishes one.
+        // Interpolation reads one tensor and writes another, so a build that measures nothing
+        // runs the intent that takes memory for the limit.
         #[cfg(not(feature = "autotune"))]
-        InterpolateStrategy::Config(InterpolateConfig::new(Residence::InPlace, 4, 2, 1))
+        InterpolateStrategy::Specific(CubekInterpolateStrategy::MaximizeThroughput)
     }
 }
 
@@ -53,21 +53,21 @@ pub fn interpolate<R: CubeRuntime>(
     strategy: InterpolateStrategy,
 ) -> Result<CubeTensor<R>, InterpolateError> {
     match strategy {
-        InterpolateStrategy::Config(config) => {
-            execute_interpolate(input, output_size, options, config)
+        InterpolateStrategy::Specific(strategy) => {
+            execute_interpolate(input, output_size, options, strategy)
         }
         #[cfg(feature = "autotune")]
         InterpolateStrategy::Autotune => Ok(interpolate_autotune(input, output_size, options)),
     }
 }
 
-/// Execute interpolation with the given configuration, without autotuning. This is used by the
-/// autotune implementation to run each candidate configuration.
+/// Execute interpolation with the given strategy, without autotuning. This is used by the
+/// autotune implementation to run each candidate strategy.
 pub fn execute_interpolate<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
     options: InterpolateOptions,
-    config: InterpolateConfig,
+    strategy: CubekInterpolateStrategy,
 ) -> Result<CubeTensor<R>, InterpolateError> {
     let [batch_size, channels, _, _] = input.meta.shape().dims();
     let [out_height, out_width] = output_size;
@@ -87,7 +87,7 @@ pub fn execute_interpolate<R: CubeRuntime>(
         input.clone().binding(),
         output.clone().binding(),
         map_options(options.clone()),
-        config,
+        strategy,
         dtype_to_storage_type(input.dtype),
     )?;
 
