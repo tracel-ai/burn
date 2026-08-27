@@ -4,8 +4,8 @@ use burn_std::{FloatDType, IntDType, Shape};
 /// Portable group normalization implementation used by backend fallbacks.
 pub fn group_norm_fallback<B: Backend>(
     mut tensor: FloatTensor<B>,
-    mut gamma: Option<FloatTensor<B>>,
-    mut beta: Option<FloatTensor<B>>,
+    gamma: Option<FloatTensor<B>>,
+    beta: Option<FloatTensor<B>>,
     num_groups: usize,
     epsilon: f64,
 ) -> FloatTensor<B> {
@@ -81,8 +81,6 @@ pub fn group_norm_fallback<B: Backend>(
     let widened = tensor.dtype() == DType::F16;
     if widened {
         tensor = B::float_cast(tensor, FloatDType::F32);
-        gamma = gamma.map(|gamma| B::float_cast(gamma, FloatDType::F32));
-        beta = beta.map(|beta| B::float_cast(beta, FloatDType::F32));
     }
 
     let hidden_size = shape[2..].iter().product::<usize>() * num_channels / num_groups;
@@ -92,6 +90,12 @@ pub fn group_norm_fallback<B: Backend>(
     let var = B::float_mean_dim(B::float_mul(centered.clone(), centered.clone()), 2);
     let denom = B::float_sqrt(B::float_add_scalar(var, epsilon.into()));
     let normalized = B::float_reshape(B::float_div(centered, denom), shape);
+    // Keep only the statistics widened; affine arithmetic stays at the model dtype.
+    let normalized = if widened {
+        B::float_cast(normalized, FloatDType::F16)
+    } else {
+        normalized
+    };
 
     let mut broadcast_dims = alloc::vec![1; rank];
     broadcast_dims[1] = num_channels;
@@ -107,9 +111,5 @@ pub fn group_norm_fallback<B: Backend>(
         None => output,
     };
 
-    if widened {
-        B::float_cast(output, FloatDType::F16)
-    } else {
-        output
-    }
+    output
 }

@@ -263,6 +263,34 @@ fn test_group_norm_supported_float_dtypes() {
     }
 }
 
+#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm"))]
+#[test]
+fn test_group_norm_f16_affine_uses_model_dtype() {
+    let device = Default::default();
+    let input = TestTensor::<3>::from([[[4.0], [-1.0], [-1.0], [-1.0], [-1.0]]])
+        .cast(burn_tensor::DType::F16);
+    let gamma = TestTensor::<1>::full([5], 40_000.0, &device).cast(burn_tensor::DType::F16);
+    let beta = TestTensor::<1>::full([5], -40_000.0, &device).cast(burn_tensor::DType::F16);
+
+    let output = group_norm(input, Some(gamma), Some(beta), 1, 0.0)
+        .into_data()
+        .convert::<f32>();
+    let first = output.iter::<f32>().next().unwrap();
+
+    assert!(first.is_infinite() && first.is_sign_positive());
+}
+
+#[cfg(feature = "wgpu")]
+#[test]
+fn test_group_norm_falls_back_above_workgroup_limit() {
+    let input = TestTensor::<3>::zeros([65_536, 1, 1], &Default::default());
+
+    let output = group_norm(input, None, None, 1, 1e-5);
+
+    assert_eq!(output.dims(), [65_536, 1, 1]);
+    assert!(output.into_data().iter::<f32>().all(|value| value == 0.0));
+}
+
 #[cfg(any(feature = "cpu", feature = "cuda"))]
 #[test]
 fn test_group_norm_f64_preserves_precision() {

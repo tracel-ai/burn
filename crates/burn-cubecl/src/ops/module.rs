@@ -24,9 +24,15 @@ where
         epsilon: f64,
     ) -> FloatTensor<Self> {
         let hardware = &tensor.client.properties().hardware;
+        let shape = tensor.shape();
+        let workgroups_supported = shape.num_dims() < 3
+            || shape[0]
+                .checked_mul(num_groups)
+                .is_some_and(|count| count <= hardware.max_cube_count.0 as usize);
         if matches!(tensor.dtype, DType::BF16 | DType::F64)
             || hardware.max_cube_dim.0 < 256
             || hardware.max_units_per_cube < 256
+            || !workgroups_supported
         {
             return burn_backend::ops::group_norm::group_norm_fallback::<Self>(
                 tensor, gamma, beta, num_groups, epsilon,

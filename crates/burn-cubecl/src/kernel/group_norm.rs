@@ -180,14 +180,19 @@ fn group_norm_kernel<F: Float>(
             }
             output_offset
         };
-        let mut value = (f32::cast_from(input[input_offset]) - group_mean) * inv_std;
+        // Statistics use f32, while affine arithmetic follows the model dtype.
+        let mut value = F::cast_from((f32::cast_from(input[input_offset]) - group_mean) * inv_std);
         if scale {
-            value *= f32::cast_from(gamma[channel * gamma.stride(0)]);
+            value = F::cast_from(
+                f32::cast_from(value) * f32::cast_from(gamma[channel * gamma.stride(0)]),
+            );
         }
         if shift {
-            value += f32::cast_from(beta[channel * beta.stride(0)]);
+            value = F::cast_from(
+                f32::cast_from(value) + f32::cast_from(beta[channel * beta.stride(0)]),
+            );
         }
-        output[output_offset] = F::cast_from(value);
+        output[output_offset] = value;
         index += cube_stride;
     }
 }
@@ -301,14 +306,19 @@ pub(crate) fn group_norm<R: CubeRuntime>(
     let spatial_size = shape[2..].iter().product::<usize>();
     let channels_per_group = num_channels / num_groups;
 
+    let hardware = &client.properties().hardware;
     assert!(
-        client.properties().hardware.max_cube_dim.0 >= 256,
+        hardware.max_cube_dim.0 >= 256,
         "group_norm: runtime must support 256 threads per workgroup"
     );
     let workgroups = batch_size
         .checked_mul(num_groups)
         .and_then(|count| u32::try_from(count).ok())
         .expect("group_norm: batch_size * num_groups exceeds the dispatch limit");
+    assert!(
+        workgroups <= hardware.max_cube_count.0,
+        "group_norm: batch_size * num_groups exceeds the runtime dispatch limit"
+    );
 
     group_norm_kernel::launch::<R>(
         &client,
