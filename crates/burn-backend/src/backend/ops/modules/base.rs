@@ -7,7 +7,7 @@ pub use burn_std::ops::{
     GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
     UnfoldOptions,
 };
-use burn_std::{IntDType, Shape, Slice};
+use burn_std::{IntDType, Shape};
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -216,15 +216,7 @@ pub trait ModuleOps<B: Backend> {
         bias: Option<FloatTensor<B>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<B> {
-        if options.is_asymmetric() {
-            let begin = options.padding_begin()[0];
-            let end = options.padding_end()[0];
-            let x = B::float_pad(x, &[(0, 0), (0, 0), (begin, end)], PadMode::Constant(0.0));
-            let zero = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
-            conv::conv1d_from_conv2d::<B>(x, weight, bias, zero)
-        } else {
-            conv::conv1d_from_conv2d::<B>(x, weight, bias, options)
-        }
+        conv::conv1d_from_conv2d::<B>(x, weight, bias, options)
     }
     /// Backward pass for the [conv1d](ModuleOps::conv1d) operation, returning the gradient for `x`.
     fn conv1d_x_backward(
@@ -233,25 +225,7 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B>,
         options: ConvOptions<1>,
     ) -> FloatTensor<B> {
-        if options.is_asymmetric() {
-            let shape = x.shape();
-            let [batch, channels, length] = shape.dims();
-            let begin = options.padding_begin()[0];
-            let end = options.padding_end()[0];
-            let x = B::float_pad(x, &[(0, 0), (0, 0), (begin, end)], PadMode::Constant(0.0));
-            let zero = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
-            let grad = conv::conv1d_x_backward::<B>(x, weight, output_grad, zero);
-            B::float_slice(
-                grad,
-                &[
-                    Slice::from(0..batch),
-                    Slice::from(0..channels),
-                    Slice::from(begin..begin + length),
-                ],
-            )
-        } else {
-            conv::conv1d_x_backward::<B>(x, weight, output_grad, options)
-        }
+        conv::conv1d_x_backward::<B>(x, weight, output_grad, options)
     }
     /// Backward pass for the [conv1d](ModuleOps::conv1d) operation, returning the gradient for `weight`.
     fn conv1d_weight_backward(
@@ -260,15 +234,7 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B>,
         options: ConvOptions<1>,
     ) -> FloatTensor<B> {
-        if options.is_asymmetric() {
-            let begin = options.padding_begin()[0];
-            let end = options.padding_end()[0];
-            let x = B::float_pad(x, &[(0, 0), (0, 0), (begin, end)], PadMode::Constant(0.0));
-            let zero = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
-            conv::conv1d_weight_backward::<B>(x, weight, output_grad, zero)
-        } else {
-            conv::conv1d_weight_backward::<B>(x, weight, output_grad, options)
-        }
+        conv::conv1d_weight_backward::<B>(x, weight, output_grad, options)
     }
     /// Backward pass for the [conv1d](ModuleOps::conv1d) operation, returning the gradient for `bias`.
     fn conv1d_bias_backward(
@@ -298,29 +264,7 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B>,
         options: ConvOptions<2>,
     ) -> FloatTensor<B> {
-        if options.is_asymmetric() {
-            let [batch, channels, height, width] = x.shape().dims();
-            let begin = options.padding_begin();
-            let end = options.padding_end();
-            let x = B::float_pad(
-                x,
-                &[(0, 0), (0, 0), (begin[0], end[0]), (begin[1], end[1])],
-                PadMode::Constant(0.0),
-            );
-            let zero = ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
-            let grad = conv::conv2d_x_backward::<B>(x, weight, output_grad, zero);
-            B::float_slice(
-                grad,
-                &[
-                    Slice::from(0..batch),
-                    Slice::from(0..channels),
-                    Slice::from(begin[0]..begin[0] + height),
-                    Slice::from(begin[1]..begin[1] + width),
-                ],
-            )
-        } else {
-            conv::conv2d_x_backward::<B>(x, weight, output_grad, options)
-        }
+        conv::conv2d_x_backward::<B>(x, weight, output_grad, options)
     }
     /// Backward pass for the [conv2d](ModuleOps::conv2d) operation, returning the gradient for `weight`.
     fn conv2d_weight_backward(
@@ -329,19 +273,7 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B>,
         options: ConvOptions<2>,
     ) -> FloatTensor<B> {
-        if options.is_asymmetric() {
-            let begin = options.padding_begin();
-            let end = options.padding_end();
-            let x = B::float_pad(
-                x,
-                &[(0, 0), (0, 0), (begin[0], end[0]), (begin[1], end[1])],
-                PadMode::Constant(0.0),
-            );
-            let zero = ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
-            conv::conv2d_weight_backward::<B>(x, weight, output_grad, zero)
-        } else {
-            conv::conv2d_weight_backward::<B>(x, weight, output_grad, options)
-        }
+        conv::conv2d_weight_backward::<B>(x, weight, output_grad, options)
     }
     /// Backward pass for the [conv2d](ModuleOps::conv2d) operation, returning the gradient for `bias`.
     fn conv2d_bias_backward(

@@ -1,5 +1,5 @@
 #![allow(clippy::single_range_in_vec_init)]
-use super::{ConvOptions, ConvTransposeOptions};
+use super::{ConvOptions, ConvTransposeOptions, PadMode};
 use crate::{Backend, TensorMetadata, tensor::FloatTensor};
 use burn_std::{MetadataError, Shape, Slice};
 
@@ -7,6 +7,30 @@ use alloc::{vec, vec::Vec};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
+
+fn pad_asymmetric_input<B: Backend, const N: usize>(
+    x: FloatTensor<B>,
+    padding: &[(usize, usize); N],
+) -> FloatTensor<B> {
+    let mut tensor_padding = vec![(0, 0); N + 2];
+    tensor_padding[2..].copy_from_slice(padding);
+    B::float_pad(x, &tensor_padding, PadMode::Constant(0.0))
+}
+
+fn crop_asymmetric_input_grad<B: Backend, const N: usize>(
+    grad: FloatTensor<B>,
+    input_shape: &Shape,
+    padding: &[(usize, usize); N],
+) -> FloatTensor<B> {
+    let mut ranges = input_shape
+        .iter()
+        .map(|&size| Slice::from(0..size))
+        .collect::<Vec<_>>();
+    for (dim, (begin, _)) in padding.iter().enumerate() {
+        ranges[dim + 2] = Slice::from(*begin..*begin + input_shape[dim + 2]);
+    }
+    B::float_slice(grad, &ranges)
+}
 
 /// Calculate the expected output shape `[batch_size, channels_out, spatial_dims, ..]` for a pooling operation.
 pub fn calculate_pool_output_shape<const N: usize>(
@@ -274,6 +298,24 @@ pub(crate) fn conv1d_x_backward<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvOptions<1>,
 ) -> FloatTensor<B> {
+    if options.is_asymmetric() {
+        let input_shape = x.shape();
+        let padding = options.padding;
+        let x = pad_asymmetric_input::<B, 1>(x, &padding);
+        let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
+        let grad = conv1d_x_backward_symmetric::<B>(x, weight, output_grad, options);
+        return crop_asymmetric_input_grad::<B, 1>(grad, &input_shape, &padding);
+    }
+
+    conv1d_x_backward_symmetric::<B>(x, weight, output_grad, options)
+}
+
+fn conv1d_x_backward_symmetric<B: Backend>(
+    x: FloatTensor<B>,
+    weight: FloatTensor<B>,
+    output_grad: FloatTensor<B>,
+    options: ConvOptions<1>,
+) -> FloatTensor<B> {
     let weight_shape = weight.shape();
 
     let [_batch_size, _, length_in] = x.shape().dims();
@@ -305,6 +347,21 @@ pub(crate) fn conv1d_x_backward<B: Backend>(
 
 /// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass, returning the gradient for `weight`.
 pub(crate) fn conv1d_weight_backward<B: Backend>(
+    x: FloatTensor<B>,
+    weight: FloatTensor<B>,
+    output_grad: FloatTensor<B>,
+    options: ConvOptions<1>,
+) -> FloatTensor<B> {
+    if options.is_asymmetric() {
+        let x = pad_asymmetric_input::<B, 1>(x, &options.padding);
+        let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
+        return conv1d_weight_backward_symmetric::<B>(x, weight, output_grad, options);
+    }
+
+    conv1d_weight_backward_symmetric::<B>(x, weight, output_grad, options)
+}
+
+fn conv1d_weight_backward_symmetric<B: Backend>(
     x: FloatTensor<B>,
     weight: FloatTensor<B>,
     output_grad: FloatTensor<B>,
@@ -343,6 +400,24 @@ pub(crate) fn conv1d_bias_backward<B: Backend>(
 
 /// Calculate the [2D convolution](crate::ops::ModuleOps::conv2d) backward pass, returning the gradient for `x`.
 pub(crate) fn conv2d_x_backward<B: Backend>(
+    x: FloatTensor<B>,
+    weight: FloatTensor<B>,
+    output_grad: FloatTensor<B>,
+    options: ConvOptions<2>,
+) -> FloatTensor<B> {
+    if options.is_asymmetric() {
+        let input_shape = x.shape();
+        let padding = options.padding;
+        let x = pad_asymmetric_input::<B, 2>(x, &padding);
+        let options = ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
+        let grad = conv2d_x_backward_symmetric::<B>(x, weight, output_grad, options);
+        return crop_asymmetric_input_grad::<B, 2>(grad, &input_shape, &padding);
+    }
+
+    conv2d_x_backward_symmetric::<B>(x, weight, output_grad, options)
+}
+
+fn conv2d_x_backward_symmetric<B: Backend>(
     x: FloatTensor<B>,
     weight: FloatTensor<B>,
     output_grad: FloatTensor<B>,
@@ -387,6 +462,21 @@ pub(crate) fn conv2d_x_backward<B: Backend>(
 
 /// Calculate the [2D convolution](crate::ops::ModuleOps::conv2d) backward pass, returning the gradient for `weight`.
 pub(crate) fn conv2d_weight_backward<B: Backend>(
+    x: FloatTensor<B>,
+    weight: FloatTensor<B>,
+    output_grad: FloatTensor<B>,
+    options: ConvOptions<2>,
+) -> FloatTensor<B> {
+    if options.is_asymmetric() {
+        let x = pad_asymmetric_input::<B, 2>(x, &options.padding);
+        let options = ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
+        return conv2d_weight_backward_symmetric::<B>(x, weight, output_grad, options);
+    }
+
+    conv2d_weight_backward_symmetric::<B>(x, weight, output_grad, options)
+}
+
+fn conv2d_weight_backward_symmetric<B: Backend>(
     x: FloatTensor<B>,
     weight: FloatTensor<B>,
     output_grad: FloatTensor<B>,
@@ -793,6 +883,14 @@ pub(crate) fn conv1d_from_conv2d<B: Backend>(
     bias: Option<FloatTensor<B>>,
     options: ConvOptions<1>,
 ) -> FloatTensor<B> {
+    let (x, options) = if options.is_asymmetric() {
+        let x = pad_asymmetric_input::<B, 1>(x, &options.padding);
+        let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
+        (x, options)
+    } else {
+        (x, options)
+    };
+
     let [channels_out, _channels_in, kernel_size] = weight.shape().dims();
     let [batch_size, channels_in, length_in] = x.shape().dims();
 
