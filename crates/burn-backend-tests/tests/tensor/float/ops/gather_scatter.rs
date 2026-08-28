@@ -120,7 +120,7 @@ fn should_scatter_assign_2d_dim0() {
         .assert_eq(&TensorData::from([[4.0, 2.0, 6.0], [1.0, 5.0, 3.0]]), false);
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(any(feature = "flex", feature = "ndarray", feature = "tch"))]
 #[test]
 fn should_scatter_mul_1d() {
     let device = Default::default();
@@ -135,7 +135,7 @@ fn should_scatter_mul_1d() {
         .assert_eq(&TensorData::from([10.0, 140.0, 30.0, 2000.0]), false);
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(any(feature = "flex", feature = "ndarray", feature = "tch"))]
 #[test]
 fn should_scatter_mul_2d_dim0() {
     let device = Default::default();

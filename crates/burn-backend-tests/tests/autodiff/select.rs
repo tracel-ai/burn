@@ -96,7 +96,7 @@ fn test_select_assign_grad() {
         .assert_eq(&TensorData::from([[1., 1.], [1., 1.]]), false);
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(any(feature = "flex", feature = "ndarray", feature = "tch"))]
 #[test]
 fn test_select_assign_mul_grad() {
     let device = AutodiffDevice::new();
