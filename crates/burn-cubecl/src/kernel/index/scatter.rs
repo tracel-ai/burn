@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime,
     kernel::{
-        AddOp, BinaryOp, BinaryOpFamily, OrOp,
+        AddOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
         utils::{address_type, shape_divmod},
     },
     tensor::CubeTensor,
@@ -70,12 +70,11 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     }
 }
 
-pub(crate) fn scatter<R: CubeRuntime>(
+fn scatter_op<R: CubeRuntime, Op: BinaryOpFamily>(
     dim: usize,
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,
     value: CubeTensor<R>,
-    is_bool: bool,
 ) -> CubeTensor<R> {
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
@@ -88,15 +87,10 @@ pub(crate) fn scatter<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
 
-    let launch = match is_bool {
-        true => scatter_kernel::launch_unchecked::<OrOp, R>,
-        false => scatter_kernel::launch_unchecked::<AddOp, R>,
-    };
-
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
     unsafe {
-        launch(
+        scatter_kernel::launch_unchecked::<Op, R>(
             &tensor.client.clone(),
             cube_count,
             cube_dim,
@@ -113,4 +107,26 @@ pub(crate) fn scatter<R: CubeRuntime>(
         )
     }
     tensor
+}
+
+pub(crate) fn scatter<R: CubeRuntime>(
+    dim: usize,
+    tensor: CubeTensor<R>,
+    indices: CubeTensor<R>,
+    value: CubeTensor<R>,
+    is_bool: bool,
+) -> CubeTensor<R> {
+    match is_bool {
+        true => scatter_op::<R, OrOp>(dim, tensor, indices, value),
+        false => scatter_op::<R, AddOp>(dim, tensor, indices, value),
+    }
+}
+
+pub(crate) fn scatter_mul<R: CubeRuntime>(
+    dim: usize,
+    tensor: CubeTensor<R>,
+    indices: CubeTensor<R>,
+    value: CubeTensor<R>,
+) -> CubeTensor<R> {
+    scatter_op::<R, MulOp>(dim, tensor, indices, value)
 }

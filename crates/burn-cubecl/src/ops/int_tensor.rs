@@ -129,6 +129,24 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         kernel::scatter(dim, tensor, indices, value, false)
     }
 
+    fn int_scatter(
+        dim: usize,
+        tensor: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::int_scatter_add(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                kernel::scatter_mul(dim, tensor, indices, value)
+            }
+            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn int_scatter_nd(
         data: IntTensor<Self>,
         indices: IntTensor<Self>,
@@ -157,6 +175,26 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         kernel::select_assign(tensor, dim, indices, value, false)
+    }
+
+    fn int_select_assign(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::int_select_add(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                kernel::select_assign_mul(tensor, dim, indices, value)
+            }
+            other => {
+                unimplemented!("int_select_assign with {other:?} update is not implemented")
+            }
+        }
     }
 
     fn int_equal(
