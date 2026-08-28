@@ -25,6 +25,8 @@ fn lcs_length(a: &[i32], b: &[i32]) -> usize {
 }
 
 /// ROUGE-L metric based on longest common subsequence.
+///
+/// Reports the macro average of the per-sequence ROUGE-L F1 scores.
 #[derive(Clone)]
 pub struct RougeLScore {
     name: MetricName,
