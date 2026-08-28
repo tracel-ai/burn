@@ -147,6 +147,10 @@ Most backends support all operating systems, so we don't mention them in the tab
 | Wasm   | -            | ☑️   | -        |
 | no-std | -            | ☑️   | -        |
 
+> **Note:** The LibTorch backend is deprecated as of `0.22.0` and will be removed in a future
+> release. Use a [CubeCL](https://github.com/tracel-ai/cubecl) backend (CUDA, ROCm, Metal, Vulkan,
+> WebGPU, CPU) for GPU acceleration, or `burn-flex` for pure-Rust CPU execution.
+
 <br />
 
 Compared to other frameworks, Burn has a very different approach to supporting many backends. By

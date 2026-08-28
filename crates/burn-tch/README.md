@@ -5,6 +5,16 @@
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-tch.svg)](https://crates.io/crates/burn-tch)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn-tch/blob/master/README.md)
 
+> **Deprecated:** This crate is deprecated as of `0.22.0` and will be removed in a future release.
+> Please migrate to one of the actively maintained backends:
+>
+> - **CubeCL GPU backends** for GPU acceleration: [`burn-cuda`](https://crates.io/crates/burn-cuda)
+>   (NVIDIA), [`burn-rocm`](https://crates.io/crates/burn-rocm) (AMD), and
+>   [`burn-wgpu`](https://crates.io/crates/burn-wgpu) (Metal, Vulkan, WebGPU).
+> - **CPU backends**: [`burn-cpu`](https://crates.io/crates/burn-cpu) (CubeCL) or
+>   [`burn-flex`](https://crates.io/crates/burn-flex) for portable pure-Rust CPU execution (std,
+>   no_std, WebAssembly).
+
 This crate provides a Torch backend for [Burn](https://github.com/tracel-ai/burn) utilizing the
 [`tch-rs`](https://github.com/LaurentMazare/tch-rs) crate, which offers a Rust interface to the
 [PyTorch](https://pytorch.org/) C++ API.

@@ -22,23 +22,23 @@ and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 
 `Device` provides constructors for the backends enabled in your build. Common choices include:
 
-| Constructor                                | Target                             |
-| ------------------------------------------ | ---------------------------------- |
-| `Device::wgpu(Default::default())`         | Best WGPU adapter available        |
-| `Device::wgpu(DeviceKind::DiscreteGpu(0))` | First discrete GPU through WGPU    |
-| `Device::vulkan(Default::default())`       | Best Vulkan adapter                |
-| `Device::metal(Default::default())`        | Best Metal adapter                 |
-| `Device::webgpu(Default::default())`       | Browser WebGPU device              |
-| `Device::cuda(0)`                          | CUDA GPU at index 0                |
-| `Device::cuda(DeviceIndex::Default)`       | Backend-selected CUDA GPU          |
-| `Device::rocm(0)`                          | ROCm/HIP GPU at index 0            |
-| `Device::cpu()`                            | CubeCL CPU backend                 |
-| `Device::flex()`                           | Flex CPU backend                   |
-| `Device::ndarray()`                        | NdArray CPU backend (deprecated)   |
-| `Device::libtorch()`                       | LibTorch CPU backend               |
-| `Device::libtorch_cuda(0)`                 | LibTorch CUDA GPU at index 0       |
-| `Device::libtorch_mps()`                   | LibTorch Metal Performance Shaders |
-| `Device::libtorch_vulkan()`                | LibTorch Vulkan device             |
+| Constructor                                | Target                                          |
+| ------------------------------------------ | ----------------------------------------------- |
+| `Device::wgpu(Default::default())`         | Best WGPU adapter available                     |
+| `Device::wgpu(DeviceKind::DiscreteGpu(0))` | First discrete GPU through WGPU                 |
+| `Device::vulkan(Default::default())`       | Best Vulkan adapter                             |
+| `Device::metal(Default::default())`        | Best Metal adapter                              |
+| `Device::webgpu(Default::default())`       | Browser WebGPU device                           |
+| `Device::cuda(0)`                          | CUDA GPU at index 0                             |
+| `Device::cuda(DeviceIndex::Default)`       | Backend-selected CUDA GPU                       |
+| `Device::rocm(0)`                          | ROCm/HIP GPU at index 0                         |
+| `Device::cpu()`                            | CubeCL CPU backend                              |
+| `Device::flex()`                           | Flex CPU backend                                |
+| `Device::ndarray()`                        | NdArray CPU backend (deprecated)                |
+| `Device::libtorch()`                       | LibTorch CPU backend (deprecated)               |
+| `Device::libtorch_cuda(0)`                 | LibTorch CUDA GPU at index 0 (deprecated)       |
+| `Device::libtorch_mps()`                   | LibTorch Metal Performance Shaders (deprecated) |
+| `Device::libtorch_vulkan()`                | LibTorch Vulkan device (deprecated)             |
 
 Indexed devices accept either an integer or `DeviceIndex`. WGPU-family constructors accept a
 `DeviceKind`, which can select a discrete, integrated, or virtual GPU, a CPU adapter, or the best

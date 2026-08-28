@@ -41,7 +41,7 @@
 //! autodifferentiation and automatic kernel fusion.
 //!
 //! - WGPU (WebGPU): Cross-Platform GPU Backend
-//! - LibTorch: Backend using the LibTorch bindings
+//! - LibTorch: Backend using the LibTorch bindings (deprecated)
 //! - Flex: Pure-Rust CPU backend (std, no_std, WebAssembly)
 //! - Autodiff: Backend decorator that brings backpropagation to any backend
 //! - Fusion: Backend decorator that brings kernel fusion to backends that support it
@@ -95,7 +95,7 @@
 //!   - `metal`: Makes available the Metal backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
-//!   - `tch`: Makes available the LibTorch backend
+//!   - `tch`: Makes available the LibTorch backend (deprecated - use a CubeCL backend instead)
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
 //!   - `ndarray`: Makes available the NdArray backend (deprecated - use `flex` instead)
 //! - Backend specifications
