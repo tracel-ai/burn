@@ -218,6 +218,17 @@ impl FloatTensorOps<Self> for NdArray {
                     }
                 )
             }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayOps::scatter_mul(dim, tensor, idx_array, value)
+                        })
+                    }
+                )
+            }
             other => unimplemented!("float_scatter with {other:?} update is not implemented"),
         }
     }
@@ -302,6 +313,17 @@ impl FloatTensorOps<Self> for NdArray {
                     |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
                         execute_with_float_dtype!((tensor, value), |tensor, value| {
                             NdArrayMathOps::select_assign_replace(tensor, dim, idx_array, value)
+                        })
+                    }
+                )
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayMathOps::select_assign_mul(tensor, dim, idx_array, value)
                         })
                     }
                 )

@@ -9,30 +9,21 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
 use cubek::interpolate::{
+    InterpolateStrategy as CubekInterpolateStrategy,
     definition::{
-        InterpolateBlueprint, InterpolateError, InterpolateMode as CubekInterpolateMode,
-        InterpolateOptions as CubekInterpolateOptions,
-        InterpolateStrategy as CubekInterpolateStrategy, NearestMode as CubekNearestMode,
+        InterpolateError, InterpolateMode as CubekInterpolateMode,
+        InterpolateOptions as CubekInterpolateOptions, NearestMode as CubekNearestMode,
     },
     interpolate as cubek_interpolate, interpolate_backward as cubek_interpolate_backward,
 };
 
 #[derive(Debug)]
-/// Strategy used to select which interpolate implementation to run.
-///
-/// The two intents state the bottleneck to optimize for and let the device resolve the rest of
-/// the launch; [`Forced`](Self::Forced) pins every choice instead.
+/// Strategy used to select how interpolation runs.
 pub enum InterpolateStrategy {
-    /// Optimize for memory throughput: widen the cube and read the input where it lies.
-    ///
-    /// Always launchable, since it stages nothing.
-    MaximizeThroughput,
-
-    /// Optimize for tap latency: stage the gathered input so a re-read window is fetched once.
-    MinimizeLatency,
-
-    /// Pin every launch choice, whatever the device reports.
-    Forced(InterpolateBlueprint),
+    /// Run the strategy given rather than searching for one. cubek resolves it against the device
+    /// and the problem, so an intent states what the launch optimizes for and leaves the geometry
+    /// to cubek, while [`Forced`](CubekInterpolateStrategy::Forced) pins the geometry outright.
+    Specific(CubekInterpolateStrategy),
 
     /// Automatically benchmark and select the best strategy at runtime.
     #[cfg(feature = "autotune")]
@@ -45,9 +36,10 @@ impl Default for InterpolateStrategy {
         #[cfg(feature = "autotune")]
         return InterpolateStrategy::Autotune;
 
-        // if autotune is disabled, default to the intent that every device can launch
+        // Interpolation reads one tensor and writes another, so a build that measures nothing
+        // runs the intent that takes memory for the limit.
         #[cfg(not(feature = "autotune"))]
-        InterpolateStrategy::MaximizeThroughput
+        InterpolateStrategy::Specific(CubekInterpolateStrategy::MaximizeThroughput)
     }
 }
 
@@ -61,30 +53,16 @@ pub fn interpolate<R: CubeRuntime>(
     strategy: InterpolateStrategy,
 ) -> Result<CubeTensor<R>, InterpolateError> {
     match strategy {
-        InterpolateStrategy::MaximizeThroughput => execute_interpolate(
-            input,
-            output_size,
-            options,
-            CubekInterpolateStrategy::MaximizeThroughput,
-        ),
-        InterpolateStrategy::MinimizeLatency => execute_interpolate(
-            input,
-            output_size,
-            options,
-            CubekInterpolateStrategy::MinimizeLatency,
-        ),
-        InterpolateStrategy::Forced(blueprint) => execute_interpolate(
-            input,
-            output_size,
-            options,
-            CubekInterpolateStrategy::Forced(blueprint),
-        ),
+        InterpolateStrategy::Specific(strategy) => {
+            execute_interpolate(input, output_size, options, strategy)
+        }
         #[cfg(feature = "autotune")]
         InterpolateStrategy::Autotune => Ok(interpolate_autotune(input, output_size, options)),
     }
 }
 
-/// Execute the given interpolate strategy without autotuning. This is used by the autotune implementation to run each candidate strategy.
+/// Execute interpolation with the given strategy, without autotuning. This is used by the
+/// autotune implementation to run each candidate strategy.
 pub fn execute_interpolate<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],

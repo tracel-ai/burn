@@ -297,6 +297,13 @@ impl IntTensorOps<Self> for NdArray {
                     ))
                 })
             }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter_mul(
+                        dim, tensor, idx_array, value
+                    ))
+                })
+            }
             other => unimplemented!("int_scatter with {other:?} update is not implemented"),
         }
     }
@@ -356,6 +363,13 @@ impl IntTensorOps<Self> for NdArray {
                 execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
                     execute_with_int_dtype!(indices, |idx_array| {
                         NdArrayMathOps::<I>::select_assign_replace(tensor, dim, idx_array, value)
+                    })
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| {
+                        NdArrayMathOps::<I>::select_assign_mul(tensor, dim, idx_array, value)
                     })
                 })
             }

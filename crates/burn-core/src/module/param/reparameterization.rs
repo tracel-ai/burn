@@ -77,12 +77,17 @@ mod tests {
     use super::*;
     use crate as burn;
     use crate::module::Reparameterizer;
-    use crate::{module::Module, test_device, test_utils::SimpleLinear};
+    use crate::{
+        module::{Flag, Module, ParamGroup},
+        test_device,
+        test_utils::SimpleLinear,
+    };
     use burn_tensor::{Shape, Tolerance};
 
     #[derive(Debug, Module)]
     struct CustomScale {
         scale: Param<Tensor<1>>,
+        enabled: Param<Flag>,
     }
 
     impl Reparameterization for CustomScale {
@@ -111,6 +116,7 @@ mod tests {
                 param,
                 Some(CustomScale {
                     scale: Param::from_tensor(scale),
+                    enabled: Param::from_bool(true),
                 }),
             )
         }
@@ -131,6 +137,16 @@ mod tests {
             .into_data()
             .assert_approx_eq::<f32>(&model.weight.base().into_data(), Tolerance::default());
         assert_eq!(model.num_params(), 24 + 6 + 1);
+
+        let group = ParamGroup::ids_from_module(model.clone());
+        assert!(group.matches(&custom.enabled.id, None));
+
+        let frozen = model.clone().no_grad();
+        let frozen_custom = frozen
+            .weight
+            .reparameterization::<CustomScale>()
+            .expect("custom reparameterization should remain attached");
+        assert!(!frozen_custom.enabled.is_enabled());
 
         let grads = model.weight.val().sum().backward();
         assert!(model.weight.base().grad(&grads).is_some());
