@@ -3,41 +3,41 @@ use burn_tensor::Distribution;
 use burn_tensor::{Device, IndexingUpdateOp, Tolerance};
 
 #[test]
-fn select_add_should_work_with_multiple_workgroups_2d_dim0() {
-    select_add_same_as_ref(0, [256, 6]);
+fn select_add_should_match_reference_2d_dim0() {
+    select_add_matches_reference(0, [256, 6]);
 }
 
 #[test]
-fn select_add_should_work_with_multiple_workgroups_2d_dim1() {
-    select_add_same_as_ref(1, [6, 256]);
+fn select_add_should_match_reference_2d_dim1() {
+    select_add_matches_reference(1, [6, 256]);
 }
 
 #[test]
-fn select_add_should_work_with_multiple_workgroups_3d_dim0() {
-    select_add_same_as_ref(0, [256, 6, 6]);
+fn select_add_should_match_reference_3d_dim0() {
+    select_add_matches_reference(0, [256, 6, 6]);
 }
 
 #[test]
-fn select_add_should_work_with_multiple_workgroups_3d_dim1() {
-    select_add_same_as_ref(1, [6, 256, 6]);
+fn select_add_should_match_reference_3d_dim1() {
+    select_add_matches_reference(1, [6, 256, 6]);
 }
 
 #[test]
-fn select_add_should_work_with_multiple_workgroups_3d_dim2() {
-    select_add_same_as_ref(2, [6, 6, 256]);
+fn select_add_should_match_reference_3d_dim2() {
+    select_add_matches_reference(2, [6, 6, 256]);
 }
 
 #[test]
-fn select_mul_should_work_with_multiple_workgroups_2d_dim0() {
-    select_mul_same_as_ref(0, [256, 6]);
+fn select_mul_should_match_reference_2d_dim0() {
+    select_mul_matches_reference(0, [256, 6]);
 }
 
 #[test]
-fn select_mul_should_work_with_multiple_workgroups_2d_dim1() {
-    select_mul_same_as_ref(1, [6, 256]);
+fn select_mul_should_match_reference_2d_dim1() {
+    select_mul_matches_reference(1, [6, 256]);
 }
 
-fn select_add_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
+fn select_add_matches_reference<const D: usize>(dim: usize, shape: [usize; D]) {
     let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
@@ -62,7 +62,7 @@ fn select_add_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
         .assert_approx_eq::<FloatElem>(&actual.into_data(), Tolerance::default());
 }
 
-fn select_mul_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
+fn select_mul_matches_reference<const D: usize>(dim: usize, shape: [usize; D]) {
     let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
