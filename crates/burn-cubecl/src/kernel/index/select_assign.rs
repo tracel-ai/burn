@@ -1,5 +1,5 @@
 use crate::kernel::{
-    AddOp, BinaryOp, BinaryOpFamily, OrOp,
+    AddOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
     utils::{address_type, shape_divmod},
 };
 use crate::{CubeRuntime, tensor::CubeTensor};
@@ -59,12 +59,11 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     }
 }
 
-pub(crate) fn select_assign<R: CubeRuntime>(
+fn select_assign_op<R: CubeRuntime, Op: BinaryOpFamily>(
     tensor: CubeTensor<R>,
     dim: usize,
     indices: CubeTensor<R>,
     value: CubeTensor<R>,
-    is_bool: bool,
 ) -> CubeTensor<R> {
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
@@ -75,15 +74,10 @@ pub(crate) fn select_assign<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
 
-    let launch = match is_bool {
-        true => select_assign_kernel::launch::<OrOp, R>,
-        false => select_assign_kernel::launch::<AddOp, R>,
-    };
-
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
     let shape = shape_divmod(&value);
-    launch(
+    select_assign_kernel::launch::<Op, R>(
         &tensor.client,
         cube_count,
         cube_dim,
@@ -101,4 +95,26 @@ pub(crate) fn select_assign<R: CubeRuntime>(
     );
 
     tensor
+}
+
+pub(crate) fn select_assign<R: CubeRuntime>(
+    tensor: CubeTensor<R>,
+    dim: usize,
+    indices: CubeTensor<R>,
+    value: CubeTensor<R>,
+    is_bool: bool,
+) -> CubeTensor<R> {
+    match is_bool {
+        true => select_assign_op::<R, OrOp>(tensor, dim, indices, value),
+        false => select_assign_op::<R, AddOp>(tensor, dim, indices, value),
+    }
+}
+
+pub(crate) fn select_assign_mul<R: CubeRuntime>(
+    tensor: CubeTensor<R>,
+    dim: usize,
+    indices: CubeTensor<R>,
+    value: CubeTensor<R>,
+) -> CubeTensor<R> {
+    select_assign_op::<R, MulOp>(tensor, dim, indices, value)
 }
