@@ -161,33 +161,6 @@ impl Default for NmsOptions {
     }
 }
 
-#[cfg(feature = "flex")]
-use burn_core::backend::Flex;
-
-#[cfg(feature = "wgpu")]
-use burn_core::backend::Wgpu;
-
-#[cfg(feature = "webgpu")]
-use burn_core::backend::WebGpu;
-
-#[cfg(feature = "vulkan")]
-use burn_core::backend::Vulkan;
-
-#[cfg(feature = "metal")]
-use burn_core::backend::Metal;
-
-#[cfg(feature = "cuda")]
-use burn_core::backend::Cuda;
-
-#[cfg(feature = "rocm")]
-use burn_core::backend::Rocm;
-
-#[cfg(feature = "cpu")]
-use burn_core::backend::Cpu;
-
-#[cfg(feature = "tch")]
-use burn_core::backend::LibTorch;
-
 /// Vision capable backend, implemented by each backend
 #[backend_extension(
     Flex: cfg(feature = "flex"),
