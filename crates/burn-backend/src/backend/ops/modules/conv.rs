@@ -8,13 +8,25 @@ use alloc::{vec, vec::Vec};
 #[allow(unused_imports)]
 use num_traits::Float as _;
 
-fn pad_asymmetric_input<B: Backend, const N: usize>(
+/// Explicitly pads an input when convolution padding is asymmetric.
+///
+/// Backends whose native convolution operation only supports symmetric padding can use this
+/// helper to apply the per-side padding to the input and reset the returned convolution options
+/// to zero padding. Symmetric options and their input are returned unchanged.
+pub fn pad_asymmetric_conv_input<B: Backend, const N: usize>(
     x: FloatTensor<B>,
-    padding: &[(usize, usize); N],
-) -> FloatTensor<B> {
-    let mut tensor_padding = vec![(0, 0); N + 2];
-    tensor_padding[2..].copy_from_slice(padding);
-    B::float_pad(x, &tensor_padding, PadMode::Constant(0.0))
+    options: ConvOptions<N>,
+) -> (FloatTensor<B>, ConvOptions<N>) {
+    if !options.is_asymmetric() {
+        return (x, options);
+    }
+
+    let mut padding = vec![(0, 0); N + 2];
+    padding[2..].copy_from_slice(&options.padding);
+    let x = B::float_pad(x, &padding, PadMode::Constant(0.0));
+    let options = ConvOptions::new(options.stride, [0; N], options.dilation, options.groups);
+
+    (x, options)
 }
 
 fn crop_asymmetric_input_grad<B: Backend, const N: usize>(
@@ -184,7 +196,7 @@ pub fn calculate_conv_output_size(
     )
 }
 
-/// Calculate the expected output size with explicit `(before, after)` padding.
+/// Calculate the expected output size with explicit `(begin, end)` padding.
 pub fn calculate_conv_output_size_asymmetric(
     kernel_size: usize,
     stride: usize,
@@ -307,8 +319,7 @@ pub(crate) fn conv1d_x_backward<B: Backend>(
     if options.is_asymmetric() {
         let input_shape = x.shape();
         let padding = options.padding;
-        let x = pad_asymmetric_input::<B, 1>(x, &padding);
-        let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
+        let (x, options) = pad_asymmetric_conv_input::<B, 1>(x, options);
         let grad = conv1d_x_backward_symmetric::<B>(x, weight, output_grad, options);
         return crop_asymmetric_input_grad::<B, 1>(grad, &input_shape, &padding);
     }
@@ -359,8 +370,7 @@ pub(crate) fn conv1d_weight_backward<B: Backend>(
     options: ConvOptions<1>,
 ) -> FloatTensor<B> {
     if options.is_asymmetric() {
-        let x = pad_asymmetric_input::<B, 1>(x, &options.padding);
-        let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
+        let (x, options) = pad_asymmetric_conv_input::<B, 1>(x, options);
         return conv1d_weight_backward_symmetric::<B>(x, weight, output_grad, options);
     }
 
@@ -414,8 +424,7 @@ pub(crate) fn conv2d_x_backward<B: Backend>(
     if options.is_asymmetric() {
         let input_shape = x.shape();
         let padding = options.padding;
-        let x = pad_asymmetric_input::<B, 2>(x, &padding);
-        let options = ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
+        let (x, options) = pad_asymmetric_conv_input::<B, 2>(x, options);
         let grad = conv2d_x_backward_symmetric::<B>(x, weight, output_grad, options);
         return crop_asymmetric_input_grad::<B, 2>(grad, &input_shape, &padding);
     }
@@ -474,8 +483,7 @@ pub(crate) fn conv2d_weight_backward<B: Backend>(
     options: ConvOptions<2>,
 ) -> FloatTensor<B> {
     if options.is_asymmetric() {
-        let x = pad_asymmetric_input::<B, 2>(x, &options.padding);
-        let options = ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
+        let (x, options) = pad_asymmetric_conv_input::<B, 2>(x, options);
         return conv2d_weight_backward_symmetric::<B>(x, weight, output_grad, options);
     }
 
@@ -889,13 +897,7 @@ pub(crate) fn conv1d_from_conv2d<B: Backend>(
     bias: Option<FloatTensor<B>>,
     options: ConvOptions<1>,
 ) -> FloatTensor<B> {
-    let (x, options) = if options.is_asymmetric() {
-        let x = pad_asymmetric_input::<B, 1>(x, &options.padding);
-        let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
-        (x, options)
-    } else {
-        (x, options)
-    };
+    let (x, options) = pad_asymmetric_conv_input::<B, 1>(x, options);
 
     let [channels_out, _channels_in, kernel_size] = weight.shape().dims();
     let [batch_size, channels_in, length_in] = x.shape().dims();

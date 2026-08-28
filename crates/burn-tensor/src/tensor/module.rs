@@ -87,12 +87,15 @@ pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
 /// Applies a [1D convolution](burn_backend::ops::ModuleOps::conv1d).
 ///
 /// Supports symmetric and asymmetric padding through [`ConvOptions`].
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv1d(
     x: Tensor<3>,
     weight: Tensor<3>,
     bias: Option<Tensor<1>>,
-    options: ConvOptions<1>,
+    options: impl Into<ConvOptions<1>>,
 ) -> Tensor<3> {
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv1d",
         x.dims(),
@@ -111,12 +114,15 @@ pub fn conv1d(
 /// Applies a [2D convolution](burn_backend::ops::ModuleOps::conv2d).
 ///
 /// Supports symmetric and asymmetric padding through [`ConvOptions`].
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv2d(
     x: Tensor<4>,
     weight: Tensor<4>,
     bias: Option<Tensor<1>>,
-    options: ConvOptions<2>,
+    options: impl Into<ConvOptions<2>>,
 ) -> Tensor<4> {
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv2d",
         x.dims(),
@@ -135,12 +141,15 @@ pub fn conv2d(
 /// Applies a [3D convolution](burn_backend::ops::ModuleOps::conv3d).
 ///
 /// Asymmetric 3D padding is not yet supported.
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv3d(
     x: Tensor<5>,
     weight: Tensor<5>,
     bias: Option<Tensor<1>>,
-    options: ConvOptions<3>,
+    options: impl Into<ConvOptions<3>>,
 ) -> Tensor<5> {
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv3d",
         x.dims(),

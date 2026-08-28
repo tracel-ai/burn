@@ -2,10 +2,11 @@ use super::{conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, Scalar, TensorMetadata};
+#[allow(deprecated)]
 pub use burn_std::ops::{
     AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
     GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
-    UnfoldOptions,
+    PaddedConvOptions, UnfoldOptions,
 };
 use burn_std::{IntDType, Shape};
 

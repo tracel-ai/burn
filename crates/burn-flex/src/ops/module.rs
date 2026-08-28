@@ -9,7 +9,7 @@ use burn_backend::{
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, FloatTensorOps, IntTensorOps, InterpolateMode, InterpolateOptions,
-        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, PadMode,
+        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, conv::pad_asymmetric_conv_input,
     },
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
@@ -49,18 +49,7 @@ impl ModuleOps<Flex> for Flex {
         bias: Option<FloatTensor<Flex>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Flex> {
-        let (x, options) = if options.is_asymmetric() {
-            let padding = [
-                (0, 0),
-                (0, 0),
-                (options.padding_begin()[0], options.padding_end()[0]),
-            ];
-            let x = <Flex as FloatTensorOps<Flex>>::float_pad(x, &padding, PadMode::Constant(0.0));
-            let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
-            (x, options)
-        } else {
-            (x, options)
-        };
+        let (x, options) = pad_asymmetric_conv_input::<Flex, 1>(x, options);
         match x.dtype() {
             DType::F32 => conv::conv1d_f32(x, weight, bias, &options),
             DType::F64 => conv::conv1d_f64(x, weight, bias, &options),
@@ -76,17 +65,7 @@ impl ModuleOps<Flex> for Flex {
         bias: Option<FloatTensor<Flex>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Flex> {
-        let (x, options) = if options.is_asymmetric() {
-            let begin = options.padding_begin();
-            let end = options.padding_end();
-            let padding = [(0, 0), (0, 0), (begin[0], end[0]), (begin[1], end[1])];
-            let x = <Flex as FloatTensorOps<Flex>>::float_pad(x, &padding, PadMode::Constant(0.0));
-            let options =
-                ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
-            (x, options)
-        } else {
-            (x, options)
-        };
+        let (x, options) = pad_asymmetric_conv_input::<Flex, 2>(x, options);
         match x.dtype() {
             DType::F32 => conv::conv2d_f32(x, weight, bias, &options),
             DType::F64 => conv::conv2d_f64(x, weight, bias, &options),

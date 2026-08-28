@@ -3,9 +3,9 @@ use burn_backend::{
     IntDType, TensorMetadata,
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, FloatTensorOps, InterpolateMode, InterpolateOptions,
-        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, PadMode,
-        attention::attention_fallback,
+        DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
+        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
+        conv::pad_asymmetric_conv_input,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -67,22 +67,7 @@ impl ModuleOps<Self> for LibTorch {
         bias: Option<TchTensor>,
         options: ConvOptions<1>,
     ) -> TchTensor {
-        let (x, options) = if options.is_asymmetric() {
-            let padding = [
-                (0, 0),
-                (0, 0),
-                (options.padding_begin()[0], options.padding_end()[0]),
-            ];
-            let x = <LibTorch as FloatTensorOps<LibTorch>>::float_pad(
-                x,
-                &padding,
-                PadMode::Constant(0.0),
-            );
-            let options = ConvOptions::new(options.stride, [0], options.dilation, options.groups);
-            (x, options)
-        } else {
-            (x, options)
-        };
+        let (x, options) = pad_asymmetric_conv_input::<LibTorch, 1>(x, options);
         let tensor = tch::Tensor::conv1d(
             &x.tensor,
             &weight.tensor,
@@ -102,21 +87,7 @@ impl ModuleOps<Self> for LibTorch {
         bias: Option<TchTensor>,
         options: ConvOptions<2>,
     ) -> TchTensor {
-        let (x, options) = if options.is_asymmetric() {
-            let begin = options.padding_begin();
-            let end = options.padding_end();
-            let padding = [(0, 0), (0, 0), (begin[0], end[0]), (begin[1], end[1])];
-            let x = <LibTorch as FloatTensorOps<LibTorch>>::float_pad(
-                x,
-                &padding,
-                PadMode::Constant(0.0),
-            );
-            let options =
-                ConvOptions::new(options.stride, [0, 0], options.dilation, options.groups);
-            (x, options)
-        } else {
-            (x, options)
-        };
+        let (x, options) = pad_asymmetric_conv_input::<LibTorch, 2>(x, options);
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
             &weight.tensor,

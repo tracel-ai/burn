@@ -85,6 +85,87 @@ impl<const N: usize> ConvOptions<N> {
     }
 }
 
+/// Convolution options with optional asymmetric end padding.
+///
+/// Deprecated compatibility wrapper for the convolution options API shipped in
+/// Burn 0.22. Use [`ConvOptions::new_with_padding`] instead.
+#[deprecated(since = "0.22.0", note = "Use `ConvOptions::new_with_padding` instead")]
+#[derive(Debug, Clone)]
+pub struct PaddedConvOptions<const N: usize> {
+    /// The underlying convolution options.
+    pub options: ConvOptions<N>,
+    /// Padding at the end of each spatial dimension.
+    ///
+    /// When `None`, the padding stored in [`Self::options`] is used unchanged.
+    pub padding_end: Option<[usize; N]>,
+}
+
+#[allow(deprecated)]
+impl<const N: usize> PaddedConvOptions<N> {
+    /// Creates options with explicit begin and end padding.
+    pub fn asymmetric(
+        stride: [usize; N],
+        padding_begin: [usize; N],
+        padding_end: [usize; N],
+        dilation: [usize; N],
+        groups: usize,
+    ) -> Self {
+        let options = ConvOptions::new(stride, padding_begin, dilation, groups);
+        let padding_end = (padding_begin != padding_end).then_some(padding_end);
+        Self {
+            options,
+            padding_end,
+        }
+    }
+
+    /// Returns true if explicit asymmetric end padding is present.
+    pub fn is_asymmetric(&self) -> bool {
+        self.padding_end.is_some()
+    }
+}
+
+#[allow(deprecated)]
+impl<const N: usize> From<PaddedConvOptions<N>> for ConvOptions<N> {
+    fn from(value: PaddedConvOptions<N>) -> Self {
+        let Some(padding_end) = value.padding_end else {
+            return value.options;
+        };
+        let padding_begin = value.options.padding_begin();
+        let padding = core::array::from_fn(|i| (padding_begin[i], padding_end[i]));
+
+        ConvOptions::new_with_padding(
+            value.options.stride,
+            padding,
+            value.options.dilation,
+            value.options.groups,
+        )
+    }
+}
+
+#[allow(deprecated)]
+impl<const N: usize> From<ConvOptions<N>> for PaddedConvOptions<N> {
+    fn from(options: ConvOptions<N>) -> Self {
+        if options.is_asymmetric() {
+            let padding_begin = options.padding_begin();
+            let padding_end = options.padding_end();
+            Self {
+                options: ConvOptions::new(
+                    options.stride,
+                    padding_begin,
+                    options.dilation,
+                    options.groups,
+                ),
+                padding_end: Some(padding_end),
+            }
+        } else {
+            Self {
+                options,
+                padding_end: None,
+            }
+        }
+    }
+}
+
 /// Deformable convolution options.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DeformConvOptions<const N: usize> {
@@ -408,6 +489,28 @@ mod tests {
         assert_eq!(options.padding_begin(), [3, 5]);
         assert_eq!(options.padding_end(), [4, 6]);
         assert!(options.is_asymmetric());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn padded_conv_options_convert_to_conv_options() {
+        let options: ConvOptions<2> =
+            PaddedConvOptions::asymmetric([1, 2], [3, 5], [4, 6], [7, 8], 9).into();
+
+        assert_eq!(options.padding, [(3, 4), (5, 6)]);
+        assert_eq!(options.stride, [1, 2]);
+        assert_eq!(options.dilation, [7, 8]);
+        assert_eq!(options.groups, 9);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn asymmetric_conv_options_roundtrip_through_padded_options() {
+        let expected = ConvOptions::new_with_padding([1, 2], [(3, 4), (5, 6)], [7, 8], 9);
+        let padded: PaddedConvOptions<2> = expected.clone().into();
+        let actual: ConvOptions<2> = padded.into();
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
