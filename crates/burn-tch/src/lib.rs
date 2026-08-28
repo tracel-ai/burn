@@ -3,7 +3,7 @@
 #![allow(clippy::single_range_in_vec_init)]
 #![deprecated(
     since = "0.22.0",
-    note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (burn-cuda, burn-rocm, burn-wgpu, burn-cpu) for GPU acceleration, or burn-flex for pure-Rust CPU execution."
+    note = "burn-tch is deprecated and will be removed in a future release. For GPU acceleration use a CubeCL backend: burn-cuda (NVIDIA), burn-rocm (AMD), or burn-wgpu (Metal, Vulkan, WebGPU). For CPU execution use burn-cpu (CubeCL) or burn-flex (pure Rust)."
 )]
 
 //! Burn Tch Backend

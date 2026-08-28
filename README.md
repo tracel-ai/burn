@@ -148,8 +148,8 @@ Most backends support all operating systems, so we don't mention them in the tab
 | no-std | -            | ☑️   | -        |
 
 > **Note:** The LibTorch backend is deprecated as of `0.22.0` and will be removed in a future
-> release. Use a [CubeCL](https://github.com/tracel-ai/cubecl) backend (CUDA, ROCm, Metal, Vulkan,
-> WebGPU, CPU) for GPU acceleration, or `burn-flex` for pure-Rust CPU execution.
+> release. For GPU acceleration, use a [CubeCL](https://github.com/tracel-ai/cubecl) backend (CUDA,
+> ROCm, Metal, Vulkan, WebGPU). For CPU execution, use the CubeCL CPU backend or `burn-flex`.
 
 <br />
 
