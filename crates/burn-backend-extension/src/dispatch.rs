@@ -40,10 +40,6 @@ pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
                 if meta.path.is_ident("skip") {
                     skip = true;
                     Ok(())
-                } else if meta.path.is_ident("base") {
-                    Err(meta.error(
-                        "`backend_dispatch(base)` was removed; use `skip` and handwritten routing when an operation requires special handling",
-                    ))
                 } else {
                     Err(meta.error("expected `skip`"))
                 }
@@ -537,17 +533,6 @@ mod tests {
             panic!("the handwritten argument should be preserved")
         };
         assert!(argument.path.is_ident("device"));
-    }
-
-    #[test]
-    fn rejects_removed_base() {
-        let input = quote! {
-            impl Ops<Self> for Dispatch {
-                #[backend_dispatch(base)]
-                fn op(x: IntTensor<Self>) -> BoolTensor<Self> { B::op(x) }
-            }
-        };
-        assert!(expand(TokenStream::new(), input).is_err());
     }
 
     #[test]

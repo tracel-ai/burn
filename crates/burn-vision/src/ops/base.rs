@@ -5,7 +5,8 @@ use crate::{
 use bon::Builder;
 
 use burn_core::backend::{
-    Backend, ExtensionType, TensorMetadata, backend_extension, tensor::{BoolTensor, IntTensor}
+    Backend, ExtensionType, TensorMetadata, backend_extension,
+    tensor::{BoolTensor, IntTensor},
 };
 use burn_core::tensor::{Int, IntDType, Scalar, Tensor, read_sync};
 use burn_core::{self as burn, backend::tensor::FloatTensor}; // for backend_extension

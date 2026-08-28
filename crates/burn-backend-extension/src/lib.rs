@@ -41,8 +41,18 @@ pub fn backend_catalog(input: TokenStream) -> TokenStream {
 
 /// Turns a backend-generic `impl Trait<Self> for Dispatch` into direct enum dispatch.
 ///
-/// Tensor inputs select the backend at runtime. Methods requiring bespoke routing can opt out with
-/// `#[backend_dispatch(skip)]` and keep a handwritten body.
+/// Routing binds `B` to the selected backend, then executes the forwarding body:
+///
+/// ```rust,ignore
+/// #[backend_dispatch]
+/// impl BoolTensorOps<Self> for Dispatch {
+///     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
+///         B::bool_not(tensor)
+///     }
+/// }
+/// ```
+///
+/// Methods requiring bespoke routing can use `#[backend_dispatch(skip)]`.
 #[doc(hidden)]
 #[proc_macro_attribute]
 pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
