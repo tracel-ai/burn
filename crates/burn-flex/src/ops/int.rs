@@ -175,6 +175,36 @@ impl IntTensorOps<Flex> for Flex {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Flex> {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => crate::ops::gather_scatter::scatter_assign::<i64>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I32 => crate::ops::gather_scatter::scatter_assign::<i32>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I16 => crate::ops::gather_scatter::scatter_assign::<i16>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I8 => crate::ops::gather_scatter::scatter_assign::<i8>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U64 => crate::ops::gather_scatter::scatter_assign::<u64>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U32 => crate::ops::gather_scatter::scatter_assign::<u32>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U16 => crate::ops::gather_scatter::scatter_assign::<u16>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U8 => crate::ops::gather_scatter::scatter_assign::<u8>(
+                        tensor, dim, indices, value,
+                    ),
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 Self::int_scatter_add(dim, tensor, indices, value)
             }
@@ -332,6 +362,40 @@ impl IntTensorOps<Flex> for Flex {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Flex> {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => crate::ops::gather_scatter::select_assign::<i64>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I32 => crate::ops::gather_scatter::select_assign::<i32>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I16 => crate::ops::gather_scatter::select_assign::<i16>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_assign::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => crate::ops::gather_scatter::select_assign::<u64>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U32 => crate::ops::gather_scatter::select_assign::<u32>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U16 => crate::ops::gather_scatter::select_assign::<u16>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_assign::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 Self::int_select_add(tensor, dim, indices, value)
             }

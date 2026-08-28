@@ -1,5 +1,5 @@
 use crate::kernel::{
-    AddOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
+    AddOp, AssignOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
     utils::{address_type, shape_divmod},
 };
 use crate::{CubeRuntime, tensor::CubeTensor};
@@ -117,4 +117,13 @@ pub(crate) fn select_assign_mul<R: CubeRuntime>(
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
     select_assign_op::<R, MulOp>(tensor, dim, indices, value)
+}
+
+pub(crate) fn select_assign_replace<R: CubeRuntime>(
+    tensor: CubeTensor<R>,
+    dim: usize,
+    indices: CubeTensor<R>,
+    value: CubeTensor<R>,
+) -> CubeTensor<R> {
+    select_assign_op::<R, AssignOp>(tensor, dim, indices, value)
 }

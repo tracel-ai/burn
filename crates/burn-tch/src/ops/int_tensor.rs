@@ -300,6 +300,9 @@ impl IntTensorOps<Self> for LibTorch {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> TchTensor {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                TchOps::scatter_assign(dim, tensor, indices, value)
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 TchOps::scatter(dim, tensor, indices, value)
             }
@@ -344,6 +347,9 @@ impl IntTensorOps<Self> for LibTorch {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> TchTensor {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                TchOps::select_assign_replace(tensor, dim, indices, value)
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 TchOps::select_assign(tensor, dim, indices, value)
             }

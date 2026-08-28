@@ -194,6 +194,9 @@ where
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Self> {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                kernel::scatter_assign(dim, tensor, indices, value)
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 Self::float_scatter_add(dim, tensor, indices, value)
             }
@@ -242,6 +245,9 @@ where
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Self> {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                kernel::select_assign_replace(tensor, dim, indices, value)
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 Self::float_select_add(tensor, dim, indices, value)
             }

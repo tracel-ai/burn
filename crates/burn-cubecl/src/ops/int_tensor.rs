@@ -137,6 +137,9 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Self> {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                kernel::scatter_assign(dim, tensor, indices, value)
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 Self::int_scatter_add(dim, tensor, indices, value)
             }
@@ -185,6 +188,9 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Self> {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                kernel::select_assign_replace(tensor, dim, indices, value)
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 Self::int_select_add(tensor, dim, indices, value)
             }

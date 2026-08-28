@@ -313,6 +313,21 @@ impl FloatTensorOps<Flex> for Flex {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Flex> {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::scatter_assign::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::scatter_assign::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::scatter_assign::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::scatter_assign::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!("float_scatter: unsupported dtype {:?}", tensor.dtype()),
+            },
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 Self::float_scatter_add(dim, tensor, indices, value)
             }
@@ -413,6 +428,24 @@ impl FloatTensorOps<Flex> for Flex {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Flex> {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::select_assign::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::select_assign::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::select_assign::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::select_assign::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!(
+                    "float_select_assign: unsupported dtype {:?}",
+                    tensor.dtype()
+                ),
+            },
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 Self::float_select_add(tensor, dim, indices, value)
             }

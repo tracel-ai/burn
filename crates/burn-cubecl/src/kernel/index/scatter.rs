@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime,
     kernel::{
-        AddOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
+        AddOp, AssignOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
         utils::{address_type, shape_divmod},
     },
     tensor::CubeTensor,
@@ -129,4 +129,13 @@ pub(crate) fn scatter_mul<R: CubeRuntime>(
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
     scatter_op::<R, MulOp>(dim, tensor, indices, value)
+}
+
+pub(crate) fn scatter_assign<R: CubeRuntime>(
+    dim: usize,
+    tensor: CubeTensor<R>,
+    indices: CubeTensor<R>,
+    value: CubeTensor<R>,
+) -> CubeTensor<R> {
+    scatter_op::<R, AssignOp>(dim, tensor, indices, value)
 }

@@ -80,7 +80,6 @@ fn should_select_add_1d() {
     output.into_data().assert_eq(&expected, false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn should_select_assign_2d_dim0() {
     let device = Default::default();
@@ -94,7 +93,6 @@ fn should_select_assign_2d_dim0() {
     output.into_data().assert_eq(&expected, false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn should_select_assign_2d_dim1() {
     let device = Default::default();
