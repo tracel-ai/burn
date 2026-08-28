@@ -54,7 +54,11 @@ fn should_select_assign_2d_dim1_int() {
     output.into_data().assert_eq(&expected, false);
 }
 
+<<<<<<< HEAD
 #[cfg(any(feature = "cube", feature = "flex", feature = "ndarray"))]
+=======
+#[cfg(any(feature = "flex", feature = "ndarray", feature = "tch"))]
+>>>>>>> upstream/main
 #[test]
 fn should_select_assign_mul_2d_dim0_int() {
     let device = Default::default();
@@ -68,7 +72,11 @@ fn should_select_assign_mul_2d_dim0_int() {
     output.into_data().assert_eq(&expected, false);
 }
 
+<<<<<<< HEAD
 #[cfg(any(feature = "cube", feature = "flex", feature = "ndarray"))]
+=======
+#[cfg(any(feature = "flex", feature = "ndarray", feature = "tch"))]
+>>>>>>> upstream/main
 #[test]
 fn should_select_assign_mul_2d_dim1_int() {
     let device = Default::default();

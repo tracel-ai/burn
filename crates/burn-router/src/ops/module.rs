@@ -1106,19 +1106,33 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
     }
 
     fn rfft(
-        _signal: FloatTensor<Self>,
-        _dim: usize,
-        _n: Option<usize>,
+        signal: FloatTensor<Self>,
+        dim: usize,
+        n: Option<usize>,
     ) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        todo!("rfft is not supported for backend-router")
+        let client = signal.client.clone();
+        let desc = RfftOpIr::create(signal.into_ir(), dim, n, || client.create_empty_handle());
+
+        let [out_re, out_im] = client
+            .register(OperationIr::Module(ModuleOperationIr::Rfft(desc)))
+            .outputs();
+
+        (out_re, out_im)
     }
 
     fn irfft(
-        _spectrum_re: FloatTensor<Self>,
-        _spectrum_im: FloatTensor<Self>,
-        _dim: usize,
-        _n: Option<usize>,
+        spectrum_re: FloatTensor<Self>,
+        spectrum_im: FloatTensor<Self>,
+        dim: usize,
+        n: Option<usize>,
     ) -> FloatTensor<Self> {
-        todo!("irfft is not supported for backend-router")
+        let client = spectrum_re.client.clone();
+        let desc = IRfftOpIr::create(spectrum_re.into_ir(), spectrum_im.into_ir(), dim, n, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::IRfft(desc)))
+            .output()
     }
 }
