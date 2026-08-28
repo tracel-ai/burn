@@ -12,8 +12,12 @@
 // should move to that pair before burn-ndarray is removed.
 #![allow(deprecated)]
 
-use burn::backend::{Dispatch, ExtensionType, NdArray, backend_extension, tensor::FloatTensor};
-use burn::tensor::{Device, Tensor};
+use burn::backend::{
+    Dispatch, ExtensionType, FloatDType, NdArray, backend_extension,
+    ops::IntTensorOps,
+    tensor::{FloatTensor, IntTensor},
+};
+use burn::tensor::{Device, Int, Tensor};
 
 #[derive(ExtensionType)]
 pub enum Operand<B: burn::backend::Backend> {
@@ -81,6 +85,44 @@ fn all_tensorless_input_panics() {
     let _ = <Dispatch as RtBackend>::pick(Operand::Empty);
 }
 
+#[cfg(feature = "autodiff")]
+mod associated_integer_output {
+    use super::*;
+    use burn::backend::Autodiff;
+    use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
+
+    #[backend_extension(Autodiff, NdArray)]
+    trait AssociatedBackend: burn::backend::Backend {
+        fn int_to_float(x: IntTensor<Self>) -> FloatTensor<Self>;
+    }
+
+    impl AssociatedBackend for NdArray {
+        fn int_to_float(x: IntTensor<Self>) -> FloatTensor<Self> {
+            Self::int_into_float(x, FloatDType::F32)
+        }
+    }
+
+    // Required for the statically generated float-input route, even though this operation has no
+    // float input and therefore executes the concrete implementation at runtime.
+    impl<C: CheckpointStrategy> AssociatedBackend for Autodiff<NdArray, C> {
+        fn int_to_float(x: IntTensor<Self>) -> FloatTensor<Self> {
+            Self::int_into_float(x, FloatDType::F32)
+        }
+    }
+
+    #[test]
+    fn associated_integer_to_float_lifts_the_concrete_result() {
+        let device = Device::ndarray().autodiff();
+        let input = Tensor::<1, Int>::from_data([1, 2, 3], &device);
+        let output = <Dispatch as AssociatedBackend>::int_to_float(input.into_dispatch());
+        let output = Tensor::<1>::from_dispatch(output);
+
+        // Calling device used to panic because the extension attached enabled metadata to a
+        // concrete float primitive instead of lifting it into the selected autodiff backend.
+        assert_eq!(output.device(), device);
+    }
+}
+
 // Regression test for autodiff dispatch with more than one concrete backend. Float dispatch tensors
 // store the concrete backend inside `DispatchTensorKind::Autodiff`, so routing must inspect that
 // inner kind instead of allowing the first generated autodiff arm to capture every backend.
@@ -113,6 +155,189 @@ mod multi_backend_autodiff {
     fn autodiff_float_input_dispatches_to_each_concrete_backend() {
         assert_double(Device::ndarray().autodiff());
         assert_double(Device::flex().autodiff());
+    }
+}
+
+#[cfg(feature = "autodiff")]
+mod checkpoint_strategy_routing {
+    use super::*;
+    use burn::backend::autodiff::checkpoint::strategy::{
+        BalancedCheckpointing, CheckpointStrategy,
+    };
+    use burn::backend::ops::FloatTensorOps;
+    use burn::backend::{Autodiff, Backend, GradientCheckpointingStrategy};
+    use core::any::TypeId;
+    use core::sync::atomic::{AtomicU8, Ordering};
+
+    static EXECUTED_STRATEGY: AtomicU8 = AtomicU8::new(0);
+
+    #[backend_extension(Autodiff, NdArray)]
+    trait StrategyBackend: Backend {
+        fn identity(x: FloatTensor<Self>) -> FloatTensor<Self>;
+        fn add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self>;
+    }
+
+    impl StrategyBackend for NdArray {
+        fn identity(x: FloatTensor<Self>) -> FloatTensor<Self> {
+            x
+        }
+
+        fn add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+            Self::float_add(lhs, rhs)
+        }
+    }
+
+    impl<C: CheckpointStrategy> StrategyBackend for Autodiff<NdArray, C> {
+        fn identity(x: FloatTensor<Self>) -> FloatTensor<Self> {
+            let selected = if TypeId::of::<C>() == TypeId::of::<BalancedCheckpointing>() {
+                2
+            } else {
+                1
+            };
+            EXECUTED_STRATEGY.store(selected, Ordering::SeqCst);
+            x
+        }
+
+        fn add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+            Self::float_add(lhs, rhs)
+        }
+    }
+
+    #[test]
+    fn executes_the_strategy_carried_by_dispatch_metadata() {
+        for (strategy, expected) in [
+            (GradientCheckpointingStrategy::Disabled, 1),
+            (GradientCheckpointingStrategy::Balanced, 2),
+        ] {
+            let device = Device::ndarray().autodiff();
+            let input = Tensor::<1>::from_floats([1.0], &device)
+                .with_gradient_checkpointing_strategy(strategy);
+            let output = <Dispatch as StrategyBackend>::identity(input.into_dispatch());
+            let output = Tensor::<1>::from_dispatch(output);
+
+            assert_eq!(EXECUTED_STRATEGY.load(Ordering::SeqCst), expected);
+            assert_eq!(output.device().gradient_checkpointing_strategy(), strategy);
+        }
+    }
+
+    #[test]
+    fn uniform_autodiff_floats_preserve_their_strategy() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let lhs = Tensor::<1>::from_floats([1.0], &Device::ndarray().autodiff())
+            .with_gradient_checkpointing_strategy(strategy);
+        let rhs = Tensor::<1>::from_floats([2.0], &Device::ndarray().autodiff())
+            .with_gradient_checkpointing_strategy(strategy);
+
+        let output = <Dispatch as StrategyBackend>::add(lhs.into_dispatch(), rhs.into_dispatch());
+        let output = Tensor::<1>::from_dispatch(output);
+        assert_eq!(output.device().gradient_checkpointing_strategy(), strategy);
+        output
+            .into_data()
+            .assert_eq(&burn::tensor::TensorData::from([3.0f32]), true);
+    }
+}
+
+#[cfg(feature = "autodiff")]
+mod extension_context_contract {
+    use super::*;
+    use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
+    use burn::backend::{Autodiff, GradientCheckpointingStrategy};
+    use core::sync::atomic::{AtomicBool, Ordering};
+
+    static IMPLEMENTATION_CALLED: AtomicBool = AtomicBool::new(false);
+
+    #[derive(ExtensionType)]
+    struct IntPair<B: burn::backend::Backend> {
+        left: IntTensor<B>,
+        right: IntTensor<B>,
+    }
+
+    #[derive(ExtensionType)]
+    enum IntChoice<B: burn::backend::Backend> {
+        Dense(IntTensor<B>),
+        Empty,
+    }
+
+    #[derive(ExtensionType)]
+    struct NestedInputs<B: burn::backend::Backend> {
+        #[extension_type]
+        pair: IntPair<B>,
+        #[extension_type]
+        choice: IntChoice<B>,
+    }
+
+    #[backend_extension(Autodiff, NdArray)]
+    trait ContextBackend: burn::backend::Backend {
+        fn select(#[extension_type] inputs: NestedInputs<Self>) -> IntTensor<Self>;
+        fn select_conflict(#[extension_type] inputs: NestedInputs<Self>) -> IntTensor<Self>;
+    }
+
+    impl ContextBackend for NdArray {
+        fn select(inputs: NestedInputs<Self>) -> IntTensor<Self> {
+            inputs.pair.left
+        }
+
+        fn select_conflict(inputs: NestedInputs<Self>) -> IntTensor<Self> {
+            IMPLEMENTATION_CALLED.store(true, Ordering::SeqCst);
+            inputs.pair.left
+        }
+    }
+
+    impl<C: CheckpointStrategy> ContextBackend for Autodiff<NdArray, C> {
+        fn select(inputs: NestedInputs<Self>) -> IntTensor<Self> {
+            inputs.pair.left
+        }
+
+        fn select_conflict(inputs: NestedInputs<Self>) -> IntTensor<Self> {
+            IMPLEMENTATION_CALLED.store(true, Ordering::SeqCst);
+            inputs.pair.left
+        }
+    }
+
+    fn int(strategy: GradientCheckpointingStrategy) -> Tensor<1, Int> {
+        Tensor::from_data([1], &Device::ndarray().autodiff())
+            .with_gradient_checkpointing_strategy(strategy)
+    }
+
+    #[test]
+    fn routing_context_propagates_through_nested_fields() {
+        let balanced = int(GradientCheckpointingStrategy::Balanced);
+        let output = <Dispatch as ContextBackend>::select(NestedInputs {
+            pair: IntPair {
+                left: balanced.clone().into_dispatch(),
+                right: balanced.clone().into_dispatch(),
+            },
+            choice: IntChoice::Dense(balanced.into_dispatch()),
+        });
+        let output = Tensor::<1, Int>::from_dispatch(output);
+
+        assert_eq!(
+            output.device().gradient_checkpointing_strategy(),
+            GradientCheckpointingStrategy::Balanced
+        );
+    }
+
+    #[test]
+    fn invalid_nested_tensor_representation_panics_before_the_implementation() {
+        IMPLEMENTATION_CALLED.store(false, Ordering::SeqCst);
+        // `IntPair` declares an integer field, but dispatch primitives share one runtime type, so a
+        // malformed downstream value can place an autodiff float representation in that field.
+        let malformed = Tensor::<1>::from_data([1.0], &Device::ndarray().autodiff())
+            .with_gradient_checkpointing_strategy(GradientCheckpointingStrategy::Balanced)
+            .into_dispatch();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            <Dispatch as ContextBackend>::select_conflict(NestedInputs {
+                pair: IntPair {
+                    left: malformed,
+                    right: int(GradientCheckpointingStrategy::Balanced).into_dispatch(),
+                },
+                choice: IntChoice::Empty,
+            })
+        }));
+
+        assert!(result.is_err());
+        assert!(!IMPLEMENTATION_CALLED.load(Ordering::SeqCst));
     }
 }
 

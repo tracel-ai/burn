@@ -14,6 +14,8 @@ use burn::backend::{
 // list `Autodiff`, whose generated arms reference the bare `Autodiff` type.
 #[cfg(feature = "autodiff")]
 use burn::backend::Autodiff;
+#[cfg(feature = "autodiff")]
+use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
 
 #[derive(ExtensionType)]
 pub struct Pair<B: burn::backend::Backend> {
@@ -26,7 +28,7 @@ pub struct Pair<B: burn::backend::Backend> {
 pub struct TupleInputs<B: burn::backend::Backend>(pub FloatTensor<B>, pub IntTensor<B>);
 
 // Enum input: a tensor-tuple variant, a named-fields variant, and a tensor-less unit variant. The
-// unit variant has no representative tensor, so `dispatch_repr`/`dispatch_float_repr` return `None`
+// unit variant has no routing tensor, so `routing_tensor`/`routing_float_tensor` return `None`
 // for it and backend selection must defer to another input (or panic if there is none).
 #[derive(ExtensionType)]
 pub enum Operand<B: burn::backend::Backend> {
@@ -121,6 +123,61 @@ fn remote_backend_extension_dispatch_compiles() {
     let _k: fn(Pair<Dispatch>) -> FloatTensor<Dispatch> = <Dispatch as AdGatedBackend>::ad_gated;
 }
 
+// Signature-preservation coverage for the generated `impl ... for Dispatch`. These forms used to
+// be reconstructed from the normalized operation IR, which lost references, tuple punctuation,
+// generics, where clauses, and the distinction between async functions and functions returning a
+// future.
+#[backend_extension(Remote)]
+#[allow(async_fn_in_trait)]
+pub trait SignatureBackend: burn::backend::Backend {
+    fn borrowed<'a>(tensor: &'a FloatTensor<Self>) -> FloatTensor<Self>;
+
+    fn single_tuple(tensor: FloatTensor<Self>) -> (FloatTensor<Self>,);
+
+    fn generic<T>(tensor: FloatTensor<Self>, value: T) -> FloatTensor<Self>
+    where
+        T: Clone + Send + 'static;
+
+    async fn asynchronous(tensor: FloatTensor<Self>) -> FloatTensor<Self>;
+
+    fn future(tensor: FloatTensor<Self>) -> impl core::future::Future<Output = FloatTensor<Self>>;
+}
+
+impl SignatureBackend for Remote {
+    fn borrowed<'a>(_tensor: &'a FloatTensor<Self>) -> FloatTensor<Self> {
+        unimplemented!("stub")
+    }
+
+    fn single_tuple(tensor: FloatTensor<Self>) -> (FloatTensor<Self>,) {
+        (tensor,)
+    }
+
+    fn generic<T>(tensor: FloatTensor<Self>, _value: T) -> FloatTensor<Self>
+    where
+        T: Clone + Send + 'static,
+    {
+        tensor
+    }
+
+    async fn asynchronous(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor
+    }
+
+    async fn future(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        tensor
+    }
+}
+
+#[test]
+fn backend_extension_preserves_method_signatures() {
+    let _borrowed: for<'a> fn(&'a FloatTensor<Dispatch>) -> FloatTensor<Dispatch> =
+        <Dispatch as SignatureBackend>::borrowed;
+    let _single_tuple: fn(FloatTensor<Dispatch>) -> (FloatTensor<Dispatch>,) =
+        <Dispatch as SignatureBackend>::single_tuple;
+    let _generic: fn(FloatTensor<Dispatch>, u32) -> FloatTensor<Dispatch> =
+        <Dispatch as SignatureBackend>::generic::<u32>;
+}
+
 // Struct input combined with a `cfg`-gated `Autodiff`. The gate `cfg(not(feature = "remote"))` is
 // always false in this `#![cfg(feature = "remote")]` build, so every generated autodiff arm must be
 // stripped. If the mixed path failed to propagate the autodiff cfg (the pre-fix bug), the arms would
@@ -139,7 +196,7 @@ impl AdGatedBackend for Remote {
 
 // Only referenced by the generated autodiff arms, which are gated off in this build.
 #[cfg(not(feature = "remote"))]
-impl AdGatedBackend for burn::backend::Autodiff<Remote> {
+impl<C: CheckpointStrategy> AdGatedBackend for burn::backend::Autodiff<Remote, C> {
     fn ad_gated(_pair: Pair<Self>) -> FloatTensor<Self> {
         unimplemented!("would register the backward pass")
     }
@@ -190,7 +247,7 @@ impl EnumBackend for Remote {
 }
 
 #[cfg(feature = "autodiff")]
-impl EnumBackend for burn::backend::Autodiff<Remote> {
+impl<C: CheckpointStrategy> EnumBackend for burn::backend::Autodiff<Remote, C> {
     fn use_operand(_op: Operand<Self>) -> FloatTensor<Self> {
         unimplemented!("would register the backward pass over the active variant's tracked fields")
     }
@@ -266,7 +323,7 @@ mod autodiff_struct_input {
 
     // User-written autodiff side: normally registers a `Backward` step; stubbed here since the test
     // only checks that the generated dispatch glue type-checks.
-    impl AdBackend for Autodiff<Remote> {
+    impl<C: CheckpointStrategy> AdBackend for Autodiff<Remote, C> {
         fn ad_combine(_pair: Pair<Self>, _factor: f32) -> FloatTensor<Self> {
             unimplemented!("would register the backward pass over the struct's tracked fields")
         }
