@@ -153,14 +153,11 @@ For testing the `autodiff` operations, please refer to
 ## Adding the Op to other backends
 
 Most of these are fairly straightforward implementations. For reference here's pow's float
-implementation for torch and flex backends:
+implementation for the flex backend:
+[crates/burn-flex/src/ops/float.rs](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/src/ops/float.rs).
 
-1. Torch implementation in
-   [crates/burn-tch/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tch/src/ops/tensor.rs#L467)
-   and the Op used in
-   [crates/burn-tch/src/ops/base.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tch/src/ops/base.rs#L481)
-2. Flex in
-   [crates/burn-flex/src/ops/float.rs](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/src/ops/float.rs)
+`burn-tch` is deprecated and will be removed in a future release, so new ops do not need a LibTorch
+implementation.
 
 This is where any calculation happens currently. Playing a guessing game with method names and
 seeing what completions are suggested will take you far. If you are having trouble figuring out how
