@@ -153,18 +153,6 @@ impl FloatTensorOps<Self> for Dispatch {
         binary_float!((tensor, float), (indices, int), |tensor, indices| B::float_gather(dim, tensor, indices) => Float)
     }
 
-    fn float_scatter_add(
-        dim: usize,
-        tensor: FloatTensor<Self>,
-        indices: IntTensor<Self>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Float,
-            B::float_scatter_add(dim, tensor, indices, value)
-        )
-    }
-
     fn float_scatter(
         dim: usize,
         tensor: FloatTensor<Self>,
@@ -200,18 +188,6 @@ impl FloatTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         binary_float!((tensor, float), (indices, int), |tensor, indices| B::float_select(tensor, dim, indices) => Float)
-    }
-
-    fn float_select_add(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        indices: IntTensor<Self>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Float,
-            B::float_select_add(tensor, dim, indices, value)
-        )
     }
 
     fn float_select_assign(

@@ -797,6 +797,12 @@ impl ModuleOps<Flex> for Flex {
             &Default::default(),
             dtype.into(),
         );
-        Flex::float_select_add(grad, 0, indices, output_grad)
+        Flex::float_select_assign(
+            grad,
+            0,
+            indices,
+            output_grad,
+            burn_backend::tensor::IndexingUpdateOp::Add,
+        )
     }
 }

@@ -1,4 +1,4 @@
-use burn_std::{Shape, Slice};
+use burn_std::{IndexingUpdateOp, Shape, Slice};
 
 use crate::{
     Backend, TensorMetadata, get_device_settings,
@@ -137,7 +137,7 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     );
     let scatter_value = B::float_neg(B::float_mul(B::float_exp(log_post), grad_loss_post));
 
-    grad = B::float_scatter_add(2, grad, indices_3d, scatter_value);
+    grad = B::float_scatter(2, grad, indices_3d, scatter_value, IndexingUpdateOp::Add);
 
     // Mask out timesteps where t >= input_lengths[n].
     let t_indices = B::int_arange(0..max_input_length as i64, &device, int_dtype);

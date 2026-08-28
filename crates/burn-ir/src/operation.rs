@@ -438,8 +438,8 @@ pub enum BaseOperationIr {
     Gather(GatherOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [scatter](burn_backend::ops::FloatTensorOps::float_scatter_add).
-    /// Int => [scatter](burn_backend::ops::IntTensorOps::int_scatter_add).
+    /// Float => [scatter](burn_backend::ops::FloatTensorOps::float_scatter).
+    /// Int => [scatter](burn_backend::ops::IntTensorOps::int_scatter).
     /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter_or).
     Scatter(ScatterOpIr),
     /// Multi-dimensional scatter operation.

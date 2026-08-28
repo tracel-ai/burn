@@ -120,15 +120,6 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         kernel::gather(dim, tensor, indices)
     }
 
-    fn int_scatter_add(
-        dim: usize,
-        tensor: IntTensor<Self>,
-        indices: IntTensor<Self>,
-        value: IntTensor<Self>,
-    ) -> IntTensor<Self> {
-        kernel::scatter(dim, tensor, indices, value, false)
-    }
-
     fn int_scatter(
         dim: usize,
         tensor: IntTensor<Self>,
@@ -138,7 +129,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
     ) -> IntTensor<Self> {
         match update {
             burn_backend::tensor::IndexingUpdateOp::Add => {
-                Self::int_scatter_add(dim, tensor, indices, value)
+                kernel::scatter(dim, tensor, indices, value, false)
             }
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 kernel::scatter_mul(dim, tensor, indices, value)
@@ -168,15 +159,6 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         kernel::select(tensor, dim, indices)
     }
 
-    fn int_select_add(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        indices: IntTensor<Self>,
-        value: IntTensor<Self>,
-    ) -> IntTensor<Self> {
-        kernel::select_assign(tensor, dim, indices, value, false)
-    }
-
     fn int_select_assign(
         tensor: IntTensor<Self>,
         dim: usize,
@@ -186,7 +168,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
     ) -> IntTensor<Self> {
         match update {
             burn_backend::tensor::IndexingUpdateOp::Add => {
-                Self::int_select_add(tensor, dim, indices, value)
+                kernel::select_assign(tensor, dim, indices, value, false)
             }
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 kernel::select_assign_mul(tensor, dim, indices, value)
