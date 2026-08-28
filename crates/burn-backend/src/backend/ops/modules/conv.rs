@@ -175,7 +175,13 @@ pub fn calculate_conv_output_size(
     dilation: usize,
     size_in: usize,
 ) -> usize {
-    (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
+    calculate_conv_output_size_asymmetric(
+        kernel_size,
+        stride,
+        (padding, padding),
+        dilation,
+        size_in,
+    )
 }
 
 /// Calculate the expected output size with explicit `(before, after)` padding.
