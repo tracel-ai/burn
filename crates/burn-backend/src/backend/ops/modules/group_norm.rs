@@ -106,10 +106,8 @@ pub fn group_norm_fallback<B: Backend>(
         ),
         None => normalized,
     };
-    let output = match beta {
+    match beta {
         Some(beta) => B::float_add(output, B::float_reshape(beta, Shape::from(broadcast_dims))),
         None => output,
-    };
-
-    output
+    }
 }
