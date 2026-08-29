@@ -51,6 +51,10 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
             cube_dim: self.cube_dim,
             debug_info: None,
             repr: None,
+            // A hand-written template has no compiler analysis to answer
+            // which buffers it reads or writes; `None` reads as every buffer
+            // both, the conservative direction.
+            io: None,
         })
     }
 }
