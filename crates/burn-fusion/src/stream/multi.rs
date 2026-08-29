@@ -109,6 +109,11 @@ pub struct MultiStream<R: FusionRuntime> {
     streams: HashMap<StreamId, Stream<R>>,
     optimizations: ExecutionPlanStore<R::Optimization>,
     device: R::FusionDevice,
+    /// A panic an operation raised while nobody was waiting — the lazy
+    /// processing of a fire-and-forget registration — held until the
+    /// stream's next drain, the first point where a caller blocks and can
+    /// receive it. See [`poison`](Self::poison).
+    poisoned: HashMap<StreamId, Box<dyn std::any::Any + Send>>,
     #[cfg(feature = "memory-checks")]
     memory_checks: super::memory_checks::MemoryChecks,
 }
@@ -120,6 +125,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             streams: HashMap::new(),
             optimizations: ExecutionPlanStore::new(),
             device,
+            poisoned: HashMap::new(),
             #[cfg(feature = "memory-checks")]
             memory_checks: super::memory_checks::MemoryChecks::default(),
         }
@@ -206,13 +212,44 @@ impl<R: FusionRuntime> MultiStream<R> {
         s.queue.add(repr, operation);
 
         let len_before = s.queue.global.len();
-        s.processor.process(
-            Segment::new(&mut s.queue, handles, stream),
-            &mut self.optimizations,
-            ExecutionMode::Lazy,
-        );
-        let len_after = s.queue.global.len();
-        s.cursor += (len_before - len_after) as u64;
+        let processed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            s.processor.process(
+                Segment::new(&mut s.queue, handles, stream),
+                &mut self.optimizations,
+                ExecutionMode::Lazy,
+            )
+        }));
+        match processed {
+            Ok(()) => {
+                let len_after = s.queue.global.len();
+                s.cursor += (len_before - len_after) as u64;
+            }
+            // A registration is fire-and-forget: nobody is blocked on it, so
+            // resuming the panic here would unwind into the void and the
+            // caller would time work that silently vanished. Hold it instead,
+            // for the stream's next drain to deliver.
+            Err(panic) => self.poison(stream, panic),
+        }
+    }
+
+    /// Forget `id`'s stream after an operation panicked mid-execution, and
+    /// hold the panic for [`drain`](Self::drain) to rethrow.
+    ///
+    /// The unwind tore through the queue's bookkeeping — `operations` was
+    /// swapped out and dropped while `global`/`relative` still describe it —
+    /// so the next plan to match would index closures that no longer exist,
+    /// and every later call on the device would then die on that corpse
+    /// rather than on its own work. Removing the stream is the established
+    /// reset (`mark_read` removes an emptied stream the same way); a fresh
+    /// one is built on the next operation. The abandoned operations' handles
+    /// are freed by the drop ops their tensors register as they fall out of
+    /// scope on the panicking caller's side.
+    ///
+    /// The first panic is the root cause and the one kept: a later panic on
+    /// the same undelivered stream is downstream damage of the first.
+    fn poison(&mut self, id: StreamId, panic: Box<dyn std::any::Any + Send>) {
+        self.streams.remove(&id);
+        self.poisoned.entry(id).or_insert(panic);
     }
 
     /// Mark a tensor as read.
@@ -245,18 +282,38 @@ impl<R: FusionRuntime> MultiStream<R> {
     }
 
     /// Drain a stream.
+    ///
+    /// A drain is where a caller actually waits, so it is also where a panic
+    /// this stream swallowed on the lazy path (see [`poison`](Self::poison))
+    /// is finally delivered — once; the stream underneath it was already
+    /// rebuilt fresh.
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
+        if let Some(panic) = self.poisoned.remove(&id) {
+            std::panic::resume_unwind(panic);
+        }
         id.executes(|| {
             if let Some(stream) = self.streams.get_mut(&id) {
                 let num_executed = stream.queue.global.len();
-                stream.processor.process(
-                    Segment::new(&mut stream.queue, handles, id),
-                    &mut self.optimizations,
-                    ExecutionMode::Sync,
-                );
-                stream.cursor += num_executed as u64;
-                // A drain is a boundary even when the queue was already empty.
-                stream.queue.flush_deferred(handles);
+                let processed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    stream.processor.process(
+                        Segment::new(&mut stream.queue, handles, id),
+                        &mut self.optimizations,
+                        ExecutionMode::Sync,
+                    )
+                }));
+                match processed {
+                    Ok(()) => {
+                        stream.cursor += num_executed as u64;
+                        // A drain is a boundary even when the queue was already empty.
+                        stream.queue.flush_deferred(handles);
+                    }
+                    // A drain has a caller waiting: forget the poisoned
+                    // stream and hand the panic straight back to them.
+                    Err(panic) => {
+                        self.streams.remove(&id);
+                        std::panic::resume_unwind(panic);
+                    }
+                }
             }
         });
         #[cfg(feature = "test-util")]
@@ -514,6 +571,17 @@ mod tests {
     impl Operation<TestRuntime> for ProduceOp {
         fn execute(&self, handles: &mut HandleContainer<TestHandle>) {
             handles.register_handle(self.out, TestHandle);
+        }
+    }
+
+    /// Panics when executed, the way a pinned kernel that cannot serve its
+    /// problem does in the benchmark sweeps downstream.
+    #[derive(Debug)]
+    struct PanicOp;
+
+    impl Operation<TestRuntime> for PanicOp {
+        fn execute(&self, _handles: &mut HandleContainer<TestHandle>) {
+            panic!("this operation cannot serve its problem");
         }
     }
 
@@ -812,5 +880,84 @@ mod tests {
             .get(&setup.id)
             .is_some_and(|stream| stream.queue.variables.contains_key(&t0));
         assert!(!stale, "the stale variables entry is cleaned up");
+    }
+
+    /// A panicking operation must cost its caller the panic and nothing else.
+    /// The unwind used to leave the queue's bookkeeping describing operations
+    /// whose closures were gone, so the next plan to match indexed an empty
+    /// operations list — and every later call on the device then died on that
+    /// corpse (`OrderedExecution::execute_operations`, index out of bounds)
+    /// rather than on its own work.
+    #[test]
+    fn a_panicking_operation_does_not_poison_the_stream() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let t2 = TensorId::new(2);
+
+        // A healthy op with a panicking one queued behind it, then a drain.
+        setup.register_exp(t0, t1);
+        setup.streams.register(
+            setup.id,
+            exp_op(t1, t2),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        let drained = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup.streams.drain(&mut setup.handles, setup.id);
+        }));
+        assert!(drained.is_err(), "the panic still reaches the caller");
+
+        // The poisoned stream is gone, not left half-drained.
+        assert_eq!(setup.num_pending(), 0, "no orphaned bookkeeping survives");
+
+        // New work on the same stream runs as if nothing had happened.
+        let t3 = TensorId::new(3);
+        let t4 = TensorId::new(4);
+        setup.register_exp(t3, t4);
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(
+            setup.handles.has_handle(&t4),
+            "the stream recovered: the fresh op executed"
+        );
+    }
+
+    /// A panic raised while nobody was waiting — the lazy processing of a
+    /// fire-and-forget registration — must not vanish: a caller that then
+    /// syncs would time work that never ran. It is held and delivered at the
+    /// stream's next drain, once, with the first panic winning over any
+    /// downstream damage it caused.
+    #[test]
+    fn a_lazily_swallowed_panic_is_delivered_at_the_next_drain() {
+        let mut setup = TestSetup::new();
+
+        // As `enqueue_operation` does when its processing panics with no
+        // caller blocked on the registration.
+        setup
+            .streams
+            .poison(setup.id, Box::new("the root cause".to_string()));
+        setup
+            .streams
+            .poison(setup.id, Box::new("downstream damage".to_string()));
+
+        let drained = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup.streams.drain(&mut setup.handles, setup.id);
+        }));
+        let payload = drained.expect_err("the held panic is delivered here");
+        assert_eq!(
+            payload.downcast_ref::<String>().map(String::as_str),
+            Some("the root cause"),
+            "the first panic is the one kept"
+        );
+
+        // Delivered once: the stream then works, drains included.
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        setup.register_exp(t0, t1);
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(
+            setup.handles.has_handle(&t1),
+            "the stream recovered: the fresh op executed"
+        );
     }
 }
