@@ -289,7 +289,19 @@ fn two_level_error_should_not_track_weight_magnitude() {
     );
 }
 
-fn should_quantize_transposed<const D: usize>(tensor: Tensor<D>, scheme: QuantScheme) {
+/// Compare a view applied to a quantized tensor with the same view applied after dequantization.
+/// Both paths reconstruct from the same quantized values and scales, so they must be bit-exact.
+fn assert_layout_matches_dequantize<const D: usize>(
+    layout_quantized: Tensor<D>,
+    layout_dequantized: Tensor<D>,
+) {
+    layout_quantized
+        .dequantize()
+        .into_data()
+        .assert_eq(&layout_dequantized.into_data(), true);
+}
+
+fn should_quantize_after_transpose<const D: usize>(tensor: Tensor<D>, scheme: QuantScheme) {
     let tensor_t = tensor.clone().transpose();
 
     let output = tensor_t.quantize_dynamic(&scheme).dequantize().transpose();
@@ -300,22 +312,20 @@ fn should_quantize_transposed<const D: usize>(tensor: Tensor<D>, scheme: QuantSc
     );
 }
 
-fn should_dequantize_transposed<const D: usize>(tensor: Tensor<D>, scheme: QuantScheme) {
-    let output = tensor
-        .clone()
-        .quantize_dynamic(&scheme)
-        .transpose()
-        .dequantize()
-        .transpose();
+fn should_transpose_after_quantize_match_dequantized_layout<const D: usize>(
+    tensor: Tensor<D>,
+    scheme: QuantScheme,
+) {
+    let quantized = tensor.quantize_dynamic(&scheme);
 
-    tensor.into_data().assert_approx_eq::<FloatElem>(
-        &output.into_data(),
-        Tolerance::absolute(1e-1).set_relative(1e-2),
+    assert_layout_matches_dequantize(
+        quantized.clone().transpose(),
+        quantized.dequantize().transpose(),
     );
 }
 
 #[test]
-fn should_quantize_symmetric_int8_transposed_8x32() {
+fn should_quantize_symmetric_int8_after_transpose_8x32() {
     let device = Default::default();
 
     let tensor = TestTensorInt::arange(0..256, &device)
@@ -328,11 +338,11 @@ fn should_quantize_symmetric_int8_transposed_8x32() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S);
-    should_quantize_transposed(tensor, scheme);
+    should_quantize_after_transpose(tensor, scheme);
 }
 
 #[test]
-fn should_dequantize_symmetric_int8_transposed_8x32() {
+fn should_transpose_symmetric_int8_after_quantize_8x32_match_dequantized_layout() {
     let device = Default::default();
 
     let values = (0..256)
@@ -345,11 +355,11 @@ fn should_dequantize_symmetric_int8_transposed_8x32() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S);
-    should_dequantize_transposed(tensor, scheme);
+    should_transpose_after_quantize_match_dequantized_layout(tensor, scheme);
 }
 
 #[test]
-fn should_quantize_symmetric_int8_transposed_48x64() {
+fn should_quantize_symmetric_int8_after_transpose_48x64() {
     let device = Default::default();
 
     let tensor = TestTensorInt::arange(0..3072, &device)
@@ -362,11 +372,11 @@ fn should_quantize_symmetric_int8_transposed_48x64() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S);
-    should_quantize_transposed(tensor, scheme);
+    should_quantize_after_transpose(tensor, scheme);
 }
 
 #[test]
-fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
+fn should_quantize_symmetric_per_block_int8_after_transpose_32x64() {
     let device = Default::default();
 
     let tensor = TestTensorInt::arange(0..2048, &device)
@@ -380,11 +390,11 @@ fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
         .scheme
         .with_value(QuantValue::Q8S)
         .per_block([32], ScaleDtype::F32);
-    should_quantize_transposed(tensor, scheme);
+    should_quantize_after_transpose(tensor, scheme);
 }
 
 #[test]
-fn should_dequantize_symmetric_per_block_int8_transposed_32x64() {
+fn should_transpose_symmetric_per_block_int8_after_quantize_32x64_match_dequantized_layout() {
     let device = Default::default();
 
     let values = (0..2048)
@@ -399,11 +409,11 @@ fn should_dequantize_symmetric_per_block_int8_transposed_32x64() {
         .with_value(QuantValue::Q8S)
         .per_block([32], ScaleDtype::F32);
 
-    should_dequantize_transposed(tensor, scheme);
+    should_transpose_after_quantize_match_dequantized_layout(tensor, scheme);
 }
 
 #[test]
-fn should_dequantize_symmetric_per_block_int8_permuted_2x8x16() {
+fn should_swap_dims_symmetric_per_block_int8_after_quantize_match_dequantized_layout() {
     let device = Default::default();
 
     let values = (0..256)
@@ -417,20 +427,16 @@ fn should_dequantize_symmetric_per_block_int8_permuted_2x8x16() {
         .scheme
         .with_value(QuantValue::Q8S)
         .per_block([1, 2, 16], ScaleDtype::F32);
-    let expected = tensor.clone().permute([1, 2, 0]);
-    let output = tensor
-        .quantize_dynamic(&scheme)
-        .permute([1, 2, 0])
-        .dequantize();
+    let quantized = tensor.quantize_dynamic(&scheme);
 
-    expected.into_data().assert_approx_eq::<FloatElem>(
-        &output.into_data(),
-        Tolerance::absolute(1e-1).set_relative(1e-2),
+    assert_layout_matches_dequantize(
+        quantized.clone().swap_dims(0, 2),
+        quantized.dequantize().swap_dims(0, 2),
     );
 }
 
 #[test]
-fn should_dequantize_symmetric_per_block_int8_permuted_packed_axis_first() {
+fn should_permute_symmetric_per_block_int8_after_quantize_2x8x16_match_dequantized_layout() {
     let device = Default::default();
 
     let values = (0..256)
@@ -444,20 +450,39 @@ fn should_dequantize_symmetric_per_block_int8_permuted_packed_axis_first() {
         .scheme
         .with_value(QuantValue::Q8S)
         .per_block([1, 2, 16], ScaleDtype::F32);
-    let expected = tensor.clone().permute([2, 0, 1]);
-    let output = tensor
-        .quantize_dynamic(&scheme)
-        .permute([2, 0, 1])
-        .dequantize();
+    let quantized = tensor.quantize_dynamic(&scheme);
 
-    expected.into_data().assert_approx_eq::<FloatElem>(
-        &output.into_data(),
-        Tolerance::absolute(1e-1).set_relative(1e-2),
+    assert_layout_matches_dequantize(
+        quantized.clone().permute([1, 2, 0]),
+        quantized.dequantize().permute([1, 2, 0]),
     );
 }
 
 #[test]
-fn should_quantize_symmetric_int8_permuted_batch_dims() {
+fn should_permute_packed_axis_first_after_quantize_match_dequantized_layout() {
+    let device = Default::default();
+
+    let values = (0..256)
+        .map(|value| value as f32 / 256.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<3>::from_data(TensorData::new(values, [2, 8, 16]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([1, 2, 16], ScaleDtype::F32);
+    let quantized = tensor.quantize_dynamic(&scheme);
+
+    assert_layout_matches_dequantize(
+        quantized.clone().permute([2, 0, 1]),
+        quantized.dequantize().permute([2, 0, 1]),
+    );
+}
+
+#[test]
+fn should_quantize_symmetric_int8_after_permuting_batch_dims() {
     let device = Default::default();
 
     let tensor = TestTensorInt::arange(0..2048, &device)

@@ -8,7 +8,7 @@ use crate::{Backend, Distribution, TensorData, get_device_settings};
 use crate::{ExecutionError, Scalar, TensorMetadata};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, PadMode, Shape, Slice};
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
@@ -1982,5 +1982,14 @@ pub trait FloatTensorOps<B: Backend> {
     /// A boolean tensor where `true` indicates that the value is infinite
     fn float_is_inf(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
         B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.into(), out_dtype)
+    }
+
+    /// Pads a tensor with one `(before, after)` pair per dimension.
+    fn float_pad(
+        tensor: FloatTensor<B>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> FloatTensor<B> {
+        super::pad::float_pad::<B>(tensor, padding, mode)
     }
 }

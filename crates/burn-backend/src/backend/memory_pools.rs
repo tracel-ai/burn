@@ -105,10 +105,6 @@ pub enum InstallMemoryPoolsError {
         /// Bytes still live in those pools.
         bytes_in_use: u64,
     },
-    /// The calling stream is already in an error state, so its pools were not
-    /// rebuilt. The layout still applies to streams created afterwards, and the
-    /// underlying failure surfaces at the next flush or sync.
-    StreamUnavailable,
     /// This backend has no configurable dynamic pools. Permanent.
     Unsupported,
     /// The layout itself cannot be honoured, so the previous one was kept: an
@@ -126,9 +122,6 @@ impl core::fmt::Display for InstallMemoryPoolsError {
         match self {
             Self::PoolsInUse { bytes_in_use } => {
                 write!(formatter, "{bytes_in_use} B still live in the pools")
-            }
-            Self::StreamUnavailable => {
-                write!(formatter, "the calling stream is in an error state")
             }
             Self::Unsupported => {
                 write!(formatter, "this backend has no configurable memory pools")

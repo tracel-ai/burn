@@ -86,6 +86,11 @@ where
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = R::client(device);
+        // A barrier plus the device's own fault, and nothing more: a launch
+        // failure lives on the buffers the launch never wrote and surfaces on
+        // the read of one of them, so it is not this sync's to report.
+        // `client.sync_buffers` is the same barrier plus a check of named
+        // tensors, for a caller that wants both.
         futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
             reason: format!("{err}"),
         })
@@ -110,6 +115,10 @@ where
         _device: &Self::Device,
         graph: &BackendGraph<Self>,
     ) -> Result<(), ExecutionError> {
+        // cubecl's `Graph::replay` blocks on the enqueue and reports what the
+        // enqueue said; a failure also leaves the graph's write set carrying
+        // it, so a read of those buffers keeps failing until a replay lands.
+        //
         // Safety: the buffer-liveness and stream-ordering obligations are the
         // caller's, forwarded verbatim from this method's own contract.
         unsafe { graph.replay() }.map_err(graph_err)

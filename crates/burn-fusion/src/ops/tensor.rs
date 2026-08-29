@@ -9,13 +9,46 @@ use crate::{
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
-    ops::{FloatTensorOps, GridSampleOptions},
+    ops::{FloatTensorOps, GridSampleOptions, PadMode},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
+    fn float_pad(
+        tensor: FloatTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct PadOps<B: FusionBackend> {
+            desc: PadOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for PadOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_pad(tensor, &self.desc.padding, self.desc.mode.into());
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let client = tensor.client.clone();
+        let desc = PadOpIr::create(tensor.into_ir(), padding.into(), mode.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                StreamId::current(),
+                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::Pad(desc.clone())),
+                PadOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(data),

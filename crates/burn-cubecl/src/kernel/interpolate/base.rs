@@ -18,19 +18,12 @@ use cubek::interpolate::{
 };
 
 #[derive(Debug)]
-/// Strategy used to select which interpolate implementation to run.
-///
-/// The two explicit variants are intents, not geometries: cubek resolves each one to a blueprint
-/// from the device and the problem, so both are launchable everywhere and neither needs a tile
-/// size stated here. They differ in how much of a cube one problem occupies and in whether the
-/// gathered input is staged, which is the choice worth measuring.
+/// Strategy used to select how interpolation runs.
 pub enum InterpolateStrategy {
-    /// Read the input where it lies and widen the cube, for a launch that waits on memory.
-    MaximizeThroughput,
-
-    /// Stage the gathered input so a window the taps re-read is fetched once, for a launch that
-    /// waits on the tap window.
-    MinimizeLatency,
+    /// Run the strategy given rather than searching for one. cubek resolves it against the device
+    /// and the problem, so an intent states what the launch optimizes for and leaves the geometry
+    /// to cubek, while [`Forced`](CubekInterpolateStrategy::Forced) pins the geometry outright.
+    Specific(CubekInterpolateStrategy),
 
     /// Automatically benchmark and select the best strategy at runtime.
     #[cfg(feature = "autotune")]
@@ -43,10 +36,10 @@ impl Default for InterpolateStrategy {
         #[cfg(feature = "autotune")]
         return InterpolateStrategy::Autotune;
 
-        // Without a measurement, take the intent that stages nothing: it is the one no device
-        // declines for want of shared memory.
+        // Interpolation reads one tensor and writes another, so a build that measures nothing
+        // runs the intent that takes memory for the limit.
         #[cfg(not(feature = "autotune"))]
-        InterpolateStrategy::MaximizeThroughput
+        InterpolateStrategy::Specific(CubekInterpolateStrategy::MaximizeThroughput)
     }
 }
 
@@ -60,24 +53,16 @@ pub fn interpolate<R: CubeRuntime>(
     strategy: InterpolateStrategy,
 ) -> Result<CubeTensor<R>, InterpolateError> {
     match strategy {
-        InterpolateStrategy::MaximizeThroughput => execute_interpolate(
-            input,
-            output_size,
-            options,
-            CubekInterpolateStrategy::MaximizeThroughput,
-        ),
-        InterpolateStrategy::MinimizeLatency => execute_interpolate(
-            input,
-            output_size,
-            options,
-            CubekInterpolateStrategy::MinimizeLatency,
-        ),
+        InterpolateStrategy::Specific(strategy) => {
+            execute_interpolate(input, output_size, options, strategy)
+        }
         #[cfg(feature = "autotune")]
         InterpolateStrategy::Autotune => Ok(interpolate_autotune(input, output_size, options)),
     }
 }
 
-/// Execute the given interpolate strategy without autotuning. This is used by the autotune implementation to run each candidate strategy.
+/// Execute interpolation with the given strategy, without autotuning. This is used by the
+/// autotune implementation to run each candidate strategy.
 pub fn execute_interpolate<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],

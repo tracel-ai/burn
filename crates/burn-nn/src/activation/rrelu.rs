@@ -1,6 +1,6 @@
 use burn::config::Config;
 use burn::module::Module;
-use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Flag, ModuleDisplay, Param};
 use burn::tensor::{Distribution, Tensor};
 use burn_core as burn;
 
@@ -13,7 +13,7 @@ use burn::tensor::activation::leaky_relu;
 /// distribution `[lower, upper)`; during evaluation the fixed midpoint slope
 /// `(lower + upper) / 2` is used, which is identical to a LeakyReLU. Following
 /// the same convention as [Dropout](crate::Dropout), the training behaviour is
-/// enabled when the input is on an autodiff backend.
+/// enabled when the input is on an autodiff backend and the layer's training flag is enabled.
 ///
 /// Should be created with [RReluConfig](RReluConfig).
 #[derive(Module, Debug)]
@@ -23,6 +23,10 @@ pub struct RRelu {
     pub lower: f64,
     /// The upper bound of the uniform slope range.
     pub upper: f64,
+    /// Whether to behave as during training. Cleared by
+    /// [`no_grad`](burn::module::Module::no_grad) and matching
+    /// [`freeze_group`](burn::module::Module::freeze_group) traversals.
+    pub training: Param<Flag>,
 }
 
 /// Configuration to create a [RRelu](RRelu) layer using the [init function](RReluConfig::init).
@@ -48,6 +52,7 @@ impl RReluConfig {
         RRelu {
             lower: self.lower,
             upper: self.upper,
+            training: Param::from_bool(true),
         }
     }
 }
@@ -60,10 +65,11 @@ impl ModuleDisplay for RRelu {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content
-            .add("lower", &self.lower)
-            .add("upper", &self.upper)
-            .optional()
+        let content = content.add("lower", &self.lower).add("upper", &self.upper);
+        match self.training.is_enabled() {
+            true => content.optional(),
+            false => content.add("training", &self.training).optional(),
+        }
     }
 }
 
@@ -76,7 +82,7 @@ impl RRelu {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if !input.device().is_autodiff() {
+        if !self.training.is_enabled() || !input.device().is_autodiff() {
             // Evaluation: fixed midpoint slope (identical to LeakyReLU).
             return leaky_relu(input, (self.lower + self.upper) / 2.0);
         }
@@ -131,10 +137,45 @@ mod tests {
         assert_ne!(input.to_data(), output.to_data());
     }
 
+    #[cfg(feature = "std")]
+    #[test]
+    fn frozen_rrelu_on_a_training_device_uses_the_fixed_slope() {
+        use burn::module::Module;
+        use burn::tensor::Device;
+        // Frozen on the training device, so the device alone cannot tell this
+        // apart from a layer that really is being trained. The midpoint slope
+        // is deterministic, which is what makes the randomised path visible.
+        let device = Device::default().autodiff();
+        let model = RReluConfig::new().with_lower(0.1).with_upper(0.3).init();
+
+        let input = Tensor::<2>::from_data(TensorData::from([[-1.0, -2.0], [-3.0, -4.0]]), &device);
+        let output = model.no_grad().forward(input.clone());
+
+        let expected = TensorData::from([[-0.2, -0.4], [-0.6, -0.8]]);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
     #[test]
     fn display() {
         let layer = RReluConfig::new().with_lower(0.1).with_upper(0.3).init();
         assert_eq!(alloc::format!("{layer}"), "RRelu {lower: 0.1, upper: 0.3}");
+    }
+
+    #[test]
+    fn display_shows_a_frozen_layer() {
+        use burn::module::Module;
+        let layer = RReluConfig::new()
+            .with_lower(0.1)
+            .with_upper(0.3)
+            .init()
+            .no_grad();
+
+        assert_eq!(
+            alloc::format!("{layer}"),
+            "RRelu {lower: 0.1, upper: 0.3, training: disabled}"
+        );
     }
 
     #[test]

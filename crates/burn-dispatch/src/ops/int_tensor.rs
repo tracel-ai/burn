@@ -1,13 +1,21 @@
 use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
-    ops::IntTensorOps,
+    ops::{IntTensorOps, PadMode},
     tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 
 use crate::{Dispatch, DispatchDevice};
 
 impl IntTensorOps<Self> for Dispatch {
+    fn int_pad(
+        tensor: IntTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_pad(tensor, padding, mode) => Int)
+    }
+
     fn int_empty(shape: Shape, device: &DispatchDevice, dtype: IntDType) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_empty(shape, device, dtype))
     }
