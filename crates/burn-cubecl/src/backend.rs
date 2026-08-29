@@ -110,14 +110,9 @@ where
         _device: &Self::Device,
         graph: &BackendGraph<Self>,
     ) -> Result<(), ExecutionError> {
-        // cubecl's `Graph::replay` is fire-and-forget: it enqueues the dispatch
-        // and returns immediately, so a replay failure is not reported here — it
-        // lands in the stream's error queue and surfaces on the next sync/flush.
-        //
         // Safety: the buffer-liveness and stream-ordering obligations are the
         // caller's, forwarded verbatim from this method's own contract.
-        unsafe { graph.replay() };
-        Ok(())
+        unsafe { graph.replay() }.map_err(graph_err)
     }
 
     fn memory_persistent_allocations<
@@ -130,7 +125,7 @@ where
         func: Func,
     ) -> Output {
         let client = R::client(device);
-        client.memory_persistent_allocation(input, func).unwrap()
+        client.memory_persistent_allocation(input, func)
     }
 
     fn memory_cleanup(device: &Self::Device) {
@@ -162,9 +157,7 @@ where
     }
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        // A failed stream reports nothing, same as a runtime that has nothing
-        // to report: the failure itself surfaces at the next flush or sync.
-        let report = R::client(device).memory_report().ok()?;
+        let report = R::client(device).memory_report();
 
         // The pools a layout can be paired with, in the order allocations are
         // routed through them: a `Sliced` layout maps onto them one to one, and
@@ -195,8 +188,7 @@ where
     }
 
     fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        // As with the report: a failed stream reads as nothing to report.
-        let usage = R::client(device).memory_usage().ok()?;
+        let usage = R::client(device).memory_usage();
 
         Some(MemoryPoolUsage {
             number_allocs: usage.number_allocs,
@@ -422,9 +414,6 @@ fn runtime_install_error(err: cubecl::InstallMemoryPoolsError) -> InstallMemoryP
     match err {
         cubecl::InstallMemoryPoolsError::PoolsInUse { bytes_in_use } => {
             InstallMemoryPoolsError::PoolsInUse { bytes_in_use }
-        }
-        cubecl::InstallMemoryPoolsError::StreamUnavailable => {
-            InstallMemoryPoolsError::StreamUnavailable
         }
         cubecl::InstallMemoryPoolsError::Unsupported => InstallMemoryPoolsError::Unsupported,
     }

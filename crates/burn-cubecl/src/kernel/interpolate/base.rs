@@ -8,29 +8,29 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
-#[cfg(not(feature = "autotune"))]
-use cubek::interpolate::definition::TileSize;
 use cubek::interpolate::{
+    InterpolateStrategy as CubekInterpolateStrategy,
     definition::{
         InterpolateError, InterpolateMode as CubekInterpolateMode,
         InterpolateOptions as CubekInterpolateOptions, NearestMode as CubekNearestMode,
     },
     interpolate as cubek_interpolate, interpolate_backward as cubek_interpolate_backward,
-    launch::InterpolateStrategy as CubekInterpolateStrategy,
-    routines::{
-        BlueprintStrategy, GlobalMemoryRoutine, GlobalMemoryStrategy, SharedMemoryRoutine,
-        SharedMemoryStrategy,
-    },
 };
 
 #[derive(Debug)]
 /// Strategy used to select which interpolate implementation to run.
+///
+/// The two explicit variants are intents, not geometries: cubek resolves each one to a blueprint
+/// from the device and the problem, so both are launchable everywhere and neither needs a tile
+/// size stated here. They differ in how much of a cube one problem occupies and in whether the
+/// gathered input is staged, which is the choice worth measuring.
 pub enum InterpolateStrategy {
-    /// Default interpolate strategy.
-    GlobalMemory(GlobalMemoryStrategy),
+    /// Read the input where it lies and widen the cube, for a launch that waits on memory.
+    MaximizeThroughput,
 
-    /// Use shared memory for caching tiles of the input and output.
-    SharedMemory(SharedMemoryStrategy),
+    /// Stage the gathered input so a window the taps re-read is fetched once, for a launch that
+    /// waits on the tap window.
+    MinimizeLatency,
 
     /// Automatically benchmark and select the best strategy at runtime.
     #[cfg(feature = "autotune")]
@@ -43,11 +43,10 @@ impl Default for InterpolateStrategy {
         #[cfg(feature = "autotune")]
         return InterpolateStrategy::Autotune;
 
-        // if autotune is disabled, default to global memory with a 16x16 tile size
+        // Without a measurement, take the intent that stages nothing: it is the one no device
+        // declines for want of shared memory.
         #[cfg(not(feature = "autotune"))]
-        InterpolateStrategy::GlobalMemory(GlobalMemoryStrategy {
-            tile_size: TileSize::new(16, 16),
-        })
+        InterpolateStrategy::MaximizeThroughput
     }
 }
 
@@ -61,21 +60,17 @@ pub fn interpolate<R: CubeRuntime>(
     strategy: InterpolateStrategy,
 ) -> Result<CubeTensor<R>, InterpolateError> {
     match strategy {
-        InterpolateStrategy::GlobalMemory(strategy) => execute_interpolate(
+        InterpolateStrategy::MaximizeThroughput => execute_interpolate(
             input,
             output_size,
             options,
-            CubekInterpolateStrategy::GlobalMemoryStrategy(
-                BlueprintStrategy::<GlobalMemoryRoutine>::Inferred(strategy),
-            ),
+            CubekInterpolateStrategy::MaximizeThroughput,
         ),
-        InterpolateStrategy::SharedMemory(strategy) => execute_interpolate(
+        InterpolateStrategy::MinimizeLatency => execute_interpolate(
             input,
             output_size,
             options,
-            CubekInterpolateStrategy::SharedMemoryStrategy(
-                BlueprintStrategy::<SharedMemoryRoutine>::Inferred(strategy),
-            ),
+            CubekInterpolateStrategy::MinimizeLatency,
         ),
         #[cfg(feature = "autotune")]
         InterpolateStrategy::Autotune => Ok(interpolate_autotune(input, output_size, options)),
