@@ -1,0 +1,39 @@
+[package]
+authors = ["Thierry Cantin-Demers"]
+edition.workspace = true
+license.workspace = true
+name = "remote-training"
+publish = false
+version.workspace = true
+description = "Data-parallel MNIST training on the devices of one or more burn remote servers"
+
+[lints]
+workspace = true
+
+[features]
+default = ["webgpu"]
+cuda = ["burn/cuda"]
+webgpu = ["burn/webgpu"]
+vulkan = ["burn/vulkan"]
+rocm = ["burn/rocm"]
+tui = ["burn/tui"]
+
+[dependencies]
+burn = { workspace = true, features = [
+    "default",
+    "train",
+    "vision",
+    "metrics",
+    "fusion",
+    "flex",
+    "remote-server",
+    "remote-websocket",
+] }
+mnist = { path = "../mnist", default-features = false }
+
+blake3 = "1"
+clap = { workspace = true }
+iroh = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

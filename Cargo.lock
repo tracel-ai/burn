@@ -8720,6 +8720,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "remote-training"
+version = "0.22.0-pre.3"
+dependencies = [
+ "blake3",
+ "burn",
+ "clap",
+ "iroh",
+ "mnist",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
