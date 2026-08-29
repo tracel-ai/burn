@@ -91,10 +91,8 @@ where
         // the read of one of them, so it is not this sync's to report.
         // `client.sync_buffers` is the same barrier plus a check of named
         // tensors, for a caller that wants both.
-        futures_lite::future::block_on(client.sync()).map_err(|err| {
-            ExecutionError::WithContext {
-                reason: format!("{err}"),
-            }
+        futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
+            reason: format!("{err}"),
         })
     }
 
