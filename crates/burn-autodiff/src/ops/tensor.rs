@@ -47,6 +47,64 @@ fn unsqueeze_like<B: Backend>(
     B::float_reshape(tensor, Shape::from(dims))
 }
 
+/// Computes the backward pass for a product reduction without dividing by zero.
+fn prod_backward<B: Backend>(
+    input: B::FloatTensorPrimitive,
+    grad: B::FloatTensorPrimitive,
+    dim: Option<usize>,
+) -> B::FloatTensorPrimitive {
+    let shape = input.shape();
+    let device = input.device();
+    let dtype = input.dtype();
+    let bool_dtype = get_device_settings::<B>(&device).bool_dtype;
+
+    let zero_mask_bool = B::float_equal_elem(input.clone(), 0.into(), bool_dtype);
+    let zero_mask = B::bool_into_float(zero_mask_bool.clone(), dtype.into());
+    let input_safe = B::float_add(input, zero_mask.clone());
+
+    let (zero_count, nonzero_product) = match dim {
+        Some(dim) => (
+            B::float_sum_dim(zero_mask.clone(), dim),
+            B::float_prod_dim(input_safe.clone(), dim),
+        ),
+        None => (
+            B::float_sum(zero_mask.clone()),
+            B::float_prod(input_safe.clone()),
+        ),
+    };
+
+    // Counts are sums of zero-or-one values. Threshold comparisons distinguish
+    // zero, one, and multiple zeros without any host-side data-dependent branch.
+    let no_zero = B::float_lower_elem(zero_count.clone(), 0.5.into(), bool_dtype);
+    let at_most_one_zero = B::float_lower_elem(zero_count, 1.5.into(), bool_dtype);
+    let one_zero = B::bool_and(B::bool_not(no_zero.clone()), at_most_one_zero);
+
+    let ones = B::float_ones(shape.clone(), &device, dtype.into());
+    let expand = |tensor| {
+        let tensor = if dim.is_none() {
+            unsqueeze_like::<B>(tensor, shape.clone())
+        } else {
+            tensor
+        };
+        B::float_mul(ones.clone(), tensor)
+    };
+
+    let grad = expand(grad);
+    let nonzero_product = expand(nonzero_product);
+    let no_zero = B::bool_expand(no_zero, shape.clone());
+    let one_zero = B::bool_expand(one_zero, shape.clone());
+
+    // The ordinary quotient is always evaluated with zeros replaced by one.
+    // Its values at zero positions are discarded unless the reduction has no zeros.
+    let ordinary = B::float_div(nonzero_product.clone(), input_safe);
+    let zeros = B::float_zeros(shape, &device, dtype.into());
+    let single_zero = B::float_mask_where(zeros.clone(), zero_mask_bool, nonzero_product);
+    let local_grad = B::float_mask_where(zeros, no_zero, ordinary);
+    let local_grad = B::float_mask_where(local_grad, one_zero, single_zero);
+
+    B::float_mul(grad, local_grad)
+}
+
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
@@ -2396,9 +2454,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct Prod;
 
         impl<B: Backend> Backward<B, 1> for Prod {
-            // Saves the input and the output product so backward can compute
-            // `grad * prod(x) / x` without recomputing the reduction.
-            type State = (B::FloatTensorPrimitive, B::FloatTensorPrimitive);
+            type State = B::FloatTensorPrimitive;
 
             fn backward(
                 self,
@@ -2406,22 +2462,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (input, output) = ops.state;
+                let input = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx_i prod(x) = prod(x) / x_i, so grad_input = grad * output / input,
-                    // broadcast over the input shape (output is a single-element tensor).
-                    //
-                    // This divides by the input, so it produces NaN gradients when the
-                    // input contains zeros. A zero-safe version requires the product of
-                    // all other elements via exclusive cumulative products, same as the
-                    // cumprod limitation tracked in https://github.com/tracel-ai/burn/issues/3864.
-                    let ones = B::float_ones(input.shape(), &input.device(), input.dtype().into());
-                    let grad = B::float_mul(grad, output);
-                    let grad = unsqueeze_like::<B>(grad, ones.shape());
-                    let grad = B::float_mul(ones, grad);
-
-                    B::float_div(grad, input)
+                    prod_backward::<B>(input, grad, None)
                 });
             }
         }
@@ -2429,7 +2473,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Prod.prepare::<C>([tensor.node]).compute_bound().stateful() {
             OpsKind::Tracked(prep) => {
                 let output = B::float_prod(tensor.primitive.clone());
-                prep.finish((tensor.primitive, output.clone()), output)
+                prep.finish(tensor.primitive, output)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_prod(tensor.primitive)),
         }
@@ -2440,8 +2484,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct ProdDim;
 
         impl<B: Backend> Backward<B, 1> for ProdDim {
-            // Saves the input and the reduced product (size 1 along `dim`).
-            type State = (B::FloatTensorPrimitive, B::FloatTensorPrimitive);
+            type State = (B::FloatTensorPrimitive, usize);
 
             fn backward(
                 self,
@@ -2449,20 +2492,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (input, output) = ops.state;
+                let (input, dim) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // grad_input = grad * prod_dim(x) / x. The grad and output both keep
-                    // a size-1 reduced dim and broadcast back over the input along `dim`.
-                    //
-                    // Like `float_prod`, this divides by the input and produces NaN
-                    // gradients when the input contains zeros (see
-                    // https://github.com/tracel-ai/burn/issues/3864).
-                    let ones = B::float_ones(input.shape(), &input.device(), input.dtype().into());
-                    let grad = B::float_mul(grad, output);
-                    let grad = B::float_mul(ones, grad);
-
-                    B::float_div(grad, input)
+                    prod_backward::<B>(input, grad, Some(dim))
                 });
             }
         }
@@ -2474,7 +2507,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let output = B::float_prod_dim(tensor.primitive.clone(), dim);
-                prep.finish((tensor.primitive, output.clone()), output)
+                prep.finish((tensor.primitive, dim), output)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_prod_dim(tensor.primitive, dim)),
         }
