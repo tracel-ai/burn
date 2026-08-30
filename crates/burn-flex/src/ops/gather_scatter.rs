@@ -16,11 +16,10 @@ use crate::{FlexTensor, Layout};
 /// gather/scatter/select kernels in this module.
 ///
 /// This is the internal index layer for burn-flex: every indexed op
-/// ([`gather`], [`scatter_add`], [`select`], [`select_add`], and the
-/// [`scatter_min`]/[`scatter_max`] variants) routes its index tensor through
-/// this helper before touching the element buffer. Normalising to `isize`
-/// lets the kernels use a single inner-loop signature regardless of how the
-/// caller's index tensor was dtyped.
+/// ([`gather`], [`scatter_add`], [`scatter_mul`], [`select`], [`select_add`],
+/// [`select_mul`], and the [`scatter_min`]/[`scatter_max`] variants) routes its index tensor
+/// through this helper before touching the element buffer. Normalising to `isize` lets the kernels
+/// use a single inner-loop signature regardless of how the caller's index tensor was dtyped.
 ///
 /// # Accepted widths
 ///
@@ -368,6 +367,45 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
     indices: FlexTensor,
     value: FlexTensor,
 ) -> FlexTensor {
+    scatter_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "scatter_add",
+        |target, value| *target += value,
+    )
+}
+
+/// Scatter multiply: multiplies values into tensor at positions specified by indices.
+pub fn scatter_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E> + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    scatter_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "scatter_mul",
+        |target, value| *target = *target * value,
+    )
+}
+
+fn scatter_update<E, F>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+    operation: &str,
+    update: F,
+) -> FlexTensor
+where
+    E: Element + Pod + Default + Copy + Send + Sync,
+    F: Fn(&mut E, E) + Copy,
+{
     let tensor = tensor.to_contiguous();
     let indices = indices.to_contiguous();
     let value = value.to_contiguous();
@@ -386,7 +424,7 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
     assert_eq!(
         indices_shape,
         value_shape,
-        "scatter_add: indices shape {:?} must match value shape {:?}",
+        "{operation}: indices shape {:?} must match value shape {:?}",
         indices_shape.to_vec(),
         value_shape.to_vec()
     );
@@ -395,7 +433,7 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
         if i != dim {
             assert_eq!(
                 tensor_shape[i], indices_shape[i],
-                "scatter_add: shape mismatch at dim {}: tensor {} vs indices {}",
+                "{operation}: shape mismatch at dim {}: tensor {} vs indices {}",
                 i, tensor_shape[i], indices_shape[i]
             );
         }
@@ -414,7 +452,7 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
 
     // Use specialized 2D implementation
     if ndims == 2 {
-        scatter_add_2d(
+        scatter_update_2d(
             &mut result,
             &indices_data,
             value_data,
@@ -423,6 +461,7 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
             indices_shape[0],
             indices_shape[1],
             dim,
+            update,
         );
     } else {
         // General N-D case (sequential due to potential index conflicts)
@@ -439,7 +478,7 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
                 &tensor_strides,
                 ndims,
             );
-            result[dst_idx] += value_data[idx];
+            update(&mut result[dst_idx], value_data[idx]);
         }
     }
 
@@ -447,10 +486,10 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
     FlexTensor::new(bytes, Layout::contiguous(tensor_shape), E::dtype())
 }
 
-/// Optimized 2D scatter_add implementation.
+/// Optimized 2D scatter update implementation.
 #[inline]
 #[allow(clippy::too_many_arguments)]
-fn scatter_add_2d<E: Copy + core::ops::AddAssign>(
+fn scatter_update_2d<E: Copy, F: Fn(&mut E, E)>(
     result: &mut [E],
     indices_data: &[isize],
     value_data: &[E],
@@ -459,6 +498,7 @@ fn scatter_add_2d<E: Copy + core::ops::AddAssign>(
     indices_rows: usize,
     indices_cols: usize,
     dim: usize,
+    update: F,
 ) {
     let dim_size = if dim == 0 { tensor_rows } else { tensor_cols };
     if dim == 0 {
@@ -466,7 +506,7 @@ fn scatter_add_2d<E: Copy + core::ops::AddAssign>(
             for j in 0..indices_cols {
                 let idx = i * indices_cols + j;
                 let dst_row = checked_index(indices_data[idx], dim_size);
-                result[dst_row * tensor_cols + j] += value_data[idx];
+                update(&mut result[dst_row * tensor_cols + j], value_data[idx]);
             }
         }
     } else {
@@ -474,7 +514,7 @@ fn scatter_add_2d<E: Copy + core::ops::AddAssign>(
             for j in 0..indices_cols {
                 let idx = i * indices_cols + j;
                 let dst_col = checked_index(indices_data[idx], dim_size);
-                result[i * tensor_cols + dst_col] += value_data[idx];
+                update(&mut result[i * tensor_cols + dst_col], value_data[idx]);
             }
         }
     }
@@ -753,6 +793,45 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
     indices: FlexTensor,
     value: FlexTensor,
 ) -> FlexTensor {
+    select_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_add",
+        |target, value| *target += value,
+    )
+}
+
+/// Select multiply: multiplies values into tensor at positions specified by 1D indices.
+pub fn select_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E> + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    select_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_mul",
+        |target, value| *target = *target * value,
+    )
+}
+
+fn select_update<E, F>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+    operation: &str,
+    update: F,
+) -> FlexTensor
+where
+    E: Element + Pod + Default + Copy + Send + Sync,
+    F: Fn(&mut E, E) + Copy,
+{
     let tensor = tensor.to_contiguous();
     let indices = indices.to_contiguous();
     let value = value.to_contiguous();
@@ -770,7 +849,7 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
     assert_eq!(
         indices.layout().num_dims(),
         1,
-        "select_add: indices must be 1D"
+        "{operation}: indices must be 1D"
     );
 
     let tensor_data: &[E] = tensor.storage();
@@ -783,13 +862,13 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
         if d == dim {
             assert_eq!(
                 value_shape[d], num_indices,
-                "select_add: value dim {} should be {} (num indices), got {}",
+                "{operation}: value dim {} should be {} (num indices), got {}",
                 d, num_indices, value_shape[d]
             );
         } else {
             assert_eq!(
                 value_shape[d], tensor_shape[d],
-                "select_add: value dim {} should match tensor dim {}, got {}",
+                "{operation}: value dim {} should match tensor dim {}, got {}",
                 d, tensor_shape[d], value_shape[d]
             );
         }
@@ -799,7 +878,7 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
 
     // Use optimized 2D implementation
     if ndims == 2 {
-        select_add_2d(
+        select_update_2d(
             &mut result,
             &indices_data,
             value_data,
@@ -807,6 +886,7 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
             tensor_shape[1],
             num_indices,
             dim,
+            update,
         );
         let bytes = Bytes::from_elems(result);
         return FlexTensor::new(bytes, Layout::contiguous(tensor_shape), E::dtype());
@@ -815,7 +895,7 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
     // General N-D case
     let tensor_strides: Vec<usize> = compute_strides(&tensor_shape);
     let value_strides: Vec<usize> = compute_strides(value_shape);
-    let select_add_dim_size = tensor_shape[dim];
+    let select_dim_size = tensor_shape[dim];
 
     for (val_idx, &val) in value_data.iter().enumerate() {
         let mut remaining = val_idx;
@@ -824,22 +904,23 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
             let coord = remaining / value_strides[d];
             remaining %= value_strides[d];
             if d == dim {
-                let index_val = checked_index(indices_data[coord], select_add_dim_size);
+                let index_val = checked_index(indices_data[coord], select_dim_size);
                 dst_idx += index_val * tensor_strides[d];
             } else {
                 dst_idx += coord * tensor_strides[d];
             }
         }
-        result[dst_idx] += val;
+        update(&mut result[dst_idx], val);
     }
 
     let bytes = Bytes::from_elems(result);
     FlexTensor::new(bytes, Layout::contiguous(tensor_shape), E::dtype())
 }
 
-/// Optimized 2D select_add.
+/// Optimized 2D select update.
 #[inline]
-fn select_add_2d<E: Copy + core::ops::AddAssign>(
+#[allow(clippy::too_many_arguments)]
+fn select_update_2d<E: Copy, F: Fn(&mut E, E)>(
     result: &mut [E],
     indices_data: &[isize],
     value_data: &[E],
@@ -847,6 +928,7 @@ fn select_add_2d<E: Copy + core::ops::AddAssign>(
     tensor_cols: usize,
     num_indices: usize,
     dim: usize,
+    update: F,
 ) {
     let dim_size = if dim == 0 { tensor_rows } else { tensor_cols };
     if dim == 0 {
@@ -855,14 +937,17 @@ fn select_add_2d<E: Copy + core::ops::AddAssign>(
             let dst_start = dst_row * tensor_cols;
             let src_start = i * tensor_cols;
             for j in 0..tensor_cols {
-                result[dst_start + j] += value_data[src_start + j];
+                update(&mut result[dst_start + j], value_data[src_start + j]);
             }
         }
     } else {
         for row in 0..tensor_rows {
             for (j, &idx) in indices_data.iter().enumerate() {
                 let dst_col = checked_index(idx, dim_size);
-                result[row * tensor_cols + dst_col] += value_data[row * num_indices + j];
+                update(
+                    &mut result[row * tensor_cols + dst_col],
+                    value_data[row * num_indices + j],
+                );
             }
         }
     }

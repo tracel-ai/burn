@@ -5,18 +5,39 @@ use burn_std::{BoolDType, IntDType};
 
 use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
-use burn_backend::{Distribution, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps};
+use burn_backend::{
+    Distribution, FloatDType, Shape, Slice, TensorData,
+    ops::{FloatTensorOps, PadMode},
+};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
     FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, GridSample2dOpIr,
     InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr,
-    OperationOutput, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr,
-    RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr,
-    SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, TopKWithIndicesOpIr,
-    UnaryOpIr, UnfoldOpIr,
+    OperationOutput, PadOpIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr,
+    ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr,
+    SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr,
+    TopKWithIndicesOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
+    fn float_pad(
+        tensor: FloatTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = PadOpIr::create(tensor.into_ir(), padding.into(), mode.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Pad(desc),
+            ))
+            .output()
+    }
+
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
         let out = client.register_tensor_data(data);

@@ -292,6 +292,24 @@ impl IntTensorOps<Self> for LibTorch {
         TchOps::scatter(dim, tensor, indices, value)
     }
 
+    fn int_scatter(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> TchTensor {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                TchOps::scatter(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                TchOps::scatter_mul(dim, tensor, indices, value)
+            }
+            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn int_scatter_nd(
         data: TchTensor,
         indices: TchTensor,
@@ -316,6 +334,26 @@ impl IntTensorOps<Self> for LibTorch {
         value: TchTensor,
     ) -> TchTensor {
         TchOps::select_assign(tensor, dim, indices, value)
+    }
+
+    fn int_select_assign(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> TchTensor {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                TchOps::select_assign(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                TchOps::select_assign_mul(tensor, dim, indices, value)
+            }
+            other => {
+                unimplemented!("int_select_assign with {other:?} update is not implemented")
+            }
+        }
     }
 
     fn int_mask_where(tensor: TchTensor, mask: TchTensor, source: TchTensor) -> TchTensor {

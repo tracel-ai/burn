@@ -1,6 +1,6 @@
 use crate::module::{Lora, ParamGroup, QLora};
 
-use super::{ApplyReparameterization, Param, ParamId, Quantizer, Reparameterizer};
+use super::{ApplyReparameterization, Flag, Param, ParamId, Quantizer, Reparameterizer};
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -15,7 +15,7 @@ pub type Devices = Vec<Device>;
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.
 macro_rules! module {
-    (map=$module:ident, ops=$item:expr) => {{
+    (map=$module:ident, ops=$item:expr, training=$training:expr) => {{
         struct Mapper;
         impl ModuleMapper for Mapper {
             fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
@@ -24,11 +24,15 @@ macro_rules! module {
                 let tensor = func(tensor);
                 Param::from_mapped_value(id, tensor, mapper)
             }
+
+            fn map_flag(&mut self, flag: Param<Flag>) -> Param<Flag> {
+                flag.with_value($training)
+            }
         }
         let mut mapper = Mapper;
         $module.map(&mut mapper)
     }};
-    (map=$module:ident, ops=$item:expr, group=$group:ident) => {{
+    (map=$module:ident, ops=$item:expr, group=$group:ident, training=$training:expr) => {{
         struct Mapper {
             pub path: Vec<String>,
             pub group: ParamGroup,
@@ -51,6 +55,14 @@ macro_rules! module {
                     return Param::from_mapped_value(id, tensor, mapper);
                 }
                 Param::from_mapped_value(id, tensor, mapper)
+            }
+
+            fn map_flag(&mut self, flag: Param<Flag>) -> Param<Flag> {
+                let path = self.path.join(".");
+                match self.group.matches(&flag.id, Some(&path)) {
+                    true => flag.with_value($training),
+                    false => flag,
+                }
             }
         }
         let mut mapper = Mapper {
@@ -129,7 +141,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// target device, use [fork](Module::fork) instead.
     fn to_device(self, device: &Device) -> Self;
 
-    /// Each tensor in the module tree will not require grad.
+    /// Each tensor in the module tree will not require grad, and each layer with no tensor of its
+    /// own — dropout, noise, randomized activations — stops behaving as it does during training.
     ///
     /// # Warnings
     ///
@@ -139,7 +152,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     fn no_grad(self) -> Self {
         module!(
             map = self,
-            ops = |tensor: Tensor<D>| tensor.set_require_grad(false)
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(false),
+            training = false
         )
     }
 
@@ -157,7 +171,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         module!(
             map = self,
             ops = |tensor: Tensor<D>| tensor.set_require_grad(false),
-            group = group
+            group = group,
+            training = false
         )
     }
 
@@ -170,7 +185,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         module!(
             map = self,
             ops = |tensor: Tensor<D>| tensor.set_require_grad(true),
-            group = group
+            group = group,
+            training = true
         )
     }
 
@@ -199,10 +215,10 @@ pub trait Module: Clone + Send + core::fmt::Debug {
             init = || 0
         )
     }
-    /// Visit each tensor parameter in the module with a [visitor](ModuleVisitor).
+    /// Visit each parameter and module-owned control value with a [visitor](ModuleVisitor).
     fn visit<Visitor: ModuleVisitor>(&self, visitor: &mut Visitor);
 
-    /// Map each tensor parameter in the module with a [mapper](ModuleMapper).
+    /// Map each parameter and module-owned control value with a [mapper](ModuleMapper).
     fn map<Mapper: ModuleMapper>(self, mapper: &mut Mapper) -> Self;
 
     /// Quantize the weights of the module.
@@ -254,10 +270,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         self.apply_reparameterization(qlora)
     }
 
-    /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
+    /// Collect this module's tensor parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
     ///
     /// The record can be saved to a burnpack file or byte buffer and applied back with
     /// [`load_record`](Module::load_record).
+    /// Module-owned control values such as [`Flag`] are runtime configuration and are not
+    /// recorded; loading preserves their state and identity from the destination module.
     fn into_record(self) -> crate::store::ModuleRecord
     where
         Self: Sized,
@@ -265,7 +283,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         crate::store::ModuleRecord::from_module(self, None)
     }
 
-    /// Collect the parameters `group` names into a [`ModuleRecord`](crate::store::ModuleRecord).
+    /// Collect the tensor parameters `group` names into a [`ModuleRecord`](crate::store::ModuleRecord).
     ///
     /// The record of a part of the module rather than all of it — what a run that trained a
     /// group writes when the rest of the module is the checkpoint it started from, and what
@@ -376,6 +394,16 @@ pub trait ModuleVisitor {
     /// - `param`: The boolean parameter to visit
     #[allow(unused_variables)]
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {}
+
+    /// Visit a [`Param<Flag>`] in the module.
+    ///
+    /// An identified boolean value owned by a module, so traversals can reason about control state
+    /// as well as tensor parameters.
+    ///
+    /// # Parameters
+    /// - `flag`: The flag to visit
+    #[allow(unused_variables)]
+    fn visit_flag(&mut self, flag: &Param<Flag>) {}
 
     /// Called when entering a submodule.
     ///
@@ -536,6 +564,20 @@ pub trait ModuleMapper {
         let (id, tensor, mapper) = param.consume();
         Param::from_mapped_value(id, tensor, mapper)
     }
+
+    /// Map a [`Param<Flag>`] in the module.
+    ///
+    /// The default is the identity, so a mapper with no opinion about control state — a record, a
+    /// quantizer, a device move — leaves it untouched.
+    ///
+    /// # Parameters
+    /// - `flag`: The flag to map
+    ///
+    /// # Returns
+    /// The mapped flag
+    fn map_flag(&mut self, flag: Param<Flag>) -> Param<Flag> {
+        flag
+    }
 }
 
 /// Module with auto-differentiation backend.
@@ -560,29 +602,29 @@ mod tests {
         let module = SimpleLinear::new(4, 4, &device);
 
         assert!(module.weight.is_require_grad());
-        assert!(module.weight.require_grad);
+        assert!(module.weight.is_active);
 
         let module = module.valid();
         assert!(!module.weight.is_require_grad());
-        assert!(module.weight.require_grad); // stateful
+        assert!(module.weight.is_active); // stateful
 
         // Without `HasAutodiffModule`, we would need to specify the module type as well, which would be annoying
         // let module: SimpleLinear<TestAutodiffBackend> = module.train();
         let module = module.train();
         assert!(module.weight.is_require_grad());
-        assert!(module.weight.require_grad); // stateful
+        assert!(module.weight.is_active); // stateful
 
         let module = module.no_grad();
         assert!(!module.weight.is_require_grad());
-        assert!(!module.weight.require_grad); // stateful
+        assert!(!module.weight.is_active); // stateful
 
         let module = module.valid();
         assert!(!module.weight.is_require_grad()); // always
-        assert!(!module.weight.require_grad); // stateful
+        assert!(!module.weight.is_active); // stateful
 
         let module = module.train();
         assert!(!module.weight.is_require_grad());
-        assert!(!module.weight.require_grad); // stateful
+        assert!(!module.weight.is_active); // stateful
     }
 
     /// `valid` on a module already on the inner backend returns it unchanged rather than
@@ -618,11 +660,11 @@ mod tests {
         let module = module.freeze_group(ParamGroup::from_path("weight"));
 
         assert!(!module.weight.is_require_grad());
-        assert!(!module.weight.require_grad);
+        assert!(!module.weight.is_active);
 
         let bias = module.bias.as_ref().unwrap();
         assert!(bias.is_require_grad());
-        assert!(bias.require_grad);
+        assert!(bias.is_active);
     }
 
     #[test]
@@ -637,8 +679,8 @@ mod tests {
         let module = module.unfreeze_group(ParamGroup::from_path("weight"));
 
         assert!(module.weight.is_require_grad());
-        assert!(module.weight.require_grad);
+        assert!(module.weight.is_active);
         assert!(!module.bias.as_ref().unwrap().is_require_grad());
-        assert!(!module.bias.as_ref().unwrap().require_grad);
+        assert!(!module.bias.as_ref().unwrap().is_active);
     }
 }

@@ -73,7 +73,10 @@ pub use __client::*;
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use burn_flex::Flex;
-    use burn_tensor::{Device, DeviceType, Distribution, Tensor};
+    use burn_tensor::{
+        Device, DeviceType, Distribution, Tensor, TensorData, Tolerance,
+        signal::{irfft, rfft},
+    };
 
     /// Run `body` on a worker thread and fail the test if it doesn't finish within `timeout`.
     ///
@@ -135,6 +138,42 @@ mod tests {
         let input = input.to_device(&device_1);
         let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
+
+        rt.shutdown_background();
+    }
+
+    #[test]
+    pub fn test_fft_over_websocket() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3160)
+                .start_async(),
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = Device::remote_websocket("ws://localhost:3160", 0);
+        let signal = Tensor::<1>::from_floats([1.0, 1.0, 1.0, 1.0], &device);
+        let (spectrum_re, spectrum_im) = rfft(signal, 0, None);
+        let reconstructed = irfft(spectrum_re.clone(), spectrum_im.clone(), 0, None);
+
+        spectrum_re.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([4.0, 0.0, 0.0]),
+            Tolerance::absolute(1e-4),
+        );
+        spectrum_im.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([0.0, 0.0, 0.0]),
+            Tolerance::absolute(1e-4),
+        );
+        reconstructed.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([1.0, 1.0, 1.0, 1.0]),
+            Tolerance::absolute(1e-4),
+        );
 
         rt.shutdown_background();
     }

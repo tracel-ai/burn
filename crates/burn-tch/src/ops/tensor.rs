@@ -203,6 +203,24 @@ impl FloatTensorOps<Self> for LibTorch {
         TchOps::scatter(dim, tensor, indices, value)
     }
 
+    fn float_scatter(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> TchTensor {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                TchOps::scatter(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                TchOps::scatter_mul(dim, tensor, indices, value)
+            }
+            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn float_scatter_nd(
         data: TchTensor,
         indices: TchTensor,
@@ -227,6 +245,26 @@ impl FloatTensorOps<Self> for LibTorch {
         value: TchTensor,
     ) -> TchTensor {
         TchOps::select_assign(tensor, dim, indices, value)
+    }
+
+    fn float_select_assign(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> TchTensor {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                TchOps::select_assign(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                TchOps::select_assign_mul(tensor, dim, indices, value)
+            }
+            other => {
+                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            }
+        }
     }
 
     fn float_slice(tensor: TchTensor, slices: &[burn_backend::Slice]) -> TchTensor {

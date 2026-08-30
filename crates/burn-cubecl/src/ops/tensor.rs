@@ -186,6 +186,24 @@ where
         kernel::scatter(dim, tensor, indices, value, false)
     }
 
+    fn float_scatter(
+        dim: usize,
+        tensor: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::float_scatter_add(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                kernel::scatter_mul(dim, tensor, indices, value)
+            }
+            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+        }
+    }
+
     fn float_scatter_nd(
         data: FloatTensor<Self>,
         indices: IntTensor<Self>,
@@ -214,6 +232,26 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         kernel::select_assign(tensor, dim, indices, value, false)
+    }
+
+    fn float_select_assign(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                Self::float_select_add(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                kernel::select_assign_mul(tensor, dim, indices, value)
+            }
+            other => {
+                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            }
+        }
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {

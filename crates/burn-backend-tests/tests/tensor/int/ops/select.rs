@@ -55,6 +55,32 @@ fn should_select_assign_2d_dim1_int() {
 }
 
 #[test]
+fn should_select_assign_mul_2d_dim0_int() {
+    let device = Default::default();
+    let tensor = TestTensorInt::<2>::from_data([[10, 20], [30, 40], [50, 60]], &device);
+    let values = TestTensorInt::from_data([[5, 70], [80, 1]], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([2, 0]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Mul);
+    let expected = TensorData::from([[800, 20], [30, 40], [250, 4200]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_mul_2d_dim1_int() {
+    let device = Default::default();
+    let tensor = TestTensorInt::<2>::from_ints([[2, 3, 4], [5, 6, 7]], &device);
+    let values = TestTensorInt::from_ints([[10, 20], [30, 40]], &device);
+    let indices = TestTensorInt::from_ints([2, 0], &device);
+
+    let output = tensor.select_assign(1, indices, values, IndexingUpdateOp::Mul);
+    let expected = TensorData::from([[40, 3, 40], [200, 6, 210]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 #[should_panic]
 fn should_panic_select_add_invalid_num_indices() {
     let device = Default::default();

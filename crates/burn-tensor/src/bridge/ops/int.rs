@@ -4,7 +4,7 @@ use burn_backend::{
     ops::{IntTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
-use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, PadMode, Shape, Slice};
 
 use crate::{
     Device, Int,
@@ -236,6 +236,10 @@ impl BasicOps for Int {
 }
 
 impl Numeric for Int {
+    fn pad(tensor: BridgeTensor, padding: &[(usize, usize)], mode: PadMode) -> BridgeTensor {
+        BridgeTensor::int(Dispatch::int_pad(tensor.into(), padding, mode))
+    }
+
     fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_add(lhs.into(), rhs.into()))
     }

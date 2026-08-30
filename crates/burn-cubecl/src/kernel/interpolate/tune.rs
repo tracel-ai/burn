@@ -1,20 +1,52 @@
 use crate::{
-    CubeRuntime, CubeTuneId, kernel::interpolate::execute_interpolate,
-    kernel::interpolate::map_mode, tensor::CubeTensor,
+    CubeRuntime, CubeTuneId,
+    kernel::{
+        autotune_bounds,
+        interpolate::{execute_interpolate, map_options},
+    },
+    ops::permute_nchw_to_nhwc_shape,
+    tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_elem_type;
 use burn_backend::ops::InterpolateOptions;
-use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
+use cubecl::{
+    std::throughput::roofline_bounds,
+    tune::{LocalTuner, Tunable, TunableSet, local_tuner},
+};
 use cubek::interpolate::{
-    definition::TileSize,
-    launch::{InterpolateAutotuneKey, InterpolateStrategy},
-    routines::{
-        BlueprintStrategy, GlobalMemoryRoutine, GlobalMemoryStrategy, SharedMemoryRoutine,
-        SharedMemoryStrategy,
-    },
+    InterpolateStrategy,
+    definition::{InterpolateCost, InterpolateForwardProblem, InterpolateProblem},
+    tune_key::InterpolateAutotuneKey,
 };
 
-/// Interpolate operation with autotuning. This benchmarks multiple strategies and selects the best one at runtime.
+type Inputs<R> = (CubeTensor<R>, [usize; 2], InterpolateOptions);
+
+/// What the tuner measures: the bottleneck each strategy takes for granted.
+///
+/// The geometry behind them is cubek's to pick, from the device and the problem, so nothing here
+/// enumerates plane counts or row runs. On a GPU the two differ in how much of a cube one problem
+/// occupies and in whether the gathered input is staged, which is the choice that swings a run
+/// either way and is therefore measured rather than modelled. A CPU resolves both to one
+/// blueprint, and both stay registered there rather than being filtered: the tunable set is built
+/// once per process and shared by every device in it, so it cannot be cut to the first device's
+/// kind. The cost is one duplicate measurement per key.
+///
+/// [`MaximizeThroughput`](InterpolateStrategy::MaximizeThroughput) leads, because it stages
+/// nothing and so is the one no device refuses: the short circuit gets its first chance on a
+/// candidate that always runs.
+///
+/// The names are spelled out rather than derived from the variants, because a recorded tune result
+/// is keyed by them and renaming a variant must not silently invalidate one.
+const STRATEGIES: [(&str, InterpolateStrategy); 2] = [
+    (
+        "maximize_throughput",
+        InterpolateStrategy::MaximizeThroughput,
+    ),
+    ("minimize_latency", InterpolateStrategy::MinimizeLatency),
+];
+
+/// Interpolate operation with autotuning. This benchmarks multiple strategies and selects the
+/// best one at runtime.
 pub fn interpolate_autotune<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
@@ -24,81 +56,13 @@ pub fn interpolate_autotune<R: CubeRuntime>(
 
     static TUNER: LocalTuner<InterpolateAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
-        const PRIORITY: i8 = 0;
+    let tunables = TUNER.init(move || {
+        let mut set = with_bounds(TunableSet::new(create_key::<R>, input_gen::<R>));
 
-        let global_memory =
-            TuneGroup::<InterpolateAutotuneKey>::new("global_memory", |_key| PRIORITY);
-        let shared_memory =
-            TuneGroup::<InterpolateAutotuneKey>::new("shared_memory", |_key| PRIORITY);
-
-        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
-
-        let tile_sizes: [TileSize; 16] = [
-            // Square shapes
-            TileSize::new(8, 8),
-            TileSize::new(16, 16),
-            TileSize::new(32, 32),
-            // Rectangular shapes
-            TileSize::new(8, 16),
-            TileSize::new(16, 8),
-            TileSize::new(16, 32),
-            TileSize::new(32, 16),
-            // Flat horizontal shapes
-            TileSize::new(1, 64),
-            TileSize::new(1, 128),
-            TileSize::new(1, 256),
-            TileSize::new(2, 128),
-            TileSize::new(1, 512),
-            TileSize::new(1, 1024),
-            // Flat vertical shapes
-            TileSize::new(64, 1),
-            TileSize::new(128, 1),
-            TileSize::new(256, 1),
-        ];
-
-        for tile_size in tile_sizes {
-            let name = format!(
-                "global_memory_tile_size_{}_{}",
-                tile_size.height(),
-                tile_size.width()
-            );
-            set = set.with(
-                Tunable::new(&name, move |(input, output_size, options)| {
-                    execute_interpolate::<R>(
-                        input,
-                        output_size,
-                        options,
-                        InterpolateStrategy::GlobalMemoryStrategy(BlueprintStrategy::<
-                            GlobalMemoryRoutine,
-                        >::Inferred(
-                            GlobalMemoryStrategy { tile_size },
-                        )),
-                    )
-                })
-                .group(&global_memory, |_key| PRIORITY),
-            );
-
-            let name = format!(
-                "shared_memory_tile_size_{}_{}",
-                tile_size.height(),
-                tile_size.width()
-            );
-            set = set.with(
-                Tunable::new(&name, move |(input, output_size, options)| {
-                    execute_interpolate::<R>(
-                        input,
-                        output_size,
-                        options,
-                        InterpolateStrategy::SharedMemoryStrategy(BlueprintStrategy::<
-                            SharedMemoryRoutine,
-                        >::Inferred(
-                            SharedMemoryStrategy { tile_size },
-                        )),
-                    )
-                })
-                .group(&shared_memory, |_key| PRIORITY),
-            );
+        for (name, strategy) in STRATEGIES {
+            set = set.with(Tunable::new(name, move |(input, output_size, options)| {
+                execute_interpolate::<R>(input, output_size, options, strategy)
+            }));
         }
 
         set
@@ -112,25 +76,67 @@ pub fn interpolate_autotune<R: CubeRuntime>(
     )
 }
 
-fn create_key<R: CubeRuntime>(
-    (input, output_size, options): &(CubeTensor<R>, [usize; 2], InterpolateOptions),
-) -> InterpolateAutotuneKey {
-    let elem_input = dtype_to_elem_type(input.dtype);
-    let elem_output = dtype_to_elem_type(input.dtype);
-    let mode = map_mode(options.mode.clone());
+/// Registers the roofline bounds the short circuit needs.
+///
+/// Interpolation is memory bound for the cheap filters, but the arithmetic per output element
+/// grows with the tap count, and Lanczos3 spends two sines on every weight. Costing both and
+/// letting the roofline take whichever is slower is what keeps the limit reachable across modes,
+/// rather than holding every mode to a bandwidth figure only nearest can approach.
+fn with_bounds<R: CubeRuntime, Out: 'static>(
+    set: TunableSet<InterpolateAutotuneKey, Inputs<R>, Out>,
+) -> TunableSet<InterpolateAutotuneKey, Inputs<R>, Out> {
+    autotune_bounds::with_bounds(
+        set,
+        |_key, (input, output_size, options): &Inputs<R>, thresholds| {
+            let problem = forward_problem(input, output_size, options);
+            let cost = InterpolateCost::new(
+                InterpolateProblem::Forward(problem),
+                dtype_to_elem_type(input.dtype),
+            );
+
+            roofline_bounds(&input.client, cost.compute_key(), cost.work(), thresholds)
+        },
+    )
+}
+
+/// The problem the kernel actually runs, in the NHWC layout it reads.
+///
+/// The tensor is still NCHW here: `execute_interpolate` permutes it. Reading its extents
+/// positionally at this point is what used to feed the width in as the channel count.
+fn forward_problem<R: CubeRuntime>(
+    input: &CubeTensor<R>,
+    output_size: &[usize; 2],
+    options: &InterpolateOptions,
+) -> InterpolateForwardProblem {
+    let shape = permute_nchw_to_nhwc_shape(input.meta.shape().clone());
+
+    InterpolateForwardProblem::from_input_output_shapes(
+        &shape,
+        output_size,
+        map_options(options.clone()),
+    )
+}
+
+fn create_key<R: CubeRuntime>((input, output_size, options): &Inputs<R>) -> InterpolateAutotuneKey {
+    let elem = dtype_to_elem_type(input.dtype);
+    let problem = forward_problem(input, output_size, options);
 
     InterpolateAutotuneKey::generate(
-        elem_input,
-        elem_output,
-        mode,
-        input.meta.shape(),
-        output_size,
+        elem,
+        elem,
+        problem.options.mode,
+        problem.options.align_corners,
+        problem.input_height,
+        problem.input_width,
+        problem.channels,
+        problem.output_height,
+        problem.output_width,
     )
 }
 
 fn input_gen<R: CubeRuntime>(
     _key: &InterpolateAutotuneKey,
-    (input, output_size, options): &(CubeTensor<R>, [usize; 2], InterpolateOptions),
-) -> (CubeTensor<R>, [usize; 2], InterpolateOptions) {
+    (input, output_size, options): &Inputs<R>,
+) -> Inputs<R> {
     (input.clone(), *output_size, options.clone())
 }
