@@ -57,7 +57,9 @@ where
         {
             return;
         }
-        self.streams.drain(&mut self.handles, stream);
+        // Detached: this call is submitted fire-and-forget, so a panic from the
+        // drain has no caller to reach and is held for the stream's next sync.
+        self.streams.drain_detached(&mut self.handles, stream);
         self.streams
             .register(stream, OperationIr::Drop(ir), operation, &mut self.handles);
     }

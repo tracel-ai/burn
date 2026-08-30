@@ -7,6 +7,23 @@ use super::{
 use crate::{FusionRuntime, UnfusedOp, search::BlockOptimization};
 use burn_ir::{HandleContainer, OperationIr, TensorId};
 use hashbrown::{HashMap, HashSet};
+use std::collections::VecDeque;
+
+/// How many undelivered panics [`MultiStream`] holds at once. A stream is
+/// poisoned by a fire-and-forget path, so nothing guarantees a caller ever
+/// comes back for the payload — a thread that panics and then exits leaves
+/// one behind for good. The bound keeps that leak finite.
+const MAX_POISONED_STREAMS: usize = 32;
+
+/// The message inside a caught panic payload, for reporting one that cannot be
+/// resumed. Covers what `panic!` produces: `&'static str` and `String`.
+fn panic_message(panic: &(dyn std::any::Any + Send)) -> &str {
+    panic
+        .downcast_ref::<&'static str>()
+        .copied()
+        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("<non-string panic payload>")
+}
 
 /// Keep track of multiple concurrent lazy streams of operations.
 ///
@@ -110,10 +127,14 @@ pub struct MultiStream<R: FusionRuntime> {
     optimizations: ExecutionPlanStore<R::Optimization>,
     device: R::FusionDevice,
     /// A panic an operation raised while nobody was waiting — the lazy
-    /// processing of a fire-and-forget registration — held until the
-    /// stream's next drain, the first point where a caller blocks and can
+    /// processing of a fire-and-forget registration, or a drain performed on
+    /// another thread's behalf — held until the stream's next blocking
+    /// [`drain`](Self::drain), the first point where a caller waits and can
     /// receive it. See [`poison`](Self::poison).
     poisoned: HashMap<StreamId, Box<dyn std::any::Any + Send>>,
+    /// The keys of [`poisoned`](Self::poisoned) in insertion order, kept in
+    /// step with it so the map can be bounded — see `MAX_POISONED_STREAMS`.
+    poisoned_order: VecDeque<StreamId>,
     #[cfg(feature = "memory-checks")]
     memory_checks: super::memory_checks::MemoryChecks,
 }
@@ -126,6 +147,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             optimizations: ExecutionPlanStore::new(),
             device,
             poisoned: HashMap::new(),
+            poisoned_order: VecDeque::new(),
             #[cfg(feature = "memory-checks")]
             memory_checks: super::memory_checks::MemoryChecks::default(),
         }
@@ -184,8 +206,18 @@ impl<R: FusionRuntime> MultiStream<R> {
         // record `src` only when we actually drain — the handle-existence path is
         // naturally idempotent on later calls.
         if !self.shared_sources.contains(&src) && handles.get_handle_ref(&src).is_none() {
-            self.shared_sources.insert(src);
-            self.drain(handles, src_stream);
+            // A share is fire-and-forget — `GlobalFusionClient::tag_shared_view`
+            // discards the call's result — so a panic here must be held for a
+            // caller that can actually receive it, not unwound into that discard.
+            self.drain_detached(handles, src_stream);
+
+            // Mark the source only once the drain actually materialised it. A drain
+            // that unwound produces no handle, and marking `src` anyway would make
+            // every later share of it skip the drain too and mint a `dst` with no
+            // handle behind it.
+            if handles.get_handle_ref(&src).is_some() {
+                self.shared_sources.insert(src);
+            }
         }
 
         if let Some(handle) = handles.get_handle_ref(&src) {
@@ -228,28 +260,84 @@ impl<R: FusionRuntime> MultiStream<R> {
             // resuming the panic here would unwind into the void and the
             // caller would time work that silently vanished. Hold it instead,
             // for the stream's next drain to deliver.
-            Err(panic) => self.poison(stream, panic),
+            Err(panic) => self.poison(stream, panic, handles),
         }
     }
 
     /// Forget `id`'s stream after an operation panicked mid-execution, and
-    /// hold the panic for [`drain`](Self::drain) to rethrow.
+    /// hold the panic for the next blocking [`drain`](Self::drain) to rethrow.
     ///
     /// The unwind tore through the queue's bookkeeping — `operations` was
     /// swapped out and dropped while `global`/`relative` still describe it —
     /// so the next plan to match would index closures that no longer exist,
     /// and every later call on the device would then die on that corpse
-    /// rather than on its own work. Removing the stream is the established
-    /// reset (`mark_read` removes an emptied stream the same way); a fresh
+    /// rather than on its own work. Resetting the stream is the established
+    /// recovery (`mark_read` removes an emptied stream the same way); a fresh
     /// one is built on the next operation. The abandoned operations' handles
     /// are freed by the drop ops their tensors register as they fall out of
-    /// scope on the panicking caller's side.
+    /// scope on the panicking caller's side — except the deferred ones, which
+    /// [`reset_stream`](Self::reset_stream) releases.
     ///
-    /// The first panic is the root cause and the one kept: a later panic on
-    /// the same undelivered stream is downstream damage of the first.
-    fn poison(&mut self, id: StreamId, panic: Box<dyn std::any::Any + Send>) {
-        self.streams.remove(&id);
-        self.poisoned.entry(id).or_insert(panic);
+    /// Only one payload can ever be resumed, and the first is the root cause:
+    /// what panics next on a stream that has not delivered yet ran without the
+    /// inputs the abandoned segment would have produced. A second payload is
+    /// therefore logged rather than delivered — losing it silently would hide
+    /// a genuinely unrelated failure.
+    fn poison(
+        &mut self,
+        id: StreamId,
+        panic: Box<dyn std::any::Any + Send>,
+        handles: &mut HandleContainer<R::FusionHandle>,
+    ) {
+        self.reset_stream(id, handles);
+
+        if let Some(held) = self.poisoned.get(&id) {
+            log::warn!(
+                "fusion stream {id:?} panicked again ({}) before delivering the panic it holds \
+                 ({}); keeping the first",
+                panic_message(panic.as_ref()),
+                panic_message(held.as_ref()),
+            );
+            return;
+        }
+
+        // A stream whose thread exits without ever draining never delivers, so
+        // the map needs a bound. `poisoned_order` mirrors its keys, so evicting
+        // from the front drops the least recently held panic.
+        while self.poisoned.len() >= MAX_POISONED_STREAMS {
+            let Some(oldest) = self.poisoned_order.pop_front() else {
+                break;
+            };
+            if let Some(dropped) = self.poisoned.remove(&oldest) {
+                log::warn!(
+                    "dropping the undelivered panic of fusion stream {oldest:?} ({}): \
+                     {MAX_POISONED_STREAMS} streams already hold one nobody came back for",
+                    panic_message(dropped.as_ref()),
+                );
+            }
+        }
+
+        self.poisoned_order.push_back(id);
+        self.poisoned.insert(id, panic);
+    }
+
+    /// Drop `id`'s stream, releasing what only that stream could have released.
+    ///
+    /// `deferred_frees` holds last-use tensors whose owning `FusionTensor` was
+    /// already consumed, so no `Drop` op is ever coming for them — only
+    /// `OperationQueue::flush_deferred` frees them, at an execution boundary
+    /// this stream will now never reach.
+    /// Dropping the queue without freeing them would strand their backend
+    /// handles for the life of the server. The pending operations that made us
+    /// defer are abandoned with the stream, so nothing can still read them:
+    /// free unconditionally.
+    fn reset_stream(&mut self, id: StreamId, handles: &mut HandleContainer<R::FusionHandle>) {
+        let Some(mut stream) = self.streams.remove(&id) else {
+            return;
+        };
+        for ir in stream.queue.deferred_frees.drain(..) {
+            handles.free(&ir);
+        }
     }
 
     /// Mark a tensor as read.
@@ -281,43 +369,77 @@ impl<R: FusionRuntime> MultiStream<R> {
         crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
     }
 
-    /// Drain a stream.
+    /// Drain a stream for a caller that is waiting on it.
     ///
     /// A drain is where a caller actually waits, so it is also where a panic
     /// this stream swallowed on the lazy path (see [`poison`](Self::poison))
     /// is finally delivered — once; the stream underneath it was already
     /// rebuilt fresh.
+    ///
+    /// Only for callers that will observe the unwind. A drain performed on
+    /// another thread's behalf must use [`drain_detached`](Self::drain_detached).
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         if let Some(panic) = self.poisoned.remove(&id) {
+            self.poisoned_order.retain(|poisoned| *poisoned != id);
             std::panic::resume_unwind(panic);
         }
-        id.executes(|| {
-            if let Some(stream) = self.streams.get_mut(&id) {
-                let num_executed = stream.queue.global.len();
-                let processed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    stream.processor.process(
-                        Segment::new(&mut stream.queue, handles, id),
-                        &mut self.optimizations,
-                        ExecutionMode::Sync,
-                    )
-                }));
-                match processed {
-                    Ok(()) => {
-                        stream.cursor += num_executed as u64;
-                        // A drain is a boundary even when the queue was already empty.
-                        stream.queue.flush_deferred(handles);
-                    }
-                    // A drain has a caller waiting: forget the poisoned
-                    // stream and hand the panic straight back to them.
-                    Err(panic) => {
-                        self.streams.remove(&id);
-                        std::panic::resume_unwind(panic);
-                    }
+        if let Err(panic) = self.drain_inner(handles, id) {
+            // A drain has a caller waiting: forget the poisoned stream and
+            // hand the panic straight back to them.
+            self.reset_stream(id, handles);
+            std::panic::resume_unwind(panic);
+        }
+    }
+
+    /// Drain a stream from a path whose caller discards the outcome: a
+    /// cross-stream share ([`tag_shared_view`](Self::tag_shared_view), whose
+    /// client call ends in `.ok()`) or a foreign drop (`register_foreign_drop`,
+    /// submitted fire-and-forget). Resuming there would consume the panic and,
+    /// at best, log it away — so it is held for the stream's next blocking
+    /// [`drain`](Self::drain), exactly as a lazy registration's is.
+    ///
+    /// A panic already held for `id` stays held: this path never delivers, and
+    /// the work registered since is still drained — a poisoned stream is rebuilt
+    /// by the next registration, so it can have pending operations of its own.
+    pub fn drain_detached(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
+        if let Err(panic) = self.drain_inner(handles, id) {
+            self.poison(id, panic, handles);
+        }
+    }
+
+    /// Run `id`'s pending segment to completion, returning a panic instead of
+    /// resuming it — whether anyone is waiting to receive it is the caller's
+    /// to know. Leaves the torn stream in place; the caller resets it.
+    fn drain_inner(
+        &mut self,
+        handles: &mut HandleContainer<R::FusionHandle>,
+        id: StreamId,
+    ) -> Result<(), Box<dyn std::any::Any + Send>> {
+        let result = id.executes(|| {
+            let Some(stream) = self.streams.get_mut(&id) else {
+                return Ok(());
+            };
+            let num_executed = stream.queue.global.len();
+            let processed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                stream.processor.process(
+                    Segment::new(&mut stream.queue, handles, id),
+                    &mut self.optimizations,
+                    ExecutionMode::Sync,
+                )
+            }));
+            match processed {
+                Ok(()) => {
+                    stream.cursor += num_executed as u64;
+                    // A drain is a boundary even when the queue was already empty.
+                    stream.queue.flush_deferred(handles);
+                    Ok(())
                 }
+                Err(panic) => Err(panic),
             }
         });
         #[cfg(feature = "test-util")]
         crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
+        result
     }
 
     /// How a cross-thread read of `ir` on `id`'s stream must be served — see
@@ -551,6 +673,55 @@ mod tests {
         }
     }
 
+    /// Closes on its first operation, so the processor commits the segment on
+    /// the very registration that queued it. The counterpart of
+    /// [`NeverReadyFuser`], covering the path where an operation executes
+    /// during a fire-and-forget registration instead of at a drain.
+    #[derive(Clone, Debug, Default)]
+    struct EagerFuser {
+        count: usize,
+    }
+
+    impl OperationFuser<TestOptimization> for EagerFuser {
+        fn fuse(&mut self, _operation: &OperationIr) {
+            self.count += 1;
+        }
+
+        fn finish(&mut self) -> TestOptimization {
+            TestOptimization
+        }
+
+        fn reset(&mut self) {
+            self.count = 0;
+        }
+
+        fn status(&self) -> FuserStatus {
+            FuserStatus::Closed
+        }
+
+        fn properties(&self) -> FuserProperties {
+            FuserProperties {
+                score: 0,
+                ready: false,
+            }
+        }
+
+        fn len(&self) -> usize {
+            self.count
+        }
+
+        fn clone_dyn(&self) -> Box<dyn OperationFuser<TestOptimization>> {
+            Box::new(self.clone())
+        }
+    }
+
+    thread_local! {
+        /// Which fuser [`TestRuntime`] hands to the streams a test creates.
+        /// Set by [`TestSetup::eager`] and cleared when that setup drops, so a
+        /// single-threaded test run cannot leak the choice into the next test.
+        static EAGER_FUSION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
     impl FusionRuntime for TestRuntime {
         type OptimizationState = ();
         type Optimization = TestOptimization;
@@ -558,7 +729,11 @@ mod tests {
         type FusionDevice = TestDevice;
 
         fn fusers(_device: TestDevice) -> Vec<Box<dyn OperationFuser<TestOptimization>>> {
-            vec![Box::new(NeverReadyFuser::default())]
+            if EAGER_FUSION.with(std::cell::Cell::get) {
+                vec![Box::new(EagerFuser::default())]
+            } else {
+                vec![Box::new(NeverReadyFuser::default())]
+            }
         }
     }
 
@@ -610,6 +785,12 @@ mod tests {
         id: StreamId,
     }
 
+    impl Drop for TestSetup {
+        fn drop(&mut self) {
+            EAGER_FUSION.with(|eager| eager.set(false));
+        }
+    }
+
     impl TestSetup {
         fn new() -> Self {
             Self {
@@ -617,6 +798,13 @@ mod tests {
                 handles: HandleContainer::new(),
                 id: StreamId::current(),
             }
+        }
+
+        /// A setup whose streams execute on registration rather than
+        /// deferring — the lazy path a fire-and-forget caller takes.
+        fn eager() -> Self {
+            EAGER_FUSION.with(|eager| eager.set(true));
+            Self::new()
         }
 
         fn register_exp(&mut self, input: TensorId, out: TensorId) {
@@ -933,12 +1121,16 @@ mod tests {
 
         // As `enqueue_operation` does when its processing panics with no
         // caller blocked on the registration.
-        setup
-            .streams
-            .poison(setup.id, Box::new("the root cause".to_string()));
-        setup
-            .streams
-            .poison(setup.id, Box::new("downstream damage".to_string()));
+        setup.streams.poison(
+            setup.id,
+            Box::new("the root cause".to_string()),
+            &mut setup.handles,
+        );
+        setup.streams.poison(
+            setup.id,
+            Box::new("downstream damage".to_string()),
+            &mut setup.handles,
+        );
 
         let drained = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             setup.streams.drain(&mut setup.handles, setup.id);
@@ -958,6 +1150,181 @@ mod tests {
         assert!(
             setup.handles.has_handle(&t1),
             "the stream recovered: the fresh op executed"
+        );
+    }
+
+    /// The lazy path end to end: with a fuser that commits on registration,
+    /// the operation runs inside `enqueue_operation` — where the caller is a
+    /// fire-and-forget `submit` and the panic has nobody to reach. It must be
+    /// held, not swallowed, or a thread that later syncs would time work that
+    /// never ran.
+    #[test]
+    fn a_panic_while_registering_is_held_until_the_next_drain() {
+        let mut setup = TestSetup::eager();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let t2 = TensorId::new(2);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        assert!(
+            setup.handles.has_handle(&t1),
+            "eager fusion executes on registration, not at the drain"
+        );
+        assert_eq!(setup.num_pending(), 0);
+
+        setup.streams.register(
+            setup.id,
+            exp_op(t1, t2),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        assert!(
+            setup.streams.poisoned.contains_key(&setup.id),
+            "the panic came from the registration itself and is being held"
+        );
+
+        let drained = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup.streams.drain(&mut setup.handles, setup.id);
+        }));
+        let payload = drained.expect_err("the held panic is delivered at the drain");
+        assert_eq!(
+            payload.downcast_ref::<&str>().copied(),
+            Some("this operation cannot serve its problem"),
+        );
+
+        // Delivered once: the stream is usable again afterwards.
+        let t3 = TensorId::new(3);
+        let t4 = TensorId::new(4);
+        setup.register_exp(t3, t4);
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(setup.handles.has_handle(&t4), "the stream recovered");
+    }
+
+    /// A drain run on another thread's behalf has no caller to unwind into:
+    /// the share and foreign-drop paths are submitted fire-and-forget and
+    /// discard whatever comes back. Resuming there would consume the panic
+    /// and lose it for good.
+    #[test]
+    fn a_detached_drain_holds_the_panic_for_the_next_waiting_caller() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+
+        let detached = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup.streams.drain_detached(&mut setup.handles, setup.id);
+        }));
+        assert!(detached.is_ok(), "nobody is waiting here to receive it");
+        assert_eq!(setup.num_pending(), 0, "the torn stream is still reset");
+
+        let drained = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup.streams.drain(&mut setup.handles, setup.id);
+        }));
+        assert!(drained.is_err(), "the waiting caller gets it instead");
+    }
+
+    /// A share whose drain unwound materialised nothing. Recording the source
+    /// as already-drained anyway would make every later share of it skip the
+    /// drain too and mint an alias with no handle behind it.
+    #[test]
+    fn a_share_whose_drain_panicked_leaves_the_source_unmarked() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let alias = TensorId::new(2);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+
+        let shared = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup
+                .streams
+                .tag_shared_view(setup.id, t1, alias, &mut setup.handles);
+        }));
+        assert!(shared.is_ok(), "a share does not unwind into its caller");
+        assert!(
+            !setup.handles.has_handle(&alias),
+            "there was nothing to alias"
+        );
+        assert!(
+            !setup.streams.shared_sources.contains(&t1),
+            "an unmaterialised source must not be recorded as drained"
+        );
+
+        let drained = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup.streams.drain(&mut setup.handles, setup.id);
+        }));
+        assert!(drained.is_err(), "the panic survived the share");
+    }
+
+    /// A deferred free belongs to a tensor whose `FusionTensor` is already
+    /// gone, so no `Drop` op is ever coming for it — only an execution
+    /// boundary frees it, and a poisoned stream reaches none. Dropping the
+    /// queue without releasing them strands the handles for the life of the
+    /// server.
+    #[test]
+    fn poisoning_a_stream_releases_its_deferred_frees() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let t2 = TensorId::new(2);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+
+        // Cross-thread last use of t0 while a pending op still reads it.
+        setup.consuming_read(t0);
+        assert!(setup.handles.has_handle(&t0), "deferred, not yet freed");
+
+        setup.streams.register(
+            setup.id,
+            exp_op(t1, t2),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        let drained = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup.streams.drain(&mut setup.handles, setup.id);
+        }));
+        assert!(drained.is_err());
+
+        assert!(
+            !setup.handles.has_handle(&t0),
+            "the reset must release what only this stream could have released"
+        );
+    }
+
+    /// Nothing forces a poisoned stream to ever be drained: a thread that
+    /// panics and then exits never comes back for its payload. The held set
+    /// must stay bounded instead of growing for the life of the server.
+    #[test]
+    fn undelivered_panics_stay_bounded() {
+        let mut setup = TestSetup::new();
+
+        for i in 0..(MAX_POISONED_STREAMS + 8) {
+            let id = std::thread::spawn(StreamId::current).join().unwrap();
+            setup
+                .streams
+                .poison(id, Box::new(format!("panic {i}")), &mut setup.handles);
+        }
+
+        assert!(setup.streams.poisoned.len() <= MAX_POISONED_STREAMS);
+        assert_eq!(
+            setup.streams.poisoned.len(),
+            setup.streams.poisoned_order.len(),
+            "the eviction order must stay in step with what is held"
         );
     }
 }
