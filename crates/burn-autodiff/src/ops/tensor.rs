@@ -2769,8 +2769,21 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_argtopk(tensor.primitive, dim, k, out_dtype)
     }
 
-    fn float_topk(_tensor: FloatTensor<Self>, _dim: usize, _k: usize) -> FloatTensor<Self> {
-        unimplemented!("topk is not implemented for autodiff");
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
+        match super::sort::SortDim
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                let shape = tensor.primitive.shape();
+                let settings = get_device_settings::<B>(&tensor.primitive.device());
+                let (tensor, indices) =
+                    B::float_topk_with_indices(tensor.primitive, dim, k, settings.int_dtype);
+                prep.finish((indices, shape, dim), tensor)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_topk(tensor.primitive, dim, k)),
+        }
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<B> {
