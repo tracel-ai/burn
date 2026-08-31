@@ -163,11 +163,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
         });
 
         let gemv = TuneGroup::<MatmulAutotuneKey>::new("gemv", move |key| {
-            if num_cpu_cores.is_some() {
-                return PRIORITY_MAX;
-            }
-
             if matches!(key.analysis.kind, MatmulKind::MatVec) {
+                if num_cpu_cores.is_some() {
+                    return PRIORITY_MAX;
+                }
+
                 // LHS is the matrix
                 match key.definition.matrix_layout_lhs {
                     MatrixBatchLayout::Contiguous => PRIORITY_MAX,
@@ -184,6 +184,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     MatrixBatchLayout::HighlyPermuted => PRIORITY_MAX,
                 }
             } else if matches!(key.analysis.kind, MatmulKind::VecMat) {
+                if num_cpu_cores.is_some() {
+                    return PRIORITY_MAX;
+                }
+
                 // RHS is the matrix
                 match key.definition.matrix_layout_rhs {
                     // We don't have good algos for row major vecmat.
@@ -320,6 +324,25 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 },
             )
             .group(&unit, move |_key| PRIORITY_MAX),
+        );
+
+        // `Gemm` is not a vector routine, so the `gemv` group offers it only for the kinds
+        // that group serves. On CPU it is the fastest choice for the flat shapes pointwise
+        // convolutions produce, which are `General`, so it is offered there too.
+        //
+        // A second registration rather than a second group on the one above: a group
+        // answering `PRIORITY_NEVER` drops the candidate whatever another group says, and
+        // `gemv` answers that for every kind but its own.
+        let cpu_gemm_general = Strategy::Gemm(BlueprintStrategy::Inferred(Default::default()));
+        set = set.with(
+            Tunable::new("gemm_cpu_general", move |(lhs, rhs, out)| {
+                launch_matmul::<R, _>(&cpu_gemm_general, lhs, rhs, out)
+                    .map_err(|err| std::format!("{err:?}"))
+            })
+            .group(&cpu, move |key| match key.analysis.kind {
+                MatmulKind::General => PRIORITY_MAX,
+                _ => PRIORITY_NEVER,
+            }),
         );
 
         // CPU GEMM (CPU-only via the `cpu` group; the size limit is specific to this strategy).
