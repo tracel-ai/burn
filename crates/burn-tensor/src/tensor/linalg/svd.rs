@@ -110,21 +110,23 @@ pub fn svd<const D: usize, const D1: usize>(
     };
     let (m, n) = (n_rows.max(n_cols), n_rows.min(n_cols));
 
-    // Empty matrix (a zero leading dimension): the reduced SVD is empty too.
-    // Skip the pipeline (bidiagonalization would index out of bounds).
-    if m == 0 || n == 0 {
+    // Empty matrix or batch: the reduced SVD is empty too. Skip the backend
+    // pipeline, which cannot obtain an aligned typed slice from every empty
+    // tensor representation.
+    let empty_batch = dims[..D - 2].contains(&0);
+    if m == 0 || n == 0 || empty_batch {
         let mut du = [1; D];
         du[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
         du[D - 2] = n_rows;
-        du[D - 1] = 0;
+        du[D - 1] = n;
         let mut ds = [1; D1];
         if D1 >= 2 {
             ds[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
         }
-        ds[D1 - 1] = 0;
+        ds[D1 - 1] = n;
         let mut dv = [1; D];
         dv[..(D - 2)].copy_from_slice(&dims[..(D - 2)]);
-        dv[D - 2] = 0;
+        dv[D - 2] = n;
         dv[D - 1] = n_cols;
         let u_t = Tensor::<D>::empty(du, (&device, DType::F32));
         let s_t = Tensor::<D1>::empty(ds, (&device, DType::F32));
