@@ -237,6 +237,22 @@ fn should_diff_prod_single_zero() {
 }
 
 #[test]
+fn should_diff_prod_single_zero_with_broadcast_upstream() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(TensorData::from([[2.0, 0.0], [3.0, 4.0]]), &device)
+        .require_grad();
+
+    let output = tensor.clone().prod();
+    let grads = output.mul_scalar(2.0).backward();
+    let grad = tensor.grad(&grads).unwrap();
+
+    // The scalar upstream gradient broadcasts over the input shape.
+    let expected = TensorData::from([[0.0, 48.0], [0.0, 0.0]]);
+    grad.to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
 fn should_diff_prod_multiple_zeros() {
     let device = AutodiffDevice::new();
     let tensor = TestTensor::<1>::from_data(TensorData::from([2.0, 0.0, 3.0, 0.0, 5.0]), &device)
@@ -269,6 +285,27 @@ fn should_diff_prod_dim_with_zeros() {
     // The columns contain zero, one, and two zeros respectively. Their local
     // derivatives are also scaled by distinct upstream gradients.
     let expected = TensorData::from([[12.0, 18.0, 0.0], [6.0, 0.0, 0.0], [4.0, 0.0, 0.0]]);
+    grad.to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn should_diff_prod_dim_with_zeros_last_dim() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[1.0, 2.0, 3.0], [2.0, 0.0, 4.0], [0.0, 5.0, 0.0]]),
+        &device,
+    )
+    .require_grad();
+    let upstream = TestTensor::<2>::from_data(TensorData::from([[2.0], [3.0], [4.0]]), &device);
+
+    let output = tensor.clone().prod_dim(1);
+    let grads = output.mul(upstream).sum().backward();
+    let grad = tensor.grad(&grads).unwrap();
+
+    // The rows contain zero, one, and two zeros respectively, reduced along the
+    // last dimension and scaled by distinct upstream gradients.
+    let expected = TensorData::from([[12.0, 6.0, 4.0], [0.0, 24.0, 0.0], [0.0, 0.0, 0.0]]);
     grad.to_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }

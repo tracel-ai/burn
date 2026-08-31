@@ -79,29 +79,19 @@ fn prod_backward<B: Backend>(
     let at_most_one_zero = B::float_lower_elem(zero_count, 1.5.into(), bool_dtype);
     let one_zero = B::bool_and(B::bool_not(no_zero.clone()), at_most_one_zero);
 
-    let ones = B::float_ones(shape.clone(), &device, dtype.into());
-    let expand = |tensor| {
-        let tensor = if dim.is_none() {
-            unsqueeze_like::<B>(tensor, shape.clone())
-        } else {
-            tensor
-        };
-        B::float_mul(ones.clone(), tensor)
-    };
-
-    let grad = expand(grad);
-    let nonzero_product = expand(nonzero_product);
     let no_zero = B::bool_expand(no_zero, shape.clone());
     let one_zero = B::bool_expand(one_zero, shape.clone());
 
-    // The ordinary quotient is always evaluated with zeros replaced by one.
-    // Its values at zero positions are discarded unless the reduction has no zeros.
-    let ordinary = B::float_div(nonzero_product.clone(), input_safe);
+    // Broadcasting the reduced product against the input produces the full input shape.
+    // At zero positions the safe denominator is one, so the quotient can also be reused
+    // for the single-zero branch.
+    let ordinary = B::float_div(nonzero_product, input_safe);
     let zeros = B::float_zeros(shape, &device, dtype.into());
-    let single_zero = B::float_mask_where(zeros.clone(), zero_mask_bool, nonzero_product);
+    let single_zero = B::float_mask_where(zeros.clone(), zero_mask_bool, ordinary.clone());
     let local_grad = B::float_mask_where(zeros, no_zero, ordinary);
     let local_grad = B::float_mask_where(local_grad, one_zero, single_zero);
 
+    // The upstream gradient is reduced-shaped and broadcasts to the input shape here.
     B::float_mul(grad, local_grad)
 }
 
