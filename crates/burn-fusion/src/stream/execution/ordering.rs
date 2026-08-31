@@ -84,6 +84,27 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         }
     }
 
+    /// Guarantee forward progress after a panic escaped the strategy walk.
+    ///
+    /// Every unit of work counts its operations *before* it runs, so an
+    /// escape normally leaves at least one consumed and the queue shrinks. A
+    /// panic raised before the first count — one of the strategy walk's own
+    /// guards — consumes nothing, and an unchanged queue is not a safe place
+    /// to stop: the policy re-plans it identically, re-selects the same
+    /// strategy and raises the same panic, without end.
+    ///
+    /// So the block the strategy was going to run is consumed as one unit.
+    /// `planned` is that block's length; nothing in it ran, so the claim on
+    /// its write set is honest, and the caller reports it exactly as any
+    /// other failure.
+    pub(crate) fn consume_stalled(&mut self, planned: usize) {
+        if self.num_executed > 0 {
+            return;
+        }
+
+        self.num_executed = planned.min(self.operations.len());
+    }
+
     pub(crate) fn execute_optimization(
         &mut self,
         optimization: &mut R::Optimization,

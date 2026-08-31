@@ -193,6 +193,16 @@ fn run_strategy<R: FusionRuntime>(
         }))
         .err()
     };
+
+    if escaped.is_some() {
+        // Before `finish`, which is what turns the count into a drain: an
+        // escape that consumed nothing would otherwise hand the queue back
+        // byte-identical, and the policy would re-select this same plan and
+        // fail the same way, forever. `ordering` is the block this strategy
+        // was going to run.
+        execution.consume_stalled(optimization.ordering.len());
+    }
+
     let mut executed = execution.finish();
 
     if let Some(escaped) = escaped {

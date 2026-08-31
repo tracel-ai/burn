@@ -1171,6 +1171,60 @@ mod tests {
         );
     }
 
+    /// A panic can escape the strategy walk *before* any unit of work has
+    /// counted its operations — the walk's own guards do exactly that. The
+    /// queue must still shrink: handing it back unchanged lets the policy
+    /// re-plan it identically, re-select the same strategy and raise the same
+    /// panic, without end. The block is consumed as one unit instead, so the
+    /// failure is reported once and the stream moves on.
+    #[test]
+    fn a_panic_before_any_work_is_counted_still_drains_the_block() {
+        use crate::search::BlockOptimization;
+        use crate::stream::store::ExecutionStrategy;
+
+        let mut setup = TestSetup::new();
+        let (t0, t1) = (TensorId::new(0), TensorId::new(1));
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+
+        let stream = setup
+            .streams
+            .streams
+            .get_mut(&setup.id)
+            .expect("the registration created the stream");
+        assert_eq!(stream.queue.global.len(), 1, "one operation queued");
+
+        // An ordering longer than the queue. `execute_optimization` guards
+        // against exactly this and panics on it — before it counts anything,
+        // which is the case the queue would otherwise hand back untouched.
+        let ordering = vec![0, 1, 2];
+        let optimization = BlockOptimization::new(
+            ExecutionStrategy::Optimization {
+                opt: TestOptimization {
+                    len: ordering.len(),
+                    outputs: Vec::new(),
+                    panics: false,
+                },
+                ordering: std::sync::Arc::new(ordering.clone()),
+                score: 0,
+            },
+            ordering,
+        );
+
+        stream
+            .queue
+            .execute_unfused(optimization, &mut setup.handles, setup.id);
+
+        assert!(
+            stream.queue.global.is_empty() && stream.queue.operations.is_empty(),
+            "the block was consumed, so the next pass cannot re-select it"
+        );
+        assert!(
+            setup.handles.error(&t1).is_some(),
+            "and nothing ran, so its output carries the failure"
+        );
+    }
+
     /// The property the whole design is for: a failure is a fact about the
     /// tensors it was going to write, so work that shares none of them is
     /// untouched — even when it was queued on the same stream, behind the
