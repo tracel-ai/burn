@@ -272,6 +272,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
                 Ok(bytes) => visitor.visit_byte_buf(bytes),
                 Err(bytes) => visitor.visit_bytes(&bytes),
             },
+            Some(NestedValue::U8s(bytes)) => visitor.visit_byte_buf(bytes),
             Some(other) => Err(custom_err(format!(
                 "expected byte buffer but got {other:?}"
             ))),
@@ -1170,5 +1171,15 @@ mod tests {
         let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
         let result = MockDType::deserialize(de);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_deserialize_u8s_as_byte_buf() {
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct ByteHolder(Vec<u8>);
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::U8s(vec![1, 2, 3, 4]), false);
+        let result = ByteHolder::deserialize(de).unwrap();
+        assert_eq!(result, ByteHolder(vec![1, 2, 3, 4]));
     }
 }
