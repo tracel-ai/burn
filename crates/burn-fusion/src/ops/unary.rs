@@ -97,7 +97,10 @@ macro_rules! reduce_ops {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) -> Result<(), $crate::ExecutionError> {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), $crate::ExecutionError> {
                 let $input = handles.$get::<B>(&self.desc.input);
                 let $ir = &self.desc;
                 let output = $ops;

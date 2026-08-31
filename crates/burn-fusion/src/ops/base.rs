@@ -1,4 +1,5 @@
 use crate::{FusionBackend, stream::Operation};
+use burn_backend::ExecutionError;
 use burn_ir::HandleContainer;
 use std::marker::PhantomData;
 
@@ -11,10 +12,7 @@ pub struct NoOp<B: FusionBackend> {
 }
 
 impl<B: FusionBackend> Operation<B::FusionRuntime> for NoOp<B> {
-    fn execute(
-        &self,
-        _handles: &mut HandleContainer<B::Handle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    fn execute(&self, _handles: &mut HandleContainer<B::Handle>) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

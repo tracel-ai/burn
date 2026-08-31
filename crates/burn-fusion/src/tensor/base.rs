@@ -232,7 +232,7 @@ impl<RO: FusionRuntime> Operation<RO> for DropOp {
     fn execute(
         &self,
         handles: &mut burn_ir::HandleContainer<RO::FusionHandle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    ) -> Result<(), ExecutionError> {
         handles.remove_handle(self.id);
         Ok(())
     }

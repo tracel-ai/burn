@@ -1,4 +1,4 @@
-use burn_backend::StreamId;
+use burn_backend::{ExecutionError, StreamId};
 use burn_ir::HandleContainer;
 use burn_std::arena::ReservedMemory;
 use std::{cell::RefCell, sync::Arc};
@@ -56,7 +56,7 @@ impl<R: FusionRuntime> UnfusedOp<R> {
     pub fn execute(
         &self,
         handles: &mut HandleContainer<R::FusionHandle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    ) -> Result<(), ExecutionError> {
         self.stream_id.executes(|| match &self.kind {
             UnfusedOpKind::Arena(o) => o.execute(handles),
             UnfusedOpKind::Alloc(o) => o.execute(handles),
@@ -72,7 +72,7 @@ struct UnfusedOpInArena<R: FusionRuntime> {
     ptr_execute: fn(
         *const Data,
         handles: &mut HandleContainer<R::FusionHandle>,
-    ) -> Result<(), burn_backend::ExecutionError>,
+    ) -> Result<(), ExecutionError>,
 }
 
 impl<R: FusionRuntime> Clone for UnfusedOpInArena<R> {
@@ -88,7 +88,7 @@ impl<R: FusionRuntime> UnfusedOpInArena<R> {
     fn execute(
         &self,
         handles: &mut HandleContainer<R::FusionHandle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    ) -> Result<(), ExecutionError> {
         (self.ptr_execute)(self.reserved.as_ref(), handles)
     }
 }
@@ -96,7 +96,7 @@ impl<R: FusionRuntime> UnfusedOpInArena<R> {
 fn shim_execute<R: FusionRuntime, O: Operation<R>>(
     ptr_data: *const Data,
     handles: &mut HandleContainer<R::FusionHandle>,
-) -> Result<(), burn_backend::ExecutionError> {
+) -> Result<(), ExecutionError> {
     let operation: &O = unsafe { (ptr_data as *const O).as_ref().unwrap() };
     operation.execute(handles)
 }

@@ -11,7 +11,7 @@ use crate::{
     UnfusedOp,
     stream::{Context, Operation, OrderedExecution},
 };
-use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, Shape};
+use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, ExecutionError, Shape};
 use burn_ir::{FloatOperationIr, TensorError, TensorIr, TensorStatus, UnaryOpIr};
 use burn_std::{BoolDType, FloatDType, IntDType, device::Device};
 
@@ -336,10 +336,7 @@ struct ProduceOp {
 }
 
 impl Operation<TestRuntime> for ProduceOp {
-    fn execute(
-        &self,
-        handles: &mut HandleContainer<TestHandle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    fn execute(&self, handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
         handles.register_handle(self.out, TestHandle);
 
         Ok(())
@@ -353,13 +350,8 @@ impl Operation<TestRuntime> for ProduceOp {
 struct ReportOp;
 
 impl Operation<TestRuntime> for ReportOp {
-    fn execute(
-        &self,
-        _handles: &mut HandleContainer<TestHandle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
-        Err(burn_backend::ExecutionError::generic(
-            "this operation declined to run",
-        ))
+    fn execute(&self, _handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
+        Err(ExecutionError::generic("this operation declined to run"))
     }
 }
 
@@ -372,10 +364,7 @@ struct AliasThenPanicOp {
 }
 
 impl Operation<TestRuntime> for AliasThenPanicOp {
-    fn execute(
-        &self,
-        handles: &mut HandleContainer<TestHandle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    fn execute(&self, handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
         handles.register_handle(self.out, TestHandle);
         panic!("this operation cannot serve its problem");
     }
@@ -396,10 +385,7 @@ struct DropOp {
 }
 
 impl Operation<TestRuntime> for DropOp {
-    fn execute(
-        &self,
-        handles: &mut HandleContainer<TestHandle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    fn execute(&self, handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
         self.ran.store(true, std::sync::atomic::Ordering::Relaxed);
         handles.remove_handle(self.id);
 
@@ -413,10 +399,7 @@ impl Operation<TestRuntime> for DropOp {
 struct PanicOp;
 
 impl Operation<TestRuntime> for PanicOp {
-    fn execute(
-        &self,
-        _handles: &mut HandleContainer<TestHandle>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    fn execute(&self, _handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
         panic!("this operation cannot serve its problem");
     }
 }

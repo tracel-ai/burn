@@ -26,7 +26,7 @@ macro_rules! make_ops {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), $crate::ExecutionError> {
                 #[allow(clippy::redundant_closure_call)]
                 $fn(&self.desc, handles);
 

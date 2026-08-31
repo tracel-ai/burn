@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DeviceId,
+    DeviceId, ExecutionError,
     distributed::{CollectiveTensor, DistributedOps, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -31,7 +31,7 @@ impl<B: FusionBackend> DistributedOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let output = B::all_reduce(tensor, self.op, self.device_ids.clone());
                 handles.register_float_tensor::<B>(&self.desc.out.id, unsafe {

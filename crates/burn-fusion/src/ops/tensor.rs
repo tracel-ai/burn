@@ -31,7 +31,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_pad(tensor, &self.desc.padding, self.desc.mode.into());
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -93,7 +93,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let output: B::FloatTensorPrimitive = B::float_random(
                     self.desc.out.shape.clone(),
                     self.desc.distribution,
@@ -130,7 +130,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let shape = self.out.shape.clone();
                 let output = B::float_zeros(shape, &self.device, self.out.dtype.into());
                 handles.register_float_tensor::<B>(&self.out.id, output);
@@ -162,7 +162,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let shape = self.out.shape.clone();
                 let output = B::float_ones(shape, &self.device, self.out.dtype.into());
                 handles.register_float_tensor::<B>(&self.out.id, output);
@@ -200,7 +200,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let shape = self.out.shape.clone();
                 let dtype = self.out.dtype.into();
                 let output: B::FloatTensorPrimitive =
@@ -272,7 +272,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_into_int(input, self.desc.out.dtype.into());
 
@@ -309,7 +309,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let output = B::float_empty(
                     self.desc.shape.clone(),
                     &self.device,
@@ -384,7 +384,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let output = B::float_clamp(input, self.desc.min.into(), self.desc.max.into());
 
@@ -607,7 +607,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
                 let rhs = handles.get_float_tensor::<B>(&self.desc.rhs);
                 let output = B::float_cross(lhs, rhs, self.desc.dim);
@@ -644,7 +644,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_swap_dims(input, self.desc.dim1, self.desc.dim2);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -684,7 +684,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_reshape(input, self.desc.out.shape.clone());
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -722,7 +722,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
@@ -766,7 +766,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_float_tensor::<B>(&self.desc.value);
@@ -817,7 +817,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let data = handles.get_float_tensor::<B>(&self.desc.data);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let values = handles.get_float_tensor::<B>(&self.desc.values);
@@ -861,7 +861,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let data = handles.get_float_tensor::<B>(&self.desc.data);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
@@ -903,7 +903,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
@@ -948,7 +948,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_float_tensor::<B>(&self.desc.value);
@@ -994,7 +994,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
 
                 let output = B::float_slice(tensor, self.desc.ranges.as_slice());
@@ -1036,7 +1036,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let value = handles.get_float_tensor::<B>(&self.desc.value);
 
@@ -1080,7 +1080,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let value = handles.get_float_tensor::<B>(&self.desc.value);
                 let mask = handles.get_bool_tensor::<B>(&self.desc.mask);
@@ -1124,7 +1124,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let mask = handles.get_bool_tensor::<B>(&self.desc.mask);
 
@@ -1626,7 +1626,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_cumsum(input, self.desc.axis);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -1660,7 +1660,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_cumprod(input, self.desc.axis);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -1697,7 +1697,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_cummin(input, self.desc.axis);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -1731,7 +1731,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_cummax(input, self.desc.axis);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -2125,7 +2125,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensors = self
                     .desc
                     .tensors
@@ -2240,7 +2240,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let (output, indices) = B::float_topk_with_indices(
                     tensor,
@@ -2288,7 +2288,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
 
                 let output = B::float_repeat_dim(tensor, self.desc.dim, self.desc.times);
@@ -2388,7 +2388,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let (output, indices) = B::float_max_dim_with_indices(
                     tensor,
@@ -2475,7 +2475,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let (output, indices) = B::float_min_dim_with_indices(
                     tensor,
@@ -2580,7 +2580,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_permute(input, self.desc.axes.as_slice());
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -2616,7 +2616,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_expand(input, self.desc.out.shape.clone());
 
@@ -2651,7 +2651,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_flip(input, &self.desc.axes);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -2756,7 +2756,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output: B::FloatTensorPrimitive = B::float_cast(input, self.dtype);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
@@ -2797,7 +2797,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_unfold(input, self.desc.dim, self.desc.size, self.desc.step);
 
@@ -2833,7 +2833,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_is_nan(input, self.desc.out.dtype.into());
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
@@ -2868,7 +2868,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = B::float_is_inf(input, self.desc.out.dtype.into());
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
@@ -2908,7 +2908,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(
                 &self,
                 handles: &mut HandleContainer<B::Handle>,
-            ) -> Result<(), burn_backend::ExecutionError> {
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let grid = handles.get_float_tensor::<B>(&self.desc.grid);
                 let output =

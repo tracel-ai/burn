@@ -19,8 +19,8 @@ use burn_backend::DType;
 use burn_backend::ops::FloatTensorOps;
 use burn_fusion::stream::{Context, Operation, OrderedExecution};
 use burn_fusion::{
-    FuserProperties, FuserStatus, FusionBackend, FusionRuntime, NumOperations, OperationFuser,
-    OperationRan, Optimization,
+    ExecutionError, FuserProperties, FuserStatus, FusionBackend, FusionRuntime, NumOperations,
+    OperationFuser, OperationRan, Optimization,
 };
 use burn_ir::{
     BackendIr, CustomOpIr, GraphBindings, GraphId, GraphIr, Handle, HandleContainer, OperationIr,
@@ -314,7 +314,7 @@ impl<R: RouterChannel> Operation<RouterFusionRuntime<R>> for CustomOperation<R> 
     fn execute(
         &self,
         handles: &mut HandleContainer<RouterTensor<R::Client>>,
-    ) -> Result<(), burn_backend::ExecutionError> {
+    ) -> Result<(), ExecutionError> {
         let client = get_client::<R>(&self.device);
 
         // Map each fused input handle to its backend tensor id. `into_ir` carries the
