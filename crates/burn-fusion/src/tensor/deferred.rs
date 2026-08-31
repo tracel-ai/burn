@@ -10,10 +10,14 @@
 //! in the handle container releasable: an abandoned drop leaves the entry, and
 //! any claim on it, outliving every tensor that could report it.
 
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 
 thread_local! {
     static PENDING: RefCell<Vec<Box<dyn FnOnce()>>> = const { RefCell::new(Vec::new()) };
+    /// Whether this thread is already inside [`flush`]. Replaying a drop calls
+    /// back into the client, which flushes again; the outer call owns the queue,
+    /// so the inner one has nothing left to do.
+    static REPLAYING: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Set a drop aside until this thread is somewhere it can be registered.
@@ -21,27 +25,35 @@ pub(crate) fn defer(drop: impl FnOnce() + 'static) {
     PENDING.with(|pending| pending.borrow_mut().push(Box::new(drop)));
 }
 
-/// Register everything set aside. Called where a registration already
-/// happens, so the check rides along with work the caller was doing anyway.
+/// Register everything set aside. Called wherever the client is reached, so the
+/// check rides along with work the caller was doing anyway.
 pub(crate) fn flush() {
     // The common case, on the hot path: nothing was ever deferred.
     if PENDING.with(|pending| pending.borrow().is_empty()) {
         return;
     }
 
-    // Taken rather than iterated in place: registering a drop can defer
-    // another one, and holding the borrow across that would panic.
+    if REPLAYING.with(Cell::get) {
+        return;
+    }
+
+    REPLAYING.with(|replaying| replaying.set(true));
+
+    // Taken rather than iterated in place: registering a drop can defer another
+    // one, and holding the borrow across that would panic.
     loop {
         let batch: Vec<_> = PENDING.with(|pending| core::mem::take(&mut *pending.borrow_mut()));
 
         if batch.is_empty() {
-            return;
+            break;
         }
 
         for drop in batch {
             drop();
         }
     }
+
+    REPLAYING.with(|replaying| replaying.set(false));
 }
 
 #[cfg(test)]

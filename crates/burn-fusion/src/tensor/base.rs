@@ -241,59 +241,42 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Acquire);
 
-        // A drop raised while the thread is unwinding is set aside rather than
-        // registered: registering re-enters the client, which can drain the
-        // stream and run queued work, and a panic raised there while this one
-        // is still unwinding aborts the process. It is replayed by the next
-        // registration on this thread — a normal call stack — so the entry is
-        // released rather than leaked.
-        if std::thread::panicking() {
-            if let TensorStatus::ReadWrite = self.status(count) {
-                let mut shape = Shape::from(Vec::<usize>::new());
-                core::mem::swap(&mut shape, &mut self.shape);
-
-                let ir = TensorIr {
-                    id: self.id,
-                    shape,
-                    status: TensorStatus::ReadWrite,
-                    dtype: self.dtype,
-                };
-                let (client, stream, id) = (self.client.clone(), self.stream, self.id);
-
-                deferred::defer(move || {
-                    client.register_foreign_drop(stream, ir, DropOp { id });
-                });
-            }
+        let TensorStatus::ReadWrite = self.status(count) else {
             return;
-        }
+        };
 
-        match self.status(count) {
-            TensorStatus::ReadWrite => {
-                let mut shape = Shape::from(Vec::<usize>::new());
-                core::mem::swap(&mut shape, &mut self.shape);
+        let mut shape = Shape::from(Vec::<usize>::new());
+        core::mem::swap(&mut shape, &mut self.shape);
 
-                let ir = TensorIr {
-                    id: self.id,
-                    shape,
-                    status: TensorStatus::ReadWrite,
-                    dtype: self.dtype,
-                };
+        let ir = TensorIr {
+            id: self.id,
+            shape,
+            status: TensorStatus::ReadWrite,
+            dtype: self.dtype,
+        };
+        let (client, stream, id) = (self.client.clone(), self.stream, self.id);
 
-                // A foreign drop interleaves at a nondeterministic point in the home stream's
-                // pending fused segment; route it through a path that never touches the queue.
-                if StreamId::current() == self.stream {
-                    self.client.register(
-                        self.stream,
-                        OperationIr::Drop(ir),
-                        DropOp { id: self.id },
-                    );
-                } else {
-                    self.client
-                        .register_foreign_drop(self.stream, ir, DropOp { id: self.id });
-                }
+        // A foreign drop interleaves at a nondeterministic point in the home
+        // stream's pending fused segment; route it through a path that never
+        // touches the queue. Deciding inside the closure keeps the choice the
+        // same whether it runs now or is replayed: replaying happens on the
+        // thread that deferred it, so `current()` answers the same either way.
+        let register = move || match StreamId::current() == stream {
+            true => {
+                client.register(stream, OperationIr::Drop(ir), DropOp { id });
             }
-            TensorStatus::ReadOnly => {}
-            TensorStatus::NotInit => {}
+            false => client.register_foreign_drop(stream, ir, DropOp { id }),
+        };
+
+        // A drop raised while the thread is unwinding cannot register now:
+        // registering re-enters the client, which can drain the stream and run
+        // queued work, and a panic raised there while this one is still
+        // unwinding aborts the process. It is set aside and replayed at the
+        // next call into the client on this thread — a normal call stack — so
+        // the entry is released rather than leaked.
+        match std::thread::panicking() {
+            true => deferred::defer(register),
+            false => register(),
         }
     }
 }

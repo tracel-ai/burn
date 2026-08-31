@@ -77,7 +77,7 @@ and nothing downstream is skipped.
 **Release.** A claim lives exactly as long as the tensor carrying it — released by the tensor's
 `Drop`, or by a `ReadWrite` read that consumes it (`take_error`). A drop raised while the thread is
 unwinding cannot register then — that re-enters the client mid-unwind — so it is set aside and
-replayed by the next registration on that thread, rather than dropped on the floor. Note that `input_error`
+replayed at the next call into the client on that thread, rather than dropped on the floor. Note that `input_error`
 deliberately exempts `OperationIr::Drop`: a drop names its tensor as an input but does not read it,
 and skipping drops would make claims outlive every tensor that could report them.
 
@@ -155,6 +155,10 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
   implemented as a `debug_assert`, found nothing across the whole suite. The scope is still the API,
   so this can be revisited behind `over` and `run` without touching a call site if the second
   argument ever gets teeth.
+- A drop set aside during an unwind is replayed by the next call into the client *on that thread*.
+  A thread that panics and then never touches fusion again keeps those entries, and any claim on
+  them, for the life of the process — the queue is thread-local and nothing else drains it. It is a
+  far narrower leak than abandoning the registration outright, not the absence of one.
 - Raising is still caught with `catch_unwind`, so a backend that panics rather than reporting relies
   on the unwinding panic runtime. Under `panic = "abort"` a panicking operation ends the process,
   which is a worse outcome than a claim but not one a claim could improve on — prefer reporting.
