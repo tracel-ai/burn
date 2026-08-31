@@ -237,15 +237,6 @@ pub trait ParameterValue: sealed::Sealed + Clone + core::fmt::Debug + Send {}
 ///
 /// General module-owned values can implement [`ParameterValue`] without pretending to require
 /// gradients, reside on a device or have a tensor shape.
-///
-/// [`Flag`](crate::module::Flag) is deliberately not a tensor parameter:
-///
-/// ```compile_fail
-/// use burn_core::module::{Flag, Parameter};
-///
-/// fn assert_parameter<T: Parameter>() {}
-/// assert_parameter::<Flag>();
-/// ```
 pub trait Parameter: ParameterValue {
     /// Fetch the gradient requirement.
     fn is_require_grad(&self) -> bool;
