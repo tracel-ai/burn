@@ -90,16 +90,37 @@ pub(crate) fn panic_message(panic: &(dyn core::any::Any + Send)) -> &str {
 pub(crate) type Panic = Box<dyn core::any::Any + Send>;
 
 /// What a scope's work did.
-pub(crate) enum Outcome<T> {
+pub(crate) enum Outcome {
     /// It ran and wrote its outputs.
-    Ran(T),
+    Ran,
     /// It did not run, because an input it needed carried a failure. Its write
     /// set carries that same failure now, so a read of one of those tensors
     /// names the cause that started it rather than one of its own.
     Skipped,
-    /// It ran and failed. Its write set carries the failure. The payload is
-    /// `Some` when the work panicked rather than reporting.
-    Failed(Option<Panic>),
+    /// It ran and reported a failure. Its write set carries the error it
+    /// reported, whole.
+    Reported,
+    /// It ran and panicked. Its write set carries the panic's message, and the
+    /// payload comes back so a caller can log it.
+    Panicked(Panic),
+}
+
+/// Whether a panic out of the body is this scope's to catch.
+pub(crate) enum OnPanic {
+    /// Catch it. The payload comes back as [`Outcome::Panicked`], and the
+    /// write set is claimed before it does — which is why the catch lives in
+    /// the scope rather than at the call site.
+    Catch,
+    /// Let it out, for an outer scope to see. For work that already runs
+    /// inside one: a fallback in the middle of a fused block is one operation
+    /// of a kernel that is still part way through, so swallowing its panic
+    /// would let the block carry on as though the piece it could not serve had
+    /// run. The claim still happens, on the way out, through [`Drop`].
+    ///
+    /// A reported failure is claimed here all the same — only a panic is left
+    /// to the outer scope, because only a panic is what the outer unit cannot
+    /// carry on through.
+    Raise,
 }
 
 /// Whatever a scope can reach the handle container through.
@@ -108,18 +129,25 @@ pub(crate) enum Outcome<T> {
 /// against the whole [`Context`], because that is what the optimization needs.
 /// The scope only ever wants the handles, so it asks for them rather than
 /// being written twice.
-pub(crate) trait Claims<H: Clone> {
+pub(crate) trait Handles {
+    /// What the container holds.
+    type Handle: Clone;
+
     /// The container the claim is recorded in.
-    fn handles(&mut self) -> &mut HandleContainer<H>;
+    fn handles(&mut self) -> &mut HandleContainer<Self::Handle>;
 }
 
-impl<H: Clone> Claims<H> for HandleContainer<H> {
+impl<H: Clone> Handles for HandleContainer<H> {
+    type Handle = H;
+
     fn handles(&mut self) -> &mut HandleContainer<H> {
         self
     }
 }
 
-impl<H: Clone> Claims<H> for Context<H> {
+impl<H: Clone> Handles for Context<H> {
+    type Handle = H;
+
     fn handles(&mut self) -> &mut HandleContainer<H> {
         &mut self.handles
     }
@@ -164,19 +192,26 @@ impl Work<'_> {
     }
 }
 
-/// One unit of work, and the claim on everything it was going to write.
-pub(crate) struct WriteScope<'a, H: Clone, W: Claims<H>> {
-    work: Work<'a>,
-    target: &'a mut W,
-    /// Set between entry and exit. A scope dropped while still armed was left
-    /// without reaching either exit, and claims its write set on the way out.
-    armed: bool,
-    /// Whether the body may run at all. False for a scope opened on a skip.
-    entered: bool,
-    _handle: core::marker::PhantomData<H>,
+/// Where a scope is between its one entry and its one exit.
+enum State {
+    /// Opened on a claimed input. The write set took that failure in the
+    /// constructor, and the body does not run.
+    Skipped,
+    /// Entered, and not yet past the exit. A scope dropped in this state was
+    /// left without reaching one, and claims its write set on the way out.
+    Running,
+    /// Past the exit, so whatever was going to be claimed has been.
+    Finished,
 }
 
-impl<'a, H: Clone, W: Claims<H>> WriteScope<'a, H, W> {
+/// One unit of work, and the claim on everything it was going to write.
+pub(crate) struct WriteScope<'a, W: Handles> {
+    work: Work<'a>,
+    target: &'a mut W,
+    state: State,
+}
+
+impl<'a, W: Handles> WriteScope<'a, W> {
     /// Open a scope over one operation.
     pub(crate) fn over(ir: &'a OperationIr, target: &'a mut W) -> Self {
         Self::open(Work::One(ir), target)
@@ -197,98 +232,69 @@ impl<'a, H: Clone, W: Claims<H>> WriteScope<'a, H, W> {
     /// every claim displace, and why no caller has to say what to do about a
     /// handle that is already registered.
     fn open(work: Work<'a>, target: &'a mut W) -> Self {
-        match work.input_error(target.handles()) {
+        let state = match work.input_error(target.handles()) {
             Some(error) => {
                 work.claim(target.handles(), &error);
-                Self {
-                    work,
-                    target,
-                    armed: false,
-                    entered: false,
-                    _handle: core::marker::PhantomData,
-                }
+                State::Skipped
             }
-            None => Self {
-                work,
-                target,
-                armed: true,
-                entered: true,
-                _handle: core::marker::PhantomData,
-            },
+            None => State::Running,
+        };
+
+        Self {
+            work,
+            target,
+            state,
         }
     }
 
-    /// Run `body` between the entry and the exit.
+    /// Run `body` between the entry and the exit, and claim the write set if
+    /// it does not reach the end.
     ///
     /// The catch lives here rather than at the call site: a unit of work that
-    /// panics has to claim its write set, and putting the catch where the write
+    /// fails has to claim its write set, and putting the catch where the write
     /// set is known is what stops that being four separate things a caller can
-    /// get wrong.
-    pub(crate) fn run<T>(
+    /// get wrong. `on_panic` says which scope owns the catch — this one, or
+    /// the one this work is already running inside.
+    pub(crate) fn run(
         mut self,
-        body: impl FnOnce(&mut W) -> Result<T, ExecutionError>,
-    ) -> Outcome<T> {
-        if !self.entered {
-            self.armed = false;
+        on_panic: OnPanic,
+        body: impl FnOnce(&mut W) -> Result<(), ExecutionError>,
+    ) -> Outcome {
+        if let State::Skipped = self.state {
+            self.state = State::Finished;
             return Outcome::Skipped;
         }
 
         let target = &mut *self.target;
-        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| body(target)));
-        self.armed = false;
+        let ran = match on_panic {
+            OnPanic::Catch => {
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| body(target)))
+            }
+            // A panic unwinds out of here, leaving the state `Running`, so the
+            // claim is made by `Drop` on the way past.
+            OnPanic::Raise => Ok(body(target)),
+        };
+        self.state = State::Finished;
 
         match ran {
-            Ok(Ok(value)) => Outcome::Ran(value),
+            Ok(Ok(())) => Outcome::Ran,
             Ok(Err(error)) => {
                 let error = TensorError::new(error);
                 self.work.claim(self.target.handles(), &error);
-                Outcome::Failed(None)
+                Outcome::Reported
             }
             Err(panic) => {
                 let error = TensorError::panicked(panic_message(panic.as_ref()));
                 self.work.claim(self.target.handles(), &error);
-                Outcome::Failed(Some(panic))
-            }
-        }
-    }
-
-    /// Run `body`, letting a panic out rather than catching it.
-    ///
-    /// For work that already runs inside another scope: a fallback in the
-    /// middle of a fused block is one operation of a kernel that is still
-    /// part way through, so swallowing its panic would let the block carry on
-    /// as though the piece it could not serve had run. The claim still
-    /// happens — on the way out, through [`Drop`].
-    ///
-    /// A reported failure is claimed here all the same — only a panic is left
-    /// to the outer scope, because only a panic is what the outer unit cannot
-    /// carry on through.
-    pub(crate) fn run_raising<T>(
-        mut self,
-        body: impl FnOnce(&mut W) -> Result<T, ExecutionError>,
-    ) -> Outcome<T> {
-        if !self.entered {
-            self.armed = false;
-            return Outcome::Skipped;
-        }
-
-        let ran = body(self.target);
-        self.armed = false;
-
-        match ran {
-            Ok(value) => Outcome::Ran(value),
-            Err(error) => {
-                let error = TensorError::new(error);
-                self.work.claim(self.target.handles(), &error);
-                Outcome::Failed(None)
+                Outcome::Panicked(panic)
             }
         }
     }
 }
 
-impl<H: Clone, W: Claims<H>> Drop for WriteScope<'_, H, W> {
+impl<W: Handles> Drop for WriteScope<'_, W> {
     fn drop(&mut self) {
-        if !self.armed {
+        if !matches!(self.state, State::Running) {
             return;
         }
 
@@ -343,12 +349,12 @@ mod tests {
         let ir = exp(0, 1);
         let mut handles = container();
 
-        let outcome = WriteScope::over(&ir, &mut handles).run(|handles| {
+        let outcome = WriteScope::over(&ir, &mut handles).run(OnPanic::Catch, |handles| {
             handles.register_handle(TensorId::new(1), "written".to_string());
             Ok(())
         });
 
-        assert!(matches!(outcome, Outcome::Ran(())));
+        assert!(matches!(outcome, Outcome::Ran));
         assert!(
             !handles.has_errors(),
             "nothing failed, so nothing is claimed"
@@ -364,13 +370,11 @@ mod tests {
         let ir = exp(0, 1);
         let mut handles = container();
 
-        let outcome = WriteScope::over(&ir, &mut handles)
-            .run(|_handles| Err::<(), _>(ExecutionError::generic("the kernel failed to compile")));
+        let outcome = WriteScope::over(&ir, &mut handles).run(OnPanic::Catch, |_handles| {
+            Err(ExecutionError::generic("the kernel failed to compile"))
+        });
 
-        assert!(
-            matches!(outcome, Outcome::Failed(None)),
-            "reported, not raised"
-        );
+        assert!(matches!(outcome, Outcome::Reported), "reported, not raised");
         let claim = handles
             .error(&TensorId::new(1))
             .expect("its output is claimed");
@@ -390,10 +394,10 @@ mod tests {
         let mut handles = container();
 
         let outcome = WriteScope::over(&ir, &mut handles)
-            .run(|_handles| -> Result<(), ExecutionError> { panic!("this kernel cannot run") });
+            .run(OnPanic::Catch, |_handles| panic!("this kernel cannot run"));
 
         assert!(
-            matches!(outcome, Outcome::Failed(Some(_))),
+            matches!(outcome, Outcome::Panicked(_)),
             "raised, not reported"
         );
         assert_eq!(
@@ -415,7 +419,7 @@ mod tests {
         handles.set_error(TensorId::new(0), root.clone());
 
         let outcome = WriteScope::over(&ir, &mut handles)
-            .run(|_handles| -> Result<(), ExecutionError> { panic!("the body must not run") });
+            .run(OnPanic::Catch, |_handles| panic!("the body must not run"));
 
         assert!(matches!(outcome, Outcome::Skipped));
         let claim = handles
@@ -440,7 +444,7 @@ mod tests {
         handles.set_error(TensorId::new(9), root.clone());
 
         let outcome = WriteScope::over_block(&ir, &[0, 1], &mut handles)
-            .run(|_handles| -> Result<(), ExecutionError> { panic!("the block must not run") });
+            .run(OnPanic::Catch, |_handles| panic!("the block must not run"));
 
         assert!(matches!(outcome, Outcome::Skipped));
         for out in [1, 2] {
@@ -451,17 +455,18 @@ mod tests {
         }
     }
 
-    /// A reported failure is claimed by the raising path too — only a panic is
-    /// left to the outer scope.
+    /// A reported failure is claimed under [`OnPanic::Raise`] too — only a
+    /// panic is left to the outer scope.
     #[test]
     fn raising_work_claims_a_reported_failure() {
         let ir = exp(0, 1);
         let mut handles = container();
 
-        let outcome = WriteScope::over(&ir, &mut handles)
-            .run_raising(|_handles| Err::<(), _>(ExecutionError::generic("it declined to run")));
+        let outcome = WriteScope::over(&ir, &mut handles).run(OnPanic::Raise, |_handles| {
+            Err(ExecutionError::generic("it declined to run"))
+        });
 
-        assert!(matches!(outcome, Outcome::Failed(None)));
+        assert!(matches!(outcome, Outcome::Reported));
         assert_eq!(
             handles
                 .error(&TensorId::new(1))
@@ -471,17 +476,16 @@ mod tests {
         );
     }
 
-    /// `run_raising` lets the panic out for an outer scope to see, and still
-    /// claims on the way through.
+    /// [`OnPanic::Raise`] lets the panic out for an outer scope to see, and
+    /// still claims on the way through.
     #[test]
     fn raising_work_claims_on_its_way_out() {
         let ir = exp(0, 1);
         let mut handles = container();
 
         let escaped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            WriteScope::over(&ir, &mut handles).run_raising(
-                |_handles| -> Result<(), ExecutionError> { panic!("cannot serve it") },
-            );
+            WriteScope::over(&ir, &mut handles)
+                .run(OnPanic::Raise, |_handles| panic!("cannot serve it"));
         }));
 
         assert!(escaped.is_err(), "the panic reaches the caller");

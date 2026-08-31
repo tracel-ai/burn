@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use burn_ir::{HandleContainer, OperationIr};
 
-use super::{Outcome, WriteScope};
+use super::{OnPanic, Outcome, WriteScope};
 
 use crate::{FusionRuntime, NumOperations, Optimization, UnfusedOp, stream::Context};
 
@@ -88,13 +88,18 @@ impl<R: FusionRuntime> FallbackOp<R> {
     /// stopped part way.
     pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
         let outcome = WriteScope::over(&self.ir, handles)
-            .run_raising(|handles| self.operation.execute(handles));
+            .run(OnPanic::Raise, |handles| self.operation.execute(handles));
 
-        if let Outcome::Skipped | Outcome::Failed(_) = outcome {
-            self.did_not_run
+        match outcome {
+            Outcome::Ran => {}
+            // It did not write, so a runtime whose handles live on a server has
+            // to hear about it. A panic does not arrive here — it is left to
+            // the block's scope, which records the whole block.
+            Outcome::Skipped | Outcome::Reported | Outcome::Panicked(_) => self
+                .did_not_run
                 .lock()
                 .expect("no panic holds this lock")
-                .push(self.position);
+                .push(self.position),
         }
     }
 }
@@ -203,20 +208,23 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         // work: it reads every input of every operation it replaced and writes
         // every output. One claimed input anywhere in it stops all of it, and a
         // failure anywhere in it leaves the whole write set unwritten.
+        // Reborrowed: the optimization reads this execution while the scope
+        // holds the context it writes through.
         let this = &*self;
-        let outcome = WriteScope::over_block(&this.ir, &ordering, context).run(|context| {
-            optimization.execute(context, this);
-            Ok(())
-        });
+        let outcome =
+            WriteScope::over_block(&this.ir, &ordering, context).run(OnPanic::Catch, |context| {
+                optimization.execute(context, this);
+                Ok(())
+            });
 
         match outcome {
-            Outcome::Ran(()) => {}
-            Outcome::Skipped => self.did_not_run.extend(ordering.iter().copied()),
-            Outcome::Failed(panic) => {
+            Outcome::Ran => {}
+            Outcome::Skipped | Outcome::Reported => {
+                self.did_not_run.extend(ordering.iter().copied())
+            }
+            Outcome::Panicked(panic) => {
                 self.did_not_run.extend(ordering.iter().copied());
-                if let Some(panic) = panic {
-                    self.failed.get_or_insert(panic);
-                }
+                self.failed.get_or_insert(panic);
             }
         }
     }
@@ -238,16 +246,15 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             // if they do, the next one skips on the claim its input now
             // carries. Scoping the whole loop instead would make an unrelated
             // operation's outcome depend on queue order.
-            let outcome = WriteScope::over(ir, handles).run(|handles| op.execute(handles));
+            let outcome =
+                WriteScope::over(ir, handles).run(OnPanic::Catch, |handles| op.execute(handles));
 
             match outcome {
-                Outcome::Ran(()) => {}
-                Outcome::Skipped => self.did_not_run.push(*id),
-                Outcome::Failed(panic) => {
+                Outcome::Ran => {}
+                Outcome::Skipped | Outcome::Reported => self.did_not_run.push(*id),
+                Outcome::Panicked(panic) => {
                     self.did_not_run.push(*id);
-                    if let Some(panic) = panic {
-                        self.failed.get_or_insert(panic);
-                    }
+                    self.failed.get_or_insert(panic);
                 }
             }
         }

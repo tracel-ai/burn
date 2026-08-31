@@ -43,15 +43,16 @@ keep by hand:
 - **the claim** itself, on every failure path.
 
 ```rust
-match WriteScope::over(ir, handles).run(|handles| op.execute(handles)) {
-    Outcome::Ran(()) => {}
-    Outcome::Skipped => …,      // an input was claimed; the body never ran
-    Outcome::Failed(panic) => …, // it reported, or raised
+match WriteScope::over(ir, handles).run(OnPanic::Catch, |handles| op.execute(handles)) {
+    Outcome::Ran => {}
+    Outcome::Skipped => …,       // an input was claimed; the body never ran
+    Outcome::Reported => …,      // it returned an error
+    Outcome::Panicked(panic) => …, // it raised one, and the scope caught it
 }
 ```
 
-`run_raising` is the variant for work that already runs inside another scope — a fallback in the
-middle of a fused block. It claims a reported failure like `run` does, but lets a panic out, because
+`OnPanic::Raise` is for work that already runs inside another scope — a fallback in the middle of a
+fused block. It claims a reported failure exactly as `Catch` does, but lets a panic out, because
 swallowing that one would let the block carry on as though the piece it could not serve had run.
 
 **If you add an execution path, put it in a scope.** That is the whole of the policy; everything
