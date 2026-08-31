@@ -14,9 +14,8 @@ use alloc::string::String;
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
-// `alloc::sync` needs atomic CAS. A target without it has no threads to share a tensor
-// across, so neither the atomic pointer nor the `Send + Sync` bound on the provider is
-// needed there, and both are dropped below.
+// `alloc::sync` needs atomic CAS. Use `Rc` on targets without it, where `Arc` is unavailable;
+// the `Rc`-backed source means `Tensor` cannot be `Send` or `Sync` on those targets.
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::rc::Rc as Arc;
 
@@ -27,12 +26,9 @@ use crate::base::Error;
 /// Shared handle to a deferred tensor's byte provider, kept behind a pointer so [`Tensor`]
 /// stays [`Clone`].
 ///
-/// The provider is `Send + Sync` on targets with threads, because a [`Tensor`] must stay
-/// `Send`: an optimizer record holds a `Vec` of them and crosses threads through burn-train's
-/// async checkpointer, whose `Checkpoint` bound is `Send`. `Sync` follows from sharing the
-/// provider at all (`Arc<T>: Send` requires `T: Send + Sync`). A target without atomic CAS
-/// has no threads and no `alloc::sync`, so neither bound applies or can be met there, and
-/// [`Tensor::deferred`] asks for correspondingly less.
+/// On targets with pointer atomics, the provider is `Send + Sync` so a deferred source
+/// preserves the same thread-safety properties as a resident one. `Sync` is also required
+/// for a shared provider to be `Send` (`Arc<T>: Send` requires `T: Send + Sync`).
 #[cfg(target_has_atomic = "ptr")]
 type Provider = Arc<dyn Fn() -> Result<Bytes, Error> + Send + Sync>;
 #[cfg(not(target_has_atomic = "ptr"))]
@@ -112,6 +108,13 @@ impl Source {
 /// [`deferred`](Self::deferred) when it is not. A [`Reader`](crate::Reader) produces resident
 /// tensors, though for a file-backed source the bytes are still only read from disk on
 /// access.
+///
+/// # Thread safety
+///
+/// On targets with pointer-width atomics, `Tensor` is `Send + Sync` whether its bytes are
+/// resident or deferred. Accordingly, [`deferred`](Self::deferred) requires its provider to
+/// be `Send + Sync` on those targets. Without pointer-width atomics, deferred providers are
+/// held in an `Rc`, so `Tensor` implements neither trait.
 #[derive(Clone)]
 pub struct Tensor {
     /// Fully-qualified tensor name (e.g. `"encoder.layer1.weight"`).
@@ -173,7 +176,8 @@ impl Tensor {
     /// Create a tensor whose bytes are produced on demand.
     ///
     /// See the `target_has_atomic = "ptr"` variant for the contract. This one drops the
-    /// `Send + Sync` bound, which nothing on a single-threaded target can satisfy or needs.
+    /// `Send + Sync` bound because the resulting `Rc`-backed tensor cannot implement either
+    /// trait regardless of the provider's own bounds.
     #[cfg(not(target_has_atomic = "ptr"))]
     pub fn deferred(
         name: String,
@@ -345,9 +349,7 @@ mod tests {
         assert_eq!(&bytes[..], &[7, 8]);
     }
 
-    /// The `Send + Sync` bound on the provider exists so a `Tensor` can reach burn-train's
-    /// async checkpointer inside an optimizer record. Nothing in burn-pack's own build would
-    /// catch a regression to a non-atomic pointer, so pin it where the type lives.
+    /// A deferred source must preserve the thread-safety properties of a resident tensor.
     #[test]
     fn tensor_is_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>() {}

@@ -53,6 +53,9 @@ pub struct Writer {
     pub(crate) metadata: BTreeMap<String, String>,
     /// Typed scalars keyed by name
     pub(crate) scalars: BTreeMap<String, Scalar>,
+    /// Automatically append the canonical extension to extensionless file paths.
+    #[cfg(feature = "std")]
+    auto_extension: bool,
 }
 
 impl Writer {
@@ -62,6 +65,8 @@ impl Writer {
             tensors,
             metadata: BTreeMap::new(),
             scalars: BTreeMap::new(),
+            #[cfg(feature = "std")]
+            auto_extension: true,
         }
     }
 
@@ -74,6 +79,18 @@ impl Writer {
     /// Builder pattern: add a typed scalar and return self.
     pub fn with_scalar(mut self, key: &str, value: Scalar) -> Self {
         self.scalars.insert(key.to_string(), value);
+        self
+    }
+
+    /// Enable or disable automatic extension appending for file writes.
+    ///
+    /// When enabled (the default), [`write_to_file`](Self::write_to_file) and
+    /// [`write_to_file_atomic`](Self::write_to_file_atomic) append the canonical
+    /// [`crate::EXTENSION`] when the requested path has no extension. When disabled,
+    /// both methods use the requested path exactly as provided.
+    #[cfg(feature = "std")]
+    pub fn auto_extension(mut self, enable: bool) -> Self {
+        self.auto_extension = enable;
         self
     }
 
@@ -139,7 +156,8 @@ impl Writer {
 
     /// Write directly to a file, replacing its contents in place.
     ///
-    /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
+    /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
+    /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
     ///
     /// The file is truncated as soon as writing starts, so a failure partway through leaves it
     /// truncated. That only matters when a tensor's bytes can fail to materialize, which for
@@ -148,7 +166,7 @@ impl Writer {
     /// [`write_to_file_atomic`](Self::write_to_file_atomic) instead.
     #[cfg(feature = "std")]
     pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
-        let path = Self::resolve_path(path.as_ref());
+        let path = self.resolve_path(path.as_ref());
         let layout = self.plan()?;
 
         let file = File::create(&path)
@@ -160,7 +178,8 @@ impl Writer {
 
     /// Write to a file without ever leaving a partial one at `path`.
     ///
-    /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
+    /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
+    /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
     ///
     /// The container is built in a scratch sibling of `path` and renamed into place only once
     /// every byte is on disk, so `path` either ends up holding a complete container or is left
@@ -198,7 +217,7 @@ impl Writer {
     ///   writer is running.
     #[cfg(feature = "std")]
     pub fn write_to_file_atomic<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
-        let path = Self::resolve_path(path.as_ref());
+        let path = self.resolve_path(path.as_ref());
         let layout = self.plan()?;
         let (scratch, file) = AtomicFile::create(&path)?;
         let mut sink = FileSink {
@@ -211,10 +230,10 @@ impl Writer {
         scratch.persist(sink, &path)
     }
 
-    /// Append the canonical extension when the caller left one off.
+    /// Apply the configured extension policy to a requested path.
     #[cfg(feature = "std")]
-    fn resolve_path(path: &Path) -> std::path::PathBuf {
-        if path.extension().is_none() {
+    fn resolve_path(&self, path: &Path) -> std::path::PathBuf {
+        if self.auto_extension && path.extension().is_none() {
             path.with_extension(crate::EXTENSION)
         } else {
             path.to_path_buf()

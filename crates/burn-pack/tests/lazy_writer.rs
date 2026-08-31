@@ -9,8 +9,8 @@ use common::f32_tensor;
 
 /// Records every materialization, in the order it happened.
 ///
-/// `Arc<Mutex<_>>` rather than `Rc<RefCell<_>>` because a deferred tensor's provider must be
-/// `Send + Sync`: records holding one cross threads through burn-train's async checkpointer.
+/// `Arc<Mutex<_>>` keeps the deferred providers `Send + Sync`, preserving [`Tensor`] as a
+/// thread-safe transport type.
 type Log = Arc<Mutex<Vec<String>>>;
 
 /// A tensor whose bytes are produced on demand, with every knob the tests need to bend.
@@ -238,6 +238,25 @@ fn a_plan_time_rejection_creates_no_file() {
         0,
         "a plan-time rejection should create neither destination nor scratch file"
     );
+}
+
+#[test]
+fn an_atomic_write_can_preserve_an_extensionless_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model");
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .auto_extension(false)
+        .write_to_file_atomic(&dest)
+        .unwrap();
+
+    assert!(dest.exists(), "the exact requested path should exist");
+    assert!(
+        !dir.path().join("model.bpk").exists(),
+        "disabling auto-extension must not create a second path"
+    );
+    assert!(Reader::from_file_exact(&dest).is_ok());
 }
 
 /// A deferred provider runs during the write, so its failure has to leave the destination as

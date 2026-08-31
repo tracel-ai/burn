@@ -106,7 +106,8 @@
 //!
 //! ## Feature Flags
 //!
-//! - `std`: Enables file I/O ([`Reader::from_file`] / [`Writer::write_to_file`]) (default)
+//! - `std`: Enables file I/O ([`Reader::from_file`], [`Reader::from_file_exact`],
+//!   [`Writer::write_to_file`], and [`Writer::write_to_file_atomic`]) (default)
 
 extern crate alloc;
 

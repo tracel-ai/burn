@@ -1,13 +1,21 @@
 use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
-    ops::FloatTensorOps,
+    ops::{FloatTensorOps, PadMode},
     tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 
 use crate::{Dispatch, DispatchDevice};
 
 impl FloatTensorOps<Self> for Dispatch {
+    fn float_pad(
+        tensor: FloatTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> FloatTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_pad(tensor, padding, mode) => Float)
+    }
+
     fn float_from_data(
         data: burn_backend::TensorData,
         device: &DispatchDevice,
@@ -145,18 +153,6 @@ impl FloatTensorOps<Self> for Dispatch {
         binary_float!((tensor, float), (indices, int), |tensor, indices| B::float_gather(dim, tensor, indices) => Float)
     }
 
-    fn float_scatter_add(
-        dim: usize,
-        tensor: FloatTensor<Self>,
-        indices: IntTensor<Self>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Float,
-            B::float_scatter_add(dim, tensor, indices, value)
-        )
-    }
-
     fn float_scatter(
         dim: usize,
         tensor: FloatTensor<Self>,
@@ -192,18 +188,6 @@ impl FloatTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         binary_float!((tensor, float), (indices, int), |tensor, indices| B::float_select(tensor, dim, indices) => Float)
-    }
-
-    fn float_select_add(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        indices: IntTensor<Self>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Float,
-            B::float_select_add(tensor, dim, indices, value)
-        )
     }
 
     fn float_select_assign(

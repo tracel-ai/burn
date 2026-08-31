@@ -1,7 +1,7 @@
 use burn_core as burn;
 
-use burn::module::Initializer;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::module::{Flag, Initializer};
 use burn::tensor::{Device, Tensor};
 use burn::{
     config::Config,
@@ -46,6 +46,8 @@ pub struct BatchNorm {
     pub gamma: Param<Tensor<1>>,
     /// The learnable weight beta.
     pub beta: Param<Tensor<1>>,
+    /// Whether training behavior is enabled for this layer.
+    pub training: Param<Flag>,
     /// The running mean.
     pub running_mean: RunningState<Tensor<1>>,
     /// The running variance.
@@ -68,6 +70,7 @@ impl BatchNormConfig {
         BatchNorm {
             gamma,
             beta,
+            training: Param::from_bool(true),
             running_mean: RunningState::new(running_mean),
             running_var: RunningState::new(running_var),
             momentum: self.momentum,
@@ -100,7 +103,19 @@ impl BatchNorm {
             );
         }
 
-        match input.device().is_autodiff() {
+        // Training behavior is selected by the device *and* the layer state. The device alone
+        // says a backward is possible, not that this layer takes part in one: partial finetuning
+        // freezes whole subtrees with [`no_grad`](Module::no_grad) or
+        // [`freeze_group`](Module::freeze_group) and leaves them on the training device, because
+        // that is where the rest of the graph lives.
+        //
+        // A frozen batch norm that still took the training path would recompute
+        // the batch statistics — a second and third pass over an activation that
+        // is already the layer's dominant cost — and then write them into
+        // `running_mean` and `running_var`, mutating state the caller has said it does not want
+        // trained. The identified flag lets a structural group select this behavior without
+        // inferring the state of the whole layer from one tensor parameter.
+        match input.device().is_autodiff() && self.training.is_enabled() {
             true => self.forward_train(input),
             false => self.forward_inference(input),
         }
@@ -372,6 +387,62 @@ mod tests_2d {
             .reshape([3])
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn frozen_batch_norm_on_a_training_device_uses_the_running_statistics() {
+        let device = Device::default().autodiff();
+        // Frozen where partial finetuning leaves it: still on the training
+        // device, because the rest of the graph is there, but not being trained.
+        let module = BatchNormConfig::new(3).init(&device).no_grad();
+
+        let input = input_tensor(&device);
+        let output = module.forward(input.clone());
+
+        // Freshly initialized, the inference path is the identity: running mean
+        // is zero, running variance is one, gamma is one and beta is zero. So
+        // the input coming back out is proof the training path did not run —
+        // that one normalizes the batch, and `batch_norm_forward_train` above
+        // holds the quite different numbers it produces from this same input.
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&input.to_data(), Tolerance::rel_abs(0.001, 0.001));
+    }
+
+    #[test]
+    fn frozen_batch_norm_does_not_update_its_running_statistics() {
+        let device = Device::default().autodiff();
+        let module = BatchNormConfig::new(3).init(&device).no_grad();
+
+        let before = module.running_mean.value_sync().into_data();
+        let _output = module.forward(input_tensor(&device));
+        let after = module.running_mean.value_sync().into_data();
+
+        // Freezing says the caller does not want this trained, and the running
+        // statistics are state the training path writes. Untouched is the whole
+        // point: a finetuning run that silently drifted them would corrupt the
+        // frozen layer over its epochs and only show up at inference.
+        after.assert_approx_eq::<FT>(&before, Tolerance::default());
+    }
+
+    #[test]
+    fn freezing_only_gamma_keeps_batch_norm_training_behavior() {
+        use burn::module::ParamGroup;
+
+        let device = Device::default().autodiff();
+        let module = BatchNormConfig::new(3)
+            .init(&device)
+            .freeze_group(ParamGroup::from_path("gamma"));
+
+        assert!(!module.gamma.is_require_grad());
+        assert!(module.beta.is_require_grad());
+        assert!(module.training.is_enabled());
+
+        let before = module.running_mean.value_sync().into_data();
+        let _output = module.forward(input_tensor(&device));
+        let after = module.running_mean.value_sync().into_data();
+
+        assert_ne!(before, after);
     }
 
     #[test]

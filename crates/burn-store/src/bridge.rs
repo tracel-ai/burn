@@ -73,13 +73,14 @@ fn guarded(f: impl Fn() -> Result<TensorData, PackError>) -> Result<TensorData, 
     f()
 }
 
-/// The `Send + Sync` bound a data closure carries on a target with threads, and nothing on one
-/// without.
+/// The `Send + Sync` bound a data closure carries on a target with pointer-width atomics, and
+/// nothing on one without.
 ///
-/// [`PackTensor::deferred`] asks for `Send + Sync` providers only where `alloc::sync` exists: a
-/// target without atomic CAS has no threads to share a tensor across, and the `Rc`-backed
-/// provider it falls back to could not satisfy the bound anyway. Naming that difference once
-/// keeps every constructor below from having to be written twice.
+/// [`PackTensor::deferred`] asks for `Send + Sync` providers only where `alloc::sync` exists so
+/// deferred tensors preserve the thread-safety of resident ones. Without pointer-width atomics,
+/// it uses an `Rc`-backed provider and cannot itself be `Send` or `Sync`, regardless of the
+/// closure's bounds. Naming that difference once keeps every constructor below from having to
+/// be written twice.
 ///
 /// Implemented for every type that satisfies it; the blanket impl makes a manual
 /// implementation impossible.
@@ -88,7 +89,8 @@ pub trait MaybeSendSync: Send + Sync {}
 #[cfg(target_has_atomic = "ptr")]
 impl<T: Send + Sync> MaybeSendSync for T {}
 
-/// Empty on a target without atomic CAS, where no provider bound is needed or satisfiable.
+/// Empty on a target without pointer-width atomics, where an `Rc`-backed [`PackTensor`] cannot
+/// be `Send` or `Sync` regardless of the provider's own bounds.
 #[cfg(not(target_has_atomic = "ptr"))]
 pub trait MaybeSendSync {}
 #[cfg(not(target_has_atomic = "ptr"))]

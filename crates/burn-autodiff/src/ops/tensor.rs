@@ -47,6 +47,54 @@ fn unsqueeze_like<B: Backend>(
     B::float_reshape(tensor, Shape::from(dims))
 }
 
+/// Computes the backward pass for a product reduction without dividing by zero.
+fn prod_backward<B: Backend>(
+    input: B::FloatTensorPrimitive,
+    grad: B::FloatTensorPrimitive,
+    dim: Option<usize>,
+) -> B::FloatTensorPrimitive {
+    let shape = input.shape();
+    let device = input.device();
+    let dtype = input.dtype();
+    let bool_dtype = get_device_settings::<B>(&device).bool_dtype;
+
+    let zero_mask_bool = B::float_equal_elem(input.clone(), 0.into(), bool_dtype);
+    let zero_mask = B::bool_into_float(zero_mask_bool.clone(), dtype.into());
+    let input_safe = B::float_add(input, zero_mask.clone());
+
+    let (zero_count, nonzero_product) = match dim {
+        Some(dim) => (
+            B::float_sum_dim(zero_mask.clone(), dim),
+            B::float_prod_dim(input_safe.clone(), dim),
+        ),
+        None => (
+            B::float_sum(zero_mask.clone()),
+            B::float_prod(input_safe.clone()),
+        ),
+    };
+
+    // Counts are sums of zero-or-one values. Threshold comparisons distinguish
+    // zero, one, and multiple zeros without any host-side data-dependent branch.
+    let no_zero = B::float_lower_elem(zero_count.clone(), 0.5.into(), bool_dtype);
+    let at_most_one_zero = B::float_lower_elem(zero_count, 1.5.into(), bool_dtype);
+    let one_zero = B::bool_and(B::bool_not(no_zero.clone()), at_most_one_zero);
+
+    let no_zero = B::bool_expand(no_zero, shape.clone());
+    let one_zero = B::bool_expand(one_zero, shape.clone());
+
+    // Broadcasting the reduced product against the input produces the full input shape.
+    // At zero positions the safe denominator is one, so the quotient can also be reused
+    // for the single-zero branch.
+    let ordinary = B::float_div(nonzero_product, input_safe);
+    let zeros = B::float_zeros(shape, &device, dtype.into());
+    let single_zero = B::float_mask_where(zeros.clone(), zero_mask_bool, ordinary.clone());
+    let local_grad = B::float_mask_where(zeros, no_zero, ordinary);
+    let local_grad = B::float_mask_where(local_grad, one_zero, single_zero);
+
+    // The upstream gradient is reduced-shaped and broadcasts to the input shape here.
+    B::float_mul(grad, local_grad)
+}
+
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
@@ -975,7 +1023,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     let zeros = B::float_zeros(shape, &device, grad.dtype().into());
-                    B::float_scatter_add(dim, zeros, indices, grad)
+                    B::float_scatter(dim, zeros, indices, grad, IndexingUpdateOp::Add)
                 });
             }
         }
@@ -1000,55 +1048,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_scatter_add(
-        dim: usize,
-        tensor: FloatTensor<Self>,
-        indices: IntTensor<B>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        #[derive(Debug)]
-        struct Scatter;
-
-        impl<B: Backend> Backward<B, 2> for Scatter {
-            type State = (usize, IntTensor<B>);
-
-            fn backward(
-                self,
-                ops: Ops<Self::State, 2>,
-                grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
-            ) {
-                let (dim, indices) = ops.state;
-                let [_, indices_4rhs] = duplicate(&ops.parents, Some(indices));
-
-                binary::<B, _, _>(
-                    ops.parents,
-                    ops.node,
-                    grads,
-                    |grad| grad,
-                    |grad| B::float_gather(dim, grad, indices_4rhs.unwrap()),
-                );
-            }
-        }
-
-        match Scatter
-            .prepare::<C>([tensor.node, value.node])
-            .compute_bound()
-            .stateful()
-        {
-            OpsKind::Tracked(prep) => prep.finish(
-                (dim, indices.clone()),
-                B::float_scatter_add(dim, tensor.primitive, indices, value.primitive),
-            ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_add(
-                dim,
-                tensor.primitive,
-                indices,
-                value.primitive,
-            )),
-        }
-    }
-
     fn float_scatter(
         dim: usize,
         tensor: FloatTensor<Self>,
@@ -1057,7 +1056,56 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         update: IndexingUpdateOp,
     ) -> FloatTensor<Self> {
         match update {
-            IndexingUpdateOp::Add => Self::float_scatter_add(dim, tensor, indices, value),
+            IndexingUpdateOp::Add => {
+                #[derive(Debug)]
+                struct Scatter;
+
+                impl<B: Backend> Backward<B, 2> for Scatter {
+                    type State = (usize, IntTensor<B>);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, indices) = ops.state;
+                        let [_, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| grad,
+                            |grad| B::float_gather(dim, grad, indices_4rhs.unwrap()),
+                        );
+                    }
+                }
+
+                match Scatter
+                    .prepare::<C>([tensor.node, value.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (dim, indices.clone()),
+                        B::float_scatter(
+                            dim,
+                            tensor.primitive,
+                            indices,
+                            value.primitive,
+                            IndexingUpdateOp::Add,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter(
+                        dim,
+                        tensor.primitive,
+                        indices,
+                        value.primitive,
+                        IndexingUpdateOp::Add,
+                    )),
+                }
+            }
             IndexingUpdateOp::Assign => {
                 #[derive(Debug)]
                 struct ScatterAssign;
@@ -1119,6 +1167,84 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         indices,
                         value.primitive,
                         IndexingUpdateOp::Assign,
+                    )),
+                }
+            }
+            IndexingUpdateOp::Mul => {
+                // Backward assumes unique indices:
+                //   grad_tensor = scatter(grad, indices, value, Mul)
+                //   grad_value  = gather(grad, indices) * gather(tensor, indices)
+                #[derive(Debug)]
+                struct ScatterMul;
+
+                impl<B: Backend> Backward<B, 2> for ScatterMul {
+                    type State = (
+                        usize,
+                        Option<FloatTensor<B>>,
+                        Option<FloatTensor<B>>,
+                        IntTensor<B>,
+                    );
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, tensor_state, value_state, indices) = ops.state;
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                B::float_scatter(
+                                    dim,
+                                    grad,
+                                    indices_4lhs.unwrap(),
+                                    value_state.unwrap(),
+                                    IndexingUpdateOp::Mul,
+                                )
+                            },
+                            |grad| {
+                                let indices = indices_4rhs.unwrap();
+                                let grad = B::float_gather(dim, grad, indices.clone());
+                                let tensor = B::float_gather(dim, tensor_state.unwrap(), indices);
+                                B::float_mul(grad, tensor)
+                            },
+                        );
+                    }
+                }
+
+                let tensor_tracked = tensor.is_tracked();
+                let value_tracked = value.is_tracked();
+
+                match ScatterMul
+                    .prepare::<C>([tensor.node, value.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => {
+                        let tensor_state = value_tracked.then(|| tensor.primitive.clone());
+                        let value_state = tensor_tracked.then(|| value.primitive.clone());
+                        prep.finish(
+                            (dim, tensor_state, value_state, indices.clone()),
+                            B::float_scatter(
+                                dim,
+                                tensor.primitive,
+                                indices,
+                                value.primitive,
+                                IndexingUpdateOp::Mul,
+                            ),
+                        )
+                    }
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter(
+                        dim,
+                        tensor.primitive,
+                        indices,
+                        value.primitive,
+                        IndexingUpdateOp::Mul,
                     )),
                 }
             }
@@ -1508,7 +1634,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     let zeros = B::float_zeros(shape, &device, grad.dtype().into());
-                    B::float_select_add(zeros, dim, indices, grad)
+                    B::float_select_assign(zeros, dim, indices, grad, IndexingUpdateOp::Add)
                 });
             }
         }
@@ -1535,78 +1661,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_select_add(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        indices: IntTensor<B>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        #[derive(Debug)]
-        struct IndexSelectDimAssign;
-
-        #[derive(new, Debug)]
-        struct RetroSelectAssign<B: Backend> {
-            tensor_id: NodeId,
-            dim: usize,
-            indices: IntTensor<B>,
-            value_id: NodeId,
-        }
-
-        impl<B: Backend> RetroForward for RetroSelectAssign<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
-                let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
-                let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
-                let out = B::float_select_add(tensor, self.dim, self.indices.clone(), value);
-                states.save(out_node, out)
-            }
-        }
-
-        impl<B: Backend> Backward<B, 2> for IndexSelectDimAssign {
-            type State = (usize, IntTensor<B>);
-
-            fn backward(
-                self,
-                ops: Ops<Self::State, 2>,
-                grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
-            ) {
-                let (dim, indices) = ops.state;
-
-                binary::<B, _, _>(
-                    ops.parents,
-                    ops.node,
-                    grads,
-                    |grad| grad,
-                    |grad| B::float_select(grad, dim, indices),
-                );
-            }
-        }
-
-        match IndexSelectDimAssign
-            .prepare::<C>([tensor.node.clone(), value.node.clone()])
-            .memory_bound()
-            .retro_forward(RetroSelectAssign::<B>::new(
-                tensor.node.id,
-                dim,
-                indices.clone(),
-                value.node.id,
-            ))
-            .parents([&tensor, &value])
-            .stateful()
-        {
-            OpsKind::Tracked(prep) => prep.finish(
-                (dim, indices.clone()),
-                B::float_select_add(tensor.primitive, dim, indices, value.primitive),
-            ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_select_add(
-                tensor.primitive,
-                dim,
-                indices,
-                value.primitive,
-            )),
-        }
-    }
-
     fn float_select_assign(
         tensor: FloatTensor<Self>,
         dim: usize,
@@ -1615,7 +1669,85 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         update: IndexingUpdateOp,
     ) -> FloatTensor<Self> {
         match update {
-            IndexingUpdateOp::Add => Self::float_select_add(tensor, dim, indices, value),
+            IndexingUpdateOp::Add => {
+                #[derive(Debug)]
+                struct IndexSelectDimAssign;
+
+                #[derive(new, Debug)]
+                struct RetroSelectAssign<B: Backend> {
+                    tensor_id: NodeId,
+                    dim: usize,
+                    indices: IntTensor<B>,
+                    value_id: NodeId,
+                }
+
+                impl<B: Backend> RetroForward for RetroSelectAssign<B> {
+                    fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
+                        let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
+                        let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
+                        let out = B::float_select_assign(
+                            tensor,
+                            self.dim,
+                            self.indices.clone(),
+                            value,
+                            IndexingUpdateOp::Add,
+                        );
+                        states.save(out_node, out)
+                    }
+                }
+
+                impl<B: Backend> Backward<B, 2> for IndexSelectDimAssign {
+                    type State = (usize, IntTensor<B>);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, indices) = ops.state;
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| grad,
+                            |grad| B::float_select(grad, dim, indices),
+                        );
+                    }
+                }
+
+                match IndexSelectDimAssign
+                    .prepare::<C>([tensor.node.clone(), value.node.clone()])
+                    .memory_bound()
+                    .retro_forward(RetroSelectAssign::<B>::new(
+                        tensor.node.id,
+                        dim,
+                        indices.clone(),
+                        value.node.id,
+                    ))
+                    .parents([&tensor, &value])
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (dim, indices.clone()),
+                        B::float_select_assign(
+                            tensor.primitive,
+                            dim,
+                            indices,
+                            value.primitive,
+                            IndexingUpdateOp::Add,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_select_assign(
+                        tensor.primitive,
+                        dim,
+                        indices,
+                        value.primitive,
+                        IndexingUpdateOp::Add,
+                    )),
+                }
+            }
             IndexingUpdateOp::Assign => {
                 #[derive(Debug)]
                 struct IndexSelectDimAssignReplace;
@@ -1707,6 +1839,113 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         indices,
                         value.primitive,
                         IndexingUpdateOp::Assign,
+                    )),
+                }
+            }
+            IndexingUpdateOp::Mul => {
+                // Backward assumes unique indices:
+                //   grad_tensor = select_assign(grad, dim, indices, value, Mul)
+                //   grad_value  = select(grad, indices) * select(tensor, indices)
+                #[derive(Debug)]
+                struct IndexSelectDimAssignMul;
+
+                #[derive(new, Debug)]
+                struct RetroSelectAssignMul<B: Backend> {
+                    tensor_id: NodeId,
+                    dim: usize,
+                    indices: IntTensor<B>,
+                    value_id: NodeId,
+                }
+
+                impl<B: Backend> RetroForward for RetroSelectAssignMul<B> {
+                    fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
+                        let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
+                        let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
+                        let out = B::float_select_assign(
+                            tensor,
+                            self.dim,
+                            self.indices.clone(),
+                            value,
+                            IndexingUpdateOp::Mul,
+                        );
+                        states.save(out_node, out)
+                    }
+                }
+
+                impl<B: Backend> Backward<B, 2> for IndexSelectDimAssignMul {
+                    type State = (usize, Option<NodeId>, Option<NodeId>, IntTensor<B>);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, tensor_state, value_state, indices) = ops.state;
+                        let tensor_state =
+                            tensor_state.map(|id| checkpointer.retrieve_node_output(id));
+                        let value_state =
+                            value_state.map(|id| checkpointer.retrieve_node_output(id));
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                B::float_select_assign(
+                                    grad,
+                                    dim,
+                                    indices_4lhs.unwrap(),
+                                    value_state.unwrap(),
+                                    IndexingUpdateOp::Mul,
+                                )
+                            },
+                            |grad| {
+                                let indices = indices_4rhs.unwrap();
+                                let grad = B::float_select(grad, dim, indices.clone());
+                                let tensor = B::float_select(tensor_state.unwrap(), dim, indices);
+                                B::float_mul(grad, tensor)
+                            },
+                        );
+                    }
+                }
+
+                let tensor_tracked = tensor.is_tracked();
+                let value_tracked = value.is_tracked();
+
+                match IndexSelectDimAssignMul
+                    .prepare::<C>([tensor.node.clone(), value.node.clone()])
+                    .memory_bound()
+                    .retro_forward(RetroSelectAssignMul::<B>::new(
+                        tensor.node.id,
+                        dim,
+                        indices.clone(),
+                        value.node.id,
+                    ))
+                    .parents([&tensor, &value])
+                    .stateful()
+                {
+                    OpsKind::Tracked(mut prep) => {
+                        let tensor_state = value_tracked.then(|| prep.checkpoint(&tensor));
+                        let value_state = tensor_tracked.then(|| prep.checkpoint(&value));
+                        prep.finish(
+                            (dim, tensor_state, value_state, indices.clone()),
+                            B::float_select_assign(
+                                tensor.primitive,
+                                dim,
+                                indices,
+                                value.primitive,
+                                IndexingUpdateOp::Mul,
+                            ),
+                        )
+                    }
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_select_assign(
+                        tensor.primitive,
+                        dim,
+                        indices,
+                        value.primitive,
+                        IndexingUpdateOp::Mul,
                     )),
                 }
             }
@@ -2211,9 +2450,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct Prod;
 
         impl<B: Backend> Backward<B, 1> for Prod {
-            // Saves the input and the output product so backward can compute
-            // `grad * prod(x) / x` without recomputing the reduction.
-            type State = (B::FloatTensorPrimitive, B::FloatTensorPrimitive);
+            type State = B::FloatTensorPrimitive;
 
             fn backward(
                 self,
@@ -2221,22 +2458,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (input, output) = ops.state;
+                let input = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // d/dx_i prod(x) = prod(x) / x_i, so grad_input = grad * output / input,
-                    // broadcast over the input shape (output is a single-element tensor).
-                    //
-                    // This divides by the input, so it produces NaN gradients when the
-                    // input contains zeros. A zero-safe version requires the product of
-                    // all other elements via exclusive cumulative products, same as the
-                    // cumprod limitation tracked in https://github.com/tracel-ai/burn/issues/3864.
-                    let ones = B::float_ones(input.shape(), &input.device(), input.dtype().into());
-                    let grad = B::float_mul(grad, output);
-                    let grad = unsqueeze_like::<B>(grad, ones.shape());
-                    let grad = B::float_mul(ones, grad);
-
-                    B::float_div(grad, input)
+                    prod_backward::<B>(input, grad, None)
                 });
             }
         }
@@ -2244,7 +2469,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Prod.prepare::<C>([tensor.node]).compute_bound().stateful() {
             OpsKind::Tracked(prep) => {
                 let output = B::float_prod(tensor.primitive.clone());
-                prep.finish((tensor.primitive, output.clone()), output)
+                prep.finish(tensor.primitive, output)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_prod(tensor.primitive)),
         }
@@ -2255,8 +2480,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct ProdDim;
 
         impl<B: Backend> Backward<B, 1> for ProdDim {
-            // Saves the input and the reduced product (size 1 along `dim`).
-            type State = (B::FloatTensorPrimitive, B::FloatTensorPrimitive);
+            type State = (B::FloatTensorPrimitive, usize);
 
             fn backward(
                 self,
@@ -2264,20 +2488,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (input, output) = ops.state;
+                let (input, dim) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // grad_input = grad * prod_dim(x) / x. The grad and output both keep
-                    // a size-1 reduced dim and broadcast back over the input along `dim`.
-                    //
-                    // Like `float_prod`, this divides by the input and produces NaN
-                    // gradients when the input contains zeros (see
-                    // https://github.com/tracel-ai/burn/issues/3864).
-                    let ones = B::float_ones(input.shape(), &input.device(), input.dtype().into());
-                    let grad = B::float_mul(grad, output);
-                    let grad = B::float_mul(ones, grad);
-
-                    B::float_div(grad, input)
+                    prod_backward::<B>(input, grad, Some(dim))
                 });
             }
         }
@@ -2289,7 +2503,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let output = B::float_prod_dim(tensor.primitive.clone(), dim);
-                prep.finish((tensor.primitive, output.clone()), output)
+                prep.finish((tensor.primitive, dim), output)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_prod_dim(tensor.primitive, dim)),
         }
@@ -2486,7 +2700,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     // Scatter gradients to source positions (sum reduction)
                     let zeros = B::float_zeros(shape, &device, grad.dtype().into());
-                    B::float_scatter_add(dim, zeros, source_indices, grad)
+                    B::float_scatter(dim, zeros, source_indices, grad, IndexingUpdateOp::Add)
                 });
             }
         }
@@ -2553,7 +2767,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     // Scatter gradients to source positions (sum reduction)
                     let zeros = B::float_zeros(shape, &device, grad.dtype().into());
-                    B::float_scatter_add(dim, zeros, source_indices, grad)
+                    B::float_scatter(dim, zeros, source_indices, grad, IndexingUpdateOp::Add)
                 });
             }
         }
@@ -2584,8 +2798,21 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_argtopk(tensor.primitive, dim, k, out_dtype)
     }
 
-    fn float_topk(_tensor: FloatTensor<Self>, _dim: usize, _k: usize) -> FloatTensor<Self> {
-        unimplemented!("topk is not implemented for autodiff");
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
+        match super::sort::SortDim
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                let shape = tensor.primitive.shape();
+                let settings = get_device_settings::<B>(&tensor.primitive.device());
+                let (tensor, indices) =
+                    B::float_topk_with_indices(tensor.primitive, dim, k, settings.int_dtype);
+                prep.finish((indices, shape, dim), tensor)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_topk(tensor.primitive, dim, k)),
+        }
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<B> {

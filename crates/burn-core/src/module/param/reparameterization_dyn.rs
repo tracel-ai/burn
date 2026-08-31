@@ -25,7 +25,7 @@ use alloc::{boxed::Box, vec::Vec};
 use burn_tensor::{Bool, Device, Int, Tensor};
 use core::{any::Any, fmt::Debug};
 
-use crate::module::{AutodiffModule, ModuleMapper, ModuleVisitor};
+use crate::module::{AutodiffModule, Flag, ModuleMapper, ModuleVisitor};
 
 use super::{Param, Reparameterization};
 
@@ -223,6 +223,7 @@ pub trait DynModuleVisitor {
     fn visit_float(&mut self, param: DynParamRef<'_>);
     fn visit_int(&mut self, param: DynParamRef<'_>);
     fn visit_bool(&mut self, param: DynParamRef<'_>);
+    fn visit_flag(&mut self, param: &Param<Flag>);
     fn enter_module(&mut self, name: &str, container_type: &str);
     fn exit_module(&mut self, name: &str, container_type: &str);
 }
@@ -232,6 +233,7 @@ pub trait DynModuleMapper {
     fn map_float(&mut self, param: DynParam) -> DynParam;
     fn map_int(&mut self, param: DynParam) -> DynParam;
     fn map_bool(&mut self, param: DynParam) -> DynParam;
+    fn map_flag(&mut self, param: Param<Flag>) -> Param<Flag>;
     fn enter_module(&mut self, name: &str, container_type: &str);
     fn exit_module(&mut self, name: &str, container_type: &str);
 }
@@ -253,6 +255,10 @@ impl ModuleVisitor for ModuleVisitorToDyn<'_> {
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
         self.inner.visit_bool(DynParamRef::new(D, param));
+    }
+
+    fn visit_flag(&mut self, param: &Param<Flag>) {
+        self.inner.visit_flag(param);
     }
 
     fn enter_module(&mut self, name: &str, container_type: &str) {
@@ -286,6 +292,10 @@ impl ModuleMapper for ModuleMapperToDyn<'_> {
         self.inner.map_bool(DynParam::new(D, param)).downcast()
     }
 
+    fn map_flag(&mut self, param: Param<Flag>) -> Param<Flag> {
+        self.inner.map_flag(param)
+    }
+
     fn enter_module(&mut self, name: &str, container_type: &str) {
         self.inner.enter_module(name, container_type);
     }
@@ -317,6 +327,10 @@ impl<V: ModuleVisitor> DynModuleVisitor for DynVisitor<'_, V> {
         dispatch_rank!(param.rank, D => {
             self.visitor.visit_bool(param.value.downcast_ref::<Param<Tensor<D, Bool>>>().unwrap());
         })
+    }
+
+    fn visit_flag(&mut self, param: &Param<Flag>) {
+        self.visitor.visit_flag(param);
     }
 
     fn enter_module(&mut self, name: &str, container_type: &str) {
@@ -353,6 +367,10 @@ impl<M: ModuleMapper> DynModuleMapper for DynMapper<'_, M> {
         dispatch_rank!(rank, D => {
             DynParam::new(D, self.mapper.map_bool(param.downcast::<Param<Tensor<D, Bool>>>() ))
         })
+    }
+
+    fn map_flag(&mut self, param: Param<Flag>) -> Param<Flag> {
+        self.mapper.map_flag(param)
     }
 
     fn enter_module(&mut self, name: &str, container_type: &str) {

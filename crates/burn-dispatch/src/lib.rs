@@ -2,14 +2,15 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![recursion_limit = "138"]
-// Wiring up the deprecated `NdArray` backend is this crate's job, and the backend registry macros
-// expand it into every dispatch impl, so the warnings land on `macros.rs` rather than on any site
-// we could annotate individually. `allow(deprecated)` is a lint level scoped to this crate, and
-// lint levels never propagate to dependents, so downstream code naming `NdArray` (directly or via
-// our re-export) still gets the warning. The `cfg_attr` keeps this confined to the ndarray-enabled
-// build: `ndarray` is not a default feature, so the default build that CI lints with
-// `--deny warnings` retains full deprecation signal for every other dependency.
-#![cfg_attr(feature = "ndarray", allow(deprecated))]
+// Wiring up the deprecated `NdArray` and `LibTorch` backends is this crate's job, and the backend
+// registry macros expand them into every dispatch impl, so the warnings land on `macros.rs` rather
+// than on any site we could annotate individually. `allow(deprecated)` is a lint level scoped to
+// this crate, and lint levels never propagate to dependents, so downstream code naming `NdArray` or
+// `LibTorch` (directly or via our re-export) still gets the warning. The `cfg_attr` keeps this
+// confined to the builds that enable them: neither `ndarray` nor `tch` is a default feature, so the
+// default build that CI lints with `--deny warnings` retains full deprecation signal for every
+// other dependency.
+#![cfg_attr(any(feature = "ndarray", feature = "tch"), allow(deprecated))]
 
 //! Burn multi-backend dispatch.
 //!
@@ -27,7 +28,7 @@
 //! | `Wgpu`     | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
 //! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (deprecated - use `flex`) |
-//! | `LibTorch` | `tch`      | Libtorch backend via `tch` |
+//! | `LibTorch` | `tch`      | Libtorch backend via `tch` (deprecated - use a CubeCL backend) |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
 //! **Note:** All backends, including the WGPU-based ones (`wgpu`, `metal`, `vulkan`, `webgpu`),

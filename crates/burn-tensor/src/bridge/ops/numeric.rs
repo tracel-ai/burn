@@ -1,5 +1,5 @@
 use burn_backend::{Distribution, Scalar};
-use burn_std::{DType, Shape};
+use burn_std::{DType, PadMode, Shape};
 
 use crate::{Device, bridge::BasicOps, ops::BridgeTensor};
 
@@ -496,4 +496,26 @@ pub(crate) trait Numeric: BasicOps {
     /// C = AB
     /// ```
     fn matmul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
+
+    /// Pads the tensor using the specified padding mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to pad.
+    /// * `padding` - One `(before, after)` padding pair per dimension.
+    /// * `mode` - The padding mode.
+    ///
+    /// # Returns
+    ///
+    /// The padded tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For padding tensors, users should prefer the [`Tensor::pad`](crate::Tensor::pad)
+    /// function, which is more high-level and designed for public use.
+    fn pad(tensor: BridgeTensor, padding: &[(usize, usize)], mode: PadMode) -> BridgeTensor;
 }

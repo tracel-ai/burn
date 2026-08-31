@@ -7,7 +7,7 @@ use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceS
 use burn_std::CommunicationId;
 
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{ExistingHandle, OperationIr, TensorId, TensorIr};
 use burn_std::sync::RwLock;
 use hashbrown::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -261,12 +261,29 @@ where
             .server
             .submit_blocking(move |server_src| server_src.read_float::<B>(tensor, stream))
             .unwrap();
-        let float_tensor = B::float_to_device(float_tensor, client_dst.device());
-        client_dst.server.submit(move |server_dst| {
-            server_dst
-                .handles
-                .register_float_tensor::<B>(&id, float_tensor.clone());
-        });
+        match float_tensor {
+            Ok(float_tensor) => {
+                let float_tensor = B::float_to_device(float_tensor, client_dst.device());
+                client_dst.server.submit(move |server_dst| {
+                    server_dst
+                        .handles
+                        .register_float_tensor::<B>(&id, float_tensor.clone());
+                });
+            }
+            // A tensor a failure claims has no bytes to copy, so the transfer
+            // cannot happen — and the destination has to carry the same
+            // failure rather than an id that reads as merely missing. The root
+            // is shared, so a read on the destination device still names the
+            // cause, one hop further down.
+            Err(error) => {
+                let error = error.propagated();
+                client_dst.server.submit(move |server_dst| {
+                    server_dst
+                        .handles
+                        .set_error(id, error, ExistingHandle::Displace);
+                });
+            }
+        }
 
         FusionTensor::new(id, shape, dtype, client_dst_cloned, StreamId::current())
     }
@@ -290,12 +307,29 @@ where
             .server
             .submit_blocking(move |server_src| server_src.read_int::<B>(tensor, stream))
             .unwrap();
-        let int_tensor = B::int_to_device(int_tensor, client_dst.device());
-        client_dst.server.submit(move |server_dst| {
-            server_dst
-                .handles
-                .register_int_tensor::<B>(&id, int_tensor.clone());
-        });
+        match int_tensor {
+            Ok(int_tensor) => {
+                let int_tensor = B::int_to_device(int_tensor, client_dst.device());
+                client_dst.server.submit(move |server_dst| {
+                    server_dst
+                        .handles
+                        .register_int_tensor::<B>(&id, int_tensor.clone());
+                });
+            }
+            // A tensor a failure claims has no bytes to copy, so the transfer
+            // cannot happen — and the destination has to carry the same
+            // failure rather than an id that reads as merely missing. The root
+            // is shared, so a read on the destination device still names the
+            // cause, one hop further down.
+            Err(error) => {
+                let error = error.propagated();
+                client_dst.server.submit(move |server_dst| {
+                    server_dst
+                        .handles
+                        .set_error(id, error, ExistingHandle::Displace);
+                });
+            }
+        }
 
         FusionTensor::new(id, shape, dtype, client_dst_cloned, StreamId::current())
     }
@@ -319,12 +353,29 @@ where
             .server
             .submit_blocking(move |server_src| server_src.read_bool::<B>(tensor, stream))
             .unwrap();
-        let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device());
-        client_dst.server.submit(move |server_dst| {
-            server_dst
-                .handles
-                .register_bool_tensor::<B>(&id, bool_tensor.clone());
-        });
+        match bool_tensor {
+            Ok(bool_tensor) => {
+                let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device());
+                client_dst.server.submit(move |server_dst| {
+                    server_dst
+                        .handles
+                        .register_bool_tensor::<B>(&id, bool_tensor.clone());
+                });
+            }
+            // A tensor a failure claims has no bytes to copy, so the transfer
+            // cannot happen — and the destination has to carry the same
+            // failure rather than an id that reads as merely missing. The root
+            // is shared, so a read on the destination device still names the
+            // cause, one hop further down.
+            Err(error) => {
+                let error = error.propagated();
+                client_dst.server.submit(move |server_dst| {
+                    server_dst
+                        .handles
+                        .set_error(id, error, ExistingHandle::Displace);
+                });
+            }
+        }
 
         FusionTensor::new(id, shape, dtype, client_dst_cloned, StreamId::current())
     }
@@ -348,12 +399,29 @@ where
             .server
             .submit_blocking(move |server_src| server_src.read_quantized::<B>(tensor, stream))
             .unwrap();
-        let q_tensor = B::q_to_device(q_tensor, client_dst.device());
-        client_dst.server.submit(move |server_dst| {
-            server_dst
-                .handles
-                .register_quantized_tensor::<B>(&id, q_tensor.clone());
-        });
+        match q_tensor {
+            Ok(q_tensor) => {
+                let q_tensor = B::q_to_device(q_tensor, client_dst.device());
+                client_dst.server.submit(move |server_dst| {
+                    server_dst
+                        .handles
+                        .register_quantized_tensor::<B>(&id, q_tensor.clone());
+                });
+            }
+            // A tensor a failure claims has no bytes to copy, so the transfer
+            // cannot happen — and the destination has to carry the same
+            // failure rather than an id that reads as merely missing. The root
+            // is shared, so a read on the destination device still names the
+            // cause, one hop further down.
+            Err(error) => {
+                let error = error.propagated();
+                client_dst.server.submit(move |server_dst| {
+                    server_dst
+                        .handles
+                        .set_error(id, error, ExistingHandle::Displace);
+                });
+            }
+        }
 
         FusionTensor::new(id, shape, dtype, client_dst_cloned, StreamId::current())
     }

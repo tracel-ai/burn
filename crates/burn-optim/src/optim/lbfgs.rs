@@ -3,12 +3,12 @@
 use burn_core as burn;
 
 use super::GradientsParams;
-use crate::{LearningRate, OptimizerRecord};
+use crate::{LearningRate, OptimizerRecord, RecordTensor};
 use crate::{RecordState, StateSink, StateSource};
 use burn::config::Config;
 use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
 use burn::store::RecordError;
-use burn::tensor::{Bytes, Device, Tensor, TensorData};
+use burn::tensor::{Bytes, Device, Tensor};
 use serde::{Deserialize, Serialize};
 
 use alloc::vec;
@@ -541,8 +541,10 @@ impl LBFGS {
         let tensors = sink
             .tensors
             .into_iter()
-            .map(|(name, data)| {
-                burn_pack::Tensor::new(name, data.dtype, data.shape, None, data.bytes)
+            .map(|(name, data)| RecordTensor {
+                name,
+                param_id: None,
+                data,
             })
             .collect();
         let scalars = sink.scalars.into_iter().collect();
@@ -562,9 +564,7 @@ impl LBFGS {
         let device = Device::default();
         let mut source = StateSource::new(record.scalars);
         for tensor in record.tensors {
-            let (name, dtype, shape, _, bytes) =
-                tensor.into_parts().expect("record tensors are resident");
-            source.insert_tensor(name, TensorData::from_bytes(bytes, shape, dtype));
+            source.insert_tensor(tensor.name, tensor.data);
         }
         if let Some(state) = LBFGSState::state_unflatten("", &mut source, &device) {
             self.state = state;

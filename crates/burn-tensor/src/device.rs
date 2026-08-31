@@ -357,12 +357,22 @@ impl Device {
 
     /// LibTorch CPU device.
     #[cfg(feature = "tch")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch() -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cpu)
     }
 
     /// LibTorch CUDA device at the given hardware index.
     #[cfg(feature = "tch")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch_cuda(index: impl Into<DeviceIndex>) -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(
             index.into().resolve(),
@@ -371,12 +381,22 @@ impl Device {
 
     /// LibTorch Metal Performance Shaders (MPS) device.
     #[cfg(feature = "tch")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch_mps() -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Mps)
     }
 
     /// LibTorch Vulkan device.
     #[cfg(feature = "tch")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch_vulkan() -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
     }

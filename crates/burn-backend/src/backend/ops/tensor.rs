@@ -8,7 +8,7 @@ use crate::{Backend, Distribution, TensorData, get_device_settings};
 use crate::{ExecutionError, Scalar, TensorMetadata};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, PadMode, Shape, Slice};
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
@@ -434,40 +434,14 @@ pub trait FloatTensorOps<B: Backend> {
     /// The gathered elements.
     fn float_gather(dim: usize, tensor: FloatTensor<B>, indices: IntTensor<B>) -> FloatTensor<B>;
 
-    /// Scatter elements into a tensor using sum reduction.
-    ///
-    /// # Arguments
-    ///
-    /// * `dim` - The dimension to scatter into.
-    /// * `tensor` - The tensor to scatter into.
-    /// * `indices` - The indices to scatter into.
-    /// * `value` - The value to scatter.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the scattered elements.
-    fn float_scatter_add(
-        dim: usize,
-        tensor: FloatTensor<B>,
-        indices: IntTensor<B>,
-        value: FloatTensor<B>,
-    ) -> FloatTensor<B>;
-
     /// Scatter elements into a tensor using the specified update operation.
-    ///
-    /// Backend implementations may override this to support operations beyond add.
     fn float_scatter(
         dim: usize,
         tensor: FloatTensor<B>,
         indices: IntTensor<B>,
         value: FloatTensor<B>,
         update: IndexingUpdateOp,
-    ) -> FloatTensor<B> {
-        match update {
-            IndexingUpdateOp::Add => Self::float_scatter_add(dim, tensor, indices, value),
-            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
-        }
-    }
+    ) -> FloatTensor<B>;
 
     /// Multi-dimensional scatter: update `data` at locations specified by `indices` with `values`.
     ///
@@ -517,43 +491,14 @@ pub trait FloatTensorOps<B: Backend> {
     /// The selected elements.
     fn float_select(tensor: FloatTensor<B>, dim: usize, indices: IntTensor<B>) -> FloatTensor<B>;
 
-    /// Assign the selected elements along the given dimension corresponding for the given indices
-    /// to the given value using sum reduction.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to select from.
-    /// * `dim` - The dimension to select from.
-    /// * `indices` - The indices to select.
-    /// * `value` - The value to assign.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the selected elements assigned to the given value.
-    fn float_select_add(
-        tensor: FloatTensor<B>,
-        dim: usize,
-        indices: IntTensor<B>,
-        value: FloatTensor<B>,
-    ) -> FloatTensor<B>;
-
     /// Assign selected elements along a dimension using the specified update operation.
-    ///
-    /// Backend implementations may override this to support operations beyond add.
     fn float_select_assign(
         tensor: FloatTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
         value: FloatTensor<B>,
         update: IndexingUpdateOp,
-    ) -> FloatTensor<B> {
-        match update {
-            IndexingUpdateOp::Add => Self::float_select_add(tensor, dim, indices, value),
-            other => {
-                unimplemented!("float_select_assign with {other:?} update is not implemented")
-            }
-        }
-    }
+    ) -> FloatTensor<B>;
 
     /// Select tensor elements corresponding to the given slices.
     ///
@@ -1982,5 +1927,14 @@ pub trait FloatTensorOps<B: Backend> {
     /// A boolean tensor where `true` indicates that the value is infinite
     fn float_is_inf(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
         B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.into(), out_dtype)
+    }
+
+    /// Pads a tensor with one `(before, after)` pair per dimension.
+    fn float_pad(
+        tensor: FloatTensor<B>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> FloatTensor<B> {
+        super::pad::float_pad::<B>(tensor, padding, mode)
     }
 }

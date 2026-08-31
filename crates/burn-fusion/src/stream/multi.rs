@@ -5,7 +5,7 @@ use super::{
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::{FusionRuntime, UnfusedOp, search::BlockOptimization};
-use burn_ir::{HandleContainer, OperationIr, TensorId};
+use burn_ir::{ExistingHandle, HandleContainer, OperationIr, TensorId};
 use hashbrown::{HashMap, HashSet};
 
 /// Keep track of multiple concurrent lazy streams of operations.
@@ -172,14 +172,41 @@ impl<R: FusionRuntime> MultiStream<R> {
         dst: TensorId,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
+        // A share of an errored tensor carries the error across with it.
+        // Without this the alias would be a plain missing handle on the
+        // receiving stream, and the thread that reads it would be told the
+        // tensor does not exist rather than why it was never written.
+        //
+        // Checked before the drain for the same reason `read_plan` returns
+        // `Direct`: no pending operation is going to produce `src`, so there
+        // is nothing for a drain to order the share after.
+        if let Some(error) = handles.error(&src).cloned() {
+            handles.set_error(dst, error, ExistingHandle::Displace);
+            return;
+        }
+
         // Drain only when neither short-circuit applies: `shared_sources` records ids
         // we already drained for, and a `Some` handle means `src` is materialised
         // (e.g., it was itself set up by an earlier `tag_shared_view` call). We
         // record `src` only when we actually drain — the handle-existence path is
         // naturally idempotent on later calls.
         if !self.shared_sources.contains(&src) && handles.get_handle_ref(&src).is_none() {
-            self.shared_sources.insert(src);
             self.drain(handles, src_stream);
+
+            // Mark the source only once the drain actually materialised it. A
+            // drain that failed to produce it leaves no handle, and marking
+            // `src` anyway would make every later share of it skip the drain
+            // too and mint a `dst` with no handle behind it.
+            if handles.get_handle_ref(&src).is_some() {
+                self.shared_sources.insert(src);
+            }
+
+            // The drain is what surfaced the failure: `src` had a pending
+            // producer, and that producer did not produce it.
+            if let Some(error) = handles.error(&src).cloned() {
+                handles.set_error(dst, error, ExistingHandle::Displace);
+                return;
+            }
         }
 
         if let Some(handle) = handles.get_handle_ref(&src) {
@@ -244,20 +271,28 @@ impl<R: FusionRuntime> MultiStream<R> {
         crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
     }
 
-    /// Drain a stream.
+    /// Run `id`'s pending segment to completion.
+    ///
+    /// Reports nothing. An operation that fails leaves its error on the
+    /// tensors it was going to write (see `execution::set_output_errors`), so
+    /// it is delivered by the read of one of *those* tensors — the point where a
+    /// caller is actually waiting for that data — and not to whoever happened
+    /// to drain the stream next. A drain that shares no tensor with the
+    /// failure has nothing to report and returns normally.
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         id.executes(|| {
-            if let Some(stream) = self.streams.get_mut(&id) {
-                let num_executed = stream.queue.global.len();
-                stream.processor.process(
-                    Segment::new(&mut stream.queue, handles, id),
-                    &mut self.optimizations,
-                    ExecutionMode::Sync,
-                );
-                stream.cursor += num_executed as u64;
-                // A drain is a boundary even when the queue was already empty.
-                stream.queue.flush_deferred(handles);
-            }
+            let Some(stream) = self.streams.get_mut(&id) else {
+                return;
+            };
+            let num_executed = stream.queue.global.len();
+            stream.processor.process(
+                Segment::new(&mut stream.queue, handles, id),
+                &mut self.optimizations,
+                ExecutionMode::Sync,
+            );
+            stream.cursor += num_executed as u64;
+            // A drain is a boundary even when the queue was already empty.
+            stream.queue.flush_deferred(handles);
         });
         #[cfg(feature = "test-util")]
         crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
@@ -271,6 +306,12 @@ impl<R: FusionRuntime> MultiStream<R> {
         ir: &burn_ir::TensorIr,
         handles: &HandleContainer<R::FusionHandle>,
     ) -> ReadPlan {
+        if handles.error(&ir.id).is_some() {
+            // Errored: no pending operation is going to produce this tensor,
+            // so there is nothing for a drain to order the read after. The
+            // read itself reports the failure.
+            return ReadPlan::Direct;
+        }
         if handles.get_handle_ref(&ir.id).is_none() {
             // Only the queue can order the read after the pending producer.
             return ReadPlan::Drain;
@@ -391,28 +432,60 @@ impl<R: FusionRuntime> Stream<R> {
 mod tests {
     use super::*;
     use crate::{
-        FuserProperties, FuserStatus, NumOperations, OperationFuser, Optimization, UnfusedOp,
+        FuserProperties, FuserStatus, NumOperations, OperationFuser, OperationRan, Optimization,
+        UnfusedOp,
         stream::{Context, Operation, OrderedExecution},
     };
     use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, Shape};
-    use burn_ir::{FloatOperationIr, TensorIr, TensorStatus, UnaryOpIr};
+    use burn_ir::{
+        ExistingHandle, FloatOperationIr, TensorError, TensorIr, TensorStatus, UnaryOpIr,
+    };
     use burn_std::{BoolDType, FloatDType, IntDType, device::Device};
 
     #[derive(Debug)]
     struct TestRuntime;
 
+    /// Which fuser [`TestRuntime`] hands to the streams on a device, which is
+    /// what decides where an operation actually executes.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    enum Fusing {
+        /// Never closes, so operations accumulate until an explicit drain.
+        #[default]
+        Deferred,
+        /// Closes on its first operation, so the processor commits during the
+        /// registration that queued it.
+        Eager,
+        /// Closes and reports ready, so the block compiles to one fused
+        /// kernel and runs through `OrderedExecution::execute_optimization`.
+        Fused,
+    }
+
+    /// Carried on the device rather than in ambient state because
+    /// [`FusionRuntime::fusers`] is handed the device, and a choice that
+    /// travels with the value cannot leak into the next test.
     #[derive(Clone, Debug, Default, PartialEq)]
-    struct TestDevice;
+    struct TestDevice {
+        fusing: Fusing,
+    }
 
     impl Device for TestDevice {
-        fn from_id(_device_id: DeviceId) -> Self {
-            Self
+        fn from_id(device_id: DeviceId) -> Self {
+            let fusing = match device_id.index_id {
+                0 => Fusing::Deferred,
+                1 => Fusing::Eager,
+                _ => Fusing::Fused,
+            };
+            Self { fusing }
         }
 
         fn to_id(&self) -> DeviceId {
             DeviceId {
                 type_id: 0,
-                index_id: 0,
+                index_id: match self.fusing {
+                    Fusing::Deferred => 0,
+                    Fusing::Eager => 1,
+                    Fusing::Fused => 2,
+                },
             }
         }
     }
@@ -426,12 +499,30 @@ mod tests {
     #[derive(Clone, Debug)]
     struct TestHandle;
 
-    #[derive(Debug)]
-    struct TestOptimization;
+    /// One fused kernel over the operations a [`FusingFuser`] collected: it
+    /// writes the whole block's outputs, or it cannot serve its problem and
+    /// writes none of them.
+    #[derive(Debug, Default)]
+    struct TestOptimization {
+        /// How many operations the kernel replaced. What the queue consumes.
+        len: usize,
+        /// Relative ids of every tensor the block writes, resolved through
+        /// `context.tensors` at execution the way a real optimization does.
+        outputs: Vec<TensorId>,
+        /// Whether the kernel can serve the problem it was compiled for.
+        panics: bool,
+        /// Operations the kernel refuses to serve and runs unfused instead,
+        /// as indices within the block — what a real optimization does when
+        /// part of what it replaced needs the fallback.
+        fallback: Vec<usize>,
+        /// Global ids the kernel claims before falling back, standing in for a
+        /// fused step that failed to write them part way through the block.
+        claims: Vec<TensorId>,
+    }
 
     impl NumOperations for TestOptimization {
         fn len(&self) -> usize {
-            0
+            self.len
         }
 
         fn name(&self) -> &'static str {
@@ -442,15 +533,41 @@ mod tests {
     impl Optimization<TestRuntime> for TestOptimization {
         fn execute(
             &mut self,
-            _context: &mut Context<TestHandle>,
+            context: &mut Context<TestHandle>,
             _execution: &OrderedExecution<TestRuntime>,
         ) {
+            if self.panics {
+                panic!("this fused kernel cannot serve its problem");
+            }
+
+            for id in &self.claims {
+                context.handles.set_error(
+                    *id,
+                    TensorError::new("the fused part could not write it"),
+                    ExistingHandle::Displace,
+                );
+            }
+
+            for index in &self.fallback {
+                _execution
+                    .operation_within_optimization(*index)
+                    .execute(&mut context.handles);
+            }
+
+            for relative in &self.outputs {
+                let global = context
+                    .tensors
+                    .get(relative)
+                    .expect("every fused output is in the context")
+                    .id;
+                context.handles.register_handle(global, TestHandle);
+            }
         }
 
         fn to_state(&self) {}
 
         fn from_state(_device: &TestDevice, _state: ()) -> Self {
-            Self
+            Self::default()
         }
     }
 
@@ -467,7 +584,7 @@ mod tests {
         }
 
         fn finish(&mut self) -> TestOptimization {
-            TestOptimization
+            TestOptimization::default()
         }
 
         fn reset(&mut self) {
@@ -494,14 +611,141 @@ mod tests {
         }
     }
 
+    /// Closes on its first operation, so the processor commits the segment on
+    /// the very registration that queued it. The counterpart of
+    /// [`NeverReadyFuser`], covering the path where an operation executes
+    /// during a fire-and-forget registration instead of at a drain.
+    #[derive(Clone, Debug, Default)]
+    struct EagerFuser {
+        count: usize,
+    }
+
+    impl OperationFuser<TestOptimization> for EagerFuser {
+        fn fuse(&mut self, _operation: &OperationIr) {
+            self.count += 1;
+        }
+
+        fn finish(&mut self) -> TestOptimization {
+            TestOptimization::default()
+        }
+
+        fn reset(&mut self) {
+            self.count = 0;
+        }
+
+        fn status(&self) -> FuserStatus {
+            FuserStatus::Closed
+        }
+
+        fn properties(&self) -> FuserProperties {
+            FuserProperties {
+                score: 0,
+                ready: false,
+            }
+        }
+
+        fn len(&self) -> usize {
+            self.count
+        }
+
+        fn clone_dyn(&self) -> Box<dyn OperationFuser<TestOptimization>> {
+            Box::new(self.clone())
+        }
+    }
+
+    /// Closes and reports ready, so its block compiles to one fused kernel.
+    /// The counterpart of [`NeverReadyFuser`], covering the path where a
+    /// segment runs through `OrderedExecution::execute_optimization`.
+    ///
+    /// The kernel it emits panics when the block contains a [`failing_op`],
+    /// the way a real fuser reads the IR to decide what it can emit.
+    #[derive(Clone, Debug, Default)]
+    struct FusingFuser {
+        outputs: Vec<TensorId>,
+        len: usize,
+        panics: bool,
+    }
+
+    impl OperationFuser<TestOptimization> for FusingFuser {
+        fn fuse(&mut self, operation: &OperationIr) {
+            self.len += 1;
+            self.outputs.extend(operation.outputs().map(|node| node.id));
+            self.panics |= matches!(operation, OperationIr::Float(_, FloatOperationIr::Log(_)));
+        }
+
+        fn finish(&mut self) -> TestOptimization {
+            TestOptimization {
+                len: self.len,
+                outputs: core::mem::take(&mut self.outputs),
+                panics: self.panics,
+                fallback: Vec::new(),
+                claims: Vec::new(),
+            }
+        }
+
+        fn reset(&mut self) {
+            *self = Self::default();
+        }
+
+        /// Two operations to a block, so a test can tell "the whole write
+        /// set" from "the output of the one that failed".
+        fn status(&self) -> FuserStatus {
+            match self.len >= 2 {
+                true => FuserStatus::Closed,
+                false => FuserStatus::Open,
+            }
+        }
+
+        fn properties(&self) -> FuserProperties {
+            FuserProperties {
+                score: 1,
+                ready: self.len > 0,
+            }
+        }
+
+        fn len(&self) -> usize {
+            self.len
+        }
+
+        fn clone_dyn(&self) -> Box<dyn OperationFuser<TestOptimization>> {
+            Box::new(self.clone())
+        }
+    }
+
+    thread_local! {
+        /// Tensors reclaimed with [`OperationRan::No`], recorded by
+        /// [`TestRuntime::free_handle`].
+        ///
+        /// Ambient state, unlike [`TestDevice`]'s fuser choice, because
+        /// `free_handle` is a static method taking neither a device nor a
+        /// runtime value — a test has no other channel into it.
+        static UNRUN_FREES: std::cell::RefCell<Vec<TensorId>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
     impl FusionRuntime for TestRuntime {
         type OptimizationState = ();
         type Optimization = TestOptimization;
         type FusionHandle = TestHandle;
         type FusionDevice = TestDevice;
 
-        fn fusers(_device: TestDevice) -> Vec<Box<dyn OperationFuser<TestOptimization>>> {
-            vec![Box::new(NeverReadyFuser::default())]
+        fn free_handle(
+            handles: &mut HandleContainer<TestHandle>,
+            tensor: &TensorIr,
+            ran: OperationRan,
+        ) {
+            if tensor.status == TensorStatus::ReadWrite && ran == OperationRan::No {
+                UNRUN_FREES.with(|freed| freed.borrow_mut().push(tensor.id));
+            }
+            handles.free(tensor);
+        }
+
+        fn fusers(device: TestDevice) -> Vec<Box<dyn OperationFuser<TestOptimization>>> {
+            match device.fusing {
+                Fusing::Deferred => vec![Box::new(NeverReadyFuser::default())],
+                Fusing::Eager => vec![Box::new(EagerFuser::default())],
+                Fusing::Fused => vec![Box::new(FusingFuser::default())],
+            }
         }
     }
 
@@ -514,6 +758,53 @@ mod tests {
     impl Operation<TestRuntime> for ProduceOp {
         fn execute(&self, handles: &mut HandleContainer<TestHandle>) {
             handles.register_handle(self.out, TestHandle);
+        }
+    }
+
+    /// Registers its output handle and *then* panics, the way in-place
+    /// fusion does: the output is aliased to its input while the launch is
+    /// planned, so the handle is there before the kernel that fills it runs.
+    #[derive(Debug)]
+    struct AliasThenPanicOp {
+        out: TensorId,
+    }
+
+    impl Operation<TestRuntime> for AliasThenPanicOp {
+        fn execute(&self, handles: &mut HandleContainer<TestHandle>) {
+            handles.register_handle(self.out, TestHandle);
+            panic!("this operation cannot serve its problem");
+        }
+    }
+
+    /// Releases a tensor, the way a `FusionTensor`'s drop does, and records
+    /// that it ran.
+    ///
+    /// Whether it ran is the thing to assert on, not whether the entry is
+    /// gone: `drain_queue` frees a `ReadWrite` node itself, so the container
+    /// ends up in the same state either way. Backends whose drop does more
+    /// than clear that entry — the remote one frees the tensor server-side —
+    /// need the operation itself to execute.
+    #[derive(Debug)]
+    struct DropOp {
+        id: TensorId,
+        ran: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl Operation<TestRuntime> for DropOp {
+        fn execute(&self, handles: &mut HandleContainer<TestHandle>) {
+            self.ran.store(true, std::sync::atomic::Ordering::Relaxed);
+            handles.remove_handle(self.id);
+        }
+    }
+
+    /// Panics when executed, the way a pinned kernel that cannot serve its
+    /// problem does in the benchmark sweeps downstream.
+    #[derive(Debug)]
+    struct PanicOp;
+
+    impl Operation<TestRuntime> for PanicOp {
+        fn execute(&self, _handles: &mut HandleContainer<TestHandle>) {
+            panic!("this operation cannot serve its problem");
         }
     }
 
@@ -536,6 +827,31 @@ mod tests {
         )
     }
 
+    /// An operation a [`FusingFuser`] compiles into a kernel that cannot
+    /// serve its problem. Distinguished by its IR, the way a real fuser reads
+    /// the operations it is given rather than being told out of band.
+    fn failing_op(input: TensorId, out: TensorId) -> OperationIr {
+        OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Log(UnaryOpIr {
+                input: tensor_ir(input, TensorStatus::ReadOnly),
+                out: tensor_ir(out, TensorStatus::NotInit),
+            }),
+        )
+    }
+
+    /// An operation whose input is its last use, so the drained block
+    /// reclaims it through [`FusionRuntime::free_handle`].
+    fn consume_op(input: TensorId, out: TensorId) -> OperationIr {
+        OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Exp(UnaryOpIr {
+                input: tensor_ir(input, TensorStatus::ReadWrite),
+                out: tensor_ir(out, TensorStatus::NotInit),
+            }),
+        )
+    }
+
     struct TestSetup {
         streams: MultiStream<TestRuntime>,
         handles: HandleContainer<TestHandle>,
@@ -544,11 +860,26 @@ mod tests {
 
     impl TestSetup {
         fn new() -> Self {
+            Self::on(Fusing::Deferred)
+        }
+
+        fn on(fusing: Fusing) -> Self {
             Self {
-                streams: MultiStream::new(TestDevice),
+                streams: MultiStream::new(TestDevice { fusing }),
                 handles: HandleContainer::new(),
                 id: StreamId::current(),
             }
+        }
+
+        /// A setup whose streams execute on registration rather than
+        /// deferring — the lazy path a fire-and-forget caller takes.
+        fn eager() -> Self {
+            Self::on(Fusing::Eager)
+        }
+
+        /// A setup whose streams compile each segment into one fused kernel.
+        fn fused() -> Self {
+            Self::on(Fusing::Fused)
         }
 
         fn register_exp(&mut self, input: TensorId, out: TensorId) {
@@ -812,5 +1143,800 @@ mod tests {
             .get(&setup.id)
             .is_some_and(|stream| stream.queue.variables.contains_key(&t0));
         assert!(!stale, "the stale variables entry is cleaned up");
+    }
+
+    /// The error a failure leaves is what a read of the tensor reports. The
+    /// stream itself is not poisoned: the queue is intact, the drain returns
+    /// normally, and only the data the failure was going to write is gone.
+    #[test]
+    fn a_failing_operation_errors_the_tensor_it_was_going_to_write() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+
+        // A drain reports nothing: the failure lives on the tensor, and the
+        // read of that tensor is what surfaces it.
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        let error = setup
+            .handles
+            .error(&t1)
+            .expect("the output holds the error");
+        assert!(
+            error
+                .root()
+                .contains("this operation cannot serve its problem"),
+            "the error names the panic that caused it: {error}"
+        );
+        assert!(!setup.handles.has_handle(&t1), "there is no data behind it");
+
+        // Reading it is where a caller finally hears about it — as an error
+        // it can handle, not an unwind.
+        let read = setup
+            .handles
+            .take_error(&tensor_ir(t1, TensorStatus::ReadWrite))
+            .expect("the read must not hand back untouched memory");
+        assert!(
+            read.root()
+                .contains("this operation cannot serve its problem"),
+            "the read names the root cause: {read}"
+        );
+
+        // And the read consumed the tensor, so it released the failure with
+        // it: the claim lives exactly as long as the tensor carrying it.
+        assert!(
+            !setup.handles.has_errors(),
+            "the failure is released with the tensor the read consumed"
+        );
+    }
+
+    /// A read that does not consume the tensor leaves the failure in place:
+    /// the tensor is still alive, and the next read of it has to report the
+    /// same cause rather than a bare missing handle.
+    #[test]
+    fn a_read_only_read_leaves_the_failure_for_the_next_one() {
+        let mut setup = TestSetup::new();
+        let (t0, t1) = (TensorId::new(0), TensorId::new(1));
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        let first = setup
+            .handles
+            .take_error(&tensor_ir(t1, TensorStatus::ReadOnly));
+        let second = setup
+            .handles
+            .take_error(&tensor_ir(t1, TensorStatus::ReadOnly));
+
+        assert!(first.is_some() && second.is_some(), "both reads report it");
+        assert!(
+            first.zip(second).is_some_and(|(a, b)| a.same_root(&b)),
+            "and report the same failure, not a fresh one"
+        );
+        assert!(setup.handles.has_errors(), "the tensor still carries it");
+    }
+
+    /// A panic can escape the strategy walk *before* any unit of work has
+    /// counted its operations — the walk's own guards do exactly that. The
+    /// queue must still shrink: handing it back unchanged lets the policy
+    /// re-plan it identically, re-select the same strategy and raise the same
+    /// panic, without end. The block is consumed as one unit instead, so the
+    /// failure is reported once and the stream moves on.
+    #[test]
+    fn a_panic_before_any_work_is_counted_still_drains_the_block() {
+        use crate::search::BlockOptimization;
+        use crate::stream::store::ExecutionStrategy;
+
+        let mut setup = TestSetup::new();
+        let (t0, t1) = (TensorId::new(0), TensorId::new(1));
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+
+        let stream = setup
+            .streams
+            .streams
+            .get_mut(&setup.id)
+            .expect("the registration created the stream");
+        assert_eq!(stream.queue.global.len(), 1, "one operation queued");
+
+        // An ordering longer than the queue. `execute_optimization` guards
+        // against exactly this and panics on it — before it counts anything,
+        // which is the case the queue would otherwise hand back untouched.
+        let ordering = vec![0, 1, 2];
+        let optimization = BlockOptimization::new(
+            ExecutionStrategy::Optimization {
+                opt: TestOptimization {
+                    len: ordering.len(),
+                    outputs: Vec::new(),
+                    panics: false,
+                    fallback: Vec::new(),
+                    claims: Vec::new(),
+                },
+                ordering: std::sync::Arc::new(ordering.clone()),
+                score: 0,
+            },
+            ordering,
+        );
+
+        stream
+            .queue
+            .execute_unfused(optimization, &mut setup.handles, setup.id);
+
+        assert!(
+            stream.queue.global.is_empty() && stream.queue.operations.is_empty(),
+            "the block was consumed, so the next pass cannot re-select it"
+        );
+        assert!(
+            setup.handles.error(&t1).is_some(),
+            "and nothing ran, so its output carries the failure"
+        );
+    }
+
+    /// The recovery property autotune rests on: a candidate that fails claims
+    /// the output it did not write, and the candidate that works writes it and
+    /// clears the claim. Nothing downstream is skipped, and the read succeeds.
+    #[test]
+    fn writing_a_claimed_tensor_recovers_it() {
+        let mut setup = TestSetup::new();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+        setup.handles.register_handle(t0, TestHandle);
+
+        // The failing candidate: it claims `t1`, which it never wrote.
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(setup.handles.error(&t1).is_some(), "claimed by the failure");
+
+        // The candidate that works, writing the same output.
+        setup.handles.register_handle(t1, TestHandle);
+
+        assert!(setup.handles.error(&t1).is_none(), "the claim is cleared");
+        assert!(setup.handles.has_handle(&t1), "and the bytes are there");
+        assert!(
+            !setup.handles.has_errors(),
+            "so the container is clean again"
+        );
+
+        // Work reading the recovered tensor runs, rather than being skipped.
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t1, t2);
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(setup.handles.has_handle(&t2), "downstream work ran");
+        assert!(setup.handles.error(&t2).is_none(), "and holds no error");
+    }
+
+    /// Unfused work inside a fused block obeys the same rule as unfused work
+    /// outside one. An optimization that cannot serve part of what it replaced
+    /// runs those operations directly, and that fallback must not be the one
+    /// place a claimed tensor still reaches a kernel: it skips, and its output
+    /// carries the failure that stopped it.
+    #[test]
+    fn a_fallback_does_not_run_on_a_claimed_input() {
+        use crate::search::BlockOptimization;
+        use crate::stream::store::ExecutionStrategy;
+
+        let mut setup = TestSetup::new();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        setup.register_exp(t1, t2);
+
+        let stream = setup
+            .streams
+            .streams
+            .get_mut(&setup.id)
+            .expect("the registration created the stream");
+
+        // The kernel fails to write `t1` part way through, then falls back for
+        // the operation that reads it. Nothing claimed `t1` when the block was
+        // entered, so the block-level check let the whole thing through.
+        let ordering = vec![0, 1];
+        let optimization = BlockOptimization::new(
+            ExecutionStrategy::Optimization {
+                opt: TestOptimization {
+                    len: ordering.len(),
+                    outputs: Vec::new(),
+                    panics: false,
+                    fallback: vec![1],
+                    claims: vec![t1],
+                },
+                ordering: std::sync::Arc::new(ordering.clone()),
+                score: 0,
+            },
+            ordering,
+        );
+
+        stream
+            .queue
+            .execute_unfused(optimization, &mut setup.handles, setup.id);
+
+        assert!(
+            !setup.handles.has_handle(&t2),
+            "the fallback must not run on a tensor nothing wrote"
+        );
+        let claimed = setup.handles.error(&t2).expect("its output is claimed");
+        assert_eq!(
+            claimed.root(),
+            "the fused part could not write it",
+            "and names the failure that stopped it"
+        );
+        assert_eq!(claimed.depth(), 1, "one hop below that failure");
+    }
+
+    /// The property the whole design is for: a failure is a fact about the
+    /// tensors it was going to write, so work that shares none of them is
+    /// untouched — even when it was queued on the same stream, behind the
+    /// operation that failed.
+    #[test]
+    fn work_sharing_no_tensor_with_a_failure_still_runs() {
+        let mut setup = TestSetup::new();
+        let (a0, a1) = (TensorId::new(0), TensorId::new(1));
+        let (b0, b1) = (TensorId::new(10), TensorId::new(11));
+
+        setup.handles.register_handle(a0, TestHandle);
+        setup.handles.register_handle(b0, TestHandle);
+
+        // Two independent chains queued on one stream; the first one fails.
+        setup.streams.register(
+            setup.id,
+            exp_op(a0, a1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.register_exp(b0, b1);
+
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        assert!(
+            setup.handles.error(&a1).is_some(),
+            "the failing chain holds the error"
+        );
+        assert!(
+            setup.handles.has_handle(&b1),
+            "the independent chain behind it still ran"
+        );
+        assert!(setup.handles.error(&b1).is_none(), "and holds no error");
+    }
+
+    /// Work downstream of an errored tensor cannot run either — its input was
+    /// never written — but it must report the failure that started it, not a
+    /// fresh one of its own. However long the chain, the root is the same.
+    #[test]
+    fn an_error_propagates_downstream_carrying_its_root() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let t2 = TensorId::new(2);
+        let t3 = TensorId::new(3);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        // Two operations reading, in turn, what the failure never wrote.
+        setup.register_exp(t1, t2);
+        setup.register_exp(t2, t3);
+
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        let root = setup.handles.error(&t1).expect("errored").clone();
+        let mid = setup
+            .handles
+            .error(&t2)
+            .expect("skipped: its input was errored");
+        let tail = setup
+            .handles
+            .error(&t3)
+            .expect("skipped, two below the root");
+
+        assert!(root.same_root(mid), "the same failure, not a new one");
+        assert!(root.same_root(tail), "still the same failure at the tail");
+        assert!(
+            tail.root()
+                .contains("this operation cannot serve its problem"),
+            "the tail names the original cause: {tail}"
+        );
+        assert_eq!((root.depth(), mid.depth(), tail.depth()), (0, 1, 2));
+    }
+
+    /// An error is released by the tensor's own `Drop`, like any other handle.
+    /// That is what bounds the set: it holds exactly the errored tensors that
+    /// are still alive, and needs no cap or eviction of its own.
+    #[test]
+    fn an_error_is_released_when_its_tensor_is_dropped() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(setup.handles.error(&t1).is_some());
+
+        setup.handles.free(&tensor_ir(t1, TensorStatus::ReadWrite));
+        assert!(
+            setup.handles.error(&t1).is_none(),
+            "the error goes with the tensor"
+        );
+    }
+
+    /// The stream is not rebuilt around a failure, so what it had queued is
+    /// still there and still runs.
+    ///
+    /// A failure that discarded the segment's operations would leave `global`
+    /// and `relative` describing closures that no longer exist, and the next
+    /// plan to match would index into the gap
+    /// (`OrderedExecution::execute_operations`, index out of bounds).
+    #[test]
+    fn the_queue_survives_a_failure_intact() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let t2 = TensorId::new(2);
+
+        setup.register_exp(t0, t1);
+        setup.streams.register(
+            setup.id,
+            exp_op(t1, t2),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert_eq!(setup.num_pending(), 0, "no orphaned bookkeeping survives");
+
+        let t3 = TensorId::new(3);
+        let t4 = TensorId::new(4);
+        setup.register_exp(t3, t4);
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(setup.handles.has_handle(&t4), "later work runs normally");
+    }
+
+    /// The same on the lazy path, where the operation runs inside the
+    /// registration itself — a fire-and-forget `submit` with no caller
+    /// blocked on it. Nothing has to be held for a caller that may never
+    /// come back, because the error on the tensor is the whole report.
+    #[test]
+    fn a_failure_while_registering_errors_without_holding_anything() {
+        let mut setup = TestSetup::eager();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let t2 = TensorId::new(2);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        assert!(
+            setup.handles.has_handle(&t1),
+            "eager fusion executes on registration, not at the drain"
+        );
+
+        let registered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup.streams.register(
+                setup.id,
+                exp_op(t1, t2),
+                UnfusedOp::new(PanicOp, setup.id),
+                &mut setup.handles,
+            );
+        }));
+        assert!(registered.is_ok(), "a registration does not unwind");
+        assert!(
+            setup.handles.error(&t2).is_some(),
+            "the failure is on the tensor it was going to write"
+        );
+        assert!(
+            setup.handles.has_handle(&t1),
+            "the input it read is untouched"
+        );
+    }
+
+    /// A share of an errored tensor carries the error across. Without it the
+    /// alias would be a plain missing handle on the receiving stream, and the
+    /// thread that reads it would be told the tensor does not exist rather
+    /// than why it was never written.
+    #[test]
+    fn a_share_of_an_errored_tensor_carries_the_error() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let alias = TensorId::new(2);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+
+        let shared = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            setup
+                .streams
+                .tag_shared_view(setup.id, t1, alias, &mut setup.handles);
+        }));
+        assert!(shared.is_ok(), "a share does not unwind into its caller");
+        assert!(
+            !setup.handles.has_handle(&alias),
+            "there is no data to alias"
+        );
+
+        let source = setup.handles.error(&t1).expect("the source is errored");
+        let aliased = setup.handles.error(&alias).expect("so is the alias");
+        assert!(
+            source.same_root(aliased),
+            "the alias names the same failure, not one of its own"
+        );
+        assert!(
+            !setup.streams.shared_sources.contains(&t1),
+            "an unmaterialised source must not be recorded as drained"
+        );
+    }
+
+    /// A handle registered before the work that fills it is not a written
+    /// tensor. In-place fusion registers an output as an alias of its input
+    /// while the launch is still being planned, so an error that skipped
+    /// tensors "that already have a handle" would leave that output reading
+    /// back as a half-written buffer.
+    #[test]
+    fn an_error_displaces_a_handle_registered_ahead_of_the_work() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(AliasThenPanicOp { out: t1 }, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        assert!(
+            setup.handles.error(&t1).is_some(),
+            "the output holds the error even though it had a handle when the work failed"
+        );
+        assert!(!setup.handles.has_handle(&t1));
+    }
+
+    /// An error must not outlive the tensor carrying it, which means the drop
+    /// that releases it has to run. A drop names its tensor as an *input*, so
+    /// treating it like any other operation would skip it on the error it is
+    /// there to release — and the error would then be held for the life of
+    /// the server, for a tensor nobody can even name any more.
+    #[test]
+    fn a_drop_of_an_errored_tensor_still_releases_it() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(setup.handles.error(&t1).is_some(), "errored");
+
+        // The last `FusionTensor` for t1 goes out of scope.
+        let ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        setup.streams.register(
+            setup.id,
+            OperationIr::Drop(tensor_ir(t1, TensorStatus::ReadWrite)),
+            UnfusedOp::new(
+                DropOp {
+                    id: t1,
+                    ran: ran.clone(),
+                },
+                setup.id,
+            ),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        assert!(
+            ran.load(std::sync::atomic::Ordering::Relaxed),
+            "the drop must not be skipped on the error it is there to release"
+        );
+        assert!(
+            setup.handles.error(&t1).is_none(),
+            "the error went with the tensor"
+        );
+        assert_eq!(setup.handles.num_handles(), 1, "only t0 remains");
+    }
+
+    /// An errored tensor has no producer left to wait for, so the read must
+    /// not be sent round a drain that cannot change the answer.
+    #[test]
+    fn a_read_of_an_errored_tensor_does_not_force_a_drain() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        let plan = setup.streams.read_plan(
+            setup.id,
+            &tensor_ir(t1, TensorStatus::ReadWrite),
+            &setup.handles,
+        );
+        assert!(matches!(plan, ReadPlan::Direct));
+    }
+
+    /// A deferred free belongs to a tensor whose `FusionTensor` is already
+    /// gone, so no `Drop` op is ever coming for it — only an execution
+    /// boundary frees it. The boundary must still be reached when the segment
+    /// contained a failure, or the handle is stranded for the life of the
+    /// server.
+    #[test]
+    fn a_failing_segment_still_reaches_its_execution_boundary() {
+        let mut setup = TestSetup::new();
+        let t0 = TensorId::new(0);
+        let t1 = TensorId::new(1);
+        let t2 = TensorId::new(2);
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+
+        // Cross-thread last use of t0 while a pending op still reads it.
+        setup.consuming_read(t0);
+        assert!(setup.handles.has_handle(&t0), "deferred, not yet freed");
+
+        setup.streams.register(
+            setup.id,
+            exp_op(t1, t2),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        assert!(
+            !setup.handles.has_handle(&t0),
+            "the boundary released what only this stream could release"
+        );
+    }
+
+    /// A backend whose handles live where the operation never reached has to
+    /// hear that a drained operation did not run.
+    ///
+    /// The remote backend reclaims a replayed operation's inputs by
+    /// suppressing their client-side `Drop`, because the server already
+    /// popped them. An operation that was skipped or torn down was never
+    /// replayed, so suppressing it there strands the buffer on the server for
+    /// the life of the session.
+    #[test]
+    fn an_operation_that_did_not_run_reclaims_its_inputs_as_such() {
+        UNRUN_FREES.with(|freed| freed.borrow_mut().clear());
+
+        let mut setup = TestSetup::new();
+        let (a0, a1, a2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+        let (b0, b1) = (TensorId::new(10), TensorId::new(11));
+
+        setup.handles.register_handle(a0, TestHandle);
+        setup.handles.register_handle(b0, TestHandle);
+
+        // a0 -> a1 fails, so a1 -> a2 behind it is skipped. b0 -> b1 runs.
+        setup.streams.register(
+            setup.id,
+            consume_op(a0, a1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.register(
+            setup.id,
+            consume_op(a1, a2),
+            UnfusedOp::new(ProduceOp { out: a2 }, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.register(
+            setup.id,
+            consume_op(b0, b1),
+            UnfusedOp::new(ProduceOp { out: b1 }, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        let unrun = UNRUN_FREES.with(|freed| freed.borrow().clone());
+        assert!(
+            unrun.contains(&a0),
+            "the input of the operation that failed: {unrun:?}"
+        );
+        assert!(
+            unrun.contains(&a1),
+            "the input of the operation that skipped: {unrun:?}"
+        );
+        assert!(
+            !unrun.contains(&b0),
+            "but not the input of the one that ran: {unrun:?}"
+        );
+    }
+
+    /// The control for the fused tests below: a block really does compile to
+    /// one kernel, and that kernel writes every output in it. Without this,
+    /// the failure tests could pass on a block that never ran.
+    #[test]
+    fn a_fused_kernel_writes_the_whole_blocks_output_set() {
+        let mut setup = TestSetup::fused();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        setup.register_exp(t1, t2);
+
+        assert_eq!(setup.num_pending(), 0, "the block closed and ran");
+        assert!(setup.handles.has_handle(&t1), "the intermediate is written");
+        assert!(setup.handles.has_handle(&t2), "and so is the output");
+    }
+
+    /// A fused kernel is one unit of work: it writes every output of every
+    /// operation it replaced, so a panic anywhere in it leaves the whole
+    /// write set unwritten. Erroring only the last operation's output would
+    /// leave the intermediates readable as whatever the allocation held.
+    #[test]
+    fn a_failing_fused_kernel_errors_the_whole_block() {
+        let mut setup = TestSetup::fused();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        setup.streams.register(
+            setup.id,
+            failing_op(t1, t2),
+            UnfusedOp::new(ProduceOp { out: t2 }, setup.id),
+            &mut setup.handles,
+        );
+
+        let intermediate = setup
+            .handles
+            .error(&t1)
+            .expect("the intermediate the kernel never wrote");
+        let output = setup.handles.error(&t2).expect("and its output");
+        assert!(
+            intermediate.same_root(output),
+            "one failure, not one per operation"
+        );
+        assert!(
+            output
+                .root()
+                .contains("this fused kernel cannot serve its problem"),
+            "the error names the kernel that raised it: {output}"
+        );
+        assert!(!setup.handles.has_handle(&t1));
+        assert!(!setup.handles.has_handle(&t2));
+        assert!(setup.handles.has_handle(&t0), "its input is untouched");
+    }
+
+    /// One errored input anywhere in a fused block stops the whole thing: the
+    /// kernel reads every input of every operation it replaced, so there is no
+    /// part of it that could still run. The block's outputs report the failure
+    /// that started it rather than one of their own.
+    #[test]
+    fn a_fused_block_with_an_errored_input_never_runs() {
+        let mut setup = TestSetup::fused();
+        let t0 = TensorId::new(0);
+        let (t1, t2, t3) = (TensorId::new(1), TensorId::new(2), TensorId::new(3));
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            failing_op(t0, t1),
+            UnfusedOp::new(ProduceOp { out: t1 }, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+        let root = setup.handles.error(&t1).expect("errored").clone();
+
+        // A two-operation block reading what the failure never wrote.
+        setup.register_exp(t1, t2);
+        setup.register_exp(t2, t3);
+
+        let mid = setup.handles.error(&t2).expect("the block was skipped");
+        let tail = setup.handles.error(&t3).expect("all of it");
+        assert!(root.same_root(mid), "the same failure, not a new one");
+        assert!(root.same_root(tail));
+        assert!(
+            !setup.handles.has_handle(&t2) && !setup.handles.has_handle(&t3),
+            "a skipped kernel writes nothing"
+        );
+        assert_eq!(
+            (root.depth(), mid.depth(), tail.depth()),
+            (0, 1, 1),
+            "the block is one hop from the failure, not one hop per operation"
+        );
+    }
+
+    /// The backstop in `run_strategy`. Each unit of work catches its own
+    /// panic, so nothing should unwind out of the strategy walk — but a plan
+    /// that does not fit the stream it matched can panic in the walk itself,
+    /// and that frame is the only one still holding the queue's lists. They
+    /// have to come back, or the next plan to match indexes into the gap.
+    #[test]
+    fn a_panic_escaping_the_strategy_leaves_the_queue_usable() {
+        use crate::search::BlockOptimization;
+        use crate::stream::store::ExecutionStrategy;
+
+        let mut setup = TestSetup::new();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        setup.register_exp(t1, t2);
+
+        // Two operations queued, a plan naming a third: the first runs, then
+        // the walk indexes past the end of the segment.
+        let ordering = vec![0, 2];
+        let strategy = ExecutionStrategy::Operations {
+            ordering: std::sync::Arc::new(ordering.clone()),
+        };
+        let stream = setup
+            .streams
+            .streams
+            .get_mut(&setup.id)
+            .expect("the stream exists");
+        let escaped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            stream.queue.execute_unfused(
+                BlockOptimization::new(strategy, ordering),
+                &mut setup.handles,
+                setup.id,
+            );
+        }));
+
+        assert!(escaped.is_ok(), "the panic does not reach the caller");
+        assert!(
+            setup.handles.has_handle(&t1),
+            "an output that was written is left alone: nothing says the \
+             failure came from the operation that wrote it"
+        );
+        assert!(
+            setup.handles.error(&t2).is_some(),
+            "one that was not carries the failure"
+        );
+
+        // The lists came back, and in step with each other. Dropping them
+        // mid-unwind is what left `global` and `relative` describing closures
+        // that were gone, for the next plan to match and index into.
+        let queue = &setup
+            .streams
+            .streams
+            .get(&setup.id)
+            .expect("the stream exists")
+            .queue;
+        assert_eq!(
+            (queue.global.len(), queue.operations.len()),
+            (0, 0),
+            "the consumed segment left no orphaned bookkeeping"
+        );
     }
 }
