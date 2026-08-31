@@ -1,4 +1,4 @@
-use burn_ir::{HandleContainer, TensorStatus};
+use burn_ir::{HandleContainer, OperationIr, TensorError, TensorStatus};
 use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use std::sync::Arc;
 
@@ -6,8 +6,10 @@ use crate::{
     FusionRuntime, UnfusedOp,
     search::BlockOptimization,
     stream::{
-        Context, ContextGuard, OperationConverter, OrderedExecution, RelativeOps, StreamId,
+        Context, ContextGuard, Executed, OperationConverter, OrderedExecution, RelativeOps,
+        StreamId,
         execution::log_execution_table,
+        panic_message,
         store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
     },
 };
@@ -84,13 +86,30 @@ impl<R: FusionRuntime> OperationQueue<R> {
     ) {
         log_execution_table(stream_id, &step.strategy, &self.global);
 
-        let mut operations = Vec::new();
-        core::mem::swap(&mut operations, &mut self.operations);
+        let operations = core::mem::take(&mut self.operations);
+        let ir = core::mem::take(&mut self.global);
 
-        let (operations, num_drained) =
-            run_strategy(step, &mut self.converter, handles, operations);
+        let executed = run_strategy(step, &mut self.converter, handles, operations, ir);
+        let num_drained = executed.num_executed;
 
-        self.operations = operations;
+        // Restored before anything else looks at the queue. The strategy took
+        // both lists by value, so an unwind that carried them away would leave
+        // `relative` describing closures that no longer exist, and the next
+        // plan to match would index into the gap.
+        self.operations = executed.operations;
+        self.global = executed.ir;
+
+        if let Some(panic) = executed.failed {
+            // Every failure's report is the claim it left on the tensors it
+            // was going to write, which is delivered when one of them is read.
+            // Logged here as the backstop for the one nobody ever reads.
+            log::warn!(
+                "a fused operation failed: {}; the tensors it was going to write are claimed, \
+                 and reading one of them reports it",
+                panic_message(panic.as_ref()),
+            );
+        }
+
         self.drain_queue(num_drained, handles);
     }
 
@@ -138,13 +157,38 @@ fn run_strategy<R: FusionRuntime>(
     converter: &mut OperationConverter,
     handles: &mut HandleContainer<R::FusionHandle>,
     operations: Vec<UnfusedOp<R>>,
-) -> (Vec<UnfusedOp<R>>, usize) {
-    let mut execution = OrderedExecution::new(operations);
-    {
+    ir: Vec<OperationIr>,
+) -> Executed<R> {
+    let mut execution = OrderedExecution::new(operations, ir);
+    let escaped = {
         let mut guard = ContextGuard::new(converter, handles);
-        execute_strategy::<R>(&mut optimization.strategy, &mut guard, &mut execution);
+        // A backstop. Each unit of work catches its own panic and claims its
+        // own write set, so nothing should unwind this far — but if something
+        // in the strategy walk itself does, this is the only frame that still
+        // owns `execution`, and therefore the only one that can hand the
+        // untouched lists back to the queue instead of dropping them
+        // mid-unwind.
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            execute_strategy::<R>(&mut optimization.strategy, &mut guard, &mut execution);
+        }))
+        .err()
+    };
+    let mut executed = execution.finish();
+
+    if let Some(escaped) = escaped {
+        // Nothing says which operation it came from, so the whole consumed
+        // segment is claimed — conservatively, leaving alone any output an
+        // operation did write, so one failure does not turn into several.
+        let error = TensorError::new(panic_message(escaped.as_ref()));
+        for op in executed.ir.iter().take(executed.num_executed) {
+            for node in op.outputs() {
+                handles.claim_unwritten(node.id, error.clone());
+            }
+        }
+        executed.failed.get_or_insert(escaped);
     }
-    execution.finish()
+
+    executed
 }
 
 fn execute_strategy<R: FusionRuntime>(
