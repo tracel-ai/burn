@@ -185,7 +185,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
             if let Err(panic) = executed {
                 let error = TensorError::new(panic_message(panic.as_ref()));
-                set_output_errors(&self.ir[*id], handles, &error);
+                set_output_errors(ir, handles, &error);
                 self.did_not_run.push(*id);
                 self.failed.get_or_insert(panic);
             }
