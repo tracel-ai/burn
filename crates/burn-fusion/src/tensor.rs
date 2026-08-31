@@ -237,7 +237,17 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Acquire);
 
-        // Workaround to prevent segfaults when an operation panics
+        // A drop during an unwind is not registered. Registering one re-enters
+        // the client — which can drain the stream and run queued work — and a
+        // second panic raised while the first is still unwinding aborts the
+        // process. Bailing out trades that for a leak.
+        //
+        // What it leaks: this id's entry in the handle container, including a
+        // claim on it, so a failure dropped this way is never released and
+        // `has_errors` stays true for the rest of the process. Reads no longer
+        // contribute — they report a claim as an error rather than a panic, and
+        // release it on the way past — so what is left is a tensor dropped in
+        // frames unwinding from a panic raised somewhere else.
         if std::thread::panicking() {
             return;
         }

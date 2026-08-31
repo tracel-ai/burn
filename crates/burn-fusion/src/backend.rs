@@ -313,14 +313,36 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     /// resource. This is correct for local backends, whose handle is an `Arc`-style buffer refcount.
     ///
     /// A runtime whose handle is a *remote* resource must override this. The router/remote backend
-    /// frees a tensor by registering an `OperationIr::Drop`, but the drained block **already** freed
-    /// it server-side — every consumed op (including any `Drop`) is replayed on the server, popping
-    /// its `ReadWrite` inputs. So letting the handle's `Drop` run here registers a *second*,
-    /// redundant `Drop` for the same id (the "unfused drop" traffic). The override removes the
-    /// container entry while suppressing that re-registration.
-    fn free_handle(handles: &mut HandleContainer<Self::FusionHandle>, tensor: &TensorIr) {
+    /// frees a tensor by registering an `OperationIr::Drop`, but a block that ran **already** freed
+    /// it server-side — a replayed op (including any `Drop`) pops its `ReadWrite` inputs there. So
+    /// letting the handle's `Drop` run registers a *second*, redundant `Drop` for the same id (the
+    /// "unfused drop" traffic), and the override suppresses that re-registration.
+    ///
+    /// `ran` is what says whether that holds for *this* operation: a block is drained whether or
+    /// not its operations ran, and one that did not was never replayed, so the server still holds
+    /// its inputs and only the handle's own `Drop` will free them.
+    fn free_handle(
+        handles: &mut HandleContainer<Self::FusionHandle>,
+        tensor: &TensorIr,
+        ran: OperationRan,
+    ) {
+        let _ = ran;
         handles.free(tensor);
     }
+}
+
+/// Whether the operation that consumed a tensor ran.
+///
+/// A drained block has usually run everything in it, but an operation whose input held a
+/// [`TensorError`](burn_ir::TensorError) is skipped, and one that panicked stopped part way. Both
+/// are consumed by the queue all the same — the difference is only visible to a backend whose
+/// handles live somewhere the operation never reached.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OperationRan {
+    /// It ran to completion.
+    Yes,
+    /// It was skipped, or it failed part way through.
+    No,
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
