@@ -266,19 +266,6 @@ impl IntTensorOps<Self> for NdArray {
         })
     }
 
-    fn int_scatter_add(
-        dim: usize,
-        tensor: NdArrayTensor,
-        indices: NdArrayTensor,
-        value: NdArrayTensor,
-    ) -> NdArrayTensor {
-        execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter(
-                dim, tensor, idx_array, value
-            ))
-        })
-    }
-
     fn int_scatter(
         dim: usize,
         tensor: NdArrayTensor,
@@ -288,7 +275,11 @@ impl IntTensorOps<Self> for NdArray {
     ) -> NdArrayTensor {
         match update {
             burn_backend::tensor::IndexingUpdateOp::Add => {
-                Self::int_scatter_add(dim, tensor, indices, value)
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter(
+                        dim, tensor, idx_array, value
+                    ))
+                })
             }
             burn_backend::tensor::IndexingUpdateOp::Assign => {
                 execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
@@ -335,19 +326,6 @@ impl IntTensorOps<Self> for NdArray {
         })
     }
 
-    fn int_select_add(
-        tensor: NdArrayTensor,
-        dim: usize,
-        indices: NdArrayTensor,
-        value: NdArrayTensor,
-    ) -> NdArrayTensor {
-        execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |idx_array| NdArrayMathOps::<I>::select_assign(
-                tensor, dim, idx_array, value
-            ))
-        })
-    }
-
     fn int_select_assign(
         tensor: NdArrayTensor,
         dim: usize,
@@ -357,7 +335,11 @@ impl IntTensorOps<Self> for NdArray {
     ) -> NdArrayTensor {
         match update {
             burn_backend::tensor::IndexingUpdateOp::Add => {
-                Self::int_select_add(tensor, dim, indices, value)
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| {
+                        NdArrayMathOps::<I>::select_assign(tensor, dim, idx_array, value)
+                    })
+                })
             }
             burn_backend::tensor::IndexingUpdateOp::Assign => {
                 execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {

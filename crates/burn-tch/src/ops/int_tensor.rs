@@ -283,15 +283,6 @@ impl IntTensorOps<Self> for LibTorch {
         TchOps::gather(dim, tensor, indices)
     }
 
-    fn int_scatter_add(
-        dim: usize,
-        tensor: TchTensor,
-        indices: TchTensor,
-        value: TchTensor,
-    ) -> TchTensor {
-        TchOps::scatter(dim, tensor, indices, value)
-    }
-
     fn int_scatter(
         dim: usize,
         tensor: TchTensor,
@@ -325,15 +316,6 @@ impl IntTensorOps<Self> for LibTorch {
 
     fn int_select(tensor: TchTensor, dim: usize, indices: TchTensor) -> TchTensor {
         TchOps::index_select_dim(tensor, dim, indices)
-    }
-
-    fn int_select_add(
-        tensor: TchTensor,
-        dim: usize,
-        indices: TchTensor,
-        value: TchTensor,
-    ) -> TchTensor {
-        TchOps::select_assign(tensor, dim, indices, value)
     }
 
     fn int_select_assign(

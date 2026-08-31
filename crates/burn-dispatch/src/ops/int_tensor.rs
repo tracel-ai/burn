@@ -86,18 +86,6 @@ impl IntTensorOps<Self> for Dispatch {
         binary_op!((tensor, int), (indices, int), |tensor, indices| B::int_gather(dim, tensor, indices) => Int)
     }
 
-    fn int_scatter_add(
-        dim: usize,
-        tensor: IntTensor<Self>,
-        indices: IntTensor<Self>,
-        value: IntTensor<Self>,
-    ) -> IntTensor<Self> {
-        multi_op!(
-            inputs[(tensor, int), (indices, int), (value, int)], => Int,
-            B::int_scatter_add(dim, tensor, indices, value)
-        )
-    }
-
     fn int_scatter(
         dim: usize,
         tensor: IntTensor<Self>,
@@ -133,18 +121,6 @@ impl IntTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
         binary_op!((tensor, int), (indices, int), |tensor, indices| B::int_select(tensor, dim, indices) => Int)
-    }
-
-    fn int_select_add(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        indices: IntTensor<Self>,
-        value: IntTensor<Self>,
-    ) -> IntTensor<Self> {
-        multi_op!(
-            inputs[(tensor, int), (indices, int), (value, int)], => Int,
-            B::int_select_add(tensor, dim, indices, value)
-        )
     }
 
     fn int_select_assign(
