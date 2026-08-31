@@ -19,15 +19,10 @@ use burn_std::FloatDType;
 /// 1. **Golub-Kahan bidiagonalization** using Householder reflections (`A = U1 B V1^T`).
 /// 2. **Implicitly shifted bidiagonal QR iteration** (LAPACK `dbdsqr`) to diagonalize `B`.
 ///
-/// The algorithm is backward stable to within a small multiple of machine precision.
-/// Convergence typically requires ~2.5 QR sweeps per singular value on average, bounded
-/// by the `sweeps` argument.
-///
 /// # Arguments
 ///
 /// * `tensor` - The input tensor of shape `[..., m, n]`.
-/// * `sweeps` - Upper bound on the number of QR sweeps (the algorithm
-///   typically converges in ~2.5 sweeps per singular value on average).
+/// * `sweeps` - Upper bound on the number of QR sweeps per singular value.
 ///
 /// # Returns
 ///
@@ -63,12 +58,9 @@ use burn_std::FloatDType;
 /// - If the input tensor has dtype F16 or BF16, it is internally upcast to
 ///   F32 for the computation and cast back to the original dtype before
 ///   returning, like `det` and `lu`.
-/// - Singular values are sorted in descending order; values at or below
-///   `10 * eps * sigma_max` (machine epsilon of the dtype) are treated as
-///   numerical zeros and returned as 0.
-/// - All internal norms, rotations and shifts are scale-invariant
-///   (LAPACK-style), so inputs with entries up to `f32::MAX` and down to
-///   subnormals stay finite and accurate.
+/// - Singular values are sorted in descending order.
+/// - Internal norms, rotations, and shifts use scaled formulations to reduce
+///   overflow and underflow for extreme finite inputs.
 ///
 /// # Example
 /// ```rust,ignore
@@ -149,16 +141,11 @@ pub fn svd<const D: usize, const D1: usize>(
         return (u_t, s_t, vt_t);
     }
 
-    // Flush any in-flight kernels on the device (e.g. a previous test that
-    // never read its outputs): cubecl host reads can fail with "strides are
-    // not supported" while other kernels are still queued. No-op on eager
-    // backends such as ndarray.
-    let _ = device.sync();
     // Dispatch to the backend through the bridge: `FloatTensorOps::float_svd`
     // may be overridden by a backend with a native or fused SVD; the default
     // implementation runs the reference host pipeline on the pulled data,
     // which keeps this deterministic and backend-independent. The backend
-    // returns the factors already sorted, masked, permuted and swapped; its
+    // returns the factors already sorted, permuted and swapped; its
     // dims follow the orientation (swap -> u is [..., n, n], vt is [..., m, n]).
     let (u, s, vt) = crate::ops::svd(a.primitive, sweeps, swap);
     let result = (
@@ -176,7 +163,5 @@ pub fn svd<const D: usize, const D1: usize>(
     } else {
         result
     };
-    // Flush the output transfers; no-op on eager backends.
-    let _ = device.sync();
     result
 }
