@@ -326,13 +326,9 @@ pub fn matmul_autotune<R: CubeRuntime>(
             .group(&unit, move |_key| PRIORITY_MAX),
         );
 
-        // `Gemm` is not a vector routine, so the `gemv` group offers it only for the kinds
-        // that group serves. On CPU it is the fastest choice for the flat shapes pointwise
-        // convolutions produce, which are `General`, so it is offered there too.
-        //
-        // A second registration rather than a second group on the one above: a group
-        // answering `PRIORITY_NEVER` drops the candidate whatever another group says, and
-        // `gemv` answers that for every kind but its own.
+        // `Gemm` is not a vector routine, so restricting the gemv group to vector kinds left
+        // CPU without it. Registered again rather than grouped again: a group answering
+        // `PRIORITY_NEVER` drops the candidate whatever another group says.
         let cpu_gemm_general = Strategy::Gemm(BlueprintStrategy::Inferred(Default::default()));
         set = set.with(
             Tunable::new("gemm_cpu_general", move |(lhs, rhs, out)| {
