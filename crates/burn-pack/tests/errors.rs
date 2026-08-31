@@ -3,7 +3,8 @@
 mod common;
 
 use burn_pack::{
-    Bytes, Error, FORMAT_VERSION, Header, MAGIC_NUMBER, MAX_METADATA_SIZE, Reader, Writer,
+    Bytes, Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, MAX_METADATA_SIZE, Reader,
+    Writer,
 };
 use common::f32_tensor;
 
@@ -91,5 +92,23 @@ fn rejects_truncated_data_section() {
     assert!(matches!(
         Reader::from_bytes(Bytes::from_bytes_vec(bytes)),
         Err(Error::ValidationError(_))
+    ));
+}
+
+#[test]
+fn rejects_data_truncated_into_alignment_padding() {
+    let packed = Writer::new(vec![f32_tensor("w", &[1.0, 2.0, 3.0, 4.0], &[4], None)])
+        .into_bytes()
+        .unwrap();
+    let header = Header::from_bytes(&packed[..HEADER_SIZE]).unwrap();
+    let metadata_end = HEADER_SIZE + header.metadata_size as usize;
+
+    // This is large enough only when tensor offsets are incorrectly measured from metadata_end.
+    let mut bytes = packed.to_vec();
+    bytes.truncate(metadata_end + 4 * core::mem::size_of::<f32>());
+
+    assert!(matches!(
+        Reader::from_bytes(Bytes::from_bytes_vec(bytes)),
+        Err(Error::ValidationError(message)) if message.starts_with("File truncated:")
     ));
 }
