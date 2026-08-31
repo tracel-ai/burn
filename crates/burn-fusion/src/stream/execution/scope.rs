@@ -260,8 +260,9 @@ impl<'a, W: Handles> WriteScope<'a, W> {
         on_panic: OnPanic,
         body: impl FnOnce(&mut W) -> Result<(), ExecutionError>,
     ) -> Outcome {
+        // `Drop` claims only what is still `Running`, so a skip needs nothing
+        // more than to not run.
         if let State::Skipped = self.state {
-            self.state = State::Finished;
             return Outcome::Skipped;
         }
 

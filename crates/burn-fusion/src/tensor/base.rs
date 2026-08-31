@@ -261,11 +261,12 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
         // touches the queue. Deciding inside the closure keeps the choice the
         // same whether it runs now or is replayed: replaying happens on the
         // thread that deferred it, so `current()` answers the same either way.
-        let register = move || match StreamId::current() == stream {
-            true => {
+        let register = move || {
+            if StreamId::current() == stream {
                 client.register(stream, OperationIr::Drop(ir), DropOp { id });
+            } else {
+                client.register_foreign_drop(stream, ir, DropOp { id });
             }
-            false => client.register_foreign_drop(stream, ir, DropOp { id }),
         };
 
         // A drop raised while the thread is unwinding cannot register now:
@@ -274,9 +275,10 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
         // unwinding aborts the process. It is set aside and replayed at the
         // next call into the client on this thread — a normal call stack — so
         // the entry is released rather than leaked.
-        match std::thread::panicking() {
-            true => deferred::defer(register),
-            false => register(),
+        if std::thread::panicking() {
+            deferred::defer(register);
+        } else {
+            register();
         }
     }
 }
