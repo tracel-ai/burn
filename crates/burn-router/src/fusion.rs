@@ -311,7 +311,10 @@ impl<R: RouterChannel> CustomOperation<R> {
 }
 
 impl<R: RouterChannel> Operation<RouterFusionRuntime<R>> for CustomOperation<R> {
-    fn execute(&self, handles: &mut HandleContainer<RouterTensor<R::Client>>) -> Result<(), burn_backend::ExecutionError> {
+    fn execute(
+        &self,
+        handles: &mut HandleContainer<RouterTensor<R::Client>>,
+    ) -> Result<(), burn_backend::ExecutionError> {
         let client = get_client::<R>(&self.device);
 
         // Map each fused input handle to its backend tensor id. `into_ir` carries the
