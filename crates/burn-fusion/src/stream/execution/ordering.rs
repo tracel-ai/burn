@@ -166,13 +166,12 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     /// without end — a silent hang, which is a worse outcome than the panic it
     /// replaced.
     ///
-    /// Nothing is known to reach here any more. The guard this was written for
-    /// is gone: a plan that does not fit its segment is now replaced before the
-    /// walk begins, so an out-of-range index cannot be raised part way through,
-    /// and every other failure happens inside a scope that counts first. This
-    /// stays because the argument for deleting it is that no panic escapes,
-    /// which is exactly the kind of claim that stops being true quietly — and
-    /// what it costs is one comparison against what it prevents.
+    /// No path is known to reach it: a plan that does not fit its segment is
+    /// replaced before the walk begins, and every other failure happens inside
+    /// a scope that counts first. It stays because the only argument for
+    /// deleting it is that no panic escapes, which is the kind of claim that
+    /// stops being true quietly — and it costs one comparison. Delete it when
+    /// a panic can no longer cross this frame at all.
     ///
     /// `planned` is the block the strategy was going to run, consumed as one
     /// unit; nothing in it ran, so a claim on its write set is honest.

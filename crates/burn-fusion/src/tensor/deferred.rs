@@ -1,15 +1,14 @@
-//! Drops that could not be registered when they happened.
+//! Drops that cannot be registered where they are raised.
 //!
 //! Registering a drop re-enters the client, which can drain the stream and run
-//! queued work. Doing that while the thread is unwinding is how this used to
-//! abort, so a drop raised during a panic is set aside here instead and
-//! replayed by the next registration on this thread — which is a normal call
-//! stack, with nothing unwinding through it.
+//! queued work. A thread that does that while it is unwinding raises a second
+//! panic inside the first, which aborts the process — so a drop raised during
+//! a panic is set aside here instead, and replayed by the next registration on
+//! that thread, which is a normal call stack with nothing unwinding through it.
 //!
-//! The alternative, and what this replaces, was to drop the registration
-//! entirely: no re-entry, but the tensor's entry in the handle container was
-//! never released, and a claim on it outlived every tensor that could report
-//! it.
+//! Setting it aside rather than abandoning it is what keeps the tensor's entry
+//! in the handle container releasable: an abandoned drop leaves the entry, and
+//! any claim on it, outliving every tensor that could report it.
 
 use core::cell::RefCell;
 
@@ -51,8 +50,8 @@ mod tests {
     use std::cell::Cell;
     use std::rc::Rc;
 
-    /// A drop set aside during an unwind runs at the next flush, rather than
-    /// being dropped on the floor as it used to be.
+    /// A drop set aside during an unwind still runs: the entry it releases is
+    /// the only thing that can release a claim on that tensor.
     #[test]
     fn a_deferred_drop_runs_at_the_next_flush() {
         let ran = Rc::new(Cell::new(0));

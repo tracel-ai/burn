@@ -243,10 +243,10 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 
         // A drop raised while the thread is unwinding is set aside rather than
         // registered: registering re-enters the client, which can drain the
-        // stream and run queued work, and doing that mid-unwind is how this
-        // used to abort. It is replayed by the next registration on this
-        // thread — which is a normal call stack — so the entry is released
-        // rather than leaked.
+        // stream and run queued work, and a panic raised there while this one
+        // is still unwinding aborts the process. It is replayed by the next
+        // registration on this thread — a normal call stack — so the entry is
+        // released rather than leaked.
         if std::thread::panicking() {
             if let TensorStatus::ReadWrite = self.status(count) {
                 let mut shape = Shape::from(Vec::<usize>::new());

@@ -701,7 +701,7 @@ mod tests {
         assert_eq!(deep.depth(), 2);
     }
 
-    /// A claim crossing to another device keeps naming the failure    /// A claim crossing to another device keeps naming the failure that made
+    /// A claim crossing to another device keeps naming the failure that made
     /// it. The root is behind an `Arc`, so identity survives the hop between
     /// containers — this is the sequence `change_client_*` runs when the
     /// source read reports a claim instead of a tensor.
