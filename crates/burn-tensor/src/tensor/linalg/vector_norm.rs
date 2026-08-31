@@ -122,6 +122,13 @@ pub fn vector_norm_dims<const D: usize, I: AsIndex>(
     norm: impl Into<Norm>,
     dims: &[I],
 ) -> Tensor<D> {
+    if dims.is_empty() {
+        return x;
+    }
+    if dims.len() == 1 {
+        let dim = unwrap_dim_index(dims[0].try_dim_index(D), "Vector Norm");
+        return vector_norm_impl(x, norm, &[dim]);
+    }
     let dims: Vec<usize> = dims
         .iter()
         .map(|&d| unwrap_dim_index(d.try_dim_index(D), "Vector Norm"))
@@ -152,7 +159,8 @@ pub fn vector_norm<const D: usize>(
     norm: impl Into<Norm>,
     dim: impl AsIndex,
 ) -> Tensor<D> {
-    vector_norm_dims(x, norm, &[dim])
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Vector Norm");
+    vector_norm_impl(x, norm, &[dim])
 }
 
 fn vector_norm_impl<const D: usize>(
@@ -184,6 +192,13 @@ fn vector_norm_impl<const D: usize>(
 ///
 /// The ``L(p)`` norm of the input tensor.
 pub fn lp_norm_dims<const D: usize, I: AsIndex>(x: Tensor<D>, p: f64, dims: &[I]) -> Tensor<D> {
+    if dims.is_empty() {
+        return x;
+    }
+    if dims.len() == 1 {
+        let dim = unwrap_dim_index(dims[0].try_dim_index(D), "Lp Norm");
+        return lp_norm_impl(x, p, &[dim]);
+    }
     let dims: Vec<usize> = dims
         .iter()
         .map(|&d| unwrap_dim_index(d.try_dim_index(D), "Lp Norm"))
@@ -212,7 +227,8 @@ pub fn lp_norm_dims<const D: usize, I: AsIndex>(x: Tensor<D>, p: f64, dims: &[I]
 ///
 /// The ``L(p)`` norm of the input tensor.
 pub fn lp_norm<const D: usize>(x: Tensor<D>, p: f64, dim: impl AsIndex) -> Tensor<D> {
-    lp_norm_dims(x, p, &[dim])
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Lp Norm");
+    lp_norm_impl(x, p, &[dim])
 }
 
 fn lp_norm_impl<const D: usize>(x: Tensor<D>, p: f64, dims: &[usize]) -> Tensor<D> {
@@ -248,8 +264,9 @@ pub fn vector_normalize<const D: usize, E: ElementConversion>(
     dim: impl AsIndex,
     eps: E,
 ) -> Tensor<D> {
-    let norm = vector_norm(x.clone(), norm, dim).clamp_min(eps);
-    x / norm
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Vector Normalize");
+    let norm_tensor = lp_norm_impl(x.clone(), norm.into().to_exponent(), &[dim]).clamp_min(eps);
+    x / norm_tensor
 }
 
 /// Computes the L0 norm of a tensor along specified dimensions.
@@ -267,6 +284,13 @@ pub fn l0_norm_dims<const D: usize, K, I: AsIndex>(x: Tensor<D, K>, dims: &[I]) 
 where
     K: Numeric,
 {
+    if dims.is_empty() {
+        return x;
+    }
+    if dims.len() == 1 {
+        let dim = unwrap_dim_index(dims[0].try_dim_index(D), "L0 Norm");
+        return l0_norm_impl(x, &[dim]);
+    }
     let dims: Vec<usize> = dims
         .iter()
         .map(|&d| unwrap_dim_index(d.try_dim_index(D), "L0 Norm"))
@@ -289,7 +313,8 @@ pub fn l0_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<
 where
     K: Numeric,
 {
-    l0_norm_dims(x, &[dim])
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L0 Norm");
+    l0_norm_impl(x, &[dim])
 }
 
 fn l0_norm_impl<const D: usize, K>(x: Tensor<D, K>, dims: &[usize]) -> Tensor<D, K>
@@ -318,6 +343,13 @@ pub fn l1_norm_dims<const D: usize, K, I: AsIndex>(x: Tensor<D, K>, dims: &[I]) 
 where
     K: Numeric,
 {
+    if dims.is_empty() {
+        return x;
+    }
+    if dims.len() == 1 {
+        let dim = unwrap_dim_index(dims[0].try_dim_index(D), "L1 Norm");
+        return l1_norm_impl(x, &[dim]);
+    }
     let dims: Vec<usize> = dims
         .iter()
         .map(|&d| unwrap_dim_index(d.try_dim_index(D), "L1 Norm"))
@@ -342,7 +374,8 @@ pub fn l1_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Tensor<
 where
     K: Numeric,
 {
-    l1_norm_dims(x, &[dim])
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L1 Norm");
+    l1_norm_impl(x, &[dim])
 }
 
 fn l1_norm_impl<const D: usize, K>(x: Tensor<D, K>, dims: &[usize]) -> Tensor<D, K>
@@ -364,6 +397,13 @@ where
 ///
 /// The L2 norm of the input tensor.
 pub fn l2_norm_dims<const D: usize, I: AsIndex>(x: Tensor<D>, dims: &[I]) -> Tensor<D> {
+    if dims.is_empty() {
+        return x;
+    }
+    if dims.len() == 1 {
+        let dim = unwrap_dim_index(dims[0].try_dim_index(D), "L2 Norm");
+        return l2_norm_impl(x, &[dim]);
+    }
     let dims: Vec<usize> = dims
         .iter()
         .map(|&d| unwrap_dim_index(d.try_dim_index(D), "L2 Norm"))
@@ -383,7 +423,8 @@ pub fn l2_norm_dims<const D: usize, I: AsIndex>(x: Tensor<D>, dims: &[I]) -> Ten
 ///
 /// The L2 norm of the input tensor.
 pub fn l2_norm<const D: usize>(x: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
-    l2_norm_dims(x, &[dim])
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "L2 Norm");
+    l2_norm_impl(x, &[dim])
 }
 
 pub(super) fn l2_norm_impl<const D: usize>(x: Tensor<D>, dims: &[usize]) -> Tensor<D> {
@@ -426,6 +467,13 @@ pub fn max_abs_norm_dims<const D: usize, K, I: AsIndex>(x: Tensor<D, K>, dims: &
 where
     K: Ordered,
 {
+    if dims.is_empty() {
+        return x;
+    }
+    if dims.len() == 1 {
+        let dim = unwrap_dim_index(dims[0].try_dim_index(D), "Max Abs Norm");
+        return max_abs_norm_impl(x, &[dim]);
+    }
     let dims: Vec<usize> = dims
         .iter()
         .map(|&d| unwrap_dim_index(d.try_dim_index(D), "Max Abs Norm"))
@@ -448,7 +496,8 @@ pub fn max_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Te
 where
     K: Ordered,
 {
-    max_abs_norm_dims(x, &[dim])
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Max Abs Norm");
+    max_abs_norm_impl(x, &[dim])
 }
 
 fn max_abs_norm_impl<const D: usize, K>(x: Tensor<D, K>, dims: &[usize]) -> Tensor<D, K>
@@ -474,6 +523,13 @@ pub fn min_abs_norm_dims<const D: usize, K, I: AsIndex>(x: Tensor<D, K>, dims: &
 where
     K: Ordered,
 {
+    if dims.is_empty() {
+        return x;
+    }
+    if dims.len() == 1 {
+        let dim = unwrap_dim_index(dims[0].try_dim_index(D), "Min Abs Norm");
+        return min_abs_norm_impl(x, &[dim]);
+    }
     let dims: Vec<usize> = dims
         .iter()
         .map(|&d| unwrap_dim_index(d.try_dim_index(D), "Min Abs Norm"))
@@ -496,7 +552,8 @@ pub fn min_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: impl AsIndex) -> Te
 where
     K: Ordered,
 {
-    min_abs_norm_dims(x, &[dim])
+    let dim = unwrap_dim_index(dim.try_dim_index(D), "Min Abs Norm");
+    min_abs_norm_impl(x, &[dim])
 }
 
 fn min_abs_norm_impl<const D: usize, K>(x: Tensor<D, K>, dims: &[usize]) -> Tensor<D, K>

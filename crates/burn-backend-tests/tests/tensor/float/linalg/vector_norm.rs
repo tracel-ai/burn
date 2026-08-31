@@ -497,3 +497,51 @@ fn test_multi_axis_negative_dimensions() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
 }
+
+#[test]
+fn test_empty_dims() {
+    let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+    let expected = x.clone().into_data();
+
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::L2, &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected, true);
+
+    linalg::lp_norm_dims(x.clone(), 2.0, &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected, true);
+
+    linalg::l1_norm_dims(x.clone(), &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected, true);
+
+    linalg::l2_norm_dims(x.clone(), &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected, true);
+
+    linalg::max_abs_norm_dims(x.clone(), &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected, true);
+
+    linalg::min_abs_norm_dims(x.clone(), &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected, true);
+
+    linalg::l0_norm_dims(x, &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected, true);
+}
+
+#[test]
+#[should_panic(expected = "Vector Normalize")]
+fn test_vector_normalize_panic() {
+    let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+    let _ = linalg::vector_normalize(x, 1.0, 5, 1e-5);
+}
+
+#[test]
+#[should_panic(expected = "Vector Norm")]
+fn test_vector_norm_panic() {
+    let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+    let _ = linalg::vector_norm(x, linalg::Norm::L2, 5);
+}
