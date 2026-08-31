@@ -51,14 +51,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
                 )
             });
 
-            let ordering: Vec<usize> = (0..len).collect();
-            let mut fallback = BlockOptimization::new(
-                ExecutionStrategy::Operations {
-                    ordering: Arc::new(ordering.clone()),
-                },
-                ordering,
-            );
-            self.execute_block_optimization(&mut fallback, handles, stream_id);
+            self.execute_in_submission_order(len, handles, stream_id);
             return;
         }
 
@@ -78,43 +71,62 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.execute_block_optimization(&mut optimization, handles, stream_id);
     }
 
+    /// Run the first `len` queued operations in submission order, unfused —
+    /// the answer to a plan that does not fit the stream it matched.
+    ///
+    /// The operations are all still here and every one of them can run; only
+    /// the plan for running them together was wrong. Submission order is always
+    /// a legal order, so a misfit costs fusion rather than the work.
+    ///
+    /// Terminates: the replacement names only indices below `operations.len()`,
+    /// so the segment it is handed cannot be found unfitting in turn.
+    fn execute_in_submission_order(
+        &mut self,
+        len: usize,
+        handles: &mut HandleContainer<R::FusionHandle>,
+        stream_id: StreamId,
+    ) {
+        let ordering: Vec<usize> = (0..len.min(self.operations.len())).collect();
+        let mut unfused = BlockOptimization::new(
+            ExecutionStrategy::Operations {
+                ordering: Arc::new(ordering.clone()),
+            },
+            ordering,
+        );
+
+        self.execute_block_optimization(&mut unfused, handles, stream_id);
+    }
+
     fn execute_block_optimization(
         &mut self,
         step: &mut BlockOptimization<R::Optimization>,
         handles: &mut HandleContainer<R::FusionHandle>,
         stream_id: StreamId,
     ) {
-        // A plan names operation indices in the stream it was cached from, and
-        // is matched against one it did not run on. Checked here, once, because
-        // this is the last point where a plan that does not fit can be replaced
-        // rather than survived: past it the indices are used inside the walk,
-        // where an out-of-range one panics outside every scope — nothing knows
-        // what it was going to write, so nothing can say why those tensors hold
-        // no data.
+        // The other way a plan can fail to fit the stream it matched: it names
+        // an operation index the segment does not hold. Checked here rather
+        // than beside its sibling above because this is the last point every
+        // strategy passes through, cached or one-off, and the last one where an
+        // unfitting plan can be replaced rather than survived: past it the
+        // indices are used inside the walk, where an out-of-range one panics
+        // outside every scope — nothing knows what it was going to write, so
+        // nothing can say why those tensors hold no data.
         //
-        // The answer is not to claim them. The operations are all still here
-        // and every one of them can run; only the plan for running them
-        // together was wrong. So they run in submission order, which is always
-        // a legal order, and the failure costs fusion rather than the work.
+        // One pass over the plan's indices, once per segment. Removing it
+        // entirely does not move `execution_path_throughput`: 257-282 ns/op
+        // with it, 264-277 without, three runs each.
+        let held = self.operations.len();
         if let Some(max) = step.strategy.max_index()
-            && max >= self.operations.len()
+            && max >= held
         {
-            log::error!(
-                "a plan named operation {max} in a segment of {}; running its operations \
-                 unfused in submission order",
-                self.operations.len(),
-            );
+            log_fusion(FusionLogLevel::Medium, || {
+                format!(
+                    "[plan] names operation {max} but the segment holds {held}; \
+                     running its {held} operations unfused"
+                )
+            });
 
-            let ordering: Vec<usize> = (0..self.operations.len()).collect();
-            let mut unfused = BlockOptimization::new(
-                ExecutionStrategy::Operations {
-                    ordering: Arc::new(ordering.clone()),
-                },
-                ordering,
-            );
-            // Terminates: the replacement names only indices below
-            // `operations.len()`, so it cannot take this branch again.
-            return self.execute_block_optimization(&mut unfused, handles, stream_id);
+            return self.execute_in_submission_order(held, handles, stream_id);
         }
 
         log_execution_table(stream_id, &step.strategy, &self.global);
