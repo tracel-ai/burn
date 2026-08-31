@@ -117,7 +117,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// The default implementation pulls the tensor to the host and runs the
     /// reference scalar pipeline ([`svd_host_data`](crate::backend::ops::svd::svd_host_data)).
     /// Backends may override this method with a native or fused
-    /// implementation.
+    /// implementation. Returns an execution error when the default QR
+    /// iteration does not converge within the requested sweep budget.
     ///
     /// # Arguments
     ///
@@ -135,7 +136,7 @@ pub trait FloatTensorOps<B: Backend> {
     {
         async move {
             let data = Self::float_into_data(tensor).await?;
-            Ok(super::svd::svd_host_data(data, sweeps, swap))
+            super::svd::svd_host_data(data, sweeps, swap)
         }
     }
 

@@ -311,3 +311,11 @@ fn test_svd_panics_on_1d_input() {
     let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0], &device);
     let _ = svd::<1, 0>(tensor, 10);
 }
+
+#[test]
+#[should_panic(expected = "sweeps must be greater than zero")]
+fn test_svd_panics_on_zero_sweeps() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+    let _ = svd::<2, 1>(tensor, 0);
+}

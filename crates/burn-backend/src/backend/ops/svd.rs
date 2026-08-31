@@ -7,10 +7,14 @@
 //! backend. Backends may override the trait method with a native SVD (tch)
 //! or a fused GPU kernel (cubecl); this module stays the correctness
 //! reference and the no-kernel fallback.
+use alloc::format;
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_std::{DType, TensorData};
+use burn_std::{DType, ExecutionError, TensorData, backtrace::BackTrace};
 use num_traits::float::Float;
+
+type SvdFactors<F> = (Vec<F>, Vec<F>, Vec<F>);
+type BidiagonalSvd<F> = (Vec<F>, Vec<F>, Vec<GivensRotation<F>>);
 
 /// Run the full host pipeline over tensor data and return the three factors
 /// as data. Layout and dims follow the `swap` convention of
@@ -18,11 +22,13 @@ use num_traits::float::Float;
 ///
 /// Consumes the data so the input can be converted to a plain vector without
 /// copying (the backend transfers are already owned by the caller).
+/// Returns an execution error if any batch element exceeds the QR sweep
+/// budget before converging.
 pub(crate) fn svd_host_data(
     data: TensorData,
     sweeps: usize,
     swap: bool,
-) -> (TensorData, TensorData, TensorData) {
+) -> Result<(TensorData, TensorData, TensorData), ExecutionError> {
     let rank = data.shape.num_dims();
     let dims: alloc::vec::Vec<usize> = data.shape.iter().copied().collect();
     let batch: usize = dims[..rank - 2].iter().product();
@@ -45,20 +51,33 @@ pub(crate) fn svd_host_data(
 
     if data.dtype == DType::F64 {
         let a = data.try_into_vec::<f64>().unwrap();
-        let (u, s, vt) = svd_host::<f64>(&a, m, n, batch, sweeps, swap);
-        (
+        let (u, s, vt) = svd_host::<f64>(&a, m, n, batch, sweeps, swap)
+            .map_err(|batch| convergence_error(batch, n, sweeps))?;
+        Ok((
             TensorData::new(u, du),
             TensorData::new(s, ds),
             TensorData::new(vt, dv),
-        )
+        ))
     } else {
         let a = data.try_into_vec::<f32>().unwrap();
-        let (u, s, vt) = svd_host::<f32>(&a, m, n, batch, sweeps, swap);
-        (
+        let (u, s, vt) = svd_host::<f32>(&a, m, n, batch, sweeps, swap)
+            .map_err(|batch| convergence_error(batch, n, sweeps))?;
+        Ok((
             TensorData::new(u, du),
             TensorData::new(s, ds),
             TensorData::new(vt, dv),
-        )
+        ))
+    }
+}
+
+fn convergence_error(batch: usize, n: usize, sweeps: usize) -> ExecutionError {
+    let iterations = sweeps.saturating_mul(n);
+    ExecutionError::Generic {
+        reason: format!(
+            "SVD QR iteration did not converge for batch element {batch} after {iterations} \
+             iterations ({sweeps} sweeps per singular value)"
+        ),
+        backtrace: BackTrace::capture(),
     }
 }
 
@@ -71,7 +90,7 @@ fn svd_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
     batch: usize,
     max_sweeps: usize,
     swap: bool,
-) -> (Vec<F>, Vec<F>, Vec<F>) {
+) -> Result<SvdFactors<F>, usize> {
     let mut u = vec![F::zero(); batch * m * n];
     let mut sigma = vec![F::zero(); batch * n];
     let mut vt = vec![F::zero(); batch * n * n];
@@ -98,7 +117,9 @@ fn svd_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
         for i in 0..n.saturating_sub(1) {
             e[i] = bv[i * n + i + 1];
         }
-        let (sigma_b, d_final, givens_b) = dbdsqr_host(&d, &e, max_sweeps);
+        let Some((sigma_b, d_final, givens_b)) = dbdsqr_host(&d, &e, max_sweeps) else {
+            return Err(b);
+        };
 
         // Apply both the left (U) and right (Vt) rotations in one pass over
         // the givens list: each entry touches one row pair of each factor, so
@@ -140,9 +161,9 @@ fn svd_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
                 }
             }
         }
-        (uf, sigma, vf)
+        Ok((uf, sigma, vf))
     } else {
-        (u, sigma, vt)
+        Ok((u, sigma, vt))
     }
 }
 
@@ -150,17 +171,13 @@ fn svd_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
 /// (main diagonal `d`, superdiagonal `e`). Returns the singular values, the
 /// final diagonal (signs are absorbed into U by the caller) and the Givens
 /// rotations `(k, cosl, sinl, cosr, sinr)` in application order so the
-/// caller can rebuild the singular vectors.
-fn dbdsqr_host<F: Float + Copy>(
-    d: &[F],
-    e: &[F],
-    max_sweeps: usize,
-) -> (Vec<F>, Vec<F>, Vec<GivensRotation<F>>) {
+/// caller can rebuild the singular vectors, or `None` on non-convergence.
+fn dbdsqr_host<F: Float + Copy>(d: &[F], e: &[F], max_sweeps: usize) -> Option<BidiagonalSvd<F>> {
     let mut d = d.to_vec();
     let mut e = e.to_vec();
     let mut givens: Vec<GivensRotation<F>> = Vec::new();
-    let sigma = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps);
-    (sigma, d, givens)
+    let sigma = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps)?;
+    Some((sigma, d, givens))
 }
 
 /// Sort the singular values descending, permute the factors and absorb the
@@ -403,13 +420,14 @@ fn bidiag_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
 /// LAPACK dbdsqr-style shifted QR iteration on an upper bidiagonal matrix
 /// (main diagonal `d`, superdiagonal `e`). Returns the singular values and
 /// logs the Givens rotations (k, cosl, sinl, cosr, sinr) in application
-/// order so the caller can rebuild the singular vectors.
+/// order so the caller can rebuild the singular vectors. Returns `None` when
+/// an active block remains after the sweep budget is exhausted.
 fn dbdsqr<F: Float + Copy>(
     d: &mut [F],
     e: &mut [F],
     givens: &mut Vec<GivensRotation<F>>,
     max_sweeps: usize,
-) -> Vec<F> {
+) -> Option<Vec<F>> {
     let n = d.len();
     let eps = F::epsilon();
     let tol = eps * F::from(10.0).unwrap();
@@ -418,10 +436,11 @@ fn dbdsqr<F: Float + Copy>(
         smax = smax.max(x.abs());
     }
     if smax == F::zero() {
-        return d.iter().map(|x| x.abs()).collect();
+        return Some(d.iter().map(|x| x.abs()).collect());
     }
     let mut m = n;
     let mut iters = 0;
+    let max_iters = max_sweeps.saturating_mul(n);
     while m > 1 {
         // Find the lowest split: the block is [ll..m).
         let mut ll = 0;
@@ -435,6 +454,9 @@ fn dbdsqr<F: Float + Copy>(
         if m - ll == 1 {
             m = ll;
             continue;
+        }
+        if iters >= max_iters {
+            return None;
         }
         // Wilkinson-style shift from the bottom 2x2 block of B^T B. LAPACK
         // dbdsqr uses the SMALLER root (DLAS2 SSMIN) as the shift: the larger
@@ -492,11 +514,8 @@ fn dbdsqr<F: Float + Copy>(
         }
         e[m - 2] = f;
         iters += 1;
-        if iters > max_sweeps * n {
-            break;
-        }
     }
-    d.iter().map(|x| x.abs()).collect()
+    Some(d.iter().map(|x| x.abs()).collect())
 }
 
 /// A single Givens rotation produced by [`dbdsqr_host`]: the pivot column
@@ -581,10 +600,21 @@ mod tests {
         let (c, s, r) = dlartg(1e-30f32, 1e-30);
         assert!(r.is_finite() && r > 0.0, "{r}");
         assert!((c * c + s * s - 1.0).abs() < 1e-5, "({c}, {s})");
-        // dbdsqr_host: a zero sweep budget stops after one pass instead of
-        // looping forever; results stay finite.
-        let (sigma, _d, _givens) = dbdsqr_host(&[3.0f64, 1.0], &[0.5], 0);
-        assert!(sigma.iter().all(|x| x.is_finite()), "{sigma:?}");
+        // An active block cannot be returned as a completed SVD when no QR
+        // sweeps are available.
+        assert!(dbdsqr_host(&[3.0f64, 1.0], &[0.5], 0).is_none());
+
+        // The host batch boundary reports the first matrix that did not
+        // converge. Batch 0 is already diagonal; batch 1 needs a QR sweep.
+        let a = [1.0f64, 0.0, 0.0, 1.0, 2.0, 1.0, 0.0, 1.0];
+        assert!(matches!(svd_host(&a, 2, 2, 2, 0, false), Err(1)));
+
+        // A positive budget can also be exhausted; partial factors must not
+        // be returned as a completed decomposition.
+        assert!(
+            dbdsqr_host(&[1.0f64; 6], &[1.0f64; 5], 1).is_none(),
+            "one sweep per singular value should be insufficient"
+        );
     }
 
     fn recon_err<F: Float + Copy>(u: &[F], s: &[F], vt: &[F], a: &[F], m: usize, n: usize) -> F {
@@ -615,31 +645,31 @@ mod tests {
         let a = [
             1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
         ];
-        let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 1, 30, false).unwrap();
         // Reference from numpy/LAPACK gesdd (svd_host already sorts descending).
         assert!((s[0] - 25.46240743603639).abs() < 1e-12, "s1 {}", s[0]);
         assert!((s[1] - 1.290661675761233).abs() < 1e-12, "s2 {}", s[1]);
         assert!(recon_err::<f64>(&u, &s, &vt, &a, 4, 3) < 1e-12);
         // 1x1 and rank-1 edge cases
-        let (u, s, vt) = svd_host::<f64>(&[-3.0], 1, 1, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&[-3.0], 1, 1, 1, 30, false).unwrap();
         assert!((s[0] - 3.0).abs() < 1e-15);
         assert!(recon_err::<f64>(&u, &s, &vt, &[-3.0], 1, 1) < 1e-15);
         // rank-1 3x2 (m >= n as svd_host requires; wide inputs are transposed
         // in svd() itself)
         let a = [1.0f64, 2.0, 2.0, 4.0, 3.0, 6.0];
-        let (u, s, vt) = svd_host::<f64>(&a, 3, 2, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, 3, 2, 1, 30, false).unwrap();
         assert!(recon_err::<f64>(&u, &s, &vt, &a, 3, 2) < 1e-12);
         // batched 4x3
         let a = [
             1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 1.0, 0.0, 0.0, 0.0,
             1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 1.5, 2.5,
         ];
-        let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 2, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, 4, 3, 2, 30, false).unwrap();
         assert!(recon_err::<f64>(&u[..12], &s[..3], &vt[..9], &a[..12], 4, 3) < 1e-12);
         assert!(recon_err::<f64>(&u[12..], &s[3..], &vt[9..], &a[12..], 4, 3) < 1e-12);
         // extreme scales stay finite
         let a = [1e200f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
-        let (u, s, vt) = svd_host::<f64>(&a, 3, 3, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, 3, 3, 1, 30, false).unwrap();
         assert!(
             s[0].is_finite() && (s[0] - 1e200).abs() < 1e200 * 1e-14,
             "s0 {}",
@@ -656,7 +686,7 @@ mod tests {
             [1e-40f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
             [1e20f32, 1e-20, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         ] {
-            let (u, s, vt) = svd_host::<f32>(&a, 3, 3, 1, 30, false);
+            let (u, s, vt) = svd_host::<f32>(&a, 3, 3, 1, 30, false).unwrap();
             for x in s.iter() {
                 assert!(x.is_finite(), "sigma not finite: {:?}", s);
             }
@@ -666,7 +696,7 @@ mod tests {
         }
 
         let a = [1e38f32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        let (_, s, _) = svd_host::<f32>(&a, 3, 3, 1, 30, false);
+        let (_, s, _) = svd_host::<f32>(&a, 3, 3, 1, 30, false).unwrap();
         assert_eq!(s, [1e38, 0.0, 0.0]);
     }
 
@@ -684,12 +714,12 @@ mod tests {
                 );
             }
         }
-        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false).unwrap();
         assert!(recon_err::<f64>(&u, &s, &vt, &a, m, n) < 1e-9);
 
         // same matrix in f32
         let af: Vec<f32> = a.iter().map(|x| *x as f32).collect();
-        let (u, s, vt) = svd_host::<f32>(&af, m, n, 1, 30, false);
+        let (u, s, vt) = svd_host::<f32>(&af, m, n, 1, 30, false).unwrap();
         assert!(recon_err::<f32>(&u, &s, &vt, &af, m, n) < 1e-3);
     }
 
@@ -697,7 +727,7 @@ mod tests {
     fn test_svd_host_2x2_direct() {
         // B = [[2,1],[0,1]].
         let a = [2.0f64, 1.0, 0.0, 1.0];
-        let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false).unwrap();
         assert!(recon_err::<f64>(&u, &s, &vt, &a, 2, 2) < 1e-12);
 
         // Negative determinant: the right factor must still reconstruct A.
@@ -708,20 +738,20 @@ mod tests {
             [0.0f64, 1.0, 1.0, 0.0],
             [-3.0f64, 1.0, 2.0, -1.0],
         ] {
-            let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
+            let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false).unwrap();
             assert!(recon_err::<f64>(&u, &s, &vt, &a, 2, 2) < 1e-12);
         }
 
         // Large finite values must not overflow intermediate calculations.
         let a = [1e200f64, 0.0, 0.0, 1e200];
-        let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false).unwrap();
         assert!(u.iter().chain(&s).chain(&vt).all(|x| x.is_finite()));
         assert!(recon_err::<f64>(&u, &s, &vt, &a, 2, 2) < 1e187);
 
         // SVD must preserve representable non-zero singular values rather
         // than applying an implicit rank threshold.
         let a = [1.0f32, 0.0, 0.0, 1e-7];
-        let (_, s, _) = svd_host::<f32>(&a, 2, 2, 1, 30, false);
+        let (_, s, _) = svd_host::<f32>(&a, 2, 2, 1, 30, false).unwrap();
         assert!((s[1] - 1e-7).abs() < 1e-12, "singular values {s:?}");
     }
 
@@ -735,7 +765,7 @@ mod tests {
             [0.0f64, 0.0, 1.0, 0.0],
             [1.0f64, 1.0, 2.0, 2.0],
         ] {
-            let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false);
+            let (u, s, vt) = svd_host::<f64>(&a, 2, 2, 1, 30, false).unwrap();
             assert!(s[1] <= s[0] * 1e-14, "singular values for {a:?}: {s:?}");
             // Vt rows orthonormal: Vt Vt^T = I.
             let ortho = (0..2)
@@ -759,14 +789,14 @@ mod tests {
         // all-ones column of norm sqrt(m).
         let (m, n) = (5usize, 1usize);
         let a = [0.0f64; 5];
-        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false).unwrap();
         assert_eq!(s[0], 0.0);
         let norm: f64 = u.iter().map(|x| x * x).sum();
         assert!((norm - 1.0).abs() < 1e-15, "U column norm {norm}");
         assert_eq!(vt[0], 1.0);
         // Non-zero column keeps the normalized-column form.
         let a = [0.0f64, 3.0, 0.0, 4.0, 0.0];
-        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false);
+        let (u, s, vt) = svd_host::<f64>(&a, m, n, 1, 30, false).unwrap();
         assert!((s[0] - 5.0).abs() < 1e-15);
         let mut err = 0.0f64;
         for i in 0..m {

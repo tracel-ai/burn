@@ -43,6 +43,8 @@ use burn_std::FloatDType;
 /// - The input is a quantized tensor with dtype `DType::QFloat`.
 /// - The generic parameters do not satisfy `D - 1 == D1`.
 /// - The input tensor requires gradients (SVD has no autodiff support yet; detach first).
+/// - `sweeps` is zero.
+/// - The QR iteration does not converge within the requested sweep budget.
 ///
 /// # Performance Note
 /// The computation is dispatched to the backend through
@@ -94,6 +96,7 @@ pub fn svd<const D: usize, const D1: usize>(
     if tensor.is_require_grad() {
         panic!("linalg::svd: gradients are not implemented; detach the input tensor first");
     }
+    assert!(sweeps > 0, "linalg::svd: sweeps must be greater than zero");
 
     // Upcast f16/bf16 to f32 (same convention as `det`), cast back at the end.
     let needs_upcast = original_dtype == DType::F16 || original_dtype == DType::BF16;
@@ -156,7 +159,7 @@ pub fn svd<const D: usize, const D1: usize>(
         Tensor::<D>::new(vt),
     );
 
-    let result = if needs_upcast {
+    if needs_upcast {
         (
             result.0.cast(original_dtype),
             result.1.cast(original_dtype),
@@ -164,6 +167,5 @@ pub fn svd<const D: usize, const D1: usize>(
         )
     } else {
         result
-    };
-    result
+    }
 }
