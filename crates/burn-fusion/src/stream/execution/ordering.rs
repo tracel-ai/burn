@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use burn_ir::{HandleContainer, OperationIr, TensorError};
 
-use super::{input_error, panic_message, set_output_errors};
+use super::{Outcome, WriteScope, input_error, panic_message, set_output_errors};
 
 use crate::{FusionRuntime, NumOperations, Optimization, UnfusedOp, stream::Context};
 
@@ -226,33 +226,28 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
         for id in ordering {
             let ir = &self.ir[*id];
+            let op = &self.operations[*id];
 
-            // A skip: an input this operation needs was never written, so it
-            // does not run and its outputs take the same error — naming the
-            // failure that started it rather than one of their own.
-            let skip = input_error(ir, handles).map(TensorError::propagated);
-
-            if let Some(error) = skip {
-                set_output_errors(ir, handles, &error);
-                self.did_not_run.push(*id);
-                continue;
-            }
-
-            // Caught per operation, not per segment: a segment is just what
+            // One scope per operation, not per segment: a segment is just what
             // happened to be queued together, so a failure in one operation
             // says nothing about the next one unless they share a tensor — and
-            // if they do, the next one skips on the error its input now
-            // carries. Stopping the loop instead would make an unrelated
+            // if they do, the next one skips on the claim its input now
+            // carries. Scoping the whole loop instead would make an unrelated
             // operation's outcome depend on queue order.
-            let op = &self.operations[*id];
-            let executed =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| op.execute(handles)));
+            let outcome = WriteScope::over(ir, handles).run(|handles| {
+                op.execute(handles);
+                Ok(())
+            });
 
-            if let Err(panic) = executed {
-                let error = TensorError::panicked(panic_message(panic.as_ref()));
-                set_output_errors(ir, handles, &error);
-                self.did_not_run.push(*id);
-                self.failed.get_or_insert(panic);
+            match outcome {
+                Outcome::Ran(()) => {}
+                Outcome::Skipped => self.did_not_run.push(*id),
+                Outcome::Failed(panic) => {
+                    self.did_not_run.push(*id);
+                    if let Some(panic) = panic {
+                        self.failed.get_or_insert(panic);
+                    }
+                }
             }
         }
     }
