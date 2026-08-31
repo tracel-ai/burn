@@ -1153,22 +1153,55 @@ mod tests {
         );
         assert!(!setup.handles.has_handle(&t1), "there is no data behind it");
 
-        // Reading it is where a caller finally hears about it.
-        let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            setup
-                .handles
-                .get_handle(&t1, &burn_ir::TensorStatus::ReadWrite)
-        }));
-        let payload = read.expect_err("the read must not hand back untouched memory");
-        let message = payload
-            .downcast_ref::<String>()
-            .map(String::as_str)
-            .unwrap_or_default();
+        // Reading it is where a caller finally hears about it — as an error
+        // it can handle, not an unwind.
+        let read = setup
+            .handles
+            .take_error(&tensor_ir(t1, TensorStatus::ReadWrite))
+            .expect("the read must not hand back untouched memory");
         assert!(
-            message.contains("never written")
-                && message.contains("this operation cannot serve its problem"),
-            "the read names the root cause: {message}"
+            read.root()
+                .contains("this operation cannot serve its problem"),
+            "the read names the root cause: {read}"
         );
+
+        // And the read consumed the tensor, so it released the failure with
+        // it: the claim lives exactly as long as the tensor carrying it.
+        assert!(
+            !setup.handles.has_errors(),
+            "the failure is released with the tensor the read consumed"
+        );
+    }
+
+    /// A read that does not consume the tensor leaves the failure in place:
+    /// the tensor is still alive, and the next read of it has to report the
+    /// same cause rather than a bare missing handle.
+    #[test]
+    fn a_read_only_read_leaves_the_failure_for_the_next_one() {
+        let mut setup = TestSetup::new();
+        let (t0, t1) = (TensorId::new(0), TensorId::new(1));
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        let first = setup
+            .handles
+            .take_error(&tensor_ir(t1, TensorStatus::ReadOnly));
+        let second = setup
+            .handles
+            .take_error(&tensor_ir(t1, TensorStatus::ReadOnly));
+
+        assert!(first.is_some() && second.is_some(), "both reads report it");
+        assert!(
+            first.zip(second).is_some_and(|(a, b)| a.same_root(&b)),
+            "and report the same failure, not a fresh one"
+        );
+        assert!(setup.handles.has_errors(), "the tensor still carries it");
     }
 
     /// A panic can escape the strategy walk *before* any unit of work has
@@ -1223,6 +1256,43 @@ mod tests {
             setup.handles.error(&t1).is_some(),
             "and nothing ran, so its output carries the failure"
         );
+    }
+
+    /// The recovery property autotune rests on: a candidate that fails claims
+    /// the output it did not write, and the candidate that works writes it and
+    /// clears the claim. Nothing downstream is skipped, and the read succeeds.
+    #[test]
+    fn writing_a_claimed_tensor_recovers_it() {
+        let mut setup = TestSetup::new();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+        setup.handles.register_handle(t0, TestHandle);
+
+        // The failing candidate: it claims `t1`, which it never wrote.
+        setup.streams.register(
+            setup.id,
+            exp_op(t0, t1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(setup.handles.error(&t1).is_some(), "claimed by the failure");
+
+        // The candidate that works, writing the same output.
+        setup.handles.register_handle(t1, TestHandle);
+
+        assert!(setup.handles.error(&t1).is_none(), "the claim is cleared");
+        assert!(setup.handles.has_handle(&t1), "and the bytes are there");
+        assert!(
+            !setup.handles.has_errors(),
+            "so the container is clean again"
+        );
+
+        // Work reading the recovered tensor runs, rather than being skipped.
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t1, t2);
+        setup.streams.drain(&mut setup.handles, setup.id);
+        assert!(setup.handles.has_handle(&t2), "downstream work ran");
+        assert!(setup.handles.error(&t2).is_none(), "and holds no error");
     }
 
     /// The property the whole design is for: a failure is a fact about the
