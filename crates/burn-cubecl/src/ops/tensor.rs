@@ -177,15 +177,6 @@ where
         kernel::gather(dim, tensor, indices)
     }
 
-    fn float_scatter_add(
-        dim: usize,
-        tensor: FloatTensor<Self>,
-        indices: IntTensor<Self>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        kernel::scatter(dim, tensor, indices, value, false)
-    }
-
     fn float_scatter(
         dim: usize,
         tensor: FloatTensor<Self>,
@@ -198,7 +189,7 @@ where
                 kernel::scatter_assign(dim, tensor, indices, value)
             }
             burn_backend::tensor::IndexingUpdateOp::Add => {
-                Self::float_scatter_add(dim, tensor, indices, value)
+                kernel::scatter(dim, tensor, indices, value, false)
             }
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 kernel::scatter_mul(dim, tensor, indices, value)
@@ -228,15 +219,6 @@ where
         kernel::select(tensor, dim, indices)
     }
 
-    fn float_select_add(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        indices: IntTensor<Self>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        kernel::select_assign(tensor, dim, indices, value, false)
-    }
-
     fn float_select_assign(
         tensor: FloatTensor<Self>,
         dim: usize,
@@ -249,7 +231,7 @@ where
                 kernel::select_assign_replace(tensor, dim, indices, value)
             }
             burn_backend::tensor::IndexingUpdateOp::Add => {
-                Self::float_select_add(tensor, dim, indices, value)
+                kernel::select_assign(tensor, dim, indices, value, false)
             }
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 kernel::select_assign_mul(tensor, dim, indices, value)

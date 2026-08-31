@@ -81,6 +81,7 @@ mod softplus;
 mod sort;
 mod sqrt;
 mod sub;
+mod topk;
 mod transpose;
 mod trig;
 mod unfold;

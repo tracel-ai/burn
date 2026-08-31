@@ -194,15 +194,6 @@ impl FloatTensorOps<Self> for LibTorch {
         TchOps::gather(dim, tensor, indices)
     }
 
-    fn float_scatter_add(
-        dim: usize,
-        tensor: TchTensor,
-        indices: TchTensor,
-        value: TchTensor,
-    ) -> TchTensor {
-        TchOps::scatter(dim, tensor, indices, value)
-    }
-
     fn float_scatter(
         dim: usize,
         tensor: TchTensor,
@@ -239,15 +230,6 @@ impl FloatTensorOps<Self> for LibTorch {
 
     fn float_select(tensor: TchTensor, dim: usize, indices: TchTensor) -> TchTensor {
         TchOps::index_select_dim(tensor, dim, indices)
-    }
-
-    fn float_select_add(
-        tensor: TchTensor,
-        dim: usize,
-        indices: TchTensor,
-        value: TchTensor,
-    ) -> TchTensor {
-        TchOps::select_assign(tensor, dim, indices, value)
     }
 
     fn float_select_assign(

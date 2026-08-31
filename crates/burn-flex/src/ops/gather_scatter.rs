@@ -41,8 +41,8 @@ use crate::{FlexTensor, Layout};
 ///
 /// # History
 ///
-/// Earlier versions of `int_gather`, `int_scatter_add`, `int_select`, and
-/// `int_select_add` carried a `debug_assert_eq!(indices.dtype(), DType::I64,
+/// Earlier versions of `int_gather`, `int_scatter`, `int_select`, and
+/// `int_select_assign` carried a `debug_assert_eq!(indices.dtype(), DType::I64,
 /// ..)` that contradicted this helper's contract. The asserts were dropped
 /// in tracel-ai/burn#4776 once it was confirmed that `read_indices` had
 /// always handled every supported width correctly at runtime. If you're

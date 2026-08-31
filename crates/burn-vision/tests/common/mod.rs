@@ -13,7 +13,7 @@ pub type TestDevice = burn_core::backend::CudaDevice;
 #[cfg(all(test, feature = "rocm", not(feature = "cuda")))]
 pub type TestDevice = burn_core::backend::RocmDevice;
 
-#[allow(unused)]
+#[allow(unused, deprecated)]
 #[cfg(all(test, feature = "tch", not(any(feature = "cuda", feature = "rocm"))))]
 pub type TestDevice = burn_core::backend::LibTorchDevice;
 
