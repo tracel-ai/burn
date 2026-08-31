@@ -516,6 +516,9 @@ mod tests {
         /// Global ids the kernel claims before falling back, standing in for a
         /// fused step that failed to write them part way through the block.
         claims: Vec<TensorId>,
+        /// Global ids the kernel writes, for a block built by hand rather than
+        /// by a fuser — where there are no relative ids to resolve through.
+        writes: Vec<TensorId>,
     }
 
     impl NumOperations for TestOptimization {
@@ -549,6 +552,10 @@ mod tests {
                 _execution
                     .operation_within_optimization(*index)
                     .execute(&mut context.handles);
+            }
+
+            for id in &self.writes {
+                context.handles.register_handle(*id, TestHandle);
             }
 
             for relative in &self.outputs {
@@ -677,6 +684,7 @@ mod tests {
                 panics: self.panics,
                 fallback: Vec::new(),
                 claims: Vec::new(),
+                writes: Vec::new(),
             }
         }
 
@@ -1258,6 +1266,7 @@ mod tests {
                     panics: false,
                     fallback: Vec::new(),
                     claims: Vec::new(),
+                    writes: Vec::new(),
                 },
                 ordering: std::sync::Arc::new(ordering.clone()),
                 score: 0,
@@ -1354,6 +1363,7 @@ mod tests {
                     panics: false,
                     fallback: vec![1],
                     claims: vec![t1],
+                    writes: Vec::new(),
                 },
                 ordering: std::sync::Arc::new(ordering.clone()),
                 score: 0,
@@ -1376,6 +1386,261 @@ mod tests {
             "and names the failure that stopped it"
         );
         assert_eq!(claimed.depth(), 1, "one hop below that failure");
+    }
+
+    /// The one oracle this area answers to, checked over random interleavings.
+    ///
+    /// > A tensor reads back if and only if the work that was going to write it
+    /// > ran and succeeded.
+    ///
+    /// The harness drives the same machinery a backend drives — a queue of
+    /// operations, executed under the strategy the planner would have chosen —
+    /// over random sequences of register, fail, drain, recover and drop. Both
+    /// strategies are exercised, because their granularity genuinely differs: an
+    /// unfused segment claims per operation, a fused block claims all together.
+    ///
+    /// The model keeps its own answer per tensor — one enum, deliberately
+    /// nothing like the propagation it checks — and is compared after every
+    /// drain. Two invariants ride along:
+    ///
+    /// - the container's claim count never drifts from the model's, which is the
+    ///   bound the whole design rests on: a claim lives exactly as long as the
+    ///   tensor carrying it;
+    /// - tensors claimed by one failure all report the same root, however far
+    ///   apart in the chain they are.
+    #[test]
+    fn a_tensor_reads_back_only_if_the_work_writing_it_succeeded() {
+        use crate::search::BlockOptimization;
+        use crate::stream::store::ExecutionStrategy;
+
+        /// What the model believes about one tensor.
+        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+        enum Truth {
+            /// Nothing has written it and nothing claims it.
+            Absent,
+            /// The work that writes it ran and succeeded.
+            Written,
+            /// A failure claims it. Carries which failure, so the roots the
+            /// container reports can be checked against one another.
+            Claimed(u32),
+        }
+
+        /// A queued operation, and what the model expects of it.
+        struct Queued {
+            input: TensorId,
+            out: TensorId,
+            /// Whether the operation refuses to run when it is reached.
+            fails: bool,
+        }
+
+        // A tiny LCG, so a failing seed reproduces exactly with no dev-dependency.
+        struct Rng(u64);
+        impl Rng {
+            fn next(&mut self, bound: usize) -> usize {
+                self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+                ((self.0 >> 33) as usize) % bound.max(1)
+            }
+        }
+
+        const TENSORS: u64 = 6;
+        const SEEDS: u64 = 40;
+        const STEPS: usize = 60;
+
+        for seed in 0..SEEDS {
+            let mut rng = Rng(seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(1));
+            let mut setup = TestSetup::new();
+            let mut truth = vec![Truth::Absent; TENSORS as usize];
+            let mut failure = 0u32;
+            let mut queued: Vec<Queued> = Vec::new();
+
+            // Seed one tensor with data, so there is something to read from.
+            setup.handles.register_handle(TensorId::new(0), TestHandle);
+            truth[0] = Truth::Written;
+
+            for _ in 0..STEPS {
+                match rng.next(4) {
+                    // Queue an operation reading a tensor that holds something.
+                    0 | 1 => {
+                        let readable: Vec<usize> = (0..TENSORS as usize)
+                            .filter(|id| truth[*id] != Truth::Absent)
+                            .collect();
+                        if readable.is_empty() {
+                            continue;
+                        }
+                        let input = readable[rng.next(readable.len())];
+                        let out = rng.next(TENSORS as usize);
+                        // An output that is still an input of something queued
+                        // would make the model depend on ordering it does not
+                        // track; keep each queued output distinct.
+                        if queued.iter().any(|q| q.out.value() as usize == out) || out == input {
+                            continue;
+                        }
+                        let fails = rng.next(4) == 0;
+
+                        let input = TensorId::new(input as u64);
+                        let out = TensorId::new(out as u64);
+                        let ir = exp_op(input, out);
+                        let op = match fails {
+                            true => UnfusedOp::new(PanicOp, setup.id),
+                            false => UnfusedOp::new(ProduceOp { out }, setup.id),
+                        };
+                        setup.streams.register(setup.id, ir, op, &mut setup.handles);
+                        queued.push(Queued { input, out, fails });
+                    }
+                    // Drain, under one strategy or the other.
+                    2 => {
+                        if queued.is_empty() {
+                            continue;
+                        }
+                        let fused = rng.next(2) == 0;
+                        let ordering: Vec<usize> = (0..queued.len()).collect();
+
+                        // What the model expects, applied in submission order.
+                        if fused {
+                            // One unit: any claimed input or any failure claims
+                            // the whole write set, under one root.
+                            let inherited =
+                                queued
+                                    .iter()
+                                    .find_map(|q| match truth[q.input.value() as usize] {
+                                        Truth::Claimed(root) => Some(root),
+                                        _ => None,
+                                    });
+                            let outcome = match inherited {
+                                Some(root) => Some(root),
+                                None => queued.iter().any(|q| q.fails).then(|| {
+                                    failure += 1;
+                                    failure
+                                }),
+                            };
+                            for q in &queued {
+                                truth[q.out.value() as usize] = match outcome {
+                                    Some(root) => Truth::Claimed(root),
+                                    None => Truth::Written,
+                                };
+                            }
+                        } else {
+                            for q in &queued {
+                                truth[q.out.value() as usize] =
+                                    match truth[q.input.value() as usize] {
+                                        Truth::Claimed(root) => Truth::Claimed(root),
+                                        _ if q.fails => {
+                                            failure += 1;
+                                            Truth::Claimed(failure)
+                                        }
+                                        _ => Truth::Written,
+                                    };
+                            }
+                        }
+
+                        let strategy = match fused {
+                            true => ExecutionStrategy::Optimization {
+                                opt: TestOptimization {
+                                    len: ordering.len(),
+                                    outputs: Vec::new(),
+                                    panics: queued.iter().any(|q| q.fails),
+                                    fallback: Vec::new(),
+                                    claims: Vec::new(),
+                                    writes: queued.iter().map(|q| q.out).collect(),
+                                },
+                                ordering: std::sync::Arc::new(ordering.clone()),
+                                score: 0,
+                            },
+                            false => ExecutionStrategy::Operations {
+                                ordering: std::sync::Arc::new(ordering.clone()),
+                            },
+                        };
+
+                        let stream = setup
+                            .streams
+                            .streams
+                            .get_mut(&setup.id)
+                            .expect("operations were queued");
+                        stream.queue.execute_unfused(
+                            BlockOptimization::new(strategy, ordering),
+                            &mut setup.handles,
+                            setup.id,
+                        );
+                        queued.clear();
+                    }
+                    // Recover a claimed tensor by writing it.
+                    _ => {
+                        let claimed: Vec<usize> = (0..TENSORS as usize)
+                            .filter(|id| matches!(truth[*id], Truth::Claimed(_)))
+                            .filter(|id| !queued.iter().any(|q| q.out.value() as usize == *id))
+                            .collect();
+                        if claimed.is_empty() {
+                            continue;
+                        }
+                        let id = claimed[rng.next(claimed.len())];
+                        setup
+                            .handles
+                            .register_handle(TensorId::new(id as u64), TestHandle);
+                        truth[id] = Truth::Written;
+                    }
+                }
+
+                // Nothing is checked while operations are still queued: the
+                // model describes what a drain will have done, not what the
+                // container holds part way there.
+                if !queued.is_empty() {
+                    continue;
+                }
+
+                let mut roots: HashMap<u32, TensorError> = HashMap::new();
+                let mut claims = 0;
+
+                for (id, expected) in truth.iter().enumerate() {
+                    let tensor = TensorId::new(id as u64);
+                    match *expected {
+                        Truth::Absent => {
+                            assert!(
+                                !setup.handles.has_handle(&tensor)
+                                    && setup.handles.error(&tensor).is_none(),
+                                "seed {seed}: {tensor:?} should hold nothing"
+                            );
+                        }
+                        Truth::Written => {
+                            assert!(
+                                setup.handles.has_handle(&tensor),
+                                "seed {seed}: {tensor:?} was written and must read back"
+                            );
+                            assert!(
+                                setup.handles.error(&tensor).is_none(),
+                                "seed {seed}: {tensor:?} was written and must not be claimed"
+                            );
+                        }
+                        Truth::Claimed(root) => {
+                            claims += 1;
+                            let claim = setup.handles.error(&tensor).unwrap_or_else(|| {
+                                panic!(
+                                    "seed {seed}: {tensor:?} was never written and must be claimed"
+                                )
+                            });
+                            assert!(
+                                !setup.handles.has_handle(&tensor),
+                                "seed {seed}: {tensor:?} is claimed, so it has no data"
+                            );
+                            match roots.get(&root) {
+                                Some(first) => assert!(
+                                    first.same_root(claim),
+                                    "seed {seed}: {tensor:?} should share one failure's root"
+                                ),
+                                None => {
+                                    roots.insert(root, claim.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                assert_eq!(
+                    setup.handles.has_errors(),
+                    claims > 0,
+                    "seed {seed}: the claim count drifted from the map"
+                );
+            }
+        }
     }
 
     /// The property the whole design is for: a failure is a fact about the
