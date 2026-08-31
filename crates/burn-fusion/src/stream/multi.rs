@@ -437,7 +437,9 @@ mod tests {
         stream::{Context, Operation, OrderedExecution},
     };
     use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, Shape};
-    use burn_ir::{FloatOperationIr, TensorIr, TensorStatus, UnaryOpIr};
+    use burn_ir::{
+        ExistingHandle, FloatOperationIr, TensorError, TensorIr, TensorStatus, UnaryOpIr,
+    };
     use burn_std::{BoolDType, FloatDType, IntDType, device::Device};
 
     #[derive(Debug)]
@@ -509,6 +511,13 @@ mod tests {
         outputs: Vec<TensorId>,
         /// Whether the kernel can serve the problem it was compiled for.
         panics: bool,
+        /// Operations the kernel refuses to serve and runs unfused instead,
+        /// as indices within the block — what a real optimization does when
+        /// part of what it replaced needs the fallback.
+        fallback: Vec<usize>,
+        /// Global ids the kernel claims before falling back, standing in for a
+        /// fused step that failed to write them part way through the block.
+        claims: Vec<TensorId>,
     }
 
     impl NumOperations for TestOptimization {
@@ -529,6 +538,20 @@ mod tests {
         ) {
             if self.panics {
                 panic!("this fused kernel cannot serve its problem");
+            }
+
+            for id in &self.claims {
+                context.handles.set_error(
+                    *id,
+                    TensorError::new("the fused part could not write it"),
+                    ExistingHandle::Displace,
+                );
+            }
+
+            for index in &self.fallback {
+                _execution
+                    .operation_within_optimization(*index)
+                    .execute(&mut context.handles);
             }
 
             for relative in &self.outputs {
@@ -655,6 +678,8 @@ mod tests {
                 len: self.len,
                 outputs: core::mem::take(&mut self.outputs),
                 panics: self.panics,
+                fallback: Vec::new(),
+                claims: Vec::new(),
             }
         }
 
@@ -1237,6 +1262,8 @@ mod tests {
                     len: ordering.len(),
                     outputs: Vec::new(),
                     panics: false,
+                    fallback: Vec::new(),
+                    claims: Vec::new(),
                 },
                 ordering: std::sync::Arc::new(ordering.clone()),
                 score: 0,
@@ -1293,6 +1320,64 @@ mod tests {
         setup.streams.drain(&mut setup.handles, setup.id);
         assert!(setup.handles.has_handle(&t2), "downstream work ran");
         assert!(setup.handles.error(&t2).is_none(), "and holds no error");
+    }
+
+    /// Unfused work inside a fused block obeys the same rule as unfused work
+    /// outside one. An optimization that cannot serve part of what it replaced
+    /// runs those operations directly, and that fallback must not be the one
+    /// place a claimed tensor still reaches a kernel: it skips, and its output
+    /// carries the failure that stopped it.
+    #[test]
+    fn a_fallback_does_not_run_on_a_claimed_input() {
+        use crate::search::BlockOptimization;
+        use crate::stream::store::ExecutionStrategy;
+
+        let mut setup = TestSetup::new();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        setup.register_exp(t1, t2);
+
+        let stream = setup
+            .streams
+            .streams
+            .get_mut(&setup.id)
+            .expect("the registration created the stream");
+
+        // The kernel fails to write `t1` part way through, then falls back for
+        // the operation that reads it. Nothing claimed `t1` when the block was
+        // entered, so the block-level check let the whole thing through.
+        let ordering = vec![0, 1];
+        let optimization = BlockOptimization::new(
+            ExecutionStrategy::Optimization {
+                opt: TestOptimization {
+                    len: ordering.len(),
+                    outputs: Vec::new(),
+                    panics: false,
+                    fallback: vec![1],
+                    claims: vec![t1],
+                },
+                ordering: std::sync::Arc::new(ordering.clone()),
+                score: 0,
+            },
+            ordering,
+        );
+
+        stream
+            .queue
+            .execute_unfused(optimization, &mut setup.handles, setup.id);
+
+        assert!(
+            !setup.handles.has_handle(&t2),
+            "the fallback must not run on a tensor nothing wrote"
+        );
+        let claimed = setup.handles.error(&t2).expect("its output is claimed");
+        assert_eq!(
+            claimed.root(),
+            "the fused part could not write it",
+            "and names the failure that stopped it"
+        );
+        assert_eq!(claimed.depth(), 1, "one hop below that failure");
     }
 
     /// The property the whole design is for: a failure is a fact about the

@@ -42,16 +42,60 @@ pub struct OrderedExecution<R: FusionRuntime> {
     failed: Option<Box<dyn core::any::Any + Send>>,
 }
 
+/// One operation of an optimization's block, runnable on its own.
+///
+/// A fallback is unfused work in the middle of a fused block: an optimization
+/// that cannot serve part of what it replaced runs those operations directly
+/// instead. So it carries the operation's IR alongside the operation, because
+/// running it has to apply the same rule the unfused path applies — an
+/// operation whose input a failure claims does not run, and its outputs take
+/// that failure. Without it the fallback would be the one place left where a
+/// claimed tensor still reaches a kernel.
+pub struct FallbackOp<R: FusionRuntime> {
+    operation: UnfusedOp<R>,
+    ir: OperationIr,
+}
+
+impl<R: FusionRuntime> Clone for FallbackOp<R> {
+    fn clone(&self) -> Self {
+        Self {
+            operation: self.operation.clone(),
+            ir: self.ir.clone(),
+        }
+    }
+}
+
+impl<R: FusionRuntime> FallbackOp<R> {
+    /// Run it — unless a failure claims one of its inputs, in which case its
+    /// outputs take that failure, one hop further down, and no kernel runs.
+    ///
+    /// A panic out of the operation is left to the caller: a fallback runs
+    /// inside the optimization's own `catch_unwind`, which claims the whole
+    /// block's write set, and that is the honest report for a fused unit that
+    /// stopped part way.
+    pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
+        if let Some(error) = input_error(&self.ir, handles).map(TensorError::propagated) {
+            set_output_errors(&self.ir, handles, &error);
+            return;
+        }
+
+        self.operation.execute(handles);
+    }
+}
+
 impl<R: FusionRuntime> OrderedExecution<R> {
     /// Returns the operation that can be executed without impacting the state of the execution.
     ///
     /// This is useful to implement fallback for optimizations.
     #[allow(clippy::borrowed_box)]
-    pub fn operation_within_optimization(&self, index: usize) -> UnfusedOp<R> {
+    pub fn operation_within_optimization(&self, index: usize) -> FallbackOp<R> {
         match &self.ordering {
             Some(val) => {
                 let index = val[index];
-                self.operations[index].clone()
+                FallbackOp {
+                    operation: self.operations[index].clone(),
+                    ir: self.ir[index].clone(),
+                }
             }
             None => panic!("No ordering provided"),
         }
