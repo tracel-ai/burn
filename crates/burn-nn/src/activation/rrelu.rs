@@ -24,7 +24,7 @@ pub struct RRelu {
     /// The upper bound of the uniform slope range.
     pub upper: f64,
     /// Whether to behave as during training. Cleared by
-    /// [`no_grad`](burn::module::Module::no_grad) and matching
+    /// [`freeze`](burn::module::Module::freeze) and matching
     /// [`freeze_group`](burn::module::Module::freeze_group) traversals.
     pub training: Param<Flag>,
 }
@@ -149,7 +149,7 @@ mod tests {
         let model = RReluConfig::new().with_lower(0.1).with_upper(0.3).init();
 
         let input = Tensor::<2>::from_data(TensorData::from([[-1.0, -2.0], [-3.0, -4.0]]), &device);
-        let output = model.no_grad().forward(input.clone());
+        let output = model.freeze().forward(input.clone());
 
         let expected = TensorData::from([[-0.2, -0.4], [-0.6, -0.8]]);
         output
@@ -170,7 +170,7 @@ mod tests {
             .with_lower(0.1)
             .with_upper(0.3)
             .init()
-            .no_grad();
+            .freeze();
 
         assert_eq!(
             alloc::format!("{layer}"),

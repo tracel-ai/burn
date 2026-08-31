@@ -50,26 +50,35 @@ the `Module` derive, you need to be careful to achieve the behavior you want.
 
 These methods are available for all modules.
 
-| Burn API                             | PyTorch Equivalent                       |
-| ------------------------------------ | ---------------------------------------- |
-| `module.devices()`                   | N/A                                      |
-| `module.fork(device)`                | Similar to `module.to(device).detach()`  |
-| `module.to_device(device)`           | `module.to(device)`                      |
-| `module.no_grad()`                   | `module.require_grad_(False)`            |
-| `module.num_params()`                | N/A                                      |
-| `module.visit(visitor)`              | N/A                                      |
-| `module.map(mapper)`                 | N/A                                      |
-| `module.freeze_group(param_group)`   | N/A                                      |
-| `module.unfreeze_group(param_group)` | N/A                                      |
-| `module.apply_lora(lora)`            | N/A                                      |
-| `module.apply_qlora(qlora)`          | N/A                                      |
-| `module.apply_reparameterization(r)` | N/A                                      |
-| `module.into_record()`               | Similar to `state_dict`                  |
-| `module.load_record(record)`         | Similar to `load_state_dict(state_dict)` |
-| `module.try_load_record(record)`     | Similar to `load_state_dict(state_dict)` |
-| `module.try_load_file(file_path)`    | Similar to `torch.load(...)`             |
-| `module.load_file(file_path)`        | Similar to `torch.load(...)`             |
-| `module.save_file(file_path)`        | Similar to `torch.save(state_dict, ...)` |
+Gradient tracking and layer training behavior are separate. `no_grad` and `set_require_grad`
+change only floating-point tensor parameters. `freeze` additionally disables module-owned training
+flags, such as those controlling dropout and batch-normalization running statistics. Group variants
+apply the same behavior only to values matched by the parameter group.
+
+| Burn API                                            | PyTorch Equivalent                               |
+| --------------------------------------------------- | ------------------------------------------------ |
+| `module.devices()`                                  | N/A                                              |
+| `module.fork(device)`                               | Similar to `module.to(device).detach()`          |
+| `module.to_device(device)`                          | `module.to(device)`                              |
+| `module.set_require_grad(enabled)`                  | `module.requires_grad_(enabled)`                 |
+| `module.set_require_grad_group(group, enabled)`     | N/A                                              |
+| `module.no_grad()`                                  | `module.requires_grad_(False)`                   |
+| `module.freeze()`                                   | `module.requires_grad_(False)` + `module.eval()` |
+| `module.unfreeze()`                                 | `module.requires_grad_(True)` + `module.train()` |
+| `module.num_params()`                               | N/A                                              |
+| `module.visit(visitor)`                             | N/A                                              |
+| `module.map(mapper)`                                | N/A                                              |
+| `module.freeze_group(param_group)`                  | N/A                                              |
+| `module.unfreeze_group(param_group)`                | N/A                                              |
+| `module.apply_lora(lora)`                           | N/A                                              |
+| `module.apply_qlora(qlora)`                         | N/A                                              |
+| `module.apply_reparameterization(reparameterizer)`  | N/A                                              |
+| `module.into_record()`                              | Similar to `state_dict`                          |
+| `module.load_record(record)`                        | Similar to `load_state_dict(state_dict)`         |
+| `module.try_load_record(record)`                    | Similar to `load_state_dict(state_dict)`         |
+| `module.try_load_file(file_path)`                   | Similar to `torch.load(...)`                     |
+| `module.load_file(file_path)`                       | Similar to `torch.load(...)`                     |
+| `module.save_file(file_path)`                       | Similar to `torch.save(state_dict, ...)`         |
 
 The `AutodiffModule` trait provides training-specific helpers for modules whose parameters are on an
 autodiff-enabled device, and vice-versa.

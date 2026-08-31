@@ -25,7 +25,7 @@ pub struct Dropout {
     /// The probability of randomly zeroes some elements of the input tensor during training.
     pub prob: f64,
     /// Whether to behave as during training. Cleared by
-    /// [`no_grad`](burn::module::Module::no_grad) and matching
+    /// [`freeze`](burn::module::Module::freeze) and matching
     /// [`freeze_group`](burn::module::Module::freeze_group) traversals.
     pub training: Param<Flag>,
 }
@@ -95,6 +95,66 @@ mod tests {
     use burn::tensor::Shape;
 
     #[cfg(feature = "std")]
+    #[derive(Module, Debug)]
+    struct TrainableDropout {
+        linear: crate::Linear,
+        dropout: Dropout,
+    }
+
+    #[cfg(feature = "std")]
+    fn trainable_dropout() -> TrainableDropout {
+        use crate::LinearConfig;
+        use burn::tensor::Device;
+
+        let device = Device::default().autodiff();
+        TrainableDropout {
+            linear: LinearConfig::new(4, 4).init(&device),
+            dropout: DropoutConfig::new(0.5).init(),
+        }
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn no_grad_only_disables_tensor_gradients() {
+        let model = trainable_dropout().no_grad();
+
+        assert!(!model.linear.weight.is_require_grad());
+        assert!(model.dropout.training.is_enabled());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn require_grad_group_only_changes_matched_tensors() {
+        use burn::module::ParamGroup;
+
+        let model = trainable_dropout();
+        let group = ParamGroup::ids_from_module(model.clone());
+        let model = model.set_require_grad_group(group.clone(), false);
+
+        assert!(!model.linear.weight.is_require_grad());
+        assert!(model.dropout.training.is_enabled());
+
+        let model = model.set_require_grad_group(group, true);
+
+        assert!(model.linear.weight.is_require_grad());
+        assert!(model.dropout.training.is_enabled());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn freeze_and_unfreeze_change_tensors_and_flags() {
+        let model = trainable_dropout().freeze();
+
+        assert!(!model.linear.weight.is_require_grad());
+        assert!(!model.dropout.training.is_enabled());
+
+        let model = model.unfreeze();
+
+        assert!(model.linear.weight.is_require_grad());
+        assert!(model.dropout.training.is_enabled());
+    }
+
+    #[cfg(feature = "std")]
     #[test]
     fn frozen_dropout_on_a_training_device_passes_its_input_through() {
         use burn::tensor::Device;
@@ -103,7 +163,7 @@ mod tests {
         // cannot tell this apart from a layer that really is being trained.
         let device = Device::default().autodiff();
         let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
-        let dropout = DropoutConfig::new(0.5).init().no_grad();
+        let dropout = DropoutConfig::new(0.5).init().freeze();
 
         let output = dropout.forward(tensor.clone());
 
@@ -130,7 +190,7 @@ mod tests {
         let wrapper = Wrapper {
             dropout: DropoutConfig::new(0.5).init(),
         }
-        .no_grad();
+        .freeze();
 
         let output = wrapper.dropout.forward(tensor.clone());
 
@@ -138,8 +198,8 @@ mod tests {
     }
 
     #[test]
-    fn no_grad_reaches_flags_inside_module_containers() {
-        let dropouts = alloc::vec![DropoutConfig::new(0.5).init()].no_grad();
+    fn freeze_reaches_flags_inside_module_containers() {
+        let dropouts = alloc::vec![DropoutConfig::new(0.5).init()].freeze();
 
         assert!(!dropouts[0].training.is_enabled());
     }
@@ -148,7 +208,7 @@ mod tests {
     fn backend_transitions_preserve_a_frozen_flag() {
         use burn::module::AutodiffModule;
 
-        let dropout = DropoutConfig::new(0.5).init().no_grad();
+        let dropout = DropoutConfig::new(0.5).init().freeze();
         let dropout = dropout.valid().train();
 
         assert!(!dropout.training.is_enabled());
@@ -175,7 +235,7 @@ mod tests {
             fixed: [dropout(), dropout()],
             pair: (dropout(), dropout()),
         }
-        .no_grad();
+        .freeze();
 
         assert!(!wrapper.blocks[0].training.is_enabled(), "Vec");
         assert!(!wrapper.optional.unwrap().training.is_enabled(), "Option");
@@ -189,7 +249,7 @@ mod tests {
         // `train()` is `from_inner`, which reinstates what the caller asked for
         // the way it does for a parameter's `require_grad`. A frozen half coming
         // back armed while its parameters stayed frozen is the bug.
-        let dropout = DropoutConfig::new(0.5).init().no_grad().train();
+        let dropout = DropoutConfig::new(0.5).init().freeze().train();
 
         assert!(!dropout.training.is_enabled());
     }
@@ -241,6 +301,33 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
+    fn path_group_can_freeze_and_unfreeze_a_flag() {
+        use burn::module::ParamGroup;
+
+        #[derive(Module, Debug)]
+        struct Wrapper {
+            selected: Dropout,
+            untouched: Dropout,
+        }
+
+        let dropout = || DropoutConfig::new(0.5).init();
+        let model = Wrapper {
+            selected: dropout(),
+            untouched: dropout(),
+        }
+        .freeze_group(ParamGroup::from_path("selected.training"));
+
+        assert!(!model.selected.training.is_enabled());
+        assert!(model.untouched.training.is_enabled());
+
+        let model = model.unfreeze_group(ParamGroup::from_path("selected.training"));
+
+        assert!(model.selected.training.is_enabled());
+        assert!(model.untouched.training.is_enabled());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
     fn with_ad_backend_should_mark_input() {
         use burn::tensor::Device;
         let device = Device::default().autodiff();
@@ -269,7 +356,7 @@ mod tests {
 
         assert_eq!(alloc::format!("{layer}"), "Dropout {prob: 0.5}");
 
-        let frozen = config.init().no_grad();
+        let frozen = config.init().freeze();
         assert_eq!(
             alloc::format!("{frozen}"),
             "Dropout {prob: 0.5, training: disabled}"

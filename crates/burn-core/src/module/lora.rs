@@ -10,6 +10,10 @@ use crate::module::{LoraAdapter, Param, ParamGroup, Quantizer, Reparameterizer};
 /// trainable LoRA [adapter](LoraAdapter)s; other parameters remain frozen without adapters. No
 /// model or layer code needs to change—the same `Linear` (and any other module) keeps working, now
 /// producing `base + scale * (a @ b)` for adapted weights.
+///
+/// Module-owned control flags are left unchanged. Apply [`Module::freeze`](crate::module::Module::freeze)
+/// before LoRA if dropout, batch normalization running statistics and other training behavior in
+/// the base module should also be disabled.
 #[derive(Debug, Clone)]
 pub struct Lora {
     /// Rank of the low-rank decomposition.
@@ -128,6 +132,7 @@ impl Reparameterizer for Lora {
 ///
 /// The quantized base is kept at rest in its low-bit representation; the adapter contribution is
 /// added on top during the forward pass (the base is dequantized on the fly when composed).
+/// Module-owned control flags are left unchanged, as with [`Lora`].
 pub struct QLora {
     lora: Lora,
     quantizer: Quantizer,
@@ -157,9 +162,10 @@ impl Reparameterizer for QLora {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate as burn;
     #[cfg(feature = "autodiff")]
     use crate::module::AutodiffModule;
-    use crate::module::{Module, ParamId};
+    use crate::module::{Flag, Module, ParamId};
     use crate::test_device;
     use crate::test_utils::SimpleLinear;
     use burn_tensor::Tolerance;
@@ -169,6 +175,45 @@ mod tests {
         let lora = Lora::new(2, 4.0);
         let model = SimpleLinear::new(in_features, out_features, &device).apply_lora(lora.clone());
         (model, lora)
+    }
+
+    #[derive(Module, Debug)]
+    struct FlaggedWeight {
+        weight: Param<Tensor<2>>,
+        training: Param<Flag>,
+    }
+
+    fn flagged_weight() -> FlaggedWeight {
+        let device = test_device();
+        FlaggedWeight {
+            weight: Param::from_tensor(Tensor::random([4, 4], Distribution::Default, &device)),
+            training: Param::from_bool(true),
+        }
+    }
+
+    #[test]
+    fn lora_preserves_module_control_flags() {
+        let model = flagged_weight().apply_lora(Lora::new(2, 4.0));
+
+        assert!(model.training.is_enabled());
+        assert!(model.weight.adapter().is_some());
+    }
+
+    #[test]
+    fn qlora_preserves_module_control_flags() {
+        use burn_tensor::quantization::{Calibration, QuantValue};
+
+        let device = test_device();
+        let scheme = device
+            .settings()
+            .quantization
+            .scheme
+            .with_value(QuantValue::Q8S);
+        let quantizer = Quantizer::new(Calibration::MinMax, scheme);
+        let model = flagged_weight().apply_qlora(QLora::new(Lora::new(2, 4.0), quantizer));
+
+        assert!(model.training.is_enabled());
+        assert!(model.weight.adapter().is_some());
     }
 
     #[test]

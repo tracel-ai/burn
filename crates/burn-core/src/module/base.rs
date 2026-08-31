@@ -15,6 +15,21 @@ pub type Devices = Vec<Device>;
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.
 macro_rules! module {
+    (map=$module:ident, ops=$item:expr, state=$state:ident:$state_ty:ty) => {{
+        struct Mapper {
+            $state: $state_ty,
+        }
+        impl ModuleMapper for Mapper {
+            fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+                let (id, tensor, mapper) = param.consume();
+                let func = $item;
+                let tensor = func(tensor, &self.$state);
+                Param::from_mapped_value(id, tensor, mapper)
+            }
+        }
+        let mut mapper = Mapper { $state };
+        $module.map(&mut mapper)
+    }};
     (map=$module:ident, ops=$item:expr, training=$training:expr) => {{
         struct Mapper;
         impl ModuleMapper for Mapper {
@@ -30,6 +45,39 @@ macro_rules! module {
             }
         }
         let mut mapper = Mapper;
+        $module.map(&mut mapper)
+    }};
+    (map=$module:ident, ops=$item:expr, group=$group:ident, state=$state:ident:$state_ty:ty) => {{
+        struct Mapper {
+            pub path: Vec<String>,
+            pub group: ParamGroup,
+            $state: $state_ty,
+        }
+        impl ModuleMapper for Mapper {
+            fn enter_module(&mut self, name: &str, _container_type: &str) {
+                self.path.push(name.to_string());
+            }
+
+            fn exit_module(&mut self, _name: &str, _container_type: &str) {
+                self.path.pop();
+            }
+
+            fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+                let (id, tensor, mapper) = param.consume();
+                let path = self.path.join(".");
+                if self.group.matches(&id, Some(&path)) {
+                    let func = $item;
+                    let tensor = func(tensor, &self.$state);
+                    return Param::from_mapped_value(id, tensor, mapper);
+                }
+                Param::from_mapped_value(id, tensor, mapper)
+            }
+        }
+        let mut mapper = Mapper {
+            path: alloc::vec![],
+            group: $group,
+            $state,
+        };
         $module.map(&mut mapper)
     }};
     (map=$module:ident, ops=$item:expr, group=$group:ident, training=$training:expr) => {{
@@ -141,8 +189,46 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// target device, use [fork](Module::fork) instead.
     fn to_device(self, device: &Device) -> Self;
 
-    /// Each tensor in the module tree will not require grad, and each layer with no tensor of its
-    /// own — dropout, noise, randomized activations — stops behaving as it does during training.
+    /// Set whether every floating-point tensor parameter in the module tree requires gradients.
+    ///
+    /// Module-owned control flags are left unchanged. Use [`freeze`](Module::freeze) to disable
+    /// both gradients and training behavior.
+    fn set_require_grad(self, require_grad: bool) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>, require_grad: &bool| tensor
+                .set_require_grad(*require_grad),
+            state = require_grad: bool
+        )
+    }
+
+    /// Set whether matched floating-point tensor parameters require gradients.
+    ///
+    /// Only floating-point tensor parameters within `group` are affected. Other parameter values
+    /// matched by the group, including module-owned control flags, are ignored; unmatched tensor
+    /// parameters are also left unchanged. This means a group created with
+    /// [`ParamGroup::ids_from_module`] can select an entire subtree while this method changes only
+    /// its tensor gradient state.
+    ///
+    /// Use [`freeze_group`](Module::freeze_group) or
+    /// [`unfreeze_group`](Module::unfreeze_group) when matched training flags should be changed
+    /// together with tensor gradients.
+    fn set_require_grad_group(self, group: ParamGroup, require_grad: bool) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>, require_grad: &bool| tensor
+                .set_require_grad(*require_grad),
+            group = group,
+            state = require_grad: bool
+        )
+    }
+
+    /// Disable gradients for every floating-point tensor parameter in the module tree.
+    ///
+    /// This is equivalent to `set_require_grad(false)`. Module-owned control flags are left
+    /// unchanged, so dropout, noise, randomized activations and batch-normalization running
+    /// statistics retain their current behavior. Use [`freeze`](Module::freeze) to disable both
+    /// gradients and training behavior.
     ///
     /// # Warnings
     ///
@@ -150,6 +236,22 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
     /// a small fraction of the parameters instead of finetuning all of them.
     fn no_grad(self) -> Self {
+        self.set_require_grad(false)
+    }
+
+    /// Freeze the whole module tree.
+    ///
+    /// Every floating-point tensor parameter stops requiring gradients, and every module-owned
+    /// training flag is disabled. This applies both to parameterless stochastic layers such as
+    /// dropout, noise and randomized activations, and to stateful layers such as batch
+    /// normalization.
+    ///
+    /// # Warnings
+    ///
+    /// This should not be used for inference; use [`valid`](AutodiffModule::valid) with AD modules
+    /// instead. `freeze` is intended for partial finetuning where a module remains on the training
+    /// device but should not participate in training.
+    fn freeze(self) -> Self {
         module!(
             map = self,
             ops = |tensor: Tensor<D>| tensor.set_require_grad(false),
@@ -157,15 +259,29 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         )
     }
 
-    /// Set `require_grad` to `false` for every parameter in the given group, leaving the rest
-    /// of the module untouched.
+    /// Unfreeze the whole module tree.
     ///
-    /// This is the group-scoped counterpart to [no_grad](Module::no_grad): where `no_grad` freezes
-    /// the whole module tree, `freeze_group` freezes only the parameters matched by `group`.  
+    /// Every floating-point tensor parameter starts requiring gradients, and every module-owned
+    /// training flag is enabled. This sets all values to their active state rather than restoring
+    /// a previously captured configuration.
+    fn unfreeze(self) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(true),
+            training = true
+        )
+    }
+
+    /// Freeze every module-owned value in the given group, leaving the rest of the module
+    /// untouched.
+    ///
+    /// This is the group-scoped counterpart to [`freeze`](Module::freeze): where `freeze` freezes
+    /// the whole module tree, `freeze_group` clears gradient requirements on matched tensor
+    /// parameters and disables matched training flags.
     ///
     /// # Warnings
     ///
-    /// Like [no_grad](Module::no_grad), this should not be used for inference; use
+    /// Like [`freeze`](Module::freeze), this should not be used for inference; use
     /// [valid](AutodiffModule::valid) with AD modules instead.
     fn freeze_group(self, group: ParamGroup) -> Self {
         module!(
@@ -176,11 +292,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         )
     }
 
-    /// Set `require_grad` to `true` for every parameter in the given group, leaving the rest
-    /// of the module untouched.
+    /// Unfreeze every module-owned value in the given group, leaving the rest of the module
+    /// untouched.
     ///
-    /// The inverse of [freeze_group](Module::freeze_group): it re-enables gradient tracking for the
-    /// parameters matched by `group`, e.g. to unfreeze a previously frozen module.
+    /// The inverse of [freeze_group](Module::freeze_group): it re-enables gradient tracking for
+    /// matched tensor parameters and enables matched training flags. This also re-enables a flag
+    /// that was disabled directly before the group operation.
     fn unfreeze_group(self, group: ParamGroup) -> Self {
         module!(
             map = self,
@@ -194,9 +311,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// # Notes
     ///
-    /// * Only plain modules (not already on an autodiff backend) can be moved.
-    /// * Calling `train()` on a module that is already on an autodiff backend
-    ///   will result in a type error, because the module's inner backend does not match.
+    /// This is the supported transition back to training after [`valid`](AutodiffModule::valid).
+    /// Moving or forking a validation module to an autodiff device does not restore its saved
+    /// tensor or flag state.
     fn train(self) -> Self
     where
         Self: AutodiffModule,
@@ -250,10 +367,13 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         self.map(&mut ApplyReparameterization::new(reparameterizer))
     }
 
-    /// Attach LoRA adapters to the module's 2-D weights, freezing the base weights.
+    /// Attach LoRA adapters to the module's 2-D weights, freezing all base tensor parameters.
     ///
     /// The same module keeps working without any code changes; adapted weights now produce
     /// `base + scale * (a @ b)`, and only the adapter factors are trainable.
+    /// Module-owned control flags are preserved, so dropout and batch normalization keep their
+    /// current training behavior. Call [`freeze`](Module::freeze) before this method if the base
+    /// module's control behavior and running statistics should also be frozen.
     fn apply_lora(self, lora: Lora) -> Self
     where
         Self: Sized,
@@ -261,8 +381,11 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         self.apply_reparameterization(lora)
     }
 
-    /// Apply QLoRA to the module: quantize the (frozen) base weights and attach trainable LoRA
-    /// adapters to 2-D weights.
+    /// Apply QLoRA to the module: quantize the (frozen) base tensor parameters and attach trainable
+    /// LoRA adapters to 2-D weights.
+    ///
+    /// Module-owned control flags are preserved. Call [`freeze`](Module::freeze) before this
+    /// method if the base module's control behavior and running statistics should also be frozen.
     fn apply_qlora(self, qlora: QLora) -> Self
     where
         Self: Sized,
@@ -567,8 +690,9 @@ pub trait ModuleMapper {
 
     /// Map a [`Param<Flag>`] in the module.
     ///
-    /// The default is the identity, so a mapper with no opinion about control state — a record, a
-    /// quantizer, a device move — leaves it untouched.
+    /// The default is the identity, so a mapper with no opinion about control state (for example,
+    /// a record, a quantizer or a module sharder) leaves it untouched. Device moves are handled
+    /// directly by [`Module::to_device`] and do not go through a [`ModuleMapper`].
     ///
     /// # Parameters
     /// - `flag`: The flag to map
@@ -582,10 +706,18 @@ pub trait ModuleMapper {
 
 /// Module with auto-differentiation backend.
 pub trait AutodiffModule: Module + Send + core::fmt::Debug {
-    /// Returns the same module, but on the inner backend without auto-differentiation.
+    /// Returns the same module on the inner backend without auto-differentiation.
+    ///
+    /// Tensor gradient requirements and module-owned training flags are disabled in the returned
+    /// value while their requested training state is retained internally. Use [`Module::train`]
+    /// to restore that state; [`Module::to_device`] and [`Module::fork`] preserve the disabled
+    /// validation state. Calling `valid` when the module's tensors are already on a plain device
+    /// still disables its training flags, so the operation is idempotent but not necessarily a
+    /// structural no-op.
     fn valid(&self) -> Self;
 
-    /// Wraps an inner module back into an auto-diff module.
+    /// Wraps an inner module back into an autodiff module and restores the training state retained
+    /// by [`AutodiffModule::valid`].
     fn from_inner(module: Self) -> Self;
 }
 
@@ -641,12 +773,16 @@ mod tests {
     }
 
     #[test]
-    fn valid_on_a_plain_device_module_is_no_op() {
-        let module = SimpleLinear::new(4, 4, &test_device());
+    fn valid_on_a_plain_device_keeps_tensors_plain_and_disables_flags() {
+        let module = (
+            SimpleLinear::new(4, 4, &test_device()),
+            Param::<Flag>::from_bool(true),
+        );
 
         let module = module.valid();
 
-        assert!(!module.weight.val().device().is_autodiff());
+        assert!(!module.0.weight.val().device().is_autodiff());
+        assert!(!module.1.is_enabled());
     }
 
     #[test]

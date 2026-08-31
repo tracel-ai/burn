@@ -76,10 +76,6 @@ impl Param<Flag> {
 }
 
 impl Module for Param<Flag> {
-    fn no_grad(self) -> Self {
-        self.with_value(false)
-    }
-
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_flag(self)
     }
@@ -170,5 +166,23 @@ mod tests {
         assert!(forked.is_enabled());
         assert_eq!(forked.id, id);
         assert!(forked.devices().is_empty());
+    }
+
+    #[test]
+    fn no_grad_does_not_disable_a_flag() {
+        let flag = Param::<Flag>::from_bool(true).no_grad();
+
+        assert!(flag.is_enabled());
+    }
+
+    #[test]
+    fn validation_state_is_restored_only_by_train() {
+        let device = Device::default().autodiff();
+        let valid = Param::<Flag>::from_bool(true).valid();
+
+        assert!(!valid.is_enabled());
+        assert!(!valid.clone().to_device(&device).is_enabled());
+        assert!(!valid.clone().fork(&device).is_enabled());
+        assert!(valid.train().is_enabled());
     }
 }
