@@ -25,6 +25,8 @@ fn lcs_length(a: &[i32], b: &[i32]) -> usize {
 }
 
 /// ROUGE-L metric based on longest common subsequence.
+///
+/// Reports the macro average of the per-sequence ROUGE-L F1 scores.
 #[derive(Clone)]
 pub struct RougeLScore {
     name: MetricName,
@@ -162,7 +164,6 @@ impl Metric for RougeLScore {
     }
 }
 
-// TODO: can be computed per batch, but epoch-level value should be aggregated properly (not just mean of each batch)
 impl Numeric for RougeLScore {
     fn value(&self) -> Option<NumericEntry> {
         Some(self.state.current_value())
@@ -173,7 +174,7 @@ impl Numeric for RougeLScore {
     }
 
     fn final_value(&self) -> NumericEntry {
-        todo!()
+        self.state.final_value()
     }
 }
 
@@ -261,6 +262,30 @@ mod tests {
     }
 
     #[test]
+    fn test_rouge_l_final_value_with_unequal_batch_sizes() {
+        let device = Default::default();
+        let mut metric = RougeLScore::new();
+
+        metric.update(
+            &RougeLInput::new(
+                Tensor::from_data([[1, 2]], &device),
+                Tensor::from_data([[1, 2]], &device),
+            ),
+            &MetricMetadata::fake(),
+        );
+        metric.update(
+            &RougeLInput::new(
+                Tensor::from_data([[3, 4], [5, 6], [7, 8]], &device),
+                Tensor::from_data([[3, 4], [9, 10], [11, 12]], &device),
+            ),
+            &MetricMetadata::fake(),
+        );
+
+        // Two perfect matches and two non-matches across all four samples.
+        assert!((metric.final_value().current() - 50.0).abs() < 1e-6);
+    }
+
+    #[test]
     fn test_rouge_l_both_empty() {
         let device = Default::default();
         let mut metric = RougeLScore::new();
@@ -285,5 +310,6 @@ mod tests {
 
         metric.clear();
         assert!(metric.value().unwrap().current().is_nan());
+        assert!(metric.final_value().current().is_nan());
     }
 }

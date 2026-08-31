@@ -98,7 +98,6 @@ fn should_scatter_assign_2d_dim0_int() {
         .assert_eq(&TensorData::from([[4, 2, 6], [1, 5, 3]]), false);
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn should_scatter_mul_1d_int() {
     let device = Default::default();
@@ -113,7 +112,6 @@ fn should_scatter_mul_1d_int() {
         .assert_eq(&TensorData::from([10, 140, 30, 2000]), false);
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn should_scatter_mul_2d_dim0_int() {
     let device = Default::default();

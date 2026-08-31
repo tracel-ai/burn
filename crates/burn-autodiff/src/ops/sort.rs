@@ -1,7 +1,7 @@
 use super::{Backward, Ops, unary};
 use crate::{checkpoint::base::Checkpointer, grads::Gradients};
 use burn_backend::{Backend, TensorMetadata};
-use burn_std::Shape;
+use burn_std::{IndexingUpdateOp, Shape};
 
 #[derive(Debug)]
 pub(crate) struct SortDim;
@@ -21,7 +21,7 @@ impl<B: Backend> Backward<B, 1> for SortDim {
             let dtype = grad.dtype();
             let zeros = B::float_zeros(shape, &device, dtype.into());
 
-            B::float_scatter_add(dim, zeros, indices, grad)
+            B::float_scatter(dim, zeros, indices, grad, IndexingUpdateOp::Add)
         });
     }
 }

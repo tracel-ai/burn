@@ -334,8 +334,18 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
     fn valid(&self) -> Self {
         // Preserve whether the parameter was active, but reset the inner value's gradient state.
         // `val()` folds any reparameterization into the base for inference.
+        //
+        // The param mapper crosses with it: it describes how the value relates to
+        // its *stored* form, which a change of backend does not alter. Dropping it
+        // makes `transform_for_save` the identity, so a record taken from a
+        // `valid()`ed module holds the in-memory shape rather than the checkpoint
+        // one — silently, for any layout that maps (a `Col` linear transposes).
         let is_active = self.is_active;
-        let mut param = Param::initialized(self.id, self.val().no_grad().set_require_grad(false));
+        let mut param = Param::from_mapped_value(
+            self.id,
+            self.val().no_grad().set_require_grad(false),
+            self.param_mapper.clone(),
+        );
         param.is_active = is_active;
         param
     }
@@ -345,7 +355,7 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
         let reparameterization = module.reparameterization.take();
         // Reinstate the parameter's training state.
         let tensor = Tensor::from_inner(module.val()).set_require_grad(module.is_active);
-        let base = Param::initialized(module.id, tensor);
+        let base = Param::from_mapped_value(module.id, tensor, module.param_mapper);
         match reparameterization {
             None => base,
             Some(reparameterization) => {
@@ -357,21 +367,29 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
     fn valid(&self) -> Self {
-        Param::initialized(self.id, self.val().no_grad())
+        Param::from_mapped_value(self.id, self.val().no_grad(), self.param_mapper.clone())
     }
 
     fn from_inner(module: Self) -> Self {
-        Param::initialized(module.id, Tensor::from_inner(module.val()))
+        Param::from_mapped_value(
+            module.id,
+            Tensor::from_inner(module.val()),
+            module.param_mapper,
+        )
     }
 }
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
     fn valid(&self) -> Self {
-        Param::initialized(self.id, self.val().no_grad())
+        Param::from_mapped_value(self.id, self.val().no_grad(), self.param_mapper.clone())
     }
 
     fn from_inner(module: Self) -> Self {
-        Param::initialized(module.id, Tensor::from_inner(module.val()))
+        Param::from_mapped_value(
+            module.id,
+            Tensor::from_inner(module.val()),
+            module.param_mapper,
+        )
     }
 }
 

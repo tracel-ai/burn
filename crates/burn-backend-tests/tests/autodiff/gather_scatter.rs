@@ -98,7 +98,6 @@ fn test_scatter_assign_grad() {
         .assert_eq(&TensorData::from([[1., 1.], [1., 1.]]), false);
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn test_scatter_mul_grad() {
     let device = AutodiffDevice::new();
