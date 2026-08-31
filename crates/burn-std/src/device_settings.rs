@@ -100,7 +100,7 @@ impl DeviceError {
 }
 
 /// An error that can happen when syncing a device.
-#[derive(Error, Serialize, Deserialize)]
+#[derive(Error, Serialize, Deserialize, Clone)]
 pub enum ExecutionError {
     /// A generic error happened during execution.
     ///
@@ -121,6 +121,33 @@ pub enum ExecutionError {
         #[serde(skip)]
         backtrace: BackTrace,
     },
+}
+
+impl ExecutionError {
+    /// An error raised inside Burn, capturing where it was raised.
+    ///
+    /// Capturing is cheap — a [`BackTrace`] resolves its frames only when it
+    /// is displayed — so this is the constructor to reach for by default.
+    pub fn generic(reason: impl Into<String>) -> Self {
+        Self::Generic {
+            reason: reason.into(),
+            backtrace: BackTrace::capture(),
+        }
+    }
+
+    /// An error from outside Burn, whose context the message already carries.
+    pub fn with_context(reason: impl Into<String>) -> Self {
+        Self::WithContext {
+            reason: reason.into(),
+        }
+    }
+
+    /// What went wrong, without the backtrace around it.
+    pub fn reason(&self) -> &str {
+        match self {
+            Self::WithContext { reason } | Self::Generic { reason, .. } => reason,
+        }
+    }
 }
 
 impl core::fmt::Debug for ExecutionError {

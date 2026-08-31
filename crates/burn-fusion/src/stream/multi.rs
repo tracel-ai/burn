@@ -543,7 +543,7 @@ mod tests {
             for id in &self.claims {
                 context.handles.set_error(
                     *id,
-                    TensorError::new("the fused part could not write it"),
+                    TensorError::panicked("the fused part could not write it"),
                     ExistingHandle::Displace,
                 );
             }

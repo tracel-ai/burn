@@ -12,11 +12,17 @@ use hashbrown::HashSet;
 /// The failure a read found, as the error a read reports.
 ///
 /// [`TensorError`] is how the failure is carried while it claims a tensor;
-/// [`ExecutionError`] is how a caller receives it. `Display` on the former
-/// already names the root cause and how far downstream this tensor was.
+/// [`ExecutionError`] is how a caller receives it.
+///
+/// At depth zero this tensor is an output of the work that actually failed,
+/// so the caller gets that error itself — its variant and its backtrace
+/// intact, rather than a rendering of it. Below a skip there is a second
+/// fact to report, how far down the chain this tensor sits, and no error of
+/// its own to lose: `Display` names both.
 fn execution_error(error: TensorError) -> ExecutionError {
-    ExecutionError::WithContext {
-        reason: format!("{error}"),
+    match error.depth() {
+        0 => error.cause().clone(),
+        _ => ExecutionError::with_context(format!("{error}")),
     }
 }
 

@@ -209,7 +209,7 @@ fn run_strategy<R: FusionRuntime>(
         // Nothing says which operation it came from, so the whole consumed
         // segment takes the error — conservatively, leaving alone any output
         // an operation did write, so one failure does not turn into several.
-        let error = TensorError::new(panic_message(escaped.as_ref()));
+        let error = TensorError::panicked(panic_message(escaped.as_ref()));
         for op in executed.ir.iter().take(executed.num_executed) {
             for node in op.outputs() {
                 handles.set_error(node.id, error.clone(), ExistingHandle::Keep);

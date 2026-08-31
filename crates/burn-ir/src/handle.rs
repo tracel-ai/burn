@@ -1,4 +1,5 @@
 use alloc::sync::Arc;
+use burn_backend::ExecutionError;
 use hashbrown::HashMap;
 
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
@@ -65,38 +66,51 @@ impl<H> core::fmt::Debug for HandleContainer<H> {
 /// equality on that root — see [`same_root`](Self::same_root).
 #[derive(Clone)]
 pub struct TensorError {
-    /// What the failing work reported.
-    root: Arc<str>,
+    /// What the failing work reported, as it reported it — the error keeps
+    /// its type and its backtrace rather than being flattened to a message.
+    cause: Arc<ExecutionError>,
     /// How many operations were skipped between the failure and this tensor.
     /// Zero for the outputs of the work that actually failed.
     depth: u32,
 }
 
 impl TensorError {
-    /// A fresh failure, erroring the tensors the work that raised `root` was
+    /// A fresh failure, erroring the tensors the work that raised `cause` was
     /// going to write.
-    pub fn new(root: impl AsRef<str>) -> Self {
+    pub fn new(cause: ExecutionError) -> Self {
         Self {
-            root: Arc::from(root.as_ref()),
+            cause: Arc::new(cause),
             depth: 0,
         }
+    }
+
+    /// A fresh failure from a panic that was caught, capturing where it was
+    /// caught since the payload carries nothing but a message.
+    pub fn panicked(message: impl Into<String>) -> Self {
+        Self::new(ExecutionError::generic(message))
+    }
+
+    /// What the failing work reported, whole — the error a read hands back at
+    /// [`depth`](Self::depth) zero, backtrace included.
+    pub fn cause(&self) -> &ExecutionError {
+        &self.cause
     }
 
     /// The same failure, one operation further downstream — for the outputs of
     /// work that was skipped because an input carried this error.
     ///
-    /// The root is shared rather than reformatted, so a read below a long
+    /// The cause is shared rather than reformatted, so a read below a long
     /// chain of skips still names the failure that started it.
     pub fn propagated(&self) -> Self {
         Self {
-            root: self.root.clone(),
+            cause: self.cause.clone(),
             depth: self.depth.saturating_add(1),
         }
     }
 
-    /// What the failing work reported.
+    /// What the failing work reported, as a message.
     pub fn root(&self) -> &str {
-        &self.root
+        self.cause.reason()
     }
 
     /// How many operations were skipped between the failure and this tensor.
@@ -107,18 +121,18 @@ impl TensorError {
     /// Whether both tensors were errored by the same failure, however far
     /// downstream each one is.
     pub fn same_root(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.root, &other.root)
+        Arc::ptr_eq(&self.cause, &other.cause)
     }
 }
 
 impl core::fmt::Display for TensorError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.depth {
-            0 => write!(f, "the work writing it failed: {}", self.root),
+            0 => write!(f, "the work writing it failed: {}", self.cause.reason()),
             skipped => write!(
                 f,
                 "the work writing it was skipped {skipped} operation(s) below a failure: {}",
-                self.root
+                self.cause.reason()
             ),
         }
     }
@@ -127,7 +141,7 @@ impl core::fmt::Display for TensorError {
 impl core::fmt::Debug for TensorError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("TensorError")
-            .field("root", &self.root)
+            .field("cause", &self.cause)
             .field("depth", &self.depth)
             .finish()
     }
@@ -555,7 +569,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("the kernel failed to compile"),
+            TensorError::panicked("the kernel failed to compile"),
             ExistingHandle::Displace,
         );
 
@@ -575,7 +589,7 @@ mod tests {
         container.register_handle(tid(1), "written".to_string());
         container.set_error(
             tid(1),
-            TensorError::new("something else failed"),
+            TensorError::panicked("something else failed"),
             ExistingHandle::Keep,
         );
 
@@ -596,7 +610,7 @@ mod tests {
         container.register_handle(tid(1), "aliased_input_buffer".to_string());
         container.set_error(
             tid(1),
-            TensorError::new("the launch failed"),
+            TensorError::panicked("the launch failed"),
             ExistingHandle::Displace,
         );
 
@@ -615,7 +629,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("the kernel failed to compile"),
+            TensorError::panicked("the kernel failed to compile"),
             ExistingHandle::Displace,
         );
 
@@ -637,7 +651,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("the kernel failed to compile"),
+            TensorError::panicked("the kernel failed to compile"),
             ExistingHandle::Displace,
         );
 
@@ -673,7 +687,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("this autotune candidate failed"),
+            TensorError::panicked("this autotune candidate failed"),
             ExistingHandle::Displace,
         );
 
@@ -688,7 +702,46 @@ mod tests {
         assert!(!container.has_errors(), "so the container is clean again");
     }
 
-    /// A claim crossing to another device keeps naming the failure that made
+    /// The failure reaches the read as the error the failing work reported,
+    /// not as a rendering of it: same variant, backtrace still attached. A
+    /// caller can match on it.
+    #[test]
+    fn a_claim_carries_the_cause_it_was_made_from() {
+        let mut container = HandleContainer::<String>::new();
+        container.set_error(
+            tid(1),
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
+            ExistingHandle::Displace,
+        );
+
+        let error = container
+            .take_error(&ir(tid(1), TensorStatus::ReadWrite))
+            .expect("the read finds the claim");
+
+        assert!(
+            matches!(error.cause(), ExecutionError::Generic { .. }),
+            "the variant survives, so the backtrace does too"
+        );
+        assert_eq!(error.root(), "the kernel failed to compile");
+    }
+
+    /// Propagation shares the cause, so a tensor far below a failure reports
+    /// the same error object — not a copy of its message.
+    #[test]
+    fn propagation_shares_one_cause() {
+        let root = TensorError::new(ExecutionError::generic("the launch failed"));
+        let deep = root.propagated().propagated();
+
+        assert!(root.same_root(&deep));
+        assert_eq!(
+            deep.root(),
+            "the launch failed",
+            "the message is the root's"
+        );
+        assert_eq!(deep.depth(), 2);
+    }
+
+    /// A claim crossing to another device keeps naming the failure    /// A claim crossing to another device keeps naming the failure that made
     /// it. The root is behind an `Arc`, so identity survives the hop between
     /// containers — this is the sequence `change_client_*` runs when the
     /// source read reports a claim instead of a tensor.
@@ -696,7 +749,7 @@ mod tests {
     fn a_claim_crosses_to_a_second_container_keeping_its_root() {
         let mut src = HandleContainer::<String>::new();
         let mut dst = HandleContainer::<String>::new();
-        let root = TensorError::new("the kernel failed to compile");
+        let root = TensorError::panicked("the kernel failed to compile");
         src.set_error(tid(1), root.clone(), ExistingHandle::Displace);
 
         let carried = src
@@ -716,13 +769,13 @@ mod tests {
     #[test]
     fn a_kept_claim_is_never_displaced_by_a_broader_one() {
         let mut container = HandleContainer::<String>::new();
-        let precise = TensorError::new("the kernel failed to compile");
+        let precise = TensorError::panicked("the kernel failed to compile");
         container.set_error(tid(1), precise.clone(), ExistingHandle::Displace);
         // A tensor downstream of it, carrying the same root one hop down.
         container.set_error(tid(2), precise.propagated(), ExistingHandle::Displace);
 
         // The segment-wide backstop sweeps both with a message of its own.
-        let broad = TensorError::new("a panic escaped the strategy walk");
+        let broad = TensorError::panicked("a panic escaped the strategy walk");
         container.set_error(tid(1), broad.clone(), ExistingHandle::Keep);
         container.set_error(tid(2), broad, ExistingHandle::Keep);
 
@@ -740,7 +793,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("the kernel failed to compile"),
+            TensorError::panicked("the kernel failed to compile"),
             ExistingHandle::Displace,
         );
 
@@ -767,7 +820,7 @@ mod tests {
     /// still names the failure that started it.
     #[test]
     fn propagation_keeps_the_root_and_counts_the_hops() {
-        let root = TensorError::new("the kernel failed to compile");
+        let root = TensorError::panicked("the kernel failed to compile");
         let one = root.propagated();
         let two = one.propagated();
 
@@ -775,7 +828,7 @@ mod tests {
         assert_eq!((root.depth(), one.depth(), two.depth()), (0, 1, 2));
         assert_eq!(two.root(), "the kernel failed to compile");
         assert!(
-            !root.same_root(&TensorError::new("the kernel failed to compile")),
+            !root.same_root(&TensorError::panicked("the kernel failed to compile")),
             "same message, different failure"
         );
     }
@@ -785,7 +838,11 @@ mod tests {
     #[test]
     fn an_error_is_released_with_its_tensor() {
         let mut container = HandleContainer::<String>::new();
-        container.set_error(tid(1), TensorError::new("boom"), ExistingHandle::Displace);
+        container.set_error(
+            tid(1),
+            TensorError::panicked("boom"),
+            ExistingHandle::Displace,
+        );
 
         container.free(&TensorIr {
             id: tid(1),
@@ -822,7 +879,7 @@ mod tests {
         }
 
         let mut container = HandleContainer::<String>::new();
-        let error = || TensorError::new("boom");
+        let error = || TensorError::panicked("boom");
         check(&container, "empty");
 
         // Error a tensor, then error the same id again: one entry, one count.

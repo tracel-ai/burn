@@ -198,7 +198,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         }));
 
         if let Err(panic) = executed {
-            let error = TensorError::new(panic_message(panic.as_ref()));
+            let error = TensorError::panicked(panic_message(panic.as_ref()));
             self.set_errors(&ordering, &mut context.handles, &error);
             self.did_not_run.extend(ordering.iter().copied());
             self.failed.get_or_insert(panic);
@@ -249,7 +249,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| op.execute(handles)));
 
             if let Err(panic) = executed {
-                let error = TensorError::new(panic_message(panic.as_ref()));
+                let error = TensorError::panicked(panic_message(panic.as_ref()));
                 set_output_errors(ir, handles, &error);
                 self.did_not_run.push(*id);
                 self.failed.get_or_insert(panic);
