@@ -142,8 +142,8 @@ fn expand_from_input(operation: &Operation, source: &OperationInput) -> TokenStr
         operation,
         Some(source),
         quote! {
-            let __autodiff = #name.autodiff;
-            let __burn_selected_context = __autodiff;
+            let __ad_ctx = #name.autodiff;
+            let __burn_selected_context = __ad_ctx;
         },
         source_kind,
         inner_kind,
@@ -162,7 +162,7 @@ fn expand_from_candidates(operation: &Operation) -> TokenStream {
         None,
         quote! {
             #routing_tensor_init
-            let __autodiff = __routing_tensor.autodiff;
+            let __ad_ctx = __routing_tensor.autodiff;
         },
         quote!(&__routing_tensor.kind),
         quote!(__inner.as_ref()),
@@ -367,7 +367,7 @@ fn creation_arm(
             #[cfg(#cfg)]
             crate::DispatchDevice::#ident(device) => {
                 type B = crate::backends::#ident;
-                let __autodiff = crate::DispatchAutodiffContext::Disabled;
+                let __ad_ctx = crate::DispatchAutodiffContext::Disabled;
                 let __output = #body;
                 #wrapped
             },
@@ -387,7 +387,7 @@ fn creation_arm(
             quote!(__strategy),
             &alias,
             quote! {
-                let __autodiff = crate::DispatchAutodiffContext::Enabled(__strategy);
+                let __ad_ctx = crate::DispatchAutodiffContext::Enabled(__strategy);
                 let __output = #body;
                 #wrapped
             },
@@ -412,7 +412,7 @@ fn creation_arm(
             crate::DispatchDevice::#ident(device) => {
                 type B = crate::backends::#ident;
                 let __strategy = __device.checkpointing;
-                let __autodiff = crate::DispatchAutodiffContext::Enabled(__strategy);
+                let __ad_ctx = crate::DispatchAutodiffContext::Enabled(__strategy);
                 let __output = #body;
                 #wrapped
             },

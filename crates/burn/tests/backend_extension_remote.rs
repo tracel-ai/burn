@@ -138,6 +138,10 @@ pub trait SignatureBackend: burn::backend::Backend {
     where
         T: Clone + Send + 'static;
 
+    fn backend_generic_name<B>(tensor: FloatTensor<Self>, value: B) -> FloatTensor<Self>
+    where
+        B: Clone + Send + 'static;
+
     async fn asynchronous(tensor: FloatTensor<Self>) -> FloatTensor<Self>;
 
     fn future(tensor: FloatTensor<Self>) -> impl core::future::Future<Output = FloatTensor<Self>>;
@@ -159,6 +163,13 @@ impl SignatureBackend for Remote {
         tensor
     }
 
+    fn backend_generic_name<B>(tensor: FloatTensor<Self>, _value: B) -> FloatTensor<Self>
+    where
+        B: Clone + Send + 'static,
+    {
+        tensor
+    }
+
     async fn asynchronous(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         tensor
     }
@@ -176,6 +187,8 @@ fn backend_extension_preserves_method_signatures() {
         <Dispatch as SignatureBackend>::single_tuple;
     let _generic: fn(FloatTensor<Dispatch>, u32) -> FloatTensor<Dispatch> =
         <Dispatch as SignatureBackend>::generic::<u32>;
+    let _backend_generic_name: fn(FloatTensor<Dispatch>, u32) -> FloatTensor<Dispatch> =
+        <Dispatch as SignatureBackend>::backend_generic_name::<u32>;
 }
 
 // Struct input combined with a `cfg`-gated `Autodiff`. The gate `cfg(not(feature = "remote"))` is

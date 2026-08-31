@@ -309,7 +309,7 @@ fn gen_dispatch_method(ir: &Extension, op: &ExtensionOperation) -> TokenStream2 
             match &backend.cfg_attr {
                 // Ungated backend: dispatch straight to it.
                 None => quote! {
-                    let __autodiff = burn::backend::DispatchAutodiffContext::Disabled;
+                    let __ad_ctx = burn::backend::DispatchAutodiffContext::Disabled;
                     #call
                 },
                 // The single backend is `cfg`-gated. Mirror the match path: gate the call on the
@@ -320,7 +320,7 @@ fn gen_dispatch_method(ir: &Extension, op: &ExtensionOperation) -> TokenStream2 
                     match () {
                         #cfg_attr
                         () => {
-                            let __autodiff = burn::backend::DispatchAutodiffContext::Disabled;
+                            let __ad_ctx = burn::backend::DispatchAutodiffContext::Disabled;
                             #call
                         }
                         #[allow(unreachable_patterns)]
@@ -466,13 +466,13 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
     quote! {
         // Compute the autodiff context and backend tag in a scoped block so the routing tensor's
         // borrow of the inputs ends before the dispatch arms below move them.
-        let (__burn_backend_tag, __autodiff, __has_float_input): (
+        let (__burn_backend_tag, __ad_ctx, __has_float_input): (
             usize,
             burn::backend::DispatchAutodiffContext,
             bool,
         ) = {
             #routing_tensor_init
-            let __autodiff = __routing_tensor.autodiff;
+            let __ad_ctx = __routing_tensor.autodiff;
             let __backend_tag = match &__routing_tensor.kind {
                 #ad_tag_arm
                 #( #concrete_tag_arms )*
@@ -481,7 +481,7 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
             };
             (
                 __backend_tag,
-                __autodiff,
+                __ad_ctx,
                 __routing_tensor_is_float,
             )
         };
@@ -525,11 +525,11 @@ fn gen_backend_call(
 ) -> TokenStream2 {
     let b_ident = &backend.ident;
     let paths = routing::RoutingPaths::extension();
-    let invoke = routing::invoke(op);
+    let invoke = routing::invoke(op, &paths);
     let wrap_out = routing::wrap_output(&op.output, &paths, b_ident, route, quote!(__output));
 
     quote! {
-        type B = burn::backend::#b_ident;
+        type _B = burn::backend::#b_ident;
         #invoke
         #wrap_out
     }
