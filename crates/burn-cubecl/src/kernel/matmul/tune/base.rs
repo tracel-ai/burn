@@ -326,9 +326,9 @@ pub fn matmul_autotune<R: CubeRuntime>(
             .group(&unit, move |_key| PRIORITY_MAX),
         );
 
-        // `Gemm` is not a vector routine, so restricting the gemv group to vector kinds left
-        // CPU without it. Registered again rather than grouped again: a group answering
-        // `PRIORITY_NEVER` drops the candidate whatever another group says.
+        // `Gemm` is not a vector routine, so restricting the gemv group to vector kinds removed
+        // it from general CPU matmuls. Register it independently for those workloads while
+        // keeping the gemv group vector-specific
         let cpu_gemm_general = Strategy::Gemm(BlueprintStrategy::Inferred(Default::default()));
         set = set.with(
             Tunable::new("gemm_cpu_general", move |(lhs, rhs, out)| {
