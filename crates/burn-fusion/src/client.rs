@@ -99,6 +99,10 @@ where
     where
         O: Operation<R> + 'static,
     {
+        // A drop raised while a thread was unwinding could not be registered
+        // then; this is the first normal call stack since, so it goes now.
+        crate::tensor::deferred::flush();
+
         // Create output tensors returned by this operation
         let outputs = repr
             .outputs()

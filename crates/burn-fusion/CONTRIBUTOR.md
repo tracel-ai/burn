@@ -74,7 +74,9 @@ rests on: the attempt that fails claims the output it never wrote, the attempt t
 and nothing downstream is skipped.
 
 **Release.** A claim lives exactly as long as the tensor carrying it — released by the tensor's
-`Drop`, or by a `ReadWrite` read that consumes it (`take_error`). Note that `input_error`
+`Drop`, or by a `ReadWrite` read that consumes it (`take_error`). A drop raised while the thread is
+unwinding cannot register then — that re-enters the client mid-unwind — so it is set aside and
+replayed by the next registration on that thread, rather than dropped on the floor. Note that `input_error`
 deliberately exempts `OperationIr::Drop`: a drop names its tensor as an input but does not read it,
 and skipping drops would make claims outlive every tensor that could report them.
 
@@ -131,7 +133,9 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
   work; `consume_stalled` remains as the guarantee of last resort.
 - **`did_not_run` is load-bearing.** A drained operation that never ran was never replayed
   server-side, so the router's `free_handle` needs to know in order not to strand the buffer. If you
-  add a path that skips work, record it.
+  add a path that skips work, record it. Work that cannot reach the execution directly — a
+  `FallbackOp` outlives the borrow it was built from — records through the shared queue that
+  `finish` merges.
 
 ### Known gaps
 
@@ -150,11 +154,6 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
   implemented as a `debug_assert`, found nothing across the whole suite. The scope is still the API,
   so this can be revisited behind `over` and `run` without touching a call site if the second
   argument ever gets teeth.
-- `FusionTensor::drop` does not register a drop while the thread is panicking, to avoid re-entering
-  the client mid-unwind. That leaks the id's entry, including any claim on it.
-- `did_not_run` is not recorded when a fallback skips. This is currently unreachable — the fallback
-  path is cube-only, and cube uses the default `free_handle` — but it would matter for any runtime
-  that overrides `free_handle` *and* uses fallbacks.
 - Raising is still caught with `catch_unwind`, so a backend that panics rather than reporting relies
   on the unwinding panic runtime. Under `panic = "abort"` a panicking operation ends the process,
   which is a worse outcome than a claim but not one a claim could improve on — prefer reporting.

@@ -803,8 +803,6 @@ mod tests {
         ) -> Result<(), burn_backend::ExecutionError> {
             handles.register_handle(self.out, TestHandle);
             panic!("this operation cannot serve its problem");
-
-            Ok(())
         }
     }
 
@@ -1324,6 +1322,73 @@ mod tests {
         assert!(
             !setup.handles.has_errors(),
             "nothing failed, so nothing is claimed"
+        );
+    }
+
+    /// A fallback that skips was never replayed server-side, so it has to reach
+    /// `did_not_run` like any other work that did not run — a runtime whose
+    /// handles live on a server strands the buffer otherwise. It cannot hold a
+    /// reference to the execution it came from, so it records through a shared
+    /// one, and this is what checks that the two meet again.
+    #[test]
+    fn a_skipped_fallback_is_recorded_as_not_run() {
+        use crate::search::BlockOptimization;
+        use crate::stream::store::ExecutionStrategy;
+
+        UNRUN_FREES.with(|freed| freed.borrow_mut().clear());
+
+        let mut setup = TestSetup::new();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            consume_op(t0, t1),
+            UnfusedOp::new(ProduceOp { out: t1 }, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.register(
+            setup.id,
+            consume_op(t1, t2),
+            UnfusedOp::new(ProduceOp { out: t2 }, setup.id),
+            &mut setup.handles,
+        );
+
+        // The kernel fails to write `t1`, then falls back for the operation
+        // reading it — which must skip, and must say that it did.
+        let ordering = vec![0, 1];
+        let optimization = BlockOptimization::new(
+            ExecutionStrategy::Optimization {
+                opt: TestOptimization {
+                    len: ordering.len(),
+                    outputs: Vec::new(),
+                    panics: false,
+                    fallback: vec![1],
+                    claims: vec![t1],
+                    writes: Vec::new(),
+                },
+                ordering: std::sync::Arc::new(ordering.clone()),
+                score: 0,
+            },
+            ordering,
+        );
+
+        let stream = setup.streams.streams.get_mut(&setup.id).expect("queued");
+        stream
+            .queue
+            .execute_unfused(optimization, &mut setup.handles, setup.id);
+
+        assert!(
+            setup.handles.error(&t2).is_some(),
+            "the fallback skipped, so its output is claimed"
+        );
+
+        // `t1` is the skipped operation's last-use input. Reclaiming it as
+        // `OperationRan::No` is what tells a runtime holding it elsewhere that
+        // nothing replayed the operation that would have freed it.
+        let unrun = UNRUN_FREES.with(|freed| freed.borrow().clone());
+        assert!(
+            unrun.contains(&t1),
+            "the skipped fallback must be recorded as not run, got {unrun:?}"
         );
     }
 

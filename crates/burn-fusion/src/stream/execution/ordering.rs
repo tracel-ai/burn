@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use burn_ir::{HandleContainer, OperationIr};
 
@@ -35,6 +35,11 @@ pub struct OrderedExecution<R: FusionRuntime> {
     /// Which consumed operations never ran. See
     /// [`Executed::did_not_run`](Executed#structfield.did_not_run).
     did_not_run: Vec<usize>,
+    /// The same, for work that records it through a shared reference because it
+    /// cannot hold one to this — a [`FallbackOp`], which outlives the borrow it
+    /// was built from. Allocated on the first fallback and never otherwise, so
+    /// a segment that uses none pays nothing; merged in [`finish`](Self::finish).
+    deferred: OnceLock<Arc<Mutex<Vec<usize>>>>,
     ordering: Option<Arc<Vec<usize>>>,
     /// The first panic a unit of this execution raised, kept only so the
     /// caller can log it. Every failure's report is the error it left on the
@@ -54,6 +59,12 @@ pub struct OrderedExecution<R: FusionRuntime> {
 pub struct FallbackOp<R: FusionRuntime> {
     operation: UnfusedOp<R>,
     ir: OperationIr,
+    /// This operation's position in the segment, and where to record that it
+    /// did not run. A skipped fallback was never replayed server-side, so a
+    /// runtime whose handles live there has to hear about it or it strands the
+    /// buffer — the same reason the unfused path records one.
+    position: usize,
+    did_not_run: Arc<Mutex<Vec<usize>>>,
 }
 
 impl<R: FusionRuntime> Clone for FallbackOp<R> {
@@ -61,6 +72,8 @@ impl<R: FusionRuntime> Clone for FallbackOp<R> {
         Self {
             operation: self.operation.clone(),
             ir: self.ir.clone(),
+            position: self.position,
+            did_not_run: self.did_not_run.clone(),
         }
     }
 }
@@ -74,7 +87,15 @@ impl<R: FusionRuntime> FallbackOp<R> {
     /// block's write set, and that is the honest report for a fused unit that
     /// stopped part way.
     pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
-        WriteScope::over(&self.ir, handles).run_raising(|handles| self.operation.execute(handles));
+        let outcome = WriteScope::over(&self.ir, handles)
+            .run_raising(|handles| self.operation.execute(handles));
+
+        if let Outcome::Skipped | Outcome::Failed(_) = outcome {
+            self.did_not_run
+                .lock()
+                .expect("no panic holds this lock")
+                .push(self.position);
+        }
     }
 }
 
@@ -90,6 +111,8 @@ impl<R: FusionRuntime> OrderedExecution<R> {
                 FallbackOp {
                     operation: self.operations[index].clone(),
                     ir: self.ir[index].clone(),
+                    position: index,
+                    did_not_run: self.deferred().clone(),
                 }
             }
             None => panic!("No ordering provided"),
@@ -102,15 +125,26 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             ir,
             num_executed: 0,
             did_not_run: Vec::new(),
+            deferred: OnceLock::new(),
             ordering: None,
             failed: None,
         }
+    }
+
+    /// Where work that cannot reach `did_not_run` directly records a skip.
+    fn deferred(&self) -> &Arc<Mutex<Vec<usize>>> {
+        self.deferred.get_or_init(Default::default)
     }
 
     pub(crate) fn finish(mut self) -> Executed<R> {
         // `min`: the count is taken before the work runs (see
         // `execute_optimization`), so a strategy torn down by a panic can
         // leave it describing operations a shorter list never held.
+        if let Some(deferred) = self.deferred.get() {
+            let mut deferred = deferred.lock().expect("no panic holds this lock");
+            self.did_not_run.append(&mut deferred);
+        }
+
         let num_executed = self.num_executed.min(self.operations.len());
         self.operations.drain(0..num_executed);
 
