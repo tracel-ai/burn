@@ -121,6 +121,8 @@ impl ModuleDisplay for Param<Flag> {}
 
 #[cfg(test)]
 mod tests {
+    use crate::test_device;
+
     use super::*;
 
     #[test]
@@ -155,7 +157,7 @@ mod tests {
     fn flags_are_device_independent() {
         let flag = Param::<Flag>::from_bool(true);
         let id = flag.id;
-        let device = Device::default();
+        let device = test_device();
 
         let moved = flag.clone().to_device(&device);
         assert!(moved.is_enabled());
@@ -175,9 +177,10 @@ mod tests {
         assert!(flag.is_enabled());
     }
 
+    #[cfg(feature = "autodiff")]
     #[test]
     fn validation_state_is_restored_only_by_train() {
-        let device = Device::default().autodiff();
+        let device = test_device().autodiff();
         let valid = Param::<Flag>::from_bool(true).valid();
 
         assert!(!valid.is_enabled());
