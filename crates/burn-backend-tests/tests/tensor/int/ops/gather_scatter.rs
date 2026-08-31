@@ -68,7 +68,6 @@ fn should_scatter_add_1d_int() {
         .assert_eq(&TensorData::from([4, 5, 3]), false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn should_scatter_assign_1d_int() {
     let device = Default::default();
@@ -83,7 +82,6 @@ fn should_scatter_assign_1d_int() {
         .assert_eq(&TensorData::from([10, 7, 30, 50]), false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn should_scatter_assign_2d_dim0_int() {
     let device = Default::default();

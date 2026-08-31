@@ -61,7 +61,6 @@ fn test_select_add_grad() {
         .assert_eq(&TensorData::from([[64., 64., 64.], [19., 19., 19.]]), false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn test_select_assign_grad() {
     let device = AutodiffDevice::new();

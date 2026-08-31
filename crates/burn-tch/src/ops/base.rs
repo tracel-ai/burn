@@ -233,6 +233,20 @@ impl TchOps {
         TchTensor::from_existing(tensor, storage)
     }
 
+    pub fn scatter_assign(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor
+            .tensor
+            .scatter(dim as i64, &indices.tensor, &value.tensor);
+
+        TchTensor::from_existing(tensor, storage)
+    }
+
     pub fn scatter_mul(
         dim: usize,
         tensor: TchTensor,
@@ -356,6 +370,18 @@ impl TchOps {
         tensor.clone().unary_ops(
             |mut tensor| tensor.index_add_(dim as i64, &indices.tensor, &value.tensor),
             |tensor| tensor.index_add(dim as i64, &indices.tensor, &value.tensor),
+        )
+    }
+
+    pub fn select_assign_replace(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        tensor.clone().unary_ops(
+            |mut tensor| tensor.index_copy_(dim as i64, &indices.tensor, &value.tensor),
+            |tensor| tensor.index_copy(dim as i64, &indices.tensor, &value.tensor),
         )
     }
 

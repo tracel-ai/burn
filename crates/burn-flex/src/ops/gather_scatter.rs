@@ -377,6 +377,23 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
     )
 }
 
+/// Scatter assign: replaces tensor values at positions specified by indices.
+pub fn scatter_assign<E: Element + Pod + Default + Copy + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    scatter_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "scatter_assign",
+        |target, value| *target = value,
+    )
+}
+
 /// Scatter multiply: multiplies values into tensor at positions specified by indices.
 pub fn scatter_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E> + Send + Sync>(
     tensor: FlexTensor,
@@ -800,6 +817,23 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
         value,
         "select_add",
         |target, value| *target += value,
+    )
+}
+
+/// Select assign: replaces tensor values at positions specified by 1D indices.
+pub fn select_assign<E: Element + Pod + Default + Copy + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    select_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_assign",
+        |target, value| *target = value,
     )
 }
 

@@ -90,7 +90,6 @@ fn should_scatter_add_1d() {
         .assert_eq(&TensorData::from([4.0, 5.0, 3.0]), false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn should_scatter_assign_1d() {
     let device = Default::default();
@@ -105,7 +104,6 @@ fn should_scatter_assign_1d() {
         .assert_eq(&TensorData::from([10.0, 7.0, 30.0, 50.0]), false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn should_scatter_assign_2d_dim0() {
     let device = Default::default();
