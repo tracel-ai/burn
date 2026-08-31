@@ -3,7 +3,9 @@ pub use burn_std::{
 };
 
 #[cfg(feature = "cubecl")]
-pub use burn_backend::cubecl::{ThroughputKey, ThroughputMode, ThroughputValue};
+pub use burn_backend::cubecl::{
+    MemoryAccess, MemorySpec, ThroughputKey, ThroughputMode, ThroughputValue,
+};
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
     InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
@@ -939,10 +941,14 @@ fn mode_label(mode: &ThroughputMode) -> &'static str {
     match mode {
         ThroughputMode::ComputeDirect { .. } => "compute-direct",
         ThroughputMode::ComputeCmma { .. } => "compute-cmma",
-        ThroughputMode::Memory => "memory",
-        ThroughputMode::MemoryRead => "memory-read",
-        ThroughputMode::MemoryWrite => "memory-write",
-        ThroughputMode::MemoryWorkingSet { .. } => "memory-working-set",
+        ThroughputMode::Memory(spec) if spec.bytes != spec.access.default_working_set() => {
+            "memory-working-set"
+        }
+        ThroughputMode::Memory(spec) => match spec.access {
+            MemoryAccess::Copy => "memory",
+            MemoryAccess::Read => "memory-read",
+            MemoryAccess::Write => "memory-write",
+        },
         ThroughputMode::Launch => "launch",
     }
 }
@@ -962,11 +968,7 @@ impl core::fmt::Display for ThroughputStat {
             ThroughputMode::ComputeDirect { dtype } | ThroughputMode::ComputeCmma { dtype, .. } => {
                 alloc::format!("{dtype}")
             }
-            ThroughputMode::Memory
-            | ThroughputMode::MemoryRead
-            | ThroughputMode::MemoryWrite
-            | ThroughputMode::MemoryWorkingSet { .. }
-            | ThroughputMode::Launch => alloc::string::String::new(),
+            ThroughputMode::Memory(_) | ThroughputMode::Launch => alloc::string::String::new(),
         };
 
         let value = self.value.format(&self.key);
@@ -1314,6 +1316,34 @@ mod autodiff_move_tests {
         assert_eq!(
             moved.try_into_vec_as::<f32>().unwrap(),
             vec![1.0, 2.0, 3.0, 4.0]
+        );
+    }
+}
+
+#[cfg(all(test, feature = "cubecl"))]
+mod throughput_mode_tests {
+    use super::*;
+
+    #[test]
+    fn memory_labels_include_access_and_custom_working_sets() {
+        assert_eq!(
+            mode_label(&ThroughputMode::memory(MemoryAccess::Copy)),
+            "memory"
+        );
+        assert_eq!(
+            mode_label(&ThroughputMode::memory(MemoryAccess::Read)),
+            "memory-read"
+        );
+        assert_eq!(
+            mode_label(&ThroughputMode::memory(MemoryAccess::Write)),
+            "memory-write"
+        );
+        assert_eq!(
+            mode_label(&ThroughputMode::Memory(MemorySpec::new(
+                MemoryAccess::Copy,
+                1
+            ))),
+            "memory-working-set"
         );
     }
 }
