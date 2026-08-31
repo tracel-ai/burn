@@ -97,7 +97,7 @@ impl GradientsParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::module::{Module, list_param_ids};
+    use burn::module::{Module, ParamGroup};
     use burn::tensor::Distribution;
     use burn_nn::{Linear, LinearConfig};
 
@@ -112,12 +112,13 @@ mod tests {
         let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
         let grads_2 = GradientsParams::from_grads(loss_2.backward(), &layer_2);
 
-        let param_ids_1 = list_param_ids(&layer_1);
-        let param_ids_2 = list_param_ids(&layer_2);
+        let group = ParamGroup::ids_from_module(layer_1.clone());
+        let bias_2 = layer_2.bias.as_ref().unwrap();
 
-        assert_eq!(param_ids_1, param_ids_2);
-        assert_eq!(grads_1.len(), param_ids_1.len());
-        assert_eq!(grads_2.len(), param_ids_2.len());
+        assert!(group.matches(&layer_2.weight.id, None));
+        assert!(group.matches(&bias_2.id, None));
+        assert_eq!(grads_1.len(), 2);
+        assert_eq!(grads_2.len(), 2);
     }
 
     fn layer(device: &Device) -> Linear {
