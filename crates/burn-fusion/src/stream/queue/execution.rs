@@ -1,4 +1,4 @@
-use burn_ir::{ExistingHandle, HandleContainer, OperationIr, TensorError, TensorStatus};
+use burn_ir::{HandleContainer, OperationIr, TensorError, TensorStatus};
 use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use std::sync::Arc;
 
@@ -206,13 +206,16 @@ fn run_strategy<R: FusionRuntime>(
     let mut executed = execution.finish();
 
     if let Some(escaped) = escaped {
-        // Nothing says which operation it came from, so the whole consumed
-        // segment takes the error — conservatively, leaving alone any output
-        // an operation did write, so one failure does not turn into several.
+        // Work that fails inside a scope has already claimed its own write set
+        // on the way out. What reaches here is the rest: a panic raised by the
+        // strategy walk itself — its own guards, outside every scope — where
+        // nothing has claimed anything and nothing says which operation it came
+        // from. So the sweep claims only what nothing wrote and nothing else
+        // already claims, which is the set no scope can account for.
         let error = TensorError::panicked(panic_message(escaped.as_ref()));
         for op in executed.ir.iter().take(executed.num_executed) {
             for node in op.outputs() {
-                handles.set_error(node.id, error.clone(), ExistingHandle::Keep);
+                handles.claim_unwritten(node.id, error.clone());
             }
         }
 

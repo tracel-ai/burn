@@ -20,6 +20,7 @@
 //! owns what happens at it.
 
 use super::{input_error, panic_message, set_output_errors};
+use crate::stream::Context;
 use burn_backend::ExecutionError;
 use burn_ir::{HandleContainer, OperationIr, TensorError};
 
@@ -40,40 +41,118 @@ pub(crate) enum Outcome<T> {
     Failed(Option<Panic>),
 }
 
+/// Whatever a scope can reach the handle container through.
+///
+/// The unfused path runs against the container itself; a fused block runs
+/// against the whole [`Context`], because that is what the optimization needs.
+/// The scope only ever wants the handles, so it asks for them rather than
+/// being written twice.
+pub(crate) trait Claims<H: Clone> {
+    /// The container the claim is recorded in.
+    fn handles(&mut self) -> &mut HandleContainer<H>;
+}
+
+impl<H: Clone> Claims<H> for HandleContainer<H> {
+    fn handles(&mut self) -> &mut HandleContainer<H> {
+        self
+    }
+}
+
+impl<H: Clone> Claims<H> for Context<H> {
+    fn handles(&mut self) -> &mut HandleContainer<H> {
+        &mut self.handles
+    }
+}
+
+/// What one scope covers: the operations it reads and the tensors it writes.
+enum Work<'a> {
+    /// One operation.
+    One(&'a OperationIr),
+    /// A fused block, as an index into the segment's IR.
+    ///
+    /// A fused kernel is one unit of work: it reads every input of every
+    /// operation it replaced and writes every output. So one claimed input
+    /// anywhere in it stops the whole thing, and a failure anywhere in it
+    /// leaves the whole write set unwritten.
+    Block {
+        ir: &'a [OperationIr],
+        ordering: &'a [usize],
+    },
+}
+
+impl Work<'_> {
+    fn operations(&self) -> impl Iterator<Item = &OperationIr> {
+        let (one, block) = match self {
+            Work::One(ir) => (Some(*ir), None),
+            Work::Block { ir, ordering } => (None, Some(ordering.iter().map(move |id| &ir[*id]))),
+        };
+
+        one.into_iter().chain(block.into_iter().flatten())
+    }
+
+    fn input_error<H: Clone>(&self, handles: &HandleContainer<H>) -> Option<TensorError> {
+        self.operations()
+            .find_map(|op| input_error(op, handles))
+            .map(TensorError::propagated)
+    }
+
+    fn claim<H: Clone>(&self, handles: &mut HandleContainer<H>, error: &TensorError) {
+        for op in self.operations() {
+            set_output_errors(op, handles, error);
+        }
+    }
+}
+
 /// One unit of work, and the claim on everything it was going to write.
-pub(crate) struct WriteScope<'a, H: Clone> {
-    ir: &'a OperationIr,
-    handles: &'a mut HandleContainer<H>,
+pub(crate) struct WriteScope<'a, H: Clone, W: Claims<H>> {
+    work: Work<'a>,
+    target: &'a mut W,
     /// Set between entry and exit. A scope dropped while still armed was left
     /// without reaching either exit, and claims its write set on the way out.
     armed: bool,
     /// Whether the body may run at all. False for a scope opened on a skip.
     entered: bool,
+    _handle: core::marker::PhantomData<H>,
 }
 
-impl<'a, H: Clone> WriteScope<'a, H> {
-    /// Open a scope over `ir`, deciding once whether this is a skip or an
-    /// entry. The write set is `ir`'s outputs, so it is never approximate —
-    /// which is what lets every claim displace, and why no caller has to say
-    /// what to do about a handle that is already there.
-    pub(crate) fn over(ir: &'a OperationIr, handles: &'a mut HandleContainer<H>) -> Self {
-        let skip = input_error(ir, handles).map(TensorError::propagated);
+impl<'a, H: Clone, W: Claims<H>> WriteScope<'a, H, W> {
+    /// Open a scope over one operation.
+    pub(crate) fn over(ir: &'a OperationIr, target: &'a mut W) -> Self {
+        Self::open(Work::One(ir), target)
+    }
 
-        match skip {
+    /// Open a scope over a fused block, which is one unit of work covering
+    /// every operation at `ordering`.
+    pub(crate) fn over_block(
+        ir: &'a [OperationIr],
+        ordering: &'a [usize],
+        target: &'a mut W,
+    ) -> Self {
+        Self::open(Work::Block { ir, ordering }, target)
+    }
+
+    /// Decide, once, whether this is a skip or an entry. The write set is the
+    /// work's own outputs, so it is never approximate — which is what lets
+    /// every claim displace, and why no caller has to say what to do about a
+    /// handle that is already registered.
+    fn open(work: Work<'a>, target: &'a mut W) -> Self {
+        match work.input_error(target.handles()) {
             Some(error) => {
-                set_output_errors(ir, handles, &error);
+                work.claim(target.handles(), &error);
                 Self {
-                    ir,
-                    handles,
+                    work,
+                    target,
                     armed: false,
                     entered: false,
+                    _handle: core::marker::PhantomData,
                 }
             }
             None => Self {
-                ir,
-                handles,
+                work,
+                target,
                 armed: true,
                 entered: true,
+                _handle: core::marker::PhantomData,
             },
         }
     }
@@ -86,46 +165,70 @@ impl<'a, H: Clone> WriteScope<'a, H> {
     /// get wrong.
     pub(crate) fn run<T>(
         mut self,
-        body: impl FnOnce(&mut HandleContainer<H>) -> Result<T, ExecutionError>,
+        body: impl FnOnce(&mut W) -> Result<T, ExecutionError>,
     ) -> Outcome<T> {
         if !self.entered {
             self.armed = false;
             return Outcome::Skipped;
         }
 
-        let handles = &mut *self.handles;
-        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| body(handles)));
+        let target = &mut *self.target;
+        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| body(target)));
         self.armed = false;
 
         match ran {
             Ok(Ok(value)) => Outcome::Ran(value),
             Ok(Err(error)) => {
-                set_output_errors(self.ir, self.handles, &TensorError::new(error));
+                let error = TensorError::new(error);
+                self.work.claim(self.target.handles(), &error);
                 Outcome::Failed(None)
             }
             Err(panic) => {
                 let error = TensorError::panicked(panic_message(panic.as_ref()));
-                set_output_errors(self.ir, self.handles, &error);
+                self.work.claim(self.target.handles(), &error);
                 Outcome::Failed(Some(panic))
             }
         }
     }
+
+    /// Run `body`, letting a panic out rather than catching it.
+    ///
+    /// For work that already runs inside another scope: a fallback in the
+    /// middle of a fused block is one operation of a kernel that is still
+    /// part way through, so swallowing its panic would let the block carry on
+    /// as though the piece it could not serve had run. The claim still
+    /// happens — on the way out, through [`Drop`].
+    ///
+    /// `None` when an input was claimed and the body never ran.
+    pub(crate) fn run_raising<T>(mut self, body: impl FnOnce(&mut W) -> T) -> Option<T> {
+        if !self.entered {
+            self.armed = false;
+            return None;
+        }
+
+        let value = body(self.target);
+        self.armed = false;
+
+        Some(value)
+    }
 }
 
-impl<H: Clone> Drop for WriteScope<'_, H> {
+impl<H: Clone, W: Claims<H>> Drop for WriteScope<'_, H, W> {
     fn drop(&mut self) {
         if !self.armed {
             return;
         }
 
-        // Nothing reached an exit — a panic raised between the entry and the
-        // body, where there is no payload to name. The claim still has to be
-        // made: a read of one of these tensors must fail rather than hand back
-        // whatever the allocation happened to hold.
+        // Nothing reached an exit — a panic unwinding through work whose scope
+        // does not catch, or raised before the body. There is no payload to
+        // name here, but the claim still has to be made: a read of one of these
+        // tensors must fail rather than hand back whatever the allocation
+        // happened to hold.
         let error = TensorError::new(ExecutionError::with_context(
             "the work that was going to write it did not reach the end",
         ));
-        set_output_errors(self.ir, self.handles, &error);
+        let work = &self.work;
+        work.claim(self.target.handles(), &error);
     }
 }
 
@@ -133,7 +236,7 @@ impl<H: Clone> Drop for WriteScope<'_, H> {
 mod tests {
     use super::*;
     use burn_backend::{DType, Shape};
-    use burn_ir::{ExistingHandle, FloatOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
+    use burn_ir::{FloatOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
 
     fn tensor(id: u64, status: TensorStatus) -> TensorIr {
         TensorIr {
@@ -144,13 +247,13 @@ mod tests {
         }
     }
 
-    /// One operation reading tensor 0 and writing tensor 1.
-    fn exp() -> OperationIr {
+    /// One operation reading `input` and writing `out`.
+    fn exp(input: u64, out: u64) -> OperationIr {
         OperationIr::Float(
             DType::F32,
             FloatOperationIr::Exp(UnaryOpIr {
-                input: tensor(0, TensorStatus::ReadOnly),
-                out: tensor(1, TensorStatus::NotInit),
+                input: tensor(input, TensorStatus::ReadOnly),
+                out: tensor(out, TensorStatus::NotInit),
             }),
         )
     }
@@ -164,7 +267,7 @@ mod tests {
     /// The success path leaves the write set exactly as the work left it.
     #[test]
     fn work_that_runs_claims_nothing() {
-        let ir = exp();
+        let ir = exp(0, 1);
         let mut handles = container();
 
         let outcome = WriteScope::over(&ir, &mut handles).run(|handles| {
@@ -185,7 +288,7 @@ mod tests {
     /// `Operation::execute` is fallible.
     #[test]
     fn work_that_reports_a_failure_claims_its_write_set() {
-        let ir = exp();
+        let ir = exp(0, 1);
         let mut handles = container();
 
         let outcome = WriteScope::over(&ir, &mut handles)
@@ -210,7 +313,7 @@ mod tests {
     /// caller can log it. The claim, not the payload, is the report.
     #[test]
     fn work_that_panics_claims_its_write_set() {
-        let ir = exp();
+        let ir = exp(0, 1);
         let mut handles = container();
 
         let outcome = WriteScope::over(&ir, &mut handles)
@@ -220,20 +323,23 @@ mod tests {
             matches!(outcome, Outcome::Failed(Some(_))),
             "raised, not reported"
         );
-        let claim = handles
-            .error(&TensorId::new(1))
-            .expect("its output is claimed");
-        assert_eq!(claim.root(), "this kernel cannot run");
+        assert_eq!(
+            handles
+                .error(&TensorId::new(1))
+                .expect("its output is claimed")
+                .root(),
+            "this kernel cannot run"
+        );
     }
 
     /// A claimed input opens the scope on a skip: the body never runs, and the
     /// write set takes that same failure one hop down.
     #[test]
     fn a_claimed_input_skips_the_body() {
-        let ir = exp();
+        let ir = exp(0, 1);
         let mut handles = container();
         let root = TensorError::new(ExecutionError::generic("an earlier kernel failed"));
-        handles.set_error(TensorId::new(0), root.clone(), ExistingHandle::Displace);
+        handles.set_error(TensorId::new(0), root.clone());
 
         let outcome = WriteScope::over(&ir, &mut handles)
             .run(|_handles| -> Result<(), ExecutionError> { panic!("the body must not run") });
@@ -247,5 +353,46 @@ mod tests {
             "it names the failure that started it"
         );
         assert_eq!(claim.depth(), 1, "one hop below that failure");
+    }
+
+    /// A block is one unit of work: one claimed input anywhere in it stops the
+    /// whole thing, and every operation's outputs take the failure together.
+    #[test]
+    fn one_claimed_input_stops_a_whole_block() {
+        let ir = vec![exp(0, 1), exp(9, 2)];
+        let mut handles = container();
+        handles.register_handle(TensorId::new(9), "second input".to_string());
+        let root = TensorError::new(ExecutionError::generic("an earlier kernel failed"));
+        // Claimed input of the *second* operation only.
+        handles.set_error(TensorId::new(9), root.clone());
+
+        let outcome = WriteScope::over_block(&ir, &[0, 1], &mut handles)
+            .run(|_handles| -> Result<(), ExecutionError> { panic!("the block must not run") });
+
+        assert!(matches!(outcome, Outcome::Skipped));
+        for out in [1, 2] {
+            let claim = handles
+                .error(&TensorId::new(out))
+                .expect("every output of the block is claimed");
+            assert!(claim.same_root(&root));
+        }
+    }
+
+    /// `run_raising` lets the panic out for an outer scope to see, and still
+    /// claims on the way through.
+    #[test]
+    fn raising_work_claims_on_its_way_out() {
+        let ir = exp(0, 1);
+        let mut handles = container();
+
+        let escaped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            WriteScope::over(&ir, &mut handles).run_raising(|_handles| panic!("cannot serve it"));
+        }));
+
+        assert!(escaped.is_err(), "the panic reaches the caller");
+        assert!(
+            handles.error(&TensorId::new(1)).is_some(),
+            "and the write set is claimed regardless"
+        );
     }
 }

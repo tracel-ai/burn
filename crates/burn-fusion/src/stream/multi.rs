@@ -5,7 +5,7 @@ use super::{
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::{FusionRuntime, UnfusedOp, search::BlockOptimization};
-use burn_ir::{ExistingHandle, HandleContainer, OperationIr, TensorId};
+use burn_ir::{HandleContainer, OperationIr, TensorId};
 use hashbrown::{HashMap, HashSet};
 
 /// Keep track of multiple concurrent lazy streams of operations.
@@ -181,7 +181,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         // `Direct`: no pending operation is going to produce `src`, so there
         // is nothing for a drain to order the share after.
         if let Some(error) = handles.error(&src).cloned() {
-            handles.set_error(dst, error, ExistingHandle::Displace);
+            handles.set_error(dst, error);
             return;
         }
 
@@ -204,7 +204,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             // The drain is what surfaced the failure: `src` had a pending
             // producer, and that producer did not produce it.
             if let Some(error) = handles.error(&src).cloned() {
-                handles.set_error(dst, error, ExistingHandle::Displace);
+                handles.set_error(dst, error);
                 return;
             }
         }
@@ -437,9 +437,7 @@ mod tests {
         stream::{Context, Operation, OrderedExecution},
     };
     use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, Shape};
-    use burn_ir::{
-        ExistingHandle, FloatOperationIr, TensorError, TensorIr, TensorStatus, UnaryOpIr,
-    };
+    use burn_ir::{FloatOperationIr, TensorError, TensorIr, TensorStatus, UnaryOpIr};
     use burn_std::{BoolDType, FloatDType, IntDType, device::Device};
 
     #[derive(Debug)]
@@ -544,7 +542,6 @@ mod tests {
                 context.handles.set_error(
                     *id,
                     TensorError::panicked("the fused part could not write it"),
-                    ExistingHandle::Displace,
                 );
             }
 

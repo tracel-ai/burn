@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use burn_ir::{HandleContainer, OperationIr, TensorError};
+use burn_ir::{HandleContainer, OperationIr};
 
-use super::{Outcome, WriteScope, input_error, panic_message, set_output_errors};
+use super::{Outcome, WriteScope};
 
 use crate::{FusionRuntime, NumOperations, Optimization, UnfusedOp, stream::Context};
 
@@ -74,12 +74,7 @@ impl<R: FusionRuntime> FallbackOp<R> {
     /// block's write set, and that is the honest report for a fused unit that
     /// stopped part way.
     pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
-        if let Some(error) = input_error(&self.ir, handles).map(TensorError::propagated) {
-            set_output_errors(&self.ir, handles, &error);
-            return;
-        }
-
-        self.operation.execute(handles);
+        WriteScope::over(&self.ir, handles).run_raising(|handles| self.operation.execute(handles));
     }
 }
 
@@ -176,44 +171,25 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         // of one of them has to report.
         self.num_executed += num_drained;
 
-        // A fused kernel is one unit of work: it reads every input of every
-        // operation it replaced and writes every output, so one errored input
-        // anywhere in it stops the whole thing, and a panic anywhere in it
-        // leaves the whole write set unwritten. Either way the error lands on
-        // all of them together.
-        let skip = ordering
-            .iter()
-            .map(|id| &self.ir[*id])
-            .find_map(|op| input_error(op, &context.handles))
-            .map(TensorError::propagated);
+        // One scope over the whole block, because a fused kernel is one unit of
+        // work: it reads every input of every operation it replaced and writes
+        // every output. One claimed input anywhere in it stops all of it, and a
+        // failure anywhere in it leaves the whole write set unwritten.
+        let this = &*self;
+        let outcome = WriteScope::over_block(&this.ir, &ordering, context).run(|context| {
+            optimization.execute(context, this);
+            Ok(())
+        });
 
-        if let Some(error) = skip {
-            self.set_errors(&ordering, &mut context.handles, &error);
-            self.did_not_run.extend(ordering.iter().copied());
-            return;
-        }
-
-        let executed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            optimization.execute(context, self)
-        }));
-
-        if let Err(panic) = executed {
-            let error = TensorError::panicked(panic_message(panic.as_ref()));
-            self.set_errors(&ordering, &mut context.handles, &error);
-            self.did_not_run.extend(ordering.iter().copied());
-            self.failed.get_or_insert(panic);
-        }
-    }
-
-    /// Record `error` on the write sets of every operation at `ordering`.
-    fn set_errors(
-        &self,
-        ordering: &[usize],
-        handles: &mut HandleContainer<R::FusionHandle>,
-        error: &TensorError,
-    ) {
-        for op in ordering.iter().map(|id| &self.ir[*id]) {
-            set_output_errors(op, handles, error);
+        match outcome {
+            Outcome::Ran(()) => {}
+            Outcome::Skipped => self.did_not_run.extend(ordering.iter().copied()),
+            Outcome::Failed(panic) => {
+                self.did_not_run.extend(ordering.iter().copied());
+                if let Some(panic) = panic {
+                    self.failed.get_or_insert(panic);
+                }
+            }
         }
     }
 

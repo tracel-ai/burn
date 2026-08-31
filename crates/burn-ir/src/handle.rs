@@ -147,33 +147,6 @@ impl core::fmt::Debug for TensorError {
     }
 }
 
-/// What [`HandleContainer::set_error`] does to a handle that is already
-/// registered for the tensor.
-///
-/// A handle can be registered *before* the work that fills it — an in-place
-/// output is registered as an alias of its input while the launch is still
-/// being planned — so which of these a caller wants turns on whether it knows
-/// the tensor is part of the failed work's write set.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ExistingHandle {
-    /// Overwrite it. For ids that are a known write set: a buffer that exists
-    /// is not a buffer that was written, and only the work reaching its end
-    /// proves the bytes are there.
-    Displace,
-    /// Leave it alone, whether it is a handle or an earlier failure. For
-    /// erroring broadly — a failure that cannot say which work it came from —
-    /// where the set is known to include tensors other work wrote, and
-    /// displacing them would turn one failure into several.
-    ///
-    /// A claim already on a tensor is kept for the same reason a handle is:
-    /// the work that made it knew its own write set, so its message names the
-    /// real cause at the real depth. Overwriting it with a broad one loses
-    /// the root that [`same_root`](TensorError::same_root) links a chain by,
-    /// and resets [`depth`](TensorError::depth) — a worse report, from a
-    /// failure that knows less.
-    Keep,
-}
-
 /// Backend [tensor handle](BackendIr::Handle) wrapper tracking their creation state
 #[derive(Clone)]
 pub enum Handle<H> {
@@ -276,14 +249,29 @@ impl<H: Clone> HandleContainer<H> {
     /// to write it did not run, so a read of it must fail rather than hand
     /// back whatever the tensor id resolves to.
     ///
-    /// `existing` decides what happens to a handle that is already registered
-    /// — see [`ExistingHandle`], which is the whole of the choice.
-    pub fn set_error(&mut self, id: TensorId, error: TensorError, existing: ExistingHandle) {
-        if existing == ExistingHandle::Keep
-            && let Some(Handle::Existing(_) | Handle::Errored(_)) = self.handles.get(&id)
-        {
+    /// It always displaces whatever is registered. A claim covers exactly the
+    /// tensors one unit of work was responsible for writing, and a handle
+    /// registered *before* that work — an in-place output, aliased to its
+    /// input while the launch is still being planned — proves nothing about
+    /// whether the kernel that fills it ever ran.
+    pub fn set_error(&mut self, id: TensorId, error: TensorError) {
+        self.put(id, Handle::Errored(error));
+    }
+
+    /// Claim `id`, but only if nothing wrote it and no failure already claims
+    /// it.
+    ///
+    /// For the one caller that cannot name its write set: a panic that escaped
+    /// the strategy walk itself, raised outside every scope, where all that is
+    /// known is that something in the consumed segment did not finish. Claiming
+    /// broadly from there would error outputs that other operations wrote, and
+    /// would overwrite a precise claim with a vaguer one — so it claims only
+    /// what is neither, which is exactly the set nothing else can account for.
+    pub fn claim_unwritten(&mut self, id: TensorId, error: TensorError) {
+        if let Some(Handle::Existing(_) | Handle::Errored(_)) = self.handles.get(&id) {
             return;
         }
+
         self.put(id, Handle::Errored(error));
     }
 
@@ -570,7 +558,6 @@ mod tests {
         container.set_error(
             tid(1),
             TensorError::panicked("the kernel failed to compile"),
-            ExistingHandle::Displace,
         );
 
         assert!(!container.has_handle(&tid(1)));
@@ -581,25 +568,6 @@ mod tests {
         );
     }
 
-    /// A broad error leaves alone what other work already wrote, so one
-    /// failure does not turn into several.
-    #[test]
-    fn a_kept_handle_is_never_displaced() {
-        let mut container = HandleContainer::<String>::new();
-        container.register_handle(tid(1), "written".to_string());
-        container.set_error(
-            tid(1),
-            TensorError::panicked("something else failed"),
-            ExistingHandle::Keep,
-        );
-
-        assert_eq!(
-            container.get_handle_ref(&tid(1)),
-            Some(&"written".to_string())
-        );
-        assert!(container.error(&tid(1)).is_none());
-    }
-
     /// An error on a known write set displaces: a handle can be registered
     /// before the work that fills it — an in-place output is aliased to its
     /// input while the launch is still being planned — so a handle that
@@ -608,11 +576,7 @@ mod tests {
     fn erroring_a_write_set_displaces_a_handle_registered_ahead_of_the_work() {
         let mut container = HandleContainer::<String>::new();
         container.register_handle(tid(1), "aliased_input_buffer".to_string());
-        container.set_error(
-            tid(1),
-            TensorError::panicked("the launch failed"),
-            ExistingHandle::Displace,
-        );
+        container.set_error(tid(1), TensorError::panicked("the launch failed"));
 
         assert!(container.get_handle_ref(&tid(1)).is_none());
         assert_eq!(
@@ -630,7 +594,6 @@ mod tests {
         container.set_error(
             tid(1),
             TensorError::panicked("the kernel failed to compile"),
-            ExistingHandle::Displace,
         );
 
         let error = container
@@ -652,7 +615,6 @@ mod tests {
         container.set_error(
             tid(1),
             TensorError::panicked("the kernel failed to compile"),
-            ExistingHandle::Displace,
         );
 
         let first = container.take_error(&ir(tid(1), TensorStatus::ReadOnly));
@@ -688,7 +650,6 @@ mod tests {
         container.set_error(
             tid(1),
             TensorError::panicked("this autotune candidate failed"),
-            ExistingHandle::Displace,
         );
 
         container.register_handle(tid(1), "the candidate that worked".to_string());
@@ -711,7 +672,6 @@ mod tests {
         container.set_error(
             tid(1),
             TensorError::new(ExecutionError::generic("the kernel failed to compile")),
-            ExistingHandle::Displace,
         );
 
         let error = container
@@ -750,40 +710,17 @@ mod tests {
         let mut src = HandleContainer::<String>::new();
         let mut dst = HandleContainer::<String>::new();
         let root = TensorError::panicked("the kernel failed to compile");
-        src.set_error(tid(1), root.clone(), ExistingHandle::Displace);
+        src.set_error(tid(1), root.clone());
 
         let carried = src
             .take_error(&ir(tid(1), TensorStatus::ReadWrite))
             .expect("the transfer read finds the claim");
-        dst.set_error(tid(2), carried.propagated(), ExistingHandle::Displace);
+        dst.set_error(tid(2), carried.propagated());
 
         let moved = dst.error(&tid(2)).expect("the destination carries it");
         assert!(moved.same_root(&root), "the root survives the device hop");
         assert_eq!(moved.depth(), 1, "one hop further down");
         assert!(!src.has_errors(), "and the source released it");
-    }
-
-    /// A broad claim must not overwrite a precise one. The work that named a
-    /// root knew its own write set; a failure that cannot say where it came
-    /// from knows strictly less, so it defers.
-    #[test]
-    fn a_kept_claim_is_never_displaced_by_a_broader_one() {
-        let mut container = HandleContainer::<String>::new();
-        let precise = TensorError::panicked("the kernel failed to compile");
-        container.set_error(tid(1), precise.clone(), ExistingHandle::Displace);
-        // A tensor downstream of it, carrying the same root one hop down.
-        container.set_error(tid(2), precise.propagated(), ExistingHandle::Displace);
-
-        // The segment-wide backstop sweeps both with a message of its own.
-        let broad = TensorError::panicked("a panic escaped the strategy walk");
-        container.set_error(tid(1), broad.clone(), ExistingHandle::Keep);
-        container.set_error(tid(2), broad, ExistingHandle::Keep);
-
-        let one = container.error(&tid(1)).expect("still claimed");
-        let two = container.error(&tid(2)).expect("still claimed");
-        assert_eq!(one.root(), "the kernel failed to compile");
-        assert_eq!((one.depth(), two.depth()), (0, 1), "depth is not reset");
-        assert!(one.same_root(two), "the chain still links to one root");
     }
 
     /// `get_handle` keeps a panic for the paths that do not ask first — it is
@@ -794,7 +731,6 @@ mod tests {
         container.set_error(
             tid(1),
             TensorError::panicked("the kernel failed to compile"),
-            ExistingHandle::Displace,
         );
 
         let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -838,11 +774,7 @@ mod tests {
     #[test]
     fn an_error_is_released_with_its_tensor() {
         let mut container = HandleContainer::<String>::new();
-        container.set_error(
-            tid(1),
-            TensorError::panicked("boom"),
-            ExistingHandle::Displace,
-        );
+        container.set_error(tid(1), TensorError::panicked("boom"));
 
         container.free(&TensorIr {
             id: tid(1),
@@ -883,23 +815,23 @@ mod tests {
         check(&container, "empty");
 
         // Error a tensor, then error the same id again: one entry, one count.
-        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        container.set_error(tid(1), error());
         check(&container, "set_error");
-        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        container.set_error(tid(1), error());
         check(&container, "set_error again");
 
         // Data displacing an error, and an error displacing data.
         container.register_handle(tid(1), "written".to_string());
         check(&container, "register over an error");
-        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        container.set_error(tid(1), error());
         check(&container, "set_error over data");
 
-        // The conservative form, both ways.
+        // Claiming an id that holds data, and one that holds nothing at all.
         container.register_handle(tid(2), "written".to_string());
-        container.set_error(tid(2), error(), ExistingHandle::Keep);
-        check(&container, "ExistingHandle::Keep over data");
-        container.set_error(tid(3), error(), ExistingHandle::Keep);
-        check(&container, "ExistingHandle::Keep over nothing");
+        container.set_error(tid(2), error());
+        check(&container, "set_error over another handle");
+        container.set_error(tid(3), error());
+        check(&container, "set_error over nothing");
 
         // Both removal paths.
         container.remove_handle(tid(3));
@@ -920,7 +852,7 @@ mod tests {
         check(&container, "get_handle ReadWrite");
 
         // A fork carries the count it copied.
-        container.set_error(tid(5), error(), ExistingHandle::Displace);
+        container.set_error(tid(5), error());
         let fork = container.fork();
         check(&fork, "fork");
         assert!(fork.has_errors());

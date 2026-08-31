@@ -7,7 +7,7 @@ use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceS
 use burn_std::CommunicationId;
 
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{ExistingHandle, OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::sync::RwLock;
 use hashbrown::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -278,9 +278,7 @@ where
             Err(error) => {
                 let error = error.propagated();
                 client_dst.server.submit(move |server_dst| {
-                    server_dst
-                        .handles
-                        .set_error(id, error, ExistingHandle::Displace);
+                    server_dst.handles.set_error(id, error);
                 });
             }
         }
@@ -324,9 +322,7 @@ where
             Err(error) => {
                 let error = error.propagated();
                 client_dst.server.submit(move |server_dst| {
-                    server_dst
-                        .handles
-                        .set_error(id, error, ExistingHandle::Displace);
+                    server_dst.handles.set_error(id, error);
                 });
             }
         }
@@ -370,9 +366,7 @@ where
             Err(error) => {
                 let error = error.propagated();
                 client_dst.server.submit(move |server_dst| {
-                    server_dst
-                        .handles
-                        .set_error(id, error, ExistingHandle::Displace);
+                    server_dst.handles.set_error(id, error);
                 });
             }
         }
@@ -416,9 +410,7 @@ where
             Err(error) => {
                 let error = error.propagated();
                 client_dst.server.submit(move |server_dst| {
-                    server_dst
-                        .handles
-                        .set_error(id, error, ExistingHandle::Displace);
+                    server_dst.handles.set_error(id, error);
                 });
             }
         }

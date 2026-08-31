@@ -1,4 +1,4 @@
-use burn_ir::{ExistingHandle, HandleContainer, OperationIr, TensorError};
+use burn_ir::{HandleContainer, OperationIr, TensorError};
 
 /// The failure that errored any tensor `op` reads — the check a unit of work
 /// makes before it runs.
@@ -40,11 +40,6 @@ where
 
 /// Record `error` on every tensor `op` was going to write, so a read of one
 /// reports it instead of handing back bytes nothing wrote.
-///
-/// [`ExistingHandle::Displace`], because these are exactly the tensors this
-/// operation was responsible for: an in-place output has a handle registered
-/// while the launch is still being planned, so finding one there says nothing
-/// about whether the kernel that fills it ever ran.
 pub(crate) fn set_output_errors<H>(
     op: &OperationIr,
     handles: &mut HandleContainer<H>,
@@ -53,7 +48,7 @@ pub(crate) fn set_output_errors<H>(
     H: Clone,
 {
     for node in op.outputs() {
-        handles.set_error(node.id, error.clone(), ExistingHandle::Displace);
+        handles.set_error(node.id, error.clone());
     }
 }
 
