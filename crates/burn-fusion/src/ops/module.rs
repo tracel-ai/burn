@@ -23,9 +23,14 @@ macro_rules! make_ops {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), burn_backend::ExecutionError> {
                 #[allow(clippy::redundant_closure_call)]
-                $fn(&self.desc, handles)
+                $fn(&self.desc, handles);
+
+                Ok(())
             }
         }
     };

@@ -761,8 +761,30 @@ mod tests {
     }
 
     impl Operation<TestRuntime> for ProduceOp {
-        fn execute(&self, handles: &mut HandleContainer<TestHandle>) {
+        fn execute(
+            &self,
+            handles: &mut HandleContainer<TestHandle>,
+        ) -> Result<(), burn_backend::ExecutionError> {
             handles.register_handle(self.out, TestHandle);
+
+            Ok(())
+        }
+    }
+
+    /// Declines to run and says why, the way a backend that can report does.
+    /// Its write set is claimed exactly as a panicking one's is; the difference
+    /// is only that the claim carries a typed error rather than a message.
+    #[derive(Debug)]
+    struct ReportOp;
+
+    impl Operation<TestRuntime> for ReportOp {
+        fn execute(
+            &self,
+            _handles: &mut HandleContainer<TestHandle>,
+        ) -> Result<(), burn_backend::ExecutionError> {
+            Err(burn_backend::ExecutionError::generic(
+                "this operation declined to run",
+            ))
         }
     }
 
@@ -775,9 +797,14 @@ mod tests {
     }
 
     impl Operation<TestRuntime> for AliasThenPanicOp {
-        fn execute(&self, handles: &mut HandleContainer<TestHandle>) {
+        fn execute(
+            &self,
+            handles: &mut HandleContainer<TestHandle>,
+        ) -> Result<(), burn_backend::ExecutionError> {
             handles.register_handle(self.out, TestHandle);
             panic!("this operation cannot serve its problem");
+
+            Ok(())
         }
     }
 
@@ -796,9 +823,14 @@ mod tests {
     }
 
     impl Operation<TestRuntime> for DropOp {
-        fn execute(&self, handles: &mut HandleContainer<TestHandle>) {
+        fn execute(
+            &self,
+            handles: &mut HandleContainer<TestHandle>,
+        ) -> Result<(), burn_backend::ExecutionError> {
             self.ran.store(true, std::sync::atomic::Ordering::Relaxed);
             handles.remove_handle(self.id);
+
+            Ok(())
         }
     }
 
@@ -808,7 +840,10 @@ mod tests {
     struct PanicOp;
 
     impl Operation<TestRuntime> for PanicOp {
-        fn execute(&self, _handles: &mut HandleContainer<TestHandle>) {
+        fn execute(
+            &self,
+            _handles: &mut HandleContainer<TestHandle>,
+        ) -> Result<(), burn_backend::ExecutionError> {
             panic!("this operation cannot serve its problem");
         }
     }
@@ -1395,9 +1430,13 @@ mod tests {
     ///
     /// The harness drives the same machinery a backend drives — a queue of
     /// operations, executed under the strategy the planner would have chosen —
-    /// over random sequences of register, fail, drain, recover and drop. Both
-    /// strategies are exercised, because their granularity genuinely differs: an
-    /// unfused segment claims per operation, a fused block claims all together.
+    /// over random sequences of register, fail, report, drain and recover.
+    ///
+    /// The unfused path, where a claim is per operation and the model can be
+    /// written independently of the implementation. A fused block claims all of
+    /// its outputs together, and modelling that means modelling where the fuser
+    /// puts block boundaries — a model that is a copy of the implementation
+    /// checks nothing. That granularity is pinned by targeted tests instead.
     ///
     /// The model keeps its own answer per tensor — one enum, deliberately
     /// nothing like the propagation it checks — and is compared after every
@@ -1410,9 +1449,6 @@ mod tests {
     ///   apart in the chain they are.
     #[test]
     fn a_tensor_reads_back_only_if_the_work_writing_it_succeeded() {
-        use crate::search::BlockOptimization;
-        use crate::stream::store::ExecutionStrategy;
-
         /// What the model believes about one tensor.
         #[derive(Clone, Copy, PartialEq, Eq, Debug)]
         enum Truth {
@@ -1480,87 +1516,37 @@ mod tests {
                         let input = TensorId::new(input as u64);
                         let out = TensorId::new(out as u64);
                         let ir = exp_op(input, out);
-                        let op = match fails {
-                            true => UnfusedOp::new(PanicOp, setup.id),
-                            false => UnfusedOp::new(ProduceOp { out }, setup.id),
+                        // A failure reports or raises; the claim is the same
+                        // either way, which is the point.
+                        let op = match (fails, rng.next(2) == 0) {
+                            (true, true) => UnfusedOp::new(PanicOp, setup.id),
+                            (true, false) => UnfusedOp::new(ReportOp, setup.id),
+                            (false, _) => UnfusedOp::new(ProduceOp { out }, setup.id),
                         };
                         setup.streams.register(setup.id, ir, op, &mut setup.handles);
                         queued.push(Queued { input, out, fails });
                     }
-                    // Drain, under one strategy or the other.
+                    // Drain through the processor, the way a stream really
+                    // drains. Driving `execute_unfused` directly would let the
+                    // queue and the planner's stored state fall out of step,
+                    // which is a state production never reaches.
                     2 => {
                         if queued.is_empty() {
                             continue;
                         }
-                        let fused = rng.next(2) == 0;
-                        let ordering: Vec<usize> = (0..queued.len()).collect();
 
-                        // What the model expects, applied in submission order.
-                        if fused {
-                            // One unit: any claimed input or any failure claims
-                            // the whole write set, under one root.
-                            let inherited =
-                                queued
-                                    .iter()
-                                    .find_map(|q| match truth[q.input.value() as usize] {
-                                        Truth::Claimed(root) => Some(root),
-                                        _ => None,
-                                    });
-                            let outcome = match inherited {
-                                Some(root) => Some(root),
-                                None => queued.iter().any(|q| q.fails).then(|| {
+                        for q in &queued {
+                            truth[q.out.value() as usize] = match truth[q.input.value() as usize] {
+                                Truth::Claimed(root) => Truth::Claimed(root),
+                                _ if q.fails => {
                                     failure += 1;
-                                    failure
-                                }),
+                                    Truth::Claimed(failure)
+                                }
+                                _ => Truth::Written,
                             };
-                            for q in &queued {
-                                truth[q.out.value() as usize] = match outcome {
-                                    Some(root) => Truth::Claimed(root),
-                                    None => Truth::Written,
-                                };
-                            }
-                        } else {
-                            for q in &queued {
-                                truth[q.out.value() as usize] =
-                                    match truth[q.input.value() as usize] {
-                                        Truth::Claimed(root) => Truth::Claimed(root),
-                                        _ if q.fails => {
-                                            failure += 1;
-                                            Truth::Claimed(failure)
-                                        }
-                                        _ => Truth::Written,
-                                    };
-                            }
                         }
 
-                        let strategy = match fused {
-                            true => ExecutionStrategy::Optimization {
-                                opt: TestOptimization {
-                                    len: ordering.len(),
-                                    outputs: Vec::new(),
-                                    panics: queued.iter().any(|q| q.fails),
-                                    fallback: Vec::new(),
-                                    claims: Vec::new(),
-                                    writes: queued.iter().map(|q| q.out).collect(),
-                                },
-                                ordering: std::sync::Arc::new(ordering.clone()),
-                                score: 0,
-                            },
-                            false => ExecutionStrategy::Operations {
-                                ordering: std::sync::Arc::new(ordering.clone()),
-                            },
-                        };
-
-                        let stream = setup
-                            .streams
-                            .streams
-                            .get_mut(&setup.id)
-                            .expect("operations were queued");
-                        stream.queue.execute_unfused(
-                            BlockOptimization::new(strategy, ordering),
-                            &mut setup.handles,
-                            setup.id,
-                        );
+                        setup.streams.drain(&mut setup.handles, setup.id);
                         queued.clear();
                     }
                     // Recover a claimed tensor by writing it.

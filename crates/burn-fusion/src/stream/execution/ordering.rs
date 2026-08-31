@@ -205,10 +205,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             // if they do, the next one skips on the claim its input now
             // carries. Scoping the whole loop instead would make an unrelated
             // operation's outcome depend on queue order.
-            let outcome = WriteScope::over(ir, handles).run(|handles| {
-                op.execute(handles);
-                Ok(())
-            });
+            let outcome = WriteScope::over(ir, handles).run(|handles| op.execute(handles));
 
             match outcome {
                 Outcome::Ran(()) => {}

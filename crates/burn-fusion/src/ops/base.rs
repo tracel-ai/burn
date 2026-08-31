@@ -11,5 +11,10 @@ pub struct NoOp<B: FusionBackend> {
 }
 
 impl<B: FusionBackend> Operation<B::FusionRuntime> for NoOp<B> {
-    fn execute(&self, _handles: &mut HandleContainer<B::Handle>) {}
+    fn execute(
+        &self,
+        _handles: &mut HandleContainer<B::Handle>,
+    ) -> Result<(), burn_backend::ExecutionError> {
+        Ok(())
+    }
 }

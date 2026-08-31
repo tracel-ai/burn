@@ -228,8 +228,12 @@ pub(crate) struct DropOp {
 }
 
 impl<RO: FusionRuntime> Operation<RO> for DropOp {
-    fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
+    fn execute(
+        &self,
+        handles: &mut burn_ir::HandleContainer<RO::FusionHandle>,
+    ) -> Result<(), burn_backend::ExecutionError> {
         handles.remove_handle(self.id);
+        Ok(())
     }
 }
 

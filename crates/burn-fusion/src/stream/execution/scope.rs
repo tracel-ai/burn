@@ -199,17 +199,29 @@ impl<'a, H: Clone, W: Claims<H>> WriteScope<'a, H, W> {
     /// as though the piece it could not serve had run. The claim still
     /// happens — on the way out, through [`Drop`].
     ///
-    /// `None` when an input was claimed and the body never ran.
-    pub(crate) fn run_raising<T>(mut self, body: impl FnOnce(&mut W) -> T) -> Option<T> {
+    /// A reported failure is claimed here all the same — only a panic is left
+    /// to the outer scope, because only a panic is what the outer unit cannot
+    /// carry on through.
+    pub(crate) fn run_raising<T>(
+        mut self,
+        body: impl FnOnce(&mut W) -> Result<T, ExecutionError>,
+    ) -> Outcome<T> {
         if !self.entered {
             self.armed = false;
-            return None;
+            return Outcome::Skipped;
         }
 
-        let value = body(self.target);
+        let ran = body(self.target);
         self.armed = false;
 
-        Some(value)
+        match ran {
+            Ok(value) => Outcome::Ran(value),
+            Err(error) => {
+                let error = TensorError::new(error);
+                self.work.claim(self.target.handles(), &error);
+                Outcome::Failed(None)
+            }
+        }
     }
 }
 
@@ -378,6 +390,26 @@ mod tests {
         }
     }
 
+    /// A reported failure is claimed by the raising path too — only a panic is
+    /// left to the outer scope.
+    #[test]
+    fn raising_work_claims_a_reported_failure() {
+        let ir = exp(0, 1);
+        let mut handles = container();
+
+        let outcome = WriteScope::over(&ir, &mut handles)
+            .run_raising(|_handles| Err::<(), _>(ExecutionError::generic("it declined to run")));
+
+        assert!(matches!(outcome, Outcome::Failed(None)));
+        assert_eq!(
+            handles
+                .error(&TensorId::new(1))
+                .expect("its output is claimed")
+                .root(),
+            "it declined to run"
+        );
+    }
+
     /// `run_raising` lets the panic out for an outer scope to see, and still
     /// claims on the way through.
     #[test]
@@ -386,7 +418,9 @@ mod tests {
         let mut handles = container();
 
         let escaped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            WriteScope::over(&ir, &mut handles).run_raising(|_handles| panic!("cannot serve it"));
+            WriteScope::over(&ir, &mut handles).run_raising(
+                |_handles| -> Result<(), ExecutionError> { panic!("cannot serve it") },
+            );
         }));
 
         assert!(escaped.is_err(), "the panic reaches the caller");
