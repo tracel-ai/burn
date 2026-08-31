@@ -140,19 +140,24 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
   cubecl skips its own downstream work through its `ExecuteScope`, `burn-fusion` skips its own
   through `input_error`. The two layers stack rather than sharing one mechanism.
   `ComputeClient::check` is the seam if this is ever unified.
-- The scope claims on failure rather than **on entry**. Claiming the write set on the way in and
-  letting success release it would make correctness independent of the panic runtime, and would
-  catch an operation that declares an output and never writes it. It also writes to the handle map
-  for every output on the success path, which is why it has not been done — the scope is the API, so
-  it can be changed behind `over` and `run` without touching a call site, once someone benchmarks
-  it.
+- The scope claims on failure rather than **on entry**. This was tried and measured, and rejected
+  on both counts. Claiming the write set on the way in costs **+49 ns per operation, about 20%** of
+  the execution path (249 → 298 ns/op on `execution_path_throughput`) — paid by every operation a
+  program runs, on a crate whose purpose is reducing per-operation overhead. And the case for it is
+  weaker than it looks: the headline argument was correctness under `panic = "abort"`, which is
+  vacuous, because an abort ends the process and there is no later read for a claim to protect. What
+  is genuinely lost is a check that an operation writes every output it declares — which, when
+  implemented as a `debug_assert`, found nothing across the whole suite. The scope is still the API,
+  so this can be revisited behind `over` and `run` without touching a call site if the second
+  argument ever gets teeth.
 - `FusionTensor::drop` does not register a drop while the thread is panicking, to avoid re-entering
   the client mid-unwind. That leaks the id's entry, including any claim on it.
 - `did_not_run` is not recorded when a fallback skips. This is currently unreachable — the fallback
   path is cube-only, and cube uses the default `free_handle` — but it would matter for any runtime
   that overrides `free_handle` *and* uses fallbacks.
 - Raising is still caught with `catch_unwind`, so a backend that panics rather than reporting relies
-  on the unwinding panic runtime. Under `panic = "abort"` only reported failures are claimed.
+  on the unwinding panic runtime. Under `panic = "abort"` a panicking operation ends the process,
+  which is a worse outcome than a claim but not one a claim could improve on — prefer reporting.
 - The property test drives the unfused path. A fused block's granularity is pinned by targeted tests
   instead, because modelling where the fuser puts block boundaries would make the model a copy of
   the implementation.

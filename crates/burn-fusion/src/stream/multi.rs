@@ -1423,6 +1423,46 @@ mod tests {
         assert_eq!(claimed.depth(), 1, "one hop below that failure");
     }
 
+    /// A timing harness for the execution path, not an assertion.
+    ///
+    /// The claim bookkeeping runs per operation on the success path, so a
+    /// change to what a scope does on the way in is paid by every operation a
+    /// program executes, not only by the ones that fail. Run it before and
+    /// after such a change:
+    ///
+    /// ```text
+    /// cargo test -p burn-fusion --release execution_path_throughput -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "timing harness; run explicitly"]
+    fn execution_path_throughput() {
+        const CHAIN: u64 = 32;
+        const ROUNDS: usize = 20_000;
+
+        let mut setup = TestSetup::new();
+        setup.handles.register_handle(TensorId::new(0), TestHandle);
+
+        let start = std::time::Instant::now();
+        for _ in 0..ROUNDS {
+            for id in 0..CHAIN {
+                setup.register_exp(TensorId::new(id), TensorId::new(id + 1));
+            }
+            setup.streams.drain(&mut setup.handles, setup.id);
+            // Keep the container small: the next round rewrites the same ids.
+            for id in 1..=CHAIN {
+                setup.handles.remove_handle(TensorId::new(id));
+            }
+            setup.handles.register_handle(TensorId::new(0), TestHandle);
+        }
+        let elapsed = start.elapsed();
+
+        let operations = ROUNDS as u64 * CHAIN;
+        println!(
+            "{operations} operations in {elapsed:?} — {:.0} ns/op",
+            elapsed.as_nanos() as f64 / operations as f64
+        );
+    }
+
     /// The one oracle this area answers to, checked over random interleavings.
     ///
     /// > A tensor reads back if and only if the work that was going to write it
