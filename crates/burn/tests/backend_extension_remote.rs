@@ -142,6 +142,15 @@ pub trait SignatureBackend: burn::backend::Backend {
     where
         B: Clone + Send + 'static;
 
+    fn optional_output(tensor: FloatTensor<Self>) -> Option<FloatTensor<Self>>;
+
+    fn vector_output(tensor: FloatTensor<Self>) -> Vec<FloatTensor<Self>>;
+
+    fn plain_output(tensor: FloatTensor<Self>) -> bool;
+
+    #[cfg(any())]
+    fn cfg_disabled(value: CfgDisabledType) -> FloatTensor<Self>;
+
     async fn asynchronous(tensor: FloatTensor<Self>) -> FloatTensor<Self>;
 
     fn future(tensor: FloatTensor<Self>) -> impl core::future::Future<Output = FloatTensor<Self>>;
@@ -170,6 +179,23 @@ impl SignatureBackend for Remote {
         tensor
     }
 
+    fn optional_output(tensor: FloatTensor<Self>) -> Option<FloatTensor<Self>> {
+        Some(tensor)
+    }
+
+    fn vector_output(tensor: FloatTensor<Self>) -> Vec<FloatTensor<Self>> {
+        vec![tensor]
+    }
+
+    fn plain_output(_tensor: FloatTensor<Self>) -> bool {
+        true
+    }
+
+    #[cfg(any())]
+    fn cfg_disabled(_value: CfgDisabledType) -> FloatTensor<Self> {
+        unimplemented!("cfg-disabled")
+    }
+
     async fn asynchronous(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         tensor
     }
@@ -189,6 +215,12 @@ fn backend_extension_preserves_method_signatures() {
         <Dispatch as SignatureBackend>::generic::<u32>;
     let _backend_generic_name: fn(FloatTensor<Dispatch>, u32) -> FloatTensor<Dispatch> =
         <Dispatch as SignatureBackend>::backend_generic_name::<u32>;
+    let _optional_output: fn(FloatTensor<Dispatch>) -> Option<FloatTensor<Dispatch>> =
+        <Dispatch as SignatureBackend>::optional_output;
+    let _vector_output: fn(FloatTensor<Dispatch>) -> Vec<FloatTensor<Dispatch>> =
+        <Dispatch as SignatureBackend>::vector_output;
+    let _plain_output: fn(FloatTensor<Dispatch>) -> bool =
+        <Dispatch as SignatureBackend>::plain_output;
 }
 
 // Struct input combined with a `cfg`-gated `Autodiff`. The gate `cfg(not(feature = "remote"))` is

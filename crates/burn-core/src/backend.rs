@@ -18,8 +18,7 @@ pub use burn_dispatch::backends::*;
 /// reconstructs the concrete value and [`routing_tensor`](Self::routing_tensor) /
 /// [`routing_float_tensor`](Self::routing_float_tensor) locate a tensor for dispatch routing and
 /// backend and autodiff-context selection. All tensor fields participating in one operation must
-/// share the routing tensor's autodiff context. Nested `#[extension_type]` fields are traversed
-/// recursively.
+/// share the routing tensor's context. Nested `#[extension_type]` fields are traversed recursively.
 ///
 /// Implementations are generated automatically using `#[derive(ExtensionType)]`.
 pub trait ExtensionType<B: Backend> {
@@ -52,20 +51,20 @@ pub trait ExtensionType<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `unwrap_kind` - A closure provided by the dispatch macro that unwraps a
-    ///   [`DispatchTensorKind`] into the [`BackendTensor`] for the selected backend `B`, panicking
-    ///   on a backend mismatch (which the dispatch layer guarantees never happens).
+    /// * `unwrap_kind` - A closure provided by the dispatch macro that validates the tensor's
+    ///   autodiff context and unwraps its [`DispatchTensorKind`] into the [`BackendTensor`] for the
+    ///   selected backend `B`, panicking on a backend mismatch.
     fn map_from_dispatch<F>(target: Self::Target, unwrap_kind: F) -> Self
     where
-        F: Fn(DispatchTensorKind) -> BackendTensor<B>;
+        F: Fn(DispatchTensor) -> BackendTensor<B>;
 
     /// Return a tensor of the dispatch form to use for routing, or `None` if this value
     /// currently holds no tensor (e.g. an enum on a tensor-less variant).
     ///
     /// A struct/enum input carries no top-level [`DispatchTensor`] of its own, so the dispatch glue
     /// uses this to read the runtime backend tag (`.kind`) and autodiff context. All other tensor
-    /// fields must share that context; dispatch deliberately doesn't scan them to validate this
-    /// contract. This lookup recurses into nested `#[extension_type]` fields.
+    /// fields must carry the same context; dispatch validates them while mapping the value to its
+    /// concrete backend. This lookup recurses into nested `#[extension_type]` fields.
     fn routing_tensor(target: &Self::Target) -> Option<&DispatchTensor>;
 
     /// Like [`routing_tensor`](Self::routing_tensor) but returns only a *float* tensor, or `None` if

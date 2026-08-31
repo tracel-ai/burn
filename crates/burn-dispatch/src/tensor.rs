@@ -200,9 +200,9 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
 /// This is backend metadata, not a statement that a float tensor requires
 /// gradients. Enabled float tensors may be tracked or untracked by autodiff.
 ///
-/// All tensor inputs to one backend operation must use the same context and checkpointing strategy.
-/// Dispatch selects the operation context from its routing tensor and trusts this contract instead
-/// of scanning every input at runtime.
+/// All tensor inputs to one backend operation must use the same autodiff context.
+/// Dispatch selects the operation context from its routing tensor and validates the remaining
+/// inputs while unwrapping them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DispatchAutodiffContext {
     /// Route the tensor through its concrete backend.

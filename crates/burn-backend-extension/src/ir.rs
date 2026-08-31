@@ -136,16 +136,23 @@ impl OperationOutput {
     }
 
     pub(crate) fn extension(ty: &Type) -> Self {
-        if let Type::Tuple(tuple) = ty {
-            return Self::Tuple(tuple.elems.iter().map(Self::extension_value).collect());
+        if let Some(kind) = TensorKind::from_type(ty) {
+            return Self::Tensor(kind);
         }
-        Self::extension_value(ty)
-    }
-
-    fn extension_value(ty: &Type) -> Self {
-        TensorKind::from_type(ty)
-            .map(Self::Tensor)
-            .unwrap_or_else(|| Self::Extension(Box::new(ty.clone())))
+        if let Some(inner) = container_inner(ty, "Option") {
+            return Self::Option(Box::new(Self::extension(inner)));
+        }
+        if let Some(inner) = container_inner(ty, "Vec") {
+            return Self::Vec(Box::new(Self::extension(inner)));
+        }
+        if let Type::Tuple(tuple) = ty {
+            return Self::Tuple(tuple.elems.iter().map(Self::extension).collect());
+        }
+        if type_contains_self(ty) {
+            Self::Extension(Box::new(ty.clone()))
+        } else {
+            Self::Plain
+        }
     }
 
     pub(crate) fn contains_float(&self) -> bool {
@@ -224,13 +231,23 @@ fn type_is(ty: &Type, name: &str) -> bool {
 }
 
 fn type_contains_self(ty: &Type) -> bool {
-    let Type::Path(path) = ty else { return false };
-    path.path.segments.iter().any(|segment| {
-        let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
-            return false;
-        };
-        arguments.args.iter().any(|argument| {
-            matches!(argument, GenericArgument::Type(Type::Path(path)) if path.path.is_ident("Self"))
-        })
-    })
+    match ty {
+        Type::Path(path) if path.path.is_ident("Self") => true,
+        Type::Path(path) => path.path.segments.iter().any(|segment| {
+            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return false;
+            };
+            arguments.args.iter().any(|argument| match argument {
+                GenericArgument::Type(ty) => type_contains_self(ty),
+                GenericArgument::AssocType(assoc) => type_contains_self(&assoc.ty),
+                _ => false,
+            })
+        }),
+        Type::Reference(reference) => type_contains_self(&reference.elem),
+        Type::Paren(paren) => type_contains_self(&paren.elem),
+        Type::Tuple(tuple) => tuple.elems.iter().any(type_contains_self),
+        Type::Array(array) => type_contains_self(&array.elem),
+        Type::Slice(slice) => type_contains_self(&slice.elem),
+        _ => false,
+    }
 }

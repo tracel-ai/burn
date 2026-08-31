@@ -5,8 +5,8 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{
-    FnArg, GenericArgument, GenericParam, Ident, ItemTrait, Meta, Pat, PathArguments, ReturnType,
-    Signature, Token, TraitItem, Type, TypeParamBound,
+    Attribute, FnArg, GenericArgument, GenericParam, Ident, ItemTrait, Meta, Pat, PathArguments,
+    ReturnType, Signature, Token, TraitItem, Type, TypeParamBound,
 };
 
 use crate::{
@@ -94,6 +94,7 @@ struct Extension {
 
 struct ExtensionOperation {
     operation: Operation,
+    attrs: Vec<Attribute>,
     signature: Signature,
     returns_future: bool,
 }
@@ -237,6 +238,7 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                     generic_args,
                 },
             },
+            attrs: f.attrs.clone(),
             signature,
             returns_future,
         });
@@ -339,14 +341,17 @@ fn gen_dispatch_method(ir: &Extension, op: &ExtensionOperation) -> TokenStream2 
     };
 
     let signature = &op.signature;
+    let attrs = &op.attrs;
     if op.returns_future {
         quote! {
+            #(#attrs)*
             #signature {
                 async move { #body }
             }
         }
     } else {
         quote! {
+            #(#attrs)*
             #signature { #body }
         }
     }

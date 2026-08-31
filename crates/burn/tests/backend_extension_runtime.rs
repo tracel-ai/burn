@@ -339,6 +339,23 @@ mod extension_context_contract {
         assert!(result.is_err());
         assert!(!IMPLEMENTATION_CALLED.load(Ordering::SeqCst));
     }
+
+    #[test]
+    fn nested_strategy_mismatch_panics_before_the_implementation() {
+        IMPLEMENTATION_CALLED.store(false, Ordering::SeqCst);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            <Dispatch as ContextBackend>::select_conflict(NestedInputs {
+                pair: IntPair {
+                    left: int(GradientCheckpointingStrategy::Balanced).into_dispatch(),
+                    right: int(GradientCheckpointingStrategy::Disabled).into_dispatch(),
+                },
+                choice: IntChoice::Empty,
+            })
+        }));
+
+        assert!(result.is_err());
+        assert!(!IMPLEMENTATION_CALLED.load(Ordering::SeqCst));
+    }
 }
 
 // End-to-end autodiff: a differentiable op over a struct input, with a hand-written `Backward`, run

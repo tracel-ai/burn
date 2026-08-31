@@ -224,7 +224,7 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     quote!(burn::backend::ExtensionType::map_from_dispatch(#bind, &unwrap_kind))
                 } else if let Some(kind) = field.tensor_kind {
                     let method = kind.accessor();
-                    quote!(unwrap_kind(#bind.kind).#method())
+                    quote!(unwrap_kind(#bind).#method())
                 } else {
                     quote!(#bind)
                 }
@@ -256,7 +256,7 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             #[allow(unused_variables)]
             fn map_from_dispatch<F>(target: Self::Target, unwrap_kind: F) -> Self
             where
-                F: Fn(burn::backend::DispatchTensorKind) -> burn::backend::BackendTensor<B>,
+                F: Fn(burn::backend::DispatchTensor) -> burn::backend::BackendTensor<B>,
             {
                 match target { #(#unwrap_arms)* }
             }

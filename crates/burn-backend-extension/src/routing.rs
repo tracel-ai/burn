@@ -3,9 +3,9 @@
 //! Both attribute macros normalize a method into [`Operation`] and use this module for the routing
 //! contract. Generated code selects a concrete backend and autodiff context from one routing tensor,
 //! unwraps every input for the selected backend, invokes the operation, and wraps its output back
-//! into dispatch tensors. All tensor-bearing inputs are required to share that context; routing
-//! deliberately doesn't scan them to validate the contract at runtime. Backend selection remains an
-//! enum match: this layer does not introduce trait-object dispatch or backend lookup tables.
+//! into dispatch tensors. Routing validates every tensor-bearing input against the selected
+//! context while unwrapping it. Backend selection remains an enum match: this layer does not
+//! introduce trait-object dispatch or backend lookup tables.
 //!
 //! A required bare tensor can be matched and extracted directly. Operations containing only
 //! optional, vector, quantization-parameter, or extension inputs first search those inputs for a
@@ -588,6 +588,13 @@ fn extract_tensor(
     let ad_cfg = cfg_attr(extraction.autodiff_cfg);
     let accessor = kind.accessor();
     let accessor_ref = format_ident!("as_{accessor}");
+    let validate_context = quote! {
+        assert_eq!(
+            __ad_ctx,
+            #name.autodiff,
+            "Autodiff context mismatch: all tensors in the same operation must share a context"
+        );
+    };
     let invalid_autodiff_float = extraction.has_autodiff_variant.then(|| {
         quote! {
             #ad_cfg
@@ -603,6 +610,7 @@ fn extract_tensor(
         if borrowed {
             let lifted = format_ident!("__lifted_{name}");
             quote! {
+                #validate_context
                 let #lifted;
                 let #name = match &#name.kind {
                     #dispatch_kind::Autodiff(__inner) => {
@@ -620,6 +628,7 @@ fn extract_tensor(
             }
         } else {
             quote! {
+                #validate_context
                 let #name = match #name.kind {
                     #dispatch_kind::Autodiff(__inner) => {
                         match *__inner {
@@ -637,6 +646,7 @@ fn extract_tensor(
     } else if kind == TensorKind::Float {
         if borrowed {
             quote! {
+                #validate_context
                 let #name = match &#name.kind {
                     #dispatch_kind::#backend(__inner) => __inner.as_float(),
                     #invalid_autodiff_float
@@ -645,6 +655,7 @@ fn extract_tensor(
             }
         } else {
             quote! {
+                #validate_context
                 let #name = match #name.kind {
                     #dispatch_kind::#backend(__inner) => __inner.float(),
                     #invalid_autodiff_float
@@ -654,6 +665,7 @@ fn extract_tensor(
         }
     } else if borrowed {
         quote! {
+            #validate_context
             let #name = match &#name.kind {
                 #dispatch_kind::#backend(__inner) => __inner.#accessor_ref(),
                 #invalid_autodiff_kind
@@ -662,6 +674,7 @@ fn extract_tensor(
         }
     } else {
         quote! {
+            #validate_context
             let #name = match #name.kind {
                 #dispatch_kind::#backend(__inner) => __inner.#accessor(),
                 #invalid_autodiff_kind
@@ -689,8 +702,13 @@ fn extract_extension(
     if autodiff {
         let target = ir::with_backend(ty, quote!(#backend_alias));
         quote! {
-            let #name = <#target as #extension_trait<#backend_alias>>::map_from_dispatch(#name, |kind| {
-                let tensor = match kind {
+            let #name = <#target as #extension_trait<#backend_alias>>::map_from_dispatch(#name, |__tensor| {
+                assert_eq!(
+                    __ad_ctx,
+                    __tensor.autodiff,
+                    "Autodiff context mismatch: all tensors in the same operation must share a context"
+                );
+                let tensor = match __tensor.kind {
                     #dispatch_kind::Autodiff(inner) => match *inner {
                         #dispatch_kind::#backend(tensor) => tensor,
                         #[allow(unreachable_patterns)]
@@ -716,10 +734,17 @@ fn extract_extension(
         quote! {
             let #name = <#target as #extension_trait<#backend_root::#backend>>::map_from_dispatch(
                 #name,
-                |kind| match kind {
-                    #dispatch_kind::#backend(tensor) => tensor,
-                    #[allow(unreachable_patterns)]
-                    _ => #mismatch,
+                |__tensor| {
+                    assert_eq!(
+                        __ad_ctx,
+                        __tensor.autodiff,
+                        "Autodiff context mismatch: all tensors in the same operation must share a context"
+                    );
+                    match __tensor.kind {
+                        #dispatch_kind::#backend(tensor) => tensor,
+                        #[allow(unreachable_patterns)]
+                        _ => #mismatch,
+                    }
                 },
             );
         }

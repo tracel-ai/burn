@@ -282,11 +282,19 @@ impl QTensorOps<Self> for Dispatch {
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
         match (lhs, rhs) {
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                assert_eq!(
+                    lhs.autodiff, rhs.autodiff,
+                    "Autodiff context mismatch: all tensors in the same operation must share a context"
+                );
                 // With no float input, the first tensor is the routing tensor.
                 let autodiff = lhs.autodiff;
                 backend_list!(q_matmul_qq_arms, lhs, rhs, autodiff)
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+                assert_eq!(
+                    lhs.autodiff, rhs.autodiff,
+                    "Autodiff context mismatch: all tensors in the same operation must share a context"
+                );
                 #[cfg(feature = "autodiff")]
                 match (
                     matches!(&lhs.kind, DispatchTensorKind::Autodiff(_)),
@@ -306,6 +314,10 @@ impl QTensorOps<Self> for Dispatch {
                 backend_list!(q_matmul_fq_arms, lhs, rhs, autodiff)
             }
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+                assert_eq!(
+                    lhs.autodiff, rhs.autodiff,
+                    "Autodiff context mismatch: all tensors in the same operation must share a context"
+                );
                 #[cfg(feature = "autodiff")]
                 match (
                     matches!(&rhs.kind, DispatchTensorKind::Autodiff(_)),
