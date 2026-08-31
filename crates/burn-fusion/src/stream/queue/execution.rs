@@ -205,6 +205,12 @@ fn run_strategy<R: FusionRuntime>(
                 handles.set_error(node.id, error.clone(), ExistingHandle::Keep);
             }
         }
+
+        // Nothing says which of them ran either, and the two unknowns do not
+        // resolve the same way: a redundant `Drop` for a tensor the server
+        // already freed is bounded traffic, where suppressing the only `Drop`
+        // for one it still holds strands the buffer for good.
+        executed.did_not_run = (0..executed.num_executed).collect();
         executed.failed.get_or_insert(escaped);
     }
 

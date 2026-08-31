@@ -443,18 +443,47 @@ mod tests {
     #[derive(Debug)]
     struct TestRuntime;
 
+    /// Which fuser [`TestRuntime`] hands to the streams on a device, which is
+    /// what decides where an operation actually executes.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    enum Fusing {
+        /// Never closes, so operations accumulate until an explicit drain.
+        #[default]
+        Deferred,
+        /// Closes on its first operation, so the processor commits during the
+        /// registration that queued it.
+        Eager,
+        /// Closes and reports ready, so the block compiles to one fused
+        /// kernel and runs through `OrderedExecution::execute_optimization`.
+        Fused,
+    }
+
+    /// Carried on the device rather than in ambient state because
+    /// [`FusionRuntime::fusers`] is handed the device, and a choice that
+    /// travels with the value cannot leak into the next test.
     #[derive(Clone, Debug, Default, PartialEq)]
-    struct TestDevice;
+    struct TestDevice {
+        fusing: Fusing,
+    }
 
     impl Device for TestDevice {
-        fn from_id(_device_id: DeviceId) -> Self {
-            Self
+        fn from_id(device_id: DeviceId) -> Self {
+            let fusing = match device_id.index_id {
+                0 => Fusing::Deferred,
+                1 => Fusing::Eager,
+                _ => Fusing::Fused,
+            };
+            Self { fusing }
         }
 
         fn to_id(&self) -> DeviceId {
             DeviceId {
                 type_id: 0,
-                index_id: 0,
+                index_id: match self.fusing {
+                    Fusing::Deferred => 0,
+                    Fusing::Eager => 1,
+                    Fusing::Fused => 2,
+                },
             }
         }
     }
@@ -468,12 +497,23 @@ mod tests {
     #[derive(Clone, Debug)]
     struct TestHandle;
 
-    #[derive(Debug)]
-    struct TestOptimization;
+    /// One fused kernel over the operations a [`FusingFuser`] collected: it
+    /// writes the whole block's outputs, or it cannot serve its problem and
+    /// writes none of them.
+    #[derive(Debug, Default)]
+    struct TestOptimization {
+        /// How many operations the kernel replaced. What the queue consumes.
+        len: usize,
+        /// Relative ids of every tensor the block writes, resolved through
+        /// `context.tensors` at execution the way a real optimization does.
+        outputs: Vec<TensorId>,
+        /// Whether the kernel can serve the problem it was compiled for.
+        panics: bool,
+    }
 
     impl NumOperations for TestOptimization {
         fn len(&self) -> usize {
-            0
+            self.len
         }
 
         fn name(&self) -> &'static str {
@@ -484,15 +524,27 @@ mod tests {
     impl Optimization<TestRuntime> for TestOptimization {
         fn execute(
             &mut self,
-            _context: &mut Context<TestHandle>,
+            context: &mut Context<TestHandle>,
             _execution: &OrderedExecution<TestRuntime>,
         ) {
+            if self.panics {
+                panic!("this fused kernel cannot serve its problem");
+            }
+
+            for relative in &self.outputs {
+                let global = context
+                    .tensors
+                    .get(relative)
+                    .expect("every fused output is in the context")
+                    .id;
+                context.handles.register_handle(global, TestHandle);
+            }
         }
 
         fn to_state(&self) {}
 
         fn from_state(_device: &TestDevice, _state: ()) -> Self {
-            Self
+            Self::default()
         }
     }
 
@@ -509,7 +561,7 @@ mod tests {
         }
 
         fn finish(&mut self) -> TestOptimization {
-            TestOptimization
+            TestOptimization::default()
         }
 
         fn reset(&mut self) {
@@ -551,7 +603,7 @@ mod tests {
         }
 
         fn finish(&mut self) -> TestOptimization {
-            TestOptimization
+            TestOptimization::default()
         }
 
         fn reset(&mut self) {
@@ -578,11 +630,61 @@ mod tests {
         }
     }
 
-    thread_local! {
-        /// Which fuser [`TestRuntime`] hands to the streams a test creates.
-        /// Set by [`TestSetup::eager`] and cleared when that setup drops, so a
-        /// single-threaded test run cannot leak the choice into the next test.
-        static EAGER_FUSION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Closes and reports ready, so its block compiles to one fused kernel.
+    /// The counterpart of [`NeverReadyFuser`], covering the path where a
+    /// segment runs through `OrderedExecution::execute_optimization`.
+    ///
+    /// The kernel it emits panics when the block contains a [`failing_op`],
+    /// the way a real fuser reads the IR to decide what it can emit.
+    #[derive(Clone, Debug, Default)]
+    struct FusingFuser {
+        outputs: Vec<TensorId>,
+        len: usize,
+        panics: bool,
+    }
+
+    impl OperationFuser<TestOptimization> for FusingFuser {
+        fn fuse(&mut self, operation: &OperationIr) {
+            self.len += 1;
+            self.outputs.extend(operation.outputs().map(|node| node.id));
+            self.panics |= matches!(operation, OperationIr::Float(_, FloatOperationIr::Log(_)));
+        }
+
+        fn finish(&mut self) -> TestOptimization {
+            TestOptimization {
+                len: self.len,
+                outputs: core::mem::take(&mut self.outputs),
+                panics: self.panics,
+            }
+        }
+
+        fn reset(&mut self) {
+            *self = Self::default();
+        }
+
+        /// Two operations to a block, so a test can tell "the whole write
+        /// set" from "the output of the one that failed".
+        fn status(&self) -> FuserStatus {
+            match self.len >= 2 {
+                true => FuserStatus::Closed,
+                false => FuserStatus::Open,
+            }
+        }
+
+        fn properties(&self) -> FuserProperties {
+            FuserProperties {
+                score: 1,
+                ready: self.len > 0,
+            }
+        }
+
+        fn len(&self) -> usize {
+            self.len
+        }
+
+        fn clone_dyn(&self) -> Box<dyn OperationFuser<TestOptimization>> {
+            Box::new(self.clone())
+        }
     }
 
     thread_local! {
@@ -613,11 +715,11 @@ mod tests {
             handles.free(tensor);
         }
 
-        fn fusers(_device: TestDevice) -> Vec<Box<dyn OperationFuser<TestOptimization>>> {
-            if EAGER_FUSION.with(std::cell::Cell::get) {
-                vec![Box::new(EagerFuser::default())]
-            } else {
-                vec![Box::new(NeverReadyFuser::default())]
+        fn fusers(device: TestDevice) -> Vec<Box<dyn OperationFuser<TestOptimization>>> {
+            match device.fusing {
+                Fusing::Deferred => vec![Box::new(NeverReadyFuser::default())],
+                Fusing::Eager => vec![Box::new(EagerFuser::default())],
+                Fusing::Fused => vec![Box::new(FusingFuser::default())],
             }
         }
     }
@@ -700,6 +802,19 @@ mod tests {
         )
     }
 
+    /// An operation a [`FusingFuser`] compiles into a kernel that cannot
+    /// serve its problem. Distinguished by its IR, the way a real fuser reads
+    /// the operations it is given rather than being told out of band.
+    fn failing_op(input: TensorId, out: TensorId) -> OperationIr {
+        OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Log(UnaryOpIr {
+                input: tensor_ir(input, TensorStatus::ReadOnly),
+                out: tensor_ir(out, TensorStatus::NotInit),
+            }),
+        )
+    }
+
     /// An operation whose input is its last use, so the drained block
     /// reclaims it through [`FusionRuntime::free_handle`].
     fn consume_op(input: TensorId, out: TensorId) -> OperationIr {
@@ -718,16 +833,14 @@ mod tests {
         id: StreamId,
     }
 
-    impl Drop for TestSetup {
-        fn drop(&mut self) {
-            EAGER_FUSION.with(|eager| eager.set(false));
-        }
-    }
-
     impl TestSetup {
         fn new() -> Self {
+            Self::on(Fusing::Deferred)
+        }
+
+        fn on(fusing: Fusing) -> Self {
             Self {
-                streams: MultiStream::new(TestDevice),
+                streams: MultiStream::new(TestDevice { fusing }),
                 handles: HandleContainer::new(),
                 id: StreamId::current(),
             }
@@ -736,8 +849,12 @@ mod tests {
         /// A setup whose streams execute on registration rather than
         /// deferring — the lazy path a fire-and-forget caller takes.
         fn eager() -> Self {
-            EAGER_FUSION.with(|eager| eager.set(true));
-            Self::new()
+            Self::on(Fusing::Eager)
+        }
+
+        /// A setup whose streams compile each segment into one fused kernel.
+        fn fused() -> Self {
+            Self::on(Fusing::Fused)
         }
 
         fn register_exp(&mut self, input: TensorId, out: TensorId) {
@@ -1024,7 +1141,10 @@ mod tests {
         // read of that tensor is what surfaces it.
         setup.streams.drain(&mut setup.handles, setup.id);
 
-        let error = setup.handles.error(&t1).expect("the output holds the error");
+        let error = setup
+            .handles
+            .error(&t1)
+            .expect("the output holds the error");
         assert!(
             error
                 .root()
@@ -1083,10 +1203,7 @@ mod tests {
             setup.handles.has_handle(&b1),
             "the independent chain behind it still ran"
         );
-        assert!(
-            setup.handles.error(&b1).is_none(),
-            "and holds no error"
-        );
+        assert!(setup.handles.error(&b1).is_none(), "and holds no error");
     }
 
     /// Work downstream of an errored tensor cannot run either — its input was
@@ -1124,10 +1241,7 @@ mod tests {
             .expect("skipped, two below the root");
 
         assert!(root.same_root(mid), "the same failure, not a new one");
-        assert!(
-            root.same_root(tail),
-            "still the same failure at the tail"
-        );
+        assert!(root.same_root(tail), "still the same failure at the tail");
         assert!(
             tail.root()
                 .contains("this operation cannot serve its problem"),
@@ -1163,10 +1277,12 @@ mod tests {
     }
 
     /// The stream is not rebuilt around a failure, so what it had queued is
-    /// still there and still runs. The corpse this replaced left `global` and
-    /// `relative` describing closures that were gone, and the next plan to
-    /// match indexed into the gap (`OrderedExecution::execute_operations`,
-    /// index out of bounds).
+    /// still there and still runs.
+    ///
+    /// A failure that discarded the segment's operations would leave `global`
+    /// and `relative` describing closures that no longer exist, and the next
+    /// plan to match would index into the gap
+    /// (`OrderedExecution::execute_operations`, index out of bounds).
     #[test]
     fn the_queue_survives_a_failure_intact() {
         let mut setup = TestSetup::new();
@@ -1455,6 +1571,163 @@ mod tests {
         assert!(
             !unrun.contains(&b0),
             "but not the input of the one that ran: {unrun:?}"
+        );
+    }
+
+    /// The control for the fused tests below: a block really does compile to
+    /// one kernel, and that kernel writes every output in it. Without this,
+    /// the failure tests could pass on a block that never ran.
+    #[test]
+    fn a_fused_kernel_writes_the_whole_blocks_output_set() {
+        let mut setup = TestSetup::fused();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        setup.register_exp(t1, t2);
+
+        assert_eq!(setup.num_pending(), 0, "the block closed and ran");
+        assert!(setup.handles.has_handle(&t1), "the intermediate is written");
+        assert!(setup.handles.has_handle(&t2), "and so is the output");
+    }
+
+    /// A fused kernel is one unit of work: it writes every output of every
+    /// operation it replaced, so a panic anywhere in it leaves the whole
+    /// write set unwritten. Erroring only the last operation's output would
+    /// leave the intermediates readable as whatever the allocation held.
+    #[test]
+    fn a_failing_fused_kernel_errors_the_whole_block() {
+        let mut setup = TestSetup::fused();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        setup.streams.register(
+            setup.id,
+            failing_op(t1, t2),
+            UnfusedOp::new(ProduceOp { out: t2 }, setup.id),
+            &mut setup.handles,
+        );
+
+        let intermediate = setup
+            .handles
+            .error(&t1)
+            .expect("the intermediate the kernel never wrote");
+        let output = setup.handles.error(&t2).expect("and its output");
+        assert!(
+            intermediate.same_root(output),
+            "one failure, not one per operation"
+        );
+        assert!(
+            output
+                .root()
+                .contains("this fused kernel cannot serve its problem"),
+            "the error names the kernel that raised it: {output}"
+        );
+        assert!(!setup.handles.has_handle(&t1));
+        assert!(!setup.handles.has_handle(&t2));
+        assert!(setup.handles.has_handle(&t0), "its input is untouched");
+    }
+
+    /// One errored input anywhere in a fused block stops the whole thing: the
+    /// kernel reads every input of every operation it replaced, so there is no
+    /// part of it that could still run. The block's outputs report the failure
+    /// that started it rather than one of their own.
+    #[test]
+    fn a_fused_block_with_an_errored_input_never_runs() {
+        let mut setup = TestSetup::fused();
+        let t0 = TensorId::new(0);
+        let (t1, t2, t3) = (TensorId::new(1), TensorId::new(2), TensorId::new(3));
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.streams.register(
+            setup.id,
+            failing_op(t0, t1),
+            UnfusedOp::new(ProduceOp { out: t1 }, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+        let root = setup.handles.error(&t1).expect("errored").clone();
+
+        // A two-operation block reading what the failure never wrote.
+        setup.register_exp(t1, t2);
+        setup.register_exp(t2, t3);
+
+        let mid = setup.handles.error(&t2).expect("the block was skipped");
+        let tail = setup.handles.error(&t3).expect("all of it");
+        assert!(root.same_root(mid), "the same failure, not a new one");
+        assert!(root.same_root(tail));
+        assert!(
+            !setup.handles.has_handle(&t2) && !setup.handles.has_handle(&t3),
+            "a skipped kernel writes nothing"
+        );
+        assert_eq!(
+            (root.depth(), mid.depth(), tail.depth()),
+            (0, 1, 1),
+            "the block is one hop from the failure, not one hop per operation"
+        );
+    }
+
+    /// The backstop in `run_strategy`. Each unit of work catches its own
+    /// panic, so nothing should unwind out of the strategy walk — but a plan
+    /// that does not fit the stream it matched can panic in the walk itself,
+    /// and that frame is the only one still holding the queue's lists. They
+    /// have to come back, or the next plan to match indexes into the gap.
+    #[test]
+    fn a_panic_escaping_the_strategy_leaves_the_queue_usable() {
+        use crate::search::BlockOptimization;
+        use crate::stream::store::ExecutionStrategy;
+
+        let mut setup = TestSetup::new();
+        let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+
+        setup.handles.register_handle(t0, TestHandle);
+        setup.register_exp(t0, t1);
+        setup.register_exp(t1, t2);
+
+        // Two operations queued, a plan naming a third: the first runs, then
+        // the walk indexes past the end of the segment.
+        let ordering = vec![0, 2];
+        let strategy = ExecutionStrategy::Operations {
+            ordering: std::sync::Arc::new(ordering.clone()),
+        };
+        let stream = setup
+            .streams
+            .streams
+            .get_mut(&setup.id)
+            .expect("the stream exists");
+        let escaped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            stream.queue.execute_unfused(
+                BlockOptimization::new(strategy, ordering),
+                &mut setup.handles,
+                setup.id,
+            );
+        }));
+
+        assert!(escaped.is_ok(), "the panic does not reach the caller");
+        assert!(
+            setup.handles.has_handle(&t1),
+            "an output that was written is left alone: nothing says the \
+             failure came from the operation that wrote it"
+        );
+        assert!(
+            setup.handles.error(&t2).is_some(),
+            "one that was not carries the failure"
+        );
+
+        // The lists came back, and in step with each other. Dropping them
+        // mid-unwind is what left `global` and `relative` describing closures
+        // that were gone, for the next plan to match and index into.
+        let queue = &setup
+            .streams
+            .streams
+            .get(&setup.id)
+            .expect("the stream exists")
+            .queue;
+        assert_eq!(
+            (queue.global.len(), queue.operations.len()),
+            (0, 0),
+            "the consumed segment left no orphaned bookkeeping"
         );
     }
 }
