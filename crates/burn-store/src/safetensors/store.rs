@@ -108,6 +108,18 @@ impl SafetensorsStore {
     }
 
     /// Create a store for loading from or saving to a file.
+    ///
+    /// Saving is atomic: the container is built in a scratch sibling of `path` and renamed
+    /// into place only once every byte is on disk, so a tensor that fails to materialize
+    /// partway through leaves the checkpoint already at `path` exactly as it was, rather than
+    /// truncated.
+    ///
+    /// Replacing rather than truncating has consequences worth knowing about. The saved file
+    /// is a new inode, so `path`'s ownership and hard links do not survive a save; its
+    /// permission bits do, on Unix, so a `0600` checkpoint stays `0600`. A symlink at `path`
+    /// is replaced by a regular file rather than followed. Overwriting transiently needs room
+    /// for both copies. And a hard kill (SIGKILL, OOM) mid-save strands the scratch file, a
+    /// `<file_name>.<pid>-<n>.tmp` sibling that is safe to delete once no writer is running.
     #[cfg(feature = "std")]
     pub fn from_file(path: impl Into<std::path::PathBuf>) -> Self {
         Self::File(FileStore {
@@ -679,7 +691,7 @@ impl ModuleStore for SafetensorsStore {
                     safetensors::serialize_to_file(tensors, Some(std_metadata), &scratch_path)
                 })??;
 
-                scratch.commit(&p.path).map_err(pack)?;
+                scratch.commit().map_err(pack)?;
                 Ok(())
             }
             Self::Memory(p) => {

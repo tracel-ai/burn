@@ -208,9 +208,11 @@ impl Writer {
     ///   durable rather than merely handed to the page cache.
     /// - Overwriting needs room for a second copy. Re-saving a model over itself transiently
     ///   occupies twice its size, since the old file keeps its blocks until the rename.
-    /// - The destination is replaced rather than truncated, so its permissions, ownership and
-    ///   hard links do not carry over; the new file gets the process umask. A symlink at `path`
-    ///   is replaced by a regular file rather than followed.
+    /// - The destination is replaced rather than truncated, so its ownership and hard links do
+    ///   not carry over. Its permission bits do: on Unix an existing regular file's mode is
+    ///   copied onto the new file before the rename, so a `0600` container stays `0600` rather
+    ///   than reappearing at the process umask. (Windows has no mode to copy.) A symlink at
+    ///   `path` is replaced by a regular file rather than followed.
     /// - A hard kill (SIGKILL, OOM) skips the cleanup and strands the scratch file. Scratch
     ///   names are `<file_name>.<pid>-<n>.tmp` siblings of the resolved path (after any
     ///   extension is appended), so leftovers are identifiable and safe to delete once no
@@ -227,7 +229,7 @@ impl Writer {
 
         self.write_container(&layout, &mut sink)?;
 
-        scratch.persist(sink, &path)
+        scratch.persist(sink)
     }
 
     /// Apply the configured extension policy to a requested path.
@@ -534,9 +536,9 @@ impl Sink for BufferSink<'_> {
 /// cannot be skipped and the handle is closed before the rename.
 #[cfg(feature = "std")]
 impl AtomicFile {
-    fn persist(mut self, sink: FileSink, destination: &Path) -> Result<(), Error> {
+    fn persist(mut self, sink: FileSink) -> Result<(), Error> {
         sink.finish()?;
-        self.rename_onto(destination)
+        self.rename_onto()
     }
 }
 

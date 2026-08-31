@@ -18,9 +18,14 @@ use crate::base::Error;
 /// destination's name once it is complete. Any earlier return drops the guard, which removes
 /// the partial file.
 ///
-/// The scratch path is a sibling of the destination rather than a system temp file so that
-/// [`commit`](Self::commit) stays on one filesystem: never `EXDEV`, and atomic on POSIX.
-/// (Windows documents no atomicity guarantee when the rename replaces an existing file.)
+/// The destination is fixed at [`create`](Self::create) and the scratch path is a sibling of
+/// it, so [`commit`](Self::commit) stays on one filesystem: never `EXDEV`, and atomic on
+/// POSIX. (Windows documents no atomicity guarantee when the rename replaces an existing
+/// file.)
+///
+/// Publishing replaces the destination rather than truncating it. Its permission bits are
+/// carried over on Unix, but its ownership and hard links cannot be: the published file is a
+/// new inode.
 ///
 /// # Example
 ///
@@ -34,12 +39,13 @@ use crate::base::Error;
 /// // when you mean to write through it.
 /// let (scratch, _reserved) = AtomicFile::create(destination)?;
 /// write_my_format(scratch.path())?;
-/// scratch.commit(destination)?;
+/// scratch.commit()?;
 /// # Ok(())
 /// # }
 /// ```
 pub struct AtomicFile {
     path: PathBuf,
+    destination: PathBuf,
     persisted: bool,
 }
 
@@ -51,6 +57,10 @@ impl AtomicFile {
     /// guard is watching. A caller that writes through its own handle (because the library
     /// doing the writing opens the path itself) can drop the returned one; the exclusive
     /// create has already done its job by then.
+    ///
+    /// The guard keeps `destination`, so [`commit`](Self::commit) can only publish to the
+    /// path the scratch file was placed beside. That is what makes the same-filesystem
+    /// rename a property of the type rather than a contract the caller has to honour.
     ///
     /// The file is opened with `create_new`, which refuses a path that already exists and
     /// does not follow a symlink planted there - a plain `File::create` would truncate
@@ -65,6 +75,7 @@ impl AtomicFile {
                     return Ok((
                         Self {
                             path,
+                            destination: destination.to_path_buf(),
                             persisted: false,
                         },
                         file,
@@ -113,19 +124,23 @@ impl AtomicFile {
         Ok(destination.with_file_name(scratch))
     }
 
-    /// Flush the completed file to disk and move it onto `destination`.
+    /// Flush the completed file to disk and move it onto the destination.
     ///
     /// For a caller that wrote through a handle it opened itself and has since closed. The
     /// scratch file is reopened here only to sync it, which is what orders the data before
     /// the rename: a crash must not leave the destination pointing at bytes that never
-    /// reached the platter.
+    /// reached the platter. The reopen asks for write access even though nothing is written
+    /// through it, because Windows backs `sync_all` with `FlushFileBuffers`, which returns
+    /// `Access is denied` on a read-only handle.
     ///
-    /// A caller that still holds the handle it wrote through should sync that instead and go
-    /// through [`rename_onto`](Self::rename_onto), since a deferred write error (NFS over
-    /// quota, a failing disk) is reported to the handle that wrote it and is lost once that
-    /// handle is closed.
-    pub fn commit(mut self, destination: &Path) -> Result<(), Error> {
-        File::open(&self.path)
+    /// A caller that still holds the handle it wrote through should sync and drop that
+    /// handle first: a deferred write error (NFS over quota, a failing disk) is reported to
+    /// the handle that wrote the bytes and is lost once that handle is closed, so the sync
+    /// here cannot stand in for it.
+    pub fn commit(mut self) -> Result<(), Error> {
+        File::options()
+            .write(true)
+            .open(&self.path)
             .and_then(|file| file.sync_all())
             .map_err(|e| {
                 Error::IoError(format!(
@@ -134,10 +149,41 @@ impl AtomicFile {
                 ))
             })?;
 
-        self.rename_onto(destination)
+        self.rename_onto()
     }
 
-    /// Move the completed file onto `destination`, replacing any existing file there.
+    /// Give the scratch file the permission bits of the file it is about to replace.
+    ///
+    /// Publishing by rename hands the destination a brand new inode, which without this
+    /// carries the process umask: a `0600` checkpoint re-saved under umask `022` would come
+    /// back `0644`, widening access to the model that was deliberately kept private. Copying
+    /// the mode across restores what a truncating overwrite would have left. Ownership and
+    /// hard links have no such answer - a new inode cannot keep them - and Windows has no
+    /// mode to copy, its `Permissions` carrying only a read-only flag.
+    ///
+    /// Nothing is copied when the destination does not exist (there is no prior mode, so the
+    /// umask is the right answer) or is not a regular file (the rename replaces a symlink
+    /// rather than following it, so the link target's mode is not the one being replaced).
+    ///
+    /// A failure here fails the save rather than publishing at the umask, since quietly
+    /// widening a checkpoint's permissions is the outcome this exists to prevent. It is
+    /// reported before the rename, so the destination still holds the old file.
+    #[cfg(unix)]
+    fn inherit_permissions(&self) -> Result<(), Error> {
+        let metadata = match std::fs::symlink_metadata(&self.destination) {
+            Ok(metadata) if metadata.is_file() => metadata,
+            _ => return Ok(()),
+        };
+
+        std::fs::set_permissions(&self.path, metadata.permissions()).map_err(|e| {
+            Error::IoError(format!(
+                "cannot carry the permissions of '{}' onto the file replacing it: {e}",
+                self.destination.display()
+            ))
+        })
+    }
+
+    /// Move the completed file onto the destination, replacing any existing file there.
     ///
     /// Assumes the data is already durable; [`commit`](Self::commit) is the form that makes
     /// sure of it.
@@ -151,12 +197,15 @@ impl AtomicFile {
     ///
     /// On rename failure the finished file is deleted by the guard, so the error names it:
     /// the bytes were written and then discarded, which is worth saying out loud.
-    pub(crate) fn rename_onto(&mut self, destination: &Path) -> Result<(), Error> {
-        std::fs::rename(&self.path, destination).map_err(|e| {
+    pub(crate) fn rename_onto(&mut self) -> Result<(), Error> {
+        #[cfg(unix)]
+        self.inherit_permissions()?;
+
+        std::fs::rename(&self.path, &self.destination).map_err(|e| {
             Error::IoError(format!(
                 "cannot move the completed container '{}' onto '{}': {e}",
                 self.path.display(),
-                destination.display()
+                self.destination.display()
             ))
         })?;
         self.persisted = true;
@@ -164,7 +213,7 @@ impl AtomicFile {
         #[cfg(unix)]
         {
             // An empty parent means a bare relative file name; the directory is the cwd.
-            let parent = match destination.parent() {
+            let parent = match self.destination.parent() {
                 Some(parent) if !parent.as_os_str().is_empty() => parent,
                 _ => Path::new("."),
             };
@@ -174,7 +223,7 @@ impl AtomicFile {
                     Error::IoError(format!(
                         "'{}' was saved, but syncing its directory failed, so the rename may \
                          not survive power loss: {e}",
-                        destination.display()
+                        self.destination.display()
                     ))
                 })?;
         }

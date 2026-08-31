@@ -120,3 +120,30 @@ fn a_successful_save_lands_at_the_destination() {
     // Nothing but the container itself.
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
 }
+
+/// Saving replaces the destination rather than truncating it, so the new file is a new inode.
+/// Its permissions must not fall back to the process umask: a checkpoint the user narrowed to
+/// `0600` would otherwise come back world-readable on the next save.
+#[cfg(unix)]
+#[test]
+fn a_save_keeps_the_permissions_of_the_checkpoint_it_replaces() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.safetensors");
+    let device: Device = Default::default();
+    let model = model(&device);
+
+    let mut store = SafetensorsStore::from_file(&path);
+    model.save_into(&mut store).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+    let mut store = SafetensorsStore::from_file(&path).overwrite(true);
+    model.save_into(&mut store).unwrap();
+
+    assert_eq!(
+        std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+        0o600,
+        "the save republished the checkpoint at the process umask"
+    );
+}
