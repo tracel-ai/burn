@@ -9,6 +9,15 @@ use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 pub struct HandleContainer<H> {
     handles: HashMap<TensorId, Handle<H>>,
     counter: u64,
+    /// How many entries are [`Handle::Errored`].
+    ///
+    /// Kept so the checks a claim makes necessary cost nothing while nothing
+    /// has failed, which is nearly always: reading it is a branch, where
+    /// asking the question properly is a hash lookup per handle fetch and a
+    /// boxed iterator per operation. Maintained only by [`put`](Self::put)
+    /// and [`take`](Self::take) — every mutation goes through those two, so
+    /// it cannot drift from the map.
+    claimed: usize,
 }
 
 // Hand-written perfect derive as we don't require `H: Default`.
@@ -17,6 +26,7 @@ impl<H> Default for HandleContainer<H> {
         Self {
             handles: HashMap::new(),
             counter: 0,
+            claimed: 0,
         }
     }
 }
@@ -33,6 +43,7 @@ impl<H: Clone> HandleContainer<H> {
         Self {
             handles,
             counter: self.counter,
+            claimed: self.claimed,
         }
     }
 }
@@ -151,12 +162,45 @@ impl<H: Clone> HandleContainer<H> {
         Self {
             handles: HashMap::new(),
             counter: 0,
+            claimed: 0,
         }
+    }
+
+    /// Insert `handle`, keeping [`claimed`](Self#structfield.claimed) in step.
+    fn put(&mut self, id: TensorId, handle: Handle<H>) -> Option<Handle<H>> {
+        if let Handle::Errored(_) = handle {
+            self.claimed += 1;
+        }
+        let previous = self.handles.insert(id, handle);
+        if let Some(Handle::Errored(_)) = previous {
+            self.claimed -= 1;
+        }
+        previous
+    }
+
+    /// Remove `id`'s entry, keeping [`claimed`](Self#structfield.claimed) in
+    /// step.
+    fn take(&mut self, id: &TensorId) -> Option<(TensorId, Handle<H>)> {
+        let entry = self.handles.remove_entry(id);
+        if let Some((_, Handle::Errored(_))) = &entry {
+            self.claimed -= 1;
+        }
+        entry
+    }
+
+    /// Whether any tensor is claimed by a failure.
+    ///
+    /// A branch that lets the claim checks cost nothing while nothing has
+    /// failed. False means no [`error`](Self::error) lookup can find
+    /// anything, so the caller can skip asking — worth a branch where asking
+    /// costs a boxed iterator over an operation's inputs.
+    pub fn has_claims(&self) -> bool {
+        self.claimed > 0
     }
 
     /// Register a handle for the given [tensor id](TensorId).
     pub fn register_handle(&mut self, id: TensorId, handle: H) {
-        self.handles.insert(id, Handle::Existing(handle));
+        self.put(id, Handle::Existing(handle));
     }
 
     /// Whether a usable handle exists.
@@ -194,7 +238,7 @@ impl<H: Clone> HandleContainer<H> {
     /// tensors other work already wrote, use
     /// [`claim_unwritten`](Self::claim_unwritten).
     pub fn claim(&mut self, id: TensorId, error: TensorError) {
-        self.handles.insert(id, Handle::Errored(error));
+        self.put(id, Handle::Errored(error));
     }
 
     /// [`claim`](Self::claim), but leaving alone any tensor that already has
@@ -207,7 +251,7 @@ impl<H: Clone> HandleContainer<H> {
         if let Some(Handle::Existing(_)) = self.handles.get(&id) {
             return;
         }
-        self.handles.insert(id, Handle::Errored(error));
+        self.put(id, Handle::Errored(error));
     }
 
     /// The failure claiming `id`, if one does.
@@ -216,21 +260,6 @@ impl<H: Clone> HandleContainer<H> {
             Some(Handle::Errored(error)) => Some(error),
             _ => None,
         }
-    }
-
-    /// The first failure claiming any of `ids` — the check an operation makes
-    /// before it runs.
-    ///
-    /// Work whose input cannot be trusted must not run: the bytes behind that
-    /// input were never written, so reading them means computing on whatever
-    /// the allocation happened to hold. The caller propagates the returned
-    /// error onto its own outputs instead, so a read downstream names this
-    /// root rather than a new failure of its own.
-    pub fn first_error<'a>(
-        &self,
-        ids: impl IntoIterator<Item = &'a TensorId>,
-    ) -> Option<&TensorError> {
-        ids.into_iter().find_map(|id| self.error(id))
     }
 
     /// Get the handle for the given [tensor id](TensorId). The status is used to determine if the
@@ -244,19 +273,24 @@ impl<H: Clone> HandleContainer<H> {
         // Checked before the entry is taken: an unwind past a `remove_entry`
         // would clear the very claim that explains it, and the next read of
         // the same tensor would fail on a bare missing handle instead.
-        if let Some(Handle::Errored(error)) = self.handles.get(id) {
+        //
+        // Behind `has_claims` so the common path keeps its single lookup:
+        // this is the hottest read in the system, and nothing is claimed
+        // unless something has actually failed.
+        if self.has_claims()
+            && let Some(Handle::Errored(error)) = self.handles.get(id)
+        {
             panic!("Tensor {id:?} was never written: {error}");
         }
 
         let (id, handle) = self
-            .handles
-            .remove_entry(id)
+            .take(id)
             .unwrap_or_else(|| panic!("Should have handle for tensor {id:?}"));
 
         match handle {
             Handle::Existing(handle) => match status {
                 TensorStatus::ReadOnly => {
-                    self.handles.insert(id, Handle::Existing(handle.clone()));
+                    self.put(id, Handle::Existing(handle.clone()));
                     handle
                 }
                 TensorStatus::ReadWrite => handle,
@@ -321,7 +355,7 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::float_tensor_handle(tensor);
-        self.handles.insert(*id, Handle::Existing(handle));
+        self.put(*id, Handle::Existing(handle));
     }
 
     /// Register a new [quantized tensor](burn_backend::backend::BackendTypes::QuantizedTensorPrimitive) with the corresponding [tensor ids](TensorId).
@@ -333,7 +367,7 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::quantized_tensor_handle(tensor);
-        self.handles.insert(*id, Handle::Existing(handle));
+        self.put(*id, Handle::Existing(handle));
     }
 
     /// Register a new [int tensor](burn_backend::backend::BackendTypes::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
@@ -342,7 +376,7 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::int_tensor_handle(tensor);
-        self.handles.insert(*id, Handle::Existing(handle));
+        self.put(*id, Handle::Existing(handle));
     }
 
     /// Register a new [bool tensor](burn_backend::backend::BackendTypes::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
@@ -351,12 +385,12 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::bool_tensor_handle(tensor);
-        self.handles.insert(*id, Handle::Existing(handle));
+        self.put(*id, Handle::Existing(handle));
     }
 
     /// Remove tensor handle from container.
     pub fn remove_handle(&mut self, id: TensorId) -> Option<Handle<H>> {
-        self.handles.remove(&id)
+        self.take(&id).map(|(_, handle)| handle)
     }
 
     /// Remove tensor handle from container if writable
@@ -365,7 +399,7 @@ impl<H: Clone> HandleContainer<H> {
             TensorStatus::ReadOnly => (),
             TensorStatus::NotInit => (),
             TensorStatus::ReadWrite => {
-                self.handles.remove(&tensor.id);
+                self.take(&tensor.id);
             }
         };
     }
@@ -561,21 +595,75 @@ mod tests {
         assert_eq!(container.num_handles(), 0);
     }
 
-    /// The check a unit of work makes before it runs.
+    /// `has_claims` gates every claim check, so drift disables the whole
+    /// mechanism silently — the skip stops happening and failed work starts
+    /// computing on bytes nothing wrote. Every path that can change an entry
+    /// is exercised here against the map it is supposed to mirror.
     #[test]
-    fn first_error_finds_a_claimed_input() {
+    fn the_claim_count_cannot_drift_from_the_map() {
+        fn claimed<H: Clone>(container: &HandleContainer<H>) -> usize {
+            container
+                .handles
+                .values()
+                .filter(|handle| matches!(handle, Handle::Errored(_)))
+                .count()
+        }
+        fn check<H: Clone>(container: &HandleContainer<H>, at: &str) {
+            let actual = claimed(container);
+            assert_eq!(container.claimed, actual, "count drifted after {at}");
+            assert_eq!(
+                container.has_claims(),
+                actual > 0,
+                "has_claims wrong at {at}"
+            );
+        }
+
         let mut container = HandleContainer::<String>::new();
-        container.register_handle(tid(1), "clean".to_string());
-        container.claim(tid(2), TensorError::new("boom"));
+        let error = || TensorError::new("boom");
+        check(&container, "empty");
 
-        let ids = [tid(1), tid(2)];
-        assert_eq!(
-            container.first_error(ids.iter()).map(|e| e.root()),
-            Some("boom")
-        );
+        // Claim, then claim the same id again: one entry, one claim.
+        container.claim(tid(1), error());
+        check(&container, "claim");
+        container.claim(tid(1), error());
+        check(&container, "claim again");
 
-        let clean = [tid(1)];
-        assert!(container.first_error(clean.iter()).is_none());
+        // Data displacing a claim, and a claim displacing data.
+        container.register_handle(tid(1), "written".to_string());
+        check(&container, "register over a claim");
+        container.claim(tid(1), error());
+        check(&container, "claim over data");
+
+        // The conservative claim, both ways.
+        container.register_handle(tid(2), "written".to_string());
+        container.claim_unwritten(tid(2), error());
+        check(&container, "claim_unwritten over data");
+        container.claim_unwritten(tid(3), error());
+        check(&container, "claim_unwritten over nothing");
+
+        // Both removal paths.
+        container.remove_handle(tid(3));
+        check(&container, "remove_handle");
+        container.free(&TensorIr {
+            id: tid(1),
+            shape: burn_backend::Shape::new([1]),
+            status: TensorStatus::ReadWrite,
+            dtype: burn_backend::DType::F32,
+        });
+        check(&container, "free");
+
+        // A read that keeps its entry, and one that consumes it.
+        container.register_handle(tid(4), "written".to_string());
+        container.get_handle(&tid(4), &TensorStatus::ReadOnly);
+        check(&container, "get_handle ReadOnly");
+        container.get_handle(&tid(4), &TensorStatus::ReadWrite);
+        check(&container, "get_handle ReadWrite");
+
+        // A fork carries the count it copied.
+        container.claim(tid(5), error());
+        let fork = container.fork();
+        check(&fork, "fork");
+        assert!(fork.has_claims());
     }
 
     #[test]

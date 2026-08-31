@@ -22,6 +22,14 @@ pub(crate) fn input_failure<'a, H>(
 where
     H: Clone,
 {
+    // Nothing is claimed, so nothing can be found — and asking anyway would
+    // cost a boxed iterator per operation for an answer that is always
+    // `None`. This runs before every operation, so the check has to be free
+    // while nothing has failed.
+    if !handles.has_claims() {
+        return None;
+    }
+
     // A drop names its tensor as an input, but it does not read it — it is
     // what releases it, and releasing is how a claim stops being held. Skip
     // it and the claim outlives every tensor that could report it, for the

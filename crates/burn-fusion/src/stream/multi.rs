@@ -264,7 +264,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     /// Run `id`'s pending segment to completion.
     ///
     /// Reports nothing. An operation that fails claims the tensors it was
-    /// going to write (see `OperationQueue::claim_unwritten`), so the failure
+    /// going to write (see `execution::claim_outputs`), so the failure
     /// is delivered by the read of one of *those* tensors — the point where a
     /// caller is actually waiting for that data — and not to whoever happened
     /// to drain the stream next. A drain that shares no tensor with the
