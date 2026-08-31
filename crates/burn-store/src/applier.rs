@@ -37,6 +37,8 @@ pub struct Applier {
     errors: Vec<ApplyError>,
     /// Track visited paths with their container stacks (in dot notation) to find missing tensors
     visited_paths: HashMap<String, String>,
+    /// Track source tensor paths matched during application to find unused tensors
+    consumed_paths: HashSet<String>,
     /// Skip enum variant names when matching paths
     /// When true, "feature.BaseConv.weight" will also try to match "feature.weight"
     skip_enum_variants: bool,
@@ -73,6 +75,7 @@ impl Applier {
             skipped: HashSet::new(),
             errors: Vec::new(),
             visited_paths: HashMap::new(),
+            consumed_paths: HashSet::new(),
             skip_enum_variants,
         }
     }
@@ -100,7 +103,7 @@ impl Applier {
         let mut unused: Vec<String> = self
             .tensors
             .keys()
-            .filter(|path| !self.visited_paths.contains_key(*path) && !self.skipped.contains(*path))
+            .filter(|path| !self.consumed_paths.contains(*path) && !self.skipped.contains(*path))
             .cloned()
             .collect();
         // Sort for stable output order
@@ -164,7 +167,8 @@ impl Applier {
         self.visited_paths.insert(path.clone(), container_stack_str);
 
         // Try to get the tensor with original path first
-        let mut tensor = self.tensors.get(&path).cloned();
+        let mut source_path = path.clone();
+        let mut tensor = self.tensors.get(&source_path).cloned();
 
         // If not found and we have an adapter, try alternative parameter names
         if tensor.is_none()
@@ -178,10 +182,10 @@ impl Applier {
                 // Build alternative path with parameter name substitution
                 let mut alt_path_stack = self.path_stack.clone();
                 *alt_path_stack.last_mut().unwrap() = alt_name.clone();
-                let alt_path = alt_path_stack.join(".");
+                source_path = alt_path_stack.join(".");
 
                 // Try to get the tensor under the alternative name
-                tensor = self.tensors.get(&alt_path).cloned();
+                tensor = self.tensors.get(&source_path).cloned();
 
                 // Don't mark the alternative path as visited - only the original Burn path
                 // should be tracked. The alternative path is just for lookup.
@@ -189,6 +193,7 @@ impl Applier {
         }
 
         let mut tensor = tensor?;
+        self.consumed_paths.insert(source_path);
         let source_id = tensor.param_id.map(ParamId::from);
 
         // Apply adapter transformation using the module context live on this traversal (for
@@ -563,9 +568,10 @@ mod tests {
         );
     }
 
-    /// Regression test for issue #5159:
+    /// Regression test for issues #5159 and #5483:
     /// Verifies normalization parameter renaming (gamma <-> weight)
-    /// works through the full Applier flow with PyTorchToBurnAdapter.
+    /// works through the full Applier flow with PyTorchToBurnAdapter without
+    /// reporting the source tensor as unused.
     #[test]
     fn normalization_renaming_with_adapter() {
         let device = Default::default();
@@ -573,10 +579,15 @@ mod tests {
         // Tensor with PyTorch naming: "norm.weight"
         let data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0], [5]);
         let source = tensor("norm.weight", data, Some(ParamId::new()));
+        let unrelated = tensor(
+            "unused.weight",
+            TensorData::new(vec![0.0f32], [1]),
+            Some(ParamId::new()),
+        );
 
         // Applier with PyTorchToBurnAdapter
         let mut applier = Applier::new(
-            vec![source],
+            vec![source, unrelated],
             None,
             Some(Box::new(PyTorchToBurnAdapter)),
             false,
@@ -599,13 +610,13 @@ mod tests {
         );
         assert_eq!(result.errors.len(), 0);
         // The tensor "norm.weight" was found via alt lookup: 'norm.gamma' is visited,
-        // and 'norm.weight' is NOT in visited_paths (by design). Both should not be "missing" or "unused"
-        // if the applied count is 1.
+        // while the source path is tracked separately so only the unrelated tensor is unused.
         assert!(
             result.missing.is_empty(),
             "no paths should be missing: {:?}",
             result.missing
         );
+        assert_eq!(result.unused, vec!["unused.weight"]);
     }
 
     /// Same as above but for a nested module path to ensure the alternative
@@ -638,6 +649,11 @@ mod tests {
         let result = applier.into_result();
         assert_eq!(result.applied.len(), 1);
         assert_eq!(result.errors.len(), 0);
+        assert!(
+            result.unused.is_empty(),
+            "the nested alternative source should not be unused: {:?}",
+            result.unused
+        );
     }
 
     /// Verify that the Applier restores the persisted ParamId from the source
