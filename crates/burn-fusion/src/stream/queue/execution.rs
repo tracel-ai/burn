@@ -3,7 +3,7 @@ use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use std::sync::Arc;
 
 use crate::{
-    FusionRuntime, UnfusedOp,
+    FusionRuntime, OperationRan, UnfusedOp,
     search::BlockOptimization,
     stream::{
         Context, ContextGuard, Executed, OperationConverter, OrderedExecution, RelativeOps,
@@ -91,6 +91,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
 
         let executed = run_strategy(step, &mut self.converter, handles, operations, ir);
         let num_drained = executed.num_executed;
+        let did_not_run = executed.did_not_run;
 
         // Restored before anything else looks at the queue. The strategy took
         // both lists by value, so an unwind that carried them away would leave
@@ -115,20 +116,34 @@ impl<R: FusionRuntime> OperationQueue<R> {
             );
         }
 
-        self.drain_queue(num_drained, handles);
+        self.drain_queue(num_drained, &did_not_run, handles);
     }
 
-    /// Bookkeeping after executing `num_drained` operations from the queue.
-    fn drain_queue(&mut self, num_drained: usize, handles: &mut HandleContainer<R::FusionHandle>) {
-        self.global[0..num_drained]
-            .iter()
-            .flat_map(|desc| desc.nodes())
-            .for_each(|tensor| {
+    /// Bookkeeping after consuming `num_drained` operations from the queue.
+    ///
+    /// `did_not_run` names the ones that were skipped or torn down, which a
+    /// backend holding its handles elsewhere has to know about: reclaiming
+    /// their inputs as though the operation had been replayed strands the
+    /// tensor wherever it actually lives.
+    fn drain_queue(
+        &mut self,
+        num_drained: usize,
+        did_not_run: &[usize],
+        handles: &mut HandleContainer<R::FusionHandle>,
+    ) {
+        for (index, desc) in self.global[0..num_drained].iter().enumerate() {
+            let ran = match did_not_run.contains(&index) {
+                true => OperationRan::No,
+                false => OperationRan::Yes,
+            };
+
+            for tensor in desc.nodes() {
                 if tensor.status == TensorStatus::ReadWrite {
                     self.variables.remove(&tensor.id);
-                };
-                R::free_handle(handles, tensor)
-            });
+                }
+                R::free_handle(handles, tensor, ran);
+            }
+        }
 
         self.global.drain(0..num_drained);
 

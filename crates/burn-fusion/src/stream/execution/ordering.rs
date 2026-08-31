@@ -14,6 +14,10 @@ pub(crate) struct Executed<R: FusionRuntime> {
     pub(crate) ir: Vec<OperationIr>,
     /// How many operations it consumed, run or errored.
     pub(crate) num_executed: usize,
+    /// Which of those consumed operations never ran — skipped on an errored
+    /// input, or torn down by a panic. Indices into `ir`. Empty while nothing
+    /// has failed, so carrying it allocates nothing on the common path.
+    pub(crate) did_not_run: Vec<usize>,
     /// The first panic raised, kept only so the caller can log it — every
     /// failure's report is the error it left on the tensors.
     pub(crate) failed: Option<Box<dyn core::any::Any + Send>>,
@@ -28,6 +32,9 @@ pub struct OrderedExecution<R: FusionRuntime> {
     /// rather than copied, so carrying it costs nothing per segment.
     ir: Vec<OperationIr>,
     num_executed: usize,
+    /// Which consumed operations never ran. See
+    /// [`Executed::did_not_run`](Executed#structfield.did_not_run).
+    did_not_run: Vec<usize>,
     ordering: Option<Arc<Vec<usize>>>,
     /// The first panic a unit of this execution raised, kept only so the
     /// caller can log it. Every failure's report is the error it left on the
@@ -55,6 +62,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             operations,
             ir,
             num_executed: 0,
+            did_not_run: Vec::new(),
             ordering: None,
             failed: None,
         }
@@ -71,6 +79,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             operations: self.operations,
             ir: self.ir,
             num_executed,
+            did_not_run: self.did_not_run,
             failed: self.failed,
         }
     }
@@ -115,6 +124,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
         if let Some(error) = skip {
             self.set_errors(&ordering, &mut context.handles, &error);
+            self.did_not_run.extend(ordering.iter().copied());
             return;
         }
 
@@ -125,6 +135,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         if let Err(panic) = executed {
             let error = TensorError::new(panic_message(panic.as_ref()));
             self.set_errors(&ordering, &mut context.handles, &error);
+            self.did_not_run.extend(ordering.iter().copied());
             self.failed.get_or_insert(panic);
         }
     }
@@ -158,6 +169,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
             if let Some(error) = skip {
                 set_output_errors(ir, handles, &error);
+                self.did_not_run.push(*id);
                 continue;
             }
 
@@ -174,6 +186,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             if let Err(panic) = executed {
                 let error = TensorError::new(panic_message(panic.as_ref()));
                 set_output_errors(&self.ir[*id], handles, &error);
+                self.did_not_run.push(*id);
                 self.failed.get_or_insert(panic);
             }
         }

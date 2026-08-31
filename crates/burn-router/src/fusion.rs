@@ -20,7 +20,7 @@ use burn_backend::ops::FloatTensorOps;
 use burn_fusion::stream::{Context, Operation, OrderedExecution};
 use burn_fusion::{
     FuserProperties, FuserStatus, FusionBackend, FusionRuntime, NumOperations, OperationFuser,
-    Optimization,
+    OperationRan, Optimization,
 };
 use burn_ir::{
     BackendIr, CustomOpIr, GraphBindings, GraphId, GraphIr, Handle, HandleContainer, OperationIr,
@@ -134,15 +134,26 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
         )
     }
 
-    fn free_handle(handles: &mut HandleContainer<RouterTensor<R::Client>>, tensor: &TensorIr) {
+    fn free_handle(
+        handles: &mut HandleContainer<RouterTensor<R::Client>>,
+        tensor: &TensorIr,
+        ran: OperationRan,
+    ) {
         // Only `ReadWrite` (last-use) nodes are freed here, matching `HandleContainer::free`.
         if tensor.status != TensorStatus::ReadWrite {
             return;
         }
-        // The drained block already freed this tensor server-side: every consumed op (a `Drop`, or
-        // a `ReadWrite` input of a compute op) is replayed on the server and pops its handle. So
-        // remove the client entry WITHOUT letting `RouterTensor::drop` register a *second*,
-        // redundant `Drop` for the same id. Bumping the refcount makes that drop a no-op.
+        // An operation that never ran was never replayed, so the server still holds this tensor
+        // and the client `Drop` is the only thing that will free it. Letting it through is what
+        // keeps a failed or skipped operation from stranding a buffer on the server for good.
+        if ran == OperationRan::No {
+            handles.free(tensor);
+            return;
+        }
+        // A replayed op (a `Drop`, or a `ReadWrite` input of a compute op) already popped this
+        // handle server-side. So remove the client entry WITHOUT letting `RouterTensor::drop`
+        // register a *second*, redundant `Drop` for the same id. Bumping the refcount makes that
+        // drop a no-op.
         if let Some(Handle::Existing(handle)) = handles.remove_handle(tensor.id) {
             handle
                 .count

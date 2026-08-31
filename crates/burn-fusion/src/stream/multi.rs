@@ -172,6 +172,19 @@ impl<R: FusionRuntime> MultiStream<R> {
         dst: TensorId,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
+        // A share of an errored tensor carries the error across with it.
+        // Without this the alias would be a plain missing handle on the
+        // receiving stream, and the thread that reads it would be told the
+        // tensor does not exist rather than why it was never written.
+        //
+        // Checked before the drain for the same reason `read_plan` returns
+        // `Direct`: no pending operation is going to produce `src`, so there
+        // is nothing for a drain to order the share after.
+        if let Some(error) = handles.error(&src).cloned() {
+            handles.set_error(dst, error, ExistingHandle::Displace);
+            return;
+        }
+
         // Drain only when neither short-circuit applies: `shared_sources` records ids
         // we already drained for, and a `Some` handle means `src` is materialised
         // (e.g., it was itself set up by an earlier `tag_shared_view` call). We
@@ -187,16 +200,13 @@ impl<R: FusionRuntime> MultiStream<R> {
             if handles.get_handle_ref(&src).is_some() {
                 self.shared_sources.insert(src);
             }
-        }
 
-
-        // A share of an errored tensor carries the error across with it.
-        // Without this the alias would be a plain missing handle on the
-        // receiving stream, and the thread that reads it would be told the
-        // tensor does not exist rather than why it was never written.
-        if let Some(error) = handles.error(&src).cloned() {
-            handles.set_error(dst, error, ExistingHandle::Displace);
-            return;
+            // The drain is what surfaced the failure: `src` had a pending
+            // producer, and that producer did not produce it.
+            if let Some(error) = handles.error(&src).cloned() {
+                handles.set_error(dst, error, ExistingHandle::Displace);
+                return;
+            }
         }
 
         if let Some(handle) = handles.get_handle_ref(&src) {
@@ -422,7 +432,8 @@ impl<R: FusionRuntime> Stream<R> {
 mod tests {
     use super::*;
     use crate::{
-        FuserProperties, FuserStatus, NumOperations, OperationFuser, Optimization, UnfusedOp,
+        FuserProperties, FuserStatus, NumOperations, OperationFuser, OperationRan, Optimization,
+        UnfusedOp,
         stream::{Context, Operation, OrderedExecution},
     };
     use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, Shape};
@@ -574,11 +585,33 @@ mod tests {
         static EAGER_FUSION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
 
+    thread_local! {
+        /// Tensors reclaimed with [`OperationRan::No`], recorded by
+        /// [`TestRuntime::free_handle`].
+        ///
+        /// Ambient state, unlike [`TestDevice`]'s fuser choice, because
+        /// `free_handle` is a static method taking neither a device nor a
+        /// runtime value — a test has no other channel into it.
+        static UNRUN_FREES: std::cell::RefCell<Vec<TensorId>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
     impl FusionRuntime for TestRuntime {
         type OptimizationState = ();
         type Optimization = TestOptimization;
         type FusionHandle = TestHandle;
         type FusionDevice = TestDevice;
+
+        fn free_handle(
+            handles: &mut HandleContainer<TestHandle>,
+            tensor: &TensorIr,
+            ran: OperationRan,
+        ) {
+            if tensor.status == TensorStatus::ReadWrite && ran == OperationRan::No {
+                UNRUN_FREES.with(|freed| freed.borrow_mut().push(tensor.id));
+            }
+            handles.free(tensor);
+        }
 
         fn fusers(_device: TestDevice) -> Vec<Box<dyn OperationFuser<TestOptimization>>> {
             if EAGER_FUSION.with(std::cell::Cell::get) {
@@ -662,6 +695,18 @@ mod tests {
             DType::F32,
             FloatOperationIr::Exp(UnaryOpIr {
                 input: tensor_ir(input, TensorStatus::ReadOnly),
+                out: tensor_ir(out, TensorStatus::NotInit),
+            }),
+        )
+    }
+
+    /// An operation whose input is its last use, so the drained block
+    /// reclaims it through [`FusionRuntime::free_handle`].
+    fn consume_op(input: TensorId, out: TensorId) -> OperationIr {
+        OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Exp(UnaryOpIr {
+                input: tensor_ir(input, TensorStatus::ReadWrite),
                 out: tensor_ir(out, TensorStatus::NotInit),
             }),
         )
@@ -1355,6 +1400,61 @@ mod tests {
         assert!(
             !setup.handles.has_handle(&t0),
             "the boundary released what only this stream could release"
+        );
+    }
+
+    /// A backend whose handles live where the operation never reached has to
+    /// hear that a drained operation did not run.
+    ///
+    /// The remote backend reclaims a replayed operation's inputs by
+    /// suppressing their client-side `Drop`, because the server already
+    /// popped them. An operation that was skipped or torn down was never
+    /// replayed, so suppressing it there strands the buffer on the server for
+    /// the life of the session.
+    #[test]
+    fn an_operation_that_did_not_run_reclaims_its_inputs_as_such() {
+        UNRUN_FREES.with(|freed| freed.borrow_mut().clear());
+
+        let mut setup = TestSetup::new();
+        let (a0, a1, a2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+        let (b0, b1) = (TensorId::new(10), TensorId::new(11));
+
+        setup.handles.register_handle(a0, TestHandle);
+        setup.handles.register_handle(b0, TestHandle);
+
+        // a0 -> a1 fails, so a1 -> a2 behind it is skipped. b0 -> b1 runs.
+        setup.streams.register(
+            setup.id,
+            consume_op(a0, a1),
+            UnfusedOp::new(PanicOp, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.register(
+            setup.id,
+            consume_op(a1, a2),
+            UnfusedOp::new(ProduceOp { out: a2 }, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.register(
+            setup.id,
+            consume_op(b0, b1),
+            UnfusedOp::new(ProduceOp { out: b1 }, setup.id),
+            &mut setup.handles,
+        );
+        setup.streams.drain(&mut setup.handles, setup.id);
+
+        let unrun = UNRUN_FREES.with(|freed| freed.borrow().clone());
+        assert!(
+            unrun.contains(&a0),
+            "the input of the operation that failed: {unrun:?}"
+        );
+        assert!(
+            unrun.contains(&a1),
+            "the input of the operation that skipped: {unrun:?}"
+        );
+        assert!(
+            !unrun.contains(&b0),
+            "but not the input of the one that ran: {unrun:?}"
         );
     }
 }
