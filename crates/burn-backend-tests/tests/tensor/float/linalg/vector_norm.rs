@@ -1,4 +1,5 @@
 use super::*;
+use burn_tensor::Shape;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 use burn_tensor::linalg;
@@ -279,4 +280,220 @@ fn test_negative_dimension() {
     linalg::min_abs_norm(x, -1)
         .into_data()
         .assert_eq(&expected, true);
+}
+
+#[test]
+fn test_spatial_multi_axis_reduction() {
+    let device = Default::default();
+    let x = TestTensor::<4>::ones([2, 3, 4, 5], &device);
+
+    let out_l1 = linalg::l1_norm_dims(x.clone(), &[2, 3]);
+    assert_eq!(out_l1.shape(), Shape::new([2, 3, 1, 1]));
+
+    let out_l2 = linalg::l2_norm_dims(x.clone(), &[2, 3]);
+    assert_eq!(out_l2.shape(), Shape::new([2, 3, 1, 1]));
+
+    let out_lp = linalg::lp_norm_dims(x.clone(), 3.0, &[2, 3]);
+    assert_eq!(out_lp.shape(), Shape::new([2, 3, 1, 1]));
+
+    let out_max = linalg::max_abs_norm_dims(x.clone(), &[2, 3]);
+    assert_eq!(out_max.shape(), Shape::new([2, 3, 1, 1]));
+
+    let out_min = linalg::min_abs_norm_dims(x.clone(), &[2, 3]);
+    assert_eq!(out_min.shape(), Shape::new([2, 3, 1, 1]));
+
+    let out_l0 = linalg::l0_norm_dims(x.clone(), &[2, 3]);
+    assert_eq!(out_l0.shape(), Shape::new([2, 3, 1, 1]));
+
+    let out_vec = linalg::vector_norm_dims(x, linalg::Norm::L2, &[2, 3]);
+    assert_eq!(out_vec.shape(), Shape::new([2, 3, 1, 1]));
+}
+
+#[test]
+fn test_multi_axis_numerical_equivalence() {
+    let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
+    let x = TestTensor::<3>::from([
+        [
+            [1.0, -2.0, 3.0, -4.0],
+            [5.0, -6.0, 7.0, -8.0],
+            [9.0, -10.0, 11.0, -12.0],
+        ],
+        [
+            [-13.0, 14.0, -15.0, 16.0],
+            [-17.0, 18.0, -19.0, 20.0],
+            [-21.0, 22.0, -23.0, 24.0],
+        ],
+    ]);
+
+    // L1 norm
+    let expected_l1 = x.clone().abs().sum_dims(&[1, 2]).into_data();
+    linalg::l1_norm_dims(x.clone(), &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_l1, tolerance);
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::L1, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_l1, tolerance);
+
+    // L2 norm
+    let expected_l2 = x.clone().square().sum_dims(&[1, 2]).sqrt().into_data();
+    linalg::l2_norm_dims(x.clone(), &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_l2, tolerance);
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::L2, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_l2, tolerance);
+
+    // Lp norm: even integer p = 4.0
+    let expected_p4 = x
+        .clone()
+        .powi_scalar(4)
+        .sum_dims(&[1, 2])
+        .powf_scalar(1.0 / 4.0)
+        .into_data();
+    linalg::lp_norm_dims(x.clone(), 4.0, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_p4, tolerance);
+    linalg::vector_norm_dims(x.clone(), 4, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_p4, tolerance);
+
+    // Lp norm: odd integer p = 3.0
+    let expected_p3 = x
+        .clone()
+        .abs()
+        .powf_scalar(3.0)
+        .sum_dims(&[1, 2])
+        .powf_scalar(1.0 / 3.0)
+        .into_data();
+    linalg::lp_norm_dims(x.clone(), 3.0, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_p3, tolerance);
+    linalg::vector_norm_dims(x.clone(), 3, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_p3, tolerance);
+
+    // Lp norm: non-integer p = 1.5
+    let expected_p1_5 = x
+        .clone()
+        .abs()
+        .powf_scalar(1.5)
+        .sum_dims(&[1, 2])
+        .powf_scalar(1.0 / 1.5)
+        .into_data();
+    linalg::lp_norm_dims(x.clone(), 1.5, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_p1_5, tolerance);
+    linalg::vector_norm_dims(x.clone(), 1.5, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_p1_5, tolerance);
+
+    // MaxAbs (LInf) norm
+    let expected_max = x.clone().abs().max_dim(1).max_dim(2).into_data();
+    linalg::max_abs_norm_dims(x.clone(), &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_max, tolerance);
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::LInf, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_max, tolerance);
+
+    // MinAbs (LNegInf) norm
+    let expected_min = x.clone().abs().min_dim(1).min_dim(2).into_data();
+    linalg::min_abs_norm_dims(x.clone(), &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_min, tolerance);
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::LNegInf, &[1, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_min, tolerance);
+
+    // L0 norm
+    let expected_l0 = x
+        .clone()
+        .zeros_like()
+        .mask_fill(x.clone().not_equal_scalar(0), 1)
+        .sum_dims(&[1, 2])
+        .into_data();
+    linalg::l0_norm_dims(x.clone(), &[1, 2])
+        .into_data()
+        .assert_eq(&expected_l0, true);
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::L0, &[1, 2])
+        .into_data()
+        .assert_eq(&expected_l0, true);
+}
+
+#[test]
+fn test_single_vs_multi_equivalence() {
+    let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
+    let x = TestTensor::<2>::from([[1., -2.], [3., 4.]]);
+
+    // L1
+    let single = linalg::l1_norm(x.clone(), 1).into_data();
+    let multi = linalg::l1_norm_dims(x.clone(), &[1]).into_data();
+    single.assert_eq(&multi, true);
+
+    // L2
+    let single = linalg::l2_norm(x.clone(), 1).into_data();
+    let multi = linalg::l2_norm_dims(x.clone(), &[1]).into_data();
+    single.assert_approx_eq::<FloatElem>(&multi, tolerance);
+
+    // Lp
+    let single = linalg::lp_norm(x.clone(), 3.0, 1).into_data();
+    let multi = linalg::lp_norm_dims(x.clone(), 3.0, &[1]).into_data();
+    single.assert_approx_eq::<FloatElem>(&multi, tolerance);
+
+    // MaxAbs
+    let single = linalg::max_abs_norm(x.clone(), 1).into_data();
+    let multi = linalg::max_abs_norm_dims(x.clone(), &[1]).into_data();
+    single.assert_eq(&multi, true);
+
+    // MinAbs
+    let single = linalg::min_abs_norm(x.clone(), 1).into_data();
+    let multi = linalg::min_abs_norm_dims(x.clone(), &[1]).into_data();
+    single.assert_eq(&multi, true);
+
+    // L0
+    let single = linalg::l0_norm(x.clone(), 1).into_data();
+    let multi = linalg::l0_norm_dims(x.clone(), &[1]).into_data();
+    single.assert_eq(&multi, true);
+
+    // Vector norm
+    let single = linalg::vector_norm(x.clone(), linalg::Norm::L2, 1).into_data();
+    let multi = linalg::vector_norm_dims(x, linalg::Norm::L2, &[1]).into_data();
+    single.assert_approx_eq::<FloatElem>(&multi, tolerance);
+}
+
+#[test]
+fn test_multi_axis_negative_dimensions() {
+    let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
+    let x = TestTensor::<3>::from([
+        [
+            [1.0, -2.0, 3.0, -4.0],
+            [5.0, -6.0, 7.0, -8.0],
+            [9.0, -10.0, 11.0, -12.0],
+        ],
+        [
+            [-13.0, 14.0, -15.0, 16.0],
+            [-17.0, 18.0, -19.0, 20.0],
+            [-21.0, 22.0, -23.0, 24.0],
+        ],
+    ]);
+
+    let expected = linalg::l2_norm_dims(x.clone(), &[1, 2]).into_data();
+    linalg::l2_norm_dims(x.clone(), &[-2, -1])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+
+    let expected = linalg::l1_norm_dims(x.clone(), &[1, 2]).into_data();
+    linalg::l1_norm_dims(x.clone(), &[-2, -1])
+        .into_data()
+        .assert_eq(&expected, true);
+
+    let expected = linalg::max_abs_norm_dims(x.clone(), &[1, 2]).into_data();
+    linalg::max_abs_norm_dims(x.clone(), &[-2, -1])
+        .into_data()
+        .assert_eq(&expected, true);
+
+    let expected = linalg::lp_norm_dims(x.clone(), 3.0, &[1, 2]).into_data();
+    linalg::lp_norm_dims(x, 3.0, &[-2, -1])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
 }
