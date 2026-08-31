@@ -385,9 +385,9 @@ pub(crate) enum ReadPlan {
 }
 
 pub(crate) struct Stream<R: FusionRuntime> {
-    pub(crate) queue: OperationQueue<R>,
+    pub queue: OperationQueue<R>,
     processor: Processor<R::Optimization>,
-    pub(crate) cursor: u64,
+    pub cursor: u64,
 }
 
 #[derive(new)]

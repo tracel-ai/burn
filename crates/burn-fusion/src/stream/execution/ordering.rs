@@ -9,18 +9,18 @@ use crate::{FusionRuntime, NumOperations, Optimization, UnfusedOp, stream::Conte
 /// What a finished [`OrderedExecution`] hands back to the queue.
 pub(crate) struct Executed<R: FusionRuntime> {
     /// The operations it did not consume, to go back on the queue.
-    pub(crate) operations: Vec<UnfusedOp<R>>,
+    pub operations: Vec<UnfusedOp<R>>,
     /// The segment's IR, likewise.
-    pub(crate) ir: Vec<OperationIr>,
+    pub ir: Vec<OperationIr>,
     /// How many operations it consumed, run or errored.
-    pub(crate) num_executed: usize,
+    pub num_executed: usize,
     /// Which of those consumed operations never ran — skipped on an errored
     /// input, or torn down by a panic. Indices into `ir`. Empty while nothing
     /// has failed, so carrying it allocates nothing on the common path.
-    pub(crate) did_not_run: Vec<usize>,
+    pub did_not_run: Vec<usize>,
     /// The first panic raised, kept only so the caller can log it — every
     /// failure's report is the error it left on the tensors.
-    pub(crate) failed: Option<Panic>,
+    pub failed: Option<Panic>,
 }
 
 /// Manage the execution of potentially multiple optimizations and operations out of order.
