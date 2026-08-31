@@ -5,7 +5,7 @@ use super::{
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::{FusionRuntime, UnfusedOp, search::BlockOptimization};
-use burn_ir::{HandleContainer, OperationIr, TensorId};
+use burn_ir::{ExistingHandle, HandleContainer, OperationIr, TensorId};
 use hashbrown::{HashMap, HashSet};
 
 /// Keep track of multiple concurrent lazy streams of operations.
@@ -189,13 +189,13 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         }
 
-        // A share of a tensor the failure claims carries the claim across with
-        // it. Without this the alias would be a plain missing handle on the
+
+        // A share of an errored tensor carries the error across with it.
+        // Without this the alias would be a plain missing handle on the
         // receiving stream, and the thread that reads it would be told the
         // tensor does not exist rather than why it was never written.
-        if let Some(error) = handles.error(&src) {
-            let propagated = error.clone();
-            handles.claim(dst, propagated);
+        if let Some(error) = handles.error(&src).cloned() {
+            handles.set_error(dst, error, ExistingHandle::Displace);
             return;
         }
 
@@ -263,9 +263,9 @@ impl<R: FusionRuntime> MultiStream<R> {
 
     /// Run `id`'s pending segment to completion.
     ///
-    /// Reports nothing. An operation that fails claims the tensors it was
-    /// going to write (see `execution::claim_outputs`), so the failure
-    /// is delivered by the read of one of *those* tensors — the point where a
+    /// Reports nothing. An operation that fails leaves its error on the
+    /// tensors it was going to write (see `execution::set_output_errors`), so
+    /// it is delivered by the read of one of *those* tensors — the point where a
     /// caller is actually waiting for that data — and not to whoever happened
     /// to drain the stream next. A drain that shares no tensor with the
     /// failure has nothing to report and returns normally.
@@ -297,7 +297,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         handles: &HandleContainer<R::FusionHandle>,
     ) -> ReadPlan {
         if handles.error(&ir.id).is_some() {
-            // Claimed: no pending operation is going to produce this tensor,
+            // Errored: no pending operation is going to produce this tensor,
             // so there is nothing for a drain to order the read after. The
             // read itself reports the failure.
             return ReadPlan::Direct;
@@ -958,11 +958,11 @@ mod tests {
         assert!(!stale, "the stale variables entry is cleaned up");
     }
 
-    /// The claim a failure leaves is what a read of the tensor reports. The
+    /// The error a failure leaves is what a read of the tensor reports. The
     /// stream itself is not poisoned: the queue is intact, the drain returns
     /// normally, and only the data the failure was going to write is gone.
     #[test]
-    fn a_failing_operation_claims_the_tensor_it_was_going_to_write() {
+    fn a_failing_operation_errors_the_tensor_it_was_going_to_write() {
         let mut setup = TestSetup::new();
         let t0 = TensorId::new(0);
         let t1 = TensorId::new(1);
@@ -979,12 +979,12 @@ mod tests {
         // read of that tensor is what surfaces it.
         setup.streams.drain(&mut setup.handles, setup.id);
 
-        let error = setup.handles.error(&t1).expect("the output is claimed");
+        let error = setup.handles.error(&t1).expect("the output holds the error");
         assert!(
             error
                 .root()
                 .contains("this operation cannot serve its problem"),
-            "the claim names the panic that caused it: {error}"
+            "the error names the panic that caused it: {error}"
         );
         assert!(!setup.handles.has_handle(&t1), "there is no data behind it");
 
@@ -1032,7 +1032,7 @@ mod tests {
 
         assert!(
             setup.handles.error(&a1).is_some(),
-            "the failing chain is claimed"
+            "the failing chain holds the error"
         );
         assert!(
             setup.handles.has_handle(&b1),
@@ -1040,15 +1040,15 @@ mod tests {
         );
         assert!(
             setup.handles.error(&b1).is_none(),
-            "and is claimed by nothing"
+            "and holds no error"
         );
     }
 
-    /// Work downstream of a claimed tensor cannot run either — its input was
+    /// Work downstream of an errored tensor cannot run either — its input was
     /// never written — but it must report the failure that started it, not a
     /// fresh one of its own. However long the chain, the root is the same.
     #[test]
-    fn a_claim_propagates_downstream_carrying_its_root() {
+    fn an_error_propagates_downstream_carrying_its_root() {
         let mut setup = TestSetup::new();
         let t0 = TensorId::new(0);
         let t1 = TensorId::new(1);
@@ -1068,19 +1068,19 @@ mod tests {
 
         setup.streams.drain(&mut setup.handles, setup.id);
 
-        let root = setup.handles.error(&t1).expect("claimed").clone();
+        let root = setup.handles.error(&t1).expect("errored").clone();
         let mid = setup
             .handles
             .error(&t2)
-            .expect("skipped: its input was claimed");
+            .expect("skipped: its input was errored");
         let tail = setup
             .handles
             .error(&t3)
             .expect("skipped, two below the root");
 
-        assert!(root.same_failure(mid), "the same failure, not a new one");
+        assert!(root.same_root(mid), "the same failure, not a new one");
         assert!(
-            root.same_failure(tail),
+            root.same_root(tail),
             "still the same failure at the tail"
         );
         assert!(
@@ -1091,11 +1091,11 @@ mod tests {
         assert_eq!((root.depth(), mid.depth(), tail.depth()), (0, 1, 2));
     }
 
-    /// A claim is released by the tensor's own `Drop`, like any other handle.
-    /// That is what bounds the set: it holds exactly the claimed tensors that
+    /// An error is released by the tensor's own `Drop`, like any other handle.
+    /// That is what bounds the set: it holds exactly the errored tensors that
     /// are still alive, and needs no cap or eviction of its own.
     #[test]
-    fn a_claim_is_released_when_its_tensor_is_dropped() {
+    fn an_error_is_released_when_its_tensor_is_dropped() {
         let mut setup = TestSetup::new();
         let t0 = TensorId::new(0);
         let t1 = TensorId::new(1);
@@ -1113,7 +1113,7 @@ mod tests {
         setup.handles.free(&tensor_ir(t1, TensorStatus::ReadWrite));
         assert!(
             setup.handles.error(&t1).is_none(),
-            "the claim goes with the tensor"
+            "the error goes with the tensor"
         );
     }
 
@@ -1149,9 +1149,9 @@ mod tests {
     /// The same on the lazy path, where the operation runs inside the
     /// registration itself — a fire-and-forget `submit` with no caller
     /// blocked on it. Nothing has to be held for a caller that may never
-    /// come back, because the claim on the tensor is the whole report.
+    /// come back, because the error on the tensor is the whole report.
     #[test]
-    fn a_failure_while_registering_claims_without_holding_anything() {
+    fn a_failure_while_registering_errors_without_holding_anything() {
         let mut setup = TestSetup::eager();
         let t0 = TensorId::new(0);
         let t1 = TensorId::new(1);
@@ -1183,12 +1183,12 @@ mod tests {
         );
     }
 
-    /// A share of a claimed tensor carries the claim across. Without it the
+    /// A share of an errored tensor carries the error across. Without it the
     /// alias would be a plain missing handle on the receiving stream, and the
     /// thread that reads it would be told the tensor does not exist rather
     /// than why it was never written.
     #[test]
-    fn a_share_of_a_claimed_tensor_carries_the_claim() {
+    fn a_share_of_an_errored_tensor_carries_the_error() {
         let mut setup = TestSetup::new();
         let t0 = TensorId::new(0);
         let t1 = TensorId::new(1);
@@ -1213,10 +1213,10 @@ mod tests {
             "there is no data to alias"
         );
 
-        let source = setup.handles.error(&t1).expect("the source is claimed");
+        let source = setup.handles.error(&t1).expect("the source is errored");
         let aliased = setup.handles.error(&alias).expect("so is the alias");
         assert!(
-            source.same_failure(aliased),
+            source.same_root(aliased),
             "the alias names the same failure, not one of its own"
         );
         assert!(
@@ -1227,11 +1227,11 @@ mod tests {
 
     /// A handle registered before the work that fills it is not a written
     /// tensor. In-place fusion registers an output as an alias of its input
-    /// while the launch is still being planned, so a claim that skipped
+    /// while the launch is still being planned, so an error that skipped
     /// tensors "that already have a handle" would leave that output reading
     /// back as a half-written buffer.
     #[test]
-    fn a_claim_overwrites_a_handle_registered_ahead_of_the_work() {
+    fn an_error_displaces_a_handle_registered_ahead_of_the_work() {
         let mut setup = TestSetup::new();
         let t0 = TensorId::new(0);
         let t1 = TensorId::new(1);
@@ -1247,18 +1247,18 @@ mod tests {
 
         assert!(
             setup.handles.error(&t1).is_some(),
-            "the output is claimed even though it had a handle when the work failed"
+            "the output holds the error even though it had a handle when the work failed"
         );
         assert!(!setup.handles.has_handle(&t1));
     }
 
-    /// A claim must not outlive the tensor carrying it, which means the drop
+    /// An error must not outlive the tensor carrying it, which means the drop
     /// that releases it has to run. A drop names its tensor as an *input*, so
-    /// treating it like any other operation would skip it on the claim it is
-    /// there to release — and the claim would then be held for the life of
+    /// treating it like any other operation would skip it on the error it is
+    /// there to release — and the error would then be held for the life of
     /// the server, for a tensor nobody can even name any more.
     #[test]
-    fn a_drop_of_a_claimed_tensor_still_releases_it() {
+    fn a_drop_of_an_errored_tensor_still_releases_it() {
         let mut setup = TestSetup::new();
         let t0 = TensorId::new(0);
         let t1 = TensorId::new(1);
@@ -1271,7 +1271,7 @@ mod tests {
             &mut setup.handles,
         );
         setup.streams.drain(&mut setup.handles, setup.id);
-        assert!(setup.handles.error(&t1).is_some(), "claimed");
+        assert!(setup.handles.error(&t1).is_some(), "errored");
 
         // The last `FusionTensor` for t1 goes out of scope.
         let ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1291,19 +1291,19 @@ mod tests {
 
         assert!(
             ran.load(std::sync::atomic::Ordering::Relaxed),
-            "the drop must not be skipped on the claim it is there to release"
+            "the drop must not be skipped on the error it is there to release"
         );
         assert!(
             setup.handles.error(&t1).is_none(),
-            "the claim went with the tensor"
+            "the error went with the tensor"
         );
         assert_eq!(setup.handles.num_handles(), 1, "only t0 remains");
     }
 
-    /// A claimed tensor has no producer left to wait for, so the read must
+    /// An errored tensor has no producer left to wait for, so the read must
     /// not be sent round a drain that cannot change the answer.
     #[test]
-    fn a_read_of_a_claimed_tensor_does_not_force_a_drain() {
+    fn a_read_of_an_errored_tensor_does_not_force_a_drain() {
         let mut setup = TestSetup::new();
         let t0 = TensorId::new(0);
         let t1 = TensorId::new(1);

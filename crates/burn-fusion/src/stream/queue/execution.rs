@@ -1,4 +1,4 @@
-use burn_ir::{HandleContainer, OperationIr, TensorError, TensorStatus};
+use burn_ir::{ExistingHandle, HandleContainer, OperationIr, TensorError, TensorStatus};
 use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use std::sync::Arc;
 
@@ -100,11 +100,16 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.global = executed.ir;
 
         if let Some(panic) = executed.failed {
-            // Every failure's report is the claim it left on the tensors it
+            // Every failure's report is the error it left on the tensors it
             // was going to write, which is delivered when one of them is read.
             // Logged here as the backstop for the one nobody ever reads.
+            //
+            // The panic hook has already printed this payload with a
+            // backtrace, deliberately: work failing mid-stream is a bug in the
+            // backend, and the trace is the only thing that says where. This
+            // line is the summary that names the consequence.
             log::warn!(
-                "a fused operation failed: {}; the tensors it was going to write are claimed, \
+                "an operation failed: {}; the tensors it was going to write hold that error, \
                  and reading one of them reports it",
                 panic_message(panic.as_ref()),
             );
@@ -177,12 +182,12 @@ fn run_strategy<R: FusionRuntime>(
 
     if let Some(escaped) = escaped {
         // Nothing says which operation it came from, so the whole consumed
-        // segment is claimed — conservatively, leaving alone any output an
-        // operation did write, so one failure does not turn into several.
+        // segment takes the error — conservatively, leaving alone any output
+        // an operation did write, so one failure does not turn into several.
         let error = TensorError::new(panic_message(escaped.as_ref()));
         for op in executed.ir.iter().take(executed.num_executed) {
             for node in op.outputs() {
-                handles.claim_unwritten(node.id, error.clone());
+                handles.set_error(node.id, error.clone(), ExistingHandle::Keep);
             }
         }
         executed.failed.get_or_insert(escaped);
