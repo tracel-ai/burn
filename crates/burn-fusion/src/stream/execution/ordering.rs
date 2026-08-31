@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use burn_ir::{HandleContainer, OperationIr};
 
-use super::{OnPanic, Outcome, WriteScope};
+use super::{OnPanic, Outcome, Panic, WriteScope};
 
 use crate::{FusionRuntime, NumOperations, Optimization, UnfusedOp, stream::Context};
 
@@ -20,7 +20,7 @@ pub(crate) struct Executed<R: FusionRuntime> {
     pub(crate) did_not_run: Vec<usize>,
     /// The first panic raised, kept only so the caller can log it — every
     /// failure's report is the error it left on the tensors.
-    pub(crate) failed: Option<Box<dyn core::any::Any + Send>>,
+    pub(crate) failed: Option<Panic>,
 }
 
 /// Manage the execution of potentially multiple optimizations and operations out of order.
@@ -44,7 +44,7 @@ pub struct OrderedExecution<R: FusionRuntime> {
     /// The first panic a unit of this execution raised, kept only so the
     /// caller can log it. Every failure's report is the error it left on the
     /// tensors, not this.
-    failed: Option<Box<dyn core::any::Any + Send>>,
+    failed: Option<Panic>,
 }
 
 /// One operation of an optimization's block, runnable on its own.

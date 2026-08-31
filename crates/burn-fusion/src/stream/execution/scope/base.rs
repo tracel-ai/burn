@@ -1,83 +1,10 @@
-//! One scope around one unit of work.
-//!
-//! Without it, every execution site keeps the same bookkeeping by hand: decide
-//! whether the inputs can be trusted, claim the write set on each failure path,
-//! leave it alone on the success path, catch the panic, and hope no early
-//! return forgot one of the four. The scope makes forgetting loud instead of
-//! silent — there is one way in, one way out, and the claim is not something a
-//! caller can omit.
-//!
-//! A scope is opened one of two ways, and the choice is made once, in the
-//! constructor, which is why the two can never interleave:
-//!
-//! - work whose inputs all read cleanly **enters**, and runs;
-//! - work whose input a failure claims **skips**: its write set takes that same
-//!   failure one hop down, and the body never runs.
-//!
-//! The body is a closure rather than the scope being a guard value, because a
-//! guard enforces nothing here: `#[must_use]` says nothing about a bound value
-//! on a path that returns early. A closure has exactly one exit, and the scope
-//! owns what happens at it.
-
 use crate::stream::Context;
 use burn_backend::ExecutionError;
 use burn_ir::{HandleContainer, OperationIr, TensorError};
 
-/// The failure that errored any tensor `op` reads — the check a unit of work
-/// makes before it runs.
-///
-/// Work whose input was never written must not run: those bytes are whatever
-/// the allocation happened to hold, and computing on them turns a failure
-/// that named one tensor into a wrong answer that names none. The outputs
-/// take the same error instead, so a read below the skip still reports the
-/// failure that started it.
-///
-/// `inputs()` rather than `nodes()`: this runs before every operation on the
-/// hot path, and `nodes()` collects into a fresh `Vec` to chain the two.
-pub(crate) fn input_error<'a, H>(
-    op: &OperationIr,
-    handles: &'a HandleContainer<H>,
-) -> Option<&'a TensorError>
-where
-    H: Clone,
-{
-    // No tensor is errored, so nothing can be found — and asking anyway would
-    // cost a boxed iterator per operation for an answer that is always
-    // `None`. This runs before every operation, so the check has to be free
-    // while nothing has failed.
-    if !handles.has_errors() {
-        return None;
-    }
-
-    // A drop names its tensor as an input, but it does not read it — it is
-    // what releases it, and releasing is how an error stops being held. Skip
-    // it and the error outlives every tensor that could report it, for the
-    // life of the server: the bound this whole design rests on is that an
-    // error lives exactly as long as the tensor carrying it.
-    if let OperationIr::Drop(_) = op {
-        return None;
-    }
-
-    op.inputs().find_map(|node| handles.error(&node.id))
-}
-
-/// Record `error` on every tensor `op` was going to write, so a read of one
-/// reports it instead of handing back bytes nothing wrote.
-pub(crate) fn set_output_errors<H>(
-    op: &OperationIr,
-    handles: &mut HandleContainer<H>,
-    error: &TensorError,
-) where
-    H: Clone,
-{
-    for node in op.outputs() {
-        handles.set_error(node.id, error.clone());
-    }
-}
-
 /// The message inside a caught panic payload. Covers what `panic!` produces:
 /// `&'static str` and `String`.
-pub(crate) fn panic_message(panic: &(dyn core::any::Any + Send)) -> &str {
+pub fn panic_message(panic: &(dyn core::any::Any + Send)) -> &str {
     panic
         .downcast_ref::<&'static str>()
         .copied()
@@ -87,10 +14,10 @@ pub(crate) fn panic_message(panic: &(dyn core::any::Any + Send)) -> &str {
 
 /// The payload of a panic the scope caught, kept only so a caller can log it.
 /// Every failure's real report is the claim it left on the tensors.
-pub(crate) type Panic = Box<dyn core::any::Any + Send>;
+pub type Panic = Box<dyn core::any::Any + Send>;
 
 /// What a scope's work did.
-pub(crate) enum Outcome {
+pub enum Outcome {
     /// It ran and wrote its outputs.
     Ran,
     /// It did not run, because an input it needed carried a failure. Its write
@@ -106,7 +33,7 @@ pub(crate) enum Outcome {
 }
 
 /// Whether a panic out of the body is this scope's to catch.
-pub(crate) enum OnPanic {
+pub enum OnPanic {
     /// Catch it. The payload comes back as [`Outcome::Panicked`], and the
     /// write set is claimed before it does — which is why the catch lives in
     /// the scope rather than at the call site.
@@ -129,7 +56,7 @@ pub(crate) enum OnPanic {
 /// against the whole [`Context`], because that is what the optimization needs.
 /// The scope only ever wants the handles, so it asks for them rather than
 /// being written twice.
-pub(crate) trait Handles {
+pub trait Handles {
     /// What the container holds.
     type Handle: Clone;
 
@@ -205,7 +132,7 @@ enum State {
 }
 
 /// One unit of work, and the claim on everything it was going to write.
-pub(crate) struct WriteScope<'a, W: Handles> {
+pub struct WriteScope<'a, W: Handles> {
     work: Work<'a>,
     target: &'a mut W,
     state: State,
@@ -213,17 +140,13 @@ pub(crate) struct WriteScope<'a, W: Handles> {
 
 impl<'a, W: Handles> WriteScope<'a, W> {
     /// Open a scope over one operation.
-    pub(crate) fn over(ir: &'a OperationIr, target: &'a mut W) -> Self {
+    pub fn over(ir: &'a OperationIr, target: &'a mut W) -> Self {
         Self::open(Work::One(ir), target)
     }
 
     /// Open a scope over a fused block, which is one unit of work covering
     /// every operation at `ordering`.
-    pub(crate) fn over_block(
-        ir: &'a [OperationIr],
-        ordering: &'a [usize],
-        target: &'a mut W,
-    ) -> Self {
+    pub fn over_block(ir: &'a [OperationIr], ordering: &'a [usize], target: &'a mut W) -> Self {
         Self::open(Work::Block { ir, ordering }, target)
     }
 
@@ -255,7 +178,7 @@ impl<'a, W: Handles> WriteScope<'a, W> {
     /// set is known is what stops that being four separate things a caller can
     /// get wrong. `on_panic` says which scope owns the catch — this one, or
     /// the one this work is already running inside.
-    pub(crate) fn run(
+    pub fn run(
         mut self,
         on_panic: OnPanic,
         body: impl FnOnce(&mut W) -> Result<(), ExecutionError>,
@@ -309,6 +232,52 @@ impl<W: Handles> Drop for WriteScope<'_, W> {
         ));
         let work = &self.work;
         work.claim(self.target.handles(), &error);
+    }
+}
+
+/// The failure that errored any tensor `op` reads — the check a unit of work
+/// makes before it runs.
+///
+/// Work whose input was never written must not run: those bytes are whatever
+/// the allocation happened to hold, and computing on them turns a failure
+/// that named one tensor into a wrong answer that names none. The outputs
+/// take the same error instead, so a read below the skip still reports the
+/// failure that started it.
+///
+/// `inputs()` rather than `nodes()`: this runs before every operation on the
+/// hot path, and `nodes()` collects into a fresh `Vec` to chain the two.
+fn input_error<'a, H>(op: &OperationIr, handles: &'a HandleContainer<H>) -> Option<&'a TensorError>
+where
+    H: Clone,
+{
+    // No tensor is errored, so nothing can be found — and asking anyway would
+    // cost a boxed iterator per operation for an answer that is always
+    // `None`. This runs before every operation, so the check has to be free
+    // while nothing has failed.
+    if !handles.has_errors() {
+        return None;
+    }
+
+    // A drop names its tensor as an input, but it does not read it — it is
+    // what releases it, and releasing is how an error stops being held. Skip
+    // it and the error outlives every tensor that could report it, for the
+    // life of the server: the bound this whole design rests on is that an
+    // error lives exactly as long as the tensor carrying it.
+    if let OperationIr::Drop(_) = op {
+        return None;
+    }
+
+    op.inputs().find_map(|node| handles.error(&node.id))
+}
+
+/// Record `error` on every tensor `op` was going to write, so a read of one
+/// reports it instead of handing back bytes nothing wrote.
+fn set_output_errors<H>(op: &OperationIr, handles: &mut HandleContainer<H>, error: &TensorError)
+where
+    H: Clone,
+{
+    for node in op.outputs() {
+        handles.set_error(node.id, error.clone());
     }
 }
 
