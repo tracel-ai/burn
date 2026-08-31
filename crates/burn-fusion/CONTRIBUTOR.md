@@ -7,36 +7,65 @@ This is the policy that keeps that honest, and the invariants any change has to 
 
 ### The rule
 
-> A read returns bytes only if the work that was going to write them ran and succeeded.
+> A tensor reads back if and only if the work that was going to write it ran and succeeded.
 
 Everything below follows from that one sentence. When you are unsure what a new path should do,
-ask what this rule requires of it.
+ask what this rule requires of it. It is also the oracle the property test in `stream/multi.rs`
+checks over random interleavings — if you change the policy, that test is what tells you what you
+broke.
 
 ### Vocabulary
 
 A **claim** is the record that a tensor holds no data because the work meant to write it did not
-get there. It is a [`TensorError`](../burn-ir/src/handle.rs): an `Arc<str>` **root** naming what
-the failing work reported, plus a **depth** counting how many operations were skipped between that
-failure and this tensor.
+get there. It is a [`TensorError`](../burn-ir/src/handle.rs): an `Arc<ExecutionError>` — the failing
+work's own error, kept whole — plus a **depth** counting how many operations were skipped between
+that failure and this tensor.
 
-The root is shared rather than reformatted, so propagating costs a refcount bump and identity is
+The cause is shared rather than reformatted, so propagating costs a refcount bump and identity is
 pointer equality (`same_root`). A read below a long chain of skipped work still names the failure
-that started it, and can tell that two tensors failed for the same reason.
+that started it, and can tell that two tensors failed for the same reason. At depth zero a read
+hands back that error itself, backtrace intact, so a caller can match on it.
 
 A claim lives on the **tensor id**, in the `HandleContainer`, as `Handle::Errored` — a variant *of*
 `Handle`, so recording a claim displaces the handle and frees the buffer. A claimed tensor has no
 data, which is the honest state to be in.
 
+### The scope
+
+Every unit of work runs inside a [`WriteScope`](src/stream/execution/scope.rs). It is opened over
+the work's IR, so its write set is exact, and it owns the three things each execution site used to
+keep by hand:
+
+- **the skip decision**, made once in the constructor, so skipping and entering can never
+  interleave;
+- **the catch**, so a unit that panics claims what it was going to write without any caller
+  remembering to;
+- **the claim** itself, on every failure path.
+
+```rust
+match WriteScope::over(ir, handles).run(|handles| op.execute(handles)) {
+    Outcome::Ran(()) => {}
+    Outcome::Skipped => …,      // an input was claimed; the body never ran
+    Outcome::Failed(panic) => …, // it reported, or raised
+}
+```
+
+`run_raising` is the variant for work that already runs inside another scope — a fallback in the
+middle of a fused block. It claims a reported failure like `run` does, but lets a panic out, because
+swallowing that one would let the block carry on as though the piece it could not serve had run.
+
+**If you add an execution path, put it in a scope.** That is the whole of the policy; everything
+below is what the scope is doing on your behalf.
+
 ### The four transitions
 
-**Claim.** Work that fails records its error on every tensor it was going to write
-(`set_output_errors`). It uses `ExistingHandle::Displace`: a handle registered *ahead* of the launch
-— as an in-place output is, aliased to its input while the launch is still being planned — proves
-nothing about whether the kernel ever ran.
+**Claim.** Work that fails records its error on every tensor it was going to write. It always
+displaces: a handle registered *ahead* of the launch — as an in-place output is, aliased to its
+input while the launch is still being planned — proves nothing about whether the kernel ever ran.
 
 **Skip and propagate.** Before any unit of work runs, `input_error` asks whether a failure claims
 any input. If one does, the work does not run, and its outputs take that same failure through
-`propagated()` — same root, one hop deeper. Running on unwritten bytes would turn a failure that
+`propagated()` — same cause, one hop deeper. Running on unwritten bytes would turn a failure that
 names one tensor into a wrong answer that names none.
 
 **Recover.** Writing a claimed tensor clears the claim. Every `register_*` goes through the insert
@@ -51,26 +80,28 @@ and skipping drops would make claims outlive every tensor that could report them
 
 ### Granularity — what counts as one unit of work
 
-| Unit | Checked | Claims on failure |
+| Unit | Scope over | Claims on failure |
 | --- | --- | --- |
-| Unfused operation (`execute_operations`) | per operation | that operation's outputs |
-| Fused block (`execute_optimization`) | every op's inputs, once at block entry | the block's whole write set |
-| Fallback inside a block (`FallbackOp::execute`) | per operation | that operation's outputs |
-| Strategy-walk backstop (`run_strategy`) | — | the whole consumed segment, with `Keep` |
+| Unfused operation | that operation | its outputs |
+| Fused block | every operation in the block | the block's whole write set |
+| Fallback inside a block | that operation | its outputs |
 
-Unfused operations catch panics **per operation, not per segment**. A segment is just what happened
-to be queued together, so a failure in one operation says nothing about the next unless they share a
-tensor — and if they do, the next one skips on the claim its input now carries. Stopping the loop
-instead would make an unrelated operation's outcome depend on queue order.
+Unfused operations get **one scope each, not one per segment**. A segment is just what happened to
+be queued together, so a failure in one operation says nothing about the next unless they share a
+tensor — and if they do, the next one skips on the claim its input now carries. Scoping the whole
+loop would make an unrelated operation's outcome depend on queue order.
 
 A fused block is one unit in both directions: one claimed input anywhere stops all of it, and a
-panic anywhere leaves the whole write set unwritten. **This means fusion widens the blast radius of
-a failure** — the same program reports a more precise cause with fusion off. That is a deliberate
+failure anywhere leaves the whole write set unwritten. **This means fusion widens the blast radius
+of a failure** — the same program reports a more precise cause with fusion off. That is a deliberate
 consequence of a fused kernel being one kernel, not an oversight.
 
-The backstop uses `ExistingHandle::Keep` because it cannot say which operation failed. It must not
-displace a handle another operation legitimately wrote, nor overwrite a precise claim with its
-vaguer one.
+### Reporting versus raising
+
+`Operation::execute` returns `Result<(), ExecutionError>`. **Prefer returning an error.** A reported
+failure claims exactly what a raised one claims, but the claim carries the error whole — variant and
+backtrace — where a panic payload is only a message. Raising still works, and still claims, because
+the scope catches.
 
 ### Delivery
 
@@ -95,9 +126,9 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
   leaks claims only if the program leaks tensors. Any new path that takes ownership of a tensor id
   must release the claim on it.
 - **Forward progress.** Consuming nothing after a failure is never safe: the policy re-plans the
-  identical queue, re-selects the same strategy and fails the same way, without end. Every failure
-  path must leave the queue shorter (`consume_stalled` is the guard for the one case that could
-  otherwise stall).
+  identical queue, re-selects the same strategy and fails the same way, without end. A plan that
+  does not fit its segment is replaced before the walk begins, so it costs fusion rather than the
+  work; `consume_stalled` remains as the guarantee of last resort.
 - **`did_not_run` is load-bearing.** A drained operation that never ran was never replayed
   server-side, so the router's `free_handle` needs to know in order not to strand the buffer. If you
   add a path that skips work, record it.
@@ -109,10 +140,19 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
   cubecl skips its own downstream work through its `ExecuteScope`, `burn-fusion` skips its own
   through `input_error`. The two layers stack rather than sharing one mechanism.
   `ComputeClient::check` is the seam if this is ever unified.
+- The scope claims on failure rather than **on entry**. Claiming the write set on the way in and
+  letting success release it would make correctness independent of the panic runtime, and would
+  catch an operation that declares an output and never writes it. It also writes to the handle map
+  for every output on the success path, which is why it has not been done — the scope is the API, so
+  it can be changed behind `over` and `run` without touching a call site, once someone benchmarks
+  it.
 - `FusionTensor::drop` does not register a drop while the thread is panicking, to avoid re-entering
   the client mid-unwind. That leaks the id's entry, including any claim on it.
 - `did_not_run` is not recorded when a fallback skips. This is currently unreachable — the fallback
   path is cube-only, and cube uses the default `free_handle` — but it would matter for any runtime
   that overrides `free_handle` *and* uses fallbacks.
-- Failure detection relies on `catch_unwind`, so it depends on the unwinding panic runtime. Under
-  `panic = "abort"` none of this engages.
+- Raising is still caught with `catch_unwind`, so a backend that panics rather than reporting relies
+  on the unwinding panic runtime. Under `panic = "abort"` only reported failures are claimed.
+- The property test drives the unfused path. A fused block's granularity is pinned by targeted tests
+  instead, because modelling where the fuser puts block boundaries would make the model a copy of
+  the implementation.
