@@ -28,6 +28,25 @@ pub(crate) enum ExecutionStrategy<O> {
     Composed(Vec<Box<Self>>),
 }
 
+impl<O> ExecutionStrategy<O> {
+    /// The largest operation index any of this strategy's orderings names.
+    ///
+    /// A plan is cached and matched against a stream it did not run on, so the
+    /// indices it carries are a claim about that stream, not a fact. Checking
+    /// the claim once, before the walk begins, is what keeps a plan that does
+    /// not fit from indexing past the end of the segment part way through —
+    /// where the panic would be raised outside every scope, with nothing able
+    /// to say which tensors it left unwritten.
+    pub(crate) fn max_index(&self) -> Option<usize> {
+        match self {
+            Self::Optimization { ordering, .. } | Self::Operations { ordering } => {
+                ordering.iter().copied().max()
+            }
+            Self::Composed(items) => items.iter().filter_map(|item| item.max_index()).max(),
+        }
+    }
+}
+
 impl<O: crate::NumOperations> ExecutionStrategy<O> {
     pub(crate) fn max_relative_shape_id(&self) -> Option<usize> {
         match self {

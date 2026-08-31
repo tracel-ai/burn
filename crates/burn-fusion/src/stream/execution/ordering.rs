@@ -125,17 +125,23 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
     /// Guarantee forward progress after a panic escaped the strategy walk.
     ///
-    /// Every unit of work counts its operations *before* it runs, so an
-    /// escape normally leaves at least one consumed and the queue shrinks. A
-    /// panic raised before the first count — one of the strategy walk's own
-    /// guards — consumes nothing, and an unchanged queue is not a safe place
-    /// to stop: the policy re-plans it identically, re-selects the same
-    /// strategy and raises the same panic, without end.
+    /// Every unit of work counts its operations *before* it runs, so an escape
+    /// normally leaves at least one consumed and the queue shrinks. One that
+    /// consumes nothing is not a safe place to stop: the policy re-plans the
+    /// identical queue, re-selects the same strategy and raises the same panic,
+    /// without end — a silent hang, which is a worse outcome than the panic it
+    /// replaced.
     ///
-    /// So the block the strategy was going to run is consumed as one unit.
-    /// `planned` is that block's length; nothing in it ran, so the claim on
-    /// its write set is honest, and the caller reports it exactly as any
-    /// other failure.
+    /// Nothing is known to reach here any more. The guard this was written for
+    /// is gone: a plan that does not fit its segment is now replaced before the
+    /// walk begins, so an out-of-range index cannot be raised part way through,
+    /// and every other failure happens inside a scope that counts first. This
+    /// stays because the argument for deleting it is that no panic escapes,
+    /// which is exactly the kind of claim that stops being true quietly — and
+    /// what it costs is one comparison against what it prevents.
+    ///
+    /// `planned` is the block the strategy was going to run, consumed as one
+    /// unit; nothing in it ran, so a claim on its write set is honest.
     pub(crate) fn consume_stalled(&mut self, planned: usize) {
         if self.num_executed > 0 {
             return;
@@ -150,17 +156,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         context: &mut Context<R::FusionHandle>,
         ordering: Arc<Vec<usize>>,
     ) {
-        if ordering.len() > self.operations.len() {
-            panic!(
-                "Ordering is bigger than operations: ordering len {}, operations len {}, \
-                 num_executed {}, optimization len {}, ordering {:?}",
-                ordering.len(),
-                self.operations.len(),
-                self.num_executed,
-                optimization.len(),
-                ordering,
-            );
-        }
         self.ordering = Some(ordering.clone());
         let num_drained = optimization.len();
         // Counted before the call rather than after, so an unwind out of

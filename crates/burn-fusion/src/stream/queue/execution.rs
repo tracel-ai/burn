@@ -84,6 +84,39 @@ impl<R: FusionRuntime> OperationQueue<R> {
         handles: &mut HandleContainer<R::FusionHandle>,
         stream_id: StreamId,
     ) {
+        // A plan names operation indices in the stream it was cached from, and
+        // is matched against one it did not run on. Checked here, once, because
+        // this is the last point where a plan that does not fit can be replaced
+        // rather than survived: past it the indices are used inside the walk,
+        // where an out-of-range one panics outside every scope — nothing knows
+        // what it was going to write, so nothing can say why those tensors hold
+        // no data.
+        //
+        // The answer is not to claim them. The operations are all still here
+        // and every one of them can run; only the plan for running them
+        // together was wrong. So they run in submission order, which is always
+        // a legal order, and the failure costs fusion rather than the work.
+        if let Some(max) = step.strategy.max_index()
+            && max >= self.operations.len()
+        {
+            log::error!(
+                "a plan named operation {max} in a segment of {}; running its operations \
+                 unfused in submission order",
+                self.operations.len(),
+            );
+
+            let ordering: Vec<usize> = (0..self.operations.len()).collect();
+            let mut unfused = BlockOptimization::new(
+                ExecutionStrategy::Operations {
+                    ordering: Arc::new(ordering.clone()),
+                },
+                ordering,
+            );
+            // Terminates: the replacement names only indices below
+            // `operations.len()`, so it cannot take this branch again.
+            return self.execute_block_optimization(&mut unfused, handles, stream_id);
+        }
+
         log_execution_table(stream_id, &step.strategy, &self.global);
 
         let operations = core::mem::take(&mut self.operations);

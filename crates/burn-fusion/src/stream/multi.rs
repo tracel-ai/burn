@@ -1226,14 +1226,13 @@ mod tests {
         assert!(setup.handles.has_errors(), "the tensor still carries it");
     }
 
-    /// A panic can escape the strategy walk *before* any unit of work has
-    /// counted its operations — the walk's own guards do exactly that. The
-    /// queue must still shrink: handing it back unchanged lets the policy
-    /// re-plan it identically, re-select the same strategy and raise the same
-    /// panic, without end. The block is consumed as one unit instead, so the
-    /// failure is reported once and the stream moves on.
+    /// A plan names operation indices in the stream it was cached from, and is
+    /// matched against one it did not run on, so the indices are a claim rather
+    /// than a fact. One that does not fit costs fusion, not the work: the
+    /// operations are all still here, so they run in submission order, which is
+    /// always a legal order.
     #[test]
-    fn a_panic_before_any_work_is_counted_still_drains_the_block() {
+    fn a_plan_that_does_not_fit_runs_its_operations_unfused() {
         use crate::search::BlockOptimization;
         use crate::stream::store::ExecutionStrategy;
 
@@ -1249,9 +1248,7 @@ mod tests {
             .expect("the registration created the stream");
         assert_eq!(stream.queue.global.len(), 1, "one operation queued");
 
-        // An ordering longer than the queue. `execute_optimization` guards
-        // against exactly this and panics on it — before it counts anything,
-        // which is the case the queue would otherwise hand back untouched.
+        // A plan naming three operations against a segment holding one.
         let ordering = vec![0, 1, 2];
         let optimization = BlockOptimization::new(
             ExecutionStrategy::Optimization {
@@ -1274,11 +1271,15 @@ mod tests {
 
         assert!(
             stream.queue.global.is_empty() && stream.queue.operations.is_empty(),
-            "the block was consumed, so the next pass cannot re-select it"
+            "the segment was consumed, so the next pass cannot re-select it"
         );
         assert!(
-            setup.handles.error(&t1).is_some(),
-            "and nothing ran, so its output carries the failure"
+            setup.handles.has_handle(&t1),
+            "and the operation ran: an unfitting plan must not cost the work"
+        );
+        assert!(
+            !setup.handles.has_errors(),
+            "nothing failed, so nothing is claimed"
         );
     }
 
@@ -1874,13 +1875,12 @@ mod tests {
         );
     }
 
-    /// The backstop in `run_strategy`. Each unit of work catches its own
-    /// panic, so nothing should unwind out of the strategy walk — but a plan
-    /// that does not fit the stream it matched can panic in the walk itself,
-    /// and that frame is the only one still holding the queue's lists. They
-    /// have to come back, or the next plan to match indexes into the gap.
+    /// The same check covers an unfused plan whose ordering names an operation
+    /// the segment does not have. Nothing indexes past the end part way through
+    /// the walk, where the panic would be raised outside every scope with
+    /// nothing able to say what it left unwritten.
     #[test]
-    fn a_panic_escaping_the_strategy_leaves_the_queue_usable() {
+    fn an_out_of_range_ordering_never_reaches_the_walk() {
         use crate::search::BlockOptimization;
         use crate::stream::store::ExecutionStrategy;
 
@@ -1891,8 +1891,7 @@ mod tests {
         setup.register_exp(t0, t1);
         setup.register_exp(t1, t2);
 
-        // Two operations queued, a plan naming a third: the first runs, then
-        // the walk indexes past the end of the segment.
+        // Two operations queued, a plan naming a third.
         let ordering = vec![0, 2];
         let strategy = ExecutionStrategy::Operations {
             ordering: std::sync::Arc::new(ordering.clone()),
@@ -1910,20 +1909,14 @@ mod tests {
             );
         }));
 
-        assert!(escaped.is_ok(), "the panic does not reach the caller");
+        assert!(escaped.is_ok(), "nothing panics");
         assert!(
-            setup.handles.has_handle(&t1),
-            "an output that was written is left alone: nothing says the \
-             failure came from the operation that wrote it"
+            setup.handles.has_handle(&t1) && setup.handles.has_handle(&t2),
+            "both operations ran, in submission order"
         );
-        assert!(
-            setup.handles.error(&t2).is_some(),
-            "one that was not carries the failure"
-        );
+        assert!(!setup.handles.has_errors(), "so nothing is claimed");
 
-        // The lists came back, and in step with each other. Dropping them
-        // mid-unwind is what left `global` and `relative` describing closures
-        // that were gone, for the next plan to match and index into.
+        // The lists came back, and in step with each other.
         let queue = &setup
             .streams
             .streams
