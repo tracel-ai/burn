@@ -146,9 +146,17 @@ pub enum ExistingHandle {
     /// is not a buffer that was written, and only the work reaching its end
     /// proves the bytes are there.
     Displace,
-    /// Leave it alone. For erroring broadly — a failure that cannot say which
-    /// work it came from — where the set is known to include tensors other
-    /// work wrote and displacing them would turn one failure into several.
+    /// Leave it alone, whether it is a handle or an earlier failure. For
+    /// erroring broadly — a failure that cannot say which work it came from —
+    /// where the set is known to include tensors other work wrote, and
+    /// displacing them would turn one failure into several.
+    ///
+    /// A claim already on a tensor is kept for the same reason a handle is:
+    /// the work that made it knew its own write set, so its message names the
+    /// real cause at the real depth. Overwriting it with a broad one loses
+    /// the root that [`same_root`](TensorError::same_root) links a chain by,
+    /// and resets [`depth`](TensorError::depth) — a worse report, from a
+    /// failure that knows less.
     Keep,
 }
 
@@ -249,7 +257,7 @@ impl<H: Clone> HandleContainer<H> {
     /// — see [`ExistingHandle`], which is the whole of the choice.
     pub fn set_error(&mut self, id: TensorId, error: TensorError, existing: ExistingHandle) {
         if existing == ExistingHandle::Keep
-            && let Some(Handle::Existing(_)) = self.handles.get(&id)
+            && let Some(Handle::Existing(_) | Handle::Errored(_)) = self.handles.get(&id)
         {
             return;
         }
@@ -548,6 +556,29 @@ mod tests {
             container.error(&tid(1)).map(|error| error.root()),
             Some("the launch failed")
         );
+    }
+
+    /// A broad claim must not overwrite a precise one. The work that named a
+    /// root knew its own write set; a failure that cannot say where it came
+    /// from knows strictly less, so it defers.
+    #[test]
+    fn a_kept_claim_is_never_displaced_by_a_broader_one() {
+        let mut container = HandleContainer::<String>::new();
+        let precise = TensorError::new("the kernel failed to compile");
+        container.set_error(tid(1), precise.clone(), ExistingHandle::Displace);
+        // A tensor downstream of it, carrying the same root one hop down.
+        container.set_error(tid(2), precise.propagated(), ExistingHandle::Displace);
+
+        // The segment-wide backstop sweeps both with a message of its own.
+        let broad = TensorError::new("a panic escaped the strategy walk");
+        container.set_error(tid(1), broad.clone(), ExistingHandle::Keep);
+        container.set_error(tid(2), broad, ExistingHandle::Keep);
+
+        let one = container.error(&tid(1)).expect("still claimed");
+        let two = container.error(&tid(2)).expect("still claimed");
+        assert_eq!(one.root(), "the kernel failed to compile");
+        assert_eq!((one.depth(), two.depth()), (0, 1), "depth is not reset");
+        assert!(one.same_root(two), "the chain still links to one root");
     }
 
     /// The read is where the failure is delivered, and it must name the root
