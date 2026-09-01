@@ -3,8 +3,10 @@ use crate::{
     FusionUtilities, UnfusedOp,
     stream::{StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage};
-use burn_std::CommunicationId;
+use burn_backend::{
+    Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle,
+};
+use burn_std::{CommunicationId, device_handle::CallError};
 
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
@@ -14,7 +16,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Use a mutex to communicate with the fusion server.
 pub struct GlobalFusionClient<R: FusionRuntime> {
-    handle: DeviceHandle<FusionServer<R>>,
+    server: ServerHandle<R>,
     device: FusionDevice<R>,
 }
 
@@ -41,7 +43,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
-            handle: self.handle.clone(),
+            server: self.server.clone(),
             device: self.device.clone(),
         }
     }
@@ -54,7 +56,7 @@ where
     pub fn load(device: &FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
-            handle: DeviceHandle::new(device.to_id()),
+            server: ServerHandle::new(device.to_id()),
         }
     }
 }
@@ -69,28 +71,13 @@ where
     pub fn new(device: FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
-            handle: DeviceHandle::new(device.to_id()),
+            server: ServerHandle::new(device.to_id()),
         }
-    }
-
-    /// The server, reached at a point where a drop set aside during an unwind
-    /// can be replayed.
-    ///
-    /// Registering a drop re-enters the client, so a tensor dropped while its
-    /// thread was unwinding could not register then and was set aside instead
-    /// (see [`deferred`](crate::tensor::deferred)). Every call into the client
-    /// arrives on a normal call stack, which is the only thing those drops are
-    /// waiting for — so they are replayed here, where the caller was reaching
-    /// for the server anyway. Reaching for `self.handle` instead is what would
-    /// let one sit unreplayed.
-    fn server(&self) -> &DeviceHandle<FusionServer<R>> {
-        crate::tensor::deferred::flush();
-        &self.handle
     }
 
     pub(crate) fn tag_shared_view(&self, src_stream: StreamId, src: TensorId, dst: TensorId) {
         let _ = self
-            .server()
+            .server
             .submit_blocking(move |server| {
                 server.tag_shared_view(src_stream, src, dst);
             })
@@ -133,7 +120,7 @@ where
         if size_of::<O>() < size_of::<UnfusedOp<R>>() {
             // Here the [`O`] type is smaller than the [`UnfusedOp`] type, so it's better to
             // transfer it directly.
-            self.server().submit(move |server| {
+            self.server.submit(move |server| {
                 let operation = UnfusedOp::new(operation, stream);
                 server.register(stream, repr, operation);
             });
@@ -142,7 +129,7 @@ where
             // first create the [`UnfusedOp`] before transferring it to the server.
             let operation = UnfusedOp::new(operation, stream);
 
-            self.server().submit(move |server| {
+            self.server.submit(move |server| {
                 server.register(stream, repr, operation);
             });
         }
@@ -158,7 +145,7 @@ where
     where
         O: Operation<R> + 'static,
     {
-        self.server().submit(move |server| {
+        self.server.submit(move |server| {
             let operation = UnfusedOp::new(operation, stream);
             server.register_foreign_drop(stream, ir, operation);
         });
@@ -167,7 +154,7 @@ where
     /// Register all lazy computation.
     pub fn sync<Re: Send + 'static>(&self, sync_fn: impl FnOnce() -> Re + Send + 'static) -> Re {
         let id = StreamId::current();
-        self.server()
+        self.server
             .submit_blocking(move |server| {
                 server.drain_stream(id);
                 sync_fn()
@@ -177,7 +164,7 @@ where
 
     /// Flush the operations queue.
     pub fn flush_queue(&self) {
-        self.server().flush_queue();
+        self.server.flush_queue();
     }
 
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
@@ -195,7 +182,7 @@ where
     pub fn register_tensor_handle(&self, handle: FusionHandle<R>) -> TensorId {
         let id = self.create_empty_handle();
 
-        self.server()
+        self.server
             .submit(move |server| server.handles.register_handle(id, handle));
 
         id
@@ -210,7 +197,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server()
+        self.server
             .submit_blocking(move |server| server.float_data::<B>(tensor, stream))
             .unwrap()
     }
@@ -224,7 +211,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server()
+        self.server
             .submit_blocking(move |server| server.int_data::<B>(tensor, stream))
             .unwrap()
     }
@@ -238,7 +225,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server()
+        self.server
             .submit_blocking(move |server| server.bool_data::<B>(tensor, stream))
             .unwrap()
     }
@@ -252,7 +239,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server()
+        self.server
             .submit_blocking(move |server| server.quantized_data::<B>(tensor, stream))
             .unwrap()
     }
@@ -273,13 +260,13 @@ where
         let id = client_src.create_empty_handle();
 
         let float_tensor = client_src
-            .server()
+            .server
             .submit_blocking(move |server_src| server_src.read_float::<B>(tensor, stream))
             .unwrap();
         match float_tensor {
             Ok(float_tensor) => {
                 let float_tensor = B::float_to_device(float_tensor, client_dst.device());
-                client_dst.server().submit(move |server_dst| {
+                client_dst.server.submit(move |server_dst| {
                     server_dst
                         .handles
                         .register_float_tensor::<B>(&id, float_tensor.clone());
@@ -292,7 +279,7 @@ where
             // cause, one hop further down.
             Err(error) => {
                 let error = error.propagated();
-                client_dst.server().submit(move |server_dst| {
+                client_dst.server.submit(move |server_dst| {
                     server_dst.handles.set_error(id, error);
                 });
             }
@@ -317,13 +304,13 @@ where
         let id = client_src.create_empty_handle();
 
         let int_tensor = client_src
-            .server()
+            .server
             .submit_blocking(move |server_src| server_src.read_int::<B>(tensor, stream))
             .unwrap();
         match int_tensor {
             Ok(int_tensor) => {
                 let int_tensor = B::int_to_device(int_tensor, client_dst.device());
-                client_dst.server().submit(move |server_dst| {
+                client_dst.server.submit(move |server_dst| {
                     server_dst
                         .handles
                         .register_int_tensor::<B>(&id, int_tensor.clone());
@@ -336,7 +323,7 @@ where
             // cause, one hop further down.
             Err(error) => {
                 let error = error.propagated();
-                client_dst.server().submit(move |server_dst| {
+                client_dst.server.submit(move |server_dst| {
                     server_dst.handles.set_error(id, error);
                 });
             }
@@ -361,13 +348,13 @@ where
         let id = client_src.create_empty_handle();
 
         let bool_tensor = client_src
-            .server()
+            .server
             .submit_blocking(move |server_src| server_src.read_bool::<B>(tensor, stream))
             .unwrap();
         match bool_tensor {
             Ok(bool_tensor) => {
                 let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device());
-                client_dst.server().submit(move |server_dst| {
+                client_dst.server.submit(move |server_dst| {
                     server_dst
                         .handles
                         .register_bool_tensor::<B>(&id, bool_tensor.clone());
@@ -380,7 +367,7 @@ where
             // cause, one hop further down.
             Err(error) => {
                 let error = error.propagated();
-                client_dst.server().submit(move |server_dst| {
+                client_dst.server.submit(move |server_dst| {
                     server_dst.handles.set_error(id, error);
                 });
             }
@@ -405,13 +392,13 @@ where
         let id = client_src.create_empty_handle();
 
         let q_tensor = client_src
-            .server()
+            .server
             .submit_blocking(move |server_src| server_src.read_quantized::<B>(tensor, stream))
             .unwrap();
         match q_tensor {
             Ok(q_tensor) => {
                 let q_tensor = B::q_to_device(q_tensor, client_dst.device());
-                client_dst.server().submit(move |server_dst| {
+                client_dst.server.submit(move |server_dst| {
                     server_dst
                         .handles
                         .register_quantized_tensor::<B>(&id, q_tensor.clone());
@@ -424,7 +411,7 @@ where
             // cause, one hop further down.
             Err(error) => {
                 let error = error.propagated();
-                client_dst.server().submit(move |server_dst| {
+                client_dst.server.submit(move |server_dst| {
                     server_dst.handles.set_error(id, error);
                 });
             }
@@ -443,7 +430,7 @@ where
         // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        self.server()
+        self.server
             .submit_blocking(move |server| {
                 server.drain_stream(stream);
                 server.resolve_server_float::<B>(&tensor)
@@ -461,7 +448,7 @@ where
         // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        self.server()
+        self.server
             .submit_blocking(move |server| {
                 server.drain_stream(stream);
                 server.resolve_server_int::<B>(&tensor)
@@ -479,7 +466,7 @@ where
         // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        self.server()
+        self.server
             .submit_blocking(move |server| {
                 server.drain_stream(stream);
                 server.resolve_server_bool::<B>(&tensor)
@@ -504,7 +491,7 @@ where
         B: FusionBackend<FusionRuntime = R>,
     {
         let utilities = self
-            .server()
+            .server
             .utilities()
             .downcast::<FusionUtilities>()
             .expect("Can downcast to `FusionUtilities`");
@@ -519,5 +506,60 @@ where
             let mut initialized_comms = utilities.initialized_comms.write();
             initialized_comms.insert(id);
         }
+    }
+}
+
+/// The client's one door to the server.
+///
+/// Registering a drop re-enters the client, so a tensor dropped while its
+/// thread was unwinding could not register then and was set aside instead (see
+/// [`deferred`](crate::tensor::deferred)). What those drops are waiting for is
+/// a normal call stack, which is what every call into the client arrives on —
+/// so each method here replays them before it carries the caller's work.
+///
+/// The client holds this rather than a [`DeviceHandle`] so that there is no
+/// bare handle to reach past: a call that skipped the replay would leave a
+/// tensor's entry, and any claim on it, outliving every tensor that could
+/// report it.
+struct ServerHandle<R: FusionRuntime> {
+    handle: DeviceHandle<FusionServer<R>>,
+}
+
+impl<R: FusionRuntime> Clone for ServerHandle<R> {
+    fn clone(&self) -> Self {
+        Self {
+            handle: self.handle.clone(),
+        }
+    }
+}
+
+impl<R: FusionRuntime + 'static> ServerHandle<R> {
+    fn new(device_id: DeviceId) -> Self {
+        Self {
+            handle: DeviceHandle::new(device_id),
+        }
+    }
+
+    fn submit<T: FnOnce(&mut FusionServer<R>) + Send + 'static>(&self, task: T) {
+        crate::tensor::deferred::flush();
+        self.handle.submit(task);
+    }
+
+    fn submit_blocking<'a, Out: Send, T: FnOnce(&mut FusionServer<R>) -> Out + Send + 'a>(
+        &self,
+        task: T,
+    ) -> Result<Out, CallError> {
+        crate::tensor::deferred::flush();
+        self.handle.submit_blocking(task)
+    }
+
+    fn flush_queue(&self) {
+        crate::tensor::deferred::flush();
+        self.handle.flush_queue();
+    }
+
+    fn utilities(&self) -> ServerUtilitiesHandle {
+        crate::tensor::deferred::flush();
+        self.handle.utilities()
     }
 }
