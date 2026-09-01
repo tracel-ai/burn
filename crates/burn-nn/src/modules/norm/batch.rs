@@ -429,6 +429,30 @@ mod tests_2d {
     }
 
     #[test]
+    fn enabling_gradients_does_not_make_running_statistics_trainable() {
+        use burn::module::ParamGroup;
+
+        let device = Device::default().autodiff();
+        let module = BatchNormConfig::new(3).init(&device).freeze();
+        let group = ParamGroup::ids_from_module(module.clone());
+
+        let module = module.set_require_grad_group(group, true);
+
+        assert!(module.gamma.is_require_grad());
+        assert!(module.beta.is_require_grad());
+        assert!(!module.training.is_enabled());
+        assert!(!module.running_mean.value_sync().is_require_grad());
+        assert!(!module.running_var.value_sync().is_require_grad());
+
+        let grads = module.forward(input_tensor(&device)).sum().backward();
+
+        assert!(module.gamma.grad(&grads).is_some());
+        assert!(module.beta.grad(&grads).is_some());
+        assert!(module.running_mean.value_sync().grad(&grads).is_none());
+        assert!(module.running_var.value_sync().grad(&grads).is_none());
+    }
+
+    #[test]
     fn freezing_only_gamma_keeps_batch_norm_training_behavior() {
         use burn::module::ParamGroup;
 
