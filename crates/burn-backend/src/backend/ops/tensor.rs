@@ -110,24 +110,34 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
-    /// Computes the singular value decomposition of a batched matrix,
-    /// returning the factors `(U, S, Vt)` with
-    /// `A = U @ diag(S) @ Vt`, singular values sorted descending.
+    /// Computes the reduced singular value decomposition of a batch of matrices.
     ///
-    /// The default implementation pulls the tensor to the host and runs the
-    /// reference scalar pipeline ([`svd_host_data`](crate::backend::ops::svd::svd_host_data)).
-    /// Backends may override this method with a native or fused
-    /// implementation. Panics when the fallback cannot read the input data or
-    /// its QR iteration does not converge within the requested sweep budget.
+    /// For an input of shape `[..., m, n]`, where `m >= n`, returns `(u, s, vt)`
+    /// with non-negative singular values in descending order. When `swap` is
+    /// false, the factors have shapes `[..., m, n]`, `[..., n]`, and
+    /// `[..., n, n]`, respectively, and reconstruct the input as
+    /// `u @ diag(s) @ vt`.
+    ///
+    /// When `swap` is true, the input is the transpose of the original wide
+    /// matrix. The returned factors reconstruct that original matrix and have
+    /// shapes `[..., n, n]`, `[..., n]`, and `[..., n, m]`, respectively.
+    ///
+    /// The returned tensors must use the same dtype and device as the input.
+    /// The default implementation synchronously transfers the input to the
+    /// host, computes the decomposition there, and transfers the factors back
+    /// to the input device. Backends may override it with a native implementation.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The input tensor of shape `[..., m, n]` with `m >= n`
-    ///   (wide inputs are transposed by the caller, `swap` reports it).
-    /// * `sweeps` - Upper bound on QR sweeps per singular value.
-    /// * `swap` - Whether the input was transposed (wide input): factor
-    ///   layout follows the `linalg::svd` convention, U is `[..., n, n]` and
-    ///   Vt is `[..., n, m]` instead of `[..., m, n]` / `[..., n, n]`.
+    /// * `tensor` - The input tensor of shape `[..., m, n]`, with `m >= n`.
+    /// * `sweeps` - Maximum number of QR sweeps per singular value.
+    /// * `swap` - Whether `tensor` is the transpose of the matrix being decomposed.
+    ///
+    /// # Panics
+    ///
+    /// The default implementation panics if the input cannot be read
+    /// synchronously or if the QR iteration does not converge within the
+    /// requested sweep budget.
     fn float_svd(
         tensor: FloatTensor<B>,
         sweeps: usize,

@@ -302,7 +302,7 @@ fn test_svd_panics_on_bad_generic_rank() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "input tensor for SVD decomposition")]
 fn test_svd_panics_on_1d_input() {
     let device = Default::default();
     let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0], &device);

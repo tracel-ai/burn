@@ -1358,7 +1358,25 @@ impl TensorCheck {
         dims: &[usize],
         dtype: DType,
     ) -> Self {
-        let mut check = Self::lu_input_tensor::<D>(ops, dims, dtype);
+        let mut check = TensorCheck::Ok;
+
+        if matches!(dtype, DType::QFloat(_)) {
+            check = check.register(
+                ops,
+                TensorError::new("The input tensor must have a real float dtype")
+                    .details("Got an input tensor with a quantized float dtype".to_string()),
+            );
+        }
+
+        if dims.len() < 2 {
+            check = check.register(
+                ops,
+                TensorError::new(
+                    "The input tensor for SVD decomposition must have at least two dimensions.",
+                )
+                .details(format!("Got input tensor with {} dimensions", dims.len())),
+            );
+        }
 
         if D1 != D - 1 {
             check = check.register(

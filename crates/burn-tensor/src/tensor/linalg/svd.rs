@@ -151,7 +151,7 @@ pub fn svd<const D: usize, const D1: usize>(
     // implementation runs the reference host pipeline on the pulled data,
     // which keeps this deterministic and backend-independent. The backend
     // returns the factors already sorted, permuted and swapped; its
-    // dims follow the orientation (swap -> u is [..., n, n], vt is [..., m, n]).
+    // dims follow the orientation (swap -> u is [..., n, n], vt is [..., n, m]).
     let (u, s, vt) = crate::ops::svd(a.primitive, sweeps, swap);
     let result = (
         Tensor::<D>::new(u),
