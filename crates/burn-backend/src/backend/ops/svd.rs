@@ -14,7 +14,6 @@ use burn_std::{DType, ExecutionError, TensorData, backtrace::BackTrace};
 use num_traits::float::Float;
 
 type SvdFactors<F> = (Vec<F>, Vec<F>, Vec<F>);
-type BidiagonalSvd<F> = (Vec<F>, Vec<F>, Vec<GivensRotation<F>>);
 
 /// Run the full host pipeline over tensor data and return the three factors
 /// as data. Layout and dims follow the `swap` convention of
@@ -96,6 +95,8 @@ fn svd_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
     let mut vt = vec![F::zero(); batch * n * n];
     let mut d = vec![F::zero(); n];
     let mut e = vec![F::zero(); n.saturating_sub(1)];
+    let mut givens = Vec::new();
+    let mut order: Vec<usize> = (0..n).collect();
 
     for b in 0..batch {
         let ab = &a[b * m * n..(b + 1) * m * n];
@@ -117,14 +118,15 @@ fn svd_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
         for i in 0..n.saturating_sub(1) {
             e[i] = bv[i * n + i + 1];
         }
-        let Some((sigma_b, d_final, givens_b)) = dbdsqr_host(&d, &e, max_sweeps) else {
+        givens.clear();
+        if dbdsqr(&mut d, &mut e, &mut givens, max_sweeps).is_none() {
             return Err(b);
-        };
+        }
 
         // Apply both the left (U) and right (Vt) rotations in one pass over
         // the givens list: each entry touches one row pair of each factor, so
         // a single loop keeps the rotation data in cache for both matrices.
-        for &(k, cl, sl, cr, sr) in &givens_b {
+        for &(k, cl, sl, cr, sr) in &givens {
             let (k_u, k1_u) = (k * m, (k + 1) * m);
             let (k_v, k1_v) = (k * n, (k + 1) * n);
             for i in 0..m {
@@ -138,10 +140,15 @@ fn svd_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
                 v1[k1_v + i] = -sr * a0 + cr * b0;
             }
         }
-        let (ub, sb, vtb) = svd_postprocess(&u1t, &v1, &sigma_b, &d_final, m, n, 1);
-        u[b * m * n..(b + 1) * m * n].copy_from_slice(&ub);
-        sigma[b * n..(b + 1) * n].copy_from_slice(&sb);
-        vt[b * n * n..(b + 1) * n * n].copy_from_slice(&vtb);
+        svd_postprocess(
+            &u1t,
+            &v1,
+            &d,
+            &mut u[b * m * n..(b + 1) * m * n],
+            &mut sigma[b * n..(b + 1) * n],
+            &mut vt[b * n * n..(b + 1) * n * n],
+            &mut order,
+        );
     }
     if swap {
         // The SVD was computed on A^T ([n, m]); the factors for the original
@@ -167,80 +174,50 @@ fn svd_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
     }
 }
 
-/// LAPACK dbdsqr-style shifted QR iteration on an upper bidiagonal matrix
-/// (main diagonal `d`, superdiagonal `e`). Returns the singular values, the
-/// final diagonal (signs are absorbed into U by the caller) and the Givens
-/// rotations `(k, cosl, sinl, cosr, sinr)` in application order so the
-/// caller can rebuild the singular vectors, or `None` on non-convergence.
-fn dbdsqr_host<F: Float + Copy>(d: &[F], e: &[F], max_sweeps: usize) -> Option<BidiagonalSvd<F>> {
-    let mut d = d.to_vec();
-    let mut e = e.to_vec();
-    let mut givens: Vec<GivensRotation<F>> = Vec::new();
-    let sigma = dbdsqr(&mut d, &mut e, &mut givens, max_sweeps)?;
-    Some((sigma, d, givens))
-}
-
 /// Sort the singular values descending, permute the factors and absorb the
 /// diagonal signs into U.
 ///
 /// Inputs are the transposed factor buffers (columns of U1 as rows of
-/// `u1t`, rows of V1 as rows of `v1t`), the raw diagonal `d` from dbdsqr
-/// (signs are absorbed into U) and the singular values. Output is the final
-/// row-major `(u, sigma, vt)` in the `linalg::svd` layout (the wide-input
-/// swap is applied by the caller).
+/// `u1t`, rows of V1 as rows of `v1t`) and the converged diagonal `d` from
+/// dbdsqr. The final row-major factors are written directly into `u`, `sigma`,
+/// and `vt`; the wide-input swap is applied by the caller.
 fn svd_postprocess<F: Float + Copy>(
     u1t: &[F],
     v1t: &[F],
-    sigma_in: &[F],
     d: &[F],
-    m: usize,
-    n: usize,
-    batch: usize,
-) -> (Vec<F>, Vec<F>, Vec<F>) {
-    let mut u = vec![F::zero(); batch * m * n];
-    let mut sigma = sigma_in.to_vec();
-    let mut vt = vec![F::zero(); batch * n * n];
-    let mut order: Vec<usize> = Vec::with_capacity(n);
-    let mut sorted = vec![F::zero(); n];
-    for b in 0..batch {
-        let u1t_b = &u1t[b * m * n..(b + 1) * m * n];
-        let v1t_b = &v1t[b * n * n..(b + 1) * n * n];
-        let sigma_b = &sigma[b * n..(b + 1) * n];
-        let d_b = &d[b * n..(b + 1) * n];
-        order.clear();
-        order.extend(0..n);
-        // Indices are compared by value only, so stability is irrelevant;
-        // sort_unstable avoids the O(n) scratch allocation of stable sort.
-        order.sort_unstable_by(|&i, &j| {
-            sigma_b[j]
-                .partial_cmp(&sigma_b[i])
-                .unwrap_or(core::cmp::Ordering::Equal)
-        });
-        // Apply the permutation while copying: in the transposed layout the
-        // column permutation of U is a row permutation of U1t, and the row
-        // permutation of Vt is a row permutation of V1t, so the factors land
-        // in the output tensors directly (no intermediate permute buffers).
-        // Negative diagonal entries (the dbdsqr sign convention) are
-        // absorbed into U.
-        for (t, &src) in order.iter().enumerate() {
-            let flip = d_b[src] < F::zero();
-            for i in 0..m {
-                u[b * m * n + i * n + t] = if flip {
-                    -u1t_b[src * m + i]
-                } else {
-                    u1t_b[src * m + i]
-                };
-            }
-            for i in 0..n {
-                vt[b * n * n + t * n + i] = v1t_b[src * n + i];
-            }
-            sorted[t] = sigma_b[src];
+    u: &mut [F],
+    sigma: &mut [F],
+    vt: &mut [F],
+    order: &mut [usize],
+) {
+    let n = d.len();
+    if n == 0 {
+        return;
+    }
+    let m = u.len() / n;
+
+    order.sort_unstable_by(|&i, &j| {
+        d[j].abs()
+            .partial_cmp(&d[i].abs())
+            .unwrap_or(core::cmp::Ordering::Equal)
+    });
+
+    // In the transposed layout, permuting U columns and Vt rows means copying
+    // rows from u1t and v1t. Absorb the diagonal signs into U while copying.
+    for (dest, &src) in order.iter().enumerate() {
+        let flip = d[src] < F::zero();
+        for i in 0..m {
+            u[i * n + dest] = if flip {
+                -u1t[src * m + i]
+            } else {
+                u1t[src * m + i]
+            };
         }
         for i in 0..n {
-            sigma[b * n + i] = sorted[i];
+            vt[dest * n + i] = v1t[src * n + i];
         }
+        sigma[dest] = d[src].abs();
     }
-    (u, sigma, vt)
 }
 
 /// Scaled norm sqrt(sum x^2) over `len` entries produced by `x`, computed
@@ -417,17 +394,16 @@ fn bidiag_host<F: Float + Copy + core::ops::AddAssign + core::ops::SubAssign>(
     (u1, a, v1)
 }
 
-/// LAPACK dbdsqr-style shifted QR iteration on an upper bidiagonal matrix
-/// (main diagonal `d`, superdiagonal `e`). Returns the singular values and
-/// logs the Givens rotations (k, cosl, sinl, cosr, sinr) in application
-/// order so the caller can rebuild the singular vectors. Returns `None` when
-/// an active block remains after the sweep budget is exhausted.
+/// LAPACK dbdsqr-style shifted QR iteration on an upper bidiagonal matrix.
+/// Mutates `d` to the signed singular values and logs the Givens rotations in
+/// application order so the caller can rebuild the singular vectors. Returns
+/// `None` when an active block remains after the sweep budget is exhausted.
 fn dbdsqr<F: Float + Copy>(
     d: &mut [F],
     e: &mut [F],
     givens: &mut Vec<GivensRotation<F>>,
     max_sweeps: usize,
-) -> Option<Vec<F>> {
+) -> Option<()> {
     let n = d.len();
     let eps = F::epsilon();
     let tol = eps * F::from(10.0).unwrap();
@@ -436,7 +412,7 @@ fn dbdsqr<F: Float + Copy>(
         smax = smax.max(x.abs());
     }
     if smax == F::zero() {
-        return Some(d.iter().map(|x| x.abs()).collect());
+        return Some(());
     }
     let mut m = n;
     let mut iters = 0;
@@ -458,31 +434,15 @@ fn dbdsqr<F: Float + Copy>(
         if iters >= max_iters {
             return None;
         }
-        // Wilkinson-style shift from the bottom 2x2 block of B^T B. LAPACK
-        // dbdsqr uses the SMALLER root (DLAS2 SSMIN) as the shift: the larger
-        // root also converges, but loses relative accuracy on smaller singular
-        // values at extreme dynamic range (errors scale with eps * smax, not
-        // eps * sigma, for sigma far below smax). For f32 inputs the closed
-        // form carries ~1e-5 error, which exceeds the deflation threshold
-        // (10 eps) and stalls 2x2 blocks on rounding boundaries; computing
-        // the shift in f64 keeps it exact.
-        let shift = if core::mem::size_of::<F>() == 4 {
-            let d1 = d[m - 2].to_f64().unwrap();
-            let e1 = e[m - 2].to_f64().unwrap();
-            let d2 = d[m - 1].to_f64().unwrap();
-            let t = d1 * d1 + d2 * d2 + e1 * e1;
-            let disc = (t * t - 4.0 * d1 * d1 * d2 * d2).max(0.0).sqrt();
-            let smax = ((t + disc) / 2.0).max(0.0).sqrt();
-            let smin = if smax > 0.0 {
-                // |d1 d2| / smax, factored so the product cannot overflow.
-                d1.abs() * (d2.abs() / smax)
-            } else {
-                0.0
-            };
-            F::from(smin).unwrap()
-        } else {
-            dlas2_smin(d[m - 2], e[m - 2], d[m - 1])
-        };
+        // LAPACK dbdsqr uses the smaller singular value of the trailing 2x2
+        // block as its shift. Compute it in f64 so f32 rounding cannot stall
+        // deflation near the tolerance boundary.
+        let shift = F::from(dlas2_smin(
+            d[m - 2].to_f64().unwrap(),
+            e[m - 2].to_f64().unwrap(),
+            d[m - 1].to_f64().unwrap(),
+        ))
+        .unwrap();
         // One QR sweep over the block. The starting value is the first column
         // of (B - shift I) scaled for stability; with d[ll] exactly zero the
         // formula diverges, so take its finite proxy (-shift, direction of
@@ -515,10 +475,10 @@ fn dbdsqr<F: Float + Copy>(
         e[m - 2] = f;
         iters += 1;
     }
-    Some(d.iter().map(|x| x.abs()).collect())
+    Some(())
 }
 
-/// A single Givens rotation produced by [`dbdsqr_host`]: the pivot column
+/// A single Givens rotation produced by [`dbdsqr`]: the pivot column
 /// pair and the four rotation coefficients (cosl, sinl, cosr, sinr).
 type GivensRotation<F> = (usize, F, F, F, F);
 
@@ -526,10 +486,10 @@ type GivensRotation<F> = (usize, F, F, F, F);
 /// dbdsqr shift. SSMIN = |d1 d2| / SSMAX is exact (the roots of the trailing
 /// 2x2 of B^T B multiply to d1^2 d2^2), and dividing after scaling keeps both
 /// the product and the quotient free of overflow/underflow.
-fn dlas2_smin<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
+fn dlas2_smin(d1: f64, e1: f64, d2: f64) -> f64 {
     let smax = dlas2_smax(d1, e1, d2);
-    if smax == F::zero() {
-        F::zero()
+    if smax == 0.0 {
+        0.0
     } else {
         (d1 * (d2 / smax)).abs()
     }
@@ -537,26 +497,24 @@ fn dlas2_smin<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
 
 /// Largest singular value of the 2x2 block [[d1, e1], [0, d2]]. Scaled like
 /// LAPACK dlas2: no overflow or underflow on the intermediate squares.
-fn dlas2_smax<F: Float + Copy>(d1: F, e1: F, d2: F) -> F {
+fn dlas2_smax(d1: f64, e1: f64, d2: f64) -> f64 {
     let t = d1 * d1 + d2 * d2 + e1 * e1;
-    let disc = t * t - F::from(4.0).unwrap() * d1 * d1 * d2 * d2;
+    let disc = t * t - 4.0 * d1 * d1 * d2 * d2;
     // Fast path only when the discriminant is computable: for f64 entries in
     // ~[7.7e76, 1.3e154], t is finite but t*t overflows, and max(NaN, 0) = 0
     // would silently return a wrong (low or inf) result. disc < 0 is normal
     // (rounding) and clamps to 0; only non-finite values need the scaled path.
     if t.is_finite() && disc.is_finite() {
-        ((t + disc.max(F::zero()).sqrt()) / F::from(2.0).unwrap())
-            .max(F::zero())
-            .sqrt()
+        ((t + disc.max(0.0).sqrt()) / 2.0).max(0.0).sqrt()
     } else {
         let scale = d1.abs().max(d2.abs()).max(e1.abs());
-        if scale == F::zero() {
-            return F::zero();
+        if scale == 0.0 {
+            return 0.0;
         }
         let (a, b, c) = (d1 / scale, d2 / scale, e1 / scale);
         let t = a * a + b * b + c * c;
-        let disc = (t * t - F::from(4.0).unwrap() * a * a * b * b).max(F::zero());
-        scale * ((t + disc.sqrt()) / F::from(2.0).unwrap()).sqrt()
+        let disc = (t * t - 4.0 * a * a * b * b).max(0.0);
+        scale * ((t + disc.sqrt()) / 2.0).sqrt()
     }
 }
 
@@ -588,6 +546,10 @@ mod tests {
     /// generation, and the sweep budget bail-out.
     #[test]
     fn test_svd_host_numeric_guards() {
+        let run_dbdsqr = |mut d: Vec<f64>, mut e: Vec<f64>, sweeps| {
+            dbdsqr(&mut d, &mut e, &mut Vec::new(), sweeps)
+        };
+
         // dlas2_smax: all-zero block and an f64 block whose squares would
         // overflow (t ~ 3e400) force the scaled path.
         assert_eq!(dlas2_smax(0.0f64, 0.0, 0.0), 0.0);
@@ -602,7 +564,7 @@ mod tests {
         assert!((c * c + s * s - 1.0).abs() < 1e-5, "({c}, {s})");
         // An active block cannot be returned as a completed SVD when no QR
         // sweeps are available.
-        assert!(dbdsqr_host(&[3.0f64, 1.0], &[0.5], 0).is_none());
+        assert!(run_dbdsqr(vec![3.0, 1.0], vec![0.5], 0).is_none());
 
         // The host batch boundary reports the first matrix that did not
         // converge. Batch 0 is already diagonal; batch 1 needs a QR sweep.
@@ -612,7 +574,7 @@ mod tests {
         // A positive budget can also be exhausted; partial factors must not
         // be returned as a completed decomposition.
         assert!(
-            dbdsqr_host(&[1.0f64; 6], &[1.0f64; 5], 1).is_none(),
+            run_dbdsqr(vec![1.0; 6], vec![1.0; 5], 1).is_none(),
             "one sweep per singular value should be insufficient"
         );
     }
