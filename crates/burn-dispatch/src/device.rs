@@ -206,28 +206,6 @@ pub enum GradientCheckpointingStrategy {
     Disabled,
 }
 
-#[cfg(feature = "autodiff")]
-pub(crate) fn validate_checkpointing(
-    lhs: Option<crate::GradientCheckpointingStrategy>,
-    rhs: Option<crate::GradientCheckpointingStrategy>,
-) -> Option<crate::GradientCheckpointingStrategy> {
-    match (lhs, rhs) {
-        (Some(lhs), Some(rhs)) => {
-            assert_eq!(
-                lhs, rhs,
-                "Gradient checkpointing strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
-            );
-            Some(lhs)
-        }
-        (None, None) => None,
-        // When tensors are created on non-autodiff device there is no checkpointing, but
-        // tensor created with autodiff which moved out (`tensor.inner()`) will still carry the state.
-        // In such cases, we can "promote" the checkpointing.
-        (None, rhs) => rhs,
-        (lhs, None) => lhs,
-    }
-}
-
 impl core::fmt::Debug for DispatchDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

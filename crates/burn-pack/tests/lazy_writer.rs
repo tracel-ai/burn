@@ -390,3 +390,32 @@ fn a_failing_provider_does_truncate_an_existing_file_in_place() {
         original.len()
     );
 }
+
+/// Publishing by rename hands the destination a new inode, which would otherwise carry the
+/// process umask: a container whose permissions were deliberately narrowed must not come back
+/// readable to everyone after a re-save.
+#[cfg(unix)]
+#[test]
+fn an_atomic_write_keeps_the_permissions_of_the_container_it_replaces() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .write_to_file_atomic(&dest)
+        .unwrap();
+    std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .write_to_file_atomic(&dest)
+        .unwrap();
+
+    assert_eq!(
+        std::fs::metadata(&dest).unwrap().permissions().mode() & 0o777,
+        0o600,
+        "the rewrite republished the container at the process umask"
+    );
+}

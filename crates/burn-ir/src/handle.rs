@@ -1,5 +1,5 @@
-use portable_atomic_util::Arc;
 use burn_backend::ExecutionError;
+use burn_std::sync::Arc;
 use hashbrown::HashMap;
 
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};

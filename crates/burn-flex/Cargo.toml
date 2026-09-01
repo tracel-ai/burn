@@ -38,7 +38,6 @@ critical-section = [
     "once_cell/critical-section",
     "dep:portable-atomic",
     "portable-atomic/critical-section",
-    "dep:portable-atomic-util",
 ]
 
 [dependencies]
@@ -71,7 +70,6 @@ rayon = { workspace = true, optional = true }
 # no_std targets without atomic CAS (enabled via `critical-section` feature)
 once_cell = { workspace = true, optional = true }
 portable-atomic = { workspace = true, optional = true }
-portable-atomic-util = { workspace = true, optional = true }
 
 [dev-dependencies]
 realfft = { workspace = true }

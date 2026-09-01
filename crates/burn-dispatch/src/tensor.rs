@@ -195,23 +195,30 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
     }
 }
 
-/// A tensor that can dispatch operations to any enabled backend at runtime.
+/// The autodiff backend associated with a dispatch tensor.
 ///
-/// When the `autodiff` feature is enabled, tensors may carry a checkpointing
-/// strategy used to control gradient computation. This is derived from the
-/// device used to create the tensor.
+/// This is backend metadata, not a statement that a float tensor requires
+/// gradients. Enabled float tensors may be tracked or untracked by autodiff.
+///
+/// All tensor inputs to one backend operation must use the same autodiff context.
+/// Dispatch selects the operation context from its routing tensor and validates the remaining
+/// inputs while unwrapping them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DispatchAutodiffContext {
+    /// Route the tensor through its concrete backend.
+    #[default]
+    Disabled,
+    /// Associate the tensor with an autodiff backend using the given strategy.
+    Enabled(GradientCheckpointingStrategy),
+}
+
+/// A tensor that can dispatch operations to any enabled backend at runtime.
 #[derive(Clone, Debug)]
 pub struct DispatchTensor {
     /// Tensor kind primitive.
     pub kind: DispatchTensorKind,
-    // Technically more of a device property, but device is not a dispatch tensor field.
-    // Right now this is the easiest way to preserve the checkpointing strategy because primitives are not consolidated.
-    // Once float/int/bool primitives are consolidated into a single associative type, we could hold that
-    // property for all autodiff tensors.
-    /// Holds the autodiff checkpointing strategy.
-    /// - `None`: tensor is not tracked by autodiff
-    /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
-    pub checkpointing: Option<GradientCheckpointingStrategy>,
+    /// Autodiff backend association for this tensor.
+    pub autodiff: DispatchAutodiffContext,
 }
 
 /// Internal representation of a [`DispatchTensor`].
@@ -423,19 +430,27 @@ impl TensorMetadata for DispatchTensor {
         let mut device = self.kind.device();
 
         #[cfg(feature = "autodiff")]
-        if let Some(checkpointing) = &self.checkpointing {
-            // Int, bool, and quantized tensors travel beside the tape untracked, but
-            // their device must retain the autodiff capability so tensors derived
-            // from them can join the graph (for example, an integer one-hot tensor
-            // cast to float). Plain float gradients can also carry checkpointing
-            // metadata copied from their source tensor, but remain on the inner
-            // backend and must continue to report that device.
-            if !self.dtype().is_float() && !matches!(device, DispatchDevice::Autodiff(_)) {
+        match (&self.kind, self.autodiff) {
+            (DispatchTensorKind::Autodiff(_), DispatchAutodiffContext::Disabled) => {
+                panic!("an autodiff float primitive must have an enabled autodiff context")
+            }
+            (DispatchTensorKind::Autodiff(_), DispatchAutodiffContext::Enabled(strategy)) => {
+                let DispatchDevice::Autodiff(device) = &mut device else {
+                    unreachable!("autodiff primitive must report an autodiff device")
+                };
+                device.checkpointing = strategy;
+            }
+            (_, DispatchAutodiffContext::Enabled(strategy)) => {
+                if self.dtype().is_float() {
+                    panic!("an enabled float tensor must use an autodiff primitive")
+                }
                 device = DispatchDevice::autodiff(device);
+                let DispatchDevice::Autodiff(device) = &mut device else {
+                    unreachable!()
+                };
+                device.checkpointing = strategy;
             }
-            if let DispatchDevice::Autodiff(device) = &mut device {
-                device.checkpointing = *checkpointing;
-            }
+            (_, DispatchAutodiffContext::Disabled) => {}
         }
 
         device
@@ -509,6 +524,13 @@ macro_rules! impl_dispatch_conversion {
         #[cfg($cfg)]
         impl DispatchKindConversion<$backend> for DispatchTensor {
             fn try_into_backend(tensor: DispatchTensor) -> Result<BackendTensor<$backend>, String> {
+                if tensor.autodiff != DispatchAutodiffContext::Disabled {
+                    return Err(format!(
+                        "Expected concrete {} backend with disabled autodiff context, got {:?}",
+                        stringify!($backend),
+                        tensor.autodiff,
+                    ));
+                }
                 // The catch-all is unreachable in single-backend builds (the enum then has one
                 // variant), but required when several backend features are enabled.
                 #[allow(unreachable_patterns)]
@@ -525,7 +547,7 @@ macro_rules! impl_dispatch_conversion {
             fn from_backend(tensor: BackendTensor<$backend>) -> DispatchTensor {
                 DispatchTensor {
                     kind: DispatchTensorKind::$backend(tensor),
-                    checkpointing: None,
+                    autodiff: DispatchAutodiffContext::Disabled,
                 }
             }
         }
@@ -537,6 +559,13 @@ macro_rules! impl_dispatch_conversion {
             fn try_into_backend(
                 tensor: DispatchTensor,
             ) -> Result<BackendTensor<Autodiff<$backend, C>>, String> {
+                if tensor.autodiff != DispatchAutodiffContext::Enabled(C::STRATEGY) {
+                    return Err(format!(
+                        "Expected {:?} autodiff context, got {:?}",
+                        C::STRATEGY,
+                        tensor.autodiff
+                    ));
+                }
                 match tensor.kind {
                     DispatchTensorKind::Autodiff(t) => match *t {
                         DispatchTensorKind::$backend(t) => match t {
@@ -554,6 +583,20 @@ macro_rules! impl_dispatch_conversion {
                             other.name()
                         )),
                     },
+                    DispatchTensorKind::$backend(t) => match t {
+                        BackendTensor::Int(t) => Ok(BackendTensor::Int(t)),
+                        BackendTensor::Bool(t) => Ok(BackendTensor::Bool(t)),
+                        BackendTensor::Quantized(t) => Ok(BackendTensor::Quantized(t)),
+                        BackendTensor::Float(_) => Err(format!(
+                            "Expected Autodiff {} float tensor, got unwrapped float",
+                            stringify!($backend),
+                        )),
+                        BackendTensor::Autodiff(_) => Err(format!(
+                            "Expected Autodiff {} tensor, got invalid inner autodiff variant",
+                            stringify!($backend),
+                        )),
+                    },
+                    #[allow(unreachable_patterns)]
                     other => Err(format!(
                         "Expected Autodiff tensor, got backend: {}",
                         other.name()
@@ -587,7 +630,7 @@ macro_rules! impl_dispatch_conversion {
 
                 DispatchTensor {
                     kind,
-                    checkpointing: Some(C::STRATEGY),
+                    autodiff: DispatchAutodiffContext::Enabled(C::STRATEGY),
                 }
             }
         }

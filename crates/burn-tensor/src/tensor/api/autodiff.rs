@@ -7,7 +7,7 @@ use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
 #[cfg(feature = "autodiff")]
-use burn_dispatch::GradientCheckpointingStrategy;
+use burn_dispatch::{DispatchAutodiffContext, GradientCheckpointingStrategy};
 
 #[cfg(feature = "autodiff")]
 type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
@@ -151,8 +151,12 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
         self,
         strategy: GradientCheckpointingStrategy,
     ) -> Self {
-        let (kind, mut tensor) = self.primitive.into_parts();
-        tensor.checkpointing = Some(strategy);
+        let primitive = match self.primitive.as_parts().1.autodiff {
+            DispatchAutodiffContext::Disabled => K::from_inner(self.primitive),
+            DispatchAutodiffContext::Enabled(_) => self.primitive,
+        };
+        let (kind, mut tensor) = primitive.into_parts();
+        tensor.autodiff = DispatchAutodiffContext::Enabled(strategy);
         Self::new(match kind {
             BridgeKind::Bool => BridgeTensor::bool(tensor),
             BridgeKind::Int => BridgeTensor::int(tensor),

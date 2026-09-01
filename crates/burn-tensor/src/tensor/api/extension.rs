@@ -412,7 +412,7 @@ mod tests {
 
     #[cfg(feature = "autodiff")]
     #[test]
-    fn try_into_primitive_backend_mismatch() {
+    fn try_into_primitive_autodiff_context_mismatch() {
         let device = Default::default();
         let tensor = Tensor::<2>::zeros([2, 3], &device);
 
@@ -421,7 +421,19 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, PrimitiveConversionError::BackendMismatch(_)));
-        assert!(format!("{err:?}").contains("Expected Autodiff tensor, got backend:"));
+        assert!(format!("{err:?}").contains("autodiff context"));
+    }
+
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn concrete_downcast_rejects_autodiff_associated_int() {
+        let device = crate::Device::default().autodiff();
+        let tensor = Tensor::<2, Int>::zeros([2, 3], &device);
+
+        let err = tensor.try_into_primitive::<TestBackend>().unwrap_err();
+
+        assert!(matches!(err, PrimitiveConversionError::BackendMismatch(_)));
+        assert!(format!("{err:?}").contains("autodiff"));
     }
 
     #[test]
