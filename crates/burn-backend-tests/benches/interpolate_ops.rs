@@ -23,10 +23,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Interpolate Benchmarks");
-    println!("Memory allocation tracking enabled");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 fn make_input(batch: usize, channels: usize, height: usize, width: usize) -> Tensor<4> {
