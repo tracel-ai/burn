@@ -1,4 +1,4 @@
-use alloc::sync::Arc;
+use portable_atomic_util::Arc;
 use burn_backend::ExecutionError;
 use hashbrown::HashMap;
 

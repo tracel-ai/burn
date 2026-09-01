@@ -1116,6 +1116,7 @@ version = "0.22.0-pre.3"
 dependencies = [
  "burn-backend",
  "hashbrown 0.16.1",
+ "portable-atomic-util",
  "serde",
 ]
 
