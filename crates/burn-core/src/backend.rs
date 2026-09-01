@@ -2,7 +2,7 @@
 pub use burn_ir as ir;
 
 pub use burn_backend::*;
-pub use burn_backend_extension::*;
+pub use burn_backend_extension::{ExtensionType, backend_extension};
 
 // Dispatch backend extension types
 pub use burn_dispatch::{backend::*, device::*, tensor::*};
@@ -15,9 +15,10 @@ pub use burn_dispatch::backends::*;
 /// This trait cooperates with the [`#[backend_extension]`](backend_extension) macro. When an extension
 /// operation returns such a type, [`map_to_dispatch`](Self::map_to_dispatch) wraps each internal tensor
 /// into a [`DispatchTensor`]; when it takes one as an input, [`map_from_dispatch`](Self::map_from_dispatch)
-/// reconstructs the concrete value and [`dispatch_repr`](Self::dispatch_repr) /
-/// [`dispatch_float_repr`](Self::dispatch_float_repr) locate a representative tensor for backend
-/// selection. Nested `#[extension_type]` fields are traversed recursively.
+/// reconstructs the concrete value and [`routing_tensor`](Self::routing_tensor) /
+/// [`routing_float_tensor`](Self::routing_float_tensor) locate a tensor for dispatch routing and
+/// backend and autodiff-context selection. All tensor fields participating in one operation must
+/// share the routing tensor's context. Nested `#[extension_type]` fields are traversed recursively.
 ///
 /// Implementations are generated automatically using `#[derive(ExtensionType)]`.
 pub trait ExtensionType<B: Backend> {
@@ -31,16 +32,12 @@ pub trait ExtensionType<B: Backend> {
     ///
     /// * `map_kind` - A closure provided by the dispatch macro that knows how to map a backend-agnostic
     ///   [`BackendTensor`] variant into the correct [`DispatchTensorKind`] variant (e.g., `Wgpu`, `Cuda`, `Cpu`).
-    /// * `checkpointing` - The active tensor recording/checkpointing strategy to attach to the [`DispatchTensor`].
+    /// * `autodiff` - The semantic autodiff backend context to attach to each [`DispatchTensor`].
     ///
     /// # Returns
     ///
     /// A new instance of the struct mapped to the [`Dispatch`] backend.
-    fn map_to_dispatch<F>(
-        self,
-        map_kind: F,
-        checkpointing: Option<GradientCheckpointingStrategy>,
-    ) -> Self::Target
+    fn map_to_dispatch<F>(self, map_kind: F, autodiff: DispatchAutodiffContext) -> Self::Target
     where
         F: Fn(BackendTensor<B>) -> DispatchTensorKind;
 
@@ -54,27 +51,28 @@ pub trait ExtensionType<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `unwrap_kind` - A closure provided by the dispatch macro that unwraps a
-    ///   [`DispatchTensorKind`] into the [`BackendTensor`] for the selected backend `B`, panicking
-    ///   on a backend mismatch (which the dispatch layer guarantees never happens).
+    /// * `unwrap_kind` - A closure provided by the dispatch macro that validates the tensor's
+    ///   autodiff context and unwraps its [`DispatchTensorKind`] into the [`BackendTensor`] for the
+    ///   selected backend `B`, panicking on a backend mismatch.
     fn map_from_dispatch<F>(target: Self::Target, unwrap_kind: F) -> Self
     where
-        F: Fn(DispatchTensorKind) -> BackendTensor<B>;
+        F: Fn(DispatchTensor) -> BackendTensor<B>;
 
-    /// Return a representative tensor of the dispatch form, of any kind, or `None` if this value
+    /// Return a tensor of the dispatch form to use for routing, or `None` if this value
     /// currently holds no tensor (e.g. an enum on a tensor-less variant).
     ///
     /// A struct/enum input carries no top-level [`DispatchTensor`] of its own, so the dispatch glue
-    /// uses this to read the runtime backend tag (`.kind`) and propagate the autodiff checkpointing
-    /// strategy (`.checkpointing`). Recurses into nested `#[extension_type]` fields.
-    fn dispatch_repr(target: &Self::Target) -> Option<&DispatchTensor>;
+    /// uses this to read the runtime backend tag (`.kind`) and autodiff context. All other tensor
+    /// fields must carry the same context; dispatch validates them while mapping the value to its
+    /// concrete backend. This lookup recurses into nested `#[extension_type]` fields.
+    fn routing_tensor(target: &Self::Target) -> Option<&DispatchTensor>;
 
-    /// Like [`dispatch_repr`](Self::dispatch_repr) but returns only a *float* tensor, or `None` if
+    /// Like [`routing_tensor`](Self::routing_tensor) but returns only a *float* tensor, or `None` if
     /// there is none.
     ///
-    /// The dispatch glue prefers a float representative because floats are the tensors that carry
-    /// autodiff tracking (so this decides whether the op routes to the autodiff arm) and the
-    /// checkpointing strategy. It falls back to [`dispatch_repr`](Self::dispatch_repr) only when no
-    /// float tensor exists anywhere in the inputs.
-    fn dispatch_float_repr(target: &Self::Target) -> Option<&DispatchTensor>;
+    /// The dispatch glue prefers a float routing tensor because active float presence decides
+    /// whether the operation needs an autodiff backend. The glue falls back to
+    /// [`routing_tensor`](Self::routing_tensor) only when no float tensor exists anywhere in the
+    /// inputs.
+    fn routing_float_tensor(target: &Self::Target) -> Option<&DispatchTensor>;
 }

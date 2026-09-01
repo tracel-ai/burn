@@ -44,13 +44,15 @@ impl Backend for burn_flex::Flex {
 You can support the backward pass using the same pattern.
 
 ```rust, ignore
-impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
+use burn_autodiff::checkpoint::strategy::CheckpointStrategy;
+
+impl<B: Backend, C: CheckpointStrategy> Backend for burn_autodiff::Autodiff<B, C> {
     // No specific implementation; autodiff will work with the default
     // implementation. Useful if you still want to train your model, but
     // observe performance gains mostly during inference.
 }
 
-impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> Backend for burn_autodiff::Autodiff<B, C> {
    fn my_new_function(tensor: AutodiffTensor) -> AutodiffTensor {
       // My own backward implementation, generic over my custom Backend trait.
       //
@@ -59,7 +61,7 @@ impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
    }
 }
 
-impl Backend for burn_autodiff::Autodiff<burn_wgpu::Wgpu> {
+impl<C: CheckpointStrategy> Backend for burn_autodiff::Autodiff<burn_wgpu::Wgpu, C> {
    fn my_new_function(tensor: AutodiffTensor) -> AutodiffTensor {
       // My own backward implementation, generic over a backend implementation.
       //
@@ -120,10 +122,10 @@ pub trait Backend: burn::backend::Backend {
 ```
 
 Inputs marked this way can be freely mixed with plain tensor arguments and with each other, and an
-operation can take several of them. The backend is selected by looking at a representative tensor
+operation can take several of them. The backend is selected by looking at a routing tensor
 across the inputs, so an enum currently on a variant that holds no tensor simply defers to the next
 input; if no input holds a tensor at all, the backend cannot be resolved and the operation panics.
 
 Struct and enum inputs also work with `Autodiff`. Float fields carry the gradient; other fields do
-not. Your `impl ... for Autodiff<B>` writes the backward pass by hand, exactly as it does for plain
+not. Your `impl ... for Autodiff<B, C>` writes the backward pass by hand, exactly as it does for plain
 tensor inputs.
