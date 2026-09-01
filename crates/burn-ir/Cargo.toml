@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["burn-backend/std"]
+std = ["burn-backend/std", "burn-std/std"]
 doc = ["default"]
 tracing = [
     "burn-backend/tracing",
@@ -27,6 +27,7 @@ serde = { workspace = true }
 hashbrown = { workspace = true } # no_std compatible
 
 burn-backend = { workspace = true }
+burn-std = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
