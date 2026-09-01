@@ -128,7 +128,7 @@ pub struct Param<T: ParameterValue> {
     /// shared-ownership mechanism. Any mutation forks into a new `LazyInitState`.
     pub(crate) state: Arc<LazyInitState<T>>,
     pub(crate) param_mapper: ParamMapper<T>,
-    /// Whether this value is requested to participate in training behavior.
+    /// Whether this value is configured to participate in training behavior.
     ///
     /// This is authoritative and kept separately from the effective value so transformations and
     /// backends that cannot currently activate the value don't erase the state that
@@ -155,7 +155,7 @@ pub struct Param<T: ParameterValue> {
 pub struct ParamMapper<T: ParameterValue> {
     load: Option<Mapper<T>>,
     save: Option<Mapper<T>>,
-    /// Carries requested training state across `consume` / `from_mapped_value` reconstruction.
+    /// Carries configured training state across `consume` / `from_mapped_value` reconstruction.
     mapped_is_active: Option<bool>,
 }
 
@@ -347,7 +347,7 @@ impl<T: ParameterValue> Param<T> {
         (self.id, tensor, param_mapper)
     }
 
-    /// Execute the given function on the inner value while preserving its requested training
+    /// Execute the given function on the inner value while preserving its configured training
     /// state.
     ///
     /// Transforming the effective value must not implicitly change what
@@ -550,10 +550,10 @@ impl<T: Parameter> Param<T> {
         }
     }
 
-    /// Override the requested gradient requirement for the current parameter.
+    /// Override the gradient-tracking setting for the current parameter.
     ///
-    /// On a backend without autodiff the effective tensor remains detached, but the request is
-    /// retained and applied by [`Module::train`](crate::module::Module::train).
+    /// On a backend without autodiff the effective tensor remains detached, but the setting is
+    /// preserved and takes effect through [`Module::train`](crate::module::Module::train).
     pub fn set_require_grad(mut self, require_grad: bool) -> Self {
         let initialization = match &self.state.initialization {
             Some(init) => init,

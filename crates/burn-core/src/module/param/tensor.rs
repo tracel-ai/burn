@@ -123,7 +123,7 @@ impl<const D: usize> Param<Tensor<D>> {
     /// initialize parameters inside a module, since the tensor initialization will be lazy,
     /// making the loading of weights more performant.
     pub fn from_tensor(value: Tensor<D>) -> Self {
-        // A plain backend can't activate gradients immediately, so record the request explicitly
+        // A plain backend can't activate gradients immediately, so record the setting explicitly
         // for a later transition to training.
         let mut param = Param::initialized(ParamId::new(), value.require_grad());
         param.is_active = true;
@@ -136,7 +136,7 @@ impl<const D: usize> Param<Tensor<D>> {
         T: Into<TensorData>,
     {
         let data: TensorData = data.into();
-        // A plain backend can't activate gradients immediately, so record the request explicitly
+        // A plain backend can't activate gradients immediately, so record the setting explicitly
         // for a later transition to training.
         device.memory_persistent_allocations(data, |data| {
             let value = Tensor::from_data(data, device);
@@ -460,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn lazy_activation_request_on_a_plain_device_is_applied_by_train() {
+    fn lazy_activation_setting_on_a_plain_device_is_applied_by_train() {
         let device = test_device();
         let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),

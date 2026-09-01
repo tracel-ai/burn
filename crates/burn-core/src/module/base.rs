@@ -185,8 +185,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// Module-owned control flags are left unchanged. Use [`freeze`](Module::freeze) to disable
     /// both gradients and training behavior.
-    /// On a backend without autodiff, enabling gradients records the requested state and
-    /// [`train`](Module::train) applies it when transitioning back to training.
+    /// On a backend without autodiff, the enabled setting is preserved and takes effect when
+    /// [`train`](Module::train) transitions the module back to training.
     /// Setting this to `true` overrides selective gradient configurations such as the frozen dense
     /// base weights established by [`apply_lora`](Module::apply_lora).
     fn set_require_grad(self, require_grad: bool) -> Self {
@@ -205,7 +205,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// parameters are also left unchanged. This means a group created with
     /// [`ParamGroup::ids_from_module`] can select an entire subtree while this method changes only
     /// its tensor gradient state.
-    /// On a backend without autodiff, an enable request is retained for [`train`](Module::train).
+    /// On a backend without autodiff, the enabled setting is preserved and takes effect through
+    /// [`train`](Module::train).
     ///
     /// Use [`freeze_group`](Module::freeze_group) or
     /// [`unfreeze_group`](Module::unfreeze_group) when matched training flags should be changed
@@ -227,11 +228,18 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// statistics retain their current behavior. Use [`freeze`](Module::freeze) to disable both
     /// gradients and training behavior.
     ///
+    /// # Gradient and training state
+    ///
+    /// This persistently disables gradient tracking, including on a backend without autodiff. A
+    /// later [`train`](Module::train) keeps gradients disabled; it does not undo `no_grad`.
+    ///
     /// # Warnings
     ///
     /// This should not be used for inference, use [valid](AutodiffModule::valid) when using
-    /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
-    /// a small fraction of the parameters instead of finetuning all of them.
+    /// AD modules. This is useful for partial fine-tuning when tensor gradients should be disabled
+    /// while layer training behavior remains active. For example, matched batch-normalization
+    /// layers continue updating their running statistics, and dropout remains enabled. Use
+    /// [`freeze`](Module::freeze) when that module-owned training behavior should also stop.
     fn no_grad(self) -> Self {
         self.set_require_grad(false)
     }
@@ -242,6 +250,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// training flag is disabled. This applies both to parameterless stochastic layers such as
     /// dropout, noise and randomized activations, and to stateful layers such as batch
     /// normalization.
+    ///
+    /// # Gradient and training state
+    ///
+    /// Gradient tracking and training flags are persistently disabled. On a backend without
+    /// autodiff, flags are disabled immediately, and [`train`](Module::train) keeps tensors
+    /// untracked rather than undoing the freeze.
     ///
     /// # Warnings
     ///
@@ -258,14 +272,16 @@ pub trait Module: Clone + Send + core::fmt::Debug {
 
     /// Unfreeze the whole module tree.
     ///
-    /// Every floating-point tensor parameter is requested to require gradients, and every
-    /// module-owned training flag is enabled. On a backend without autodiff, tensor activation is
-    /// deferred until [`train`](Module::train). This sets all values to their active state rather
-    /// than restoring a previously captured configuration. In particular, calling `unfreeze` on
-    /// a LoRA module enables its dense base weights and changes adapter-only training into full
-    /// fine-tuning. To activate everything except known LoRA bases, use
-    /// `unfreeze_group(ParamGroup::all().exclude(lora_base_group))`, where `lora_base_group`
-    /// identifies the base parameters by exact paths or IDs.
+    /// Every floating-point tensor parameter is configured to require gradients, and every
+    /// module-owned training flag is set to enabled rather than restored to a prior value. This
+    /// overwrites selective gradient configurations, including frozen dense base weights
+    /// established by [`apply_lora`](Module::apply_lora).
+    ///
+    /// # Gradient and training state
+    ///
+    /// On a backend without autodiff, training flags are enabled immediately while gradient
+    /// tracking takes effect when [`train`](Module::train) transitions the module back to the
+    /// autodiff backend.
     fn unfreeze(self) -> Self {
         module!(
             map = self,
@@ -280,6 +296,13 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// This is the group-scoped counterpart to [`freeze`](Module::freeze): where `freeze` freezes
     /// the whole module tree, `freeze_group` clears gradient requirements on matched tensor
     /// parameters and disables matched training flags.
+    ///
+    /// # Gradient and training state
+    ///
+    /// Gradient tracking and training flags are persistently disabled for matched values. On a
+    /// backend without autodiff, matched flags are disabled immediately, and
+    /// [`train`](Module::train) keeps matched tensors untracked rather than undoing the group
+    /// freeze.
     ///
     /// # Warnings
     ///
@@ -297,10 +320,15 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Unfreeze every module-owned value in the given group, leaving the rest of the module
     /// untouched.
     ///
-    /// The inverse of [freeze_group](Module::freeze_group): it re-enables gradient tracking for
-    /// matched tensor parameters and enables matched training flags. This also re-enables a flag
-    /// that was disabled directly before the group operation. On a backend without autodiff,
-    /// matched tensor activation is retained and applied by [`train`](Module::train).
+    /// The inverse of [freeze_group](Module::freeze_group): matched tensor parameters are configured
+    /// to require gradients, and matched training flags are set to enabled rather than restored to
+    /// prior values.
+    ///
+    /// # Gradient and training state
+    ///
+    /// On a backend without autodiff, matched training flags are enabled immediately while gradient
+    /// tracking for matched tensors takes effect when [`train`](Module::train) transitions the
+    /// module back to the autodiff backend.
     fn unfreeze_group(self, group: ParamGroup) -> Self {
         module!(
             map = self,
@@ -312,11 +340,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
 
     /// Move the module and all of its sub-modules to the autodiff backend.
     ///
-    /// # Notes
+    /// # Gradient and training state
     ///
     /// This is the supported transition back to training after [`valid`](AutodiffModule::valid).
-    /// Moving, forking or explicitly changing activation requests on a validation module preserves
-    /// what this method restores.
+    /// It applies the latest gradient-tracking settings and training-flag values. Mappings, device
+    /// moves, forks and explicit state changes on a validation module preserve or update what this
+    /// method applies.
     fn train(self) -> Self
     where
         Self: AutodiffModule,
@@ -708,12 +737,14 @@ pub trait ModuleMapper {
 pub trait AutodiffModule: Module + Send + core::fmt::Debug {
     /// Returns the same module on the inner backend without auto-differentiation.
     ///
+    /// # Gradient and training state
+    ///
     /// Tensor gradient requirements and module-owned training flags are disabled in the returned
-    /// value while their requested training state is retained internally. Use [`Module::train`]
-    /// to apply that state. Mappings, device moves and forks preserve both the disabled effective
-    /// validation state and what `train` will restore. Calling `valid` when the module's tensors
-    /// are already on a plain device still disables its training flags, so the operation is
-    /// idempotent but not necessarily a structural no-op.
+    /// value while their configured state is retained internally. Use [`Module::train`] to apply
+    /// that state. Mappings, device moves and forks preserve both the disabled effective validation
+    /// state and what `train` will restore. Calling `valid` when the module's tensors are already on
+    /// a plain device still disables its training flags, so the operation is idempotent but not
+    /// necessarily a structural no-op.
     fn valid(&self) -> Self;
 
     /// Wraps an inner module back into an autodiff module and restores the training state retained
@@ -794,7 +825,7 @@ mod tests {
         let device = test_device().autodiff();
         let module = stateful_module(&device).valid().unfreeze();
 
-        // The plain validation tensor can't require gradients yet, but the request is retained.
+        // The plain validation tensor can't require gradients yet, but the setting is preserved.
         assert!(!module.0.weight.is_require_grad());
         assert!(module.0.weight.is_active);
         assert!(module.1.is_enabled());
@@ -836,7 +867,7 @@ mod tests {
     }
 
     #[test]
-    fn group_activation_requests_during_validation_are_restored_by_train() {
+    fn group_activation_settings_during_validation_are_applied_by_train() {
         let device = test_device().autodiff();
         let module = stateful_module(&device).freeze().valid();
         let group = ParamGroup::from_ids(vec![module.0.weight.id, module.1.id]);
@@ -849,7 +880,7 @@ mod tests {
     }
 
     #[test]
-    fn group_gradient_requests_during_validation_ignore_flags_and_restore_tensors() {
+    fn group_gradient_settings_during_validation_ignore_flags_and_restore_tensors() {
         let device = test_device().autodiff();
         let module = stateful_module(&device).freeze().valid();
         let group = ParamGroup::from_ids(vec![module.0.weight.id, module.1.id]);
@@ -871,6 +902,16 @@ mod tests {
         assert!(!module.1.is_enabled());
 
         let module = module.train();
+
+        assert!(module.0.weight.is_require_grad());
+        assert!(module.0.bias.as_ref().unwrap().is_require_grad());
+        assert!(module.1.is_enabled());
+    }
+
+    #[test]
+    fn trained_validation_module_remains_trainable_after_fork() {
+        let device = test_device().autodiff();
+        let module = stateful_module(&device).valid().train().fork(&device);
 
         assert!(module.0.weight.is_require_grad());
         assert!(module.0.bias.as_ref().unwrap().is_require_grad());
