@@ -208,7 +208,8 @@ impl<'a, W: Handles> WriteScope<'a, W> {
                 Outcome::Reported
             }
             Err(panic) => {
-                let error = TensorError::panicked(panic_message(panic.as_ref()));
+                let error =
+                    TensorError::new(ExecutionError::generic(panic_message(panic.as_ref())));
                 self.work.claim(self.target.handles(), &error);
                 Outcome::Panicked(panic)
             }

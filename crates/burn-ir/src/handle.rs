@@ -84,12 +84,6 @@ impl TensorError {
         }
     }
 
-    /// A fresh failure from a panic that was caught, capturing where it was
-    /// caught since the payload carries nothing but a message.
-    pub fn panicked(message: impl Into<String>) -> Self {
-        Self::new(ExecutionError::generic(message))
-    }
-
     /// What the failing work reported, whole — the error a read hands back at
     /// [`depth`](Self::depth) zero, backtrace included.
     pub fn cause(&self) -> &ExecutionError {
@@ -557,7 +551,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::panicked("the kernel failed to compile"),
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
         );
 
         assert!(!container.has_handle(&tid(1)));
@@ -576,7 +570,10 @@ mod tests {
     fn erroring_a_write_set_displaces_a_handle_registered_ahead_of_the_work() {
         let mut container = HandleContainer::<String>::new();
         container.register_handle(tid(1), "aliased_input_buffer".to_string());
-        container.set_error(tid(1), TensorError::panicked("the launch failed"));
+        container.set_error(
+            tid(1),
+            TensorError::new(ExecutionError::generic("the launch failed")),
+        );
 
         assert!(container.get_handle_ref(&tid(1)).is_none());
         assert_eq!(
@@ -593,7 +590,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::panicked("the kernel failed to compile"),
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
         );
 
         let error = container
@@ -614,7 +611,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::panicked("the kernel failed to compile"),
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
         );
 
         let first = container.take_error(&ir(tid(1), TensorStatus::ReadOnly));
@@ -649,7 +646,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::panicked("this autotune candidate failed"),
+            TensorError::new(ExecutionError::generic("this autotune candidate failed")),
         );
 
         container.register_handle(tid(1), "the candidate that worked".to_string());
@@ -709,7 +706,7 @@ mod tests {
     fn a_claim_crosses_to_a_second_container_keeping_its_root() {
         let mut src = HandleContainer::<String>::new();
         let mut dst = HandleContainer::<String>::new();
-        let root = TensorError::panicked("the kernel failed to compile");
+        let root = TensorError::new(ExecutionError::generic("the kernel failed to compile"));
         src.set_error(tid(1), root.clone());
 
         let carried = src
@@ -730,7 +727,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::panicked("the kernel failed to compile"),
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
         );
 
         let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -756,7 +753,7 @@ mod tests {
     /// still names the failure that started it.
     #[test]
     fn propagation_keeps_the_root_and_counts_the_hops() {
-        let root = TensorError::panicked("the kernel failed to compile");
+        let root = TensorError::new(ExecutionError::generic("the kernel failed to compile"));
         let one = root.propagated();
         let two = one.propagated();
 
@@ -764,7 +761,9 @@ mod tests {
         assert_eq!((root.depth(), one.depth(), two.depth()), (0, 1, 2));
         assert_eq!(two.root(), "the kernel failed to compile");
         assert!(
-            !root.same_root(&TensorError::panicked("the kernel failed to compile")),
+            !root.same_root(&TensorError::new(ExecutionError::generic(
+                "the kernel failed to compile"
+            ))),
             "same message, different failure"
         );
     }
@@ -774,7 +773,7 @@ mod tests {
     #[test]
     fn an_error_is_released_with_its_tensor() {
         let mut container = HandleContainer::<String>::new();
-        container.set_error(tid(1), TensorError::panicked("boom"));
+        container.set_error(tid(1), TensorError::new(ExecutionError::generic("boom")));
 
         container.free(&TensorIr {
             id: tid(1),
@@ -811,7 +810,7 @@ mod tests {
         }
 
         let mut container = HandleContainer::<String>::new();
-        let error = || TensorError::panicked("boom");
+        let error = || TensorError::new(ExecutionError::generic("boom"));
         check(&container, "empty");
 
         // Error a tensor, then error the same id again: one entry, one count.

@@ -119,7 +119,7 @@ impl Optimization<TestRuntime> for TestOptimization {
         for id in &self.claims {
             context.handles.set_error(
                 *id,
-                TensorError::panicked("the fused part could not write it"),
+                TensorError::new(ExecutionError::generic("the fused part could not write it")),
             );
         }
 
