@@ -111,11 +111,15 @@
 
 extern crate alloc;
 
+#[cfg(feature = "std")]
+mod atomic;
 mod base;
 mod reader;
 mod tensor;
 mod writer;
 
+#[cfg(feature = "std")]
+pub use atomic::AtomicFile;
 #[cfg(feature = "std")]
 pub use base::MAX_FILE_SIZE;
 pub use base::{
