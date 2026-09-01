@@ -114,13 +114,13 @@ impl Reader {
         source: Source,
         available: usize,
     ) -> Result<Self, Error> {
-        let metadata_end = HEADER_SIZE + header.metadata_size as usize;
-        validate_total_size(&metadata, metadata_end, available)?;
+        let data_offset = aligned_data_section_start(header.metadata_size as usize);
+        validate_total_size(&metadata, data_offset, available)?;
 
         Ok(Self {
             metadata,
             source,
-            data_offset: aligned_data_section_start(header.metadata_size as usize),
+            data_offset,
         })
     }
 
@@ -284,7 +284,7 @@ fn parse_metadata(bytes: &[u8]) -> Result<Metadata, Error> {
 /// Ensure the available bytes can hold every tensor the metadata claims.
 fn validate_total_size(
     metadata: &Metadata,
-    metadata_end: usize,
+    data_offset: usize,
     available: usize,
 ) -> Result<(), Error> {
     if metadata.tensors.is_empty() {
@@ -299,7 +299,7 @@ fn validate_total_size(
     let max_offset: usize = max_offset.try_into().map_err(|_| {
         Error::ValidationError(format!("Data offset {max_offset} exceeds platform maximum"))
     })?;
-    let min_size = metadata_end
+    let min_size = data_offset
         .checked_add(max_offset)
         .ok_or_else(|| Error::ValidationError("File size calculation overflow".into()))?;
     if available < min_size {
