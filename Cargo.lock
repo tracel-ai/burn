@@ -982,12 +982,12 @@ dependencies = [
  "burn-fusion",
  "burn-ir",
  "burn-std",
+ "ciborium",
  "cubecl",
  "cubek",
  "derive-new",
  "half",
  "hashbrown 0.16.1",
- "rmp-serde",
  "serde",
  "spin 0.12.2",
 ]
