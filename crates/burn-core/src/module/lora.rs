@@ -14,6 +14,29 @@ use crate::module::{LoraAdapter, Param, ParamGroup, Quantizer, Reparameterizer};
 /// Module-owned control flags are left unchanged. Apply [`Module::freeze`](crate::module::Module::freeze)
 /// before LoRA if dropout, batch normalization running statistics and other training behavior in
 /// the base module should also be disabled.
+///
+/// # Training state
+///
+/// [`Module::unfreeze`](crate::module::Module::unfreeze) and `set_require_grad(true)` deliberately
+/// enable every dense parameter, including LoRA bases, and therefore switch to full fine-tuning.
+/// To enable everything except the LoRA bases, retain a [`ParamGroup`] containing their exact
+/// paths or IDs and call
+/// `unfreeze_group(ParamGroup::all().exclude(lora_base_group))`.
+///
+/// ```
+/// use burn_core::module::{Lora, Module, ParamGroup};
+///
+/// # fn configure<M: Module>(model: M) -> M {
+/// let lora_bases = ParamGroup::from_paths(vec![
+///     "encoder.weight",
+///     "decoder.weight",
+/// ]);
+///
+/// model
+///     .apply_lora(Lora::new(2, 4.0).set_param_group(lora_bases.clone()))
+///     .unfreeze_group(ParamGroup::all().exclude(lora_bases))
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct Lora {
     /// Rank of the low-rank decomposition.
@@ -314,6 +337,47 @@ mod tests {
         assert!(model.weight.base().grad(&grads).is_none());
     }
 
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn global_gradient_activation_enables_lora_base_weights() {
+        let device = test_device().autodiff();
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(Lora::new(2, 4.0));
+
+        let activated = [
+            model.clone().unfreeze(),
+            model.clone().set_require_grad(true),
+            model.set_require_grad_group(ParamGroup::from_path("weight"), true),
+        ];
+
+        for model in activated {
+            assert!(model.weight.base().is_require_grad());
+
+            let grads = model.weight.val().sum().backward();
+            assert!(model.weight.base().grad(&grads).is_some());
+        }
+    }
+
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn group_can_unfreeze_everything_except_lora_base_weights() {
+        let device = test_device().autodiff();
+        let lora_bases = ParamGroup::from_path("weight");
+        let model = SimpleLinear::new(4, 6, &device)
+            .apply_lora(Lora::new(2, 4.0).set_param_group(lora_bases.clone()))
+            .unfreeze_group(ParamGroup::all().exclude(lora_bases));
+
+        let adapter = model.weight.adapter().unwrap();
+        assert!(!model.weight.base().is_require_grad());
+        assert!(model.bias.as_ref().unwrap().is_require_grad());
+        assert!(adapter.a.is_require_grad());
+        assert!(adapter.b.is_require_grad());
+
+        let grads = model.weight.val().sum().backward();
+        assert!(model.weight.base().grad(&grads).is_none());
+        assert!(adapter.a.val().grad(&grads).is_some());
+        assert!(adapter.b.val().grad(&grads).is_some());
+    }
+
     #[test]
     fn qlora_quantizes_base_and_attaches_adapter() {
         use crate::module::Quantizer;
@@ -340,6 +404,29 @@ mod tests {
         let composed = weight.val();
         assert_eq!(composed.dims(), [8, 8]);
         assert_eq!(composed.into_data().shape, original.into_data().shape);
+    }
+
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn qlora_backward_grads_adapter_only() {
+        use burn_tensor::quantization::{Calibration, QuantValue};
+
+        let device = test_device().autodiff();
+        let scheme = device
+            .settings()
+            .quantization
+            .scheme
+            .with_value(QuantValue::Q8S);
+        let quantizer = Quantizer::new(Calibration::MinMax, scheme);
+        let model =
+            SimpleLinear::new(8, 8, &device).apply_qlora(QLora::new(Lora::new(2, 4.0), quantizer));
+
+        let grads = model.weight.val().sum().backward();
+        let adapter = model.weight.adapter().unwrap();
+
+        assert!(model.weight.base().grad(&grads).is_none());
+        assert!(adapter.a.val().grad(&grads).is_some());
+        assert!(adapter.b.val().grad(&grads).is_some());
     }
 
     #[test]

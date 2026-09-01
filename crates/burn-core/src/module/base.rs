@@ -187,6 +187,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// both gradients and training behavior.
     /// On a backend without autodiff, enabling gradients records the requested state and
     /// [`train`](Module::train) applies it when transitioning back to training.
+    /// Setting this to `true` overrides selective gradient configurations such as the frozen dense
+    /// base weights established by [`apply_lora`](Module::apply_lora).
     fn set_require_grad(self, require_grad: bool) -> Self {
         module!(
             map = self,
@@ -259,7 +261,11 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Every floating-point tensor parameter is requested to require gradients, and every
     /// module-owned training flag is enabled. On a backend without autodiff, tensor activation is
     /// deferred until [`train`](Module::train). This sets all values to their active state rather
-    /// than restoring a previously captured configuration.
+    /// than restoring a previously captured configuration. In particular, calling `unfreeze` on
+    /// a LoRA module enables its dense base weights and changes adapter-only training into full
+    /// fine-tuning. To activate everything except known LoRA bases, use
+    /// `unfreeze_group(ParamGroup::all().exclude(lora_base_group))`, where `lora_base_group`
+    /// identifies the base parameters by exact paths or IDs.
     fn unfreeze(self) -> Self {
         module!(
             map = self,
