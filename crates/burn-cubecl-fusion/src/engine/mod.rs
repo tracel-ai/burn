@@ -1,7 +1,7 @@
-pub(crate) mod codegen;
-pub(crate) mod fuser;
-pub(crate) mod launch;
+pub mod codegen;
+pub mod fuser;
+pub mod launch;
 pub(crate) mod scoring;
-pub(crate) mod settings;
+pub mod settings;
 
 pub mod trace;

@@ -30,7 +30,7 @@ use cubecl::ir::ElemType;
 /// It is responsible to translate [OperationIr] into [FuseOp] and it uses the [TraceFuser]
 /// to actually fuse the [FuseOp] when possible.
 #[derive(Debug, Clone)]
-pub(crate) struct TraceOperationFuser {
+pub struct TraceOperationFuser {
     pub(crate) fuser: TryTraceFuser,
     scoring: Scoring,
     pub(crate) settings: FuseSettings,
@@ -62,7 +62,7 @@ impl TraceOperationFuser {
     }
 
     /// Checks if the [operation](OperationIr) can be fused with the current fuser.
-    pub(crate) fn can_fuse(&self, op: &OperationIr) -> bool {
+    pub fn can_fuse(&self, op: &OperationIr) -> bool {
         let len_previous = self.len();
         let mut fuser_cloned = self.clone();
 
