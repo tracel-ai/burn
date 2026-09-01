@@ -23,4 +23,3 @@ burn = { workspace = true, features = [
 ] }
 guide = { path = "../guide", default-features = false }
 
-log = { workspace = true }

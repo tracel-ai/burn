@@ -8,4 +8,3 @@ license.workspace = true
 burn = { workspace = true, features = ["default", "flex"] }
 burn-store = { workspace = true, features = ["default", "std", "pytorch"] }
 serde = { workspace = true }
-float-cmp = { workspace = true }

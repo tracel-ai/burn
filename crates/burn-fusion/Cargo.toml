@@ -35,7 +35,6 @@ burn-backend = { workspace = true, features = ["default"] }
 burn-std = { workspace = true, features = ["default"] }
 burn-ir = { workspace = true, features = ["default"] }
 tracing = { workspace = true, optional = true, features = ["attributes"] }
-smallvec = { workspace = true }
 
 hashbrown = { workspace = true }
 derive-new = { workspace = true }

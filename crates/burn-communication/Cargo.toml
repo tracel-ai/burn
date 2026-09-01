@@ -28,7 +28,6 @@ futures-util = { workspace = true }
 log = { workspace = true }
 rmp-serde = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_bytes = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "signal", "tracing"] }
 tokio-util = { workspace = true }
 tracing = { workspace = true, features = ["default"] }

@@ -25,7 +25,6 @@ burn-fusion = { workspace = true, features = ["default"] }
 burn-cubecl = { workspace = true, features = ["fusion"] }
 
 # Serialization
-log = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 
 # Wgpu internal dependencies

@@ -19,4 +19,3 @@ tracel-xtask = { version = "=5.0.0", features = ["bump", "check", "compile", "co
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
 [dev-dependencies]
-rstest = { workspace = true }
