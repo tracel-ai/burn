@@ -45,8 +45,8 @@ keep by hand:
 ```rust
 match WriteScope::over(ir, handles).run(OnPanic::Catch, |handles| op.execute(handles)) {
     Outcome::Ran => {}
-    Outcome::Skipped => …,       // an input was claimed; the body never ran
-    Outcome::Reported => …,      // it returned an error
+    Outcome::Skipped(error) => …,  // an input was claimed; the body never ran
+    Outcome::Reported(error) => …, // it returned an error
     Outcome::Panicked(panic) => …, // it raised one, and the scope caught it
 }
 ```
@@ -54,6 +54,12 @@ match WriteScope::over(ir, handles).run(OnPanic::Catch, |handles| op.execute(han
 `OnPanic::Raise` is for work that already runs inside another scope — a fallback in the middle of a
 fused block. It claims a reported failure exactly as `Catch` does, but lets a panic out, because
 swallowing that one would let the block carry on as though the piece it could not serve had run.
+
+A reported failure and a skip need the same ending by a different road: both return normally, so
+neither stops the optimization on its own. `FallbackOp` reports the error back to the execution
+through the same shared slot it records `did_not_run` on, and `execute_optimization` claims the
+block's whole write set with it once the optimization returns. **A fallback that did not run is a
+failure of the block around it**, however it did not run.
 
 **If you add an execution path, put it in a scope.** That is the whole of the policy; everything
 below is what the scope is doing on your behalf.
@@ -79,7 +85,9 @@ and nothing downstream is skipped.
 unwinding cannot register then — that re-enters the client mid-unwind — so it is set aside and
 replayed at the next call into the client on that thread, rather than dropped on the floor. The
 client reaches the server through one type whose every method replays first, so there is no door
-that skips it. Note that `input_error` deliberately exempts `OperationIr::Drop`: a drop names its tensor as an input but does not read it,
+that skips it. Replay needs the thread to reach the client again: one that unwinds to its end
+abandons what it set aside, which is a bounded leak taken deliberately over flushing from a
+thread-local destructor (see `tensor::deferred`). Note that `input_error` deliberately exempts `OperationIr::Drop`: a drop names its tensor as an input but does not read it,
 and skipping drops would make claims outlive every tensor that could report them.
 
 ### Granularity — what counts as one unit of work
@@ -88,7 +96,7 @@ and skipping drops would make claims outlive every tensor that could report them
 | --- | --- | --- |
 | Unfused operation | that operation | its outputs |
 | Fused block | every operation in the block | the block's whole write set |
-| Fallback inside a block | that operation | its outputs |
+| Fallback inside a block | that operation | its outputs, then the whole block's |
 
 Unfused operations get **one scope each, not one per segment**. A segment is just what happened to
 be queued together, so a failure in one operation says nothing about the next unless they share a
@@ -136,8 +144,8 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
 - **`did_not_run` is load-bearing.** A drained operation that never ran was never replayed
   server-side, so the router's `free_handle` needs to know in order not to strand the buffer. If you
   add a path that skips work, record it. Work that cannot reach the execution directly — a
-  `FallbackOp` outlives the borrow it was built from — records through the shared queue that
-  `finish` merges.
+  `FallbackOp` outlives the borrow it was built from — records through the shared `FallbackReports`
+  that `finish` merges, which is also how its failure reaches the block around it.
 
 ### Known gaps
 

@@ -9,6 +9,19 @@
 //! Setting it aside rather than abandoning it is what keeps the tensor's entry
 //! in the handle container releasable: an abandoned drop leaves the entry, and
 //! any claim on it, outliving every tensor that could report it.
+//!
+//! # What replay depends on
+//!
+//! The thread has to reach the client again. A thread that unwinds all the way
+//! to its end never does, and the queue goes with it: those entries, and any
+//! claim on them, live until the handle container itself is dropped. Flushing
+//! from a thread-local destructor instead would trade that for a worse
+//! failure — registration re-enters the client, and doing so while the runtime
+//! it locks may already be torn down risks a deadlock or an abort in place of
+//! a bounded leak. So the bound is: one entry per tensor a *dying* thread
+//! dropped mid-unwind, which is what a panic that kills a thread already costs
+//! elsewhere. A thread that catches its panic and carries on — the fusion
+//! server, autotune, a test harness — reaches the client and loses nothing.
 
 use core::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -20,15 +33,26 @@ thread_local! {
 }
 
 /// Set a drop aside until this thread is somewhere it can be registered.
+///
+/// `try_with`, because a `FusionTensor` held in a thread-local is dropped
+/// during that thread-local's teardown, when this queue may already be gone.
+/// Panicking there would be the second panic this module exists to avoid, so a
+/// drop that arrives too late to be set aside is abandoned instead — the leak
+/// the module header bounds, not an abort.
 pub(crate) fn defer(drop: impl FnOnce() + 'static) {
-    PENDING.with(|pending| pending.borrow_mut().push_back(Box::new(drop)));
+    let _ = PENDING.try_with(|pending| pending.borrow_mut().push_back(Box::new(drop)));
 }
 
 /// Register everything set aside. Called wherever the client is reached, so the
 /// check rides along with work the caller was doing anyway.
 pub(crate) fn flush() {
-    // The common case, on the hot path: nothing was ever deferred.
-    if PENDING.with(|pending| pending.borrow().is_empty()) {
+    // The common case, on the hot path: nothing was ever deferred. `try_with`
+    // for the same reason [`defer`] uses it, and a torn-down queue reads as
+    // empty: there is nothing left to replay either way.
+    if PENDING
+        .try_with(|pending| pending.borrow().is_empty())
+        .unwrap_or(true)
+    {
         return;
     }
 
@@ -40,7 +64,10 @@ pub(crate) fn flush() {
     // registering a drop can defer another, so the queue is still growing while
     // this runs, and a panic out of one must leave the rest where the next
     // flush will find them rather than carry them off in a batch it owns.
-    while let Some(drop) = PENDING.with(|pending| pending.borrow_mut().pop_front()) {
+    while let Some(drop) = PENDING
+        .try_with(|pending| pending.borrow_mut().pop_front())
+        .unwrap_or(None)
+    {
         drop();
     }
 }
@@ -56,18 +83,22 @@ pub(crate) fn flush() {
 struct Replaying;
 
 impl Replaying {
-    /// `None` when this thread is already inside a flush.
+    /// `None` when this thread is already inside a flush, or when the flag is
+    /// gone with the rest of this thread's locals and there is nothing left to
+    /// guard.
     fn enter() -> Option<Self> {
-        match REPLAYING.replace(true) {
-            true => None,
-            false => Some(Self),
+        match REPLAYING.try_with(|replaying| replaying.replace(true)) {
+            Ok(false) => Some(Self),
+            Ok(true) | Err(_) => None,
         }
     }
 }
 
 impl Drop for Replaying {
     fn drop(&mut self) {
-        REPLAYING.set(false);
+        // Only ever constructed by a successful `try_with` above, but this runs
+        // on an unwind too, where the locals may have gone in between.
+        let _ = REPLAYING.try_with(|replaying| replaying.set(false));
     }
 }
 

@@ -1841,3 +1841,199 @@ fn an_out_of_range_ordering_never_reaches_the_walk() {
         "the consumed segment left no orphaned bookkeeping"
     );
 }
+
+/// A fallback that reports a failure stops the block from reporting success.
+///
+/// A reported failure returns normally, so the optimization goes on launching
+/// the kernels around the operation it could not serve — and those write their
+/// outputs from bytes that operation never produced. Claiming only the
+/// fallback's own outputs would leave the rest of the block readable, which is
+/// a wrong answer that names nothing. The whole write set takes the failure
+/// instead, all of it naming the one cause.
+#[test]
+fn a_fallback_that_reports_a_failure_claims_the_whole_block() {
+    use crate::search::BlockOptimization;
+    use crate::stream::store::ExecutionStrategy;
+
+    let mut setup = TestSetup::new();
+    let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+    setup.handles.register_handle(t0, TestHandle);
+    setup.streams.register(
+        setup.id,
+        exp_op(t0, t1),
+        UnfusedOp::new(ProduceOp { out: t1 }, setup.id),
+        &mut setup.handles,
+    );
+    // The operation the fused kernel cannot serve. It declines, and says why.
+    setup.streams.register(
+        setup.id,
+        exp_op(t0, t2),
+        UnfusedOp::new(ReportOp, setup.id),
+        &mut setup.handles,
+    );
+
+    // The kernel falls back for the second operation and writes the first
+    // operation's output itself — the write that must not survive the failure.
+    let ordering = vec![0, 1];
+    let optimization = BlockOptimization::new(
+        ExecutionStrategy::Optimization {
+            opt: TestOptimization {
+                len: ordering.len(),
+                outputs: Vec::new(),
+                panics: false,
+                fallback: vec![1],
+                claims: Vec::new(),
+                writes: vec![t1],
+            },
+            ordering: std::sync::Arc::new(ordering.clone()),
+            score: 0,
+        },
+        ordering,
+    );
+
+    let stream = setup.streams.streams.get_mut(&setup.id).expect("queued");
+    stream
+        .queue
+        .execute_unfused(optimization, &mut setup.handles, setup.id);
+
+    let reported = setup
+        .handles
+        .error(&t2)
+        .expect("the fallback claimed its own output");
+    assert_eq!(reported.root(), "this operation declined to run");
+
+    let claimed = setup
+        .handles
+        .error(&t1)
+        .expect("the rest of the block is claimed too, not left readable");
+    assert!(
+        claimed.same_root(reported),
+        "and names the failure that stopped the block, not one of its own"
+    );
+    assert!(
+        !setup.handles.has_handle(&t1),
+        "the write the kernel made before the block failed does not stand"
+    );
+}
+
+/// The same, for the other way a fallback does not run. A skip is reached
+/// through a tensor an earlier part of this block claimed, so the block's own
+/// scope saw clean inputs when it opened and cannot know either.
+#[test]
+fn a_skipped_fallback_claims_the_whole_block() {
+    use crate::search::BlockOptimization;
+    use crate::stream::store::ExecutionStrategy;
+
+    let mut setup = TestSetup::new();
+    let (t0, t1, t2, t3) = (
+        TensorId::new(0),
+        TensorId::new(1),
+        TensorId::new(2),
+        TensorId::new(3),
+    );
+    setup.handles.register_handle(t0, TestHandle);
+    setup.streams.register(
+        setup.id,
+        exp_op(t0, t1),
+        UnfusedOp::new(ProduceOp { out: t1 }, setup.id),
+        &mut setup.handles,
+    );
+    setup.streams.register(
+        setup.id,
+        exp_op(t1, t2),
+        UnfusedOp::new(ProduceOp { out: t2 }, setup.id),
+        &mut setup.handles,
+    );
+    setup.streams.register(
+        setup.id,
+        exp_op(t0, t3),
+        UnfusedOp::new(ProduceOp { out: t3 }, setup.id),
+        &mut setup.handles,
+    );
+
+    // The fused part fails to write `t1`, falls back for the operation reading
+    // it — which skips — and writes `t3` regardless.
+    let ordering = vec![0, 1, 2];
+    let optimization = BlockOptimization::new(
+        ExecutionStrategy::Optimization {
+            opt: TestOptimization {
+                len: ordering.len(),
+                outputs: Vec::new(),
+                panics: false,
+                fallback: vec![1],
+                claims: vec![t1],
+                writes: vec![t3],
+            },
+            ordering: std::sync::Arc::new(ordering.clone()),
+            score: 0,
+        },
+        ordering,
+    );
+
+    let stream = setup.streams.streams.get_mut(&setup.id).expect("queued");
+    stream
+        .queue
+        .execute_unfused(optimization, &mut setup.handles, setup.id);
+
+    let skipped = setup
+        .handles
+        .error(&t2)
+        .expect("the fallback skipped, so its output is claimed");
+    let claimed = setup
+        .handles
+        .error(&t3)
+        .expect("and the block around it is claimed, not left readable");
+    assert!(
+        claimed.same_root(skipped),
+        "both name the failure that stopped the block"
+    );
+    assert!(!setup.handles.has_handle(&t3));
+}
+
+/// Forward progress after a panic escaped the strategy walk with nothing
+/// consumed. Leaving the count at zero hands the queue back byte-identical,
+/// and the policy re-selects the same plan and fails the same way, without
+/// end — a silent hang in place of the panic.
+///
+/// Its caller is unreachable while no panic crosses that frame, so this is
+/// what stops a regression in it from being silent.
+#[test]
+fn a_stall_consumes_the_block_it_was_going_to_run() {
+    fn execution(len: usize) -> OrderedExecution<TestRuntime> {
+        let setup = TestSetup::new();
+        let ops = (0..len)
+            .map(|_| UnfusedOp::new(PanicOp, setup.id))
+            .collect();
+        let ir = (0..len)
+            .map(|i| exp_op(TensorId::new(i as u64), TensorId::new(i as u64 + 1)))
+            .collect();
+
+        OrderedExecution::new(ops, ir)
+    }
+
+    // Nothing ran: the planned block is consumed as one unit, so the next
+    // segment is a shorter queue than this one.
+    let mut stalled = execution(3);
+    stalled.consume_stalled(2);
+    assert_eq!(stalled.finish().num_executed, 2);
+
+    // Something ran, so the queue already shrinks. Every unit of work counts
+    // its operations before it runs them, which is what makes this the common
+    // case and the backstop rare.
+    let mut ran = execution(3);
+    ran.execute_operations(&mut HandleContainer::new(), &[0]);
+    ran.consume_stalled(2);
+    assert_eq!(
+        ran.finish().num_executed,
+        1,
+        "the count the work made stands"
+    );
+
+    // A plan describing more than the queue holds. The drain that follows is
+    // `num_executed` operations off the front, so a count past the end would
+    // panic where the whole point of the backstop is to keep going. Both this
+    // and `finish` clamp, so this pins the property rather than either `min`.
+    let mut over = execution(1);
+    over.consume_stalled(4);
+    assert_eq!(over.finish().num_executed, 1, "clamped to what is held");
+}

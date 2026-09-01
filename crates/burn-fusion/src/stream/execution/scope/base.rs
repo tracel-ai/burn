@@ -13,10 +13,14 @@ pub enum Outcome {
     /// It did not run, because an input it needed carried a failure. Its write
     /// set carries that same failure now, so a read of one of those tensors
     /// names the cause that started it rather than one of its own.
-    Skipped,
+    ///
+    /// The claim comes back with it, for the caller that has a wider write set
+    /// than this scope covers — see [`claim_block`].
+    Skipped(TensorError),
     /// It ran and reported a failure. Its write set carries the error it
-    /// reported, whole.
-    Reported,
+    /// reported, whole, and the claim comes back with it for the same reason
+    /// [`Skipped`](Self::Skipped) returns one.
+    Reported(TensorError),
     /// It ran and panicked. Its write set carries the panic's message, and the
     /// payload comes back so a caller can log it.
     Panicked(Panic),
@@ -34,9 +38,11 @@ pub enum OnPanic {
     /// would let the block carry on as though the piece it could not serve had
     /// run. The claim still happens, on the way out, through [`Drop`].
     ///
-    /// A reported failure is claimed here all the same — only a panic is left
-    /// to the outer scope, because only a panic is what the outer unit cannot
-    /// carry on through.
+    /// A reported failure is claimed here all the same, and only a panic is
+    /// left to the outer scope — a reported failure returns normally, so it
+    /// cannot stop the block by itself. The caller carries it out of band and
+    /// claims the wider write set with [`claim_block`]; that is what keeps the
+    /// two failure shapes ending the same way.
     Raise,
 }
 
@@ -109,11 +115,29 @@ impl Work<'_> {
     }
 }
 
+/// Claim every tensor a fused block was going to write, for a failure its own
+/// scope could not see.
+///
+/// A fallback runs inside the block's scope, so a failure it *reports* returns
+/// normally all the way out of the optimization: the scope sees work that ran,
+/// while the kernels around the fallback went on writing outputs from bytes the
+/// operation it could not serve never produced. The block's own scope covers
+/// exactly this write set, so claiming it here says the same thing that scope
+/// would have said had the failure reached it.
+pub fn claim_block<H: Clone>(
+    ir: &[OperationIr],
+    ordering: &[usize],
+    handles: &mut HandleContainer<H>,
+    error: &TensorError,
+) {
+    Work::Block { ir, ordering }.claim(handles, error);
+}
+
 /// Where a scope is between its one entry and its one exit.
 enum State {
     /// Opened on a claimed input. The write set took that failure in the
     /// constructor, and the body does not run.
-    Skipped,
+    Skipped(TensorError),
     /// Entered, and not yet past the exit. A scope dropped in this state was
     /// left without reaching one, and claims its write set on the way out.
     Running,
@@ -148,7 +172,7 @@ impl<'a, W: Handles> WriteScope<'a, W> {
         let state = match work.input_error(target.handles()) {
             Some(error) => {
                 work.claim(target.handles(), &error);
-                State::Skipped
+                State::Skipped(error)
             }
             None => State::Running,
         };
@@ -175,8 +199,8 @@ impl<'a, W: Handles> WriteScope<'a, W> {
     ) -> Outcome {
         // `Drop` claims only what is still `Running`, so a skip needs nothing
         // more than to not run.
-        if let State::Skipped = self.state {
-            return Outcome::Skipped;
+        if let State::Skipped(error) = &self.state {
+            return Outcome::Skipped(error.clone());
         }
 
         let target = &mut *self.target;
@@ -195,7 +219,7 @@ impl<'a, W: Handles> WriteScope<'a, W> {
             Ok(Err(error)) => {
                 let error = TensorError::new(error);
                 self.work.claim(self.target.handles(), &error);
-                Outcome::Reported
+                Outcome::Reported(error)
             }
             Err(panic) => {
                 let error =
@@ -344,7 +368,10 @@ mod tests {
             Err(ExecutionError::generic("the kernel failed to compile"))
         });
 
-        assert!(matches!(outcome, Outcome::Reported), "reported, not raised");
+        assert!(
+            matches!(outcome, Outcome::Reported(_)),
+            "reported, not raised"
+        );
         let claim = handles
             .error(&TensorId::new(1))
             .expect("its output is claimed");
@@ -391,7 +418,7 @@ mod tests {
         let outcome = WriteScope::over(&ir, &mut handles)
             .run(OnPanic::Catch, |_handles| panic!("the body must not run"));
 
-        assert!(matches!(outcome, Outcome::Skipped));
+        assert!(matches!(outcome, Outcome::Skipped(_)));
         let claim = handles
             .error(&TensorId::new(1))
             .expect("its output is claimed");
@@ -416,7 +443,7 @@ mod tests {
         let outcome = WriteScope::over_block(&ir, &[0, 1], &mut handles)
             .run(OnPanic::Catch, |_handles| panic!("the block must not run"));
 
-        assert!(matches!(outcome, Outcome::Skipped));
+        assert!(matches!(outcome, Outcome::Skipped(_)));
         for out in [1, 2] {
             let claim = handles
                 .error(&TensorId::new(out))
@@ -436,7 +463,7 @@ mod tests {
             Err(ExecutionError::generic("it declined to run"))
         });
 
-        assert!(matches!(outcome, Outcome::Reported));
+        assert!(matches!(outcome, Outcome::Reported(_)));
         assert_eq!(
             handles
                 .error(&TensorId::new(1))

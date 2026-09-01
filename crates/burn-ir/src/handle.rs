@@ -857,6 +857,53 @@ mod tests {
         assert!(fork.has_errors());
     }
 
+    /// The last-resort sweep, for a panic that escaped the strategy walk with
+    /// nothing saying which operation it came from. It claims only what nothing
+    /// wrote and nothing else already claims — the set no scope can account
+    /// for — because claiming broadly from there would error outputs that other
+    /// operations wrote, and would replace a precise claim with a vaguer one.
+    ///
+    /// Its only caller is unreachable while no panic crosses that frame, so
+    /// this is what stops a regression in it from being silent.
+    #[test]
+    fn a_sweep_claims_only_what_nothing_else_accounts_for() {
+        let mut container = HandleContainer::<String>::new();
+        let sweep = TensorError::new(ExecutionError::generic("something did not finish"));
+
+        // Nothing wrote it and nothing claims it: the sweep's own set.
+        container.claim_unwritten(tid(1), sweep.clone());
+        assert!(
+            container.error(&tid(1)).expect("claimed").same_root(&sweep),
+            "an output nothing accounts for takes the sweep's claim"
+        );
+
+        // Written by an operation that ran. The escape says nothing about it.
+        container.register_handle(tid(2), "written".to_string());
+        container.claim_unwritten(tid(2), sweep.clone());
+        assert!(container.has_handle(&tid(2)), "the bytes are still there");
+        assert!(container.error(&tid(2)).is_none(), "and it holds no error");
+
+        // Already claimed, by the scope of the work that actually failed. That
+        // claim names the cause; the sweep's names only that something did.
+        let precise = TensorError::new(ExecutionError::generic("the kernel failed to compile"));
+        container.set_error(tid(3), precise.clone());
+        container.claim_unwritten(tid(3), sweep.clone());
+        let claim = container.error(&tid(3)).expect("still claimed");
+        assert!(
+            claim.same_root(&precise),
+            "the precise claim survives the vaguer one"
+        );
+
+        // And a claim it did make is a claim like any other.
+        assert!(container.has_errors());
+        container.remove_handle(tid(1));
+        container.remove_handle(tid(3));
+        assert!(
+            !container.has_errors(),
+            "the errored count follows a swept claim out of the map"
+        );
+    }
+
     #[test]
     fn double_fork_is_fully_isolated() {
         // Simulates what happens when UnsafeTuneContext::get() is called on a Fork:
