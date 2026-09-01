@@ -548,6 +548,7 @@ macro_rules! reshape {
         array $array:expr
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape, justdim);
+        let orig_shape = $array.shape().to_vec();
         let array = match $array.is_standard_layout() {
             // Move the array into the new shape rather than going through
             // `to_shape`: the latter returns a borrowed view here, which
@@ -558,11 +559,23 @@ macro_rules! reshape {
                 match $array.into_shape_with_order(dim) {
                     Ok(val) => val,
                     Err(err) => {
-                        core::panic!("Shape should be compatible shape={dim:?}: {err:?}");
+                        core::panic!(
+                            "Cannot reshape {:?} to {:?}: {err:?}",
+                            orig_shape, dim
+                        );
                     }
                 }
             },
-            false => $array.to_shape(dim).unwrap().as_standard_layout().into_shared(),
+            false => $array
+                .to_shape(dim)
+                .unwrap_or_else(|err| {
+                    core::panic!(
+                        "Cannot reshape {:?} to {:?}: {err:?}",
+                        orig_shape, dim
+                    )
+                })
+                .as_standard_layout()
+                .into_shared(),
         };
         array.into_dyn()
     }};

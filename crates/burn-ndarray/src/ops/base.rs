@@ -551,7 +551,13 @@ where
     pub(crate) fn expand(tensor: SharedArray<E>, shape: Shape) -> SharedArray<E> {
         tensor
             .broadcast(shape.into_dimension())
-            .expect("The shapes should be broadcastable")
+            .unwrap_or_else(|| {
+                panic!(
+                    "Tensors are not broadcastable: cannot expand {:?} to {:?}",
+                    tensor.shape(),
+                    shape
+                )
+            })
             // need to convert view to owned array because NdArrayTensor expects owned array
             // and try_into_owned_nocopy() panics for broadcasted arrays (zero strides)
             .into_owned()

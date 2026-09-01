@@ -163,7 +163,10 @@ fn output_shape(lsh: &[usize], rsh: &[usize]) -> (Shape, Strides, Strides, Strid
             l_strides.push(cur_l_stride);
             r_strides.push(0);
         } else {
-            panic!("Dimensions differ and cannot be broadcasted.");
+            panic!(
+                "Dimensions are incompatible for broadcasting along dimension {}: LHS ({}) vs RHS ({})",
+                i, l_dim, r_dim
+            );
         }
         osh[i] = o_dim;
         o_strides.push(cur_o_stride);
@@ -208,7 +211,10 @@ pub(crate) fn cross<E: NdArrayElement>(
             } else if r == 1 {
                 broadcast_shape[i] = l;
             } else {
-                panic!("Tensors are not broadcastable along dimension {}", i);
+                panic!(
+                    "Tensors are not broadcastable along dimension {}: lhs ({}) vs rhs ({})",
+                    i, l, r
+                );
             }
         }
     }
@@ -360,7 +366,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Dimensions differ and cannot be broadcasted.")]
+    #[should_panic(
+        expected = "Dimensions are incompatible for broadcasting along dimension 0: LHS (4) vs RHS (2)"
+    )]
     fn test_output_shape_non_broadcast() {
         output_shape(&[4, 5, 3], &[2, 3, 7]);
     }
