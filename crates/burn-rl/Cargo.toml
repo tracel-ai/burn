@@ -12,10 +12,7 @@ documentation = "https://docs.rs/burn-rl"
 version.workspace = true
 
 [dependencies]
-burn-core = { workspace = true, features = [
-    "dataset",
-    "std",
-] }
+burn-core = { workspace = true, features = ["std"] }
 
 derive-new.workspace = true
 log = { workspace = true }
