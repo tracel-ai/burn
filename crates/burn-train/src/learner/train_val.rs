@@ -129,8 +129,8 @@ pub struct LearningResult<M> {
     /// The model with the learned weights, converted to validation mode.
     ///
     /// Call [`Module::train`](burn_core::module::Module::train) before using it for follow-up
-    /// training. Moving or forking it to an autodiff device does not restore its saved training
-    /// state.
+    /// training. Moving or forking the validation model preserves the state that `train` restores
+    /// but does not activate it by itself.
     pub model: M,
     /// The renderer that can be used for follow up training and evaluation.
     pub renderer: Box<dyn MetricsRenderer>,

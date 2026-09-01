@@ -71,7 +71,9 @@ impl Param<Flag> {
 
     /// Return this parameter with its flag set to the given value.
     pub fn with_value(self, value: bool) -> Self {
-        self.map(|flag| flag.with(value))
+        let mut flag = self.map(|flag| flag.with(value));
+        flag.is_active = value;
+        flag
     }
 }
 
@@ -107,7 +109,9 @@ impl AutodiffModule for Param<Flag> {
 
     fn from_inner(module: Self) -> Self {
         let enabled = module.is_active;
-        Self::initialized(module.id, Flag::new(enabled))
+        let mut flag = Self::initialized(module.id, Flag::new(enabled));
+        flag.is_active = enabled;
+        flag
     }
 }
 
@@ -141,6 +145,34 @@ mod tests {
 
         assert!(!valid.is_enabled());
         assert!(!Param::<Flag>::from_inner(valid).is_enabled());
+    }
+
+    #[test]
+    fn enabling_a_flag_during_validation_is_preserved_by_train() {
+        let flag = Param::<Flag>::from_bool(false).valid().with_value(true);
+
+        assert!(flag.is_enabled());
+        assert!(flag.is_active);
+
+        let flag = flag.train();
+
+        assert!(flag.is_enabled());
+        assert!(flag.is_active);
+    }
+
+    #[test]
+    fn mapping_a_validation_flag_preserves_what_train_restores() {
+        let flag = Param::<Flag>::from_bool(true)
+            .valid()
+            .map(|flag| flag.with(false));
+
+        assert!(!flag.is_enabled());
+        assert!(flag.is_active);
+
+        let flag = flag.train();
+
+        assert!(flag.is_enabled());
+        assert!(flag.is_active);
     }
 
     #[test]

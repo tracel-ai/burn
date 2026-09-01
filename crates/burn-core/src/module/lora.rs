@@ -67,15 +67,12 @@ impl Reparameterizer for Lora {
         // LoRA only adapts 2-D weight matrices. Every other base parameter is frozen too, so that
         // only the adapter factors are trained (the canonical LoRA fine-tuning contract).
         if D != 2 {
-            let (id, tensor, mapper) = param.consume();
-            return (
-                Param::from_mapped_value(id, tensor.set_require_grad(false), mapper),
-                None,
-            );
+            return (param.set_require_grad(false), None);
         }
 
         let rank = self.rank;
-        let (id, tensor, mapper) = param.consume();
+        let id = param.id;
+        let tensor = param.base();
         let device = tensor.device();
         let dims = tensor.dims();
         let (d_in, d_out) = (dims[0], dims[1]);
@@ -92,7 +89,7 @@ impl Reparameterizer for Lora {
             .or_else(|| base_dtype.is_float().then(|| FloatDType::from(base_dtype)));
 
         // Freeze the base weight; only the adapter factors will be trained.
-        let base = Param::from_mapped_value(id, tensor.set_require_grad(false), mapper);
+        let base = param.set_require_grad(false);
 
         if self.param_group.matches(&id, Some(path)) {
             // Standard LoRA init: A ~ N(0, std) and B = 0, so the initial delta (and the model output)

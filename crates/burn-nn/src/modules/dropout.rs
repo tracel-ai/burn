@@ -142,6 +142,25 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
+    fn require_grad_path_group_only_changes_matched_tensors() {
+        use burn::module::ParamGroup;
+
+        let model = trainable_dropout()
+            .set_require_grad_group(ParamGroup::from_path("linear.weight"), false);
+
+        assert!(!model.linear.weight.is_require_grad());
+        assert!(model.linear.bias.as_ref().unwrap().is_require_grad());
+        assert!(model.dropout.training.is_enabled());
+
+        let model = model.set_require_grad_group(ParamGroup::from_path("linear.weight"), true);
+
+        assert!(model.linear.weight.is_require_grad());
+        assert!(model.linear.bias.as_ref().unwrap().is_require_grad());
+        assert!(model.dropout.training.is_enabled());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
     fn freeze_and_unfreeze_change_tensors_and_flags() {
         let model = trainable_dropout().freeze();
 
