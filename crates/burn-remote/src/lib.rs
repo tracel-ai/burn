@@ -127,16 +127,16 @@ mod tests {
         // Some random input on device 1.
         let input_shape = [1, 28, 28];
         let input = Tensor::<3>::random(input_shape, Distribution::Default, &device_1);
-        let numbers_expected: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers_expected: Vec<f32> = input.to_data().try_into_vec().unwrap();
 
         // Move tensor to device 2.
         let input = input.to_device(&device_2);
-        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = input.to_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
 
         // Move tensor back to device 1.
         let input = input.to_device(&device_1);
-        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
 
         rt.shutdown_background();
@@ -367,15 +367,15 @@ mod tests {
 
         let input_shape = [1, 28, 28];
         let input = Tensor::<3>::random(input_shape, Distribution::Default, &device_0);
-        let numbers_expected: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers_expected: Vec<f32> = input.to_data().try_into_vec().unwrap();
 
         // Move tensor to the second device on the same host and back.
         let input = input.to_device(&device_1);
-        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = input.to_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
 
         let input = input.to_device(&device_0);
-        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
 
         rt.shutdown_background();
@@ -481,7 +481,7 @@ mod tests {
 
         // The enumerated devices are usable: run an op on the last one.
         let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &devices[2]);
-        let numbers: Vec<f32> = (input * 2.0).to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = (input * 2.0).into_data().try_into_vec().unwrap();
         assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0]);
 
         rt.shutdown_background();
@@ -529,7 +529,7 @@ mod tests {
 
         // One successful round-trip so the sockets are actually up and the demux task is running.
         let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-        let warmup: Vec<f32> = (input * 2.0).to_data().to_vec().unwrap();
+        let warmup: Vec<f32> = (input * 2.0).into_data().try_into_vec().unwrap();
         assert_eq!(warmup, vec![2.0, 4.0, 6.0, 8.0]);
 
         // Kill the server: dropping its runtime closes the listener and both client sockets.
@@ -614,7 +614,7 @@ mod tests {
         let finished = finishes_within(std::time::Duration::from_secs(10), || {
             let device = Device::remote_websocket("ws://localhost:3090", 0);
             let input = Tensor::<2>::from_floats([[10.0, 20.0]], &device);
-            let numbers: Vec<f32> = (input * 3.0).to_data().to_vec().unwrap();
+            let numbers: Vec<f32> = (input * 3.0).into_data().try_into_vec().unwrap();
             assert_eq!(numbers, vec![30.0, 60.0]);
         });
         assert!(
@@ -652,7 +652,7 @@ mod tests {
 
         // Move back to local and verify.
         let back = doubled.to_device(&local);
-        let numbers: Vec<f32> = back.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = back.into_data().try_into_vec().unwrap();
         assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
 
         rt.shutdown_background();

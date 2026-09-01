@@ -123,10 +123,6 @@ regex = { workspace = true, optional = true }
 [target.'cfg(target_has_atomic = "ptr")'.dependencies]
 regex = { workspace = true }
 
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic-util = { workspace = true }
-portable-atomic = { workspace = true }
-
 [dev-dependencies]
 burn-dataset = { workspace = true, features = ["fake"] }
 serial_test = { workspace = true }

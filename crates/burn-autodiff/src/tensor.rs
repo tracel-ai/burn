@@ -8,12 +8,7 @@ use crate::{
 use crate::{distributed::DistributedGradientRegistration, grads::GradSyncContext};
 use alloc::{boxed::Box, vec};
 use burn_backend::{Backend, BackendTypes, TensorMetadata};
-
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
+use burn_std::sync::Arc;
 
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 

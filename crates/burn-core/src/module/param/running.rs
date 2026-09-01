@@ -7,13 +7,7 @@ use crate::module::{
 use alloc::string::ToString;
 use alloc::vec::Vec;
 
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
-
-use burn_std::sync::Mutex;
+use burn_std::sync::{Arc, Mutex};
 use burn_tensor::{Device, Tensor};
 
 #[cfg(feature = "std")]
