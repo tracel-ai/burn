@@ -1,11 +1,8 @@
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::fmt;
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
 
 use burn_backend::{DType, Element, TensorData, TensorMetadata};
+use burn_std::sync::Arc;
 use burn_std::{Bytes, Shape, bf16, f16};
 
 use crate::{FlexDevice, layout::Layout};

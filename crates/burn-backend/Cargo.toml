@@ -37,7 +37,6 @@ cubecl-cpu = ["cubecl", "cubecl/cpu"]
 burn-std = { workspace = true }
 cubecl = { workspace = true, optional = true, default-features = false }
 
-bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }
 enumset = { workspace = true }
 hashbrown = { workspace = true }
@@ -48,11 +47,6 @@ serde = { workspace = true }
 oneshot = { version = "0.2.1", optional = true }
 spin = { workspace = true }
 
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic-util = { workspace = true }
-
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }
-paste = { workspace = true }
-serde_json = { workspace = true, features = ["alloc"] }
 serial_test = { workspace = true }

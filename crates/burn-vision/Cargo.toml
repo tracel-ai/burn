@@ -66,11 +66,9 @@ dirs = { workspace = true, optional = true }
 bytemuck = { workspace = true }
 cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
-half = { workspace = true }
 image = { version = "0.25" }
 macerator = { workspace = true }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
-paste = { workspace = true }
 serde = { workspace = true }
 

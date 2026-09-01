@@ -116,6 +116,7 @@ template = ["burn-wgpu?/template"]
 
 [dependencies]
 burn-backend = { workspace = true }
+burn-backend-extension = { workspace = true }
 
 # Backends
 burn-autodiff = { workspace = true, optional = true }

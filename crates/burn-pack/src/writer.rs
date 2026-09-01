@@ -3,6 +3,8 @@ use super::base::{
     TensorDescriptor, aligned_data_section_start,
 };
 use super::tensor::Tensor;
+#[cfg(feature = "std")]
+use crate::atomic::AtomicFile;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -51,6 +53,9 @@ pub struct Writer {
     pub(crate) metadata: BTreeMap<String, String>,
     /// Typed scalars keyed by name
     pub(crate) scalars: BTreeMap<String, Scalar>,
+    /// Automatically append the canonical extension to extensionless file paths.
+    #[cfg(feature = "std")]
+    auto_extension: bool,
 }
 
 impl Writer {
@@ -60,6 +65,8 @@ impl Writer {
             tensors,
             metadata: BTreeMap::new(),
             scalars: BTreeMap::new(),
+            #[cfg(feature = "std")]
+            auto_extension: true,
         }
     }
 
@@ -72,6 +79,18 @@ impl Writer {
     /// Builder pattern: add a typed scalar and return self.
     pub fn with_scalar(mut self, key: &str, value: Scalar) -> Self {
         self.scalars.insert(key.to_string(), value);
+        self
+    }
+
+    /// Enable or disable automatic extension appending for file writes.
+    ///
+    /// When enabled (the default), [`write_to_file`](Self::write_to_file) and
+    /// [`write_to_file_atomic`](Self::write_to_file_atomic) append the canonical
+    /// [`crate::EXTENSION`] when the requested path has no extension. When disabled,
+    /// both methods use the requested path exactly as provided.
+    #[cfg(feature = "std")]
+    pub fn auto_extension(mut self, enable: bool) -> Self {
+        self.auto_extension = enable;
         self
     }
 
@@ -137,7 +156,8 @@ impl Writer {
 
     /// Write directly to a file, replacing its contents in place.
     ///
-    /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
+    /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
+    /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
     ///
     /// The file is truncated as soon as writing starts, so a failure partway through leaves it
     /// truncated. That only matters when a tensor's bytes can fail to materialize, which for
@@ -146,7 +166,7 @@ impl Writer {
     /// [`write_to_file_atomic`](Self::write_to_file_atomic) instead.
     #[cfg(feature = "std")]
     pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
-        let path = Self::resolve_path(path.as_ref());
+        let path = self.resolve_path(path.as_ref());
         let layout = self.plan()?;
 
         let file = File::create(&path)
@@ -158,7 +178,8 @@ impl Writer {
 
     /// Write to a file without ever leaving a partial one at `path`.
     ///
-    /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
+    /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
+    /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
     ///
     /// The container is built in a scratch sibling of `path` and renamed into place only once
     /// every byte is on disk, so `path` either ends up holding a complete container or is left
@@ -187,28 +208,34 @@ impl Writer {
     ///   durable rather than merely handed to the page cache.
     /// - Overwriting needs room for a second copy. Re-saving a model over itself transiently
     ///   occupies twice its size, since the old file keeps its blocks until the rename.
-    /// - The destination is replaced rather than truncated, so its permissions, ownership and
-    ///   hard links do not carry over; the new file gets the process umask. A symlink at `path`
-    ///   is replaced by a regular file rather than followed.
+    /// - The destination is replaced rather than truncated, so its ownership and hard links do
+    ///   not carry over. Its permission bits do: on Unix an existing regular file's mode is
+    ///   copied onto the new file before the rename, so a `0600` container stays `0600` rather
+    ///   than reappearing at the process umask. (Windows has no mode to copy.) A symlink at
+    ///   `path` is replaced by a regular file rather than followed.
     /// - A hard kill (SIGKILL, OOM) skips the cleanup and strands the scratch file. Scratch
     ///   names are `<file_name>.<pid>-<n>.tmp` siblings of the resolved path (after any
     ///   extension is appended), so leftovers are identifiable and safe to delete once no
     ///   writer is running.
     #[cfg(feature = "std")]
     pub fn write_to_file_atomic<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
-        let path = Self::resolve_path(path.as_ref());
+        let path = self.resolve_path(path.as_ref());
         let layout = self.plan()?;
-        let (scratch, mut sink) = ScratchFile::create(&path)?;
+        let (scratch, file) = AtomicFile::create(&path)?;
+        let mut sink = FileSink {
+            file,
+            path: scratch.path().to_path_buf(),
+        };
 
         self.write_container(&layout, &mut sink)?;
 
-        scratch.persist(sink, &path)
+        scratch.persist(sink)
     }
 
-    /// Append the canonical extension when the caller left one off.
+    /// Apply the configured extension policy to a requested path.
     #[cfg(feature = "std")]
-    fn resolve_path(path: &Path) -> std::path::PathBuf {
-        if path.extension().is_none() {
+    fn resolve_path(&self, path: &Path) -> std::path::PathBuf {
+        if self.auto_extension && path.extension().is_none() {
             path.with_extension(crate::EXTENSION)
         } else {
             path.to_path_buf()
@@ -501,147 +528,17 @@ impl Sink for BufferSink<'_> {
     }
 }
 
-/// A scratch file next to the eventual destination, deleted unless it is persisted.
+/// Flushing a sink and moving its scratch file onto the destination.
 ///
-/// Gives [`Writer::write_to_file_atomic`] its all-or-nothing behaviour: the container is built
-/// here and only takes the destination's name once it is complete. Any earlier return
-/// drops the guard, which removes the partial file.
-///
-/// The scratch path is a sibling of the destination rather than a system temp file so that
-/// [`persist`](Self::persist) stays on one filesystem: never `EXDEV`, and atomic on POSIX.
-/// (Windows documents no atomicity guarantee when the rename replaces an existing file.)
+/// Lives here rather than on [`AtomicFile`] itself because it is what enforces the ordering
+/// the all-or-nothing guarantee rests on: persisting without first surrendering the file
+/// handle is unrepresentable, so the deferred-write-error check in [`FileSink::finish`]
+/// cannot be skipped and the handle is closed before the rename.
 #[cfg(feature = "std")]
-struct ScratchFile {
-    path: std::path::PathBuf,
-    persisted: bool,
-}
-
-#[cfg(feature = "std")]
-impl ScratchFile {
-    /// Create a scratch file alongside `destination` and open a sink onto it.
-    ///
-    /// The guard and its file are handed back together so neither can exist without the
-    /// other: no path is reserved that nothing will clean up, and no file is created that no
-    /// guard is watching.
-    ///
-    /// The file is opened with `create_new`, which refuses a path that already exists and
-    /// does not follow a symlink planted there - a plain `File::create` would truncate
-    /// whatever such a link points at. The scratch name is predictable (pid + counter), so a
-    /// stale leftover from a killed run, pid reuse, or a deliberately pre-created link all
-    /// surface as `AlreadyExists`, answered by moving on to the next counter value.
-    fn create(destination: &Path) -> Result<(Self, FileSink), Error> {
-        loop {
-            let path = Self::path_beside(destination)?;
-            match File::create_new(&path) {
-                Ok(file) => {
-                    let sink = FileSink {
-                        file,
-                        path: path.clone(),
-                    };
-                    return Ok((
-                        Self {
-                            path,
-                            persisted: false,
-                        },
-                        sink,
-                    ));
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => {
-                    return Err(Error::IoError(format!(
-                        "cannot create '{}': {e}",
-                        path.display()
-                    )));
-                }
-            }
-        }
-    }
-
-    /// Pick a scratch path alongside `destination`.
-    ///
-    /// The name carries the process id and a counter so concurrent writers for the same
-    /// destination pick distinct names; [`create`](Self::create)'s exclusive open is what
-    /// makes the rare collision harmless rather than this scheme's uniqueness.
-    fn path_beside(destination: &Path) -> Result<std::path::PathBuf, Error> {
-        use core::sync::atomic::{AtomicU64, Ordering};
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-
-        let name = destination.file_name().ok_or_else(|| {
-            Error::IoError(format!(
-                "cannot write to '{}': not a file path",
-                destination.display()
-            ))
-        })?;
-
-        let mut scratch = name.to_os_string();
-        scratch.push(format!(
-            ".{}-{}.tmp",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-
-        Ok(destination.with_file_name(scratch))
-    }
-
-    /// Flush the completed container to disk and move it onto `destination`, replacing any
-    /// existing file there.
-    ///
-    /// Taking the sink is what enforces the ordering the all-or-nothing guarantee rests on:
-    /// persisting without first surrendering the file handle is unrepresentable, so the
-    /// deferred-write-error check in [`FileSink::finish`] cannot be skipped and the handle is
-    /// closed before the rename.
-    ///
-    /// On Unix the parent directory is synced after the rename, making the rename itself
-    /// durable: once this returns `Ok`, power loss cannot revert the destination to the old
-    /// container. (Windows has no portable directory sync; NTFS journals metadata on its own
-    /// schedule.) If that final sync fails, the error says so explicitly - the new container
-    /// is at the destination and intact, only its durability is unconfirmed - because the
-    /// generic rename error below would wrongly imply the save did not happen.
-    ///
-    /// On rename failure the finished container is deleted by the guard, so the error names
-    /// it: the bytes were written and then discarded, which is worth saying out loud.
-    fn persist(mut self, sink: FileSink, destination: &Path) -> Result<(), Error> {
+impl AtomicFile {
+    fn persist(mut self, sink: FileSink) -> Result<(), Error> {
         sink.finish()?;
-
-        std::fs::rename(&self.path, destination).map_err(|e| {
-            Error::IoError(format!(
-                "cannot move the completed container '{}' onto '{}': {e}",
-                self.path.display(),
-                destination.display()
-            ))
-        })?;
-        self.persisted = true;
-
-        #[cfg(unix)]
-        {
-            // An empty parent means a bare relative file name; the directory is the cwd.
-            let parent = match destination.parent() {
-                Some(parent) if !parent.as_os_str().is_empty() => parent,
-                _ => Path::new("."),
-            };
-            File::open(parent)
-                .and_then(|directory| directory.sync_all())
-                .map_err(|e| {
-                    Error::IoError(format!(
-                        "'{}' was saved, but syncing its directory failed, so the rename may \
-                         not survive power loss: {e}",
-                        destination.display()
-                    ))
-                })?;
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(feature = "std")]
-impl Drop for ScratchFile {
-    fn drop(&mut self) {
-        if !self.persisted {
-            // Best effort: the write already failed, and a leftover scratch file is a less
-            // useful thing to report than whatever went wrong.
-            let _ = std::fs::remove_file(&self.path);
-        }
+        self.rename_onto()
     }
 }
 
@@ -668,7 +565,7 @@ impl FileSink {
     ///
     /// It also orders durability: the data is on disk before the rename happens, so a crash
     /// cannot leave the destination pointing at data that never reached the platter.
-    /// (Durability of the rename itself is [`ScratchFile::persist`]'s job.)
+    /// (Durability of the rename itself is [`AtomicFile::rename_onto`]'s job.)
     fn finish(self) -> Result<(), Error> {
         self.file.sync_all().map_err(|e| {
             Error::IoError(format!(

@@ -1,18 +1,28 @@
 use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
-    ops::FloatTensorOps,
+    ops::{FloatTensorOps, PadMode},
     tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
+use burn_backend_extension::backend_dispatch;
 
 use crate::{Dispatch, DispatchDevice};
 
+#[backend_dispatch]
 impl FloatTensorOps<Self> for Dispatch {
+    fn float_pad(
+        tensor: FloatTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> FloatTensor<Self> {
+        B::float_pad(tensor, padding, mode)
+    }
+
     fn float_from_data(
         data: burn_backend::TensorData,
         device: &DispatchDevice,
     ) -> FloatTensor<Self> {
-        creation_op!(Float, device, |device| B::float_from_data(data, device))
+        B::float_from_data(data, device)
     }
 
     fn float_random(
@@ -21,13 +31,11 @@ impl FloatTensorOps<Self> for Dispatch {
         device: &DispatchDevice,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        creation_op!(Float, device, |device| {
-            B::float_random(shape, distribution, device, dtype)
-        })
+        B::float_random(shape, distribution, device, dtype)
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        unary_float!(tensor, float, |tensor| B::float_into_data(tensor).await)
+        B::float_into_data(tensor).await
     }
 
     fn float_svd(
@@ -35,13 +43,10 @@ impl FloatTensorOps<Self> for Dispatch {
         sweeps: usize,
         swap: bool,
     ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
-        multi_op!(
-            inputs[(tensor, float)],
-            outputs[(u, Float), (s, Float), (vt, Float)],
-            B::float_svd(tensor, sweeps, swap)
-        )
+        B::float_svd(tensor, sweeps, swap)
     }
 
+    #[backend_dispatch(skip)]
     fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {
         // Relocating a non-tracked float tensor onto an autodiff device is a plain data move:
         // place it on the underlying hardware device and leave the tensor non-tracked. The
@@ -70,55 +75,55 @@ impl FloatTensorOps<Self> for Dispatch {
     }
 
     fn float_into_int(tensor: FloatTensor<Self>, dtype: burn_backend::IntDType) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_into_int(tensor, dtype) => Int)
+        B::float_into_int(tensor, dtype)
     }
 
     fn float_empty(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
-        creation_op!(Float, device, |device| B::float_empty(shape, device, dtype))
+        B::float_empty(shape, device, dtype)
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_add(lhs, rhs) => Float)
+        B::float_add(lhs, rhs)
     }
 
     fn float_add_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_add_scalar(lhs, rhs) => Float)
+        B::float_add_scalar(lhs, rhs)
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_sub(lhs, rhs) => Float)
+        B::float_sub(lhs, rhs)
     }
 
     fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_sub_scalar(lhs, rhs) => Float)
+        B::float_sub_scalar(lhs, rhs)
     }
 
     fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_mul(lhs, rhs) => Float)
+        B::float_mul(lhs, rhs)
     }
 
     fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_mul_scalar(lhs, rhs) => Float)
+        B::float_mul_scalar(lhs, rhs)
     }
 
     fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_div(lhs, rhs) => Float)
+        B::float_div(lhs, rhs)
     }
 
     fn float_div_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_div_scalar(lhs, rhs) => Float)
+        B::float_div_scalar(lhs, rhs)
     }
 
     fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_remainder(lhs, rhs) => Float)
+        B::float_remainder(lhs, rhs)
     }
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_remainder_scalar(lhs, rhs) => Float)
+        B::float_remainder_scalar(lhs, rhs)
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_matmul(lhs, rhs) => Float)
+        B::float_matmul(lhs, rhs)
     }
 
     fn float_cross(
@@ -126,27 +131,27 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: FloatTensor<Self>,
         dim: usize,
     ) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_cross(lhs, rhs, dim) => Float)
+        B::float_cross(lhs, rhs, dim)
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_recip(tensor) => Float)
+        B::float_recip(tensor)
     }
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_swap_dims(tensor, dim1, dim2) => Float)
+        B::float_swap_dims(tensor, dim1, dim2)
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_permute(tensor, axes) => Float)
+        B::float_permute(tensor, axes)
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_flip(tensor, axes) => Float)
+        B::float_flip(tensor, axes)
     }
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_reshape(tensor, shape) => Float)
+        B::float_reshape(tensor, shape)
     }
 
     fn float_gather(
@@ -154,19 +159,7 @@ impl FloatTensorOps<Self> for Dispatch {
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        binary_float!((tensor, float), (indices, int), |tensor, indices| B::float_gather(dim, tensor, indices) => Float)
-    }
-
-    fn float_scatter_add(
-        dim: usize,
-        tensor: FloatTensor<Self>,
-        indices: IntTensor<Self>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Float,
-            B::float_scatter_add(dim, tensor, indices, value)
-        )
+        B::float_gather(dim, tensor, indices)
     }
 
     fn float_scatter(
@@ -176,10 +169,7 @@ impl FloatTensorOps<Self> for Dispatch {
         value: FloatTensor<Self>,
         update: IndexingUpdateOp,
     ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Float,
-            B::float_scatter(dim, tensor, indices, value, update)
-        )
+        B::float_scatter(dim, tensor, indices, value, update)
     }
 
     fn float_scatter_nd(
@@ -188,14 +178,11 @@ impl FloatTensorOps<Self> for Dispatch {
         values: FloatTensor<Self>,
         reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(data, float), (indices, int), (values, float)], => Float,
-            B::float_scatter_nd(data, indices, values, reduction)
-        )
+        B::float_scatter_nd(data, indices, values, reduction)
     }
 
     fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((data, float), (indices, int), |data, indices| B::float_gather_nd(data, indices) => Float)
+        B::float_gather_nd(data, indices)
     }
 
     fn float_select(
@@ -203,19 +190,7 @@ impl FloatTensorOps<Self> for Dispatch {
         dim: usize,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        binary_float!((tensor, float), (indices, int), |tensor, indices| B::float_select(tensor, dim, indices) => Float)
-    }
-
-    fn float_select_add(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        indices: IntTensor<Self>,
-        value: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Float,
-            B::float_select_add(tensor, dim, indices, value)
-        )
+        B::float_select(tensor, dim, indices)
     }
 
     fn float_select_assign(
@@ -225,14 +200,11 @@ impl FloatTensorOps<Self> for Dispatch {
         value: FloatTensor<Self>,
         update: IndexingUpdateOp,
     ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Float,
-            B::float_select_assign(tensor, dim, indices, value, update)
-        )
+        B::float_select_assign(tensor, dim, indices, value, update)
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_slice(tensor, slices) => Float)
+        B::float_slice(tensor, slices)
     }
 
     fn float_slice_assign(
@@ -240,7 +212,7 @@ impl FloatTensorOps<Self> for Dispatch {
         slices: &[Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        binary_float!((tensor, float), (value, float), |tensor, value| B::float_slice_assign(tensor, slices, value) => Float)
+        B::float_slice_assign(tensor, slices, value)
     }
 
     fn float_mask_where(
@@ -248,10 +220,7 @@ impl FloatTensorOps<Self> for Dispatch {
         mask: BoolTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        multi_op!(
-            inputs[(tensor, float), (mask, bool), (value, float)], => Float,
-            B::float_mask_where(tensor, mask, value)
-        )
+        B::float_mask_where(tensor, mask, value)
     }
 
     fn float_mask_fill(
@@ -259,14 +228,14 @@ impl FloatTensorOps<Self> for Dispatch {
         mask: BoolTensor<Self>,
         value: Scalar,
     ) -> FloatTensor<Self> {
-        binary_float!((tensor, float), (mask, bool), |tensor, mask| B::float_mask_fill(tensor, mask, value) => Float)
+        B::float_mask_fill(tensor, mask, value)
     }
 
     async fn float_mask_select(
         tensor: FloatTensor<Self>,
         mask: BoolTensor<Self>,
     ) -> FloatTensor<Self> {
-        binary_float!((tensor, float), (mask, bool), |tensor, mask| B::float_mask_select(tensor, mask).await => Float)
+        B::float_mask_select(tensor, mask).await
     }
 
     fn float_equal(
@@ -274,7 +243,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: FloatTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_equal(lhs, rhs, out_dtype) => Bool)
+        B::float_equal(lhs, rhs, out_dtype)
     }
 
     fn float_equal_elem(
@@ -282,7 +251,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: Scalar,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_equal_elem(lhs, rhs, out_dtype) => Bool)
+        B::float_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn float_greater(
@@ -290,7 +259,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: FloatTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_greater(lhs, rhs, out_dtype) => Bool)
+        B::float_greater(lhs, rhs, out_dtype)
     }
 
     fn float_greater_elem(
@@ -298,7 +267,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: Scalar,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_greater_elem(lhs, rhs, out_dtype) => Bool)
+        B::float_greater_elem(lhs, rhs, out_dtype)
     }
 
     fn float_greater_equal(
@@ -306,7 +275,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: FloatTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_greater_equal(lhs, rhs, out_dtype) => Bool)
+        B::float_greater_equal(lhs, rhs, out_dtype)
     }
 
     fn float_greater_equal_elem(
@@ -314,7 +283,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: Scalar,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_greater_equal_elem(lhs, rhs, out_dtype) => Bool)
+        B::float_greater_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn float_lower(
@@ -322,7 +291,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: FloatTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_lower(lhs, rhs, out_dtype) => Bool)
+        B::float_lower(lhs, rhs, out_dtype)
     }
 
     fn float_lower_elem(
@@ -330,7 +299,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: Scalar,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_lower_elem(lhs, rhs, out_dtype) => Bool)
+        B::float_lower_elem(lhs, rhs, out_dtype)
     }
 
     fn float_lower_equal(
@@ -338,7 +307,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: FloatTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_lower_equal(lhs, rhs, out_dtype) => Bool)
+        B::float_lower_equal(lhs, rhs, out_dtype)
     }
 
     fn float_lower_equal_elem(
@@ -346,143 +315,143 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: Scalar,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_lower_equal_elem(lhs, rhs, out_dtype) => Bool)
+        B::float_lower_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_sum(tensor) => Float)
+        B::float_sum(tensor)
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_sum_dim(tensor, dim) => Float)
+        B::float_sum_dim(tensor, dim)
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_mean_dim(tensor, dim) => Float)
+        B::float_mean_dim(tensor, dim)
     }
 
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_cumsum(tensor, dim) => Float)
+        B::float_cumsum(tensor, dim)
     }
 
     fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_cumprod(tensor, dim) => Float)
+        B::float_cumprod(tensor, dim)
     }
 
     fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_cummin(tensor, dim) => Float)
+        B::float_cummin(tensor, dim)
     }
 
     fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_cummax(tensor, dim) => Float)
+        B::float_cummax(tensor, dim)
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_cast(tensor, dtype) => Float)
+        B::float_cast(tensor, dtype)
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_exp(tensor) => Float)
+        B::float_exp(tensor)
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_log(tensor) => Float)
+        B::float_log(tensor)
     }
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_log1p(tensor) => Float)
+        B::float_log1p(tensor)
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_powf(lhs, rhs) => Float)
+        B::float_powf(lhs, rhs)
     }
 
     fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: Scalar) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_powf_scalar_impl(tensor, value) => Float)
+        B::float_powf_scalar_impl(tensor, value)
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_sqrt(tensor) => Float)
+        B::float_sqrt(tensor)
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_abs(tensor) => Float)
+        B::float_abs(tensor)
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_cos(tensor) => Float)
+        B::float_cos(tensor)
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_sin(tensor) => Float)
+        B::float_sin(tensor)
     }
 
     fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_tan(tensor) => Float)
+        B::float_tan(tensor)
     }
 
     fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_cosh(tensor) => Float)
+        B::float_cosh(tensor)
     }
 
     fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_sinh(tensor) => Float)
+        B::float_sinh(tensor)
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_tanh(tensor) => Float)
+        B::float_tanh(tensor)
     }
 
     fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_acos(tensor) => Float)
+        B::float_acos(tensor)
     }
 
     fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_acosh(tensor) => Float)
+        B::float_acosh(tensor)
     }
 
     fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_asin(tensor) => Float)
+        B::float_asin(tensor)
     }
 
     fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_asinh(tensor) => Float)
+        B::float_asinh(tensor)
     }
 
     fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_atan(tensor) => Float)
+        B::float_atan(tensor)
     }
 
     fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_atanh(tensor) => Float)
+        B::float_atanh(tensor)
     }
 
     fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_atan2(lhs, rhs) => Float)
+        B::float_atan2(lhs, rhs)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_round(tensor) => Float)
+        B::float_round(tensor)
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_floor(tensor) => Float)
+        B::float_floor(tensor)
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_ceil(tensor) => Float)
+        B::float_ceil(tensor)
     }
 
     fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_trunc(tensor) => Float)
+        B::float_trunc(tensor)
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_erf(tensor) => Float)
+        B::float_erf(tensor)
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_argmax(tensor, dim, out_dtype) => Int)
+        B::float_argmax(tensor, dim, out_dtype)
     }
 
     fn float_argtopk(
@@ -491,11 +460,11 @@ impl FloatTensorOps<Self> for Dispatch {
         k: usize,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_argtopk(tensor, dim, k, out_dtype) => Int)
+        B::float_argtopk(tensor, dim, k, out_dtype)
     }
 
     fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_topk(tensor, dim, k) => Float)
+        B::float_topk(tensor, dim, k)
     }
 
     fn float_topk_with_indices(
@@ -504,19 +473,15 @@ impl FloatTensorOps<Self> for Dispatch {
         k: usize,
         out_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
-        multi_op!(
-            inputs[(tensor, float)],
-            outputs[(out, Float), (indices, Int)],
-            B::float_topk_with_indices(tensor, dim, k, out_dtype)
-        )
+        B::float_topk_with_indices(tensor, dim, k, out_dtype)
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_argmin(tensor, dim, out_dtype) => Int)
+        B::float_argmin(tensor, dim, out_dtype)
     }
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_expand(tensor, shape) => Float)
+        B::float_expand(tensor, shape)
     }
 
     fn float_unfold(
@@ -525,30 +490,28 @@ impl FloatTensorOps<Self> for Dispatch {
         size: usize,
         step: usize,
     ) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| {
-            B::float_unfold(tensor, dim, size, step)
-        } => Float)
+        B::float_unfold(tensor, dim, size, step)
     }
 
     fn float_detach(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_detach(tensor) => Float)
+        B::float_detach(tensor)
     }
 
     fn float_set_require_grad(tensor: FloatTensor<Self>, require_grad: bool) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_set_require_grad(tensor, require_grad) => Float)
+        B::float_set_require_grad(tensor, require_grad)
     }
 
     fn float_is_require_grad(tensor: &FloatTensor<Self>) -> bool {
-        unary_float!(ref tensor, float, |tensor| B::float_is_require_grad(tensor))
+        B::float_is_require_grad(tensor)
     }
 
     // Default implementation
     fn float_zeros(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
-        creation_op!(Float, device, |device| B::float_zeros(shape, device, dtype))
+        B::float_zeros(shape, device, dtype)
     }
 
     fn float_ones(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
-        creation_op!(Float, device, |device| B::float_ones(shape, device, dtype))
+        B::float_ones(shape, device, dtype)
     }
 
     fn float_full(
@@ -557,33 +520,31 @@ impl FloatTensorOps<Self> for Dispatch {
         device: &DispatchDevice,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        creation_op!(Float, device, |device| B::float_full(
-            shape, fill_value, device, dtype
-        ))
+        B::float_full(shape, fill_value, device, dtype)
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_repeat_dim(tensor, dim, times) => Float)
+        B::float_repeat_dim(tensor, dim, times)
     }
 
     fn float_clamp_min(tensor: FloatTensor<Self>, min: Scalar) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_clamp_min(tensor, min) => Float)
+        B::float_clamp_min(tensor, min)
     }
 
     fn float_clamp_max(tensor: FloatTensor<Self>, max: Scalar) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_clamp_max(tensor, max) => Float)
+        B::float_clamp_max(tensor, max)
     }
 
     fn float_clamp(tensor: FloatTensor<Self>, min: Scalar, max: Scalar) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_clamp(tensor, min, max) => Float)
+        B::float_clamp(tensor, min, max)
     }
 
     fn float_neg(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_neg(tensor) => Float)
+        B::float_neg(tensor)
     }
 
     fn float_transpose(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_transpose(tensor) => Float)
+        B::float_transpose(tensor)
     }
 
     fn float_not_equal(
@@ -591,7 +552,7 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: FloatTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_not_equal(lhs, rhs, out_dtype) => Bool)
+        B::float_not_equal(lhs, rhs, out_dtype)
     }
 
     fn float_not_equal_elem(
@@ -599,43 +560,43 @@ impl FloatTensorOps<Self> for Dispatch {
         rhs: Scalar,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_not_equal_elem(lhs, rhs, out_dtype) => Bool)
+        B::float_not_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_prod(tensor) => Float)
+        B::float_prod(tensor)
     }
 
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_prod_dim(tensor, dim) => Float)
+        B::float_prod_dim(tensor, dim)
     }
 
     fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_mean(tensor) => Float)
+        B::float_mean(tensor)
     }
 
     fn float_powi(lhs: FloatTensor<Self>, rhs: IntTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, int), |lhs, rhs| B::float_powi(lhs, rhs) => Float)
+        B::float_powi(lhs, rhs)
     }
 
     fn float_powi_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_powi_scalar_impl(lhs, rhs) => Float)
+        B::float_powi_scalar_impl(lhs, rhs)
     }
 
     fn float_powf_scalar(tensor: FloatTensor<Self>, value: Scalar) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_powf_scalar(tensor, value) => Float)
+        B::float_powf_scalar(tensor, value)
     }
 
     fn float_cat(tensors: Vec<FloatTensor<Self>>, dim: usize) -> FloatTensor<Self> {
-        vec_op!(tensors, float, |tensors| B::float_cat(tensors, dim) => Float)
+        B::float_cat(tensors, dim)
     }
 
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_max(tensor) => Float)
+        B::float_max(tensor)
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_max_dim(tensor, dim) => Float)
+        B::float_max_dim(tensor, dim)
     }
 
     fn float_max_dim_with_indices(
@@ -643,19 +604,15 @@ impl FloatTensorOps<Self> for Dispatch {
         dim: usize,
         indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
-        multi_op!(
-            inputs[(tensor, float)],
-            outputs[(out, Float), (indices, Int)],
-            B::float_max_dim_with_indices(tensor, dim, indices_dtype)
-        )
+        B::float_max_dim_with_indices(tensor, dim, indices_dtype)
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_min(tensor) => Float)
+        B::float_min(tensor)
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_min_dim(tensor, dim) => Float)
+        B::float_min_dim(tensor, dim)
     }
 
     fn float_min_dim_with_indices(
@@ -663,23 +620,19 @@ impl FloatTensorOps<Self> for Dispatch {
         dim: usize,
         indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
-        multi_op!(
-            inputs[(tensor, float)],
-            outputs[(out, Float), (indices, Int)],
-            B::float_min_dim_with_indices(tensor, dim, indices_dtype)
-        )
+        B::float_min_dim_with_indices(tensor, dim, indices_dtype)
     }
 
     fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_max_abs(tensor) => Float)
+        B::float_max_abs(tensor)
     }
 
     fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_max_abs_dim(tensor, dim) => Float)
+        B::float_max_abs_dim(tensor, dim)
     }
 
     fn float_any(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_any(tensor, out_dtype) => Bool)
+        B::float_any(tensor, out_dtype)
     }
 
     fn float_any_dim(
@@ -687,11 +640,11 @@ impl FloatTensorOps<Self> for Dispatch {
         dim: usize,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_any_dim(tensor, dim, out_dtype) => Bool)
+        B::float_any_dim(tensor, dim, out_dtype)
     }
 
     fn float_all(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_all(tensor, out_dtype) => Bool)
+        B::float_all(tensor, out_dtype)
     }
 
     fn float_all_dim(
@@ -699,15 +652,15 @@ impl FloatTensorOps<Self> for Dispatch {
         dim: usize,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_all_dim(tensor, dim, out_dtype) => Bool)
+        B::float_all_dim(tensor, dim, out_dtype)
     }
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_sign(tensor) => Float)
+        B::float_sign(tensor)
     }
 
     fn float_sort(tensor: FloatTensor<Self>, dim: usize, descending: bool) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_sort(tensor, dim, descending) => Float)
+        B::float_sort(tensor, dim, descending)
     }
 
     fn float_sort_with_indices(
@@ -716,11 +669,7 @@ impl FloatTensorOps<Self> for Dispatch {
         descending: bool,
         indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
-        multi_op!(
-            inputs[(tensor, float)],
-            outputs[(out, Float), (indices, Int)],
-            B::float_sort_with_indices(tensor, dim, descending, indices_dtype)
-        )
+        B::float_sort_with_indices(tensor, dim, descending, indices_dtype)
     }
 
     fn float_argsort(
@@ -729,7 +678,7 @@ impl FloatTensorOps<Self> for Dispatch {
         descending: bool,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_argsort(tensor, dim, descending, out_dtype) => Int)
+        B::float_argsort(tensor, dim, descending, out_dtype)
     }
 
     fn float_grid_sample_2d(
@@ -737,19 +686,19 @@ impl FloatTensorOps<Self> for Dispatch {
         grid: FloatTensor<Self>,
         options: burn_backend::ops::GridSampleOptions,
     ) -> FloatTensor<Self> {
-        binary_float!((tensor, float), (grid, float), |tensor, grid| B::float_grid_sample_2d(tensor, grid, options) => Float)
+        B::float_grid_sample_2d(tensor, grid, options)
     }
 
     fn float_is_nan(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_is_nan(tensor, out_dtype) => Bool)
+        B::float_is_nan(tensor, out_dtype)
     }
 
     fn float_is_inf(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_is_inf(tensor, out_dtype) => Bool)
+        B::float_is_inf(tensor, out_dtype)
     }
 
     fn float_hypot(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_hypot(lhs, rhs) => Float)
+        B::float_hypot(lhs, rhs)
     }
 }
 

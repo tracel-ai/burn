@@ -120,13 +120,25 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         kernel::gather(dim, tensor, indices)
     }
 
-    fn int_scatter_add(
+    fn int_scatter(
         dim: usize,
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Self> {
-        kernel::scatter(dim, tensor, indices, value, false)
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                kernel::scatter_assign(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                kernel::scatter(dim, tensor, indices, value, false)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                kernel::scatter_mul(dim, tensor, indices, value)
+            }
+            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+        }
     }
 
     fn int_scatter_nd(
@@ -150,13 +162,27 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         kernel::select(tensor, dim, indices)
     }
 
-    fn int_select_add(
+    fn int_select_assign(
         tensor: IntTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Self> {
-        kernel::select_assign(tensor, dim, indices, value, false)
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                kernel::select_assign_replace(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                kernel::select_assign(tensor, dim, indices, value, false)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                kernel::select_assign_mul(tensor, dim, indices, value)
+            }
+            other => {
+                unimplemented!("int_select_assign with {other:?} update is not implemented")
+            }
+        }
     }
 
     fn int_equal(

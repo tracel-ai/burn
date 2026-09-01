@@ -73,7 +73,10 @@ pub use __client::*;
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use burn_flex::Flex;
-    use burn_tensor::{Device, DeviceType, Distribution, Tensor};
+    use burn_tensor::{
+        Device, DeviceType, Distribution, Tensor, TensorData, Tolerance,
+        signal::{irfft, rfft},
+    };
 
     /// Run `body` on a worker thread and fail the test if it doesn't finish within `timeout`.
     ///
@@ -124,17 +127,53 @@ mod tests {
         // Some random input on device 1.
         let input_shape = [1, 28, 28];
         let input = Tensor::<3>::random(input_shape, Distribution::Default, &device_1);
-        let numbers_expected: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers_expected: Vec<f32> = input.to_data().try_into_vec().unwrap();
 
         // Move tensor to device 2.
         let input = input.to_device(&device_2);
-        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = input.to_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
 
         // Move tensor back to device 1.
         let input = input.to_device(&device_1);
-        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
+
+        rt.shutdown_background();
+    }
+
+    #[test]
+    pub fn test_fft_over_websocket() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3160)
+                .start_async(),
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = Device::remote_websocket("ws://localhost:3160", 0);
+        let signal = Tensor::<1>::from_floats([1.0, 1.0, 1.0, 1.0], &device);
+        let (spectrum_re, spectrum_im) = rfft(signal, 0, None);
+        let reconstructed = irfft(spectrum_re.clone(), spectrum_im.clone(), 0, None);
+
+        spectrum_re.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([4.0, 0.0, 0.0]),
+            Tolerance::absolute(1e-4),
+        );
+        spectrum_im.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([0.0, 0.0, 0.0]),
+            Tolerance::absolute(1e-4),
+        );
+        reconstructed.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([1.0, 1.0, 1.0, 1.0]),
+            Tolerance::absolute(1e-4),
+        );
 
         rt.shutdown_background();
     }
@@ -328,15 +367,15 @@ mod tests {
 
         let input_shape = [1, 28, 28];
         let input = Tensor::<3>::random(input_shape, Distribution::Default, &device_0);
-        let numbers_expected: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers_expected: Vec<f32> = input.to_data().try_into_vec().unwrap();
 
         // Move tensor to the second device on the same host and back.
         let input = input.to_device(&device_1);
-        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = input.to_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
 
         let input = input.to_device(&device_0);
-        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
 
         rt.shutdown_background();
@@ -442,7 +481,7 @@ mod tests {
 
         // The enumerated devices are usable: run an op on the last one.
         let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &devices[2]);
-        let numbers: Vec<f32> = (input * 2.0).to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = (input * 2.0).into_data().try_into_vec().unwrap();
         assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0]);
 
         rt.shutdown_background();
@@ -490,7 +529,7 @@ mod tests {
 
         // One successful round-trip so the sockets are actually up and the demux task is running.
         let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-        let warmup: Vec<f32> = (input * 2.0).to_data().to_vec().unwrap();
+        let warmup: Vec<f32> = (input * 2.0).into_data().try_into_vec().unwrap();
         assert_eq!(warmup, vec![2.0, 4.0, 6.0, 8.0]);
 
         // Kill the server: dropping its runtime closes the listener and both client sockets.
@@ -575,7 +614,7 @@ mod tests {
         let finished = finishes_within(std::time::Duration::from_secs(10), || {
             let device = Device::remote_websocket("ws://localhost:3090", 0);
             let input = Tensor::<2>::from_floats([[10.0, 20.0]], &device);
-            let numbers: Vec<f32> = (input * 3.0).to_data().to_vec().unwrap();
+            let numbers: Vec<f32> = (input * 3.0).into_data().try_into_vec().unwrap();
             assert_eq!(numbers, vec![30.0, 60.0]);
         });
         assert!(
@@ -613,7 +652,7 @@ mod tests {
 
         // Move back to local and verify.
         let back = doubled.to_device(&local);
-        let numbers: Vec<f32> = back.to_data().to_vec().unwrap();
+        let numbers: Vec<f32> = back.into_data().try_into_vec().unwrap();
         assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
 
         rt.shutdown_background();

@@ -154,7 +154,7 @@ impl ModuleDisplay for Linear {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::module::ParamId;
+    use burn::module::{AutodiffModule, ParamId};
     use burn::store::ModuleRecord;
     use burn::tensor::ElementConversion;
     use burn::tensor::Tolerance;
@@ -287,6 +287,43 @@ mod tests {
             .val()
             .to_data()
             .assert_eq(&weight_before, true);
+    }
+
+    fn assert_col_layout_round_trip(linear: Linear, config: &LinearConfig) {
+        let device = linear.weight.val().device();
+        let weight_before = linear.weight.val().to_data();
+        let data = linear.into_record().into_bytes().unwrap();
+
+        let linear = config
+            .init(&device)
+            .load_record(ModuleRecord::from_bytes(data).unwrap());
+
+        linear
+            .weight
+            .val()
+            .to_data()
+            .assert_eq(&weight_before, true);
+    }
+
+    #[test]
+    fn col_layout_mapper_is_preserved_after_valid() {
+        let device = Device::default();
+        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
+        let linear = config
+            .init(&device)
+            .to_device(&device.clone().autodiff())
+            .valid();
+
+        assert_col_layout_round_trip(linear, &config);
+    }
+
+    #[test]
+    fn col_layout_mapper_is_preserved_after_train() {
+        let device = Device::default();
+        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
+        let linear = config.init(&device).train();
+
+        assert_col_layout_round_trip(linear, &config);
     }
 
     #[test]

@@ -283,13 +283,25 @@ impl IntTensorOps<Self> for LibTorch {
         TchOps::gather(dim, tensor, indices)
     }
 
-    fn int_scatter_add(
+    fn int_scatter(
         dim: usize,
         tensor: TchTensor,
         indices: TchTensor,
         value: TchTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> TchTensor {
-        TchOps::scatter(dim, tensor, indices, value)
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                TchOps::scatter_assign(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                TchOps::scatter(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                TchOps::scatter_mul(dim, tensor, indices, value)
+            }
+            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+        }
     }
 
     fn int_scatter_nd(
@@ -309,13 +321,27 @@ impl IntTensorOps<Self> for LibTorch {
         TchOps::index_select_dim(tensor, dim, indices)
     }
 
-    fn int_select_add(
+    fn int_select_assign(
         tensor: TchTensor,
         dim: usize,
         indices: TchTensor,
         value: TchTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> TchTensor {
-        TchOps::select_assign(tensor, dim, indices, value)
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                TchOps::select_assign_replace(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                TchOps::select_assign(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                TchOps::select_assign_mul(tensor, dim, indices, value)
+            }
+            other => {
+                unimplemented!("int_select_assign with {other:?} update is not implemented")
+            }
+        }
     }
 
     fn int_mask_where(tensor: TchTensor, mask: TchTensor, source: TchTensor) -> TchTensor {

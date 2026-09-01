@@ -9,8 +9,8 @@ use common::f32_tensor;
 
 /// Records every materialization, in the order it happened.
 ///
-/// `Arc<Mutex<_>>` rather than `Rc<RefCell<_>>` because a deferred tensor's provider must be
-/// `Send + Sync`: records holding one cross threads through burn-train's async checkpointer.
+/// `Arc<Mutex<_>>` keeps the deferred providers `Send + Sync`, preserving [`Tensor`] as a
+/// thread-safe transport type.
 type Log = Arc<Mutex<Vec<String>>>;
 
 /// A tensor whose bytes are produced on demand, with every knob the tests need to bend.
@@ -240,6 +240,25 @@ fn a_plan_time_rejection_creates_no_file() {
     );
 }
 
+#[test]
+fn an_atomic_write_can_preserve_an_extensionless_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model");
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .auto_extension(false)
+        .write_to_file_atomic(&dest)
+        .unwrap();
+
+    assert!(dest.exists(), "the exact requested path should exist");
+    assert!(
+        !dir.path().join("model.bpk").exists(),
+        "disabling auto-extension must not create a second path"
+    );
+    assert!(Reader::from_file_exact(&dest).is_ok());
+}
+
 /// A deferred provider runs during the write, so its failure has to leave the destination as
 /// it was rather than truncated. Failing on the *last* tensor means the earlier ones were
 /// already streamed out, which is exactly the case a plain `File::create` would corrupt.
@@ -369,5 +388,34 @@ fn a_failing_provider_does_truncate_an_existing_file_in_place() {
         "the failed write should have left a short file, got {} vs {}",
         after.len(),
         original.len()
+    );
+}
+
+/// Publishing by rename hands the destination a new inode, which would otherwise carry the
+/// process umask: a container whose permissions were deliberately narrowed must not come back
+/// readable to everyone after a re-save.
+#[cfg(unix)]
+#[test]
+fn an_atomic_write_keeps_the_permissions_of_the_container_it_replaces() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .write_to_file_atomic(&dest)
+        .unwrap();
+    std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .write_to_file_atomic(&dest)
+        .unwrap();
+
+    assert_eq!(
+        std::fs::metadata(&dest).unwrap().permissions().mode() & 0o777,
+        0o600,
+        "the rewrite republished the container at the process umask"
     );
 }

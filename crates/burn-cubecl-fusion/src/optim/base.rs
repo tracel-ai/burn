@@ -162,8 +162,12 @@ impl CubeOptimizationState {
     pub fn new(name: &str, state: &impl Serialize) -> Self {
         Self {
             name: name.to_string(),
-            state: rmp_serde::to_vec(state)
-                .expect("fusion optimization state must be serializable"),
+            state: {
+                let mut bytes = Vec::new();
+                ciborium::into_writer(state, &mut bytes)
+                    .expect("fusion optimization state must be serializable");
+                bytes
+            },
         }
     }
 
@@ -174,7 +178,7 @@ impl CubeOptimizationState {
     /// When the bytes don't decode as `T` — the state was produced by a
     /// different optimization sharing the name, or by an incompatible version.
     pub fn decode<T: DeserializeOwned>(&self) -> T {
-        rmp_serde::from_slice(&self.state).unwrap_or_else(|err| {
+        ciborium::from_reader(self.state.as_slice()).unwrap_or_else(|err| {
             panic!(
                 "state of fusion optimization `{}` failed to decode: {err}",
                 self.name

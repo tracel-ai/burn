@@ -90,7 +90,6 @@ fn should_scatter_add_1d() {
         .assert_eq(&TensorData::from([4.0, 5.0, 3.0]), false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn should_scatter_assign_1d() {
     let device = Default::default();
@@ -105,7 +104,6 @@ fn should_scatter_assign_1d() {
         .assert_eq(&TensorData::from([10.0, 7.0, 30.0, 50.0]), false);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
 fn should_scatter_assign_2d_dim0() {
     let device = Default::default();
@@ -118,6 +116,35 @@ fn should_scatter_assign_2d_dim0() {
     output
         .into_data()
         .assert_eq(&TensorData::from([[4.0, 2.0, 6.0], [1.0, 5.0, 3.0]]), false);
+}
+
+#[test]
+fn should_scatter_mul_1d() {
+    let device = Default::default();
+    let tensor = TestTensor::<1>::from_data([10.0, 20.0, 30.0, 40.0], &device);
+    let values = TestTensor::from_data([7.0, 50.0], &device);
+    let indices = TestTensorInt::from_ints([1, 3], &device);
+
+    let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Mul);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([10.0, 140.0, 30.0, 2000.0]), false);
+}
+
+#[test]
+fn should_scatter_mul_2d_dim0() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], &device);
+    let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    let indices = TestTensorInt::from_ints([[1, 0, 1], [0, 1, 0]], &device);
+
+    let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Mul);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[40.0, 40.0, 180.0], [40.0, 250.0, 180.0]]),
+        false,
+    );
 }
 
 #[test]

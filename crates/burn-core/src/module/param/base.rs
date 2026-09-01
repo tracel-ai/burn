@@ -9,15 +9,9 @@ use super::sync_once_cell::SyncOnceCell;
 use alloc::format;
 
 use alloc::boxed::Box;
-use burn_std::sync::RwLock;
+use burn_std::sync::{Arc, RwLock};
 use burn_tensor::{Device, Shape};
 use core::ops::Deref;
-
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
 
 #[cfg(target_has_atomic = "ptr")]
 type Mapper<T> = Arc<dyn Fn(T) -> T + Send + Sync>;
@@ -37,7 +31,7 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 
 type InitFn<P> = Box<dyn FnOnce(&Device, bool) -> P + Send + Sync>;
 
-fn new_init_fn<P: Parameter, F: FnOnce(&Device, bool) -> P + Send + Sync + 'static>(
+fn new_init_fn<P: ParameterValue, F: FnOnce(&Device, bool) -> P + Send + Sync + 'static>(
     func: F,
 ) -> InitFn<P> {
     Box::new(func)
@@ -60,7 +54,7 @@ fn new_init_fn<P: Parameter, F: FnOnce(&Device, bool) -> P + Send + Sync + 'stat
 ///
 /// The transition from uninitialized to initialized happens exactly once and is synchronized
 /// across all clones.
-pub(crate) struct LazyInitState<T: Parameter> {
+pub(crate) struct LazyInitState<T: ParameterValue> {
     /// The SyncOnceCell holding the initialized parameter value.
     /// Empty for uninitialized parameters, populated after first access or explicit initialization.
     pub value: SyncOnceCell<T>,
@@ -73,7 +67,7 @@ pub(crate) struct LazyInitState<T: Parameter> {
     pub initialization: Option<RwLock<Option<Uninitialized<T>>>>,
 }
 
-impl<T: Parameter> LazyInitState<T> {
+impl<T: ParameterValue> LazyInitState<T> {
     /// Create a new parameter state that is already initialized.
     fn initialized(value: T) -> Arc<Self> {
         Arc::new(Self {
@@ -104,10 +98,12 @@ impl<T: Parameter> LazyInitState<T> {
     }
 }
 
-/// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
-/// serve as containers for [tensors](crate::tensor::Tensor) that can be updated during
-/// training, and loaded during inference. If you don't want to save the tensors
-/// and/or don't want to update it during training, you don't need this type to wrap your tensor.
+/// Parameters are identified, traversable values owned by [modules](crate::module::Module).
+///
+/// Most parameters contain [tensors](crate::tensor::Tensor) that can be updated during training
+/// and loaded during inference. Parameters can also contain module control state such as
+/// [`Flag`](crate::module::Flag), allowing it to participate in module traversal and parameter
+/// group selection without pretending to be a tensor.
 ///
 /// # Cloning
 ///
@@ -118,7 +114,7 @@ impl<T: Parameter> LazyInitState<T> {
 /// This sharing is strictly scoped to lazy initialization. It only guarantees that all clones
 /// observe the same initialization result. Subsequent transformations operate on independent
 /// parameter values and never propagate across clones.
-pub struct Param<T: Parameter> {
+pub struct Param<T: ParameterValue> {
     /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter.
     pub id: ParamId,
     /// Shared lazy initialization state across all clones of this parameter.
@@ -126,8 +122,12 @@ pub struct Param<T: Parameter> {
     /// shared-ownership mechanism. Any mutation forks into a new `LazyInitState`.
     pub(crate) state: Arc<LazyInitState<T>>,
     pub(crate) param_mapper: ParamMapper<T>,
-    // For stateful `module.valid()` <> `module.train()`
-    pub(crate) require_grad: bool,
+    /// Whether this value should participate in training behavior.
+    ///
+    /// This is kept separately from the effective value so
+    /// [`AutodiffModule::valid`](crate::module::AutodiffModule::valid) can temporarily deactivate
+    /// it and restore the previous state on `train`.
+    pub(crate) is_active: bool,
     /// Optional transformation that materializes the effective value from the stored base.
     pub(crate) reparameterization: Option<Box<dyn DynReparameterization>>,
 }
@@ -145,12 +145,12 @@ pub struct Param<T: Parameter> {
 /// - Quantization/dequantization
 /// - Precision conversion (e.g., FP32 ↔ FP16)
 /// - Custom parameter transformations
-pub struct ParamMapper<T: Parameter> {
+pub struct ParamMapper<T: ParameterValue> {
     load: Option<Mapper<T>>,
     save: Option<Mapper<T>>,
 }
 
-impl<T: Parameter> core::fmt::Debug for ParamMapper<T> {
+impl<T: ParameterValue> core::fmt::Debug for ParamMapper<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!(
             "ParamMapper {{ load: {}, save: {} }}",
@@ -160,7 +160,7 @@ impl<T: Parameter> core::fmt::Debug for ParamMapper<T> {
     }
 }
 
-impl<T: Parameter> ParamMapper<T> {
+impl<T: ParameterValue> ParamMapper<T> {
     /// Applies the transformation when loading the given parameter.
     pub fn on_load(&self, param: T) -> T {
         match &self.load {
@@ -177,7 +177,7 @@ impl<T: Parameter> ParamMapper<T> {
     }
 }
 
-impl<T: Parameter> Default for ParamMapper<T> {
+impl<T: ParameterValue> Default for ParamMapper<T> {
     fn default() -> Self {
         Self {
             load: None,
@@ -186,13 +186,13 @@ impl<T: Parameter> Default for ParamMapper<T> {
     }
 }
 
-impl<T: Parameter> core::fmt::Display for Param<T> {
+impl<T: ParameterValue> core::fmt::Display for Param<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(format!("Param: {}", self.id).as_str())
     }
 }
 
-impl<T: Parameter> core::fmt::Debug for Param<T> {
+impl<T: ParameterValue> core::fmt::Debug for Param<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(format!("Param: {} - {:?}", self.id, self.param_mapper).as_str())
     }
@@ -202,11 +202,14 @@ pub(crate) mod sealed {
     use super::DynReparameterization;
 
     pub trait Sealed: Sized {
+        /// Whether this value currently participates in the module's training behavior.
+        fn is_active(&self) -> bool;
+
         /// Materialize a parameter with an attached reparameterization.
         ///
         /// # Notes
         /// This is part of the sealed trait to avoid [`DynReparameterization`] from showing up in the
-        /// public `Parameter` trait.
+        /// public `ParameterValue` trait.
         fn materialize(self, reparameterization: &dyn DynReparameterization) -> Self {
             let _ = reparameterization;
             self
@@ -214,23 +217,29 @@ pub(crate) mod sealed {
     }
 }
 
-/// Trait that defines what is necessary for a type to be a parameter.
+/// A value that can be identified and traversed inside a [`Param`].
 ///
 /// # Notes
 /// This trait is intentionally sealed to keep the set of parameters closed.
 ///
-/// Although exposed publicly, parameter types are not meant to be extensible:
-/// the parameter loading/saving, module system and optimizers assume a fixed,
-/// closed set of parameter types represented exclusively by [`Tensor`](crate::Tensor) instances.
-pub trait Parameter: sealed::Sealed + Clone + core::fmt::Debug + Send {
-    /// Fetch the device.
-    fn device(&self) -> Device;
+/// Although exposed publicly, parameter values are not meant to be extensible. The closed set
+/// includes device-backed values such as [`Tensor`](crate::Tensor) and device-independent control
+/// values such as [`Flag`](crate::module::Flag).
+pub trait ParameterValue: sealed::Sealed + Clone + core::fmt::Debug + Send {}
 
+/// A tensor-backed [`ParameterValue`] with autodiff, device and loading capabilities.
+///
+/// General module-owned values can implement [`ParameterValue`] without pretending to require
+/// gradients, reside on a device or have a tensor shape.
+pub trait Parameter: ParameterValue {
     /// Fetch the gradient requirement.
     fn is_require_grad(&self) -> bool;
 
     /// Set the gradient requirement.
     fn set_require_grad(self, require_grad: bool) -> Self;
+
+    /// Fetch the device.
+    fn device(&self) -> Device;
 
     /// Fetch the shape of the parameter.
     fn shape(&self) -> Shape;
@@ -242,7 +251,7 @@ pub trait Parameter: sealed::Sealed + Clone + core::fmt::Debug + Send {
 
 /// The deferred initialization state for lazy parameters.
 #[allow(clippy::type_complexity)]
-pub(crate) struct Uninitialized<P: Parameter> {
+pub(crate) struct Uninitialized<P: ParameterValue> {
     /// The initialization function. Called with `(device, is_require_grad) -> Parameter`.
     init: InitFn<P>,
     /// The target device on which the parameter should be initialized.
@@ -256,7 +265,7 @@ pub(crate) struct Uninitialized<P: Parameter> {
     pub(crate) shape: Shape,
 }
 
-impl<P: Parameter> Uninitialized<P> {
+impl<P: ParameterValue> Uninitialized<P> {
     /// Runs the initialization function.
     ///
     /// This is called by [Param::val] when accessing an uninitialized parameter for the first time.
@@ -266,40 +275,15 @@ impl<P: Parameter> Uninitialized<P> {
     }
 }
 
-impl<T: Parameter> Param<T> {
+impl<T: ParameterValue> Param<T> {
     /// Create a new parameter that is already initialized.
     pub fn initialized(id: ParamId, value: T) -> Self {
-        let require_grad = value.is_require_grad();
+        let is_active = value.is_active();
         Self {
             id,
             state: LazyInitState::initialized(value),
             param_mapper: Default::default(),
-            require_grad,
-            reparameterization: None,
-        }
-    }
-
-    /// Create a new parameter that is not already initialized.
-    pub fn uninitialized<F>(
-        id: ParamId,
-        init: F,
-        device: Device,
-        is_require_grad: bool,
-        shape: Shape,
-    ) -> Self
-    where
-        F: FnOnce(&Device, bool) -> T + Send + Sync + 'static,
-    {
-        Self {
-            id,
-            state: LazyInitState::uninitialized(Uninitialized {
-                init: new_init_fn(init),
-                device,
-                is_require_grad,
-                shape,
-            }),
-            param_mapper: Default::default(),
-            require_grad: is_require_grad,
+            is_active,
             reparameterization: None,
         }
     }
@@ -323,42 +307,6 @@ impl<T: Parameter> Param<T> {
     /// Gets the raw stored parameter value **without** applying its reparameterization.
     pub fn base(&self) -> T {
         self.deref().clone()
-    }
-
-    pub(crate) fn reparameterization_dyn(&self) -> Option<&dyn DynReparameterization> {
-        self.reparameterization.as_deref()
-    }
-
-    /// The concrete [reparameterization](Reparameterization) attached to this parameter, if any.
-    pub fn reparameterization<R: Reparameterization>(&self) -> Option<&R> {
-        self.reparameterization_dyn()?.as_any().downcast_ref()
-    }
-
-    /// The LoRA [adapter](LoraAdapter) attached to this parameter, if any.
-    pub fn adapter(&self) -> Option<&LoraAdapter> {
-        self.reparameterization()
-    }
-
-    /// Returns a cheap clone of this parameter with its reparameterization detached.
-    ///
-    /// The clone shares the same lazy-initialization state, so the raw base value is not
-    /// duplicated. Used to route the optimizer/record traversal over the structural base.
-    pub(crate) fn without_reparameterization(&self) -> Self {
-        Self {
-            id: self.id,
-            state: self.state.clone(),
-            param_mapper: self.param_mapper.clone(),
-            require_grad: self.require_grad,
-            reparameterization: None,
-        }
-    }
-
-    pub(crate) fn with_dyn_reparameterization(
-        mut self,
-        reparameterization: Option<Box<dyn DynReparameterization>>,
-    ) -> Self {
-        self.reparameterization = reparameterization;
-        self
     }
 
     /// Check if the parameter has been initialized.
@@ -390,13 +338,13 @@ impl<T: Parameter> Param<T> {
     pub fn map<F: FnOnce(T) -> T>(self, func: F) -> Self {
         let (id, tensor, param_mapper) = self.consume();
         let tensor = func(tensor);
-        let require_grad = tensor.is_require_grad();
+        let is_active = tensor.is_active();
 
         Self {
             id,
             state: LazyInitState::initialized(tensor),
             param_mapper,
-            require_grad,
+            is_active,
             reparameterization: None,
         }
     }
@@ -406,14 +354,77 @@ impl<T: Parameter> Param<T> {
     /// This is a helper method for creating parameters while preserving the param mapper,
     /// typically used in ModuleMapper implementations.
     pub fn from_mapped_value(id: ParamId, value: T, param_mapper: ParamMapper<T>) -> Self {
-        let require_grad = value.is_require_grad();
+        let is_active = value.is_active();
         Self {
             id,
             state: LazyInitState::initialized(value),
             param_mapper,
-            require_grad,
+            is_active,
             reparameterization: None,
         }
+    }
+}
+
+impl<T: Parameter> Param<T> {
+    /// Create a new parameter that is not already initialized.
+    pub fn uninitialized<F>(
+        id: ParamId,
+        init: F,
+        device: Device,
+        is_require_grad: bool,
+        shape: Shape,
+    ) -> Self
+    where
+        F: FnOnce(&Device, bool) -> T + Send + Sync + 'static,
+    {
+        Self {
+            id,
+            state: LazyInitState::uninitialized(Uninitialized {
+                init: new_init_fn(init),
+                device,
+                is_require_grad,
+                shape,
+            }),
+            param_mapper: Default::default(),
+            is_active: is_require_grad,
+            reparameterization: None,
+        }
+    }
+
+    pub(crate) fn reparameterization_dyn(&self) -> Option<&dyn DynReparameterization> {
+        self.reparameterization.as_deref()
+    }
+
+    /// The concrete [reparameterization](Reparameterization) attached to this parameter, if any.
+    pub fn reparameterization<R: Reparameterization>(&self) -> Option<&R> {
+        self.reparameterization_dyn()?.as_any().downcast_ref()
+    }
+
+    /// The LoRA [adapter](LoraAdapter) attached to this parameter, if any.
+    pub fn adapter(&self) -> Option<&LoraAdapter> {
+        self.reparameterization()
+    }
+
+    /// Returns a cheap clone of this parameter with its reparameterization detached.
+    ///
+    /// The clone shares the same lazy-initialization state, so the raw base value is not
+    /// duplicated. Used to route the optimizer/record traversal over the structural base.
+    pub(crate) fn without_reparameterization(&self) -> Self {
+        Self {
+            id: self.id,
+            state: self.state.clone(),
+            param_mapper: self.param_mapper.clone(),
+            is_active: self.is_active,
+            reparameterization: None,
+        }
+    }
+
+    pub(crate) fn with_dyn_reparameterization(
+        mut self,
+        reparameterization: Option<Box<dyn DynReparameterization>>,
+    ) -> Self {
+        self.reparameterization = reparameterization;
+        self
     }
 
     /// Runs a transformation on the parameter when loading.
@@ -457,7 +468,7 @@ impl<T: Parameter> Param<T> {
                 Self {
                     id: base.id,
                     param_mapper: base.param_mapper.clone(),
-                    require_grad: base.require_grad,
+                    is_active: base.is_active,
                     reparameterization: None,
                     state: LazyInitState::uninitialized(Uninitialized {
                         // (device, require_grad) are already encoded in `Uninitialized` state and
@@ -527,7 +538,7 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Override the gradient requirement for the current parameter.
-    pub fn set_require_grad(self, require_grad: bool) -> Self {
+    pub fn set_require_grad(mut self, require_grad: bool) -> Self {
         let initialization = match &self.state.initialization {
             Some(init) => init,
             None => return self.map(|tensor| tensor.set_require_grad(require_grad)),
@@ -544,6 +555,7 @@ impl<T: Parameter> Param<T> {
         core::mem::drop(init);
 
         if is_lazy {
+            self.is_active = require_grad;
             return self;
         }
 
@@ -613,19 +625,19 @@ impl<T: Parameter> Param<T> {
     }
 }
 
-impl<T: Parameter> Clone for Param<T> {
+impl<T: ParameterValue> Clone for Param<T> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
             state: self.state.clone(),
             param_mapper: self.param_mapper.clone(),
-            require_grad: self.require_grad,
+            is_active: self.is_active,
             reparameterization: self.reparameterization.clone(),
         }
     }
 }
 
-impl<T: Parameter> Deref for Param<T> {
+impl<T: ParameterValue> Deref for Param<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -640,6 +652,8 @@ mod tests {
     // Param<T> should be Sync so that models can be shared across threads
     // (e.g. parallel inference with rayon).
     fn _assert_sync<T: Sync>() {}
+    fn _assert_parameter_value<T: ParameterValue>() {}
+    fn _assert_parameter<T: Parameter>() {}
 
     #[test]
     fn param_is_sync() {
@@ -647,6 +661,13 @@ mod tests {
             _assert_sync::<Param<Tensor<2>>>();
         }
         check();
+    }
+
+    #[test]
+    fn parameter_capabilities_are_split_by_value_kind() {
+        _assert_parameter_value::<crate::module::Flag>();
+        _assert_parameter_value::<Tensor<1>>();
+        _assert_parameter::<Tensor<1>>();
     }
 
     /// Concurrent lazy initialization must not panic.
@@ -736,8 +757,8 @@ mod tests {
         let param2 = param2.set_require_grad(false);
 
         // The fork produced the correct require_grad state.
-        assert_eq!(param2.require_grad, false);
-        assert_eq!(param1.require_grad, true); // param1 is unaffected
+        assert_eq!(param2.is_active, false);
+        assert_eq!(param1.is_active, true); // param1 is unaffected
 
         // Values are still identical (same tensor data, different grad setting).
         param1

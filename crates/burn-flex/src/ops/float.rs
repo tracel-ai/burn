@@ -282,26 +282,60 @@ impl FloatTensorOps<Flex> for Flex {
         }
     }
 
-    fn float_scatter_add(
+    fn float_scatter(
         dim: usize,
         tensor: FloatTensor<Flex>,
         indices: IntTensor<Flex>,
         value: FloatTensor<Flex>,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Flex> {
-        match tensor.dtype() {
-            DType::F32 => {
-                crate::ops::gather_scatter::scatter_add::<f32>(tensor, dim, indices, value)
-            }
-            DType::F64 => {
-                crate::ops::gather_scatter::scatter_add::<f64>(tensor, dim, indices, value)
-            }
-            DType::F16 => {
-                crate::ops::gather_scatter::scatter_add::<f16>(tensor, dim, indices, value)
-            }
-            DType::BF16 => {
-                crate::ops::gather_scatter::scatter_add::<bf16>(tensor, dim, indices, value)
-            }
-            _ => panic!("float_scatter_add: unsupported dtype {:?}", tensor.dtype()),
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::scatter_assign::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::scatter_assign::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::scatter_assign::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::scatter_assign::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!("float_scatter: unsupported dtype {:?}", tensor.dtype()),
+            },
+            burn_backend::tensor::IndexingUpdateOp::Add => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::scatter_add::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::scatter_add::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::scatter_add::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::scatter_add::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!("float_scatter: unsupported dtype {:?}", tensor.dtype()),
+            },
+            burn_backend::tensor::IndexingUpdateOp::Mul => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::scatter_mul::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::scatter_mul::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::scatter_mul::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::scatter_mul::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!("float_scatter: unsupported dtype {:?}", tensor.dtype()),
+            },
+            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
         }
     }
 
@@ -352,26 +386,71 @@ impl FloatTensorOps<Flex> for Flex {
         }
     }
 
-    fn float_select_add(
+    fn float_select_assign(
         tensor: FloatTensor<Flex>,
         dim: usize,
         indices: IntTensor<Flex>,
         value: FloatTensor<Flex>,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Flex> {
-        match tensor.dtype() {
-            DType::F32 => {
-                crate::ops::gather_scatter::select_add::<f32>(tensor, dim, indices, value)
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::select_assign::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::select_assign::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::select_assign::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::select_assign::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!(
+                    "float_select_assign: unsupported dtype {:?}",
+                    tensor.dtype()
+                ),
+            },
+            burn_backend::tensor::IndexingUpdateOp::Add => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::select_add::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::select_add::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::select_add::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::select_add::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!(
+                    "float_select_assign: unsupported dtype {:?}",
+                    tensor.dtype()
+                ),
+            },
+            burn_backend::tensor::IndexingUpdateOp::Mul => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::select_mul::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::select_mul::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::select_mul::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::select_mul::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!(
+                    "float_select_assign: unsupported dtype {:?}",
+                    tensor.dtype()
+                ),
+            },
+            other => {
+                unimplemented!("float_select_assign with {other:?} update is not implemented")
             }
-            DType::F64 => {
-                crate::ops::gather_scatter::select_add::<f64>(tensor, dim, indices, value)
-            }
-            DType::F16 => {
-                crate::ops::gather_scatter::select_add::<f16>(tensor, dim, indices, value)
-            }
-            DType::BF16 => {
-                crate::ops::gather_scatter::select_add::<bf16>(tensor, dim, indices, value)
-            }
-            _ => panic!("float_select_add: unsupported dtype {:?}", tensor.dtype()),
         }
     }
 

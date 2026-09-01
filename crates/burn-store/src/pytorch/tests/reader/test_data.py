@@ -82,6 +82,18 @@ save_test_file("tensor_3d.pt", {"tensor": tensor_3d}, "3D tensor shape (2, 3, 4)
 tensor_4d = torch.randn(2, 3, 2, 2)
 save_test_file("tensor_4d.pt", {"tensor": tensor_4d}, "4D tensor shape (2, 3, 2, 2)")
 
+# Non-contiguous tensors sharing storage, including an offset view and zero stride.
+# torch.arange consumes no RNG draws, so this block preserves downstream seeded fixtures.
+backing = torch.arange(32, dtype=torch.float32)
+permuted = backing[5:29].reshape(2, 3, 4).permute(0, 2, 1)
+expanded = backing[1:4].view(1, 3).expand(2, 3)
+save_test_file(
+    "non_contiguous.pt",
+    {"permuted": permuted, "expanded": expanded},
+    "Non-contiguous views of one 32-element storage: offsets 5 and 1, "
+    "strides [12, 1, 4] and [0, 1]",
+)
+
 # Test 3: State dict (multiple tensors)
 print("\n=== Generating State Dict Tests ===")
 

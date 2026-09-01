@@ -1,3 +1,4 @@
+use burn_std::sync::Arc;
 use hashbrown::HashMap;
 
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
@@ -7,6 +8,15 @@ use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 pub struct HandleContainer<H> {
     handles: HashMap<TensorId, Handle<H>>,
     counter: u64,
+    /// How many entries are [`Handle::Errored`].
+    ///
+    /// Kept so the checks an error makes necessary cost nothing while nothing
+    /// has failed, which is nearly always: reading it is a branch, where
+    /// asking the question properly is a hash lookup per handle fetch and a
+    /// boxed iterator per operation. Maintained only by [`put`](Self::put)
+    /// and [`take`](Self::take) — every mutation goes through those two, so
+    /// it cannot drift from the map.
+    errored: usize,
 }
 
 // Hand-written perfect derive as we don't require `H: Default`.
@@ -15,6 +25,7 @@ impl<H> Default for HandleContainer<H> {
         Self {
             handles: HashMap::new(),
             counter: 0,
+            errored: 0,
         }
     }
 }
@@ -31,6 +42,7 @@ impl<H: Clone> HandleContainer<H> {
         Self {
             handles,
             counter: self.counter,
+            errored: self.errored,
         }
     }
 }
@@ -44,6 +56,110 @@ impl<H> core::fmt::Debug for HandleContainer<H> {
     }
 }
 
+/// Why a tensor holds no data: the work that was going to write it did not
+/// run, so its bytes were never produced.
+///
+/// The root message is behind an [`Arc`] shared by every tensor one failure
+/// errors, so propagating a failure downstream costs a refcount bump and two
+/// tensors below the same root report the same thing. Identity is pointer
+/// equality on that root — see [`same_root`](Self::same_root).
+#[derive(Clone)]
+pub struct TensorError {
+    /// What the failing work reported.
+    root: Arc<str>,
+    /// How many operations were skipped between the failure and this tensor.
+    /// Zero for the outputs of the work that actually failed.
+    depth: u32,
+}
+
+impl TensorError {
+    /// A fresh failure, erroring the tensors the work that raised `root` was
+    /// going to write.
+    pub fn new(root: impl AsRef<str>) -> Self {
+        Self {
+            root: Arc::from(root.as_ref()),
+            depth: 0,
+        }
+    }
+
+    /// The same failure, one operation further downstream — for the outputs of
+    /// work that was skipped because an input carried this error.
+    ///
+    /// The root is shared rather than reformatted, so a read below a long
+    /// chain of skips still names the failure that started it.
+    pub fn propagated(&self) -> Self {
+        Self {
+            root: self.root.clone(),
+            depth: self.depth.saturating_add(1),
+        }
+    }
+
+    /// What the failing work reported.
+    pub fn root(&self) -> &str {
+        &self.root
+    }
+
+    /// How many operations were skipped between the failure and this tensor.
+    pub fn depth(&self) -> u32 {
+        self.depth
+    }
+
+    /// Whether both tensors were errored by the same failure, however far
+    /// downstream each one is.
+    pub fn same_root(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.root, &other.root)
+    }
+}
+
+impl core::fmt::Display for TensorError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.depth {
+            0 => write!(f, "the work writing it failed: {}", self.root),
+            skipped => write!(
+                f,
+                "the work writing it was skipped {skipped} operation(s) below a failure: {}",
+                self.root
+            ),
+        }
+    }
+}
+
+impl core::fmt::Debug for TensorError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("TensorError")
+            .field("root", &self.root)
+            .field("depth", &self.depth)
+            .finish()
+    }
+}
+
+/// What [`HandleContainer::set_error`] does to a handle that is already
+/// registered for the tensor.
+///
+/// A handle can be registered *before* the work that fills it — an in-place
+/// output is registered as an alias of its input while the launch is still
+/// being planned — so which of these a caller wants turns on whether it knows
+/// the tensor is part of the failed work's write set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExistingHandle {
+    /// Overwrite it. For ids that are a known write set: a buffer that exists
+    /// is not a buffer that was written, and only the work reaching its end
+    /// proves the bytes are there.
+    Displace,
+    /// Leave it alone, whether it is a handle or an earlier failure. For
+    /// erroring broadly — a failure that cannot say which work it came from —
+    /// where the set is known to include tensors other work wrote, and
+    /// displacing them would turn one failure into several.
+    ///
+    /// A claim already on a tensor is kept for the same reason a handle is:
+    /// the work that made it knew its own write set, so its message names the
+    /// real cause at the real depth. Overwriting it with a broad one loses
+    /// the root that [`same_root`](TensorError::same_root) links a chain by,
+    /// and resets [`depth`](TensorError::depth) — a worse report, from a
+    /// failure that knows less.
+    Keep,
+}
+
 /// Backend [tensor handle](BackendIr::Handle) wrapper tracking their creation state
 #[derive(Clone)]
 pub enum Handle<H> {
@@ -51,6 +167,15 @@ pub enum Handle<H> {
     NotInit,
     /// A [tensor handle](BackendIr::Handle) has been created
     Existing(H),
+    /// No handle will be created: the work that was going to write this
+    /// tensor did not run.
+    ///
+    /// The fact lives on the tensor rather than on whatever queue was
+    /// executing, so work that shares no tensor with the failure is
+    /// unaffected, and the error reaches a caller only when one of *these*
+    /// tensors is read. The entry is released by the tensor's own `Drop` like
+    /// any other, which is what bounds the set to the tensors still alive.
+    Errored(TensorError),
 }
 
 impl<H: Clone> HandleContainer<H> {
@@ -59,28 +184,131 @@ impl<H: Clone> HandleContainer<H> {
         Self {
             handles: HashMap::new(),
             counter: 0,
+            errored: 0,
         }
     }
 
-    /// Register a handle for the given [tensor id](TensorId).
-    pub fn register_handle(&mut self, id: TensorId, handle: H) {
-        self.handles.insert(id, Handle::Existing(handle));
+    /// Insert `handle`, keeping [`errored`](Self#structfield.errored) in step.
+    fn put(&mut self, id: TensorId, handle: Handle<H>) -> Option<Handle<H>> {
+        if let Handle::Errored(_) = handle {
+            self.errored += 1;
+        }
+        let previous = self.handles.insert(id, handle);
+        if let Some(Handle::Errored(_)) = previous {
+            // Every `Handle::Errored` in the map was counted here, so the
+            // count cannot be behind the entry we just displaced.
+            debug_assert!(self.errored > 0, "the errored count is behind the map");
+            self.errored -= 1;
+        }
+        previous
     }
 
-    /// Whether a handle exists.
+    /// Remove `id`'s entry, keeping [`errored`](Self#structfield.errored) in
+    /// step.
+    fn take(&mut self, id: &TensorId) -> Option<(TensorId, Handle<H>)> {
+        let entry = self.handles.remove_entry(id);
+        if let Some((_, Handle::Errored(_))) = &entry {
+            debug_assert!(self.errored > 0, "the errored count is behind the map");
+            self.errored -= 1;
+        }
+        entry
+    }
+
+    /// Whether any tensor is errored by a failure.
+    ///
+    /// A branch that lets the error checks cost nothing while nothing has
+    /// failed. False means no [`error`](Self::error) lookup can find
+    /// anything, so the caller can skip asking — worth a branch where asking
+    /// costs a boxed iterator over an operation's inputs.
+    pub fn has_errors(&self) -> bool {
+        self.errored > 0
+    }
+
+    /// Register a handle for the given [tensor id](TensorId).
+    ///
+    /// Writing **recovers** a tensor a failure claimed: the bytes are there
+    /// now, so the entry stops being [`Handle::Errored`] and reads of it
+    /// succeed again. Every `register_*` path goes through the same insert,
+    /// so this holds however the write arrives.
+    ///
+    /// This is what lets work retry. An autotune candidate that fails claims
+    /// the output it did not write; the next candidate writes it and clears
+    /// the claim, and execution carries on with nothing downstream skipped.
+    pub fn register_handle(&mut self, id: TensorId, handle: H) {
+        self.put(id, Handle::Existing(handle));
+    }
+
+    /// Whether a usable handle exists.
+    ///
+    /// False for a tensor claimed by a failure ([`Handle::Errored`]): the
+    /// entry is there, but there is no data behind it.
     pub fn has_handle(&self, id: &TensorId) -> bool {
-        self.handles.contains_key(id)
+        matches!(self.handles.get(id), Some(Handle::Existing(_)))
     }
 
     /// Get the reference to a handle.
+    ///
+    /// `None` for a tensor claimed by a failure, the same as one that was
+    /// never produced — the error is delivered by [`get_handle`](Self::get_handle),
+    /// at the read, and asked for ahead of time with [`error`](Self::error).
     pub fn get_handle_ref(&self, id: &TensorId) -> Option<&H> {
-        self.handles
-            .get(id)
-            .filter(|h| !matches!(h, Handle::NotInit))
-            .map(|h| match h {
-                Handle::Existing(handle) => handle,
-                Handle::NotInit => unreachable!(),
-            })
+        match self.handles.get(id) {
+            Some(Handle::Existing(handle)) => Some(handle),
+            _ => None,
+        }
+    }
+
+    /// Record that `error` is why `id` holds no data: the work that was going
+    /// to write it did not run, so a read of it must fail rather than hand
+    /// back whatever the tensor id resolves to.
+    ///
+    /// `existing` decides what happens to a handle that is already registered
+    /// — see [`ExistingHandle`], which is the whole of the choice.
+    pub fn set_error(&mut self, id: TensorId, error: TensorError, existing: ExistingHandle) {
+        if existing == ExistingHandle::Keep
+            && let Some(Handle::Existing(_) | Handle::Errored(_)) = self.handles.get(&id)
+        {
+            return;
+        }
+        self.put(id, Handle::Errored(error));
+    }
+
+    /// The failure that errored `id`, if one did.
+    pub fn error(&self, id: &TensorId) -> Option<&TensorError> {
+        match self.handles.get(id) {
+            Some(Handle::Errored(error)) => Some(error),
+            _ => None,
+        }
+    }
+
+    /// The failure `tensor` carries, released when this read consumes the
+    /// tensor. The fallible half of [`get_handle`](Self::get_handle): a read
+    /// asks for this first and reports it, rather than tripping over the
+    /// handle that is not there.
+    ///
+    /// The status rule is the one `get_handle` already applies to a handle. A
+    /// `ReadWrite` read is the tensor's last use, so the failure is released
+    /// with it — the refcount that clears failures is the tensor's own, and
+    /// this read is the last chance to honour it: the reader took ownership
+    /// of the id, so no later `Drop` will. A `ReadOnly` read leaves it,
+    /// because the tensor is still alive and every later read of it has to
+    /// report the same cause.
+    pub fn take_error(&mut self, tensor: &TensorIr) -> Option<TensorError> {
+        // Free while nothing has failed, like every other error check.
+        if !self.has_errors() {
+            return None;
+        }
+
+        let Some(Handle::Errored(error)) = self.handles.get(&tensor.id) else {
+            return None;
+        };
+        let error = error.clone();
+
+        if let TensorStatus::ReadWrite = tensor.status {
+            self.take(&tensor.id);
+        }
+
+        Some(error)
     }
 
     /// Get the handle for the given [tensor id](TensorId). The status is used to determine if the
@@ -91,15 +319,27 @@ impl<H: Clone> HandleContainer<H> {
     /// Make sure the status corresponds to the operation you want to execute the handle on,
     /// otherwise you might remove a tensor handle that will be required in the future.
     pub fn get_handle(&mut self, id: &TensorId, status: &TensorStatus) -> H {
+        // Checked before the entry is taken: an unwind past a `remove_entry`
+        // would clear the very error that explains it, and the next read of
+        // the same tensor would fail on a bare missing handle instead.
+        //
+        // Behind `has_errors` so the common path keeps its single lookup:
+        // this is the hottest read in the system, and no tensor is errored
+        // unless something has actually failed.
+        if self.has_errors()
+            && let Some(Handle::Errored(error)) = self.handles.get(id)
+        {
+            panic!("Tensor {id:?} was never written: {error}");
+        }
+
         let (id, handle) = self
-            .handles
-            .remove_entry(id)
+            .take(id)
             .unwrap_or_else(|| panic!("Should have handle for tensor {id:?}"));
 
         match handle {
             Handle::Existing(handle) => match status {
                 TensorStatus::ReadOnly => {
-                    self.handles.insert(id, Handle::Existing(handle.clone()));
+                    self.put(id, Handle::Existing(handle.clone()));
                     handle
                 }
                 TensorStatus::ReadWrite => handle,
@@ -108,6 +348,11 @@ impl<H: Clone> HandleContainer<H> {
                 ),
             },
             Handle::NotInit => panic!("Cannot get uninitialized handle {id:?}."),
+            // The backstop for an `errored` count that has drifted below the
+            // map: the guard above is gated on it, so a drift would let an
+            // errored entry through to here. Not unreachable — reached only
+            // when the invariant `put`/`take` maintain has already broken.
+            Handle::Errored(error) => panic!("Tensor {id:?} was never written: {error}"),
         }
     }
 
@@ -161,7 +406,7 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::float_tensor_handle(tensor);
-        self.handles.insert(*id, Handle::Existing(handle));
+        self.put(*id, Handle::Existing(handle));
     }
 
     /// Register a new [quantized tensor](burn_backend::backend::BackendTypes::QuantizedTensorPrimitive) with the corresponding [tensor ids](TensorId).
@@ -173,7 +418,7 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::quantized_tensor_handle(tensor);
-        self.handles.insert(*id, Handle::Existing(handle));
+        self.put(*id, Handle::Existing(handle));
     }
 
     /// Register a new [int tensor](burn_backend::backend::BackendTypes::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
@@ -182,7 +427,7 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::int_tensor_handle(tensor);
-        self.handles.insert(*id, Handle::Existing(handle));
+        self.put(*id, Handle::Existing(handle));
     }
 
     /// Register a new [bool tensor](burn_backend::backend::BackendTypes::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
@@ -191,12 +436,12 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::bool_tensor_handle(tensor);
-        self.handles.insert(*id, Handle::Existing(handle));
+        self.put(*id, Handle::Existing(handle));
     }
 
     /// Remove tensor handle from container.
     pub fn remove_handle(&mut self, id: TensorId) -> Option<Handle<H>> {
-        self.handles.remove(&id)
+        self.take(&id).map(|(_, handle)| handle)
     }
 
     /// Remove tensor handle from container if writable
@@ -205,7 +450,7 @@ impl<H: Clone> HandleContainer<H> {
             TensorStatus::ReadOnly => (),
             TensorStatus::NotInit => (),
             TensorStatus::ReadWrite => {
-                self.handles.remove(&tensor.id);
+                self.take(&tensor.id);
             }
         };
     }
@@ -233,6 +478,16 @@ mod tests {
     /// Helper to create a TensorId for tests.
     fn tid(value: u64) -> TensorId {
         TensorId::new(value)
+    }
+
+    /// The tensor a read names: only the id and the status matter here.
+    fn ir(id: TensorId, status: TensorStatus) -> TensorIr {
+        TensorIr {
+            id,
+            status,
+            shape: burn_backend::Shape::from(vec![1]),
+            dtype: burn_backend::DType::F32,
+        }
     }
 
     #[test]
@@ -291,6 +546,327 @@ mod tests {
             fork.get_handle_ref(&tid(1)),
             Some(&"modified_in_fork".to_string())
         );
+    }
+
+    /// An errored tensor has no usable handle: the read must fail rather than
+    /// hand back whatever the id resolves to.
+    #[test]
+    fn an_errored_tensor_has_no_handle() {
+        let mut container = HandleContainer::<String>::new();
+        container.set_error(
+            tid(1),
+            TensorError::new("the kernel failed to compile"),
+            ExistingHandle::Displace,
+        );
+
+        assert!(!container.has_handle(&tid(1)));
+        assert!(container.get_handle_ref(&tid(1)).is_none());
+        assert_eq!(
+            container.error(&tid(1)).map(|error| error.root()),
+            Some("the kernel failed to compile"),
+        );
+    }
+
+    /// A broad error leaves alone what other work already wrote, so one
+    /// failure does not turn into several.
+    #[test]
+    fn a_kept_handle_is_never_displaced() {
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "written".to_string());
+        container.set_error(
+            tid(1),
+            TensorError::new("something else failed"),
+            ExistingHandle::Keep,
+        );
+
+        assert_eq!(
+            container.get_handle_ref(&tid(1)),
+            Some(&"written".to_string())
+        );
+        assert!(container.error(&tid(1)).is_none());
+    }
+
+    /// An error on a known write set displaces: a handle can be registered
+    /// before the work that fills it — an in-place output is aliased to its
+    /// input while the launch is still being planned — so a handle that
+    /// exists is not a buffer that was written.
+    #[test]
+    fn erroring_a_write_set_displaces_a_handle_registered_ahead_of_the_work() {
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "aliased_input_buffer".to_string());
+        container.set_error(
+            tid(1),
+            TensorError::new("the launch failed"),
+            ExistingHandle::Displace,
+        );
+
+        assert!(container.get_handle_ref(&tid(1)).is_none());
+        assert_eq!(
+            container.error(&tid(1)).map(|error| error.root()),
+            Some("the launch failed")
+        );
+    }
+
+    /// The read is where the failure is delivered: as an error naming the
+    /// root cause, and released with the tensor the read consumed — the
+    /// reader took ownership of the id, so no later `Drop` will.
+    #[test]
+    fn a_read_that_consumes_the_tensor_reports_and_releases_its_failure() {
+        let mut container = HandleContainer::<String>::new();
+        container.set_error(
+            tid(1),
+            TensorError::new("the kernel failed to compile"),
+            ExistingHandle::Displace,
+        );
+
+        let error = container
+            .take_error(&ir(tid(1), TensorStatus::ReadWrite))
+            .expect("an errored tensor must not read back");
+
+        assert_eq!(error.root(), "the kernel failed to compile");
+        assert!(
+            !container.has_errors(),
+            "the claim lives exactly as long as the tensor carrying it"
+        );
+    }
+
+    /// A read that leaves the tensor alive leaves its failure alone, so every
+    /// later read reports the same cause instead of a missing handle.
+    #[test]
+    fn a_read_only_read_keeps_the_failure() {
+        let mut container = HandleContainer::<String>::new();
+        container.set_error(
+            tid(1),
+            TensorError::new("the kernel failed to compile"),
+            ExistingHandle::Displace,
+        );
+
+        let first = container.take_error(&ir(tid(1), TensorStatus::ReadOnly));
+        let second = container.take_error(&ir(tid(1), TensorStatus::ReadOnly));
+
+        assert!(
+            first.zip(second).is_some_and(|(a, b)| a.same_root(&b)),
+            "both reads report the same failure"
+        );
+        assert!(container.has_errors());
+    }
+
+    /// A clean tensor reads as clean, and the check costs nothing to make.
+    #[test]
+    fn a_written_tensor_carries_no_failure() {
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "written".to_string());
+
+        assert!(
+            container
+                .take_error(&ir(tid(1), TensorStatus::ReadWrite))
+                .is_none()
+        );
+        assert!(container.has_handle(&tid(1)), "and is left where it was");
+    }
+
+    /// Writing recovers a tensor a failure claimed — the property autotune
+    /// rests on: the candidate that fails claims the output it never wrote,
+    /// and the one that works writes it and clears the claim.
+    #[test]
+    fn writing_a_claimed_tensor_recovers_it() {
+        let mut container = HandleContainer::<String>::new();
+        container.set_error(
+            tid(1),
+            TensorError::new("this autotune candidate failed"),
+            ExistingHandle::Displace,
+        );
+
+        container.register_handle(tid(1), "the candidate that worked".to_string());
+
+        assert!(container.error(&tid(1)).is_none(), "the claim is cleared");
+        assert_eq!(
+            container.get_handle_ref(&tid(1)).map(String::as_str),
+            Some("the candidate that worked"),
+            "and the bytes are there"
+        );
+        assert!(!container.has_errors(), "so the container is clean again");
+    }
+
+    /// A claim crossing to another device keeps naming the failure that made
+    /// it. The root is behind an `Arc`, so identity survives the hop between
+    /// containers — this is the sequence `change_client_*` runs when the
+    /// source read reports a claim instead of a tensor.
+    #[test]
+    fn a_claim_crosses_to_a_second_container_keeping_its_root() {
+        let mut src = HandleContainer::<String>::new();
+        let mut dst = HandleContainer::<String>::new();
+        let root = TensorError::new("the kernel failed to compile");
+        src.set_error(tid(1), root.clone(), ExistingHandle::Displace);
+
+        let carried = src
+            .take_error(&ir(tid(1), TensorStatus::ReadWrite))
+            .expect("the transfer read finds the claim");
+        dst.set_error(tid(2), carried.propagated(), ExistingHandle::Displace);
+
+        let moved = dst.error(&tid(2)).expect("the destination carries it");
+        assert!(moved.same_root(&root), "the root survives the device hop");
+        assert_eq!(moved.depth(), 1, "one hop further down");
+        assert!(!src.has_errors(), "and the source released it");
+    }
+
+    /// A broad claim must not overwrite a precise one. The work that named a
+    /// root knew its own write set; a failure that cannot say where it came
+    /// from knows strictly less, so it defers.
+    #[test]
+    fn a_kept_claim_is_never_displaced_by_a_broader_one() {
+        let mut container = HandleContainer::<String>::new();
+        let precise = TensorError::new("the kernel failed to compile");
+        container.set_error(tid(1), precise.clone(), ExistingHandle::Displace);
+        // A tensor downstream of it, carrying the same root one hop down.
+        container.set_error(tid(2), precise.propagated(), ExistingHandle::Displace);
+
+        // The segment-wide backstop sweeps both with a message of its own.
+        let broad = TensorError::new("a panic escaped the strategy walk");
+        container.set_error(tid(1), broad.clone(), ExistingHandle::Keep);
+        container.set_error(tid(2), broad, ExistingHandle::Keep);
+
+        let one = container.error(&tid(1)).expect("still claimed");
+        let two = container.error(&tid(2)).expect("still claimed");
+        assert_eq!(one.root(), "the kernel failed to compile");
+        assert_eq!((one.depth(), two.depth()), (0, 1), "depth is not reset");
+        assert!(one.same_root(two), "the chain still links to one root");
+    }
+
+    /// `get_handle` keeps a panic for the paths that do not ask first — it is
+    /// the backstop, not the delivery.
+    #[test]
+    fn reading_an_errored_tensor_reports_the_root_cause() {
+        let mut container = HandleContainer::<String>::new();
+        container.set_error(
+            tid(1),
+            TensorError::new("the kernel failed to compile"),
+            ExistingHandle::Displace,
+        );
+
+        let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            container.get_handle(&tid(1), &TensorStatus::ReadWrite)
+        }));
+        let payload = read.expect_err("an errored tensor must not read back");
+        let message = payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .unwrap_or_default();
+        assert!(
+            message.contains("never written") && message.contains("failed to compile"),
+            "got: {message}"
+        );
+
+        // The error survives the read that tripped over it: an unwind past a
+        // `remove_entry` would leave the next read reporting a missing handle
+        // instead of the reason.
+        assert!(container.error(&tid(1)).is_some());
+    }
+
+    /// Propagation shares the root, so a read below a chain of skipped work
+    /// still names the failure that started it.
+    #[test]
+    fn propagation_keeps_the_root_and_counts_the_hops() {
+        let root = TensorError::new("the kernel failed to compile");
+        let one = root.propagated();
+        let two = one.propagated();
+
+        assert!(root.same_root(&two));
+        assert_eq!((root.depth(), one.depth(), two.depth()), (0, 1, 2));
+        assert_eq!(two.root(), "the kernel failed to compile");
+        assert!(
+            !root.same_root(&TensorError::new("the kernel failed to compile")),
+            "same message, different failure"
+        );
+    }
+
+    /// The error is released by the tensor's own `Drop`, like any other
+    /// handle — which is what bounds the set to the tensors still alive.
+    #[test]
+    fn an_error_is_released_with_its_tensor() {
+        let mut container = HandleContainer::<String>::new();
+        container.set_error(tid(1), TensorError::new("boom"), ExistingHandle::Displace);
+
+        container.free(&TensorIr {
+            id: tid(1),
+            shape: burn_backend::Shape::new([1]),
+            status: TensorStatus::ReadWrite,
+            dtype: burn_backend::DType::F32,
+        });
+
+        assert!(container.error(&tid(1)).is_none());
+        assert_eq!(container.num_handles(), 0);
+    }
+
+    /// `has_errors` gates every error check, so drift disables the whole
+    /// mechanism silently — the skip stops happening and failed work starts
+    /// computing on bytes nothing wrote. Every path that can change an entry
+    /// is exercised here against the map it is supposed to mirror.
+    #[test]
+    fn the_errored_count_cannot_drift_from_the_map() {
+        fn errored<H: Clone>(container: &HandleContainer<H>) -> usize {
+            container
+                .handles
+                .values()
+                .filter(|handle| matches!(handle, Handle::Errored(_)))
+                .count()
+        }
+        fn check<H: Clone>(container: &HandleContainer<H>, at: &str) {
+            let actual = errored(container);
+            assert_eq!(container.errored, actual, "count drifted after {at}");
+            assert_eq!(
+                container.has_errors(),
+                actual > 0,
+                "has_errors wrong at {at}"
+            );
+        }
+
+        let mut container = HandleContainer::<String>::new();
+        let error = || TensorError::new("boom");
+        check(&container, "empty");
+
+        // Error a tensor, then error the same id again: one entry, one count.
+        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        check(&container, "set_error");
+        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        check(&container, "set_error again");
+
+        // Data displacing an error, and an error displacing data.
+        container.register_handle(tid(1), "written".to_string());
+        check(&container, "register over an error");
+        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        check(&container, "set_error over data");
+
+        // The conservative form, both ways.
+        container.register_handle(tid(2), "written".to_string());
+        container.set_error(tid(2), error(), ExistingHandle::Keep);
+        check(&container, "ExistingHandle::Keep over data");
+        container.set_error(tid(3), error(), ExistingHandle::Keep);
+        check(&container, "ExistingHandle::Keep over nothing");
+
+        // Both removal paths.
+        container.remove_handle(tid(3));
+        check(&container, "remove_handle");
+        container.free(&TensorIr {
+            id: tid(1),
+            shape: burn_backend::Shape::new([1]),
+            status: TensorStatus::ReadWrite,
+            dtype: burn_backend::DType::F32,
+        });
+        check(&container, "free");
+
+        // A read that keeps its entry, and one that consumes it.
+        container.register_handle(tid(4), "written".to_string());
+        container.get_handle(&tid(4), &TensorStatus::ReadOnly);
+        check(&container, "get_handle ReadOnly");
+        container.get_handle(&tid(4), &TensorStatus::ReadWrite);
+        check(&container, "get_handle ReadWrite");
+
+        // A fork carries the count it copied.
+        container.set_error(tid(5), error(), ExistingHandle::Displace);
+        let fork = container.fork();
+        check(&fork, "fork");
+        assert!(fork.has_errors());
     }
 
     #[test]

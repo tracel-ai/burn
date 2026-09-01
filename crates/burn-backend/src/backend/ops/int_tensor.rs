@@ -6,7 +6,7 @@ use crate::{Backend, Distribution, TensorData, TensorMetadata};
 use crate::{ExecutionError, Scalar, get_device_settings};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, PadMode, Shape, Slice};
 use core::ops::Range;
 
 /// Int Tensor API for basic and numeric operations, see
@@ -190,40 +190,14 @@ pub trait IntTensorOps<B: Backend> {
     /// * `indices` - The indices.
     fn int_gather(dim: usize, tensor: IntTensor<B>, indices: IntTensor<B>) -> IntTensor<B>;
 
-    /// Scatter a given value to the tensor at the given indices using sum reduction.
-    ///
-    /// # Arguments
-    ///
-    /// * `dim` - The dimension to scatter to.
-    /// * `tensor` - The tensor.
-    /// * `indices` - The indices.
-    /// * `value` - The value.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the values scattered.
-    fn int_scatter_add(
-        dim: usize,
-        tensor: IntTensor<B>,
-        indices: IntTensor<B>,
-        value: IntTensor<B>,
-    ) -> IntTensor<B>;
-
     /// Scatter elements into a tensor using the specified update operation.
-    ///
-    /// Backend implementations may override this to support operations beyond add.
     fn int_scatter(
         dim: usize,
         tensor: IntTensor<B>,
         indices: IntTensor<B>,
         value: IntTensor<B>,
         update: IndexingUpdateOp,
-    ) -> IntTensor<B> {
-        match update {
-            IndexingUpdateOp::Add => Self::int_scatter_add(dim, tensor, indices, value),
-            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
-        }
-    }
+    ) -> IntTensor<B>;
 
     /// Multi-dimensional scatter for int tensors.
     fn int_scatter_nd(
@@ -253,41 +227,14 @@ pub trait IntTensorOps<B: Backend> {
     /// The tensor with the selected elements.
     fn int_select(tensor: IntTensor<B>, dim: usize, indices: IntTensor<B>) -> IntTensor<B>;
 
-    /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// to the given value using sum reduction.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `dim` - The dimension to select from.
-    /// * `indices` - The indices.
-    /// * `value` - The value.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the selected elements assigned to the given value.
-    fn int_select_add(
-        tensor: IntTensor<B>,
-        dim: usize,
-        indices: IntTensor<B>,
-        value: IntTensor<B>,
-    ) -> IntTensor<B>;
-
     /// Assign selected elements along a dimension using the specified update operation.
-    ///
-    /// Backend implementations may override this to support operations beyond add.
     fn int_select_assign(
         tensor: IntTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
         value: IntTensor<B>,
         update: IndexingUpdateOp,
-    ) -> IntTensor<B> {
-        match update {
-            IndexingUpdateOp::Add => Self::int_select_add(tensor, dim, indices, value),
-            other => unimplemented!("int_select_assign with {other:?} update is not implemented"),
-        }
-    }
+    ) -> IntTensor<B>;
 
     /// Repeats the tensor along the given dimension the given number of times.
     ///
@@ -1572,4 +1519,9 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
     fn int_unfold(tensor: IntTensor<B>, dim: usize, size: usize, step: usize) -> IntTensor<B>;
+
+    /// Pads a tensor with one `(before, after)` pair per dimension.
+    fn int_pad(tensor: IntTensor<B>, padding: &[(usize, usize)], mode: PadMode) -> IntTensor<B> {
+        super::pad::int_pad::<B>(tensor, padding, mode)
+    }
 }

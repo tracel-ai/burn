@@ -106,15 +106,20 @@
 //!
 //! ## Feature Flags
 //!
-//! - `std`: Enables file I/O ([`Reader::from_file`] / [`Writer::write_to_file`]) (default)
+//! - `std`: Enables file I/O ([`Reader::from_file`], [`Reader::from_file_exact`],
+//!   [`Writer::write_to_file`], and [`Writer::write_to_file_atomic`]) (default)
 
 extern crate alloc;
 
+#[cfg(feature = "std")]
+mod atomic;
 mod base;
 mod reader;
 mod tensor;
 mod writer;
 
+#[cfg(feature = "std")]
+pub use atomic::AtomicFile;
 #[cfg(feature = "std")]
 pub use base::MAX_FILE_SIZE;
 pub use base::{

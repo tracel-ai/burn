@@ -9,13 +9,46 @@ use crate::{
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
-    ops::IntTensorOps,
+    ops::{IntTensorOps, PadMode},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
+    fn int_pad(
+        tensor: IntTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct PadOps<B: FusionBackend> {
+            desc: PadOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for PadOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = B::int_pad(tensor, &self.desc.padding, self.desc.mode.into());
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let client = tensor.client.clone();
+        let desc = PadOpIr::create(tensor.into_ir(), padding.into(), mode.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                StreamId::current(),
+                OperationIr::NumericInt(desc.out.dtype, NumericOperationIr::Pad(desc.clone())),
+                PadOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct EmptyOps<B: FusionBackend> {
@@ -321,51 +354,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_scatter_add(
-        dim: usize,
-        tensor: IntTensor<Self>,
-        indices: IntTensor<Self>,
-        value: IntTensor<Self>,
-    ) -> IntTensor<Self> {
-        #[derive(new, Debug)]
-        struct ScatterOps<B: FusionBackend> {
-            desc: ScatterOpIr,
-            _b: PhantomData<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for ScatterOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
-                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
-                let value = handles.get_int_tensor::<B>(&self.desc.value);
-
-                let output = B::int_scatter_add(self.desc.dim, tensor, indices, value);
-
-                handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-        }
-
-        let streams = StreamId::current();
-
-        let client = tensor.client.clone();
-        let desc = ScatterOpIr::create(
-            tensor.into_ir(),
-            dim,
-            indices.into_ir(),
-            value.into_ir(),
-            IndexingUpdateOp::Add,
-            || client.create_empty_handle(),
-        );
-
-        client
-            .register(
-                streams,
-                OperationIr::BaseInt(BaseOperationIr::Scatter(desc.clone())),
-                ScatterOps::<B>::new(desc),
-            )
-            .output()
-    }
-
     fn int_scatter(
         dim: usize,
         tensor: IntTensor<Self>,
@@ -524,51 +512,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::BaseInt(BaseOperationIr::Select(desc.clone())),
                 SelectOps::<B>::new(desc),
-            )
-            .output()
-    }
-
-    fn int_select_add(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        indices: IntTensor<Self>,
-        value: IntTensor<Self>,
-    ) -> IntTensor<Self> {
-        #[derive(new, Debug)]
-        struct SelectAssignOps<B: FusionBackend> {
-            desc: SelectAssignOpIr,
-            _b: PhantomData<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectAssignOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
-                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
-                let value = handles.get_int_tensor::<B>(&self.desc.value);
-
-                let output = B::int_select_add(tensor, self.desc.dim, indices, value);
-
-                handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-        }
-
-        let streams = StreamId::current();
-
-        let client = tensor.client.clone();
-        let desc = SelectAssignOpIr::create(
-            tensor.into_ir(),
-            dim,
-            indices.into_ir(),
-            value.into_ir(),
-            IndexingUpdateOp::Add,
-            || client.create_empty_handle(),
-        );
-
-        client
-            .register(
-                streams,
-                OperationIr::BaseInt(BaseOperationIr::SelectAssign(desc.clone())),
-                SelectAssignOps::<B>::new(desc),
             )
             .output()
     }

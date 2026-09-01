@@ -12,6 +12,11 @@
 //!
 
 #![warn(missing_docs)]
+// Implementing the vision ops for the deprecated `LibTorch` backend is this crate's job, and the
+// `backend_extension` macro expands it into every generated impl, so the warnings cannot be
+// attributed to individual sites. Lint levels do not propagate to dependents, so downstream code
+// naming `LibTorch` still gets the warning, and `tch` is not a default feature.
+#![cfg_attr(feature = "tch", allow(deprecated))]
 
 extern crate alloc;
 

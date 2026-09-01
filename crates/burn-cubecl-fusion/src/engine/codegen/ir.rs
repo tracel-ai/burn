@@ -906,6 +906,7 @@ impl From<ElemType> for FuseType {
             },
             ElemType::Bool => Self::U32,
             ElemType::Index => Self::U32,
+            ElemType::Complex(_) => panic!("Unsupported type for fusion: {value}"),
         }
     }
 }

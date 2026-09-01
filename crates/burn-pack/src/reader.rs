@@ -66,7 +66,23 @@ impl Reader {
             path.to_path_buf()
         };
 
-        let mut file = File::open(&path).map_err(io_err)?;
+        Self::from_resolved_file(&path)
+    }
+
+    /// Load a pack from a file using the exact path provided.
+    ///
+    /// Unlike [`from_file`](Self::from_file), this never appends [`crate::EXTENSION`] when the
+    /// requested path has no extension and does not probe for a fallback path. It is useful when
+    /// a higher-level caller has already applied its own path policy.
+    #[cfg(feature = "std")]
+    pub fn from_file_exact<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        Self::from_resolved_file(path.as_ref())
+    }
+
+    #[cfg(feature = "std")]
+    fn from_resolved_file(path: &Path) -> Result<Self, Error> {
+        let mut file = File::open(path)
+            .map_err(|e| Error::IoError(format!("cannot open '{}': {e}", path.display())))?;
 
         let file_size = file.metadata().map_err(io_err)?.len();
         if file_size > MAX_FILE_SIZE {
@@ -83,7 +99,7 @@ impl Reader {
         file.read_exact(&mut metadata_bytes).map_err(io_err)?;
         let metadata = parse_metadata(&metadata_bytes)?;
 
-        let source = Source::File(Bytes::from_file(path.as_path(), file_size, 0));
+        let source = Source::File(Bytes::from_file(path, file_size, 0));
         Self::assemble(&header, metadata, source, file_size as usize)
     }
 
@@ -98,13 +114,13 @@ impl Reader {
         source: Source,
         available: usize,
     ) -> Result<Self, Error> {
-        let metadata_end = HEADER_SIZE + header.metadata_size as usize;
-        validate_total_size(&metadata, metadata_end, available)?;
+        let data_offset = aligned_data_section_start(header.metadata_size as usize);
+        validate_total_size(&metadata, data_offset, available)?;
 
         Ok(Self {
             metadata,
             source,
-            data_offset: aligned_data_section_start(header.metadata_size as usize),
+            data_offset,
         })
     }
 
@@ -268,7 +284,7 @@ fn parse_metadata(bytes: &[u8]) -> Result<Metadata, Error> {
 /// Ensure the available bytes can hold every tensor the metadata claims.
 fn validate_total_size(
     metadata: &Metadata,
-    metadata_end: usize,
+    data_offset: usize,
     available: usize,
 ) -> Result<(), Error> {
     if metadata.tensors.is_empty() {
@@ -283,7 +299,7 @@ fn validate_total_size(
     let max_offset: usize = max_offset.try_into().map_err(|_| {
         Error::ValidationError(format!("Data offset {max_offset} exceeds platform maximum"))
     })?;
-    let min_size = metadata_end
+    let min_size = data_offset
         .checked_add(max_offset)
         .ok_or_else(|| Error::ValidationError("File size calculation overflow".into()))?;
     if available < min_size {

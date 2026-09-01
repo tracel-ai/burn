@@ -1,16 +1,13 @@
 use crate::module::{Module, ModuleVisitor, Param};
 
 use alloc::string::String;
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
 #[cfg(feature = "std")]
 use regex::Regex;
 
 use burn_std::id::ParamId;
+use burn_std::sync::Arc;
 use burn_tensor::{Bool, Int, Tensor};
 
 /// Errors tied to [ParamGroup]'s.
@@ -42,6 +39,12 @@ impl ModuleVisitor for ParamIdCollector {
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
         self.ids.push(param.id);
+    }
+
+    /// A flag is collected like any other parameter value, so `ids_from_module` over a subtree
+    /// includes its module-owned control state.
+    fn visit_flag(&mut self, flag: &crate::module::Param<crate::module::Flag>) {
+        self.ids.push(flag.id);
     }
 }
 

@@ -62,7 +62,6 @@ zip = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
 
 # Workaround to force broken minor version to update
-lzma-rust2 = { workspace = true, optional = true }
 
 safetensors = { workspace = true, optional = true }
 

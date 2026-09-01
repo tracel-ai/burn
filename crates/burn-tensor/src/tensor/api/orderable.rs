@@ -202,6 +202,10 @@ where
     ///
     /// A new tensor with the `k` largest elements along the given dimension.
     ///
+    /// With autodiff, gradients are propagated to the input positions selected during the forward
+    /// pass. All other input positions receive zero gradient. When values are tied, the gradient
+    /// follows the indices selected by the backend.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -230,6 +234,9 @@ where
     /// * `k` - The number of elements to return.
     /// * `dim` - The dimension to sort along.
     ///   Negative dimensions are supported and count from the end.
+    ///
+    /// With autodiff, gradients from the returned values are propagated to the input positions
+    /// identified by the returned indices. All other input positions receive zero gradient.
     ///
     /// # Example
     ///
