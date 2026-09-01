@@ -41,6 +41,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
     shape_out: Sequence<FastDivmod<u32>>,
     shape_out_c: FastDivmod<u32>,
     #[comptime] has_padding: bool,
+    #[comptime] accumulate_lanes: bool,
     #[define(E)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -104,6 +105,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
         &loop_params,
         0usize,
         has_padding,
+        accumulate_lanes,
     );
 
     output.write(ABSOLUTE_POS, sum);
@@ -133,6 +135,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
     params: &LoopParams,
     #[comptime] kernel_dim: usize,
     #[comptime] has_padding: bool,
+    #[comptime] accumulate_lanes: bool,
 ) {
     if comptime![kernel_dim < params.kernel_shape.len()] {
         let out_idx = *params.out_pos.index(kernel_dim);
@@ -161,6 +164,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
                 params,
                 comptime![kernel_dim + 1],
                 has_padding,
+                accumulate_lanes,
             );
         }
     } else {
@@ -173,6 +177,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
             weight_offs,
             params.in_c_per_group,
             params.stride_oc,
+            accumulate_lanes,
         );
     }
 }
@@ -187,28 +192,109 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
     weight_offs: usize,
     in_c_per_group: u32,
     stride_oc: usize,
+    #[comptime] accumulate_lanes: bool,
+) {
+    if in_bounds {
+        if accumulate_lanes {
+            accumulate_in_lanes(
+                input,
+                weight,
+                sum,
+                in_offs,
+                weight_offs,
+                in_c_per_group,
+                stride_oc,
+            );
+        } else {
+            accumulate_per_step(
+                input,
+                weight,
+                sum,
+                in_offs,
+                weight_offs,
+                in_c_per_group,
+                stride_oc,
+            );
+        }
+    }
+}
+
+/// Sums a tap's channels in a vector accumulator, one per output channel, and folds the lanes
+/// into `sum` once the channel loop is done.
+///
+/// The adds in the loop are independent, so it is a chain of multiply-adds rather than a
+/// dependency chain the length of the reduction. It reloads the input vector once per output
+/// channel to get there, which the channel loop has to be long enough to pay for.
+#[cube]
+fn accumulate_in_lanes<E: Numeric, NIn: Size, NOut: Size>(
+    input: &Tensor<Vector<E, NIn>>,
+    weight: &Tensor<Vector<E, NIn>>,
+    sum: &mut Vector<E, NOut>,
+    in_offs: usize,
+    weight_offs: usize,
+    in_c_per_group: u32,
+    stride_oc: usize,
 ) {
     let vector_size_in = input.vector_size();
     let vector_size_out = sum.vector_size();
 
-    if in_bounds {
-        for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
-            let in_pos = in_offs + in_c as usize;
-            let mut weight_pos = weight_offs + in_c as usize;
+    #[unroll]
+    for v in 0..vector_size_out {
+        let mut lanes = Vector::<E, NIn>::zero();
+        let weight_offs = weight_offs + v * stride_oc;
 
-            let val = input[in_pos / vector_size_in];
+        for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
+            let val = input[(in_offs + in_c as usize) / vector_size_in];
+
+            lanes += val * weight[(weight_offs + in_c as usize) / vector_size_in];
+        }
+
+        let mut channel = sum.extract(v);
+
+        #[unroll]
+        for i in 0..vector_size_in {
+            channel += lanes.extract(i);
+        }
+
+        sum.insert(v, channel);
+    }
+}
+
+/// Folds each product into `sum` where it is produced, so one read of the input vector serves
+/// every output channel.
+///
+/// A channel loop that runs once has no dependency chain to break and no reduction to amortize,
+/// which leaves that shared read the only thing left to win. Measured on MobileNetV3-Small,
+/// where every depthwise convolution lands here.
+#[cube]
+fn accumulate_per_step<E: Numeric, NIn: Size, NOut: Size>(
+    input: &Tensor<Vector<E, NIn>>,
+    weight: &Tensor<Vector<E, NIn>>,
+    sum: &mut Vector<E, NOut>,
+    in_offs: usize,
+    weight_offs: usize,
+    in_c_per_group: u32,
+    stride_oc: usize,
+) {
+    let vector_size_in = input.vector_size();
+    let vector_size_out = sum.vector_size();
+
+    for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
+        let in_pos = in_offs + in_c as usize;
+        let mut weight_pos = weight_offs + in_c as usize;
+
+        let val = input[in_pos / vector_size_in];
+
+        #[unroll]
+        for v in 0..vector_size_out {
+            let weight = weight[weight_pos / vector_size_in];
+            let val = val * weight;
 
             #[unroll]
-            for v in 0..vector_size_out {
-                let weight = weight[weight_pos / vector_size_in];
-                let val = val * weight;
-
-                #[unroll]
-                for i in 0..vector_size_in {
-                    sum.insert(v, sum.extract(v) + val.extract(i));
-                }
-                weight_pos += stride_oc;
+            for i in 0..vector_size_in {
+                sum.insert(v, sum.extract(v) + val.extract(i));
             }
+            weight_pos += stride_oc;
         }
     }
 }
@@ -279,6 +365,13 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     // Use channels_per_group instead of in_channels to avoid issues here
     let vector_size_in = max_vector_size(&weight);
 
+    // Two things have to hold for a vector accumulator to pay. There has to be a vector: at
+    // one lane, accumulating into it is exactly as serial as accumulating into `sum`, and
+    // only the extra reads are left. And the channel loop has to run more than once, or
+    // there is nothing to amortize the reduction over.
+    let accumulate_lanes =
+        vector_size_in > 1 && weight.meta.shape()[dim_c] > vector_size_in as usize;
+
     let shape_out = output.meta.shape()[1..dim_c]
         .iter()
         .map(|s| *s as u32)
@@ -315,6 +408,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             shape_out,
             shape_out_c,
             check_spatial_bounds,
+            accumulate_lanes,
             dtype_to_storage_type(out_dtype),
         )
     };
