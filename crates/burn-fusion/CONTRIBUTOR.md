@@ -10,7 +10,7 @@ This is the policy that keeps that honest, and the invariants any change has to 
 > A tensor reads back if and only if the work that was going to write it ran and succeeded.
 
 Everything below follows from that one sentence. When you are unsure what a new path should do,
-ask what this rule requires of it. It is also the oracle the property test in `stream/multi.rs`
+ask what this rule requires of it. It is also the oracle the property test in `stream/multi/tests.rs`
 checks over random interleavings — if you change the policy, that test is what tells you what you
 broke.
 
@@ -32,7 +32,7 @@ data, which is the honest state to be in.
 
 ### The scope
 
-Every unit of work runs inside a [`WriteScope`](src/stream/execution/scope.rs). It is opened over
+Every unit of work runs inside a [`WriteScope`](src/stream/execution/scope/base.rs). It is opened over
 the work's IR, so its write set is exact, and it owns the three things each execution site used to
 keep by hand:
 
@@ -77,8 +77,9 @@ and nothing downstream is skipped.
 **Release.** A claim lives exactly as long as the tensor carrying it — released by the tensor's
 `Drop`, or by a `ReadWrite` read that consumes it (`take_error`). A drop raised while the thread is
 unwinding cannot register then — that re-enters the client mid-unwind — so it is set aside and
-replayed at the next call into the client on that thread, rather than dropped on the floor. Note that `input_error`
-deliberately exempts `OperationIr::Drop`: a drop names its tensor as an input but does not read it,
+replayed at the next call into the client on that thread, rather than dropped on the floor. The
+client reaches the server through one type whose every method replays first, so there is no door
+that skips it. Note that `input_error` deliberately exempts `OperationIr::Drop`: a drop names its tensor as an input but does not read it,
 and skipping drops would make claims outlive every tensor that could report them.
 
 ### Granularity — what counts as one unit of work
