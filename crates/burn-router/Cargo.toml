@@ -33,7 +33,6 @@ burn-fusion = { workspace = true, optional = true }
 burn-std = { workspace = true }
 hashbrown = { workspace = true }
 spin = { workspace = true }
-log = { workspace = true }
 portable-atomic = { workspace = true }
 serde = { workspace = true, optional = true }
 

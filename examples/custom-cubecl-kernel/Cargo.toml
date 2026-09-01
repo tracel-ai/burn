@@ -25,5 +25,4 @@ cubecl = { workspace = true, features = ["wgpu"] }
 burn-fusion = { workspace = true, features = ["default"] }
 
 # Serialization
-log = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }

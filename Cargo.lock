@@ -822,7 +822,6 @@ dependencies = [
  "burn-std",
  "derive-new",
  "hashbrown 0.16.1",
- "log",
  "num-traits",
  "parking_lot",
  "portable-atomic",
@@ -836,19 +835,16 @@ name = "burn-backend"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn-std",
- "bytemuck",
  "cubecl",
  "derive-new",
  "enumset",
  "hashbrown 0.16.1",
  "num-traits",
  "oneshot",
- "paste",
  "portable-atomic-util",
  "rand 0.10.2",
  "rand_distr 0.6.0",
  "serde",
- "serde_json",
  "serial_test",
  "spin 0.11.1",
 ]
@@ -912,7 +908,6 @@ dependencies = [
  "log",
  "rmp-serde",
  "serde",
- "serde_bytes",
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
@@ -925,7 +920,6 @@ dependencies = [
 name = "burn-core"
 version = "0.22.0-pre.3"
 dependencies = [
- "ahash",
  "burn-backend",
  "burn-backend-extension",
  "burn-dataset",
@@ -944,13 +938,11 @@ dependencies = [
  "portable-atomic-util",
  "rand 0.10.2",
  "regex",
- "rstest",
  "serde",
  "serde_json",
  "serial_test",
  "spin 0.11.1",
  "tempfile",
- "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1105,7 +1097,6 @@ dependencies = [
  "hashbrown 0.16.1",
  "log",
  "serde",
- "smallvec",
  "spin 0.11.1",
  "tracing",
 ]
@@ -1176,7 +1167,6 @@ dependencies = [
  "hashbrown 0.16.1",
  "log",
  "num-traits",
- "rstest",
  "serde",
 ]
 
@@ -1224,7 +1214,6 @@ dependencies = [
  "burn-core",
  "derive-new",
  "log",
- "rand 0.10.2",
 ]
 
 [[package]]
@@ -1247,7 +1236,6 @@ dependencies = [
  "burn-ir",
  "burn-std",
  "hashbrown 0.16.1",
- "log",
  "portable-atomic",
  "serde",
  "spin 0.11.1",
@@ -1266,7 +1254,6 @@ dependencies = [
  "dashmap",
  "data-encoding",
  "derive-new",
- "enumset",
  "half",
  "hashbrown 0.16.1",
  "indicatif 0.18.6",
@@ -1278,7 +1265,6 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "serial_test",
  "smallvec",
  "spin 0.11.1",
  "tempfile",
@@ -1301,7 +1287,6 @@ dependencies = [
  "divan",
  "half",
  "hashbrown 0.16.1",
- "lzma-rust2",
  "memmap2",
  "num-traits",
  "regex",
@@ -1385,12 +1370,10 @@ dependencies = [
  "cubecl",
  "derive-new",
  "dirs",
- "half",
  "image",
  "macerator",
  "ndarray 0.17.2",
  "num-traits",
- "paste",
  "serde",
 ]
 
@@ -2837,7 +2820,6 @@ dependencies = [
  "burn-cubecl",
  "burn-fusion",
  "cubecl",
- "log",
  "serde",
 ]
 
@@ -2865,7 +2847,6 @@ version = "0.22.0-pre.3"
 dependencies = [
  "burn",
  "guide",
- "log",
 ]
 
 [[package]]
@@ -2874,7 +2855,6 @@ version = "0.22.0-pre.3"
 dependencies = [
  "burn",
  "guide",
- "log",
 ]
 
 [[package]]
@@ -2887,7 +2867,6 @@ dependencies = [
  "bytemuck",
  "cubecl",
  "derive-new",
- "log",
  "serde",
 ]
 
@@ -3818,15 +3797,6 @@ dependencies = [
  "crc32fast",
  "miniz_oxide",
  "zlib-rs",
-]
-
-[[package]]
-name = "float-cmp"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b09cf3155332e944990140d967ff5eceb70df778b34f77d8075db46e4704e6d8"
-dependencies = [
- "num-traits",
 ]
 
 [[package]]
@@ -5935,7 +5905,6 @@ dependencies = [
  "js-sys",
  "serde",
  "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -5949,7 +5918,6 @@ name = "modern-lstm"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn",
- "planus",
  "polars",
  "rand 0.10.2",
  "rand_distr 0.6.0",
@@ -8150,7 +8118,6 @@ version = "0.22.0-pre.3"
 dependencies = [
  "burn",
  "burn-store",
- "float-cmp",
  "serde",
 ]
 
@@ -8723,9 +8690,7 @@ dependencies = [
  "burn",
  "console_error_panic_hook",
  "iroh",
- "js-sys",
  "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -9106,7 +9071,6 @@ dependencies = [
  "burn-autodiff",
  "burn-flex",
  "burn-store",
- "float-cmp",
  "serde",
 ]
 
@@ -10107,7 +10071,6 @@ version = "0.22.0-pre.3"
 dependencies = [
  "burn",
  "derive-new",
- "log",
  "serde",
  "tokenizers",
 ]
@@ -12052,7 +12015,6 @@ version = "4.10.0"
 dependencies = [
  "cargo_metadata",
  "log",
- "rstest",
  "strum 0.28.0",
  "tracel-xtask",
 ]
