@@ -252,7 +252,7 @@ pub enum DispatchTensorKind {
     WebGpu(BackendTensor<WebGpu>),
 
     /// The [Flex backend](Flex) tensor.
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     Flex(BackendTensor<Flex>),
 
     /// The [NdArray backend](NdArray) tensor.
@@ -294,7 +294,7 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Wgpu(tensor) => tensor.dtype(),
             #[cfg(feature = "webgpu")]
             Self::WebGpu(tensor) => tensor.dtype(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.dtype(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.dtype(),
@@ -325,7 +325,7 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Wgpu(tensor) => tensor.shape(),
             #[cfg(feature = "webgpu")]
             Self::WebGpu(tensor) => tensor.shape(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.shape(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.shape(),
@@ -356,7 +356,7 @@ impl TensorMetadata for DispatchTensorKind {
             DispatchTensorKind::Wgpu(tensor) => DispatchDevice::Wgpu(tensor.device()),
             #[cfg(feature = "webgpu")]
             DispatchTensorKind::WebGpu(tensor) => DispatchDevice::WebGpu(tensor.device()),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
             #[cfg(feature = "ndarray")]
             DispatchTensorKind::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
@@ -387,7 +387,7 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Wgpu(tensor) => tensor.can_mut(),
             #[cfg(feature = "webgpu")]
             Self::WebGpu(tensor) => tensor.can_mut(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.can_mut(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.can_mut(),
@@ -460,7 +460,7 @@ impl DispatchTensorKind {
             DispatchTensorKind::Wgpu(_) => "Wgpu",
             #[cfg(feature = "webgpu")]
             DispatchTensorKind::WebGpu(_) => "WebGpu",
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             DispatchTensorKind::Flex(_) => "Flex",
             #[cfg(feature = "ndarray")]
             DispatchTensorKind::NdArray(_) => "NdArray",
@@ -594,7 +594,7 @@ macro_rules! impl_dispatch_conversion {
     };
 }
 
-impl_dispatch_conversion!(Flex, feature = "flex");
+impl_dispatch_conversion!(Flex, any(feature = "flex", default_backend));
 impl_dispatch_conversion!(Cpu, feature = "cpu");
 impl_dispatch_conversion!(Cuda, feature = "cuda");
 impl_dispatch_conversion!(Rocm, feature = "rocm");

@@ -20,11 +20,10 @@ workspace = true
 [features]
 default = [
     "std",
-    "flex",
     "burn-autodiff?/default",
     "burn-cpu?/default",
     "burn-cuda?/default",
-    "burn-flex?/default",
+    "burn-flex/default",
     "burn-ndarray?/default",
     "burn-rocm?/default",
     "burn-tch?/default",
@@ -36,7 +35,7 @@ std = [
     "burn-autodiff?/std",
     "burn-cpu?/std",
     "burn-cuda?/std",
-    "burn-flex?/std",
+    "burn-flex/std",
     "burn-ndarray?/std",
     "burn-rocm?/std",
     "burn-tch?/std",
@@ -46,7 +45,7 @@ tracing = [
     "burn-autodiff?/tracing",
     "burn-cpu?/tracing",
     "burn-cuda?/tracing",
-    "burn-flex?/tracing",
+    "burn-flex/tracing",
     "burn-ndarray?/tracing",
     "burn-rocm?/tracing",
     "burn-tch?/tracing",
@@ -58,7 +57,7 @@ cubecl = ["burn-backend/cubecl"]
 
 # Backends
 cuda = ["burn-cuda", "cubecl"]
-flex = ["dep:burn-flex"]
+flex = [] # default
 rocm = ["burn-rocm", "cubecl"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
@@ -97,14 +96,15 @@ fusion = [
     "burn-remote?/fusion",
 ]
 
-# CPU backend codegen and threading. These use the weak `?` form, so they only
-# reach `burn-flex` when the `flex` feature actually pulled it in.
-simd = ["burn-flex?/simd", "burn-ndarray?/simd"]
-rayon = ["burn-flex?/rayon", "burn-ndarray?/multi-threads"]
+# CPU backend codegen and threading. `burn-flex` is a non-optional dependency
+# here, so these reach it without the weak `?` form (which only fires when the
+# optional dependency's own feature is enabled).
+simd = ["burn-flex/simd", "burn-ndarray?/simd"]
+rayon = ["burn-flex/rayon", "burn-ndarray?/multi-threads"]
 
 # Opt-in gemm codegen paths (burn-flex).
-x86-v4 = ["burn-flex?/x86-v4"]
-apple-amx = ["burn-flex?/apple-amx"]
+x86-v4 = ["burn-flex/x86-v4"]
+apple-amx = ["burn-flex/apple-amx"]
 
 # BLAS providers (burn-ndarray).
 accelerate = ["burn-ndarray?/blas-accelerate"]
@@ -121,7 +121,7 @@ burn-backend = { workspace = true }
 burn-autodiff = { workspace = true, optional = true }
 burn-cpu = { workspace = true, optional = true }
 burn-cuda = { workspace = true, optional = true }
-burn-flex = { workspace = true, optional = true }
+burn-flex = { workspace = true }
 burn-ndarray = { workspace = true, optional = true }
 burn-tch = { workspace = true, optional = true }
 burn-rocm = { workspace = true, optional = true }
@@ -134,7 +134,7 @@ burn-capture = { workspace = true, optional = true }
 paste = { workspace = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-burn-flex = { workspace = true, optional = true, features = ["critical-section"] }
+burn-flex = { workspace = true, features = ["critical-section"]}
 
 [package.metadata.docs.rs]
 features = ["doc"]

@@ -35,23 +35,6 @@
 //! can be combined freely. Each enabled wgpu backend appears as its own
 //! [`DispatchDevice`] variant.
 
-// Every backend is an optional dependency, so with none selected there is nothing
-// to dispatch to. Say so once here rather than letting it surface as a hundred
-// unresolved items. `flex` is the CPU backend and is on by default.
-#[cfg(not(any(
-    feature = "flex",
-    feature = "ndarray",
-    feature = "tch",
-    feature = "cuda",
-    feature = "rocm",
-    feature = "wgpu",
-    feature = "cpu",
-)))]
-compile_error!(
-    "burn-dispatch requires at least one backend feature: `flex` (CPU, enabled by \
-     default), `ndarray`, `tch`, `cuda`, `rocm`, `wgpu` or `cpu`."
-);
-
 #[macro_use]
 mod macros;
 
@@ -103,9 +86,9 @@ pub mod backends {
     #[cfg(feature = "wgpu")]
     pub use burn_wgpu::Wgpu;
 
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex as flex;
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex::Flex;
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray as ndarray;
@@ -148,7 +131,7 @@ pub mod devices {
     #[cfg(feature = "wgpu")]
     pub use burn_wgpu::WgpuDevice;
 
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex::FlexDevice;
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray::NdArrayDevice;
