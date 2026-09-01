@@ -36,7 +36,7 @@ pub(crate) fn handle_command(
 
                 if *build_target == ARM_NO_ATOMIC_PTR_TARGET {
                     // Only build a subset of crates which require `portable_atomic_unsafe_assume_single_core`.
-                    // Other crates build with `burn-flex` (default_backend) which requires the `critical-section`
+                    // Other crates build with `burn-flex` (the default `flex` backend) which requires the `critical-section`
                     // feature (automatically enabled via `burn-dispatch` when `not(target_has_atomic = "ptr")`),
                     // which is mutually exclusive with `portable_atomic_unsafe_assume_single_core` cfg.
                     crates = vec!["burn-std", "burn-backend", "burn-ndarray"];
@@ -45,9 +45,16 @@ pub(crate) fn handle_command(
                         "--cfg portable_atomic_unsafe_assume_single_core",
                     );
                 }
+                // `burn-dispatch` has no implicit backend any more, so any pass that
+                // builds `burn` has to name one.
+                let mut pass_args = build_args.clone();
+                if crates.contains(&"burn") {
+                    pass_args.extend(["--features", "burn/flex"]);
+                }
+
                 build_helpers::custom_crates_build(
                     crates,
-                    build_args.clone(),
+                    pass_args,
                     Some(env_vars.clone()),
                     None,
                     &format!("no-std with target {}", *build_target),
@@ -71,9 +78,14 @@ pub(crate) fn handle_command(
                             && v != "burn-capture"
                     });
 
+                    let mut pass_args = build_args.clone();
+                    if crates.contains(&"burn") {
+                        pass_args.extend(["--features", "burn/flex"]);
+                    }
+
                     build_helpers::custom_crates_build(
                         crates,
-                        build_args,
+                        pass_args,
                         None,
                         None,
                         &format!("no-std with target {} (critical-section)", *build_target),

@@ -725,7 +725,7 @@ impl FloatTensorOps<Self> for Dispatch {
     }
 }
 
-#[cfg(all(test, feature = "capture", any(feature = "flex", default_backend)))]
+#[cfg(all(test, feature = "capture", feature = "flex"))]
 mod tests {
     use super::*;
     use burn_backend::ops::{BoolTensorOps, IntTensorOps};

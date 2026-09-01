@@ -98,7 +98,7 @@ macro_rules! with_backend {
                 let $devices = host_devices!(DispatchDeviceId::WebGpu, WebGpu);
                 $body
             }
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchDevice::Flex(_) => {
                 type $b = Flex;
                 let $devices = host_devices!(DispatchDeviceId::Flex, Flex);

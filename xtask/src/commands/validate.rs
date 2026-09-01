@@ -70,7 +70,16 @@ pub fn handle_command(
 
 /// Check no-std compatibility on the host without compiling the full embedded target matrix.
 fn check_no_std() -> anyhow::Result<()> {
-    let mut args = vec!["check", "--no-default-features", "--color", "always"];
+    // Every backend in `burn-dispatch` is optional, so a no-default-features check has to
+    // name one. `flex` is the pure-Rust CPU backend and the one that supports no-std.
+    let mut args = vec![
+        "check",
+        "--no-default-features",
+        "--features",
+        "burn/flex",
+        "--color",
+        "always",
+    ];
     for package in NO_STD_CRATES {
         args.extend(["-p", package]);
     }
