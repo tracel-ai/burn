@@ -11,18 +11,17 @@
 //! any claim on it, outliving every tensor that could report it.
 
 use core::cell::{Cell, RefCell};
+use std::collections::VecDeque;
 
 thread_local! {
-    static PENDING: RefCell<Vec<Box<dyn FnOnce()>>> = const { RefCell::new(Vec::new()) };
-    /// Whether this thread is already inside [`flush`]. Replaying a drop calls
-    /// back into the client, which flushes again; the outer call owns the queue,
-    /// so the inner one has nothing left to do.
+    static PENDING: RefCell<VecDeque<Box<dyn FnOnce()>>> =
+        const { RefCell::new(VecDeque::new()) };
     static REPLAYING: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Set a drop aside until this thread is somewhere it can be registered.
 pub(crate) fn defer(drop: impl FnOnce() + 'static) {
-    PENDING.with(|pending| pending.borrow_mut().push(Box::new(drop)));
+    PENDING.with(|pending| pending.borrow_mut().push_back(Box::new(drop)));
 }
 
 /// Register everything set aside. Called wherever the client is reached, so the
@@ -33,27 +32,43 @@ pub(crate) fn flush() {
         return;
     }
 
-    if REPLAYING.with(Cell::get) {
+    let Some(_replaying) = Replaying::enter() else {
         return;
+    };
+
+    // One at a time, off the front, rather than draining into a batch:
+    // registering a drop can defer another, so the queue is still growing while
+    // this runs, and a panic out of one must leave the rest where the next
+    // flush will find them rather than carry them off in a batch it owns.
+    while let Some(drop) = PENDING.with(|pending| pending.borrow_mut().pop_front()) {
+        drop();
     }
+}
 
-    REPLAYING.with(|replaying| replaying.set(true));
+/// Marks this thread as replaying for as long as it is held.
+///
+/// The flag says the outer flush owns the queue, so the inner flush that every
+/// replayed registration triggers has nothing left to do. It is a guard rather
+/// than a pair of assignments because a panic out of a replayed drop would skip
+/// the reset: the flag would be set for the life of the thread, every later
+/// flush would return early, and the entries this module exists to release
+/// would be stranded — silently, and only on the failing path.
+struct Replaying;
 
-    // Taken rather than iterated in place: registering a drop can defer another
-    // one, and holding the borrow across that would panic.
-    loop {
-        let batch: Vec<_> = PENDING.with(|pending| core::mem::take(&mut *pending.borrow_mut()));
-
-        if batch.is_empty() {
-            break;
-        }
-
-        for drop in batch {
-            drop();
+impl Replaying {
+    /// `None` when this thread is already inside a flush.
+    fn enter() -> Option<Self> {
+        match REPLAYING.replace(true) {
+            true => None,
+            false => Some(Self),
         }
     }
+}
 
-    REPLAYING.with(|replaying| replaying.set(false));
+impl Drop for Replaying {
+    fn drop(&mut self) {
+        REPLAYING.set(false);
+    }
 }
 
 #[cfg(test)]
@@ -81,7 +96,7 @@ mod tests {
 
     /// Registering a deferred drop can defer another — a tensor released by the
     /// first going out of scope. The flush has to reach those too, which is why
-    /// it takes the queue rather than iterating it in place.
+    /// it pops from a queue that is still growing rather than iterating a batch.
     #[test]
     fn a_flush_reaches_drops_deferred_by_the_flush() {
         let ran = Rc::new(Cell::new(0));
@@ -95,5 +110,29 @@ mod tests {
 
         deferred::flush();
         assert_eq!(ran.get(), 2, "both the deferred drop and the one it caused");
+    }
+
+    /// A replayed drop that panics must not wedge the thread. This is the path
+    /// the whole module serves — the drops arrive from unwinding threads — so a
+    /// flag left set here would strand every later drop on that thread, and the
+    /// leak it exists to prevent would come back permanently and unannounced.
+    #[test]
+    fn a_panicking_replay_leaves_the_thread_able_to_flush_again() {
+        let ran = Rc::new(Cell::new(0));
+
+        deferred::defer(|| panic!("registering this one failed"));
+        let counter = ran.clone();
+        deferred::defer(move || counter.set(counter.get() + 1));
+
+        let escaped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(deferred::flush));
+        assert!(escaped.is_err(), "the panic reaches the caller");
+        assert_eq!(ran.get(), 0, "and stopped the flush where it was");
+
+        deferred::flush();
+        assert_eq!(
+            ran.get(),
+            1,
+            "the drop behind it is still queued, and the next flush reaches it"
+        );
     }
 }
