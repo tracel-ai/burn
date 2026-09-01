@@ -111,14 +111,14 @@ pub trait FloatTensorOps<B: Backend> {
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     /// Computes the singular value decomposition of a batched matrix,
-    /// returning the factors as data: `(U, S, Vt)` with
+    /// returning the factors `(U, S, Vt)` with
     /// `A = U @ diag(S) @ Vt`, singular values sorted descending.
     ///
     /// The default implementation pulls the tensor to the host and runs the
     /// reference scalar pipeline ([`svd_host_data`](crate::backend::ops::svd::svd_host_data)).
     /// Backends may override this method with a native or fused
-    /// implementation. Returns an execution error when the default QR
-    /// iteration does not converge within the requested sweep budget.
+    /// implementation. Panics when the fallback cannot read the input data or
+    /// its QR iteration does not converge within the requested sweep budget.
     ///
     /// # Arguments
     ///
@@ -132,12 +132,20 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
         sweeps: usize,
         swap: bool,
-    ) -> impl Future<Output = Result<(TensorData, TensorData, TensorData), ExecutionError>> + Send
-    {
-        async move {
-            let data = Self::float_into_data(tensor).await?;
-            super::svd::svd_host_data(data, sweeps, swap)
-        }
+    ) -> (FloatTensor<B>, FloatTensor<B>, FloatTensor<B>) {
+        let device = tensor.device();
+        let msg = "SVD fallback failed to synchronously read tensor data";
+        let data = try_read_sync(Self::float_into_data(tensor))
+            .expect(msg)
+            .expect(msg);
+        let (u, s, vt) = super::svd::svd_host_data(data, sweeps, swap)
+            .unwrap_or_else(|err| panic!("SVD fallback failed: {err}"));
+
+        (
+            Self::float_from_data(u, &device),
+            Self::float_from_data(s, &device),
+            Self::float_from_data(vt, &device),
+        )
     }
 
     /// Moves the tensor to the given device.

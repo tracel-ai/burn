@@ -30,13 +30,16 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_into_data(tensor).await)
     }
 
-    async fn float_svd(
+    fn float_svd(
         tensor: FloatTensor<Self>,
         sweeps: usize,
         swap: bool,
-    ) -> Result<(TensorData, TensorData, TensorData), ExecutionError> {
-        unary_float!(tensor, float, |tensor| B::float_svd(tensor, sweeps, swap)
-            .await)
+    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, float)],
+            outputs[(u, Float), (s, Float), (vt, Float)],
+            B::float_svd(tensor, sweeps, swap)
+        )
     }
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {

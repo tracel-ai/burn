@@ -2,11 +2,8 @@ use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::{DType, Distribution, Tolerance, linalg::svd};
 
-const REL: f32 = 5e-4;
-const ABS: f32 = 1e-5;
-
-fn tolerance() -> Tolerance<f32> {
-    Tolerance::rel_abs(REL, ABS).set_half_precision_absolute(5e-2)
+fn tolerance() -> Tolerance<FloatElem> {
+    Tolerance::rel_abs(5e-4, 1e-5).set_half_precision_absolute(5e-2)
 }
 
 /// Singular values read back as plain scalars (ordering and sign checks).

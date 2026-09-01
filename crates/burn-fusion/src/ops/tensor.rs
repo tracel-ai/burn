@@ -8,12 +8,30 @@ use crate::{
 };
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
-    TensorData,
+    TensorData, TensorMetadata,
     ops::{FloatTensorOps, GridSampleOptions},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
+
+fn register_float_tensor<B: FusionBackend>(
+    tensor: FloatTensor<B>,
+    client: &GlobalFusionClient<B::FusionRuntime>,
+) -> FloatTensor<Fusion<B>> {
+    let dtype = tensor.dtype();
+    let shape = tensor.shape();
+    let handle = B::float_tensor_handle(tensor);
+    let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
+
+    client
+        .register(
+            StreamId::current(),
+            OperationIr::Init(desc),
+            NoOp::<B>::new(),
+        )
+        .output()
+}
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     #[cfg_attr(feature = "tracing", tracing::instrument(
@@ -189,17 +207,22 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             dtype = ?tensor.dtype
         )
     ))]
-    async fn float_svd(
+    fn float_svd(
         tensor: FloatTensor<Self>,
         sweeps: usize,
         swap: bool,
-    ) -> Result<(TensorData, TensorData, TensorData), ExecutionError> {
+    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
         // Resolve through the fusion server into the inner backend's
         // primitive and let the backend run its SVD (fused kernel or host
         // pipeline); fusion has no IR op for SVD.
         let client = tensor.client.clone();
         let resolved = client.resolve_tensor_float::<B>(tensor);
-        B::float_svd(resolved, sweeps, swap).await
+        let (u, s, vt) = B::float_svd(resolved, sweeps, swap);
+        (
+            register_float_tensor::<B>(u, &client),
+            register_float_tensor::<B>(s, &client),
+            register_float_tensor::<B>(vt, &client),
+        )
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
