@@ -8,7 +8,7 @@ use crate::tensor::{Distribution, Tensor};
 
 use crate as burn;
 
-use burn_tensor::{Device, linalg};
+use burn_tensor::{Device, FloatDType, TensorCreationOptions, linalg};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
@@ -106,6 +106,34 @@ impl Initializer {
         fan_out: Option<usize>,
         device: &Device,
     ) -> Param<Tensor<D>> {
+        self.init_with_dtype(shape, fan_in, fan_out, device, None)
+    }
+
+    /// Inits a tensor parameter of given shape **at `dtype`**, rather than at
+    /// the device's default float type.
+    ///
+    /// A parameter is initialized lazily: the closure below runs when something
+    /// first reads the slot. Without a dtype it draws at the device default and
+    /// a caller wanting another precision has to read the slot and cast, which
+    /// materializes the whole tensor at the wider type first — for a large
+    /// embedding table or language-model head that transient is the peak of a
+    /// model's whole build, and it is a copy nobody asked for.
+    ///
+    /// `None` keeps the device default, which is what every existing caller
+    /// gets.
+    ///
+    /// # Params
+    ///
+    /// - shape: Shape of the initiated tensor.
+    /// - dtype: Float type to draw at, or `None` for the device's default.
+    pub fn init_with_dtype<const D: usize, S: Into<Shape>>(
+        &self,
+        shape: S,
+        fan_in: Option<usize>,
+        fan_out: Option<usize>,
+        device: &Device,
+        dtype: Option<FloatDType>,
+    ) -> Param<Tensor<D>> {
         let device = device.clone();
         let shape: Shape = shape.into();
         let config = self.clone();
@@ -117,7 +145,13 @@ impl Initializer {
                 let config = config.clone();
                 let shape = shape.clone();
                 device.memory_persistent_allocations((), move |_| {
-                    let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+                    let options = match dtype {
+                        Some(dtype) => {
+                            TensorCreationOptions::new(device.clone()).with_dtype(dtype.into())
+                        }
+                        None => TensorCreationOptions::new(device.clone()),
+                    };
+                    let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, &options);
 
                     if require_grad {
                         tensor = tensor.require_grad();
@@ -137,13 +171,13 @@ impl Initializer {
         shape: S,
         fan_in: Option<usize>,
         fan_out: Option<usize>,
-        device: &Device,
+        device: &TensorCreationOptions,
     ) -> Tensor<D> {
         let shape = shape.into();
         match self {
-            Initializer::Constant { value } => Tensor::<D>::full(shape, *value, device),
-            Initializer::Ones => Tensor::<D>::ones(shape, device),
-            Initializer::Zeros => Tensor::<D>::zeros(shape, device),
+            Initializer::Constant { value } => Tensor::<D>::full(shape, *value, device.clone()),
+            Initializer::Ones => Tensor::<D>::ones(shape, device.clone()),
+            Initializer::Zeros => Tensor::<D>::zeros(shape, device.clone()),
             Initializer::Uniform { min, max } => uniform_draw(shape, *min, *max, device),
             Initializer::Normal { mean, std } => normal_draw(shape, *mean, *std, device),
             Initializer::KaimingUniform { gain, fan_out_only } => {
@@ -183,8 +217,8 @@ impl Initializer {
                 let (q, r) = linalg::qr(t, true);
                 let [r_rows, r_cols] = r.clone().dims();
 
-                let diag_r = Tensor::<2>::ones([1, r_rows], device)
-                    .matmul(Tensor::<2>::eye(r_cols, device).mul(r.clone()));
+                let diag_r = Tensor::<2>::ones([1, r_rows], device.clone())
+                    .matmul(Tensor::<2>::eye(r_cols, &device.device).mul(r.clone()));
 
                 let ph = diag_r.clone().sign();
 
@@ -230,20 +264,20 @@ fn uniform_draw<const D: usize, S: Into<Shape>>(
     shape: S,
     low: f64,
     high: f64,
-    device: &Device,
+    device: &TensorCreationOptions,
 ) -> Tensor<D> {
     let distribution = Distribution::Uniform(low, high);
-    Tensor::<D>::random(shape, distribution, device)
+    Tensor::<D>::random(shape, distribution, device.clone())
 }
 
 fn normal_draw<const D: usize, S: Into<Shape>>(
     shape: S,
     mean: f64,
     std: f64,
-    device: &Device,
+    device: &TensorCreationOptions,
 ) -> Tensor<D> {
     let distribution = Distribution::Normal(mean, std);
-    Tensor::<D>::random(shape, distribution, device)
+    Tensor::<D>::random(shape, distribution, device.clone())
 }
 
 #[cfg(test)]
@@ -257,6 +291,34 @@ mod tests {
 
     use burn_tensor::Tolerance;
     type FT = f32;
+
+    /// A parameter asked for a dtype is drawn at it, and one that is not keeps
+    /// the device's default.
+    ///
+    /// The point is *where* the conversion happens, not that it happens: a
+    /// caller can always read a slot and cast, but that materializes the whole
+    /// tensor at the wider type first. For the largest tensor in a model that
+    /// transient is the peak of the build, so drawing at the target type is the
+    /// difference between a model loading and not.
+    #[test]
+    fn a_parameter_is_drawn_at_the_dtype_it_was_asked_for() {
+        let device = test_device();
+        let initializer = Initializer::Normal {
+            mean: 0.0,
+            std: 1.0,
+        };
+
+        let narrow: Param<Tensor<2>> =
+            initializer.init_with_dtype([4, 4], None, None, &device, Some(FloatDType::F16));
+        assert_eq!(narrow.val().dtype(), FloatDType::F16.into());
+
+        let default: Param<Tensor<2>> = initializer.init([4, 4], &device);
+        assert_eq!(
+            default.val().dtype(),
+            Tensor::<2>::zeros([1, 1], &device).dtype(),
+            "no dtype asked for keeps the device's own"
+        );
+    }
 
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<2>) {
         let (actual_vars, actual_means) = tensor.clone().var_mean(0);

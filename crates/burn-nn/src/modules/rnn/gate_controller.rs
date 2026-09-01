@@ -31,6 +31,7 @@ impl GateController {
     ) -> Self {
         Self {
             input_transform: LinearConfig {
+                dtype: None,
                 d_input,
                 d_output,
                 bias,
@@ -39,6 +40,7 @@ impl GateController {
             }
             .init(device),
             hidden_transform: LinearConfig {
+                dtype: None,
                 d_input: d_output,
                 d_output,
                 bias,

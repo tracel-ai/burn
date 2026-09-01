@@ -6,7 +6,7 @@ use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Int;
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, FloatDType, Tensor};
 
 use burn::tensor::module::embedding;
 
@@ -20,6 +20,14 @@ pub struct EmbeddingConfig {
     /// The type of function used to initialize neural network parameters
     #[config(default = "Initializer::Normal{mean:0.0, std:1.0}")]
     pub initializer: Initializer,
+    /// Float type the table is drawn at, or `None` for the device's default.
+    ///
+    /// An embedding table is `n_embedding · d_model` and on a large vocabulary
+    /// it is the biggest float tensor in a model. Drawing it at the device
+    /// default and casting afterwards holds both copies at once, which is a
+    /// transient nobody asked for at the peak of a build.
+    #[config(default = "None")]
+    pub dtype: Option<FloatDType>,
 }
 
 /// Lookup table to store a fix number of vectors.
@@ -52,9 +60,13 @@ impl ModuleDisplay for Embedding {
 impl EmbeddingConfig {
     /// Initialize a new [embedding](Embedding) module.
     pub fn init(&self, device: &Device) -> Embedding {
-        let weight = self
-            .initializer
-            .init([self.n_embedding, self.d_model], device);
+        let weight = self.initializer.init_with_dtype(
+            [self.n_embedding, self.d_model],
+            None,
+            None,
+            device,
+            self.dtype,
+        );
 
         Embedding { weight }
     }

@@ -4,7 +4,7 @@ use burn::config::Config;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::module::linear;
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, FloatDType, Tensor};
 
 /// Configuration to create a [`Linear`] layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
@@ -24,6 +24,14 @@ pub struct LinearConfig {
     /// The layout in which the linear parameters are stored.
     #[config(default = "LinearLayout::Row")]
     pub layout: LinearLayout,
+    /// Float type the weight is drawn at, or `None` for the device's default.
+    ///
+    /// A projection to a large vocabulary is often the biggest tensor in a
+    /// model, and drawing it at the device default only to cast it afterwards
+    /// holds both copies at once — at the point in a build where everything
+    /// else is already resident. Naming the type here draws it once.
+    #[config(default = "None")]
+    pub dtype: Option<FloatDType>,
 }
 
 #[derive(Config, Debug, Copy)]
@@ -59,14 +67,25 @@ impl LinearConfig {
         let weight = match self.layout {
             LinearLayout::Row => {
                 let shape = [self.d_input, self.d_output];
-                self.initializer
-                    .init_with(shape, Some(self.d_input), Some(self.d_output), device)
+                self.initializer.init_with_dtype(
+                    shape,
+                    Some(self.d_input),
+                    Some(self.d_output),
+                    device,
+                    self.dtype,
+                )
             }
             LinearLayout::Col => {
                 let shape = [self.d_output, self.d_input];
 
                 self.initializer
-                    .init_with(shape, Some(self.d_output), Some(self.d_input), device)
+                    .init_with_dtype(
+                        shape,
+                        Some(self.d_output),
+                        Some(self.d_input),
+                        device,
+                        self.dtype,
+                    )
                     // The param is already transposed when init. We re-transpose to have
                     // [d_output, d_input] while saving.
                     .save_mapper(move |tensor| {
