@@ -1,4 +1,4 @@
-use alloc::sync::Arc;
+use burn_std::sync::Arc;
 use hashbrown::HashMap;
 
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};

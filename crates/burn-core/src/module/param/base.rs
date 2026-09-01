@@ -9,15 +9,9 @@ use super::sync_once_cell::SyncOnceCell;
 use alloc::format;
 
 use alloc::boxed::Box;
-use burn_std::sync::RwLock;
+use burn_std::sync::{Arc, RwLock};
 use burn_tensor::{Device, Shape};
 use core::ops::Deref;
-
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
 
 #[cfg(target_has_atomic = "ptr")]
 type Mapper<T> = Arc<dyn Fn(T) -> T + Send + Sync>;
