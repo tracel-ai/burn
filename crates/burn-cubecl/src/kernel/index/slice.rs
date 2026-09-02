@@ -95,7 +95,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
     indices: &[Range<usize>],
 ) -> CubeTensor<R> {
     let ndims = tensor.meta.num_dims();
-    let mut indices_sequence = SequenceArg::<R, usize>::new();
+    let mut indices_sequence = SequenceArg::<usize>::new();
 
     for i in 0..ndims {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
@@ -198,9 +198,9 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
     );
 
     // Prepare three separate sequences for kernel
-    let mut starts = SequenceArg::<R, usize>::new();
-    let mut ends = SequenceArg::<R, usize>::new();
-    let mut steps = SequenceArg::<R, i32>::new();
+    let mut starts = SequenceArg::<usize>::new();
+    let mut ends = SequenceArg::<usize>::new();
+    let mut steps = SequenceArg::<i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
         let range = slice.to_range(tensor.meta.shape()[dim]);

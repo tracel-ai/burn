@@ -1,7 +1,7 @@
 use super::SourceTemplate;
 use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::{
-    CompilationError, Compiler, CubeTask,
+    CubeKernel, PrecompiledSource,
     ir::{UIntKind, metadata::Info},
     prelude::*,
 };
@@ -15,13 +15,13 @@ pub trait KernelSource: Send + 'static + Sync {
 }
 
 #[derive(new)]
-/// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask).
+/// Wraps a [kernel source](KernelSource) into a [cube kernel](CubeKernel).
 pub struct SourceKernel<K> {
     kernel_source: K,
     cube_dim: CubeDim,
 }
 
-impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
+impl<K: KernelSource> CubeKernel for SourceKernel<K> {
     fn define(&self) -> KernelDefinition {
         // A source kernel has no expanded IR, the source text is the kernel. The definition only
         // keys the compilation cache, so the source rides along in the kernel name to keep a
@@ -35,26 +35,12 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
         }
     }
 
-    fn compile(
-        &self,
-        _definition: KernelDefinition,
-        _compiler: &mut C,
-        _options: &C::CompilationOptions,
-    ) -> Result<CompiledKernel<C>, CompilationError> {
-        let source_template = self.kernel_source.source();
-        let source = source_template.complete();
-
-        Ok(CompiledKernel {
+    /// The template's text is already in the target language, so it stands in
+    /// for what the compiler would have produced and `define` is never compiled.
+    fn source(&self) -> Option<PrecompiledSource> {
+        Some(PrecompiledSource {
+            source: self.kernel_source.source().complete(),
             entrypoint_name: "main".to_string(),
-            debug_name: Some(core::any::type_name::<K>()),
-            source,
-            cube_dim: self.cube_dim,
-            debug_info: None,
-            repr: None,
-            // A hand-written template has no compiler analysis to answer
-            // which buffers it reads or writes; `None` reads as every buffer
-            // both, the conservative direction.
-            io: None,
         })
     }
 }

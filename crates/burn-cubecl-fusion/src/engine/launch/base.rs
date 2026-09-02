@@ -35,7 +35,7 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
     /// Launches the fuse kernel on the given device modifying the context.
     pub fn launch(
         &self,
-        client: &ComputeClient<R>,
+        client: &ComputeClient,
         device: &R::Device,
         context: &mut Context<CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {

@@ -81,7 +81,7 @@ fn reduce_empty_axis<Run: CubeRuntime>(
 }
 
 /// Check if the client supports atomic add for the given element type.
-fn supports_atomic_add<R: CubeRuntime>(client: &ComputeClient<R>, dtype: DType) -> bool {
+fn supports_atomic_add(client: &ComputeClient, dtype: DType) -> bool {
     client
         .properties()
         .atomic_type_usage(Type::atomic(dtype_to_elem_type(dtype)))
@@ -125,7 +125,7 @@ pub fn sum<Run: CubeRuntime>(
             let output = zeros_client(client.clone(), device, [1].into(), tensor.dtype);
             let dtype = tensor.dtype;
 
-            shared_sum::<Run>(
+            shared_sum(
                 &client,
                 tensor.binding(),
                 output.clone().binding(),
@@ -136,7 +136,7 @@ pub fn sum<Run: CubeRuntime>(
             Ok(output)
         }
         SumStrategy::Chained(strategy) => {
-            reduce::<Run>(tensor, None, strategy, ReduceOperationConfig::Sum)
+            reduce(tensor, None, strategy, ReduceOperationConfig::Sum)
         }
         #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run>(&client, tensor)),
@@ -216,7 +216,7 @@ pub fn reduce_logical<Run: CubeRuntime>(
 
     let mut out = match dim {
         Some(d) => reduce_dim::<Run>(tensor, Some(backing), d, Default::default(), config),
-        None => reduce::<Run>(tensor, Some(backing), Default::default(), config),
+        None => reduce(tensor, Some(backing), Default::default(), config),
     }
     .expect("Any/All reduce on a valid axis cannot fail");
 
@@ -289,7 +289,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
     }
 
     let result = match strategy {
-        KernelReduceStrategy::Unspecified => cubek::reduce::reduce::<Run>(
+        KernelReduceStrategy::Unspecified => cubek::reduce::reduce(
             &client,
             input.binding(),
             output.clone().binding(),
@@ -304,7 +304,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
             config,
             dtypes,
         ),
-        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce::<Run>(
+        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce(
             &client,
             input.binding(),
             output.clone().binding(),
@@ -397,7 +397,7 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
     let client = input.client.clone();
 
     let result = match strategy {
-        KernelReduceStrategy::Unspecified => cubek::reduce::reduce_with_indices::<Run>(
+        KernelReduceStrategy::Unspecified => cubek::reduce::reduce_with_indices(
             &client,
             input.binding(),
             values.clone().binding(),
@@ -413,7 +413,7 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
             config,
             dtypes,
         ),
-        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce_with_indices::<Run>(
+        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce_with_indices(
             &client,
             input.binding(),
             values.clone().binding(),

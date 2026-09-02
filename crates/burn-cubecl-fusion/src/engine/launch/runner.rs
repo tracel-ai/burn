@@ -24,9 +24,9 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
     /// in the [optimization builder](burn_fusion::OptimizationBuilder).
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a ComputeClient,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), Self::Error>;
 }

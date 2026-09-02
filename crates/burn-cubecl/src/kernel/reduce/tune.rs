@@ -170,7 +170,7 @@ where
 
 /// Executes autotune on reduce operations.
 pub fn autotune_reduce<R: CubeRuntime>(
-    client: &ComputeClient<R>,
+    client: &ComputeClient,
     input: CubeTensor<R>,
     output: CubeTensor<R>,
     axis: usize,
@@ -193,7 +193,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
                 ReduceOperationConfig,
                 ReduceDtypes,
             )| {
-                cubek::reduce::reduce::<R>(
+                cubek::reduce::reduce(
                     &output.client,
                     input.binding(),
                     output.clone().binding(),
@@ -251,7 +251,7 @@ pub(crate) fn create_key<Run: CubeRuntime>(
 /// autotuned launches it replaces.
 #[allow(clippy::too_many_arguments)]
 pub fn autotune_reduce_with_indices<R: CubeRuntime>(
-    client: &ComputeClient<R>,
+    client: &ComputeClient,
     input: CubeTensor<R>,
     values: CubeTensor<R>,
     indices: CubeTensor<R>,
@@ -280,7 +280,7 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
                 ReduceOperationConfig,
                 ReduceWithIndicesDtypes,
             )| {
-                cubek::reduce::reduce_with_indices::<R>(
+                cubek::reduce::reduce_with_indices(
                     &values.client,
                     input.binding(),
                     values.clone().binding(),
@@ -393,10 +393,7 @@ mod reduce_ops {
 
 /// Executes autotune on reduce operations.
 #[cfg(feature = "autotune")]
-pub fn autotune_sum<R: CubeRuntime>(
-    client: &ComputeClient<R>,
-    input: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub fn autotune_sum<R: CubeRuntime>(client: &ComputeClient, input: CubeTensor<R>) -> CubeTensor<R> {
     use sum_ops::*;
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!("autotune-sum");
@@ -454,7 +451,7 @@ mod sum_ops {
         let output = zeros_client(client.clone(), device, [1].into(), input.dtype);
         let dtype = input.dtype;
 
-        cubek::reduce::shared_sum::<Run>(
+        cubek::reduce::shared_sum(
             &output.client,
             input.binding(),
             output.clone().binding(),
@@ -469,7 +466,7 @@ mod sum_ops {
     pub(crate) fn sum_chained<Run: CubeRuntime>(
         input: CubeTensor<Run>,
     ) -> Result<CubeTensor<Run>, String> {
-        crate::kernel::reduce::reduce::<Run>(
+        crate::kernel::reduce::reduce(
             input,
             None,
             crate::kernel::reduce::KernelReduceStrategy::Autotune,

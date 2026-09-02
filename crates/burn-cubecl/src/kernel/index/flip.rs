@@ -68,7 +68,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let dtype_input = tensor.dtype;
     let ndims = tensor.meta.num_dims();
-    let mut indices_sequence = SequenceArg::<R, InputScalar>::new();
+    let mut indices_sequence = SequenceArg::<InputScalar>::new();
 
     for i in 0..ndims {
         indices_sequence.push({

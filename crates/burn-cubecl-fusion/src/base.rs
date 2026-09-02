@@ -11,7 +11,6 @@ use cubecl::{
     ir::AddressType,
     prelude::{TensorArg, TensorBinding},
 };
-use std::marker::PhantomData;
 
 /// Defines a fallback operation when fusion isn't possible.
 pub trait FallbackOperation<R: Runtime>: Send + Sync {
@@ -26,7 +25,7 @@ pub type QParams = burn_std::quantization::QParams<QParamTensor>;
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {
     /// Compute client for jit.
-    pub client: ComputeClient<R>,
+    pub client: ComputeClient,
     /// The buffer where the data are stored.
     pub handle: cubecl::server::Handle,
     /// The device of the current tensor.
@@ -44,7 +43,7 @@ impl<R: Runtime> core::fmt::Debug for CubeFusionHandle<R> {
         f.write_fmt(format_args!(
             "CubeFusionHandle {{ device: {:?}, runtime: {}}}",
             self.device,
-            R::name(&self.client),
+            self.client.name(),
         ))
     }
 }
@@ -67,12 +66,11 @@ unsafe impl<R: Runtime> Sync for CubeFusionHandle<R> {}
 
 impl<R: Runtime> CubeFusionHandle<R> {
     /// Return the reference to a tensor handle.
-    pub fn binding(self, shape: Shape) -> TensorBinding<R> {
+    pub fn binding(self, shape: Shape) -> TensorBinding {
         TensorBinding {
             handle: self.handle.binding(),
             strides: self.strides.clone(),
             shape,
-            runtime: PhantomData,
         }
     }
 
@@ -87,7 +85,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
     }
 
     /// Return the reference to a tensor argument.
-    pub fn into_tensor_arg(self, shape: Shape) -> TensorArg<R> {
+    pub fn into_tensor_arg(self, shape: Shape) -> TensorArg {
         let handle = self.binding(shape);
         handle.into_tensor_arg()
     }

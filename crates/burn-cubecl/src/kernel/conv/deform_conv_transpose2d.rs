@@ -513,8 +513,8 @@ fn compute_input_grad<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&offset.client, num_elements, cube_dim);
 
     let launch = match supports_fadd {
-        true => deform_col2img_kernel::launch_unchecked::<IntrinsicFloatAtomicAddFamily, R>,
-        false => deform_col2img_kernel::launch_unchecked::<CASFloatAtomicAdd, R>,
+        true => deform_col2img_kernel::launch_unchecked::<IntrinsicFloatAtomicAddFamily>,
+        false => deform_col2img_kernel::launch_unchecked::<CASFloatAtomicAdd>,
     };
     let dtype = offset.dtype;
     let dtypes: [ElemType; 2] = match supports_same_type {

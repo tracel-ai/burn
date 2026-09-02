@@ -115,7 +115,7 @@ pub fn launch_backwards_weight<R: CubeRuntime, const N: usize>(
     let input = InputBinding::new(input.binding(), dtype_to_storage_type(input_dtype));
     let out_grad = InputBinding::new(out_grad.binding(), dtype_to_storage_type(out_grad_dtype));
 
-    launch_ref::<R, N>(
+    launch_ref::<N>(
         strategy,
         &client,
         ConvolutionInputs::BackwardWeight {

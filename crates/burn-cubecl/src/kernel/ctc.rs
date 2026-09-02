@@ -331,7 +331,7 @@ pub fn ctc_loss<R: CubeRuntime>(
     // Apple GPUs. Different max_l_prime values trigger separate kernel
     // compilations (it's a comptime param), but that's fine: target lengths
     // are stable within a dataset.
-    ctc_loss_kernel::launch::<R>(
+    ctc_loss_kernel::launch(
         &client,
         cube_count,
         cube_dim,
@@ -647,7 +647,7 @@ pub fn ctc_alpha_beta<R: CubeRuntime>(
     let cube_count = CubeCount::Static(batch_size as u32, 1, 1);
     let cube_dim = CubeDim::new_1d(cube_dim_x);
 
-    ctc_alpha_beta_kernel::launch::<R>(
+    ctc_alpha_beta_kernel::launch(
         &client,
         cube_count,
         cube_dim,

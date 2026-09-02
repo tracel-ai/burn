@@ -24,7 +24,7 @@ use burn_ir::{BackendIr, TensorHandle};
 
 /// Whether the runtime can hold a quantized dtype's scales, which `dtype_to_storage_type` misses
 /// because it doesn't see the scheme's scale levels. Non-quantized dtypes always pass.
-fn qfloat_params_usable<R: CubeRuntime>(client: &ComputeClient<R>, dtype: DType) -> bool {
+fn qfloat_params_usable(client: &ComputeClient, dtype: DType) -> bool {
     let DType::QFloat(scheme) = dtype else {
         return true;
     };
@@ -62,7 +62,7 @@ where
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
 
-    type GraphPrimitive = cubecl::client::Graph<R>;
+    type GraphPrimitive = cubecl::client::Graph;
 }
 
 impl<R> Backend for CubeBackend<R>
@@ -73,7 +73,7 @@ where
 {
     fn name(device: &Self::Device) -> String {
         let client = R::client(device);
-        format!("cubecl<{}>", R::name(&client))
+        format!("cubecl<{}>", client.name())
     }
 
     fn seed(_device: &Self::Device, seed: u64) {
@@ -223,7 +223,7 @@ where
         }
         let client = R::client(device);
 
-        if !qfloat_params_usable::<R>(&client, dtype) {
+        if !qfloat_params_usable(&client, dtype) {
             return false;
         }
 
@@ -245,7 +245,7 @@ where
         }
         let client = R::client(device);
 
-        if !qfloat_params_usable::<R>(&client, dtype) {
+        if !qfloat_params_usable(&client, dtype) {
             return DTypeUsageSet::empty();
         }
 
@@ -276,8 +276,7 @@ where
     }
 
     fn device_count(type_id: u16) -> usize {
-        let client = R::client(&Default::default());
-        client.device_count(type_id)
+        R::enumerate_devices(type_id).len()
     }
 
     fn flush(device: &Self::Device) {

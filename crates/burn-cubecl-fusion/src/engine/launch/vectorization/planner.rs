@@ -46,7 +46,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
     pub fn run<Runner: Vectorization<R>>(
         self,
-        client: &ComputeClient<R>,
+        client: &ComputeClient,
         runner: &Runner,
         context: &Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -391,8 +391,8 @@ fn apply_vectorization_block<R: Runtime>(
     }
 }
 
-fn vector_sizes_quants<R: Runtime>(
-    client: &ComputeClient<R>,
+fn vector_sizes_quants(
+    client: &ComputeClient,
     quants_vector_sizes: &mut Option<Vec<VectorSize>>,
     scheme: QuantScheme,
 ) {

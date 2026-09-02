@@ -115,11 +115,11 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
     let launch = match reduction {
-        IndexingUpdateOp::Assign => scatter_nd_kernel::launch_unchecked::<AssignOp, R>,
-        IndexingUpdateOp::Add => scatter_nd_kernel::launch_unchecked::<AddOp, R>,
-        IndexingUpdateOp::Mul => scatter_nd_kernel::launch_unchecked::<MulOp, R>,
-        IndexingUpdateOp::Min => scatter_nd_kernel::launch_unchecked::<BinaryMinOp, R>,
-        IndexingUpdateOp::Max => scatter_nd_kernel::launch_unchecked::<BinaryMaxOp, R>,
+        IndexingUpdateOp::Assign => scatter_nd_kernel::launch_unchecked::<AssignOp>,
+        IndexingUpdateOp::Add => scatter_nd_kernel::launch_unchecked::<AddOp>,
+        IndexingUpdateOp::Mul => scatter_nd_kernel::launch_unchecked::<MulOp>,
+        IndexingUpdateOp::Min => scatter_nd_kernel::launch_unchecked::<BinaryMinOp>,
+        IndexingUpdateOp::Max => scatter_nd_kernel::launch_unchecked::<BinaryMaxOp>,
     };
 
     let data_slice_shape = shape_divmod_range(&tensor, k..data_shape.num_dims());

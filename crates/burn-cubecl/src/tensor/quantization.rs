@@ -14,7 +14,7 @@ pub type QParams = burn_backend::quantization::QParams<QParamTensor>;
 impl<R: CubeRuntime> CubeTensor<R> {
     /// Create a new quantized tensor
     pub fn new_quantized(
-        client: ComputeClient<R>,
+        client: ComputeClient,
         handle: Handle,
         shape: Shape,
         device: R::Device,

@@ -43,7 +43,7 @@ pub(crate) fn unary_int<I: Int, N: Size, O: IntUnaryOpFamily>(
 
 pub(crate) fn launch_unary_int<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options>,
     R: CubeRuntime,
     O: IntUnaryOpFamily,
 {
@@ -58,7 +58,7 @@ where
 
     unsafe {
         if tensor.can_mut() && tensor.is_nonoverlapping() {
-            unary_int::launch_unchecked::<O, R>(
+            unary_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -79,7 +79,7 @@ where
                 tensor.dtype,
             );
 
-            unary_int::launch_unchecked::<O, R>(
+            unary_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,

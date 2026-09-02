@@ -45,7 +45,7 @@ pub(crate) fn launch_unary_float<R, O, Args>(tensor: CubeTensor<R>, args: Args) 
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options>,
     R: CubeRuntime,
     O: FloatUnaryOpFamily,
 {
@@ -61,7 +61,7 @@ where
 
     unsafe {
         if tensor.can_mut() && tensor.is_nonoverlapping() {
-            unary_float::launch_unchecked::<O, R>(
+            unary_float::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -82,7 +82,7 @@ where
                 tensor.dtype,
             );
 
-            unary_float::launch_unchecked::<O, R>(
+            unary_float::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,

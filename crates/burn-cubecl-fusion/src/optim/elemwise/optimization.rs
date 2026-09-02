@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 /// Fuse element wise operations into a single kernel.
 pub struct ElemwiseOptimization<R: Runtime> {
     pub(crate) trace: FuseTrace,
-    client: ComputeClient<R>,
+    client: ComputeClient,
     device: R::Device,
     len: usize,
 }
@@ -83,9 +83,9 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a ComputeClient,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &[FuseBlockConfig],
     ) -> Result<(), Self::Error> {
         let config = &configs[0];

@@ -12,14 +12,13 @@ use cubecl::{
     prelude::{TensorBinding, *},
     std::tensor::layout::linear::LinearViewLayout,
 };
-use std::marker::PhantomData;
 
 use super::QParams;
 
 /// The basic tensor primitive struct.
 pub struct CubeTensor<R: CubeRuntime> {
     /// Compute client for the [runtime](CubeRuntime).
-    pub client: ComputeClient<R>,
+    pub client: ComputeClient,
     /// The buffer where the data are stored.
     pub handle: Handle,
     /// The metadata of the tensor.
@@ -32,7 +31,7 @@ pub struct CubeTensor<R: CubeRuntime> {
     pub qparams: Option<QParams>,
 }
 
-impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
+impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle {
     fn from(val: CubeTensor<R>) -> Self {
         TensorHandle::new(
             val.handle.clone(),
@@ -77,7 +76,7 @@ where
             self.device,
             self.meta.strides(),
             self.dtype.name(),
-            R::name(&self.client),
+            self.client.name(),
         ))
     }
 }
@@ -127,7 +126,7 @@ where
 {
     /// Create a new standard tensor
     pub fn new(
-        client: ComputeClient<R>,
+        client: ComputeClient,
         handle: Handle,
         metadata: Metadata,
         device: R::Device,
@@ -145,7 +144,7 @@ where
 
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
-        client: ComputeClient<R>,
+        client: ComputeClient,
         device: R::Device,
         shape: Shape,
         handle: Handle,
@@ -171,7 +170,7 @@ where
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(&mut self, client: ComputeClient<R>, device: R::Device) -> Self {
+    pub fn to_client(&mut self, client: ComputeClient, device: R::Device) -> Self {
         let desc = self.handle.clone().copy_descriptor(
             self.meta.shape().clone(),
             self.meta.strides().clone(),
@@ -192,12 +191,11 @@ where
     }
 
     /// Return the reference to a tensor handle.
-    pub fn binding(self) -> TensorBinding<R> {
+    pub fn binding(self) -> TensorBinding {
         TensorBinding {
             handle: self.handle.binding(),
             strides: self.meta.strides,
             shape: self.meta.shape,
-            runtime: PhantomData,
         }
     }
 
@@ -207,17 +205,17 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn into_tensor_arg(self) -> TensorArg<R> {
+    pub fn into_tensor_arg(self) -> TensorArg {
         self.binding().into_tensor_arg()
     }
 
     /// Return the reference to a buffer argument.
-    pub fn into_buffer_arg(self) -> BufferArg<R> {
+    pub fn into_buffer_arg(self) -> BufferArg {
         self.into_tensor_arg().into_buffer_arg()
     }
 
     /// Returns a reference to the aliased tensor argument.
-    pub fn as_tensor_alias(&self, input_pos: usize) -> TensorArg<R> {
+    pub fn as_tensor_alias(&self, input_pos: usize) -> TensorArg {
         TensorArg::Alias {
             input_pos,
             strides: self.meta.strides().clone(),
@@ -226,21 +224,21 @@ where
     }
 
     /// Return a linear view of this tensor.
-    pub fn into_linear_view(self) -> LinearViewLaunch<R> {
+    pub fn into_linear_view(self) -> LinearViewLaunch {
         let layout = LinearViewLayoutLaunch::new();
         let buffer = self.into_tensor_arg();
         LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)
     }
 
     /// Return an aliased linear view of this tensor
-    pub fn as_linear_view_alias(&self, input_pos: usize) -> LinearViewLaunch<R> {
+    pub fn as_linear_view_alias(&self, input_pos: usize) -> LinearViewLaunch {
         let layout = LinearViewLayoutLaunch::new();
         let buffer = self.as_tensor_alias(input_pos);
         LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)
     }
 
     /// Return a linear view broadcast to the reference tensor's shape
-    pub fn into_linear_view_like(self, reference: &Self) -> LinearViewLaunch<R> {
+    pub fn into_linear_view_like(self, reference: &Self) -> LinearViewLaunch {
         let layout = LinearViewLayoutLaunch::from_reference_shape(reference.shape());
         let buffer = self.into_tensor_arg();
         LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)

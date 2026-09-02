@@ -249,7 +249,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -263,7 +263,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -280,7 +280,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
             let output =
                 empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
 
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -313,7 +313,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
     unsafe {
         if tensor.can_mut() && tensor.is_nonoverlapping() {
-            kernel_scalar_binop::launch_unchecked::<O, R>(
+            kernel_scalar_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -334,7 +334,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 dtype,
             );
 
-            kernel_scalar_binop::launch_unchecked::<O, R>(
+            kernel_scalar_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,

@@ -124,7 +124,7 @@ pub fn flash_attention<R: CubeRuntime>(
         out: dtype_to_storage_type(out.dtype),
     };
 
-    launch::launch_ref::<R>(
+    launch::launch_ref(
         strategy,
         &client,
         query.binding(),

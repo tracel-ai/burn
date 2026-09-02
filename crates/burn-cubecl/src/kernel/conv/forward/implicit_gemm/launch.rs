@@ -150,7 +150,7 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
     let input = InputBinding::new(input.binding(), dtype_to_storage_type(input_dtype));
     let weight = InputBinding::new(weight.binding(), dtype_to_storage_type(weight_dtype));
 
-    launch_ref::<R, N>(
+    launch_ref::<N>(
         strategy,
         &client,
         ConvolutionInputs::Forward {

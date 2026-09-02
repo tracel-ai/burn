@@ -76,7 +76,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -90,7 +90,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -107,7 +107,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
             let output =
                 empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
 
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,

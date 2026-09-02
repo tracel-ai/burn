@@ -46,7 +46,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
     pub fn execute<Runner: TraceRunner<R>>(
         self,
-        client: &ComputeClient<R>,
+        client: &ComputeClient,
         runner: &Runner,
         context: &mut Context<CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
@@ -192,10 +192,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
     }
 }
 
-fn register_inputs<R: Runtime>(
-    handle_inputs: Vec<HandleInput<R>>,
-    inputs: &mut GlobalArgsLaunch<R>,
-) {
+fn register_inputs<R: Runtime>(handle_inputs: Vec<HandleInput<R>>, inputs: &mut GlobalArgsLaunch) {
     for hi in handle_inputs {
         match hi {
             HandleInput::Normal(hi) => {
@@ -235,7 +232,7 @@ fn register_inputs<R: Runtime>(
 fn register_outputs<R: Runtime>(
     handle_outputs: Vec<HandleOutput<R>>,
     input_vector_sizes: &[usize],
-    outputs: &mut GlobalArgsLaunch<R>,
+    outputs: &mut GlobalArgsLaunch,
     #[allow(unused_variables)] tune_output: &mut TuneOutput<R>,
 ) {
     for item in handle_outputs {
@@ -304,7 +301,7 @@ fn register_scalars<'h, R: Runtime>(
     scalars: impl Iterator<Item = &'h (FuseType, u64)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
     context: &mut Context<CubeFusionHandle<R>>,
-    inputs: &mut GlobalArgsLaunch<R>,
+    inputs: &mut GlobalArgsLaunch,
 ) {
     for (precision, id) in scalars {
         let dtype = precision.into_storage_type();

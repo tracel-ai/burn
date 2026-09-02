@@ -143,8 +143,8 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             1
         };
 
-    let mut shape = SequenceArg::<R, FastDivmod<usize>>::new();
-    let mut offsets = SequenceArg::<R, usize>::new();
+    let mut shape = SequenceArg::<FastDivmod<usize>>::new();
+    let mut offsets = SequenceArg::<usize>::new();
 
     for i in 0..ndims {
         let slice = indices.get(i).cloned().unwrap_or(burn_backend::Slice {
@@ -202,9 +202,9 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     };
 
     // Prepare sequences for kernel
-    let mut starts = SequenceArg::<R, usize>::new();
-    let mut ends = SequenceArg::<R, usize>::new();
-    let mut steps = SequenceArg::<R, i32>::new();
+    let mut starts = SequenceArg::<usize>::new();
+    let mut ends = SequenceArg::<usize>::new();
+    let mut steps = SequenceArg::<i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
         let range = slice.to_range(tensor.meta.shape()[dim]);

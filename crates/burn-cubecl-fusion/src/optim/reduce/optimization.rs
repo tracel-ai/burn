@@ -48,7 +48,7 @@ pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
-    pub(crate) client: ComputeClient<R>,
+    pub(crate) client: ComputeClient,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) len_read: usize,
@@ -229,7 +229,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         trace: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
-        client: ComputeClient<R>,
+        client: ComputeClient,
         device: R::Device,
         len: usize,
         len_read: usize,
@@ -330,9 +330,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a ComputeClient,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
@@ -429,10 +429,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
     }
 }
 
-struct ReduceKwArgs<'b, Run: Runtime> {
-    client: &'b ComputeClient<Run>,
-    inputs: GlobalArgsLaunch<Run>,
-    outputs: GlobalArgsLaunch<Run>,
+struct ReduceKwArgs<'b> {
+    client: &'b ComputeClient,
+    inputs: GlobalArgsLaunch,
+    outputs: GlobalArgsLaunch,
     reduce_axis: usize,
     out_vec_axis: usize,
     blueprint: ReduceBlueprint,
@@ -443,15 +443,15 @@ struct ReduceKwArgs<'b, Run: Runtime> {
     output: FuseArg,
 }
 
-fn launch_reduce_mixed_precision<Run: Runtime>(
-    kwargs: ReduceKwArgs<'_, Run>,
+fn launch_reduce_mixed_precision(
+    kwargs: ReduceKwArgs<'_>,
     instruction: ReduceInstruction,
     dtype_input: DType,
     dtype_output: DType,
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
     let config = reduce_instruction2config(&instruction);
-    launch_reduce::<Run>(kwargs, config, dtype_input, dtype_output, dtype_acc)
+    launch_reduce(kwargs, config, dtype_input, dtype_output, dtype_acc)
 }
 
 pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> ReduceOperationConfig {
@@ -469,15 +469,15 @@ pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> Redu
     }
 }
 
-fn launch_reduce<Run: Runtime>(
-    kwargs: ReduceKwArgs<'_, Run>,
+fn launch_reduce(
+    kwargs: ReduceKwArgs<'_>,
     inst: ReduceOperationConfig,
     dtype_input: DType,
     dtype_output: DType,
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
     unsafe {
-        reduce_kernel_fused::launch_unchecked::<Run>(
+        reduce_kernel_fused::launch_unchecked(
             kwargs.client,
             kwargs.settings.cube_count,
             kwargs.settings.cube_dim,

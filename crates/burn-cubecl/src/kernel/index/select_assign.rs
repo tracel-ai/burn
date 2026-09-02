@@ -77,7 +77,7 @@ fn select_assign_op<R: CubeRuntime, Op: BinaryOpFamily>(
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
     let shape = shape_divmod(&value);
-    select_assign_kernel::launch::<Op, R>(
+    select_assign_kernel::launch::<Op>(
         &tensor.client,
         cube_count,
         cube_dim,

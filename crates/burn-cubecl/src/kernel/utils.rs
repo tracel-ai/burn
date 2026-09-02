@@ -7,7 +7,7 @@ use cubecl::{
 
 use crate::{CubeRuntime, tensor::CubeTensor};
 
-pub fn shape_divmod<R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<R, FastDivmod<usize>> {
+pub fn shape_divmod<R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<FastDivmod<usize>> {
     let mut arg = SequenceArg::new();
     for dim in tensor.meta.shape().iter() {
         arg.push(*dim);
@@ -18,7 +18,7 @@ pub fn shape_divmod<R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<R, Fa
 pub fn shape_divmod_range<R: CubeRuntime>(
     tensor: &CubeTensor<R>,
     range: core::ops::Range<usize>,
-) -> SequenceArg<R, FastDivmod<usize>> {
+) -> SequenceArg<FastDivmod<usize>> {
     let mut arg = SequenceArg::new();
     let shape = &tensor.meta.shape;
     for i in range {
@@ -74,7 +74,7 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
 pub fn broadcast_strides<R: CubeRuntime>(
     reference: &CubeTensor<R>,
     tensor: &CubeTensor<R>,
-) -> SequenceArg<R, usize> {
+) -> SequenceArg<usize> {
     if reference.meta.shape() != tensor.meta.shape() {
         tensor
             .meta

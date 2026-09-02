@@ -250,7 +250,7 @@ pub fn prefix_sum<R: CubeRuntime>(input: CubeTensor<R>, int_dtype: DType) -> Cub
     );
 
     unsafe {
-        prefix_sum_kernel::launch_unchecked::<R>(
+        prefix_sum_kernel::launch_unchecked(
             &out.client,
             cube_count,
             cube_dim,

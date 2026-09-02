@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Fuse layout conversions into a single kernel for NHWC/NLC layout.
 pub struct NHWCRelayoutOptimization<R: Runtime> {
     pub(crate) trace: FuseTrace,
-    client: ComputeClient<R>,
+    client: ComputeClient,
     device: R::Device,
     len: usize,
 }

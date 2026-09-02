@@ -35,21 +35,18 @@ pub struct GlobalTensorCompilationArg {
 }
 
 #[derive(new, Debug)]
-pub struct GlobalTensorArg<R: Runtime> {
-    pub tensor: <OwnedTensor<DynVector> as LaunchArg>::RuntimeArg<R>,
+pub struct GlobalTensorArg {
+    pub tensor: <OwnedTensor<DynVector> as LaunchArg>::RuntimeArg,
     pub ty: Type,
     pub broadcasted: bool,
     pub address_type: AddressType,
 }
 
 impl LaunchArg for GlobalTensor {
-    type RuntimeArg<R: Runtime> = GlobalTensorArg<R>;
+    type RuntimeArg = GlobalTensorArg;
     type CompilationArg = GlobalTensorCompilationArg;
 
-    fn register<R: Runtime>(
-        arg: Self::RuntimeArg<R>,
-        launcher: &mut KernelLauncher<R>,
-    ) -> Self::CompilationArg {
+    fn register(arg: Self::RuntimeArg, launcher: &mut KernelLauncher) -> Self::CompilationArg {
         launcher.with_scope(|scope| set_polyfill::expand::<DynElem, DynSize>(scope, arg.ty));
         let tensor = OwnedTensor::<DynVector>::register(arg.tensor, launcher);
         GlobalTensorCompilationArg {

@@ -44,8 +44,8 @@ pub(super) type Inputs<R> = (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>);
 /// them with [`adjust_dtypes`] when the tile matmul needs an accelerator (f32 to tf32, flex32 to
 /// f16). Without the same promotion here, every f32 problem would look unsupported and the tf32
 /// tensor core path would be lost.
-pub(crate) fn tile_matmul_supported<R: CubeRuntime>(
-    client: &ComputeClient<R>,
+pub(crate) fn tile_matmul_supported(
+    client: &ComputeClient,
     tile_matmul: TileMatmulKind,
     definition: &MatmulProblemDefinition,
 ) -> bool {
@@ -559,8 +559,8 @@ pub fn matmul_autotune<R: CubeRuntime>(
             // they are built on, otherwise they would be compiled just to fail. They keep the
             // minimum priority rather than being discarded, so they remain a last resort and
             // the tune plan can never end up empty.
-            let accelerated_priority = move |key: &MatmulAutotuneKey, client: &ComputeClient<R>| {
-                if !tile_matmul_supported::<R>(client, tile_matmul, &key.definition) {
+            let accelerated_priority = move |key: &MatmulAutotuneKey, client: &ComputeClient| {
+                if !tile_matmul_supported(client, tile_matmul, &key.definition) {
                     return PRIORITY_MIN;
                 }
 

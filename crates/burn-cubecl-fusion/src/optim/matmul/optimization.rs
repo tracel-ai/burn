@@ -70,7 +70,7 @@ pub struct MatmulOptimizationTuneArg<R: Runtime> {
 pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
-    pub(crate) client: ComputeClient<R>,
+    pub(crate) client: ComputeClient,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) matmul: FusedMatmul,
@@ -145,7 +145,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn new(
         trace: FuseTrace,
         trace_fallback: FuseTrace,
-        client: ComputeClient<R>,
+        client: ComputeClient,
         device: R::Device,
         len: usize,
         matmul: FusedMatmul,
@@ -368,9 +368,9 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a ComputeClient,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         let global_elems = MatmulGlobalElems {
@@ -392,11 +392,11 @@ pub enum AcceleratedTileKind {
 }
 
 impl FusedMatmulLaunch<'_> {
-    fn matmul_fused<'a, R: Runtime>(
+    fn matmul_fused<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a ComputeClient,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         config: &'a FuseBlockConfig,
         dtypes: MatmulElems,
     ) -> Result<(), FusedMatmulError> {
@@ -477,7 +477,7 @@ impl FusedMatmulLaunch<'_> {
                     },
                 };
 
-                match launch_inner_fix_dtype::<R, SimpleAlgorithm>(
+                match launch_inner_fix_dtype::<SimpleAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -509,7 +509,7 @@ impl FusedMatmulLaunch<'_> {
                     },
                 };
 
-                match launch_inner_fix_dtype::<R, CyclicDoubleBufferingAlgorithm>(
+                match launch_inner_fix_dtype::<CyclicDoubleBufferingAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -545,7 +545,7 @@ impl FusedMatmulLaunch<'_> {
                     },
                 };
 
-                match launch_inner_fix_dtype::<R, OrderedDoubleBufferingAlgorithm>(
+                match launch_inner_fix_dtype::<OrderedDoubleBufferingAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -566,7 +566,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::SimpleUnit => {
-                match launch_inner_fix_dtype::<R, SimpleUnitAlgorithm>(
+                match launch_inner_fix_dtype::<SimpleUnitAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -587,7 +587,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::DoubleUnit => {
-                match launch_inner_fix_dtype::<R, DoubleUnitAlgorithm>(
+                match launch_inner_fix_dtype::<DoubleUnitAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -608,7 +608,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::SimpleVecMat => {
-                match launch_inner_fix_dtype::<R, VecMatInnerProductAlgorithm>(
+                match launch_inner_fix_dtype::<VecMatInnerProductAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -629,7 +629,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::DoubleVecMat => {
-                match launch_inner_fix_dtype::<R, DoubleVecMatInnerProductAlgorithm>(
+                match launch_inner_fix_dtype::<DoubleVecMatInnerProductAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -650,7 +650,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::GemmNoStage => {
-                match launch_inner_fix_dtype::<R, GemmRoutine>(
+                match launch_inner_fix_dtype::<GemmRoutine>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -671,7 +671,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::GemvUnitPerpendicular => {
-                match launch_inner_fix_dtype::<R, GemvUnitPerpendicularRoutine>(
+                match launch_inner_fix_dtype::<GemvUnitPerpendicularRoutine>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -694,15 +694,15 @@ impl FusedMatmulLaunch<'_> {
     }
 }
 
-fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
-    client: &ComputeClient<R>,
-    input: FusedMatmulInputLaunch<R>,
-    output: GlobalArgsLaunch<R>,
+fn launch_inner_fix_dtype<A: BatchMatmulRoutine<()>>(
+    client: &ComputeClient,
+    input: FusedMatmulInputLaunch,
+    output: GlobalArgsLaunch,
     problem: MatmulProblem,
     vector_sizes: MatmulVectorSizes,
     blueprint_strategy: &BlueprintStrategy<(), A>,
 ) -> Result<(), MatmulSetupError> {
-    launch_kernel_virtual::<FusedMatmulArgs, R, A>(
+    launch_kernel_virtual::<FusedMatmulArgs, A>(
         client,
         input,
         output,

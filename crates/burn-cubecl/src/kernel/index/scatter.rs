@@ -90,7 +90,7 @@ fn scatter_op<R: CubeRuntime, Op: BinaryOpFamily>(
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
     unsafe {
-        scatter_kernel::launch_unchecked::<Op, R>(
+        scatter_kernel::launch_unchecked::<Op>(
             &tensor.client.clone(),
             cube_count,
             cube_dim,

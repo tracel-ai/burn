@@ -47,9 +47,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a ComputeClient,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), Self::Error> {
         let routine = UnitRoutine;
@@ -69,7 +69,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             .max(outputs.required_address_type());
 
         let (blueprint, settings) = routine
-            .prepare::<R>(
+            .prepare(
                 client,
                 ReduceProblem {
                     reduce_len,
@@ -136,7 +136,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         // TODO: Ensure parallel is selected.
 
         unsafe {
-            reduce_kernel_broadcasted::launch_unchecked::<R>(
+            reduce_kernel_broadcasted::launch_unchecked(
                 client,
                 settings.cube_count,
                 settings.cube_dim,

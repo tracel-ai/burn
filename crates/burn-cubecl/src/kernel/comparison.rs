@@ -173,7 +173,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
     let same_tensor_type = dtypes[0] == dtypes[1];
     if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
         unsafe {
-            kernel_cmp::launch_unchecked::<O, R>(
+            kernel_cmp::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -195,7 +195,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
         )
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
         unsafe {
-            kernel_cmp::launch_unchecked::<O, R>(
+            kernel_cmp::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -224,7 +224,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
         );
 
         unsafe {
-            kernel_cmp::launch_unchecked::<O, R>(
+            kernel_cmp::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -262,7 +262,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
 
     if same_tensor_type && tensor.can_mut() && tensor.is_nonoverlapping() {
         unsafe {
-            kernel_scalar_cmp::launch_unchecked::<O, R>(
+            kernel_scalar_cmp::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -291,7 +291,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
         );
 
         unsafe {
-            kernel_scalar_cmp::launch_unchecked::<O, R>(
+            kernel_scalar_cmp::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -481,7 +481,7 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
     );
 
     unsafe {
-        kernel_predicate::launch_unchecked::<O, R>(
+        kernel_predicate::launch_unchecked::<O>(
             &client,
             cube_count,
             cube_dim,

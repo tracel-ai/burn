@@ -80,7 +80,7 @@ pub fn conv_depthwise<R: CubeRuntime, const N: usize>(
         out: out.clone().binding(),
     };
 
-    launch_depthwise::<R>(&client, tensors, args, options.groups, dtype, strategy)?;
+    launch_depthwise(&client, tensors, args, options.groups, dtype, strategy)?;
 
     Ok(out)
 }
