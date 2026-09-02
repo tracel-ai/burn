@@ -20,7 +20,7 @@ use cubecl::ir::ElemType;
 ///
 ///
 /// This fuser doesn't create a ready-to-execute kernel, but rather generates a
-/// [trace](FuseTrace) that be used with a [runner](super::trace::TraceRunner).
+/// [trace](FuseTrace) that be used with a [runner](super::launch::runner::TraceRunner).
 ///
 /// Since this fuser supports fusing multiple blocks, you can fuse any compute-bound operations
 /// with the combination of fuse-on-read and fuse-on-write strategy.
@@ -261,7 +261,7 @@ impl TraceOperationFuser {
     /// # Returns
     ///
     /// None if it's impossible to create a next block with the given arguments. Otherwise, the
-    /// corresponding [arguments](Arg) to the given tensors are returned.
+    /// corresponding [arguments](FuseArg) to the given tensors are returned.
     pub fn next_block<const N: usize>(
         &mut self,
         arguments: [&TensorIr; N],

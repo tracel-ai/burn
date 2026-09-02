@@ -21,7 +21,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use std::collections::HashMap;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-/// A trace contains all [blocks](FuseBlock) and the [resources](FuseResources) used by the
+/// A trace contains all [blocks](super::block::FuseBlock) and the [resources](FuseResources) used by the
 /// kernel.
 pub struct FuseTrace {
     pub blocks: Vec<FuseBlock>,
@@ -175,7 +175,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
-/// Declare all resources used by the kernel, and potentially multiple [blocks](FuseBlock).
+/// Declare all resources used by the kernel, and potentially multiple [blocks](super::block::FuseBlock).
 ///
 /// # Notes
 ///
@@ -357,7 +357,7 @@ impl RegisteredTensors {
         (pos_values, pos_params)
     }
 
-    /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
+    /// Insert a normal tensor with the given [type](FuseType) in the current block.
     pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> usize {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,

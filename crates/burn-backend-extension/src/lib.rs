@@ -9,12 +9,12 @@
 //!                                               └─> ExtensionType mapping for structs/enums
 //! ```
 //!
-//! - [`dispatch`] lowers Burn's built-in `Dispatch` implementations.
-//! - [`extension`] lowers user-defined backend extension traits.
-//! - [`ir`] describes tensor inputs, outputs, and backend calls independently of either frontend.
-//! - [`routing`] owns shared backend selection, input extraction, invocation, and output wrapping.
-//! - [`derive`] maps extension structs and enums across the dispatch boundary.
-//! - [`catalog`] is the single list of runtime backends used by generated and handwritten paths.
+//! - `dispatch` lowers Burn's built-in `Dispatch` implementations.
+//! - `extension` lowers user-defined backend extension traits.
+//! - `ir` describes tensor inputs, outputs, and backend calls independently of either frontend.
+//! - `routing` owns shared backend selection, input extraction, invocation, and output wrapping.
+//! - `derive` maps extension structs and enums across the dispatch boundary.
+//! - `catalog` is the single list of runtime backends used by generated and handwritten paths.
 
 use proc_macro::TokenStream;
 

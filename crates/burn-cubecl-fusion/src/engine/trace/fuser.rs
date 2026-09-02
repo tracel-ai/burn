@@ -15,7 +15,7 @@ use burn_std::{DType, Shape};
 #[derive(Clone, Debug)]
 /// It is responsible to create a [trace](FuseTrace) composed of multiple [blocks](super::block::FuseBlock).
 ///
-/// It mostly handles the [resources](KernelResources) needed by the generated fused kernel, and
+/// It mostly handles the [resources](FuseResources) needed by the generated fused kernel, and
 /// delegates most of the work to the [block builder](FuseBlockBuilder).
 pub struct TraceFuser {
     settings: FuseSettings,
