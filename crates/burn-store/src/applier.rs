@@ -18,11 +18,16 @@ use crate::{ModuleAdapter, ModuleContext, PathFilter};
 
 /// The kind of parameter a loaded tensor is going into.
 ///
-/// A loaded parameter keeps whatever dtype the source declared, across every kind. For floats
-/// that is what makes a half-precision save loadable into a module written for full precision
+/// A loaded float or int parameter keeps whatever dtype the source declared. For floats that
+/// is what makes a half-precision save loadable into a module written for full precision
 /// (`dtype_preservation_f64` below pins it); for ints it is what keeps a PyTorch checkpoint's
 /// int64 buffers at int64 rather than narrowing them to the backend's element (pinned by
 /// `pytorch-tests`' `integer_full_precision`, added deliberately in #4854).
+///
+/// Bool is the exception, and is not preserved: `TensorCreationOptions::resolve_dtype` always
+/// resolves a bool tensor to the device's own bool storage, because a `BoolStore` variant is a
+/// backend-specific layout rather than a semantic type and the one a file names may not exist
+/// on this device. A bool source is accepted for its kind and then re-stored.
 ///
 /// What is checked here is only that the source is of the right *kind*. Shape agreement says
 /// nothing about that, so before #5478 float data loaded into an `Int` parameter and left it
@@ -37,16 +42,16 @@ enum TargetDType {
 impl TargetDType {
     /// Whether a source of `dtype` can be loaded into a parameter of this kind.
     fn accepts(self, dtype: DType) -> bool {
-        // `is_int` covers only signed integers, so unsigned needs asking for separately.
-        let integral = dtype.is_int() || dtype.is_uint();
-
         match self {
             // Quantized data is a float tensor's packed form, so it belongs to this kind too.
             Self::Float => dtype.is_float() || matches!(dtype, DType::QFloat(_)),
-            Self::Int => integral,
+            // `is_int` covers only signed integers, so unsigned needs asking for separately.
+            Self::Int => dtype.is_int() || dtype.is_uint(),
             // An integer source is how bools survive a format with no boolean dtype:
-            // SafeTensors stores `Bool(U32)` as `U32` and reads it back as an integer.
-            Self::Bool => integral || dtype.is_bool(),
+            // SafeTensors stores `Bool(U32)` as `U32` and reads it back as an integer. Only
+            // the widths `BoolStore` actually uses qualify: accepting any integer would let
+            // an I64 tensor land in a bool parameter unremarked.
+            Self::Bool => dtype.is_bool() || matches!(dtype, DType::U8 | DType::U32),
         }
     }
 
@@ -257,9 +262,26 @@ impl Applier {
             return None;
         }
 
+        // Validate the dtype's kind. Shape agreement alone is not enough: it says nothing
+        // about whether the bytes mean what the parameter's element type says they mean. The
+        // width is left alone on purpose, so a half-precision or int64 source still loads as
+        // itself; only a source of the wrong kind entirely is refused.
+        //
+        // Checked before the load rather than after, since the kind is already in the
+        // descriptor: a rejected tensor is then never read, which for a file-backed source
+        // would be the whole thing off disk.
+        let dtype = tensor.dtype;
+        if !target_dtype.accepts(dtype) {
+            self.errors.push(ApplyError::DTypeMismatch {
+                path: path.clone(),
+                expected: target_dtype.expected(target_device),
+                found: dtype,
+            });
+            return None; // Signal caller to fall back to initialization
+        }
+
         // Load tensor data. The tensor is not needed afterwards, so take its bytes rather
         // than copying them out.
-        let dtype = tensor.dtype;
         let data = match bridge::into_data(tensor) {
             Ok(data) => data,
             Err(e) => {
@@ -277,19 +299,6 @@ impl Applier {
                 path: path.clone(),
                 expected: target_shape,
                 found: data.shape,
-            });
-            return None; // Signal caller to fall back to initialization
-        }
-
-        // Validate the dtype's kind. Shape agreement alone is not enough: it says nothing
-        // about whether the bytes mean what the parameter's element type says they mean. The
-        // width is left alone on purpose, so a half-precision or int64 source still loads as
-        // itself; only a source of the wrong kind entirely is refused.
-        if !target_dtype.accepts(dtype) {
-            self.errors.push(ApplyError::DTypeMismatch {
-                path: path.clone(),
-                expected: target_dtype.expected(target_device),
-                found: dtype,
             });
             return None; // Signal caller to fall back to initialization
         }

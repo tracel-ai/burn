@@ -190,3 +190,79 @@ fn float_data_is_refused_by_a_bool_parameter() {
         result.errors
     );
 }
+
+/// A `BoolStore` is only ever `Native`, `U8` or `U32`, so those are the widths an integer
+/// source can plausibly be carrying a bool in. Accepting any integer would let an I64 tensor
+/// land in a bool parameter unremarked, which is the silent wrong-kind load this check exists
+/// to stop.
+#[test]
+fn a_wide_integer_source_is_refused_by_a_bool_parameter() {
+    let device: Device = Default::default();
+
+    for data in [
+        TensorData::from([1i64, 0]),
+        TensorData::from([1i32, 0]),
+        TensorData::from([1i8, 0]),
+        TensorData::from([1u64, 0]),
+        TensorData::from([1u16, 0]),
+    ] {
+        let dtype = data.dtype;
+        let mut model = BoolModel {
+            mask: Param::initialized(
+                ParamId::new(),
+                Tensor::<1, Bool>::from_data([true, true], &device),
+            ),
+        };
+
+        let result = model.apply(vec![source(data, "mask")], None, None, false);
+
+        assert!(
+            result.applied.is_empty(),
+            "{dtype:?} should not load into a bool parameter"
+        );
+        assert!(
+            matches!(result.errors.as_slice(), [ApplyError::DTypeMismatch { .. }]),
+            "{dtype:?} got {:?}",
+            result.errors
+        );
+        assert_eq!(
+            model.mask.val().to_data().try_to_vec::<bool>().unwrap(),
+            vec![true, true],
+            "{dtype:?} must leave the parameter untouched"
+        );
+    }
+}
+
+/// The other half of the same rule: the two widths a `BoolStore` does use are still accepted.
+#[test]
+fn the_bool_store_widths_are_accepted_by_a_bool_parameter() {
+    let device: Device = Default::default();
+
+    for data in [
+        TensorData::from([1u8, 0]),
+        TensorData::from([1u32, 0]),
+        TensorData::from([true, false]),
+    ] {
+        let dtype = data.dtype;
+        let mut model = BoolModel {
+            mask: Param::initialized(
+                ParamId::new(),
+                Tensor::<1, Bool>::from_data([false, false], &device),
+            ),
+        };
+
+        let result = model.apply(vec![source(data, "mask")], None, None, false);
+
+        assert_eq!(result.applied, vec!["mask".to_string()], "{dtype:?}");
+        assert!(
+            result.errors.is_empty(),
+            "{dtype:?} got {:?}",
+            result.errors
+        );
+        assert_eq!(
+            model.mask.val().to_data().try_to_vec::<bool>().unwrap(),
+            vec![true, false],
+            "{dtype:?}"
+        );
+    }
+}
