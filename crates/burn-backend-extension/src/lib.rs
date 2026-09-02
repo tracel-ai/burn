@@ -63,9 +63,9 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Generates the `Dispatch` implementation for a backend extension trait.
 ///
-/// The backend and autodiff context come from one routing tensor, preferring a float. Every
-/// tensor-bearing input must share that backend and context; generated routing
-/// validates contexts while unwrapping the inputs.
+/// The backend comes from one routing tensor, preferring a float. The autodiff contexts of all
+/// tensor-bearing inputs are merged; disabled inputs act as constants, while enabled inputs must
+/// share a gradient-checkpointing strategy.
 ///
 /// ```rust,ignore
 /// #[backend_extension(Autodiff, Wgpu)]

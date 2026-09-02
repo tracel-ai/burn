@@ -54,16 +54,16 @@ impl ItemLazy for SequenceOutput {
         // and read back only their final scalars, which matters here because
         // the logits carry the full vocabulary dimension. Flushing dispatches
         // the producing stream's buffered work so the metric thread doesn't
-        // wait on an idle queue; a training item's float tensors come off the
+        // wait on an idle queue; all tensors in a training item come off the
         // autodiff backend entirely, so the metric thread neither retains the
-        // tape nor pays its dispatch.
+        // tape nor carries its dispatch context.
         self.loss.device().flush();
 
         SequenceOutput {
             logits: self.logits.no_grad(),
             loss: self.loss.no_grad(),
-            targets: self.targets,
-            predictions: self.predictions,
+            targets: self.targets.no_grad(),
+            predictions: self.predictions.map(|tensor| tensor.no_grad()),
         }
     }
 }
