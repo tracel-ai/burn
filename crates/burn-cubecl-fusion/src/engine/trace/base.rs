@@ -264,20 +264,30 @@ impl RegisterTensor {
     }
 }
 
+impl IntoIterator for RegisteredTensors {
+    type Item = RegisterTensor;
+    type IntoIter = std::vec::IntoIter<RegisterTensor>;
+
+    /// Consumes and iterate over all the registered tensors.
+    fn into_iter(self) -> Self::IntoIter {
+        self.tensors.into_iter()
+    }
+}
+
 impl RegisteredTensors {
     /// Iterate over all the registered tensors.
     pub fn iter(&self) -> impl Iterator<Item = &RegisterTensor> {
         self.tensors.iter()
     }
 
-    /// Consumes and iterate over all the registered tensors.
-    pub fn into_iter(self) -> impl Iterator<Item = RegisterTensor> {
-        self.tensors.into_iter()
-    }
-
     /// Returns the number of tensors registered.
     pub fn len(&self) -> usize {
         self.tensors.len()
+    }
+
+    /// Returns whether no tensor is registered.
+    pub fn is_empty(&self) -> bool {
+        self.tensors.is_empty()
     }
 
     /// Retrieve the [tensor id](TensorId) at the given index.
