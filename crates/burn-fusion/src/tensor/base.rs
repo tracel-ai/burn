@@ -1,3 +1,4 @@
+use super::deferred;
 use crate::{
     Client, FusionBackend, FusionRuntime,
     stream::{Operation, StreamId},
@@ -228,57 +229,56 @@ pub(crate) struct DropOp {
 }
 
 impl<RO: FusionRuntime> Operation<RO> for DropOp {
-    fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
+    fn execute(
+        &self,
+        handles: &mut burn_ir::HandleContainer<RO::FusionHandle>,
+    ) -> Result<(), ExecutionError> {
         handles.remove_handle(self.id);
+        Ok(())
     }
 }
-
 impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Acquire);
 
-        // A drop during an unwind is not registered. Registering one re-enters
-        // the client — which can drain the stream and run queued work — and a
-        // second panic raised while the first is still unwinding aborts the
-        // process. Bailing out trades that for a leak.
-        //
-        // What it leaks: this id's entry in the handle container, including a
-        // claim on it, so a failure dropped this way is never released and
-        // `has_errors` stays true for the rest of the process. Reads no longer
-        // contribute — they report a claim as an error rather than a panic, and
-        // release it on the way past — so what is left is a tensor dropped in
-        // frames unwinding from a panic raised somewhere else.
-        if std::thread::panicking() {
+        let TensorStatus::ReadWrite = self.status(count) else {
             return;
-        }
+        };
 
-        match self.status(count) {
-            TensorStatus::ReadWrite => {
-                let mut shape = Shape::from(Vec::<usize>::new());
-                core::mem::swap(&mut shape, &mut self.shape);
+        let mut shape = Shape::from(Vec::<usize>::new());
+        core::mem::swap(&mut shape, &mut self.shape);
 
-                let ir = TensorIr {
-                    id: self.id,
-                    shape,
-                    status: TensorStatus::ReadWrite,
-                    dtype: self.dtype,
-                };
+        let ir = TensorIr {
+            id: self.id,
+            shape,
+            status: TensorStatus::ReadWrite,
+            dtype: self.dtype,
+        };
+        let (client, stream, id) = (self.client.clone(), self.stream, self.id);
 
-                // A foreign drop interleaves at a nondeterministic point in the home stream's
-                // pending fused segment; route it through a path that never touches the queue.
-                if StreamId::current() == self.stream {
-                    self.client.register(
-                        self.stream,
-                        OperationIr::Drop(ir),
-                        DropOp { id: self.id },
-                    );
-                } else {
-                    self.client
-                        .register_foreign_drop(self.stream, ir, DropOp { id: self.id });
-                }
+        // A foreign drop interleaves at a nondeterministic point in the home
+        // stream's pending fused segment; route it through a path that never
+        // touches the queue. Deciding inside the closure keeps the choice the
+        // same whether it runs now or is replayed: replaying happens on the
+        // thread that deferred it, so `current()` answers the same either way.
+        let register = move || {
+            if StreamId::current() == stream {
+                client.register(stream, OperationIr::Drop(ir), DropOp { id });
+            } else {
+                client.register_foreign_drop(stream, ir, DropOp { id });
             }
-            TensorStatus::ReadOnly => {}
-            TensorStatus::NotInit => {}
+        };
+
+        // A drop raised while the thread is unwinding cannot register now:
+        // registering re-enters the client, which can drain the stream and run
+        // queued work, and a panic raised there while this one is still
+        // unwinding aborts the process. It is set aside and replayed at the
+        // next call into the client on this thread — a normal call stack — so
+        // the entry is released rather than leaked.
+        if std::thread::panicking() {
+            deferred::defer(register);
+        } else {
+            register();
         }
     }
 }

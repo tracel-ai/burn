@@ -8,7 +8,7 @@ pub mod inspect;
 
 mod base;
 
-pub(crate) mod engine;
+pub mod engine;
 pub(crate) mod tune;
 
 pub use base::*;

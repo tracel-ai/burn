@@ -1,11 +1,11 @@
-pub(crate) mod executor;
-pub(crate) mod input;
-pub(crate) mod layout;
-pub(crate) mod output;
-pub(crate) mod runner;
-pub(crate) mod vectorization;
+pub mod executor;
+pub mod input;
+pub mod layout;
+pub mod output;
+pub mod runner;
+pub mod vectorization;
 
-pub(crate) mod plan;
+pub mod plan;
 pub use plan::*;
 
 mod base;

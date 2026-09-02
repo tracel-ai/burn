@@ -1,3 +1,4 @@
+use burn_backend::ExecutionError;
 use burn_std::sync::Arc;
 use hashbrown::HashMap;
 
@@ -65,38 +66,45 @@ impl<H> core::fmt::Debug for HandleContainer<H> {
 /// equality on that root — see [`same_root`](Self::same_root).
 #[derive(Clone)]
 pub struct TensorError {
-    /// What the failing work reported.
-    root: Arc<str>,
+    /// What the failing work reported, as it reported it — the error keeps
+    /// its type and its backtrace rather than being flattened to a message.
+    cause: Arc<ExecutionError>,
     /// How many operations were skipped between the failure and this tensor.
     /// Zero for the outputs of the work that actually failed.
     depth: u32,
 }
 
 impl TensorError {
-    /// A fresh failure, erroring the tensors the work that raised `root` was
+    /// A fresh failure, erroring the tensors the work that raised `cause` was
     /// going to write.
-    pub fn new(root: impl AsRef<str>) -> Self {
+    pub fn new(cause: ExecutionError) -> Self {
         Self {
-            root: Arc::from(root.as_ref()),
+            cause: Arc::new(cause),
             depth: 0,
         }
+    }
+
+    /// What the failing work reported, whole — the error a read hands back at
+    /// [`depth`](Self::depth) zero, backtrace included.
+    pub fn cause(&self) -> &ExecutionError {
+        &self.cause
     }
 
     /// The same failure, one operation further downstream — for the outputs of
     /// work that was skipped because an input carried this error.
     ///
-    /// The root is shared rather than reformatted, so a read below a long
+    /// The cause is shared rather than reformatted, so a read below a long
     /// chain of skips still names the failure that started it.
     pub fn propagated(&self) -> Self {
         Self {
-            root: self.root.clone(),
+            cause: self.cause.clone(),
             depth: self.depth.saturating_add(1),
         }
     }
 
-    /// What the failing work reported.
+    /// What the failing work reported, as a message.
     pub fn root(&self) -> &str {
-        &self.root
+        self.cause.reason()
     }
 
     /// How many operations were skipped between the failure and this tensor.
@@ -107,18 +115,18 @@ impl TensorError {
     /// Whether both tensors were errored by the same failure, however far
     /// downstream each one is.
     pub fn same_root(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.root, &other.root)
+        Arc::ptr_eq(&self.cause, &other.cause)
     }
 }
 
 impl core::fmt::Display for TensorError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.depth {
-            0 => write!(f, "the work writing it failed: {}", self.root),
+            0 => write!(f, "the work writing it failed: {}", self.cause.reason()),
             skipped => write!(
                 f,
                 "the work writing it was skipped {skipped} operation(s) below a failure: {}",
-                self.root
+                self.cause.reason()
             ),
         }
     }
@@ -127,37 +135,10 @@ impl core::fmt::Display for TensorError {
 impl core::fmt::Debug for TensorError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("TensorError")
-            .field("root", &self.root)
+            .field("cause", &self.cause)
             .field("depth", &self.depth)
             .finish()
     }
-}
-
-/// What [`HandleContainer::set_error`] does to a handle that is already
-/// registered for the tensor.
-///
-/// A handle can be registered *before* the work that fills it — an in-place
-/// output is registered as an alias of its input while the launch is still
-/// being planned — so which of these a caller wants turns on whether it knows
-/// the tensor is part of the failed work's write set.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ExistingHandle {
-    /// Overwrite it. For ids that are a known write set: a buffer that exists
-    /// is not a buffer that was written, and only the work reaching its end
-    /// proves the bytes are there.
-    Displace,
-    /// Leave it alone, whether it is a handle or an earlier failure. For
-    /// erroring broadly — a failure that cannot say which work it came from —
-    /// where the set is known to include tensors other work wrote, and
-    /// displacing them would turn one failure into several.
-    ///
-    /// A claim already on a tensor is kept for the same reason a handle is:
-    /// the work that made it knew its own write set, so its message names the
-    /// real cause at the real depth. Overwriting it with a broad one loses
-    /// the root that [`same_root`](TensorError::same_root) links a chain by,
-    /// and resets [`depth`](TensorError::depth) — a worse report, from a
-    /// failure that knows less.
-    Keep,
 }
 
 /// Backend [tensor handle](BackendIr::Handle) wrapper tracking their creation state
@@ -262,14 +243,29 @@ impl<H: Clone> HandleContainer<H> {
     /// to write it did not run, so a read of it must fail rather than hand
     /// back whatever the tensor id resolves to.
     ///
-    /// `existing` decides what happens to a handle that is already registered
-    /// — see [`ExistingHandle`], which is the whole of the choice.
-    pub fn set_error(&mut self, id: TensorId, error: TensorError, existing: ExistingHandle) {
-        if existing == ExistingHandle::Keep
-            && let Some(Handle::Existing(_) | Handle::Errored(_)) = self.handles.get(&id)
-        {
+    /// It always displaces whatever is registered. A claim covers exactly the
+    /// tensors one unit of work was responsible for writing, and a handle
+    /// registered *before* that work — an in-place output, aliased to its
+    /// input while the launch is still being planned — proves nothing about
+    /// whether the kernel that fills it ever ran.
+    pub fn set_error(&mut self, id: TensorId, error: TensorError) {
+        self.put(id, Handle::Errored(error));
+    }
+
+    /// Claim `id`, but only if nothing wrote it and no failure already claims
+    /// it.
+    ///
+    /// For the one caller that cannot name its write set: a panic that escaped
+    /// the strategy walk itself, raised outside every scope, where all that is
+    /// known is that something in the consumed segment did not finish. Claiming
+    /// broadly from there would error outputs that other operations wrote, and
+    /// would overwrite a precise claim with a vaguer one — so it claims only
+    /// what is neither, which is exactly the set nothing else can account for.
+    pub fn claim_unwritten(&mut self, id: TensorId, error: TensorError) {
+        if let Some(Handle::Existing(_) | Handle::Errored(_)) = self.handles.get(&id) {
             return;
         }
+
         self.put(id, Handle::Errored(error));
     }
 
@@ -555,8 +551,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("the kernel failed to compile"),
-            ExistingHandle::Displace,
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
         );
 
         assert!(!container.has_handle(&tid(1)));
@@ -565,25 +560,6 @@ mod tests {
             container.error(&tid(1)).map(|error| error.root()),
             Some("the kernel failed to compile"),
         );
-    }
-
-    /// A broad error leaves alone what other work already wrote, so one
-    /// failure does not turn into several.
-    #[test]
-    fn a_kept_handle_is_never_displaced() {
-        let mut container = HandleContainer::<String>::new();
-        container.register_handle(tid(1), "written".to_string());
-        container.set_error(
-            tid(1),
-            TensorError::new("something else failed"),
-            ExistingHandle::Keep,
-        );
-
-        assert_eq!(
-            container.get_handle_ref(&tid(1)),
-            Some(&"written".to_string())
-        );
-        assert!(container.error(&tid(1)).is_none());
     }
 
     /// An error on a known write set displaces: a handle can be registered
@@ -596,8 +572,7 @@ mod tests {
         container.register_handle(tid(1), "aliased_input_buffer".to_string());
         container.set_error(
             tid(1),
-            TensorError::new("the launch failed"),
-            ExistingHandle::Displace,
+            TensorError::new(ExecutionError::generic("the launch failed")),
         );
 
         assert!(container.get_handle_ref(&tid(1)).is_none());
@@ -615,8 +590,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("the kernel failed to compile"),
-            ExistingHandle::Displace,
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
         );
 
         let error = container
@@ -637,8 +611,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("the kernel failed to compile"),
-            ExistingHandle::Displace,
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
         );
 
         let first = container.take_error(&ir(tid(1), TensorStatus::ReadOnly));
@@ -673,8 +646,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("this autotune candidate failed"),
-            ExistingHandle::Displace,
+            TensorError::new(ExecutionError::generic("this autotune candidate failed")),
         );
 
         container.register_handle(tid(1), "the candidate that worked".to_string());
@@ -688,6 +660,44 @@ mod tests {
         assert!(!container.has_errors(), "so the container is clean again");
     }
 
+    /// The failure reaches the read as the error the failing work reported,
+    /// not as a rendering of it: same variant, backtrace still attached. A
+    /// caller can match on it.
+    #[test]
+    fn a_claim_carries_the_cause_it_was_made_from() {
+        let mut container = HandleContainer::<String>::new();
+        container.set_error(
+            tid(1),
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
+        );
+
+        let error = container
+            .take_error(&ir(tid(1), TensorStatus::ReadWrite))
+            .expect("the read finds the claim");
+
+        assert!(
+            matches!(error.cause(), ExecutionError::Generic { .. }),
+            "the variant survives, so the backtrace does too"
+        );
+        assert_eq!(error.root(), "the kernel failed to compile");
+    }
+
+    /// Propagation shares the cause, so a tensor far below a failure reports
+    /// the same error object — not a copy of its message.
+    #[test]
+    fn propagation_shares_one_cause() {
+        let root = TensorError::new(ExecutionError::generic("the launch failed"));
+        let deep = root.propagated().propagated();
+
+        assert!(root.same_root(&deep));
+        assert_eq!(
+            deep.root(),
+            "the launch failed",
+            "the message is the root's"
+        );
+        assert_eq!(deep.depth(), 2);
+    }
+
     /// A claim crossing to another device keeps naming the failure that made
     /// it. The root is behind an `Arc`, so identity survives the hop between
     /// containers — this is the sequence `change_client_*` runs when the
@@ -696,41 +706,18 @@ mod tests {
     fn a_claim_crosses_to_a_second_container_keeping_its_root() {
         let mut src = HandleContainer::<String>::new();
         let mut dst = HandleContainer::<String>::new();
-        let root = TensorError::new("the kernel failed to compile");
-        src.set_error(tid(1), root.clone(), ExistingHandle::Displace);
+        let root = TensorError::new(ExecutionError::generic("the kernel failed to compile"));
+        src.set_error(tid(1), root.clone());
 
         let carried = src
             .take_error(&ir(tid(1), TensorStatus::ReadWrite))
             .expect("the transfer read finds the claim");
-        dst.set_error(tid(2), carried.propagated(), ExistingHandle::Displace);
+        dst.set_error(tid(2), carried.propagated());
 
         let moved = dst.error(&tid(2)).expect("the destination carries it");
         assert!(moved.same_root(&root), "the root survives the device hop");
         assert_eq!(moved.depth(), 1, "one hop further down");
         assert!(!src.has_errors(), "and the source released it");
-    }
-
-    /// A broad claim must not overwrite a precise one. The work that named a
-    /// root knew its own write set; a failure that cannot say where it came
-    /// from knows strictly less, so it defers.
-    #[test]
-    fn a_kept_claim_is_never_displaced_by_a_broader_one() {
-        let mut container = HandleContainer::<String>::new();
-        let precise = TensorError::new("the kernel failed to compile");
-        container.set_error(tid(1), precise.clone(), ExistingHandle::Displace);
-        // A tensor downstream of it, carrying the same root one hop down.
-        container.set_error(tid(2), precise.propagated(), ExistingHandle::Displace);
-
-        // The segment-wide backstop sweeps both with a message of its own.
-        let broad = TensorError::new("a panic escaped the strategy walk");
-        container.set_error(tid(1), broad.clone(), ExistingHandle::Keep);
-        container.set_error(tid(2), broad, ExistingHandle::Keep);
-
-        let one = container.error(&tid(1)).expect("still claimed");
-        let two = container.error(&tid(2)).expect("still claimed");
-        assert_eq!(one.root(), "the kernel failed to compile");
-        assert_eq!((one.depth(), two.depth()), (0, 1), "depth is not reset");
-        assert!(one.same_root(two), "the chain still links to one root");
     }
 
     /// `get_handle` keeps a panic for the paths that do not ask first — it is
@@ -740,8 +727,7 @@ mod tests {
         let mut container = HandleContainer::<String>::new();
         container.set_error(
             tid(1),
-            TensorError::new("the kernel failed to compile"),
-            ExistingHandle::Displace,
+            TensorError::new(ExecutionError::generic("the kernel failed to compile")),
         );
 
         let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -767,7 +753,7 @@ mod tests {
     /// still names the failure that started it.
     #[test]
     fn propagation_keeps_the_root_and_counts_the_hops() {
-        let root = TensorError::new("the kernel failed to compile");
+        let root = TensorError::new(ExecutionError::generic("the kernel failed to compile"));
         let one = root.propagated();
         let two = one.propagated();
 
@@ -775,7 +761,9 @@ mod tests {
         assert_eq!((root.depth(), one.depth(), two.depth()), (0, 1, 2));
         assert_eq!(two.root(), "the kernel failed to compile");
         assert!(
-            !root.same_root(&TensorError::new("the kernel failed to compile")),
+            !root.same_root(&TensorError::new(ExecutionError::generic(
+                "the kernel failed to compile"
+            ))),
             "same message, different failure"
         );
     }
@@ -785,7 +773,7 @@ mod tests {
     #[test]
     fn an_error_is_released_with_its_tensor() {
         let mut container = HandleContainer::<String>::new();
-        container.set_error(tid(1), TensorError::new("boom"), ExistingHandle::Displace);
+        container.set_error(tid(1), TensorError::new(ExecutionError::generic("boom")));
 
         container.free(&TensorIr {
             id: tid(1),
@@ -822,27 +810,27 @@ mod tests {
         }
 
         let mut container = HandleContainer::<String>::new();
-        let error = || TensorError::new("boom");
+        let error = || TensorError::new(ExecutionError::generic("boom"));
         check(&container, "empty");
 
         // Error a tensor, then error the same id again: one entry, one count.
-        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        container.set_error(tid(1), error());
         check(&container, "set_error");
-        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        container.set_error(tid(1), error());
         check(&container, "set_error again");
 
         // Data displacing an error, and an error displacing data.
         container.register_handle(tid(1), "written".to_string());
         check(&container, "register over an error");
-        container.set_error(tid(1), error(), ExistingHandle::Displace);
+        container.set_error(tid(1), error());
         check(&container, "set_error over data");
 
-        // The conservative form, both ways.
+        // Claiming an id that holds data, and one that holds nothing at all.
         container.register_handle(tid(2), "written".to_string());
-        container.set_error(tid(2), error(), ExistingHandle::Keep);
-        check(&container, "ExistingHandle::Keep over data");
-        container.set_error(tid(3), error(), ExistingHandle::Keep);
-        check(&container, "ExistingHandle::Keep over nothing");
+        container.set_error(tid(2), error());
+        check(&container, "set_error over another handle");
+        container.set_error(tid(3), error());
+        check(&container, "set_error over nothing");
 
         // Both removal paths.
         container.remove_handle(tid(3));
@@ -863,10 +851,57 @@ mod tests {
         check(&container, "get_handle ReadWrite");
 
         // A fork carries the count it copied.
-        container.set_error(tid(5), error(), ExistingHandle::Displace);
+        container.set_error(tid(5), error());
         let fork = container.fork();
         check(&fork, "fork");
         assert!(fork.has_errors());
+    }
+
+    /// The last-resort sweep, for a panic that escaped the strategy walk with
+    /// nothing saying which operation it came from. It claims only what nothing
+    /// wrote and nothing else already claims — the set no scope can account
+    /// for — because claiming broadly from there would error outputs that other
+    /// operations wrote, and would replace a precise claim with a vaguer one.
+    ///
+    /// Its only caller is unreachable while no panic crosses that frame, so
+    /// this is what stops a regression in it from being silent.
+    #[test]
+    fn a_sweep_claims_only_what_nothing_else_accounts_for() {
+        let mut container = HandleContainer::<String>::new();
+        let sweep = TensorError::new(ExecutionError::generic("something did not finish"));
+
+        // Nothing wrote it and nothing claims it: the sweep's own set.
+        container.claim_unwritten(tid(1), sweep.clone());
+        assert!(
+            container.error(&tid(1)).expect("claimed").same_root(&sweep),
+            "an output nothing accounts for takes the sweep's claim"
+        );
+
+        // Written by an operation that ran. The escape says nothing about it.
+        container.register_handle(tid(2), "written".to_string());
+        container.claim_unwritten(tid(2), sweep.clone());
+        assert!(container.has_handle(&tid(2)), "the bytes are still there");
+        assert!(container.error(&tid(2)).is_none(), "and it holds no error");
+
+        // Already claimed, by the scope of the work that actually failed. That
+        // claim names the cause; the sweep's names only that something did.
+        let precise = TensorError::new(ExecutionError::generic("the kernel failed to compile"));
+        container.set_error(tid(3), precise.clone());
+        container.claim_unwritten(tid(3), sweep.clone());
+        let claim = container.error(&tid(3)).expect("still claimed");
+        assert!(
+            claim.same_root(&precise),
+            "the precise claim survives the vaguer one"
+        );
+
+        // And a claim it did make is a claim like any other.
+        assert!(container.has_errors());
+        container.remove_handle(tid(1));
+        container.remove_handle(tid(3));
+        assert!(
+            !container.has_errors(),
+            "the errored count follows a swept claim out of the map"
+        );
     }
 
     #[test]

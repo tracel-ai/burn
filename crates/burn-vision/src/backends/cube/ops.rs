@@ -92,12 +92,14 @@ mod fusion {
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
-                ) {
+                ) -> Result<(), burn_fusion::ExecutionError> {
                     let ([img], [labels]) = self.desc.as_fixed();
                     let input = handles.get_bool_tensor::<B1>(img);
                     let output = B1::connected_components(input, self.conn, self.dtype);
 
                     handles.register_int_tensor::<B1>(&labels.id, output);
+
+                    Ok(())
                 }
             }
 
@@ -143,7 +145,7 @@ mod fusion {
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
-                ) {
+                ) -> Result<(), burn_fusion::ExecutionError> {
                     let (
                         [img],
                         [
@@ -168,6 +170,8 @@ mod fusion {
                     handles.register_int_tensor::<B1>(&right_ir.id, stats.right);
                     handles.register_int_tensor::<B1>(&bottom_ir.id, stats.bottom);
                     handles.register_int_tensor::<B1>(&max_label_ir.id, stats.max_label);
+
+                    Ok(())
                 }
             }
 

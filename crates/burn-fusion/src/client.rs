@@ -3,18 +3,20 @@ use crate::{
     FusionUtilities, UnfusedOp,
     stream::{StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage};
-use burn_std::CommunicationId;
+use burn_backend::{
+    Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle,
+};
+use burn_std::{CommunicationId, device_handle::CallError};
 
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{ExistingHandle, OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::sync::RwLock;
 use hashbrown::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Use a mutex to communicate with the fusion server.
 pub struct GlobalFusionClient<R: FusionRuntime> {
-    server: DeviceHandle<FusionServer<R>>,
+    server: ServerHandle<R>,
     device: FusionDevice<R>,
 }
 
@@ -54,7 +56,7 @@ where
     pub fn load(device: &FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
-            server: DeviceHandle::new(device.to_id()),
+            server: ServerHandle::new(device.to_id()),
         }
     }
 }
@@ -69,7 +71,7 @@ where
     pub fn new(device: FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
-            server: DeviceHandle::new(device.to_id()),
+            server: ServerHandle::new(device.to_id()),
         }
     }
 
@@ -278,9 +280,7 @@ where
             Err(error) => {
                 let error = error.propagated();
                 client_dst.server.submit(move |server_dst| {
-                    server_dst
-                        .handles
-                        .set_error(id, error, ExistingHandle::Displace);
+                    server_dst.handles.set_error(id, error);
                 });
             }
         }
@@ -324,9 +324,7 @@ where
             Err(error) => {
                 let error = error.propagated();
                 client_dst.server.submit(move |server_dst| {
-                    server_dst
-                        .handles
-                        .set_error(id, error, ExistingHandle::Displace);
+                    server_dst.handles.set_error(id, error);
                 });
             }
         }
@@ -370,9 +368,7 @@ where
             Err(error) => {
                 let error = error.propagated();
                 client_dst.server.submit(move |server_dst| {
-                    server_dst
-                        .handles
-                        .set_error(id, error, ExistingHandle::Displace);
+                    server_dst.handles.set_error(id, error);
                 });
             }
         }
@@ -416,9 +412,7 @@ where
             Err(error) => {
                 let error = error.propagated();
                 client_dst.server.submit(move |server_dst| {
-                    server_dst
-                        .handles
-                        .set_error(id, error, ExistingHandle::Displace);
+                    server_dst.handles.set_error(id, error);
                 });
             }
         }
@@ -512,5 +506,60 @@ where
             let mut initialized_comms = utilities.initialized_comms.write();
             initialized_comms.insert(id);
         }
+    }
+}
+
+/// The client's one door to the server.
+///
+/// Registering a drop re-enters the client, so a tensor dropped while its
+/// thread was unwinding could not register then and was set aside instead (see
+/// [`deferred`](crate::tensor::deferred)). What those drops are waiting for is
+/// a normal call stack, which is what every call into the client arrives on —
+/// so each method here replays them before it carries the caller's work.
+///
+/// The client holds this rather than a [`DeviceHandle`] so that there is no
+/// bare handle to reach past: a call that skipped the replay would leave a
+/// tensor's entry, and any claim on it, outliving every tensor that could
+/// report it.
+struct ServerHandle<R: FusionRuntime> {
+    handle: DeviceHandle<FusionServer<R>>,
+}
+
+impl<R: FusionRuntime> Clone for ServerHandle<R> {
+    fn clone(&self) -> Self {
+        Self {
+            handle: self.handle.clone(),
+        }
+    }
+}
+
+impl<R: FusionRuntime + 'static> ServerHandle<R> {
+    fn new(device_id: DeviceId) -> Self {
+        Self {
+            handle: DeviceHandle::new(device_id),
+        }
+    }
+
+    fn submit<T: FnOnce(&mut FusionServer<R>) + Send + 'static>(&self, task: T) {
+        crate::tensor::deferred::flush();
+        self.handle.submit(task);
+    }
+
+    fn submit_blocking<'a, Out: Send, T: FnOnce(&mut FusionServer<R>) -> Out + Send + 'a>(
+        &self,
+        task: T,
+    ) -> Result<Out, CallError> {
+        crate::tensor::deferred::flush();
+        self.handle.submit_blocking(task)
+    }
+
+    fn flush_queue(&self) {
+        crate::tensor::deferred::flush();
+        self.handle.flush_queue();
+    }
+
+    fn utilities(&self) -> ServerUtilitiesHandle {
+        crate::tensor::deferred::flush();
+        self.handle.utilities()
     }
 }
