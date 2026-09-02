@@ -16,7 +16,7 @@ fn should_support_recip_ops() {
 }
 
 #[test]
-fn should_preserve_order_and_precision_for_shared_non_standard_layout() {
+fn should_preserve_order_and_precision_for_shared_selected_tensor() {
     let device = Default::default();
     let values = (1..=64).map(|value| value as f32).collect::<Vec<_>>();
     let expected = values

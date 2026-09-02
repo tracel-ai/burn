@@ -25,7 +25,7 @@ fn should_support_abs_ops_float() {
 }
 
 #[test]
-fn should_preserve_order_for_shared_non_standard_layout() {
+fn should_preserve_order_for_shared_selected_tensor() {
     let device = Default::default();
     let values = (0..64).map(|value| value as f32).collect::<Vec<_>>();
     let tensor = TestTensor::<2>::from_data(TensorData::new(values, [4, 16]), &device);
