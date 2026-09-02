@@ -200,9 +200,9 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
 /// This is backend metadata, not a statement that a float tensor requires
 /// gradients. Enabled float tensors may be tracked or untracked by autodiff.
 ///
-/// All tensor inputs to one backend operation must use the same autodiff context.
-/// Dispatch selects the operation context from its routing tensor and validates the remaining
-/// inputs while unwrapping them.
+/// Tensor inputs to one backend operation merge their autodiff contexts. A disabled context is
+/// compatible with an enabled one and is treated as a constant for that operation. Two enabled
+/// contexts must use the same gradient-checkpointing strategy.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DispatchAutodiffContext {
     /// Route the tensor through its concrete backend.
@@ -210,6 +210,31 @@ pub enum DispatchAutodiffContext {
     Disabled,
     /// Associate the tensor with an autodiff backend using the given strategy.
     Enabled(GradientCheckpointingStrategy),
+}
+
+impl DispatchAutodiffContext {
+    /// Merge two tensor contexts into the context used to execute an operation and wrap its output.
+    ///
+    /// Disabled tensors don't acquire a new context themselves. When combined with an enabled
+    /// tensor, they are treated as constants while the operation and its output use the enabled
+    /// context.
+    ///
+    /// # Panics
+    ///
+    /// Panics when both contexts are enabled with different gradient-checkpointing strategies.
+    #[doc(hidden)]
+    pub fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Disabled, context) | (context, Self::Disabled) => context,
+            (Self::Enabled(lhs), Self::Enabled(rhs)) => {
+                assert_eq!(
+                    lhs, rhs,
+                    "Gradient checkpointing strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
+                );
+                Self::Enabled(lhs)
+            }
+        }
+    }
 }
 
 /// A tensor that can dispatch operations to any enabled backend at runtime.

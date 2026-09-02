@@ -299,6 +299,10 @@ mod extension_context_contract {
             .with_gradient_checkpointing_strategy(strategy)
     }
 
+    fn inner_int() -> Tensor<1, Int> {
+        Tensor::from_data([1], &Device::ndarray())
+    }
+
     #[test]
     fn routing_context_propagates_through_nested_fields() {
         let balanced = int(GradientCheckpointingStrategy::Balanced);
@@ -308,6 +312,23 @@ mod extension_context_contract {
                 right: balanced.clone().into_dispatch(),
             },
             choice: IntChoice::Dense(balanced.into_dispatch()),
+        });
+        let output = Tensor::<1, Int>::from_dispatch(output);
+
+        assert_eq!(
+            output.device().gradient_checkpointing_strategy(),
+            GradientCheckpointingStrategy::Balanced
+        );
+    }
+
+    #[test]
+    fn nested_disabled_and_enabled_contexts_merge() {
+        let output = <Dispatch as ContextBackend>::select(NestedInputs {
+            pair: IntPair {
+                left: inner_int().into_dispatch(),
+                right: int(GradientCheckpointingStrategy::Balanced).into_dispatch(),
+            },
+            choice: IntChoice::Empty,
         });
         let output = Tensor::<1, Int>::from_dispatch(output);
 

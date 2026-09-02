@@ -138,12 +138,14 @@ fn expand_from_input(operation: &Operation, source: &OperationInput) -> TokenStr
     } else {
         quote!(*__inner)
     };
+    let paths = routing::RoutingPaths::dispatch();
+    let autodiff_context = routing::operation_autodiff_context(operation, &paths);
     expand_backend_match(
         operation,
         Some(source),
         quote! {
-            let __ad_ctx = #name.autodiff;
-            let __burn_selected_context = __ad_ctx;
+            let __burn_selected_context = #name.autodiff;
+            #autodiff_context
         },
         source_kind,
         inner_kind,
@@ -157,12 +159,13 @@ fn expand_from_candidates(operation: &Operation) -> TokenStream {
         &paths,
         "dispatched operation received no tensor input to select a backend from",
     );
+    let autodiff_context = routing::operation_autodiff_context(operation, &paths);
     expand_backend_match(
         operation,
         None,
         quote! {
             #routing_tensor_init
-            let __ad_ctx = __routing_tensor.autodiff;
+            #autodiff_context
         },
         quote!(&__routing_tensor.kind),
         quote!(__inner.as_ref()),

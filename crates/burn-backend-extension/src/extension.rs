@@ -415,8 +415,9 @@ fn validate_extension_ty(ty: &Type) -> syn::Result<()> {
 /// Backend identity is nested inside `DispatchTensorKind::Autodiff` for tracked float tensors, and
 /// extension structs can't be destructured in a dispatch-kind match. Therefore we:
 /// 1. Find a routing [`DispatchTensor`] (a bare tensor itself, or a struct's via
-///    `ExtensionType::routing_tensor`) and fold its `.kind`, autodiff context, and float status into
-///    small values. This drops all borrows before any input is moved.
+///    `ExtensionType::routing_tensor`) and fold its `.kind` and float status into small values.
+///    Separately merge every input's autodiff context. This drops all borrows before any input is
+///    moved.
 /// 2. In the matched context/backend arm, unwrap every input and re-wrap the output.
 ///
 /// For an autodiff arm the target backend is `Autodiff<B>`: float tensors/fields unwrap through the
@@ -443,9 +444,10 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
         &paths,
         "backend extension op received no tensor input to select a backend from (e.g. an enum input on a tensor-less variant with no other tensor input)",
     );
+    let autodiff_context = routing::operation_autodiff_context(op, &paths);
 
-    // The routing tensor selects the concrete backend and autodiff context. Whether the active
-    // inputs contain a float decides if an enabled context needs the autodiff implementation.
+    // The routing tensor selects the concrete backend. The merged context and whether the active
+    // inputs contain a float decide if the autodiff implementation is needed.
     let kind_arms = routing::backend_kind_arms(
         &paths,
         &ir.backends.concrete,
@@ -477,7 +479,7 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
             bool,
         ) = {
             #routing_tensor_init
-            let __ad_ctx = __routing_tensor.autodiff;
+            #autodiff_context
             let __backend_tag = match &__routing_tensor.kind {
                 #ad_tag_arm
                 #( #concrete_tag_arms )*

@@ -932,6 +932,10 @@ mod autodiff_context_tests {
         Dispatch::float_from_data(TensorData::from(values), device)
     }
 
+    fn float_2d(values: [[f32; 2]; 2], device: &DispatchDevice) -> DispatchTensor {
+        Dispatch::float_from_data(TensorData::from(values), device)
+    }
+
     fn assert_enabled_float(tensor: &DispatchTensor, strategy: GradientCheckpointingStrategy) {
         assert_eq!(tensor.autodiff, DispatchAutodiffContext::Enabled(strategy));
         assert!(matches!(tensor.kind, DispatchTensorKind::Autodiff(_)));
@@ -1012,7 +1016,7 @@ mod autodiff_context_tests {
         let output = Dispatch::conditional_float_route(int, None);
         assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
 
-        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
         let float = float([1.0, 2.0], &device(strategy));
         let output = Dispatch::conditional_float_route(int, Some(float));
         assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
@@ -1028,7 +1032,7 @@ mod autodiff_context_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Autodiff context mismatch")]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
     fn fixed_arity_inputs_reject_mismatched_checkpointing_strategies() {
         let lhs = float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced));
         let rhs = float([3.0, 4.0], &device(GradientCheckpointingStrategy::Disabled));
@@ -1036,18 +1040,54 @@ mod autodiff_context_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Autodiff context mismatch")]
-    fn disabled_and_enabled_contexts_do_not_promote() {
-        let lhs = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
-        let rhs = Dispatch::int_from_data(
-            TensorData::from([3i32, 4]),
-            &device(GradientCheckpointingStrategy::Balanced),
-        );
-        let _ = Dispatch::int_add(lhs, rhs);
+    fn disabled_and_enabled_integer_contexts_merge_in_both_orders() {
+        for strategy in [
+            GradientCheckpointingStrategy::Disabled,
+            GradientCheckpointingStrategy::Balanced,
+        ] {
+            let lhs = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
+            let rhs = Dispatch::int_from_data(TensorData::from([3i32, 4]), &device(strategy));
+            let output = Dispatch::int_add(lhs, rhs);
+            assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+            let lhs = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+            let rhs = Dispatch::int_from_data(TensorData::from([3i32, 4]), &inner_device());
+            let output = Dispatch::int_add(lhs, rhs);
+            assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        }
     }
 
     #[test]
-    #[should_panic(expected = "Autodiff context mismatch")]
+    fn disabled_and_enabled_float_contexts_merge_in_both_orders() {
+        for strategy in [
+            GradientCheckpointingStrategy::Disabled,
+            GradientCheckpointingStrategy::Balanced,
+        ] {
+            let enabled = float([1.0, 2.0], &device(strategy));
+            let disabled = float([3.0, 4.0], &inner_device());
+
+            let output = Dispatch::float_add(enabled, disabled);
+            assert_enabled_float(&output, strategy);
+
+            let enabled = float([1.0, 2.0], &device(strategy));
+            let disabled = float([3.0, 4.0], &inner_device());
+            let output = Dispatch::float_add(disabled, enabled);
+            assert_enabled_float(&output, strategy);
+        }
+    }
+
+    #[test]
+    fn disabled_and_enabled_contexts_merge_across_vector_inputs() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let disabled = float([1.0, 2.0], &inner_device());
+        let enabled = float([3.0, 4.0], &device(strategy));
+
+        let output = Dispatch::float_cat(vec![disabled, enabled], 0);
+        assert_enabled_float(&output, strategy);
+    }
+
+    #[test]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
     fn vector_inputs_reject_mismatched_checkpointing_strategies() {
         let balanced = float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced));
         let disabled = float([3.0, 4.0], &device(GradientCheckpointingStrategy::Disabled));
@@ -1055,7 +1095,7 @@ mod autodiff_context_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Autodiff context mismatch")]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
     fn q_matmul_rejects_mismatched_checkpointing_strategies() {
         let balanced = Dispatch::quantize_dynamic(
             float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced)),
@@ -1069,6 +1109,28 @@ mod autodiff_context_tests {
             TensorPrimitive::QFloat(balanced),
             TensorPrimitive::QFloat(disabled),
         );
+    }
+
+    #[test]
+    fn q_matmul_merges_disabled_and_enabled_contexts() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let disabled = Dispatch::quantize_dynamic(
+            float_2d([[1.0, 2.0], [3.0, 4.0]], &inner_device()),
+            &QuantScheme::default(),
+        );
+        let enabled = Dispatch::quantize_dynamic(
+            float_2d([[1.0, 0.0], [0.0, 1.0]], &device(strategy)),
+            &QuantScheme::default(),
+        );
+        let output = Dispatch::q_matmul(
+            TensorPrimitive::QFloat(disabled),
+            TensorPrimitive::QFloat(enabled),
+        );
+        let output = match output {
+            TensorPrimitive::QFloat(output) | TensorPrimitive::Float(output) => output,
+        };
+
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
     }
 
     #[test]

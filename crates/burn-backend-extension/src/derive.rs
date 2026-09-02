@@ -181,6 +181,40 @@ fn gen_routing_tensor_arm(case: &DeriveCase, float_only: bool) -> TokenStream {
     quote!(#pattern => #expression,)
 }
 
+/// Generate one arm that merges the contexts of every tensor in the active variant.
+fn gen_autodiff_context_arm(case: &DeriveCase) -> TokenStream {
+    let needed: Vec<_> = case
+        .fields
+        .iter()
+        .enumerate()
+        .filter(|(_, field)| field.is_ext || field.tensor_kind.is_some())
+        .map(|(index, _)| index)
+        .collect();
+    let merges = needed.iter().map(|&index| {
+        let field = &case.fields[index];
+        let bind = &field.bind;
+        if field.is_ext {
+            let dispatch_ty = ir::with_backend(&field.ty, quote!(burn::backend::Dispatch));
+            quote! {
+                let __context = __context.merge(
+                    <#dispatch_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::autodiff_context(#bind)
+                );
+            }
+        } else {
+            quote!(let __context = __context.merge(#bind.autodiff);)
+        }
+    });
+    let pattern = gen_case_pattern(case, |index| needed.contains(&index));
+
+    quote! {
+        #pattern => {
+            let __context = burn::backend::DispatchAutodiffContext::Disabled;
+            #(#merges)*
+            __context
+        },
+    }
+}
+
 pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
     let name = &input.ident;
@@ -236,6 +270,7 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     let routing_tensor_arms = cases.iter().map(|case| gen_routing_tensor_arm(case, false));
     let float_routing_tensor_arms = cases.iter().map(|case| gen_routing_tensor_arm(case, true));
+    let autodiff_context_arms = cases.iter().map(gen_autodiff_context_arm);
 
     Ok(quote! {
         impl #impl_generics burn::backend::ExtensionType<B> for #name #ty_generics #where_clause {
@@ -267,6 +302,12 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
             fn routing_float_tensor(target: &Self::Target) -> Option<&burn::backend::DispatchTensor> {
                 match target { #(#float_routing_tensor_arms)* }
+            }
+
+            fn autodiff_context(
+                target: &Self::Target,
+            ) -> burn::backend::DispatchAutodiffContext {
+                match target { #(#autodiff_context_arms)* }
             }
         }
     })

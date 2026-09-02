@@ -17,8 +17,9 @@ pub use burn_dispatch::backends::*;
 /// into a [`DispatchTensor`]; when it takes one as an input, [`map_from_dispatch`](Self::map_from_dispatch)
 /// reconstructs the concrete value and [`routing_tensor`](Self::routing_tensor) /
 /// [`routing_float_tensor`](Self::routing_float_tensor) locate a tensor for dispatch routing and
-/// backend and autodiff-context selection. All tensor fields participating in one operation must
-/// share the routing tensor's context. Nested `#[extension_type]` fields are traversed recursively.
+/// backend selection. [`autodiff_context`](Self::autodiff_context) merges the contexts of all tensor
+/// fields participating in one operation. Nested `#[extension_type]` fields are traversed
+/// recursively.
 ///
 /// Implementations are generated automatically using `#[derive(ExtensionType)]`.
 pub trait ExtensionType<B: Backend> {
@@ -52,7 +53,7 @@ pub trait ExtensionType<B: Backend> {
     /// # Arguments
     ///
     /// * `unwrap_kind` - A closure provided by the dispatch macro that validates the tensor's
-    ///   autodiff context and unwraps its [`DispatchTensorKind`] into the [`BackendTensor`] for the
+    ///   representation and unwraps its [`DispatchTensorKind`] into the [`BackendTensor`] for the
     ///   selected backend `B`, panicking on a backend mismatch.
     fn map_from_dispatch<F>(target: Self::Target, unwrap_kind: F) -> Self
     where
@@ -75,4 +76,17 @@ pub trait ExtensionType<B: Backend> {
     /// [`routing_tensor`](Self::routing_tensor) only when no float tensor exists anywhere in the
     /// inputs.
     fn routing_float_tensor(target: &Self::Target) -> Option<&DispatchTensor>;
+
+    /// Merge the autodiff contexts of every tensor held by the dispatch form.
+    ///
+    /// A tensor-less value returns [`DispatchAutodiffContext::Disabled`]. The default uses the
+    /// routing tensor and is sufficient for single-tensor implementations; implementations that
+    /// can hold multiple tensors must merge every tensor context. The derive handles this
+    /// automatically.
+    #[doc(hidden)]
+    fn autodiff_context(target: &Self::Target) -> DispatchAutodiffContext {
+        Self::routing_tensor(target)
+            .map(|tensor| tensor.autodiff)
+            .unwrap_or_default()
+    }
 }
