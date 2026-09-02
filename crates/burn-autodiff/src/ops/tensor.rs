@@ -79,19 +79,30 @@ fn prod_backward<B: Backend>(
     let at_most_one_zero = B::float_lower_elem(zero_count, 1.5.into(), bool_dtype);
     let one_zero = B::bool_and(B::bool_not(no_zero.clone()), at_most_one_zero);
 
+    // Binary operations support broadcasting dimensions, but require matching ranks.
+    // Global reductions return rank-one tensors, so prepend singleton dimensions to
+    // align them with the input without materializing full-sized expanded tensors.
+    let (grad, nonzero_product) = if dim.is_none() {
+        (
+            unsqueeze_like::<B>(grad, shape.clone()),
+            unsqueeze_like::<B>(nonzero_product, shape.clone()),
+        )
+    } else {
+        (grad, nonzero_product)
+    };
+
     let no_zero = B::bool_expand(no_zero, shape.clone());
     let one_zero = B::bool_expand(one_zero, shape.clone());
 
-    // Broadcasting the reduced product against the input produces the full input shape.
-    // At zero positions the safe denominator is one, so the quotient can also be reused
-    // for the single-zero branch.
+    // At zero positions the safe denominator is one, so the broadcast quotient can also
+    // be reused for the single-zero branch.
     let ordinary = B::float_div(nonzero_product, input_safe);
     let zeros = B::float_zeros(shape, &device, dtype.into());
     let single_zero = B::float_mask_where(zeros.clone(), zero_mask_bool, ordinary.clone());
     let local_grad = B::float_mask_where(zeros, no_zero, ordinary);
     let local_grad = B::float_mask_where(local_grad, one_zero, single_zero);
 
-    // The upstream gradient is reduced-shaped and broadcasts to the input shape here.
+    // The rank-aligned upstream gradient broadcasts to the input shape here.
     B::float_mul(grad, local_grad)
 }
 
