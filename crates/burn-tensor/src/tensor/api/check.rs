@@ -500,6 +500,26 @@ impl TensorCheck {
             );
         }
 
+        // Check batch dimension broadcast compatibility. The last two dimensions
+        // are the matrix dimensions (validated above), the remaining leading
+        // dimensions are the batch dimensions and must be broadcast-compatible.
+        for i in 0..D - 2 {
+            let l = shape_lhs[i];
+            let r = shape_rhs[i];
+            if l != r && l != 1 && r != 1 {
+                check = check.register(
+                    "Matmul",
+                    TensorError::new(format!(
+                        "Tensors are not broadcastable along batch dimension {i}: {l} and {r}."
+                    ))
+                    .details(format!(
+                        "Lhs shape {:?}, rhs shape {:?}.",
+                        shape_lhs, shape_rhs
+                    )),
+                );
+            }
+        }
+
         check
     }
 
