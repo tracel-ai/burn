@@ -253,9 +253,9 @@ impl RNNTLoss {
             self.blank,
             v
         );
-        assert_shape!(targets, [=b, =max_u]);
-        assert_shape!(logit_lengths, [=b]);
-        assert_shape!(target_lengths, [=b]);
+        assert_shape!(targets, [b, max_u]);
+        assert_shape!(logit_lengths, [b]);
+        assert_shape!(target_lengths, [b]);
     }
 
     /// Numerically stable `log(exp(a) + exp(b))`, handling `-inf` inputs.
@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "assert_shape!(targets, [=b, =max_u]): axis 0 expected 2, got 1")]
+    #[should_panic(expected = "assert_shape!(targets, [b, max_u]): axis 0 expected 2, got 1")]
     fn panics_on_batch_mismatch() {
         let dev = Default::default();
         let rnnt = RNNTLossConfig::new().init();
@@ -317,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "assert_shape!(logit_lengths, [=b]): axis 0 expected 2, got 1")]
+    #[should_panic(expected = "assert_shape!(logit_lengths, [b]): axis 0 expected 2, got 1")]
     fn panics_on_logit_lengths_mismatch() {
         let dev = Default::default();
         let rnnt = RNNTLossConfig::new().init();
@@ -330,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "assert_shape!(target_lengths, [=b]): axis 0 expected 2, got 1")]
+    #[should_panic(expected = "assert_shape!(target_lengths, [b]): axis 0 expected 2, got 1")]
     fn panics_on_target_lengths_mismatch() {
         let dev = Default::default();
         let rnnt = RNNTLossConfig::new().init();

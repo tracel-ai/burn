@@ -6,9 +6,9 @@
 
 /// Asserts a tensor's rank at compile time and its axis sizes at runtime.
 ///
-/// The pattern has one slot per axis: `=expr` checks the axis against an in-scope `usize`
-/// expression, an integer literal checks it against that value, and `_` skips it. To name axes,
-/// destructure `tensor.dims()` first and refer to the names with `=`.
+/// The pattern has one slot per axis. A slot is either `_`, which skips the axis, or any `usize`
+/// expression the axis must equal: a name from `dims()`, a config field, a literal. To name
+/// axes, destructure `tensor.dims()` first and use the names as slots.
 ///
 /// The pattern length must equal the tensor rank, otherwise the call does not compile. The
 /// tensor is borrowed, not moved, and every expression is evaluated once. Checks stay on in
@@ -24,7 +24,7 @@
 ///
 /// let [batch_size, seq_length, _] = x.dims();
 /// assert_shape!(x, [_, _, 256]);
-/// assert_shape!(mask, [=batch_size, =seq_length]);
+/// assert_shape!(mask, [batch_size, seq_length]);
 /// ```
 ///
 /// A mismatch panics with the call and the offending axis:
@@ -36,8 +36,7 @@
 /// assert_shape!(x, [2, 99]);
 /// ```
 ///
-/// A pattern whose length differs from the rank does not compile, and neither does a bare
-/// identifier:
+/// A pattern whose length differs from the rank does not compile:
 ///
 /// ```compile_fail,E0308
 /// use burn_tensor::{Tensor, assert_shape};
@@ -45,11 +44,12 @@
 /// assert_shape!(x, [2, 3, 1]);
 /// ```
 ///
-/// ```compile_fail
+/// Neither does a slot that is not a `usize`:
+///
+/// ```compile_fail,E0308
 /// use burn_tensor::{Tensor, assert_shape};
 /// let x = Tensor::<2>::zeros([2, 3], &Default::default());
-/// let batch_size = 2;
-/// assert_shape!(x, [batch_size, 3]);
+/// assert_shape!(x, [2i32, 3]);
 /// ```
 ///
 /// Only a `Tensor` is accepted. A `Shape` is a type error rather than a weaker check:
@@ -70,7 +70,7 @@ macro_rules! assert_shape {
 /// is on.
 ///
 /// The rank check is a type check and stays in every build. Like `debug_assert!`, neither the
-/// tensor expression nor the `=expr` slots are evaluated in release builds.
+/// tensor expression nor the slot expressions are evaluated in release builds.
 ///
 /// ```
 /// use burn_tensor::{Tensor, debug_assert_shape};
@@ -87,15 +87,6 @@ macro_rules! assert_shape {
 /// let x = Tensor::<2>::zeros([2, 3], &Default::default());
 /// debug_assert_shape!(x, [2, 99]);
 /// # if !cfg!(debug_assertions) { panic!("compiled out") }
-/// ```
-///
-/// A bare identifier does not compile:
-///
-/// ```compile_fail
-/// use burn_tensor::{Tensor, debug_assert_shape};
-/// let x = Tensor::<2>::zeros([2, 3], &Default::default());
-/// let batch_size = 2;
-/// debug_assert_shape!(x, [batch_size, 3]);
 /// ```
 #[macro_export]
 macro_rules! debug_assert_shape {

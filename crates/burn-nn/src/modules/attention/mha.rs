@@ -212,9 +212,9 @@ impl MultiHeadAttention {
     pub fn forward(&self, input: MhaInput) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
         let [_, seq_length_2, _] = input.key.dims();
-        assert_shape!(input.query, [_, _, =self.d_model]);
-        assert_shape!(input.key, [=batch_size, _, =self.d_model]);
-        assert_shape!(input.value, [=batch_size, =seq_length_2, =self.d_model]);
+        assert_shape!(input.query, [_, _, self.d_model]);
+        assert_shape!(input.key, [batch_size, _, self.d_model]);
+        assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]);
 
         let query = self.attention_linear(input.query, &self.query);
         let key = self.attention_linear(input.key, &self.key);
@@ -243,9 +243,9 @@ impl MultiHeadAttention {
     pub fn forward_cache(&self, input: MhaInput, cache: &mut MhaCache) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
         let [_, seq_length_2, _] = input.key.dims();
-        assert_shape!(input.query, [_, _, =self.d_model]);
-        assert_shape!(input.key, [=batch_size, _, =self.d_model]);
-        assert_shape!(input.value, [=batch_size, =seq_length_2, =self.d_model]);
+        assert_shape!(input.query, [_, _, self.d_model]);
+        assert_shape!(input.key, [batch_size, _, self.d_model]);
+        assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]);
 
         let query = cache
             .query
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "assert_shape!(input.key, [=batch_size, _, =self.d_model]): axis 0 expected 2, got 1"
+        expected = "assert_shape!(input.key, [batch_size, _, self.d_model]): axis 0 expected 2, got 1"
     )]
     fn key_batch_must_match_query_batch() {
         let device = Default::default();

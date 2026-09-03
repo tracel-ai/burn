@@ -5,14 +5,15 @@
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{
-    Expr, Ident, LitInt, Path, Token, bracketed,
+    Expr, Ident, Path, Token, bracketed,
     parse::{Parse, ParseStream},
+    punctuated::Punctuated,
     spanned::Spanned,
 };
 
 /// One position in a shape pattern.
 enum Slot {
-    /// `=expr` or an integer literal: the axis must equal this `usize` expression.
+    /// Any expression: the axis must equal this `usize` value.
     Check(Box<Expr>),
     /// `_`: the axis is not checked.
     Wildcard,
@@ -23,23 +24,8 @@ impl Parse for Slot {
         if input.peek(Token![_]) {
             input.parse::<Token![_]>()?;
             Ok(Slot::Wildcard)
-        } else if input.peek(Token![=]) {
-            input.parse::<Token![=]>()?;
-            Ok(Slot::Check(Box::new(input.parse()?)))
-        } else if input.peek(LitInt) {
-            Ok(Slot::Check(Box::new(Expr::Lit(input.parse()?))))
-        } else if input.peek(Ident) {
-            let id: Ident = input.parse()?;
-            Err(syn::Error::new(
-                id.span(),
-                format!(
-                    "bare identifier `{id}` is not a check; use `={id}` to compare the axis \
-                     against an in-scope value, `_` to skip it, or `let [..] = tensor.dims()` \
-                     to name axes"
-                ),
-            ))
         } else {
-            Err(input.error("expected a shape slot: `=expr`, an integer literal, or `_`"))
+            Ok(Slot::Check(Box::new(input.parse()?)))
         }
     }
 }
@@ -60,19 +46,9 @@ impl Parse for ShapeInput {
         input.parse::<Token![,]>()?;
         let content;
         bracketed!(content in input);
-        let mut slots = Vec::new();
-        while !content.is_empty() {
-            slots.push(content.parse()?);
-            if content.is_empty() {
-                break;
-            }
-            if !content.peek(Token![,]) {
-                return Err(content.error(
-                    "expected `,`; to check an axis against an expression, prefix it with `=`",
-                ));
-            }
-            content.parse::<Token![,]>()?;
-        }
+        let slots = Punctuated::<Slot, Token![,]>::parse_terminated(&content)?
+            .into_iter()
+            .collect();
         Ok(ShapeInput {
             krate,
             tensor,
@@ -106,7 +82,7 @@ pub(crate) fn expand(input: ShapeInput, mode: Mode, call: &str) -> TokenStream {
         slots,
     } = input;
 
-    // Mixed-site hygiene: these names are invisible to the caller, so a user `=expr` that
+    // Mixed-site hygiene: these names are invisible to the caller, so a slot expression that
     // mentions `__dims` still resolves to the user's own binding.
     let t = Ident::new("__tensor", Span::mixed_site());
     let dims = Ident::new("__dims", Span::mixed_site());

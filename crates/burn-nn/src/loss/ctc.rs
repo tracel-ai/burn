@@ -113,9 +113,9 @@ impl CTCLoss {
     ) -> Tensor<1> {
         let [max_input_length, batch_size, num_classes] = log_probs.dims();
         let [_, max_target_len] = targets.dims();
-        assert_shape!(targets, [=batch_size, _]);
-        assert_shape!(input_lengths, [=batch_size]);
-        assert_shape!(target_lengths, [=batch_size]);
+        assert_shape!(targets, [batch_size, _]);
+        assert_shape!(input_lengths, [batch_size]);
+        assert_shape!(target_lengths, [batch_size]);
         assert!(
             self.blank < num_classes,
             "blank index {} must be less than num_classes {}",
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "assert_shape!(targets, [=batch_size, _]): axis 0 expected 2, got 1")]
+    #[should_panic(expected = "assert_shape!(targets, [batch_size, _]): axis 0 expected 2, got 1")]
     fn test_ctc_loss_panics_mismatched_batch_size() {
         let device = Default::default();
         let ctc = CTCLossConfig::new().init();
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "assert_shape!(input_lengths, [=batch_size]): axis 0 expected 2, got 1"
+        expected = "assert_shape!(input_lengths, [batch_size]): axis 0 expected 2, got 1"
     )]
     fn test_ctc_loss_panics_input_lengths_mismatch() {
         let device = Default::default();
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "assert_shape!(target_lengths, [=batch_size]): axis 0 expected 2, got 1"
+        expected = "assert_shape!(target_lengths, [batch_size]): axis 0 expected 2, got 1"
     )]
     fn test_ctc_loss_panics_target_lengths_mismatch() {
         let device = Default::default();

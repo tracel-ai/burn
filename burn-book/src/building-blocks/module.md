@@ -62,13 +62,9 @@ available from the prelude, check those sizes at the boundary of a method:
 - `assert_shape!` checks the axes of a tensor. It stays on in release builds.
 - `debug_assert_shape!` is the same check, compiled out unless debug assertions are enabled.
 
-Each takes a tensor and a bracketed pattern with one slot per axis:
-
-| Slot                   | Meaning                                               |
-| ---------------------- | ----------------------------------------------------- |
-| `=expr`                | The axis must equal this in-scope `usize` expression. |
-| `80` (integer literal) | The axis must equal this value.                       |
-| `_`                    | Skip the axis.                                        |
+Each takes a tensor and a bracketed pattern with one slot per axis. A slot is either `_`, which
+skips the axis, or any `usize` expression the axis must equal: a name from `dims()`, a config field,
+a literal.
 
 The pattern length is the expected rank. Since `tensor.dims()` returns `[usize; D]`, a pattern whose
 length differs from `D` is a compile error rather than a runtime panic, and so is passing anything
@@ -94,34 +90,31 @@ impl FeedForward {
     /// - output: `[batch_size, seq_length, d_model]`
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         let [batch_size, seq_length, _] = input.dims();
-        assert_shape!(input, [_, _, =self.d_model]);
+        assert_shape!(input, [_, _, self.d_model]);
 
         let x = self.linear_inner.forward(input);
-        debug_assert_shape!(x, [=batch_size, =seq_length, =self.d_ff]);
+        debug_assert_shape!(x, [batch_size, seq_length, self.d_ff]);
 
         let x = self.gelu.forward(x);
         let output = self.linear_outer.forward(x);
 
-        assert_shape!(output, [=batch_size, =seq_length, =self.d_model]);
+        assert_shape!(output, [batch_size, seq_length, self.d_model]);
         output
     }
 }
 ```
 
-A failed check panics with the macro call, the axis, the expected and actual sizes, and the full
-dims of the tensor:
+The pattern reads like the `# Shapes` line above it. A failed check panics with the macro call, the
+axis, the expected and actual sizes, and the full dims of the tensor:
 
 ```text
-assert_shape!(output, [=batch_size, =seq_length, =self.d_model]): axis 2 expected 512, got 2048 (dims [8, 128, 2048])
+assert_shape!(output, [batch_size, seq_length, self.d_model]): axis 2 expected 512, got 2048 (dims [8, 128, 2048])
 ```
-
-A bare name in a pattern is a compile error with a hint: write `=name` to check against it, or name
-the axis with `let [..] = tensor.dims()` first.
 
 ### Choosing a macro
 
 - Name the runtime axes once at the top of `forward` with
-  `let [batch_size, seq_length, _] = input.dims();` and refer to them with `=name` in every check.
+  `let [batch_size, seq_length, _] = input.dims();` and use those names in every check.
 - `assert_shape!` is the default for a contract check. A mismatch that reaches a tensor operation
   may fail there with a message about that operation's arguments, or broadcast silently when an axis
   has size 1. The check is a few integer comparisons, so its cost does not matter next to a kernel

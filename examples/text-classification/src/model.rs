@@ -68,8 +68,8 @@ impl TextClassificationModel {
     pub fn forward(&self, item: TextClassificationTrainingBatch) -> ClassificationOutput {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
-        assert_shape!(item.mask_pad, [=batch_size, =seq_length]);
-        assert_shape!(item.labels, [=batch_size]);
+        assert_shape!(item.mask_pad, [batch_size, seq_length]);
+        assert_shape!(item.labels, [batch_size]);
         let device = &self.embedding_token.devices()[0];
 
         // Move tensors to the correct device
@@ -111,7 +111,7 @@ impl TextClassificationModel {
     pub fn infer(&self, item: TextClassificationInferenceBatch) -> Tensor<2> {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
-        assert_shape!(item.mask_pad, [=batch_size, =seq_length]);
+        assert_shape!(item.mask_pad, [batch_size, seq_length]);
         let device = &self.embedding_token.devices()[0];
 
         // Move tensors to the correct device

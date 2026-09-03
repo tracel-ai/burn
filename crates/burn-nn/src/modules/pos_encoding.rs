@@ -103,7 +103,7 @@ impl PositionalEncoding {
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         let [_, seq_length, _] = input.dims();
         let [batch_size, max_sequence_size, d_model] = self.sinusoids.dims();
-        assert_shape!(input, [_, _, =d_model]);
+        assert_shape!(input, [_, _, d_model]);
 
         assert!(
             max_sequence_size >= seq_length,
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "assert_shape!(input, [_, _, =d_model]): axis 2 expected 8, got 10")]
+    #[should_panic(expected = "assert_shape!(input, [_, _, d_model]): axis 2 expected 8, got 10")]
     fn d_model_input_should_match() {
         let d_model = 8;
         let device = Default::default();
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "assert_shape!(input, [_, _, =d_model]): axis 2 expected 8, got 1")]
+    #[should_panic(expected = "assert_shape!(input, [_, _, d_model]): axis 2 expected 8, got 1")]
     fn d_model_input_of_one_does_not_broadcast() {
         let d_model = 8;
         let device = Default::default();

@@ -244,7 +244,7 @@ impl CrossEntropyLoss {
 
     fn assertions(logits: Tensor<2>, targets: Tensor<1, Int>) {
         let [batch_size, _] = logits.dims();
-        assert_shape!(targets, [=batch_size]);
+        assert_shape!(targets, [batch_size]);
     }
 }
 
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "assert_shape!(targets, [=batch_size]): axis 0 expected 4, got 3")]
+    #[should_panic(expected = "assert_shape!(targets, [batch_size]): axis 0 expected 4, got 3")]
     fn test_cross_entropy_loss_targets_must_match_batch_size() {
         let (logits, _, _) = setup!();
         let device = logits.device();

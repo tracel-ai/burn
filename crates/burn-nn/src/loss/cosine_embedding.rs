@@ -141,8 +141,8 @@ impl CosineEmbeddingLoss {
 
     fn assertions(&self, input1: &Tensor<2>, input2: &Tensor<2>, target: &Tensor<1, Int>) {
         let [batch_size, dim] = input1.dims();
-        assert_shape!(input2, [=batch_size, =dim]);
-        assert_shape!(target, [=batch_size]);
+        assert_shape!(input2, [batch_size, dim]);
+        assert_shape!(target, [batch_size]);
     }
 }
 
@@ -154,9 +154,7 @@ mod tests {
     type FT = f32;
 
     #[test]
-    #[should_panic(
-        expected = "assert_shape!(input2, [=batch_size, =dim]): axis 0 expected 2, got 1"
-    )]
+    #[should_panic(expected = "assert_shape!(input2, [batch_size, dim]): axis 0 expected 2, got 1")]
     fn batch_size_of_inputs_must_match() {
         let device = Default::default();
         let input1 = Tensor::<2>::zeros([2, 3], &device);
