@@ -8,7 +8,7 @@ use crate::loss::reduction::Reduction;
 use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
-use burn::tensor::{Int, Tensor, activation::relu};
+use burn::tensor::{Int, Tensor, activation::relu, assert_shape, unpack_shape};
 
 /// Configuration for CosineEmbeddingLoss.
 #[derive(Config, Debug)]
@@ -140,24 +140,9 @@ impl CosineEmbeddingLoss {
     }
 
     fn assertions(&self, input1: &Tensor<2>, input2: &Tensor<2>, target: &Tensor<1, Int>) {
-        let [batch_size1, dim1] = input1.dims();
-        let [batch_size2, dim2] = input2.dims();
-        let [batch_size_target] = target.dims();
-
-        assert_eq!(
-            batch_size1, batch_size2,
-            "Batch size of input1 ({batch_size1}) must match batch size of input2 ({batch_size2})"
-        );
-
-        assert_eq!(
-            dim1, dim2,
-            "Embedding dimension of input1 ({dim1}) must match embedding dimension of input2 ({dim2})"
-        );
-
-        assert_eq!(
-            batch_size1, batch_size_target,
-            "Batch size of inputs ({batch_size1}) must match batch size of target ({batch_size_target})"
-        );
+        let (batch_size, dim) = unpack_shape!(input1, [B, D]);
+        assert_shape!(input2, [=batch_size, =dim]);
+        assert_shape!(target, [=batch_size]);
     }
 }
 

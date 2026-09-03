@@ -27,7 +27,7 @@ enum Slot {
     /// Bare identifier: bound and returned by `unpack_shape!`; rejected by the assert macros.
     Fresh(Ident),
     /// `=expr` or an integer literal: the axis must equal this `usize` expression.
-    Check(Expr),
+    Check(Box<Expr>),
     /// `_`: neither bound nor checked.
     Wildcard,
 }
@@ -39,13 +39,13 @@ impl Parse for Slot {
             Ok(Slot::Wildcard)
         } else if input.peek(Token![=]) {
             input.parse::<Token![=]>()?;
-            Ok(Slot::Check(input.parse()?))
+            Ok(Slot::Check(Box::new(input.parse()?)))
         } else if input.peek(LitInt) {
             let lit: LitInt = input.parse()?;
-            Ok(Slot::Check(Expr::Lit(ExprLit {
+            Ok(Slot::Check(Box::new(Expr::Lit(ExprLit {
                 attrs: Vec::new(),
                 lit: Lit::Int(lit),
-            })))
+            }))))
         } else if input.peek(Ident) {
             Ok(Slot::Fresh(input.parse()?))
         } else {
@@ -192,8 +192,10 @@ fn pattern_text(slots: &[Slot]) -> String {
         .iter()
         .map(|slot| match slot {
             Slot::Fresh(id) => id.to_string(),
-            Slot::Check(Expr::Lit(lit)) => source_like(lit),
-            Slot::Check(expr) => format!("={}", source_like(expr)),
+            Slot::Check(expr) => match expr.as_ref() {
+                Expr::Lit(lit) => source_like(lit),
+                expr => format!("={}", source_like(expr)),
+            },
             Slot::Wildcard => "_".to_string(),
         })
         .collect();

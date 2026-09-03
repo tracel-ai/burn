@@ -51,7 +51,9 @@ impl TextGenerationModelConfig {
 }
 impl TextGenerationModel {
     pub fn forward_training(&self, item: TrainingTextGenerationBatch) -> ClassificationOutput {
-        let [batch_size, seq_length] = item.tokens_inputs.dims();
+        let (batch_size, seq_length) = unpack_shape!(item.tokens_inputs, [B, T]);
+        assert_shape!(item.targets, [=batch_size, =seq_length]);
+        assert_shape!(item.mask_pad, [=batch_size, =seq_length]);
         let device = &self.devices()[0];
 
         let inputs = item.tokens_inputs.to_device(device);

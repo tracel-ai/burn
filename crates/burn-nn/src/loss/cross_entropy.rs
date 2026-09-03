@@ -6,7 +6,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::activation::log_softmax;
-use burn::tensor::{Bool, Device, Int, Tensor};
+use burn::tensor::{Bool, Device, Int, Tensor, assert_shape, unpack_shape};
 use burn::{config::Config, module::Module};
 
 #[cfg(not(feature = "std"))]
@@ -243,12 +243,8 @@ impl CrossEntropyLoss {
     }
 
     fn assertions(logits: Tensor<2>, targets: Tensor<1, Int>) {
-        let [logits_height, _] = logits.dims();
-        let [targets_height] = targets.dims();
-        assert!(
-            logits_height == targets_height,
-            "Shape of targets ({targets_height}) should correspond to outer shape of logits ({logits_height})."
-        );
+        let (batch_size,) = unpack_shape!(logits, [B, _]);
+        assert_shape!(targets, [=batch_size]);
     }
 }
 

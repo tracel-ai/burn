@@ -2,7 +2,7 @@ use super::Reduction;
 use alloc::vec;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Bool, Device, Int, Tensor, s};
+use burn::tensor::{Bool, Device, Int, Tensor, assert_shape, s};
 use burn_core as burn;
 use core::f32;
 
@@ -253,34 +253,9 @@ impl RNNTLoss {
             self.blank,
             v
         );
-        assert_eq!(
-            targets.dims()[0],
-            b,
-            "targets batch dimension {} must equal batch_size {}",
-            targets.dims()[0],
-            b
-        );
-        assert_eq!(
-            targets.dims()[1],
-            max_u,
-            "targets length dimension {} must equal max_target_len (max_u) {}",
-            targets.dims()[1],
-            max_u
-        );
-        assert_eq!(
-            logit_lengths.dims()[0],
-            b,
-            "logit_lengths length {} must equal batch_size {}",
-            logit_lengths.dims()[0],
-            b
-        );
-        assert_eq!(
-            target_lengths.dims()[0],
-            b,
-            "target_lengths length {} must equal batch_size {}",
-            target_lengths.dims()[0],
-            b
-        );
+        assert_shape!(targets, [=b, =max_u]);
+        assert_shape!(logit_lengths, [=b]);
+        assert_shape!(target_lengths, [=b]);
     }
 
     /// Numerically stable `log(exp(a) + exp(b))`, handling `-inf` inputs.
@@ -329,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "must equal batch_size")]
+    #[should_panic(expected = "assert_shape!(targets, [=b, =max_u]): axis 0 expected 2, got 1")]
     fn panics_on_batch_mismatch() {
         let dev = Default::default();
         let rnnt = RNNTLossConfig::new().init();
@@ -342,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "logit_lengths length")]
+    #[should_panic(expected = "assert_shape!(logit_lengths, [=b]): axis 0 expected 2, got 1")]
     fn panics_on_logit_lengths_mismatch() {
         let dev = Default::default();
         let rnnt = RNNTLossConfig::new().init();
@@ -355,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "target_lengths length")]
+    #[should_panic(expected = "assert_shape!(target_lengths, [=b]): axis 0 expected 2, got 1")]
     fn panics_on_target_lengths_mismatch() {
         let dev = Default::default();
         let rnnt = RNNTLossConfig::new().init();

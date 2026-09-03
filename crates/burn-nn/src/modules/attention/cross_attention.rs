@@ -10,6 +10,7 @@
 use crate::cache::TensorCache;
 use crate::modules::{Linear, LinearConfig};
 use crate::{Dropout, DropoutConfig};
+use burn::tensor::unpack_shape;
 use burn_core as burn;
 
 use burn::{
@@ -164,8 +165,8 @@ impl CrossAttention {
         context: Tensor<3>,
         mask: Option<Tensor<2, Bool>>,
     ) -> Tensor<3> {
-        let [batch, l_q, _] = query.dims();
-        let [_, l_k, _] = context.dims();
+        let (batch, l_q) = unpack_shape!(query, [B, L, _]);
+        let (l_k,) = unpack_shape!(context, [=batch, L, _]);
 
         // 1. Projections
         let q = self.query.forward(query);
@@ -247,20 +248,20 @@ impl CrossAttention {
         mask: Option<Tensor<2, Bool>>,
         cache: &mut CrossAttentionCache,
     ) -> Tensor<3> {
-        let [batch, l_q, _] = query.dims();
+        let (batch, l_q) = unpack_shape!(query, [B, L, _]);
 
         // 1. Projections
         let q = self.query.forward(query);
 
         let k_compute = |context: Tensor<3>| {
-            let [batch, l_k, _] = context.dims();
+            let (l_k,) = unpack_shape!(context, [=batch, L, _]);
             self.key
                 .forward(context)
                 .reshape([batch, l_k, self.n_heads_kv, self.d_head])
                 .swap_dims(1, 2)
         };
         let v_compute = |context: Tensor<3>| {
-            let [batch, l_k, _] = context.dims();
+            let (l_k,) = unpack_shape!(context, [=batch, L, _]);
             self.value
                 .forward(context)
                 .reshape([batch, l_k, self.n_heads_kv, self.d_head])

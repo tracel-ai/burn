@@ -41,10 +41,14 @@ impl Model {
         }
     }
 
+    /// # Shapes
+    ///
+    /// - input: `[batch_size, 28, 28]`
+    /// - output: `[batch_size, 10]`
     pub fn forward(&self, input: Tensor<3>) -> Tensor<2> {
-        let [batch_size, height, width] = input.dims();
+        let (batch_size,) = unpack_shape!(input, [B, 28, 28]);
 
-        let x = input.reshape([batch_size, 1, height, width]).detach();
+        let x = input.reshape([batch_size, 1, 28, 28]).detach();
         let x = self.conv1.forward(x);
         let x = self.conv2.forward(x);
 
