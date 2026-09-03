@@ -85,6 +85,9 @@ pub fn device_throughput(
     cubecl::std::throughput::device_throughput::<cubecl::wgpu::WgpuRuntime<AutoCompiler>>(
         device, keys,
     )
+    .into_iter()
+    .map(|peak| peak.unwrap_or(ThroughputValue::ZERO))
+    .collect()
 }
 
 /// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.

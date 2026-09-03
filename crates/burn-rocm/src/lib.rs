@@ -22,4 +22,7 @@ pub fn device_throughput(
     keys: &[ThroughputKey],
 ) -> alloc::vec::Vec<ThroughputValue> {
     cubecl::std::throughput::device_throughput::<HipRuntime>(device, keys)
+        .into_iter()
+        .map(|peak| peak.unwrap_or(ThroughputValue::ZERO))
+        .collect()
 }
