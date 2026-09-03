@@ -99,7 +99,9 @@ fn unpack_scope_mismatch_panics() {
 }
 
 #[test]
-#[should_panic(expected = "axis 1 expected 128, got 6")]
+#[should_panic(
+    expected = "unpack_shape!(x, [B, =config.d_model]): axis 1 expected 128, got 6 (dims [2, 6])"
+)]
 fn unpack_expression_mismatch_panics() {
     let x = t([2, 6]);
     let config = Config { d_model: 128 };

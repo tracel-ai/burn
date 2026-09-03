@@ -1,22 +1,10 @@
-//! Shape assertion macros: `unpack_shape!`, `assert_shape!` and `debug_assert_shape!`.
-//!
-//! All three take a tensor expression and a bracketed pattern with one slot per axis:
-//!
-//! - a bare identifier binds the axis size (only in `unpack_shape!`),
-//! - `=expr` checks the axis against an in-scope `usize` expression,
-//! - an integer literal checks the axis against that value,
-//! - `_` skips the axis.
-//!
-//! The pattern length is the expected rank. Since `Tensor::dims()` returns `[usize; D]`,
-//! binding it to `[usize; N]` turns a rank mismatch into a compile error. Axis checks are
-//! runtime assertions.
-//!
-//! Inspired by the `burn-contracts` crate by Crutcher Dunnavant.
+//! Implementation of `unpack_shape!`, `assert_shape!` and `debug_assert_shape!`. The public
+//! documentation lives on the macros in `lib.rs`.
 
 use proc_macro2::{Literal, Span, TokenStream};
-use quote::{ToTokens, quote, quote_spanned};
+use quote::{quote, quote_spanned};
 use syn::{
-    Expr, ExprLit, Ident, Lit, LitInt, Token, bracketed,
+    Expr, Ident, LitInt, Token, bracketed,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     spanned::Spanned,
@@ -41,11 +29,7 @@ impl Parse for Slot {
             input.parse::<Token![=]>()?;
             Ok(Slot::Check(Box::new(input.parse()?)))
         } else if input.peek(LitInt) {
-            let lit: LitInt = input.parse()?;
-            Ok(Slot::Check(Box::new(Expr::Lit(ExprLit {
-                attrs: Vec::new(),
-                lit: Lit::Int(lit),
-            }))))
+            Ok(Slot::Check(Box::new(Expr::Lit(input.parse()?))))
         } else if input.peek(Ident) {
             Ok(Slot::Fresh(input.parse()?))
         } else {
@@ -71,9 +55,6 @@ impl Parse for ShapeInput {
         let slots = Punctuated::<Slot, Token![,]>::parse_terminated(&content)?
             .into_iter()
             .collect();
-        if !input.is_empty() {
-            return Err(input.error("unexpected tokens after the shape pattern"));
-        }
         Ok(ShapeInput { tensor, slots })
     }
 }
@@ -96,7 +77,8 @@ impl Mode {
     }
 }
 
-pub(crate) fn expand(input: ShapeInput, mode: Mode) -> TokenStream {
+/// `call` is the macro input as the caller wrote it, echoed in panic messages.
+pub(crate) fn expand(input: ShapeInput, mode: Mode, call: &str) -> TokenStream {
     let ShapeInput { tensor, slots } = input;
     let name = mode.name();
 
@@ -135,46 +117,44 @@ pub(crate) fn expand(input: ShapeInput, mode: Mode) -> TokenStream {
     let expected = Ident::new("__expected", Span::mixed_site());
 
     let rank = slots.len();
-    let call_text = format!("{name}({}, {})", source_like(&tensor), pattern_text(&slots));
+    let call = format!("{name}({call})");
 
     let mut checks = Vec::new();
     let mut fresh = Vec::new();
     for (axis, slot) in slots.iter().enumerate() {
         let index = Literal::usize_unsuffixed(axis);
         match slot {
-            Slot::Check(expr) => {
-                let msg = format!("{call_text}: axis {axis} expected {{}}, got {{}} (dims {{:?}})");
-                let check = quote_spanned! { expr.span() =>
-                    {
-                        let #expected: usize = #expr;
-                        ::core::assert!(
-                            #dims[#index] == #expected,
-                            #msg, #expected, #dims[#index], #dims
-                        );
-                    }
-                };
-                checks.push(check);
-            }
+            Slot::Check(expr) => checks.push(quote_spanned! { expr.span() =>
+                {
+                    let #expected: usize = #expr;
+                    ::core::assert!(
+                        #dims[#index] == #expected,
+                        "{}: axis {} expected {}, got {} (dims {:?})",
+                        #call, #index, #expected, #dims[#index], #dims
+                    );
+                }
+            }),
             Slot::Fresh(_) => fresh.push(quote! { #dims[#index] }),
             Slot::Wildcard => {}
         }
     }
 
-    // The type annotation is the rank check: `Tensor<D>::dims()` returns `[usize; D]`.
-    let rank_check = if checks.is_empty() && fresh.is_empty() {
-        quote_spanned! { tensor.span() => let _: [usize; #rank] = #t.dims(); }
-    } else {
-        quote_spanned! { tensor.span() => let #dims: [usize; #rank] = #t.dims(); }
+    // The type annotation is the rank check: `Tensor<D>::dims()` returns `[usize; D]`. Going
+    // through a reference keeps the caller's expression unmoved and hides the borrow from lints.
+    let rank_check = quote_spanned! { tensor.span() =>
+        let #t = &#tensor;
+        let #dims: [usize; #rank] = #t.dims();
     };
 
-    let tuple = match fresh.len() {
-        0 => TokenStream::new(),
-        1 => quote! { (#(#fresh)*,) },
-        _ => quote! { (#(#fresh),*) },
+    // With nothing to bind the block ends in a statement and evaluates to `()` implicitly; an
+    // explicit `()` would trip clippy's `unused_unit` at every `assert_shape!` call site.
+    let tuple = if fresh.is_empty() {
+        TokenStream::new()
+    } else {
+        quote! { (#(#fresh,)*) }
     };
 
     let body = quote! {
-        let #t = &#tensor;
         #rank_check
         #(#checks)*
         #tuple
@@ -184,36 +164,4 @@ pub(crate) fn expand(input: ShapeInput, mode: Mode) -> TokenStream {
         Mode::DebugAssert => quote! { if ::core::cfg!(debug_assertions) { #body } },
         Mode::Unpack | Mode::Assert => quote! { { #body } },
     }
-}
-
-/// Render the pattern back as the user wrote it, for panic messages.
-fn pattern_text(slots: &[Slot]) -> String {
-    let parts: Vec<String> = slots
-        .iter()
-        .map(|slot| match slot {
-            Slot::Fresh(id) => id.to_string(),
-            Slot::Check(expr) => match expr.as_ref() {
-                Expr::Lit(lit) => source_like(lit),
-                expr => format!("={}", source_like(expr)),
-            },
-            Slot::Wildcard => "_".to_string(),
-        })
-        .collect();
-    format!("[{}]", parts.join(", "))
-}
-
-/// Undo the spacing `ToTokens` inserts between every token, then escape braces so the
-/// result can be embedded in a format string.
-fn source_like(tokens: &impl ToTokens) -> String {
-    tokens
-        .to_token_stream()
-        .to_string()
-        .replace(" . ", ".")
-        .replace(" :: ", "::")
-        .replace("& ", "&")
-        .replace("( ", "(")
-        .replace(" )", ")")
-        .replace(" ,", ",")
-        .replace('{', "{{")
-        .replace('}', "}}")
 }

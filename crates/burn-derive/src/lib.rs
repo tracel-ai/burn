@@ -108,8 +108,9 @@ pub fn record_state_derive(input: TokenStream) -> TokenStream {
 /// Inspired by the `burn-contracts` crate by Crutcher Dunnavant.
 #[proc_macro]
 pub fn unpack_shape(input: TokenStream) -> TokenStream {
+    let call = input.to_string();
     let input = syn::parse_macro_input!(input as shape::ShapeInput);
-    shape::expand(input, shape::Mode::Unpack).into()
+    shape::expand(input, shape::Mode::Unpack, &call).into()
 }
 
 /// Asserts a tensor's rank at compile time and its axis sizes at runtime.
@@ -130,8 +131,9 @@ pub fn unpack_shape(input: TokenStream) -> TokenStream {
 /// Inspired by the `burn-contracts` crate by Crutcher Dunnavant.
 #[proc_macro]
 pub fn assert_shape(input: TokenStream) -> TokenStream {
+    let call = input.to_string();
     let input = syn::parse_macro_input!(input as shape::ShapeInput);
-    shape::expand(input, shape::Mode::Assert).into()
+    shape::expand(input, shape::Mode::Assert, &call).into()
 }
 
 /// Same as [`assert_shape!`], but the axis checks compile out unless `debug_assertions` is on.
@@ -144,6 +146,7 @@ pub fn assert_shape(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro]
 pub fn debug_assert_shape(input: TokenStream) -> TokenStream {
+    let call = input.to_string();
     let input = syn::parse_macro_input!(input as shape::ShapeInput);
-    shape::expand(input, shape::Mode::DebugAssert).into()
+    shape::expand(input, shape::Mode::DebugAssert, &call).into()
 }

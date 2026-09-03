@@ -96,12 +96,12 @@ impl PositionWiseFeedForward {
         let (batch_size, seq_length) = unpack_shape!(input, [B, T, =self.d_model]);
 
         let x = self.linear_inner.forward(input);
-        assert_shape!(x, [=batch_size, =seq_length, =self.d_ff]);
+        debug_assert_shape!(x, [=batch_size, =seq_length, =self.d_ff]);
 
         let x = self.gelu.forward(x);
         let output = self.linear_outer.forward(x);
 
-        debug_assert_shape!(output, [=batch_size, =seq_length, =self.d_model]);
+        assert_shape!(output, [=batch_size, =seq_length, =self.d_model]);
         output
     }
 }
@@ -114,24 +114,24 @@ A failed check panics with the macro call, the axis, the expected and actual siz
 dims of the tensor:
 
 ```text
-assert_shape!(x, [=batch_size, =seq_length, =self.d_ff]): axis 2 expected 2048, got 512 (dims [8, 128, 512])
+assert_shape!(output, [=batch_size, =seq_length, =self.d_model]): axis 2 expected 512, got 2048 (dims [8, 128, 2048])
 ```
 
-Misuse is caught at compile time: a bare name inside `assert_shape!` or `debug_assert_shape!` is
-rejected with a hint to use `unpack_shape!` or `=`, and an `unpack_shape!` with nothing to bind is
-rejected with a hint to use `assert_shape!`.
+A bare name inside `assert_shape!` or `debug_assert_shape!`, or an `unpack_shape!` with nothing to
+bind, is a compile error with a hint toward the right macro.
 
 ### Choosing a macro
 
-- Start `forward` with `unpack_shape!` on the input. It names the runtime axes once, and every later
-  check refers to them with `=name`.
-- Use `assert_shape!` for the contract itself: the output, and any intermediate whose shape is not
-  obvious from the preceding call. The check is a few integer comparisons next to tensor operations
-  that launch kernels, so its cost does not matter.
-- Use `debug_assert_shape!` inside hot loops, or for internal invariants already implied by an
-  earlier always-on check. Burn's own modules use it in their forward passes: the tensor operations
-  they call validate shapes in every build, so the boundary check only needs to improve the message
-  during development.
+The question for each check is whether a later operation would reject the mismatch anyway.
+
+- `unpack_shape!` at the top of `forward` names the runtime axes once, and every later check refers
+  to them with `=name`.
+- `assert_shape!` is for mismatches nothing else would catch: an output that callers rely on, or an
+  input that a following operation would silently broadcast. The check is a few integer comparisons,
+  so its cost does not matter next to a kernel launch.
+- `debug_assert_shape!` is for checks that only improve the error message, because the following
+  operation already rejects the mismatch in every build. Burn's own modules use it in their forward
+  passes for this reason.
 
 These checks complement the validation Burn performs inside each tensor operation. An operation
 reports a mismatch in terms of its own arguments; a boundary check reports it in terms of the

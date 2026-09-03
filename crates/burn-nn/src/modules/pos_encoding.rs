@@ -99,7 +99,8 @@ impl PositionalEncoding {
     /// # Panics
     ///
     /// * Panics if the input sequence length is greater than the maximum sequence size.
-    /// * Panics if the input d_model is not equal to the d_model of the sinusoids.
+    /// * Panics if the input d_model is not equal to the d_model of the sinusoids (checked in
+    ///   debug builds).
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         let [_, seq_length, _] = input.dims();
         let [batch_size, max_sequence_size, d_model] = self.sinusoids.dims();
