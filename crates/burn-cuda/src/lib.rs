@@ -6,7 +6,7 @@ use burn_cubecl::CubeBackend;
 pub use cubecl::cuda::CudaDevice;
 use cubecl::{
     cuda::CudaRuntime,
-    throughput::{ThroughputKey, ThroughputValue},
+    throughput::{ThroughputError, ThroughputKey, ThroughputValue},
 };
 
 #[cfg(not(feature = "fusion"))]
@@ -19,7 +19,7 @@ pub type Cuda = burn_fusion::Fusion<CubeBackend<CudaRuntime>>;
 pub fn device_throughput(
     device: &CudaDevice,
     keys: &[ThroughputKey],
-) -> alloc::vec::Vec<ThroughputValue> {
+) -> alloc::vec::Vec<Result<ThroughputValue, ThroughputError>> {
     cubecl::std::throughput::device_throughput::<CudaRuntime>(device, keys)
 }
 
