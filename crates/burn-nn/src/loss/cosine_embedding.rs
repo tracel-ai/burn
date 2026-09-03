@@ -8,7 +8,7 @@ use crate::loss::reduction::Reduction;
 use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
-use burn::tensor::{Int, Tensor, activation::relu, assert_shape, unpack_shape};
+use burn::tensor::{Int, Tensor, activation::relu, assert_shape};
 
 /// Configuration for CosineEmbeddingLoss.
 #[derive(Config, Debug)]
@@ -140,7 +140,7 @@ impl CosineEmbeddingLoss {
     }
 
     fn assertions(&self, input1: &Tensor<2>, input2: &Tensor<2>, target: &Tensor<1, Int>) {
-        let (batch_size, dim) = unpack_shape!(input1, [B, D]);
+        let [batch_size, dim] = input1.dims();
         assert_shape!(input2, [=batch_size, =dim]);
         assert_shape!(target, [=batch_size]);
     }

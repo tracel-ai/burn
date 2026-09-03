@@ -45,7 +45,7 @@ pub use tensor::*;
 
 mod shape_macros;
 #[doc(hidden)]
-pub use burn_derive::{__assert_shape, __debug_assert_shape, __unpack_shape};
+pub use burn_derive::{__assert_shape, __debug_assert_shape};
 
 // Re-exported types
 #[cfg(feature = "autodiff")]

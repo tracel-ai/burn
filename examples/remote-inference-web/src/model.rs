@@ -47,7 +47,8 @@ impl Model {
     /// - input: `[batch_size, 28, 28]`
     /// - output: `[batch_size, 10]`
     pub fn forward(&self, input: Tensor<3>) -> Tensor<2> {
-        let (batch_size,) = unpack_shape!(input, [B, =IMAGE_SIZE, =IMAGE_SIZE]);
+        let [batch_size, _, _] = input.dims();
+        assert_shape!(input, [_, =IMAGE_SIZE, =IMAGE_SIZE]);
 
         let x = input
             .reshape([batch_size, 1, IMAGE_SIZE, IMAGE_SIZE])

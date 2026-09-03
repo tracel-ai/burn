@@ -55,24 +55,24 @@ reference for the assertions below.
 ### Enforcing the contract
 
 The rank of a `Tensor<D>` is a type parameter, so a caller cannot pass a `Tensor<4>` where a
-`Tensor<3>` is expected. The size of each axis is only known at runtime. Three macros, available
-from the prelude, check those sizes at the boundary of a method:
+`Tensor<3>` is expected, and `let [batch_size, seq_length, _] = input.dims();` names the axes with
+the rank checked at compile time. The size of each axis is only known at runtime. Two macros,
+available from the prelude, check those sizes at the boundary of a method:
 
-- `unpack_shape!` binds axis sizes to names and checks the remaining axes.
-- `assert_shape!` checks every axis of a tensor. It stays on in release builds.
+- `assert_shape!` checks the axes of a tensor. It stays on in release builds.
 - `debug_assert_shape!` is the same check, compiled out unless debug assertions are enabled.
 
 Each takes a tensor and a bracketed pattern with one slot per axis:
 
 | Slot                   | Meaning                                               |
 | ---------------------- | ----------------------------------------------------- |
-| `B` (bare name)        | Return the axis size. Only valid in `unpack_shape!`.  |
 | `=expr`                | The axis must equal this in-scope `usize` expression. |
 | `80` (integer literal) | The axis must equal this value.                       |
 | `_`                    | Skip the axis.                                        |
 
 The pattern length is the expected rank. Since `tensor.dims()` returns `[usize; D]`, a pattern whose
-length differs from `D` is a compile error rather than a runtime panic.
+length differs from `D` is a compile error rather than a runtime panic, and so is passing anything
+other than a `Tensor`.
 
 ```rust, ignore
 use burn::nn::{Gelu, Linear};
@@ -93,7 +93,8 @@ impl FeedForward {
     /// - input: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
-        let (batch_size, seq_length) = unpack_shape!(input, [B, T, =self.d_model]);
+        let [batch_size, seq_length, _] = input.dims();
+        assert_shape!(input, [_, _, =self.d_model]);
 
         let x = self.linear_inner.forward(input);
         debug_assert_shape!(x, [=batch_size, =seq_length, =self.d_ff]);
@@ -107,10 +108,6 @@ impl FeedForward {
 }
 ```
 
-`unpack_shape!` evaluates to a tuple with one `usize` per bare name, in pattern order. The names are
-labels, not bindings, so `let (c, b) = unpack_shape!(x, [B, _, C]);` swaps the two sizes without
-complaint. A single name still yields a tuple: `let (n,) = unpack_shape!(x, [N]);`.
-
 A failed check panics with the macro call, the axis, the expected and actual sizes, and the full
 dims of the tensor:
 
@@ -118,13 +115,13 @@ dims of the tensor:
 assert_shape!(output, [=batch_size, =seq_length, =self.d_model]): axis 2 expected 512, got 2048 (dims [8, 128, 2048])
 ```
 
-A bare name inside `assert_shape!` or `debug_assert_shape!`, or an `unpack_shape!` with nothing to
-bind, is a compile error with a hint toward the right macro.
+A bare name in a pattern is a compile error with a hint: write `=name` to check against it, or name
+the axis with `let [..] = tensor.dims()` first.
 
 ### Choosing a macro
 
-- `unpack_shape!` at the top of `forward` names the runtime axes once, and every later check refers
-  to them with `=name`.
+- Name the runtime axes once at the top of `forward` with
+  `let [batch_size, seq_length, _] = input.dims();` and refer to them with `=name` in every check.
 - `assert_shape!` is the default for a contract check. A mismatch that reaches a tensor operation
   may fail there with a message about that operation's arguments, or broadcast silently when an axis
   has size 1. The check is a few integer comparisons, so its cost does not matter next to a kernel

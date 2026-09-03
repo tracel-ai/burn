@@ -3,7 +3,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Int, Tensor, assert_shape, unpack_shape};
+use burn::tensor::{Int, Tensor, assert_shape};
 use burn_core as burn;
 
 /// Configuration for the [CTC Loss](CTCLoss) module.
@@ -112,7 +112,8 @@ impl CTCLoss {
         target_lengths: Tensor<1, Int>,
     ) -> Tensor<1> {
         let [max_input_length, batch_size, num_classes] = log_probs.dims();
-        let (max_target_len,) = unpack_shape!(targets, [=batch_size, L]);
+        let [_, max_target_len] = targets.dims();
+        assert_shape!(targets, [=batch_size, _]);
         assert_shape!(input_lengths, [=batch_size]);
         assert_shape!(target_lengths, [=batch_size]);
         assert!(
@@ -269,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "unpack_shape!(targets, [=batch_size, L]): axis 0 expected 2, got 1")]
+    #[should_panic(expected = "assert_shape!(targets, [=batch_size, _]): axis 0 expected 2, got 1")]
     fn test_ctc_loss_panics_mismatched_batch_size() {
         let device = Default::default();
         let ctc = CTCLossConfig::new().init();

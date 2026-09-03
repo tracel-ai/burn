@@ -88,13 +88,6 @@ pub fn record_state_derive(input: TokenStream) -> TokenStream {
     record_state::derive_impl(&input)
 }
 
-/// Implementation of `burn_tensor::unpack_shape!`. Not part of the public API.
-#[doc(hidden)]
-#[proc_macro]
-pub fn __unpack_shape(input: TokenStream) -> TokenStream {
-    shape_macro(input, shape::Mode::Unpack)
-}
-
 /// Implementation of `burn_tensor::assert_shape!`. Not part of the public API.
 #[doc(hidden)]
 #[proc_macro]

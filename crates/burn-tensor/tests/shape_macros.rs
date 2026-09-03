@@ -1,11 +1,11 @@
-//! Integration tests for `unpack_shape!`, `assert_shape!` and `debug_assert_shape!`.
+//! Integration tests for `assert_shape!` and `debug_assert_shape!`.
 //!
-//! Rank mismatches, non-tensor arguments and misuse of the slot kinds are compile errors,
-//! covered by the `compile_fail` doctests on the macros themselves. The tests here cover the
-//! runtime behavior: returned sizes, axis checks, panic messages, evaluation counts, hygiene,
-//! and the debug-only gating of `debug_assert_shape!`.
+//! Rank mismatches, non-tensor arguments and bare identifiers are compile errors, covered by
+//! the `compile_fail` doctests on the macros themselves. The tests here cover the runtime
+//! behavior: axis checks, panic messages, evaluation counts, hygiene, and the debug-only gating
+//! of `debug_assert_shape!`.
 
-use burn_tensor::{Int, Tensor, assert_shape, debug_assert_shape, unpack_shape};
+use burn_tensor::{Int, Tensor, assert_shape, debug_assert_shape};
 use core::cell::Cell;
 
 fn t<const D: usize>(shape: [usize; D]) -> Tensor<D> {
@@ -14,99 +14,6 @@ fn t<const D: usize>(shape: [usize; D]) -> Tensor<D> {
 
 struct Config {
     d_model: usize,
-}
-
-// ---- unpack_shape!: bindings ----
-
-#[test]
-fn unpack_all_fresh_returns_each_dim() {
-    let x = t([2, 3, 4]);
-    let (b, tlen, c) = unpack_shape!(x, [B, T, C]);
-    assert_eq!((b, tlen, c), (2, 3, 4));
-}
-
-#[test]
-fn unpack_single_fresh_is_a_one_element_tuple() {
-    let x = t([5]);
-    let (n,) = unpack_shape!(x, [N]);
-    assert_eq!(n, 5);
-}
-
-#[test]
-fn unpack_fresh_plus_literal() {
-    let x = t([2, 3, 80]);
-    let (b, tlen) = unpack_shape!(x, [B, T, 80]);
-    assert_eq!((b, tlen), (2, 3));
-}
-
-#[test]
-fn unpack_fresh_plus_scope_check() {
-    let x = t([2, 3, 4]);
-    let b = 2usize;
-    let c = 4usize;
-    let (tlen,) = unpack_shape!(x, [=b, T, =c]);
-    assert_eq!(tlen, 3);
-}
-
-#[test]
-fn unpack_check_accepts_expressions() {
-    let x = t([2, 6, 128]);
-    let config = Config { d_model: 128 };
-    let n = 3usize;
-    let (b,) = unpack_shape!(x, [B, =n * 2, =config.d_model]);
-    assert_eq!(b, 2);
-}
-
-#[test]
-fn unpack_wildcard_skips_axis() {
-    let x = t([2, 3, 4]);
-    let (b, c) = unpack_shape!(x, [B, _, C]);
-    assert_eq!((b, c), (2, 4));
-}
-
-#[test]
-fn unpack_does_not_move_the_tensor() {
-    let x = t([2, 3]);
-    let (b, _) = unpack_shape!(x, [B, T]);
-    let (b_again, _) = unpack_shape!(&x, [B, T]);
-    assert_eq!(b, b_again);
-    assert_eq!(x.dims(), [2, 3]);
-}
-
-#[test]
-fn unpack_works_on_int_tensors() {
-    let x: Tensor<2, Int> = Tensor::zeros([4, 7], &Default::default());
-    let (rows, cols) = unpack_shape!(x, [R, C]);
-    assert_eq!((rows, cols), (4, 7));
-}
-
-// ---- unpack_shape!: mismatch panics ----
-
-#[test]
-#[should_panic(
-    expected = "unpack_shape!(x, [B, T, 80]): axis 2 expected 80, got 4 (dims [2, 3, 4])"
-)]
-fn unpack_literal_mismatch_panics() {
-    let x = t([2, 3, 4]);
-    let _ = unpack_shape!(x, [B, T, 80]);
-}
-
-#[test]
-#[should_panic(expected = "unpack_shape!(x, [=b, T, C]): axis 0 expected 99, got 2")]
-fn unpack_scope_mismatch_panics() {
-    let x = t([2, 3, 4]);
-    let b = 99usize;
-    let _ = unpack_shape!(x, [=b, T, C]);
-}
-
-#[test]
-#[should_panic(
-    expected = "unpack_shape!(x, [B, =config.d_model]): axis 1 expected 128, got 6 (dims [2, 6])"
-)]
-fn unpack_expression_mismatch_panics() {
-    let x = t([2, 6]);
-    let config = Config { d_model: 128 };
-    let _ = unpack_shape!(x, [B, =config.d_model]);
 }
 
 // ---- assert_shape!: happy paths ----
@@ -120,24 +27,37 @@ fn assert_all_literals_match() {
 #[test]
 fn assert_all_scope_idents_match() {
     let x = t([2, 3, 4]);
-    let b = 2usize;
-    let tlen = 3usize;
-    let c = 4usize;
+    let [b, tlen, c] = x.dims();
     assert_shape!(x, [=b, =tlen, =c]);
 }
 
 #[test]
-fn assert_mixed_slots() {
-    let x = t([2, 3, 128]);
-    let b = 2usize;
+fn assert_check_accepts_expressions() {
+    let x = t([2, 6, 128]);
     let config = Config { d_model: 128 };
-    assert_shape!(x, [=b, _, =config.d_model]);
+    let n = 3usize;
+    assert_shape!(x, [2, =n * 2, =config.d_model]);
 }
 
 #[test]
-fn assert_only_wildcards_checks_rank() {
+fn assert_wildcard_skips_axis() {
+    let x = t([2, 3, 4]);
+    let b = 2usize;
+    assert_shape!(x, [=b, _, 4]);
+}
+
+#[test]
+fn assert_only_wildcards_compiles_to_a_rank_check() {
     let x = t([2, 3]);
     assert_shape!(x, [_, _]);
+}
+
+#[test]
+fn assert_does_not_move_the_tensor() {
+    let x = t([2, 3]);
+    assert_shape!(x, [2, 3]);
+    assert_shape!(&x, [2, 3]);
+    assert_eq!(x.dims(), [2, 3]);
 }
 
 #[test]
@@ -146,6 +66,12 @@ fn assert_from_a_reference() {
         assert_shape!(x, [2, 3]);
     }
     check(&t([2, 3]));
+}
+
+#[test]
+fn assert_works_on_int_tensors() {
+    let x: Tensor<2, Int> = Tensor::zeros([4, 7], &Default::default());
+    assert_shape!(x, [4, 7]);
 }
 
 // ---- assert_shape!: mismatch panics ----
@@ -165,6 +91,23 @@ fn assert_scope_mismatch_panics() {
     let x = t([2, 3, 4]);
     let bogus = 99usize;
     assert_shape!(x, [=bogus, 3, 4]);
+}
+
+#[test]
+#[should_panic(
+    expected = "assert_shape!(x, [_, =config.d_model]): axis 1 expected 128, got 6 (dims [2, 6])"
+)]
+fn assert_expression_mismatch_panics() {
+    let x = t([2, 6]);
+    let config = Config { d_model: 128 };
+    assert_shape!(x, [_, =config.d_model]);
+}
+
+#[test]
+#[should_panic(expected = "axis 0 expected 99, got 2")]
+fn assert_reports_the_first_failing_axis() {
+    let x = t([2, 3]);
+    assert_shape!(x, [99, 99]);
 }
 
 // ---- debug_assert_shape! ----
@@ -214,9 +157,8 @@ fn debug_assert_evaluates_arguments_only_in_debug() {
 #[rustfmt::skip]
 fn accepts_trailing_comma() {
     let x = t([2, 3]);
-    let (b, c) = unpack_shape!(x, [B, C,]);
     assert_shape!(x, [2, 3,]);
-    assert_eq!((b, c), (2, 3));
+    debug_assert_shape!(x, [2, _,]);
 }
 
 #[test]
@@ -237,6 +179,5 @@ fn internals_do_not_shadow_caller_names() {
     let __dims = 3usize;
     let __expected = 3usize;
     assert_shape!(x, [=__tensor, =__dims]);
-    let (b,) = unpack_shape!(x, [B, =__expected]);
-    assert_eq!(b, 2);
+    debug_assert_shape!(x, [_, =__expected]);
 }

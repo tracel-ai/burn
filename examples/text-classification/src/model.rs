@@ -67,7 +67,7 @@ impl TextClassificationModel {
     // Defines forward pass for training
     pub fn forward(&self, item: TextClassificationTrainingBatch) -> ClassificationOutput {
         // Get batch and sequence length, and the device
-        let (batch_size, seq_length) = unpack_shape!(item.tokens, [B, T]);
+        let [batch_size, seq_length] = item.tokens.dims();
         assert_shape!(item.mask_pad, [=batch_size, =seq_length]);
         assert_shape!(item.labels, [=batch_size]);
         let device = &self.embedding_token.devices()[0];
@@ -110,7 +110,7 @@ impl TextClassificationModel {
     /// Defines forward pass for inference
     pub fn infer(&self, item: TextClassificationInferenceBatch) -> Tensor<2> {
         // Get batch and sequence length, and the device
-        let (batch_size, seq_length) = unpack_shape!(item.tokens, [B, T]);
+        let [batch_size, seq_length] = item.tokens.dims();
         assert_shape!(item.mask_pad, [=batch_size, =seq_length]);
         let device = &self.embedding_token.devices()[0];
 

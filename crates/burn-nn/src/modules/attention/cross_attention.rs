@@ -10,7 +10,7 @@
 use crate::cache::TensorCache;
 use crate::modules::{Linear, LinearConfig};
 use crate::{Dropout, DropoutConfig};
-use burn::tensor::{assert_shape, unpack_shape};
+use burn::tensor::assert_shape;
 use burn_core as burn;
 
 use burn::{
@@ -165,8 +165,9 @@ impl CrossAttention {
         context: Tensor<3>,
         mask: Option<Tensor<2, Bool>>,
     ) -> Tensor<3> {
-        let (batch, l_q) = unpack_shape!(query, [B, L, _]);
-        let (l_k,) = unpack_shape!(context, [=batch, L, _]);
+        let [batch, l_q, _] = query.dims();
+        let [_, l_k, _] = context.dims();
+        assert_shape!(context, [=batch, _, _]);
 
         // 1. Projections
         let q = self.query.forward(query);
@@ -248,7 +249,7 @@ impl CrossAttention {
         mask: Option<Tensor<2, Bool>>,
         cache: &mut CrossAttentionCache,
     ) -> Tensor<3> {
-        let (batch, l_q) = unpack_shape!(query, [B, L, _]);
+        let [batch, l_q, _] = query.dims();
         assert_shape!(context, [=batch, _, _]);
 
         // 1. Projections
@@ -538,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "unpack_shape!(context, [=batch, L, _]): axis 0 expected 2, got 1")]
+    #[should_panic(expected = "assert_shape!(context, [=batch, _, _]): axis 0 expected 2, got 1")]
     fn context_batch_must_match_query_batch() {
         let device = Default::default();
         let attn = CrossAttentionConfig::new(16, 16, 2, 2, 8).init(&device);

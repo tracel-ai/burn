@@ -86,7 +86,7 @@ pub mod prelude {
         module::Module,
         tensor::{
             Bool, Device, DeviceIndex, DeviceKind, ElementConversion, Float, Int, Shape, SliceArg,
-            Tensor, TensorData, assert_shape, cast::ToElement, debug_assert_shape, s, unpack_shape,
+            Tensor, TensorData, assert_shape, cast::ToElement, debug_assert_shape, s,
         },
     };
 }
