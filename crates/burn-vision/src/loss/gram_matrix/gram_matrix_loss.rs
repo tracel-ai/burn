@@ -65,7 +65,7 @@ impl GramMatrixLossConfig {
         self.assertions();
 
         let vgg19 = Vgg19::new(self.use_avg_pool, device);
-        let pretrained_vgg19 = load_vgg19_weights(vgg19).no_grad();
+        let pretrained_vgg19 = load_vgg19_weights(vgg19).freeze();
 
         GramMatrixLoss {
             layer_weights: self.layer_weights.clone(),
@@ -475,7 +475,7 @@ mod tests {
         let device = Device::default().autodiff();
         let loss_fn = GramMatrixLoss {
             layer_weights: vec![1.0, 1.0, 1.0, 1.0, 1.0],
-            feat_extractor: Vgg19::new(false, &device).no_grad(),
+            feat_extractor: Vgg19::new(false, &device).freeze(),
         };
 
         // The prediction tensor requires gradients

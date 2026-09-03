@@ -42,13 +42,15 @@ impl Quantizer {
         param: Param<Tensor<D>>,
         path: &str,
     ) -> Param<Tensor<D>> {
-        let (id, mut tensor, mapper) = param.consume();
-        if self.group.matches(&id, Some(path)) {
-            let range = compute_range(&self.scheme, &tensor, &self.calibration);
-            let qparams = compute_q_params(&self.scheme, range);
-            tensor = tensor.quantize(&self.scheme, qparams);
+        if self.group.matches(&param.id, Some(path)) {
+            return param.map(|tensor| {
+                let range = compute_range(&self.scheme, &tensor, &self.calibration);
+                let qparams = compute_q_params(&self.scheme, range);
+                tensor.quantize(&self.scheme, qparams)
+            });
         }
-        Param::from_mapped_value(id, tensor, mapper)
+
+        param
     }
 }
 

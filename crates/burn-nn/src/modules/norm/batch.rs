@@ -105,7 +105,7 @@ impl BatchNorm {
 
         // Training behavior is selected by the device *and* the layer state. The device alone
         // says a backward is possible, not that this layer takes part in one: partial finetuning
-        // freezes whole subtrees with [`no_grad`](Module::no_grad) or
+        // freezes whole subtrees with [`freeze`](Module::freeze) or
         // [`freeze_group`](Module::freeze_group) and leaves them on the training device, because
         // that is where the rest of the graph lives.
         //
@@ -215,11 +215,14 @@ impl ModuleDisplay for BatchNorm {
     fn custom_content(&self, content: Content) -> Option<Content> {
         let [num_features] = self.beta.shape().dims();
 
-        content
+        let content = content
             .add("num_features", &num_features)
             .add("momentum", &self.momentum)
-            .add("epsilon", &self.epsilon)
-            .optional()
+            .add("epsilon", &self.epsilon);
+        match self.training.is_enabled() {
+            true => content.optional(),
+            false => content.add("training", &self.training).optional(),
+        }
     }
 }
 
@@ -394,7 +397,7 @@ mod tests_2d {
         let device = Device::default().autodiff();
         // Frozen where partial finetuning leaves it: still on the training
         // device, because the rest of the graph is there, but not being trained.
-        let module = BatchNormConfig::new(3).init(&device).no_grad();
+        let module = BatchNormConfig::new(3).init(&device).freeze();
 
         let input = input_tensor(&device);
         let output = module.forward(input.clone());
@@ -412,7 +415,7 @@ mod tests_2d {
     #[test]
     fn frozen_batch_norm_does_not_update_its_running_statistics() {
         let device = Device::default().autodiff();
-        let module = BatchNormConfig::new(3).init(&device).no_grad();
+        let module = BatchNormConfig::new(3).init(&device).freeze();
 
         let before = module.running_mean.value_sync().into_data();
         let _output = module.forward(input_tensor(&device));
@@ -423,6 +426,30 @@ mod tests_2d {
         // point: a finetuning run that silently drifted them would corrupt the
         // frozen layer over its epochs and only show up at inference.
         after.assert_approx_eq::<FT>(&before, Tolerance::default());
+    }
+
+    #[test]
+    fn enabling_gradients_does_not_make_running_statistics_trainable() {
+        use burn::module::ParamGroup;
+
+        let device = Device::default().autodiff();
+        let module = BatchNormConfig::new(3).init(&device).freeze();
+        let group = ParamGroup::ids_from_module(module.clone());
+
+        let module = module.set_require_grad_group(group, true);
+
+        assert!(module.gamma.is_require_grad());
+        assert!(module.beta.is_require_grad());
+        assert!(!module.training.is_enabled());
+        assert!(!module.running_mean.value_sync().is_require_grad());
+        assert!(!module.running_var.value_sync().is_require_grad());
+
+        let grads = module.forward(input_tensor(&device)).sum().backward();
+
+        assert!(module.gamma.grad(&grads).is_some());
+        assert!(module.beta.grad(&grads).is_some());
+        assert!(module.running_mean.value_sync().grad(&grads).is_none());
+        assert!(module.running_var.value_sync().grad(&grads).is_none());
     }
 
     #[test]
@@ -548,8 +575,14 @@ mod tests_2d {
         let batch_norm = BatchNormConfig::new(3).init(&Default::default());
 
         assert_eq!(
-            format!("{batch_norm}"),
+            alloc::format!("{batch_norm}"),
             "BatchNorm {num_features: 3, momentum: 0.1, epsilon: 0.00001, params: 12}"
+        );
+
+        let frozen = batch_norm.freeze();
+        assert_eq!(
+            alloc::format!("{frozen}"),
+            "BatchNorm {num_features: 3, momentum: 0.1, epsilon: 0.00001, training: disabled, params: 12}"
         );
     }
 }
