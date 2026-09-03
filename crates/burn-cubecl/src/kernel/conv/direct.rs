@@ -219,12 +219,7 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
     }
 }
 
-/// Sums a tap's channels in a vector accumulator, one per output channel, and folds the lanes
-/// into `sum` once the channel loop is done.
-///
-/// The adds in the loop are independent, so it is a chain of multiply-adds rather than a
-/// dependency chain the length of the reduction. It reloads the input vector once per output
-/// channel to get there, which the channel loop has to be long enough to pay for.
+/// One input read per output channel buys a channel loop with no dependency chain.
 #[cube]
 fn accumulate_in_lanes<E: Numeric, NIn: Size, NOut: Size>(
     input: &Tensor<Vector<E, NIn>>,
@@ -260,12 +255,7 @@ fn accumulate_in_lanes<E: Numeric, NIn: Size, NOut: Size>(
     }
 }
 
-/// Folds each product into `sum` where it is produced, so one read of the input vector serves
-/// every output channel.
-///
-/// A channel loop that runs once has no dependency chain to break and no reduction to amortize,
-/// which leaves that shared read the only thing left to win. Measured on MobileNetV3-Small,
-/// where every depthwise convolution lands here.
+/// One input read serves every output channel, which is all a one-step channel loop can win.
 #[cube]
 fn accumulate_per_step<E: Numeric, NIn: Size, NOut: Size>(
     input: &Tensor<Vector<E, NIn>>,
@@ -365,9 +355,9 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     // Use channels_per_group instead of in_channels to avoid issues here
     let vector_size_in = max_vector_size(&weight);
 
-    // The vector accumulator breaks a dependency chain that only a single-unit plane pays in
-    // full: a wide plane hides it behind its other lanes and is left with the extra input read
-    // per output channel. It also needs a vector, and a channel loop that runs more than once.
+    // Only a single-unit plane pays the dependency chain in full; a wide plane hides it and is
+    // left with the extra input read per output channel. One lane is exactly as serial as `sum`,
+    // and a channel loop of one step has nothing to amortize the fold over.
     let accumulate_lanes = input.client.properties().hardware.plane_size_max == 1
         && vector_size_in > 1
         && weight.meta.shape()[dim_c] > vector_size_in as usize;
