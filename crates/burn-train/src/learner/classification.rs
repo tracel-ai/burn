@@ -38,9 +38,9 @@ impl ItemLazy for ClassificationOutput {
         self.loss.device().flush();
 
         ClassificationOutput {
-            output: self.output.no_grad(),
-            loss: self.loss.no_grad(),
-            targets: self.targets.no_grad(),
+            output: self.output.without_autodiff(),
+            loss: self.loss.without_autodiff(),
+            targets: self.targets.without_autodiff(),
         }
     }
 }
@@ -113,9 +113,9 @@ impl ItemLazy for MultiLabelClassificationOutput {
         self.loss.device().flush();
 
         MultiLabelClassificationOutput {
-            output: self.output.no_grad(),
-            loss: self.loss.no_grad(),
-            targets: self.targets.no_grad(),
+            output: self.output.without_autodiff(),
+            loss: self.loss.without_autodiff(),
+            targets: self.targets.without_autodiff(),
         }
     }
 }
