@@ -1,3 +1,5 @@
+#![cfg(feature = "linalg")]
+
 use burn::tensor::Tensor;
 
 #[test]

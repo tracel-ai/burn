@@ -1337,6 +1337,7 @@ dependencies = [
  "async-channel",
  "burn-core",
  "burn-flex",
+ "burn-linalg",
  "burn-nn",
  "burn-optim",
  "burn-rl",

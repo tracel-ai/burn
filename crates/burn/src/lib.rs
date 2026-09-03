@@ -113,6 +113,7 @@
 //!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
+//!   - `linalg`: Enables linear algebra operations
 //!   - `capture`: Makes the non-executing graph capture backend available.
 //!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `server`: Enables the remote server.
@@ -123,6 +124,7 @@
 pub use burn_core::*;
 
 /// Linear algebra operations.
+#[cfg(feature = "linalg")]
 pub mod linalg {
     pub use burn_linalg::*;
 }
@@ -138,6 +140,7 @@ pub mod tensor {
     pub use burn_core::tensor::*;
 
     /// Compatibility path for linear algebra operations.
+    #[cfg(feature = "linalg")]
     pub mod linalg {
         pub use burn_linalg::*;
     }

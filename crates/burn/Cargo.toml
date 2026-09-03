@@ -29,7 +29,7 @@ default = [
     "burn-core/default",
     "burn-train?/default",
     "burn-nn/default",
-    "burn-linalg/default",
+    "burn-linalg?/default",
     "burn-optim?/default",
     "burn-vision?/default",
 ]
@@ -40,14 +40,14 @@ doc = [
     "burn-train/doc",
     "burn-store?/std",
     "burn-nn/doc",
-    "burn-linalg/default",
+    "linalg",
     "burn-optim?/doc",
 ]
 std = [
     "burn-core/std",
     "burn-store?/std",
     "burn-nn/std",
-    "burn-linalg/std",
+    "burn-linalg?/std",
     "burn-optim?/std",
 ]
 tracing = [
@@ -55,7 +55,7 @@ tracing = [
     "burn-core/tracing",
     "burn-vision?/tracing",
     "burn-nn/tracing",
-    "burn-linalg/tracing",
+    "burn-linalg?/tracing",
     "burn-optim?/tracing",
 ]
 
@@ -90,6 +90,7 @@ cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
 vision = ["burn-core/vision", "burn-vision"]
+linalg = ["dep:burn-linalg"]
 rl = ["dep:burn-rl", "burn-train?/rl"]
 
 # Optimizer
@@ -98,7 +99,7 @@ optim = ["burn-optim", "autodiff"]
 # Backend
 ir = ["burn-core/ir"]
 autodiff = ["burn-core/autodiff"]
-fusion = ["ir", "burn-core/fusion", "burn-linalg/fusion", "burn-vision?/fusion"]
+fusion = ["ir", "burn-core/fusion", "burn-linalg?/fusion", "burn-vision?/fusion"]
 
 ## Backend features
 accelerate = ["burn-core/accelerate"]
@@ -115,31 +116,31 @@ x86-v4 = ["burn-core/x86-v4"]
 apple-amx = ["burn-core/apple-amx"]
 
 template = ["burn-core/template"]
-remote = ["burn-core/remote", "burn-linalg/remote"]
+remote = ["burn-core/remote", "burn-linalg?/remote"]
 remote-server = ["burn-core/remote-server"]
 remote-websocket = ["burn-core/remote-websocket"]
 
-cuda = ["burn-core/cuda", "burn-linalg/cuda", "burn-vision?/cuda"]
-rocm = ["burn-core/rocm", "burn-linalg/rocm", "burn-vision?/rocm"]
-flex = ["burn-core/flex", "burn-linalg/flex", "burn-vision?/flex"]
-ndarray = ["burn-core/ndarray", "burn-linalg/ndarray"]
-tch = ["burn-core/tch", "burn-linalg/tch", "burn-vision?/tch"]
-vulkan = ["wgpu", "burn-core/vulkan", "burn-linalg/vulkan", "burn-vision?/vulkan"]
-webgpu = ["wgpu", "burn-core/webgpu", "burn-linalg/webgpu", "burn-vision?/webgpu"]
-metal = ["wgpu", "burn-core/metal", "burn-linalg/metal", "burn-vision?/metal"]
-wgpu = ["burn-core/wgpu", "burn-linalg/wgpu", "burn-vision?/wgpu"]
-cpu = ["burn-core/cpu", "burn-linalg/cpu", "burn-vision?/cpu"]
+cuda = ["burn-core/cuda", "burn-linalg?/cuda", "burn-vision?/cuda"]
+rocm = ["burn-core/rocm", "burn-linalg?/rocm", "burn-vision?/rocm"]
+flex = ["burn-core/flex", "burn-linalg?/flex", "burn-vision?/flex"]
+ndarray = ["burn-core/ndarray", "burn-linalg?/ndarray"]
+tch = ["burn-core/tch", "burn-linalg?/tch", "burn-vision?/tch"]
+vulkan = ["wgpu", "burn-core/vulkan", "burn-linalg?/vulkan", "burn-vision?/vulkan"]
+webgpu = ["wgpu", "burn-core/webgpu", "burn-linalg?/webgpu", "burn-vision?/webgpu"]
+metal = ["wgpu", "burn-core/metal", "burn-linalg?/metal", "burn-vision?/metal"]
+wgpu = ["burn-core/wgpu", "burn-linalg?/wgpu", "burn-vision?/wgpu"]
+cpu = ["burn-core/cpu", "burn-linalg?/cpu", "burn-vision?/cpu"]
 
 # Backend extensions
 extension = ["burn-core/extension"]
-capture = ["burn-core/capture", "burn-linalg/capture"]
+capture = ["burn-core/capture", "burn-linalg?/capture"]
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
 burn-core = { workspace = true }
-burn-linalg = { workspace = true }
+burn-linalg = { workspace = true, optional = true }
 burn-train = { workspace = true, optional = true }
 burn-store = { workspace = true, optional = true }
 burn-nn = { workspace = true }

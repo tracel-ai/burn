@@ -1,7 +1,7 @@
 use burn_core as burn;
+use burn_linalg as linalg;
 
 use burn::config::Config;
-use burn::linalg;
 use burn::module::Module;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
