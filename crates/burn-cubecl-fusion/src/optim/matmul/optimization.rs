@@ -58,20 +58,20 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
-pub struct MatmulOptimization<R: Runtime> {
-    pub(crate) info: Arc<MatmulOptimizationInfo<R>>,
+pub struct MatmulOptimization {
+    pub(crate) info: Arc<MatmulOptimizationInfo>,
 }
 
-pub struct MatmulOptimizationTuneArg<R: Runtime> {
-    pub(crate) info: Arc<MatmulOptimizationInfo<R>>,
-    pub(crate) fallback: Box<dyn FallbackOperation<R>>,
+pub struct MatmulOptimizationTuneArg {
+    pub(crate) info: Arc<MatmulOptimizationInfo>,
+    pub(crate) fallback: Box<dyn FallbackOperation>,
 }
 
-pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
+pub(crate) struct MatmulOptimizationInfo {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
     pub(crate) client: Client,
-    pub(crate) device: R::Device,
+    pub(crate) device: cubecl::Device,
     pub(crate) len: usize,
     pub(crate) matmul: FusedMatmul,
 }
@@ -85,7 +85,7 @@ pub struct MatmulOptimizationState {
     len: usize,
 }
 
-impl<R: Runtime> MatmulOptimizationInfo<R> {
+impl MatmulOptimizationInfo {
     /// Returns the number of output buffers added by fusion.
     pub fn num_output_buffers(&self) -> usize {
         self.trace_fallback.resources.outputs.len()
@@ -97,19 +97,19 @@ impl<R: Runtime> MatmulOptimizationInfo<R> {
     }
 }
 
-impl<R: Runtime> MatmulOptimizationTuneArg<R> {
+impl MatmulOptimizationTuneArg {
     pub(crate) fn execute_fused(
         &self,
-        context: &mut Context<CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle>,
         selector: FusedMatmulSelector,
-    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
+    ) -> Result<TuneOutput, TraceError<FusedMatmulError>> {
         let launch = FusedMatmulLaunch::new(&self.info.matmul, selector);
         let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
 
         launcher.launch(&self.info.client, &self.info.device, context)
     }
 
-    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle<R>>) -> TuneOutput<R> {
+    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle>) -> TuneOutput {
         self.fallback.run(context);
 
         #[cfg(feature = "autotune-checks")]
@@ -117,7 +117,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
             handles: Default::default(),
         };
         #[cfg(not(feature = "autotune-checks"))]
-        let output = TuneOutput::UnChecked(core::marker::PhantomData);
+        let output = TuneOutput::UnChecked;
 
         #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output {
@@ -141,12 +141,12 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
     }
 }
 
-impl<R: Runtime> MatmulOptimization<R> {
+impl MatmulOptimization {
     pub fn new(
         trace: FuseTrace,
         trace_fallback: FuseTrace,
         client: Client,
-        device: R::Device,
+        device: cubecl::Device,
         len: usize,
         matmul: FusedMatmul,
     ) -> Self {
@@ -166,8 +166,8 @@ impl<R: Runtime> MatmulOptimization<R> {
     /// Execute the optimization.
     pub fn execute(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation>,
     ) {
         // The index of the fallback matmul is always 0.
         let fallback = fallback(0);
@@ -177,7 +177,7 @@ impl<R: Runtime> MatmulOptimization<R> {
         };
 
         #[cfg(feature = "autotune")]
-        fused_matmul_autotune::<R>(arg, context);
+        fused_matmul_autotune(arg, context);
 
         #[cfg(not(feature = "autotune"))]
         if arg
@@ -194,12 +194,12 @@ impl<R: Runtime> MatmulOptimization<R> {
     }
 
     /// Create an optimization from its [state](MatmulOptimizationState).
-    pub fn from_state(device: &R::Device, state: MatmulOptimizationState) -> Self {
+    pub fn from_state(device: &cubecl::Device, state: MatmulOptimizationState) -> Self {
         let info = MatmulOptimizationInfo {
             trace: state.trace,
             trace_fallback: state.trace_fallback,
             len: state.len,
-            client: R::client(device),
+            client: device.client(),
             device: device.clone(),
             matmul: state.matmul.clone(),
         };
@@ -310,8 +310,8 @@ impl From<MatmulSetupError> for FusedMatmulError {
     }
 }
 
-impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
-    fn axis(&self, plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
+impl<'a> Vectorization for FusedMatmulLaunch<'a> {
+    fn axis(&self, plan: &LaunchPlan<'_>) -> VectorizationAxis {
         let lhs_id = self.matmul.op.lhs.id;
         let rhs_id = self.matmul.op.rhs.id;
 
@@ -363,7 +363,7 @@ impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
     }
 }
 
-impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
+impl TraceRunner for FusedMatmulLaunch<'_> {
     type Error = FusedMatmulError;
 
     fn run<'a>(
@@ -716,7 +716,7 @@ fn launch_inner_fix_dtype<A: BatchMatmulRoutine<()>>(
 /// Name of the matmul fusion optimization.
 pub const NAME: &str = "Matmul";
 
-impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
+impl FusedOperation for MatmulOptimization {
     fn max_relative_shape_id(&self) -> Option<usize> {
         [
             self.info.trace.max_relative_shape_id(),
@@ -736,8 +736,8 @@ impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
 
     fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     ) {
         Self::execute(self, context, |index| fallback(index))
     }
@@ -746,7 +746,7 @@ impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
         Self::to_state(self)
     }
 
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
+    fn from_state(device: &cubecl::Device, state: Self::State) -> Self {
         Self::from_state(device, state)
     }
 }

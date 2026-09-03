@@ -18,7 +18,6 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{
-    Runtime,
     client::Client,
     ir::{ElemType, UIntKind},
 };
@@ -29,27 +28,22 @@ use cubecl::{
 use std::marker::PhantomData;
 
 /// Select the best vectorization factor for each tensor handle.
-pub struct VectorizationPlanner<'a, R: Runtime> {
+pub struct VectorizationPlanner<'a> {
     resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
-    _r: PhantomData<R>,
 }
 
-impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
+impl<'a> VectorizationPlanner<'a> {
     pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
-        Self {
-            resources,
-            blocks,
-            _r: PhantomData,
-        }
+        Self { resources, blocks }
     }
 
-    pub fn run<Runner: Vectorization<R>>(
+    pub fn run<Runner: Vectorization>(
         self,
         client: &Client,
         runner: &Runner,
-        context: &Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        context: &Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
     ) {
         let has_multiple_read = |tensor: &TensorId| {
             let mut read_count = 0;
@@ -340,10 +334,10 @@ struct BlockVectorization {
     broadcasted: bool,
 }
 
-fn apply_vectorization_block<R: Runtime>(
+fn apply_vectorization_block(
     block_vectorization: Vec<BlockVectorization>,
-    inputs: &mut [HandleInput<R>],
-    outputs: &mut [HandleOutput<R>],
+    inputs: &mut [HandleInput],
+    outputs: &mut [HandleOutput],
     block_plan: &mut BlockPlan,
     max: VectorSize,
 ) {

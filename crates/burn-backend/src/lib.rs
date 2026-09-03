@@ -59,6 +59,44 @@ pub mod cubecl;
     feature = "cubecl-wgpu",
     feature = "cubecl-metal",
     feature = "cubecl-vulkan",
+    feature = "cubecl-webgpu",
+    feature = "cubecl-cuda",
+    feature = "cubecl-cpu",
+    feature = "cubecl-hip"
+))]
+mod cube_device {
+    use crate::backend::DeviceOps;
+    use burn_std::{BoolStore, DType, DeviceSettings};
+    use cubecl::{Device, RuntimeId};
+
+    impl DeviceOps for Device {
+        fn defaults(&self) -> DeviceSettings {
+            // wgsl has no 8-bit type to store a bool in, so under the portable
+            // compiler a bool costs a word. Compiling straight to Metal or
+            // SPIR-V, and on every other runtime, a byte will do.
+            let bool_store = match self.runtime() {
+                RuntimeId::Wgpu
+                    if !cfg!(any(feature = "cubecl-metal", feature = "cubecl-vulkan")) =>
+                {
+                    BoolStore::U32
+                }
+                _ => BoolStore::U8,
+            };
+
+            DeviceSettings::new(
+                DType::F32,
+                DType::I32,
+                DType::Bool(bool_store),
+                Default::default(),
+            )
+        }
+    }
+}
+
+#[cfg(any(
+    feature = "cubecl-wgpu",
+    feature = "cubecl-metal",
+    feature = "cubecl-vulkan",
     feature = "cubecl-webgpu"
 ))]
 mod cube_wgpu {

@@ -1,4 +1,4 @@
-use crate::{CubeRuntime, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{CubeDevice, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType, ExecutionError, Shape, TensorData,
@@ -12,7 +12,7 @@ use burn_std::{
 use cubecl::tensor_vector_size_parallel;
 use cubecl::{ir::VectorSize, server::CopyDescriptor};
 
-pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
+pub(crate) fn from_data(data: TensorData, device: &CubeDevice) -> CubeTensor {
     // `TensorData` may contain lazily materialized device-backed bytes produced
     // by `into_data()`. These unnecessary round-trips should be avoided, but
     // materializing before re-uploading avoids recursive runtime submission.
@@ -20,7 +20,7 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
         let _ = data.bytes.read(burn_std::Reader::new());
     }
 
-    let client = R::client(device);
+    let client = device.client();
     let alloc = client.create_tensor(data.bytes, data.shape.clone(), data.dtype.size());
     let shape: Shape = (&data.shape).into();
     CubeTensor::new(
@@ -32,9 +32,7 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
     )
 }
 
-pub(crate) async fn into_data<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-) -> Result<TensorData, ExecutionError> {
+pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, ExecutionError> {
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = tensor.elem_size();
@@ -62,7 +60,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
-pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
+pub fn into_data_sync(tensor: CubeTensor) -> TensorData {
     burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
@@ -70,25 +68,18 @@ pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
     feature = "tracing",
     tracing::instrument(level = "trace", skip(tensor, device))
 )]
-pub(crate) fn to_device<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    device: &R::Device,
-) -> CubeTensor<R> {
+pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
     if &tensor.device == device {
         return tensor;
     }
 
     let mut tensor = kernel::into_contiguous_aligned(tensor);
-    let client = R::client(device);
+    let client = device.client();
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: CubeRuntime>(
-    shape: Shape,
-    device: &R::Device,
-    dtype: DType,
-) -> CubeTensor<R> {
-    let client = R::client(device);
+pub(crate) fn empty(shape: Shape, device: &CubeDevice, dtype: DType) -> CubeTensor {
+    let client = device.client();
     let alloc = client.empty_tensor(shape.clone(), dtype.size());
 
     CubeTensor::new(
@@ -100,11 +91,7 @@ pub(crate) fn empty<R: CubeRuntime>(
     )
 }
 
-pub(crate) fn swap_dims<R: CubeRuntime>(
-    mut tensor: CubeTensor<R>,
-    dim1: usize,
-    dim2: usize,
-) -> CubeTensor<R> {
+pub(crate) fn swap_dims(mut tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTensor {
     tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -134,7 +121,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
 }
 
 /// Permute a tensor's dimensions
-pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> CubeTensor<R> {
+pub fn permute(mut tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
     tensor.meta.permute(axes).unwrap();
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -163,7 +150,7 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
 }
 
 /// Permute a tensor's dimensions from NCHW to NHWC, or the N-dimensional equivalent
-pub fn permute_nchw_to_nhwc<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
+pub fn permute_nchw_to_nhwc(tensor: CubeTensor) -> CubeTensor {
     let rank = tensor.meta.num_dims();
     let c_dim = 1;
 
@@ -187,7 +174,7 @@ pub fn permute_nchw_to_nhwc_shape(shape: Shape) -> Shape {
 }
 
 /// Permute a tensor's dimensions from NHWC to NCHW, or the N-dimensional equivalent
-pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
+pub fn permute_nhwc_to_nchw(tensor: CubeTensor) -> CubeTensor {
     let rank = tensor.meta.num_dims();
     let c_dim = rank - 1;
 
@@ -210,7 +197,7 @@ pub fn permute_nhwc_to_nchw_shape(shape: Shape) -> Shape {
     shape.permuted(&dims).expect("Shape permute should succeed")
 }
 
-pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
+pub(crate) fn expand(tensor: CubeTensor, target_shape: Shape) -> CubeTensor {
     let ndims_in = tensor.meta.shape().num_dims();
     let ndims_out = target_shape.num_dims();
 
@@ -265,7 +252,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+pub fn reshape(mut tensor: CubeTensor, shape: Shape) -> CubeTensor {
     let analysis = reshape_action(tensor.meta.shape(), tensor.meta.strides(), &shape);
 
     match analysis {
@@ -295,7 +282,7 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+pub fn q_reshape(mut tensor: CubeTensor, shape: Shape) -> CubeTensor {
     let scheme = tensor.scheme();
     let curr_shape = tensor.meta.shape();
 
@@ -443,7 +430,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     tensor
 }
 
-pub(crate) fn max_vector_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> VectorSize {
+pub(crate) fn max_vector_size(tensor: &CubeTensor) -> VectorSize {
     tensor_vector_size_parallel(
         tensor.client.io_optimized_vector_sizes(tensor.dtype.size()),
         tensor.meta.shape(),
@@ -452,10 +439,7 @@ pub(crate) fn max_vector_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> VectorS
     )
 }
 
-pub(crate) fn max_vector_size_many<R: CubeRuntime>(
-    tensors: &[&CubeTensor<R>],
-    axis: usize,
-) -> VectorSize {
+pub(crate) fn max_vector_size_many(tensors: &[&CubeTensor], axis: usize) -> VectorSize {
     let vec = tensors
         .iter()
         .map(|tensor| {
@@ -493,12 +477,7 @@ pub(crate) fn max_vector_size_many<R: CubeRuntime>(
 /// # Returns
 ///
 /// A tensor view with the shape ``[pre=..., windows, post=..., size]``.
-pub fn unfold<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    dim: usize,
-    size: usize,
-    step: usize,
-) -> CubeTensor<R> {
+pub fn unfold(tensor: CubeTensor, dim: usize, size: usize, step: usize) -> CubeTensor {
     let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
 
     let d_stride = tensor.meta.strides()[dim];

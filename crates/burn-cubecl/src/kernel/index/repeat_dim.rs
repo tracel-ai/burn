@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
@@ -45,11 +44,7 @@ fn repeat_dim_kernel<E: Numeric>(
     output[offset_output] = input[offset_input];
 }
 
-pub(crate) fn repeat_dim<R: CubeRuntime>(
-    mut input: CubeTensor<R>,
-    dim: usize,
-    times: usize,
-) -> CubeTensor<R> {
+pub(crate) fn repeat_dim(mut input: CubeTensor, dim: usize, times: usize) -> CubeTensor {
     if input.meta.shape()[dim] == 1 {
         input.meta.strides[dim] = 0;
         input.meta.shape = input.meta.shape.clone().repeat(dim, times).unwrap();

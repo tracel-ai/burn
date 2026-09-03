@@ -14,7 +14,6 @@ use crate::{
 use burn_fusion::stream::{Context, ScalarId};
 use burn_ir::ScalarIr;
 use cubecl::{
-    Runtime,
     client::Client,
     ir::{AddressType, Type},
     prelude::{InputScalar, TensorArg},
@@ -22,35 +21,30 @@ use cubecl::{
 use std::marker::PhantomData;
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
-pub struct LaunchPlanExecutor<'a, R: Runtime> {
+pub struct LaunchPlanExecutor<'a> {
     resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
-    _r: PhantomData<R>,
 }
 
 #[derive(new, Debug)]
-pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
+pub struct ExecutionError<Runner: TraceRunner> {
     pub error: TraceError<Runner::Error>,
-    pub handles_input: Vec<HandleInput<R>>,
-    pub handles_output: Vec<HandleOutput<R>>,
+    pub handles_input: Vec<HandleInput>,
+    pub handles_output: Vec<HandleOutput>,
 }
 
-impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
+impl<'a> LaunchPlanExecutor<'a> {
     pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
-        Self {
-            resources,
-            blocks,
-            _r: PhantomData,
-        }
+        Self { resources, blocks }
     }
 
-    pub fn execute<Runner: TraceRunner<R>>(
+    pub fn execute<Runner: TraceRunner>(
         self,
         client: &Client,
         runner: &Runner,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: LaunchPlan<'a, R>,
-    ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
+        context: &mut Context<CubeFusionHandle>,
+        plan: LaunchPlan<'a>,
+    ) -> Result<TuneOutput, ExecutionError<Runner>> {
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
             for writes in b.writes.values() {
@@ -64,7 +58,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         };
 
         #[cfg(not(feature = "autotune-checks"))]
-        let mut tune_output = TuneOutput::UnChecked(PhantomData);
+        let mut tune_output = TuneOutput::UnChecked;
 
         if num_writes == 0 {
             // Nothing to write, can skip execution.
@@ -94,7 +88,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             context,
             &mut inputs,
         );
-        register_outputs::<R>(
+        register_outputs(
             plan.handle_outputs.clone(),
             &input_vector_sizes,
             &mut outputs,
@@ -192,7 +186,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
     }
 }
 
-fn register_inputs<R: Runtime>(handle_inputs: Vec<HandleInput<R>>, inputs: &mut GlobalArgsLaunch) {
+fn register_inputs(handle_inputs: Vec<HandleInput>, inputs: &mut GlobalArgsLaunch) {
     for hi in handle_inputs {
         match hi {
             HandleInput::Normal(hi) => {
@@ -229,11 +223,11 @@ fn register_inputs<R: Runtime>(handle_inputs: Vec<HandleInput<R>>, inputs: &mut 
     }
 }
 
-fn register_outputs<R: Runtime>(
-    handle_outputs: Vec<HandleOutput<R>>,
+fn register_outputs(
+    handle_outputs: Vec<HandleOutput>,
     input_vector_sizes: &[usize],
     outputs: &mut GlobalArgsLaunch,
-    #[allow(unused_variables)] tune_output: &mut TuneOutput<R>,
+    #[allow(unused_variables)] tune_output: &mut TuneOutput,
 ) {
     for item in handle_outputs {
         match item {
@@ -297,10 +291,10 @@ fn register_outputs<R: Runtime>(
     }
 }
 
-fn register_scalars<'h, R: Runtime>(
+fn register_scalars<'h>(
     scalars: impl Iterator<Item = &'h (FuseType, u64)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
-    context: &mut Context<CubeFusionHandle<R>>,
+    context: &mut Context<CubeFusionHandle>,
     inputs: &mut GlobalArgsLaunch,
 ) {
     for (precision, id) in scalars {

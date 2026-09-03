@@ -18,7 +18,6 @@ pub mod tensor;
 /// Elements for JIT backend
 pub mod element;
 
-use cubecl::Runtime;
 pub use element::{BoolElement, CubeElement, FloatElement, IntElement};
 
 mod backend;
@@ -39,12 +38,23 @@ pub mod fusion;
 /// Module for compiling custom non-jit kernels
 pub mod template;
 
-/// Just-in-Time runtime extending the [cube runtime](Runtime).
-pub trait CubeRuntime: Runtime<Device = Self::CubeDevice, Server = Self::CubeServer> {
-    /// The device that should also implement [burn_backend::backend::DeviceOps].
-    type CubeDevice: burn_backend::DeviceOps;
-    /// The cube server backing the runtime.
-    type CubeServer: cubecl::server::Server;
-}
+/// The device a cube tensor lives on.
+///
+/// One type across every runtime: which runtime a tensor runs on is what its
+/// device *says*, not what its type is.
+pub use cubecl::Device as CubeDevice;
 
 pub use cubecl::CubeTuneId;
+
+/// The tensor backend for every cubecl runtime.
+///
+/// CUDA, ROCm, Metal, Vulkan, WebGPU, wgpu and the CPU runtime are all this one
+/// type; which of them a tensor runs on is what its [`CubeDevice`] says. Fusion
+/// wraps it when the `fusion` feature is on.
+#[cfg(not(feature = "fusion"))]
+pub type Cube = CubeBackend;
+
+/// The tensor backend for every cubecl runtime, fusing operations across
+/// streams. See [`CubeBackend`] for the unfused type.
+#[cfg(feature = "fusion")]
+pub type Cube = burn_fusion::Fusion<CubeBackend>;

@@ -13,20 +13,19 @@ use crate::{
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{BaseOperationIr, NumericOperationIr, OperationIr, ReduceDimOpIr};
 use burn_std::Shape;
-use cubecl::Runtime;
 
 /// Fuses element wise operations around a reduce operation.
-pub struct ReduceFuser<R: Runtime> {
+pub struct ReduceFuser {
     pub(crate) fuser: TraceOperationFuser,
     pub(crate) fuser_read_fallback: TraceOperationFuser,
     fuser_write_fallback: TraceOperationFuser,
     settings_write: FuseSettings,
-    pub(crate) device: R::Device,
+    pub(crate) device: cubecl::Device,
     pub(crate) reduce: Option<FusedReduce>,
     settings: ReduceSettings,
 }
 
-impl<R: Runtime> Clone for ReduceFuser<R> {
+impl Clone for ReduceFuser {
     fn clone(&self) -> Self {
         Self {
             fuser: self.fuser.clone(),
@@ -46,9 +45,9 @@ pub enum ReduceFuserInfo {
     FusedElemwise { shape_id: Shape },
 }
 
-impl<R: Runtime> ReduceFuser<R> {
-    pub fn new(device: R::Device, settings: ReduceSettings) -> Self {
-        let client = R::client(&device);
+impl ReduceFuser {
+    pub fn new(device: cubecl::Device, settings: ReduceSettings) -> Self {
+        let client = device.client();
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
         let settings_read = FuseSettings {
@@ -194,8 +193,8 @@ impl<R: Runtime> ReduceFuser<R> {
     /// Build the reduce optimization from the fused operations. The typed
     /// counterpart of [`OperationFuser::finish`], for callers that compose the
     /// optimization further (the broadcasted-reduce blocks reuse its info).
-    pub(crate) fn finish_reduce(&mut self) -> ReduceOptimization<R> {
-        let client = R::client(&self.device);
+    pub(crate) fn finish_reduce(&mut self) -> ReduceOptimization {
+        let client = self.device.client();
         let trace = self.fuser.finish();
         let trace_read_fallback = self.fuser_read_fallback.finish();
         let trace_write_fallback = self.fuser_write_fallback.finish();
@@ -215,7 +214,7 @@ impl<R: Runtime> ReduceFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
+impl OperationFuser<CubeOptimization> for ReduceFuser {
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = self.fuser.status() {
             return;
@@ -305,7 +304,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
         }
     }
 
-    fn finish(&mut self) -> CubeOptimization<R> {
+    fn finish(&mut self) -> CubeOptimization {
         CubeOptimization::new(self.finish_reduce())
     }
 
@@ -330,7 +329,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
         self.fuser.len() + if self.reduce.is_some() { 1 } else { 0 }
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization>> {
         Box::new(self.clone())
     }
 }

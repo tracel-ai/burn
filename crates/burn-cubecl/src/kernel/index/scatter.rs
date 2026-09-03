@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::{
         AddOp, AssignOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
         utils::{address_type, shape_divmod},
@@ -70,12 +69,12 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     }
 }
 
-fn scatter_op<R: CubeRuntime, Op: BinaryOpFamily>(
+fn scatter_op<Op: BinaryOpFamily>(
     dim: usize,
-    tensor: CubeTensor<R>,
-    indices: CubeTensor<R>,
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
@@ -109,33 +108,33 @@ fn scatter_op<R: CubeRuntime, Op: BinaryOpFamily>(
     tensor
 }
 
-pub(crate) fn scatter<R: CubeRuntime>(
+pub(crate) fn scatter(
     dim: usize,
-    tensor: CubeTensor<R>,
-    indices: CubeTensor<R>,
-    value: CubeTensor<R>,
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    value: CubeTensor,
     is_bool: bool,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     match is_bool {
-        true => scatter_op::<R, OrOp>(dim, tensor, indices, value),
-        false => scatter_op::<R, AddOp>(dim, tensor, indices, value),
+        true => scatter_op::<OrOp>(dim, tensor, indices, value),
+        false => scatter_op::<AddOp>(dim, tensor, indices, value),
     }
 }
 
-pub(crate) fn scatter_mul<R: CubeRuntime>(
+pub(crate) fn scatter_mul(
     dim: usize,
-    tensor: CubeTensor<R>,
-    indices: CubeTensor<R>,
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
-    scatter_op::<R, MulOp>(dim, tensor, indices, value)
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
+    scatter_op::<MulOp>(dim, tensor, indices, value)
 }
 
-pub(crate) fn scatter_assign<R: CubeRuntime>(
+pub(crate) fn scatter_assign(
     dim: usize,
-    tensor: CubeTensor<R>,
-    indices: CubeTensor<R>,
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
-    scatter_op::<R, AssignOp>(dim, tensor, indices, value)
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
+    scatter_op::<AssignOp>(dim, tensor, indices, value)
 }

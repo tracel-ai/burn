@@ -1,6 +1,6 @@
 #[cfg(feature = "autotune")]
 use crate::kernel::attention::attention_autotune;
-use crate::{CubeBackend, CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{CubeBackend, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType, Shape,
@@ -45,15 +45,15 @@ impl Default for AttentionStrategy {
 
 #[allow(clippy::too_many_arguments)]
 /// Launch an attention kernel with given strategy
-pub fn attention<R: CubeRuntime>(
-    query: CubeTensor<R>,
-    key: CubeTensor<R>,
-    value: CubeTensor<R>,
-    mask: Option<CubeTensor<R>>,
-    attn_bias: Option<CubeTensor<R>>,
+pub fn attention(
+    query: CubeTensor,
+    key: CubeTensor,
+    value: CubeTensor,
+    mask: Option<CubeTensor>,
+    attn_bias: Option<CubeTensor>,
     options: AttentionModuleOptions,
     strategy: AttentionStrategy,
-) -> Result<CubeTensor<R>, AttentionSetupError> {
+) -> Result<CubeTensor, AttentionSetupError> {
     // Resolve the flash launch strategy; the non-flash arms answer directly.
     let flash = match strategy {
         AttentionStrategy::FlashBlackboxAccelerated(strategy) => {
@@ -63,7 +63,7 @@ pub fn attention<R: CubeRuntime>(
             launch::Strategy::Unit(launch::BlueprintStrategy::Inferred(()))
         }
         AttentionStrategy::Fallback => {
-            return Ok(attention_fallback::<CubeBackend<R>>(
+            return Ok(attention_fallback::<CubeBackend>(
                 query, key, value, mask, attn_bias, options,
             ));
         }
@@ -95,7 +95,7 @@ pub fn attention<R: CubeRuntime>(
         options,
         flash,
     ) {
-        Err(AttentionSetupError::InvalidConfig(_)) => Ok(attention_fallback::<CubeBackend<R>>(
+        Err(AttentionSetupError::InvalidConfig(_)) => Ok(attention_fallback::<CubeBackend>(
             query, key, value, mask, attn_bias, options,
         )),
         other => other,
@@ -104,15 +104,15 @@ pub fn attention<R: CubeRuntime>(
 
 #[allow(clippy::too_many_arguments)]
 /// Launch a flash attention kernel
-pub fn flash_attention<R: CubeRuntime>(
-    query: CubeTensor<R>,
-    key: CubeTensor<R>,
-    value: CubeTensor<R>,
-    mask: Option<CubeTensor<R>>,
-    _attn_bias: Option<CubeTensor<R>>,
+pub fn flash_attention(
+    query: CubeTensor,
+    key: CubeTensor,
+    value: CubeTensor,
+    mask: Option<CubeTensor>,
+    _attn_bias: Option<CubeTensor>,
     options: AttentionModuleOptions,
     strategy: launch::Strategy,
-) -> Result<CubeTensor<R>, AttentionSetupError> {
+) -> Result<CubeTensor, AttentionSetupError> {
     let client = query.client.clone();
     let out = init_attention_output(&query, &value);
 
@@ -144,17 +144,14 @@ pub fn flash_attention<R: CubeRuntime>(
     Ok(out)
 }
 
-pub(crate) fn init_attention_output<R: CubeRuntime>(
-    query: &CubeTensor<R>,
-    value: &CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn init_attention_output(query: &CubeTensor, value: &CubeTensor) -> CubeTensor {
     let num_batches = query.meta.shape[0];
     let num_heads = query.meta.shape[1];
     let seq_q = query.meta.shape[2];
     let val_dim = value.meta.shape[3];
     let out_shape = Shape::new([num_batches, num_heads, seq_q, val_dim]);
 
-    empty_device_dtype::<R>(
+    empty_device_dtype(
         query.client.clone(),
         query.device.clone(),
         out_shape,

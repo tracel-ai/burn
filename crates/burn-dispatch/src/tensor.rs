@@ -255,33 +255,9 @@ pub struct DispatchTensor {
 /// Each variant corresponds to a specific backend implementation.
 #[derive(Clone, Debug)]
 pub enum DispatchTensorKind {
-    /// The [CPU backend](Cpu) tensor.
-    #[cfg(feature = "cpu")]
-    Cpu(BackendTensor<Cpu>),
-
-    /// The [CUDA backend](Cuda) tensor.
-    #[cfg(feature = "cuda")]
-    Cuda(BackendTensor<Cuda>),
-
-    /// The [Metal backend](Metal) tensor.
-    #[cfg(feature = "metal")]
-    Metal(BackendTensor<Metal>),
-
-    /// The [ROCm backend](Rocm) tensor.
-    #[cfg(feature = "rocm")]
-    Rocm(BackendTensor<Rocm>),
-
-    /// The [Vulkan backend](Vulkan) tensor.
-    #[cfg(feature = "vulkan")]
-    Vulkan(BackendTensor<Vulkan>),
-
-    /// The [Wgpu backend](Wgpu) tensor.
-    #[cfg(feature = "wgpu")]
-    Wgpu(BackendTensor<Wgpu>),
-
-    /// The [WebGPU backend](Wgpu) tensor.
-    #[cfg(feature = "webgpu")]
-    WebGpu(BackendTensor<WebGpu>),
+    /// A tensor on the [cubecl backend](Cube) — its device says which runtime.
+    #[cfg(cube_backend)]
+    Cube(BackendTensor<Cube>),
 
     /// The [Flex backend](Flex) tensor.
     #[cfg(any(feature = "flex", default_backend))]
@@ -312,20 +288,8 @@ impl TensorMetadata for DispatchTensorKind {
 
     fn dtype(&self) -> DType {
         match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(tensor) => tensor.dtype(),
-            #[cfg(feature = "cuda")]
-            Self::Cuda(tensor) => tensor.dtype(),
-            #[cfg(feature = "metal")]
-            Self::Metal(tensor) => tensor.dtype(),
-            #[cfg(feature = "rocm")]
-            Self::Rocm(tensor) => tensor.dtype(),
-            #[cfg(feature = "vulkan")]
-            Self::Vulkan(tensor) => tensor.dtype(),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(tensor) => tensor.dtype(),
-            #[cfg(feature = "webgpu")]
-            Self::WebGpu(tensor) => tensor.dtype(),
+            #[cfg(cube_backend)]
+            Self::Cube(tensor) => tensor.dtype(),
             #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.dtype(),
             #[cfg(feature = "ndarray")]
@@ -343,20 +307,8 @@ impl TensorMetadata for DispatchTensorKind {
 
     fn shape(&self) -> Shape {
         match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(tensor) => tensor.shape(),
-            #[cfg(feature = "cuda")]
-            Self::Cuda(tensor) => tensor.shape(),
-            #[cfg(feature = "metal")]
-            Self::Metal(tensor) => tensor.shape(),
-            #[cfg(feature = "rocm")]
-            Self::Rocm(tensor) => tensor.shape(),
-            #[cfg(feature = "vulkan")]
-            Self::Vulkan(tensor) => tensor.shape(),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(tensor) => tensor.shape(),
-            #[cfg(feature = "webgpu")]
-            Self::WebGpu(tensor) => tensor.shape(),
+            #[cfg(cube_backend)]
+            Self::Cube(tensor) => tensor.shape(),
             #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.shape(),
             #[cfg(feature = "ndarray")]
@@ -374,20 +326,8 @@ impl TensorMetadata for DispatchTensorKind {
 
     fn device(&self) -> DispatchDevice {
         match self {
-            #[cfg(feature = "cpu")]
-            DispatchTensorKind::Cpu(tensor) => DispatchDevice::Cpu(tensor.device()),
-            #[cfg(feature = "cuda")]
-            DispatchTensorKind::Cuda(tensor) => DispatchDevice::Cuda(tensor.device()),
-            #[cfg(feature = "metal")]
-            DispatchTensorKind::Metal(tensor) => DispatchDevice::Metal(tensor.device()),
-            #[cfg(feature = "rocm")]
-            DispatchTensorKind::Rocm(tensor) => DispatchDevice::Rocm(tensor.device()),
-            #[cfg(feature = "vulkan")]
-            DispatchTensorKind::Vulkan(tensor) => DispatchDevice::Vulkan(tensor.device()),
-            #[cfg(feature = "wgpu")]
-            DispatchTensorKind::Wgpu(tensor) => DispatchDevice::Wgpu(tensor.device()),
-            #[cfg(feature = "webgpu")]
-            DispatchTensorKind::WebGpu(tensor) => DispatchDevice::WebGpu(tensor.device()),
+            #[cfg(cube_backend)]
+            DispatchTensorKind::Cube(tensor) => DispatchDevice::Cube(tensor.device()),
             #[cfg(any(feature = "flex", default_backend))]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
             #[cfg(feature = "ndarray")]
@@ -405,20 +345,8 @@ impl TensorMetadata for DispatchTensorKind {
 
     fn can_mut(&self) -> bool {
         match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(tensor) => tensor.can_mut(),
-            #[cfg(feature = "cuda")]
-            Self::Cuda(tensor) => tensor.can_mut(),
-            #[cfg(feature = "metal")]
-            Self::Metal(tensor) => tensor.can_mut(),
-            #[cfg(feature = "rocm")]
-            Self::Rocm(tensor) => tensor.can_mut(),
-            #[cfg(feature = "vulkan")]
-            Self::Vulkan(tensor) => tensor.can_mut(),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(tensor) => tensor.can_mut(),
-            #[cfg(feature = "webgpu")]
-            Self::WebGpu(tensor) => tensor.can_mut(),
+            #[cfg(cube_backend)]
+            Self::Cube(tensor) => tensor.can_mut(),
             #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.can_mut(),
             #[cfg(feature = "ndarray")]
@@ -486,20 +414,8 @@ impl DispatchTensorKind {
     /// Returns the backend tensor kind name.
     pub(crate) fn name(&self) -> &'static str {
         match self {
-            #[cfg(feature = "cpu")]
-            DispatchTensorKind::Cpu(_) => "Cpu",
-            #[cfg(feature = "cuda")]
-            DispatchTensorKind::Cuda(_) => "Cuda",
-            #[cfg(feature = "metal")]
-            DispatchTensorKind::Metal(_) => "Metal",
-            #[cfg(feature = "rocm")]
-            DispatchTensorKind::Rocm(_) => "Rocm",
-            #[cfg(feature = "vulkan")]
-            DispatchTensorKind::Vulkan(_) => "Vulkan",
-            #[cfg(feature = "wgpu")]
-            DispatchTensorKind::Wgpu(_) => "Wgpu",
-            #[cfg(feature = "webgpu")]
-            DispatchTensorKind::WebGpu(_) => "WebGpu",
+            #[cfg(cube_backend)]
+            DispatchTensorKind::Cube(_) => "Cube",
             #[cfg(any(feature = "flex", default_backend))]
             DispatchTensorKind::Flex(_) => "Flex",
             #[cfg(feature = "ndarray")]

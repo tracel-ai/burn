@@ -1,4 +1,4 @@
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
@@ -6,6 +6,7 @@ use burn_backend::{
     TensorData,
 };
 use burn_std::{BoolStore, DType, quantization::quantizable};
+use cubecl::device::DeviceId;
 use cubecl::{
     MemoryConfiguration, MemoryPoolKind,
     client::Client,
@@ -15,7 +16,6 @@ use cubecl::{
     ir::ElemType,
     server::Server,
 };
-use std::marker::PhantomData;
 
 #[cfg(not(feature = "fusion"))]
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
@@ -43,36 +43,25 @@ fn graph_err(err: impl core::fmt::Display) -> ExecutionError {
     }
 }
 
-/// Generic tensor backend that can be compiled just-in-time to any shader runtime
+/// Tensor backend that compiles just-in-time for whichever runtime its device
+/// names.
 #[derive(new)]
-pub struct CubeBackend<R: CubeRuntime> {
-    _runtime: PhantomData<R>,
-}
+pub struct CubeBackend;
 
-impl<R> BackendTypes for CubeBackend<R>
-where
-    R: CubeRuntime,
-    R::Server: Server,
-    R::Device: DeviceOps,
-{
-    type Device = R::Device;
+impl BackendTypes for CubeBackend {
+    type Device = CubeDevice;
 
-    type FloatTensorPrimitive = CubeTensor<R>;
-    type IntTensorPrimitive = CubeTensor<R>;
-    type BoolTensorPrimitive = CubeTensor<R>;
-    type QuantizedTensorPrimitive = CubeTensor<R>;
+    type FloatTensorPrimitive = CubeTensor;
+    type IntTensorPrimitive = CubeTensor;
+    type BoolTensorPrimitive = CubeTensor;
+    type QuantizedTensorPrimitive = CubeTensor;
 
     type GraphPrimitive = cubecl::client::Graph;
 }
 
-impl<R> Backend for CubeBackend<R>
-where
-    R: CubeRuntime,
-    R::Server: Server,
-    R::Device: DeviceOps,
-{
+impl Backend for CubeBackend {
     fn name(device: &Self::Device) -> String {
-        let client = R::client(device);
+        let client = device.client();
         format!("cubecl<{}>", client.name())
     }
 
@@ -85,7 +74,7 @@ where
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
-        let client = R::client(device);
+        let client = device.client();
         // A barrier plus the device's own fault, and nothing more: a launch
         // failure lives on the buffers the launch never wrote and surfaces on
         // the read of one of them, so it is not this sync's to report.
@@ -97,17 +86,17 @@ where
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
-        let client = R::client(device);
+        let client = device.client();
         client.graph_prepare().map_err(graph_err)
     }
 
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
-        let client = R::client(device);
+        let client = device.client();
         client.start_capture().map_err(graph_err)
     }
 
     fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
-        let client = R::client(device);
+        let client = device.client();
         client.stop_capture().map_err(graph_err)
     }
 
@@ -133,12 +122,12 @@ where
         input: Input,
         func: Func,
     ) -> Output {
-        let client = R::client(device);
+        let client = device.client();
         client.memory_persistent_allocation(input, func)
     }
 
     fn memory_cleanup(device: &Self::Device) {
-        let client = R::client(device);
+        let client = device.client();
         client.memory_cleanup();
     }
 
@@ -146,7 +135,7 @@ where
         device: &Self::Device,
         layout: MemoryPoolLayout,
     ) -> Result<(), InstallMemoryPoolsError> {
-        let client = R::client(device);
+        let client = device.client();
         let properties = &client.properties().memory;
         let config = pool_config(layout, properties.alignment.max(1))?;
 
@@ -166,7 +155,7 @@ where
     }
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        let report = R::client(device).memory_report();
+        let report = device.client().memory_report();
 
         // The pools a layout can be paired with, in the order allocations are
         // routed through them: a `Sliced` layout maps onto them one to one, and
@@ -197,7 +186,7 @@ where
     }
 
     fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        let usage = R::client(device).memory_usage();
+        let usage = device.client().memory_usage();
 
         Some(MemoryPoolUsage {
             number_allocs: usage.number_allocs,
@@ -211,7 +200,7 @@ where
     where
         Iter: Iterator<Item = &'a mut TensorData>,
     {
-        let client = R::client(device);
+        let client = device.client();
         client.staging(data.map(|td| &mut td.bytes), false);
     }
 
@@ -221,7 +210,7 @@ where
         if let DType::Bool(BoolStore::Native) = dtype {
             return false;
         }
-        let client = R::client(device);
+        let client = device.client();
 
         if !qfloat_params_usable(&client, dtype) {
             return false;
@@ -243,7 +232,7 @@ where
         if let DType::Bool(BoolStore::Native) = dtype {
             return DTypeUsageSet::empty();
         }
-        let client = R::client(device);
+        let client = device.client();
 
         if !qfloat_params_usable(&client, dtype) {
             return DTypeUsageSet::empty();
@@ -276,44 +265,36 @@ where
     }
 
     fn device_count(type_id: u16) -> usize {
-        R::enumerate_devices(type_id).len()
+        CubeDevice::enumerate(DeviceId::new(type_id, 0)).len()
     }
 
     fn flush(device: &Self::Device) {
-        let client = R::client(device);
+        let client = device.client();
         client.flush().unwrap();
     }
 }
 
-impl<R: CubeRuntime> core::fmt::Debug for CubeBackend<R> {
+impl core::fmt::Debug for CubeBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("CubeCLBackend")
     }
 }
 
-impl<R: CubeRuntime> Clone for CubeBackend<R> {
+impl Clone for CubeBackend {
     fn clone(&self) -> Self {
         Self::new()
     }
 }
 
-impl<R: CubeRuntime> Default for CubeBackend<R> {
+impl Default for CubeBackend {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<R: cubecl::Runtime> CubeRuntime for R
-where
-    R::Device: DeviceOps,
-{
-    type CubeDevice = R::Device;
-    type CubeServer = R::Server;
-}
-
 #[cfg(not(feature = "fusion"))]
-impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
-    type Handle = CubeTensor<R>;
+impl BackendIr for CubeBackend {
+    type Handle = CubeTensor;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
         handle.handle

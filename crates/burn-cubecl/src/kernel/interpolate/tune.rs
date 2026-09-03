@@ -1,5 +1,5 @@
 use crate::{
-    CubeRuntime, CubeTuneId,
+    CubeTuneId,
     kernel::{
         autotune_bounds,
         interpolate::{execute_interpolate, map_options},
@@ -19,7 +19,7 @@ use cubek::interpolate::{
     tune_key::InterpolateAutotuneKey,
 };
 
-type Inputs<R> = (CubeTensor<R>, [usize; 2], InterpolateOptions);
+type Inputs = (CubeTensor, [usize; 2], InterpolateOptions);
 
 /// What the tuner measures: the bottleneck each strategy takes for granted.
 ///
@@ -47,22 +47,22 @@ const STRATEGIES: [(&str, InterpolateStrategy); 2] = [
 
 /// Interpolate operation with autotuning. This benchmarks multiple strategies and selects the
 /// best one at runtime.
-pub fn interpolate_autotune<R: CubeRuntime>(
-    input: CubeTensor<R>,
+pub fn interpolate_autotune(
+    input: CubeTensor,
     output_size: [usize; 2],
     options: InterpolateOptions,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let client = input.client.clone();
 
     static TUNER: LocalTuner<InterpolateAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tune_id = CubeTuneId::new(&client, &input.device);
     let tunables = TUNER.init(&tune_id, move || {
-        let mut set = with_bounds(TunableSet::new(create_key::<R>, input_gen::<R>));
+        let mut set = with_bounds(TunableSet::new(create_key, input_gen));
 
         for (name, strategy) in STRATEGIES {
             set = set.with(Tunable::new(name, move |(input, output_size, options)| {
-                execute_interpolate::<R>(input, output_size, options, strategy)
+                execute_interpolate(input, output_size, options, strategy)
             }));
         }
 
@@ -78,12 +78,12 @@ pub fn interpolate_autotune<R: CubeRuntime>(
 /// grows with the tap count, and Lanczos3 spends two sines on every weight. Costing both and
 /// letting the roofline take whichever is slower is what keeps the limit reachable across modes,
 /// rather than holding every mode to a bandwidth figure only nearest can approach.
-fn with_bounds<R: CubeRuntime, Out: 'static>(
-    set: TunableSet<InterpolateAutotuneKey, Inputs<R>, Out>,
-) -> TunableSet<InterpolateAutotuneKey, Inputs<R>, Out> {
+fn with_bounds<Out: 'static>(
+    set: TunableSet<InterpolateAutotuneKey, Inputs, Out>,
+) -> TunableSet<InterpolateAutotuneKey, Inputs, Out> {
     autotune_bounds::with_bounds(
         set,
-        |_key, (input, output_size, options): &Inputs<R>, thresholds| {
+        |_key, (input, output_size, options): &Inputs, thresholds| {
             let problem = forward_problem(input, output_size, options);
             let cost = InterpolateCost::new(
                 InterpolateProblem::Forward(problem),
@@ -99,8 +99,8 @@ fn with_bounds<R: CubeRuntime, Out: 'static>(
 ///
 /// The tensor is still NCHW here: `execute_interpolate` permutes it. Reading its extents
 /// positionally at this point is what used to feed the width in as the channel count.
-fn forward_problem<R: CubeRuntime>(
-    input: &CubeTensor<R>,
+fn forward_problem(
+    input: &CubeTensor,
     output_size: &[usize; 2],
     options: &InterpolateOptions,
 ) -> InterpolateForwardProblem {
@@ -113,7 +113,7 @@ fn forward_problem<R: CubeRuntime>(
     )
 }
 
-fn create_key<R: CubeRuntime>((input, output_size, options): &Inputs<R>) -> InterpolateAutotuneKey {
+fn create_key((input, output_size, options): &Inputs) -> InterpolateAutotuneKey {
     let elem = dtype_to_elem_type(input.dtype);
     let problem = forward_problem(input, output_size, options);
 
@@ -130,9 +130,6 @@ fn create_key<R: CubeRuntime>((input, output_size, options): &Inputs<R>) -> Inte
     )
 }
 
-fn input_gen<R: CubeRuntime>(
-    _key: &InterpolateAutotuneKey,
-    (input, output_size, options): &Inputs<R>,
-) -> Inputs<R> {
+fn input_gen(_key: &InterpolateAutotuneKey, (input, output_size, options): &Inputs) -> Inputs {
     (input.clone(), *output_size, options.clone())
 }

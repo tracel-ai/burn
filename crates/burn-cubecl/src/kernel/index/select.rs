@@ -1,4 +1,4 @@
-use crate::{CubeRuntime, kernel::utils::address_type, tensor::CubeTensor};
+use crate::{kernel::utils::address_type, tensor::CubeTensor};
 use crate::{kernel::utils::shape_divmod, ops::numeric::empty_device_dtype};
 use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
@@ -42,11 +42,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
     output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
-pub(crate) fn select<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    dim: usize,
-    indices: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn select(tensor: CubeTensor, dim: usize, indices: CubeTensor) -> CubeTensor {
     let mut shape_output = tensor.shape();
     shape_output[dim] = indices.meta.shape()[0];
     let total_elem = shape_output.num_elements();

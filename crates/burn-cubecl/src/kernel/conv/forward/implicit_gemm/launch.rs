@@ -1,4 +1,4 @@
-use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
@@ -17,18 +17,18 @@ use cubek::{
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv_gemm_simple_sync<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_gemm_simple_sync<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let algorithm = match tile_kind {
         AcceleratedTileKind::Cmma => ConvAlgorithm::SimpleSyncCyclic,
         AcceleratedTileKind::Mma => ConvAlgorithm::SimpleSyncStrided,
     };
-    launch_convolution_forward::<R, N>(
+    launch_convolution_forward::<N>(
         &Strategy::Inferred {
             algorithm,
             tile_kind,
@@ -40,18 +40,18 @@ pub fn conv_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     )
 }
 
-pub fn conv_gemm_simple_async<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_gemm_simple_async<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let algorithm = match tile_kind {
         AcceleratedTileKind::Cmma => ConvAlgorithm::SimpleAsyncCyclic,
         AcceleratedTileKind::Mma => ConvAlgorithm::SimpleAsyncStrided,
     };
-    launch_convolution_forward::<R, N>(
+    launch_convolution_forward::<N>(
         &Strategy::Inferred {
             algorithm,
             tile_kind,
@@ -70,14 +70,14 @@ pub fn conv_gemm_simple_async<R: CubeRuntime, const N: usize>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv_gemm_simple_tma<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_gemm_simple_tma<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
-) -> Result<CubeTensor<R>, ConvSetupError> {
-    launch_convolution_forward::<R, N>(
+) -> Result<CubeTensor, ConvSetupError> {
+    launch_convolution_forward::<N>(
         &Strategy::Inferred {
             algorithm: ConvAlgorithm::SimpleAsyncTma,
             tile_kind,
@@ -96,13 +96,13 @@ pub fn conv_gemm_simple_tma<R: CubeRuntime, const N: usize>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
+pub fn launch_convolution_forward<const N: usize>(
     strategy: &Strategy,
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     if options.groups != 1 {
         return Err(ConvSetupError::Groups(options.groups));
     }

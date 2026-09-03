@@ -8,7 +8,7 @@ use crate::kernel::{
     launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
 };
 use crate::{
-    CubeBackend, CubeRuntime,
+    CubeBackend,
     kernel::{
         self,
         matmul::{MatmulStrategy, matmul},
@@ -24,7 +24,7 @@ use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 use std::ops::Range;
 
-impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
+impl IntTensorOps<Self> for CubeBackend {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let dtype = dtype.into();
         super::empty(shape, device, dtype)
@@ -365,7 +365,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         dtype: IntDType,
     ) -> IntTensor<Self> {
         let dtype: DType = dtype.into();
-        let client = R::client(device);
+        let client = device.client();
         numeric::full_device_dtype(
             client,
             shape,
@@ -629,11 +629,11 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
             type Unary<T: Numeric, N: Size> = Self;
         }
 
-        launch_unary_numeric::<R, Abs, _>(tensor, |_| ())
+        launch_unary_numeric::<Abs, _>(tensor, |_| ())
     }
 
     fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        unary_basic_int::launch::<R, _>(tensor, |_| BasicIntUnaryKind::Sign)
+        unary_basic_int::launch::<_>(tensor, |_| BasicIntUnaryKind::Sign)
     }
 
     fn int_into_float(tensor: IntTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {
@@ -710,28 +710,28 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        unary_basic_int::launch::<R, _>(tensor, |_| BasicIntUnaryKind::BitwiseNot)
+        unary_basic_int::launch::<_>(tensor, |_| BasicIntUnaryKind::BitwiseNot)
     }
 
     fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        launch_binop_int::<R, kernel::BitwiseShlOp>(lhs, rhs)
+        launch_binop_int::<kernel::BitwiseShlOp>(lhs, rhs)
     }
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        launch_scalar_binop_int::<R, BitwiseShlOp>(
+        launch_scalar_binop_int::<BitwiseShlOp>(
             lhs,
             InputScalar::new(rhs, dtype_to_storage_type(dtype)),
         )
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        launch_binop_int::<R, BitwiseShrOp>(lhs, rhs)
+        launch_binop_int::<BitwiseShrOp>(lhs, rhs)
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        launch_scalar_binop_int::<R, BitwiseShrOp>(
+        launch_scalar_binop_int::<BitwiseShrOp>(
             lhs,
             InputScalar::new(rhs, dtype_to_storage_type(dtype)),
         )

@@ -14,45 +14,11 @@ pub(crate) struct BackendSpec {
 
 pub(crate) const BACKENDS: &[BackendSpec] = &[
     BackendSpec {
-        name: "Cpu",
-        cfg: "feature = \"cpu\"",
-        distributed: false,
-        unidirectional_transfer: false,
-    },
-    BackendSpec {
-        name: "Cuda",
-        cfg: "feature = \"cuda\"",
+        // Every cubecl runtime is this one backend; a device says which of them
+        // it runs on. `cube_backend` is set when any of their features is.
+        name: "Cube",
+        cfg: "cube_backend",
         distributed: true,
-        unidirectional_transfer: false,
-    },
-    BackendSpec {
-        name: "Metal",
-        cfg: "feature = \"metal\"",
-        distributed: false,
-        unidirectional_transfer: false,
-    },
-    BackendSpec {
-        name: "Rocm",
-        cfg: "feature = \"rocm\"",
-        distributed: false,
-        unidirectional_transfer: false,
-    },
-    BackendSpec {
-        name: "Vulkan",
-        cfg: "feature = \"vulkan\"",
-        distributed: false,
-        unidirectional_transfer: false,
-    },
-    BackendSpec {
-        name: "Wgpu",
-        cfg: "feature = \"wgpu\"",
-        distributed: false,
-        unidirectional_transfer: false,
-    },
-    BackendSpec {
-        name: "WebGpu",
-        cfg: "feature = \"webgpu\"",
-        distributed: false,
         unidirectional_transfer: false,
     },
     BackendSpec {

@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
     tensor::CubeTensor,
 };
@@ -96,11 +95,11 @@ fn slice_assign_with_steps_kernel<E: Numeric>(
     input[input_offset] = value.read(ABSOLUTE_POS);
 }
 
-pub(crate) fn slice_assign<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
+pub(crate) fn slice_assign(
+    tensor: CubeTensor,
     indices: &[burn_backend::Slice],
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
+    value: CubeTensor,
+) -> CubeTensor {
     // Check if any slice has non-unit step
     let has_non_unit_step = indices.iter().any(|s| s.step != 1 && s.step != 0);
 
@@ -191,11 +190,11 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
 /// - values[0] goes to index 5
 /// - values[1] goes to index 4
 /// - etc.
-pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
+pub(crate) fn slice_assign_with_steps(
+    tensor: CubeTensor,
     slices: &[burn_backend::Slice],
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
+    value: CubeTensor,
+) -> CubeTensor {
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),

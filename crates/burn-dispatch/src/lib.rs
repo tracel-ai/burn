@@ -20,20 +20,16 @@
 //!
 //! | Backend    | Feature    | Description |
 //! |------------|------------|-------------|
-//! | `Cpu`      | `cpu`      | Rust CPU backend (MLIR + LLVM) |
-//! | `Cuda`     | `cuda`     | NVIDIA CUDA backend |
-//! | `Metal`    | `metal`    | Apple Metal backend via `wgpu` (MSL) |
-//! | `Rocm`     | `rocm`     | AMD ROCm backend |
-//! | `Vulkan`   | `vulkan`   | Vulkan backend via `wgpu` (SPIR-V) |
-//! | `Wgpu`     | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
+//! | `Cube`     | `cpu`, `cuda`, `metal`, `rocm`, `vulkan`, `webgpu`, `wgpu` | Every cubecl runtime. One backend: the features decide which runtimes are compiled in, and a tensor's device says which one it runs on |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
 //! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (deprecated - use `flex`) |
 //! | `LibTorch` | `tch`      | Libtorch backend via `tch` (deprecated - use a CubeCL backend) |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
-//! **Note:** All backends, including the WGPU-based ones (`wgpu`, `metal`, `vulkan`, `webgpu`),
-//! can be combined freely. Each enabled wgpu backend appears as its own
-//! [`DispatchDevice`] variant.
+//! **Note:** The features can be combined freely. The cubecl-backed ones all
+//! select the same backend, so they share the one [`DispatchDevice::Cube`]
+//! variant — enabling several compiles several runtimes in, and the device a
+//! tensor carries is what picks between them.
 
 #[macro_use]
 mod macros;
@@ -65,26 +61,18 @@ pub mod backends {
 
     #[cfg(feature = "cpu")]
     pub use burn_cpu as cpu;
-    #[cfg(feature = "cpu")]
-    pub use burn_cpu::Cpu;
     #[cfg(feature = "cuda")]
     pub use burn_cuda as cuda;
-    #[cfg(feature = "cuda")]
-    pub use burn_cuda::Cuda;
     #[cfg(feature = "rocm")]
     pub use burn_rocm as rocm;
-    #[cfg(feature = "rocm")]
-    pub use burn_rocm::Rocm;
     #[cfg(feature = "wgpu")]
     pub use burn_wgpu as wgpu;
-    #[cfg(feature = "metal")]
-    pub use burn_wgpu::Metal;
-    #[cfg(feature = "vulkan")]
-    pub use burn_wgpu::Vulkan;
-    #[cfg(feature = "webgpu")]
-    pub use burn_wgpu::WebGpu;
-    #[cfg(feature = "wgpu")]
-    pub use burn_wgpu::Wgpu;
+
+    /// The cubecl backend: CUDA, ROCm, Metal, Vulkan, WebGPU, wgpu and the CPU
+    /// runtime are all this one type, and a tensor's device says which of them
+    /// it runs on. The features still decide which runtimes are compiled in.
+    #[cfg(cube_backend)]
+    pub use burn_cubecl::Cube;
 
     #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex as flex;
@@ -131,6 +119,10 @@ pub mod devices {
     #[cfg(feature = "wgpu")]
     pub use burn_wgpu::WgpuDevice;
 
+    /// The device every cubecl runtime shares; which runtime it names is a
+    /// property of the value, not of its type.
+    #[cfg(cube_backend)]
+    pub use burn_cubecl::CubeDevice;
     #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex::FlexDevice;
     #[cfg(feature = "ndarray")]

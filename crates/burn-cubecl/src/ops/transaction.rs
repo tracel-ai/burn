@@ -6,9 +6,9 @@ use burn_backend::{
 use burn_std::{Shape, Strides};
 use cubecl::server::{CopyDescriptor, Handle};
 
-use crate::{CubeBackend, CubeRuntime};
+use crate::CubeBackend;
 
-impl<R: CubeRuntime> TransactionOps<Self> for CubeBackend<R> {
+impl TransactionOps<Self> for CubeBackend {
     async fn tr_execute(
         transaction: TransactionPrimitive<Self>,
     ) -> Result<TransactionPrimitiveData, ExecutionError> {

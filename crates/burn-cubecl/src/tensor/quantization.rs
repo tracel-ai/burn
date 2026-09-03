@@ -1,9 +1,8 @@
+use crate::CubeDevice;
 use burn_backend::{DType, Shape, TensorMetadata as _, quantization::QParamTensor};
 use burn_std::{Metadata, Strides};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::{client::Client, server::Handle};
-
-use crate::CubeRuntime;
 
 use super::CubeTensor;
 
@@ -11,13 +10,13 @@ use super::CubeTensor;
 /// tensor handle.
 pub type QParams = burn_backend::quantization::QParams<QParamTensor>;
 
-impl<R: CubeRuntime> CubeTensor<R> {
+impl CubeTensor {
     /// Create a new quantized tensor
     pub fn new_quantized(
         client: Client,
         handle: Handle,
         shape: Shape,
-        device: R::Device,
+        device: CubeDevice,
         strides: Strides,
         dtype: DType,
         qparams: QParams,
@@ -36,7 +35,7 @@ impl<R: CubeRuntime> CubeTensor<R> {
     /// For the values, native types that aren't supported as a normal `DType` will be returned
     /// as an unsigned integer tensor representing the bits. Should be reconstructed using `from_bits`
     /// in kernels.
-    pub fn quantized_handles(&self) -> Option<(CubeTensor<R>, CubeTensor<R>)> {
+    pub fn quantized_handles(&self) -> Option<(CubeTensor, CubeTensor)> {
         let params = self.scales()?;
         let scheme = match self.dtype {
             DType::QFloat(sc) => sc,
@@ -105,19 +104,19 @@ impl<R: CubeRuntime> CubeTensor<R> {
     }
 
     /// Construct a separate tensor for the quantization scales, if present
-    pub fn scales(&self) -> Option<CubeTensor<R>> {
+    pub fn scales(&self) -> Option<CubeTensor> {
         self.param_tensor(|qparams| Some(&qparams.scales))
     }
 
     /// Construct a separate tensor for the per-tensor scale, for a two-level scheme.
-    pub fn global(&self) -> Option<CubeTensor<R>> {
+    pub fn global(&self) -> Option<CubeTensor> {
         self.param_tensor(|qparams| qparams.global.as_ref())
     }
 
     fn param_tensor(
         &self,
         select: impl Fn(&QParams) -> Option<&QParamTensor>,
-    ) -> Option<CubeTensor<R>> {
+    ) -> Option<CubeTensor> {
         let param = select(self.qparams.as_ref()?)?;
         let mut handle = self.handle.clone();
         handle.offset_start = Some(param.offset_start as u64);

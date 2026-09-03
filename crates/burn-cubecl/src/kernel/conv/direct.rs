@@ -1,10 +1,9 @@
+use crate::{kernel::utils::decompose_linear, ops::numeric::empty_device_dtype};
 use crate::{
-    CubeRuntime,
     kernel::{into_contiguous_aligned, utils::address_type},
     ops::max_vector_size,
     tensor::CubeTensor,
 };
-use crate::{kernel::utils::decompose_linear, ops::numeric::empty_device_dtype};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     TensorMetadata,
@@ -296,12 +295,12 @@ fn accumulate_per_step<E: Numeric, NIn: Size, NOut: Size>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_direct<R: CubeRuntime, const N: usize>(
-    mut input: CubeTensor<R>,
-    mut weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_direct<const N: usize>(
+    mut input: CubeTensor,
+    mut weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let out_dtype = input.dtype;
     let rank = input.meta.shape().num_dims();
     let dim_c = rank - 1;

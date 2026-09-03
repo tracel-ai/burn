@@ -12,19 +12,18 @@ use crate::optim::{
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::OperationIr;
-use cubecl::Runtime;
 use std::sync::Arc;
 
 /// Fuses element wise operations around a reduce operation.
-pub struct ReduceBroadcastedFuser<R: Runtime> {
-    blocks: Vec<ReduceBlockFuser<R>>,
-    fuser_default: ReduceFuser<R>,
+pub struct ReduceBroadcastedFuser {
+    blocks: Vec<ReduceBlockFuser>,
+    fuser_default: ReduceFuser,
     num_ops: usize,
     state: ReduceBroadcastedStatus,
     max_bindings: u32,
 }
 
-impl<R: Runtime> Clone for ReduceBroadcastedFuser<R> {
+impl Clone for ReduceBroadcastedFuser {
     fn clone(&self) -> Self {
         Self {
             blocks: self.blocks.clone(),
@@ -36,8 +35,8 @@ impl<R: Runtime> Clone for ReduceBroadcastedFuser<R> {
     }
 }
 
-impl<R: Runtime> ReduceBroadcastedFuser<R> {
-    pub fn new(device: R::Device) -> Self {
+impl ReduceBroadcastedFuser {
+    pub fn new(device: cubecl::Device) -> Self {
         let fuser = ReduceFuser::new(device, ReduceSettings::Always);
         let max_bindings = fuser.fuser.max_bindings;
         let block = ReduceBlockFuser::new(fuser.clone());
@@ -136,7 +135,7 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
+impl OperationFuser<CubeOptimization> for ReduceBroadcastedFuser {
     fn fuse(&mut self, operation: &OperationIr) {
         if matches!(
             &self.state,
@@ -160,7 +159,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         }
     }
 
-    fn finish(&mut self) -> CubeOptimization<R> {
+    fn finish(&mut self) -> CubeOptimization {
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
         let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
         let mut num_ops = 0;
@@ -218,7 +217,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         self.num_ops
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization>> {
         Box::new(self.clone())
     }
 }
@@ -236,8 +235,8 @@ mod tests {
 
     #[test]
     fn reduce_broadcast_workflow_1() {
-        let device: <Run as Runtime>::Device = Default::default();
-        let mut fuser = ReduceBroadcastedFuser::<Run>::new(device);
+        let device: cubecl::Device = Default::default();
+        let mut fuser = ReduceBroadcastedFuser::new(device);
         let (tensor1_out, tensor1) = tensor(0, &[1, 2], TensorStatus::ReadWrite);
         let (tensor2_out, tensor2) = tensor(1, &[1, 0], TensorStatus::ReadWrite);
 
@@ -314,8 +313,8 @@ mod tests {
 
     #[test]
     fn reduce_broadcast_workflow_2() {
-        let device: <Run as Runtime>::Device = Default::default();
-        let mut fuser = ReduceBroadcastedFuser::<Run>::new(device);
+        let device: cubecl::Device = Default::default();
+        let mut fuser = ReduceBroadcastedFuser::new(device);
         let (tensor1_out, tensor1) = tensor(0, &[1, 2], TensorStatus::ReadWrite);
         // An existing tensor
         let (_tensor2_out, mut tensor2) = tensor(2, &[1, 2], TensorStatus::ReadOnly);

@@ -1,5 +1,5 @@
 use crate::{
-    CubeRuntime, CubeTuneId,
+    CubeTuneId,
     kernel::matmul::{
         launch_matmul, launch_matmul_naive, tune::bounds::with_matmul_bounds,
         utils::init_matmul_output,
@@ -36,7 +36,7 @@ use cubek::matmul::{
     },
 };
 
-pub(super) type Inputs<R> = (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>);
+pub(super) type Inputs = (CubeTensor, CubeTensor, CubeTensor);
 
 /// Whether the device can run `tile_matmul` with the element types of the matmul `definition`.
 ///
@@ -66,20 +66,17 @@ pub(crate) fn tile_matmul_supported(
         .is_empty()
 }
 
-fn matmul_input_gen<R: CubeRuntime>(
-    _key: &MatmulAutotuneKey,
-    (lhs, rhs, out): &Inputs<R>,
-) -> Inputs<R> {
+fn matmul_input_gen(_key: &MatmulAutotuneKey, (lhs, rhs, out): &Inputs) -> Inputs {
     (lhs.clone(), rhs.clone(), out.copy())
 }
 
 /// Executes autotune on matmul operations
-pub fn matmul_autotune<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    out: Option<CubeTensor<R>>,
+pub fn matmul_autotune(
+    lhs: CubeTensor,
+    rhs: CubeTensor,
+    out: Option<CubeTensor>,
     out_dtype: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let output = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
     // Short-circuit: zero-sized matmul produces a zero-sized output.
@@ -227,14 +224,14 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         }
 
-        let mut set = TunableSet::new(create_key::<R>, matmul_input_gen::<R>);
+        let mut set = TunableSet::new(create_key, matmul_input_gen);
 
         set = with_matmul_bounds(set);
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
             Tunable::new("matmul_naive", |(lhs, rhs, out)| {
-                launch_matmul_naive::<R, _>(&Strategy::Naive, lhs, rhs, out)
+                launch_matmul_naive::<_>(&Strategy::Naive, lhs, rhs, out)
                     .map_err(|err| std::format!("{err:?}"))
             })
             .group(&unit, |key| {
@@ -269,7 +266,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         ] {
             set = set.with(
                 Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
-                    launch_matmul::<R, _>(&strategy, lhs, rhs, out)
+                    launch_matmul::<_>(&strategy, lhs, rhs, out)
                         .map_err(|err| std::format!("{err:?}"))
                 })
                 .group(&gemv, move |key| match double_buf {
@@ -300,7 +297,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             ] {
                 set = set.with(
                     Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
-                        launch_matmul::<R, _>(&strategy, lhs, rhs, out)
+                        launch_matmul::<_>(&strategy, lhs, rhs, out)
                             .map_err(|err| format!("{err:?}"))
                     })
                     .group(&unit, move |key| match double_buf {
@@ -320,7 +317,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             Tunable::new(
                 &gemm_no_stage_strategy.to_string(),
                 move |(lhs, rhs, out)| {
-                    launch_matmul::<R, _>(&gemm_no_stage_strategy, lhs, rhs, out)
+                    launch_matmul::<_>(&gemm_no_stage_strategy, lhs, rhs, out)
                         .map_err(|err| format!("{err:?}"))
                 },
             )
@@ -333,7 +330,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         let cpu_gemm_general = Strategy::Gemm(BlueprintStrategy::Inferred(Default::default()));
         set = set.with(
             Tunable::new("gemm_cpu_general", move |(lhs, rhs, out)| {
-                launch_matmul::<R, _>(&cpu_gemm_general, lhs, rhs, out)
+                launch_matmul::<_>(&cpu_gemm_general, lhs, rhs, out)
                     .map_err(|err| std::format!("{err:?}"))
             })
             .group(&cpu, move |key| match key.analysis.kind {
@@ -347,7 +344,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             TiledStrategy::CpuGemm(BlueprintStrategy::Inferred(CpuGemmStrategy::default()));
         set = set.with(
             Tunable::new(&cpu_gemm_strategy.to_string(), move |(lhs, rhs, out)| {
-                launch_matmul::<R, _>(&cpu_gemm_strategy, lhs, rhs, out)
+                launch_matmul::<_>(&cpu_gemm_strategy, lhs, rhs, out)
                     .map_err(|err| format!("{err:?}"))
             })
             .group(&cpu, move |_key| PRIORITY_MAX),
@@ -553,7 +550,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             ),
         ] {
             let mut tunable = Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
-                launch_matmul::<R, _>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
+                launch_matmul::<_>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
             });
 
             // Accelerated kernels are demoted when the device doesn't support the tile matmul
@@ -593,7 +590,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     output
 }
 
-fn create_key<R: CubeRuntime>((lhs, rhs, out): &Inputs<R>) -> MatmulAutotuneKey {
+fn create_key((lhs, rhs, out): &Inputs) -> MatmulAutotuneKey {
     MatmulAutotuneKey::generate(
         &lhs.client,
         lhs.meta.shape(),

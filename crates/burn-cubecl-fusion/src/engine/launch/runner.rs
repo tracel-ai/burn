@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, HashMap};
 /// A trace runner is responsible for determining the vectorization factor as well as launching
 /// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
 /// with provided [fuse block configs](FuseBlockConfig).
-pub trait TraceRunner<R: Runtime>: Vectorization<R> {
+pub trait TraceRunner: Vectorization {
     /// The error that might happen while running the trace.
     type Error;
 
@@ -31,13 +31,13 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
     ) -> Result<(), Self::Error>;
 }
 
-pub enum VectorizationHandle<'a, R: Runtime> {
-    NormalInput(&'a CubeFusionHandle<R>, &'a TensorIr),
-    QuantValues(&'a CubeFusionHandle<R>, &'a TensorIr),
+pub enum VectorizationHandle<'a> {
+    NormalInput(&'a CubeFusionHandle, &'a TensorIr),
+    QuantValues(&'a CubeFusionHandle, &'a TensorIr),
     QuantParams,
 }
 
-impl<'a, R: Runtime> VectorizationHandle<'a, R> {
+impl<'a> VectorizationHandle<'a> {
     /// Returns if the current vectorization handle is from the given tensor id.
     pub fn is_from_tensor(&self, id: TensorId) -> bool {
         match self {
@@ -62,18 +62,18 @@ impl VectorizationAxis {
     }
 }
 
-pub trait Vectorization<R: Runtime> {
+pub trait Vectorization {
     /// Returns the vectorization options.
-    fn axis(&self, _plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
+    fn axis(&self, _plan: &LaunchPlan<'_>) -> VectorizationAxis {
         VectorizationAxis::default()
     }
     /// The vectorization factor for all inputs and outputs.
     #[allow(clippy::too_many_arguments)]
     fn vectorization<'a>(
         &self,
-        _context: &Context<CubeFusionHandle<R>>,
+        _context: &Context<CubeFusionHandle>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
-        inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
+        inputs: impl Iterator<Item = VectorizationHandle<'a>>,
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (usize, usize))>,

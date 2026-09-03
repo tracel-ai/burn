@@ -6,7 +6,6 @@ use cubecl::{
 };
 
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, decompose_linear, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
@@ -154,12 +153,12 @@ fn conv_transpose3d_kernel<E: Numeric>(
     output.write(ABSOLUTE_POS, sum);
 }
 
-pub(crate) fn conv_transpose3d<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub(crate) fn conv_transpose3d(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvTransposeOptions<3>,
-) -> Result<CubeTensor<R>, LaunchError> {
+) -> Result<CubeTensor, LaunchError> {
     let [batch_size, _, in_depth, in_height, in_width] = input.meta.shape().dims();
     let [_, out_channels, kernel_0, kernel_1, kernel_2] = weight.meta.shape().dims();
 

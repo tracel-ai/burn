@@ -8,7 +8,7 @@ use crate::{
 };
 use burn_ir::{TensorId, TensorIr};
 use burn_std::{Shape, Strides};
-use cubecl::{Runtime, ir::VectorSize};
+use cubecl::ir::VectorSize;
 use std::collections::BTreeMap;
 
 /// The `LaunchPlan` is responsible for aggregating all runtime information required
@@ -17,13 +17,13 @@ use std::collections::BTreeMap;
 /// It maps abstract IR tensors to memory handles, manages vectorization
 /// strategies, and tracks layout transformations.
 #[derive(Debug)]
-pub struct LaunchPlan<'a, R: Runtime> {
+pub struct LaunchPlan<'a> {
     /// The IR representation of tensors that are results of the fusion.
     pub global_outputs: Vec<TensorIr>,
     /// Memory handles and metadata for all input tensors.
-    pub handle_inputs: Vec<HandleInput<R>>,
+    pub handle_inputs: Vec<HandleInput>,
     /// Memory handles and metadata for all output tensors, including aliased inputs.
-    pub handle_outputs: Vec<HandleOutput<R>>,
+    pub handle_outputs: Vec<HandleOutput>,
     /// The rank across all tensors in the plan.
     ///
     /// Smaller tensors are unsqueezed during launch.
@@ -98,7 +98,7 @@ pub enum ReferenceSelection {
     Runtime { pos: usize },
 }
 
-impl<R: Runtime> LaunchPlan<'_, R> {
+impl LaunchPlan<'_> {
     /// Creates a new `LaunchPlan` from a slice of fusion blocks.
     ///
     /// Initializes blocks with default "Searching" references and calculates
@@ -135,8 +135,8 @@ impl<R: Runtime> LaunchPlan<'_, R> {
 /// Debugging information for aliased handles when `autotune-checks` is enabled.
 #[cfg(feature = "autotune-checks")]
 #[derive(Debug, Clone)]
-pub struct HandleOutputAliasDebugInfo<R: Runtime> {
-    pub handle: CubeFusionHandle<R>,
+pub struct HandleOutputAliasDebugInfo {
+    pub handle: CubeFusionHandle,
     pub relative_id: TensorId,
     pub global_shape: Shape,
 }
@@ -144,7 +144,7 @@ pub struct HandleOutputAliasDebugInfo<R: Runtime> {
 /// Represents the output of a fused kernel execution.
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
-pub enum HandleOutput<R: Runtime> {
+pub enum HandleOutput {
     /// An output that reuses the memory of an input tensor (In-place).
     Alias {
         /// Index of the input handle being aliased.
@@ -154,14 +154,14 @@ pub enum HandleOutput<R: Runtime> {
         global_shape: Shape,
         strides: Strides,
         #[cfg(feature = "autotune-checks")]
-        debug_info: HandleOutputAliasDebugInfo<R>,
+        debug_info: HandleOutputAliasDebugInfo,
     },
     /// An output that requires a newly allocated memory buffer.
     Owned {
         global_id: TensorId,
         relative_id: TensorId,
         precision: FuseType,
-        handle: CubeFusionHandle<R>,
+        handle: CubeFusionHandle,
         global_shape: Shape,
         vectorization: VectorSize,
     },
@@ -169,11 +169,11 @@ pub enum HandleOutput<R: Runtime> {
 
 /// A standard input handle with associated layout and vectorization metadata.
 #[derive(Debug, Clone)]
-pub struct NormalHandleInput<R: Runtime> {
+pub struct NormalHandleInput {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
     pub precision: FuseType,
-    pub handle: CubeFusionHandle<R>,
+    pub handle: CubeFusionHandle,
     pub vector_size: VectorSize,
     pub broadcated: bool,
     /// Stores the original strides of the handle for restoration during plan rollback.
@@ -182,33 +182,33 @@ pub struct NormalHandleInput<R: Runtime> {
 
 /// An input handle containing values for a quantized tensor.
 #[derive(Debug, Clone)]
-pub struct QuantValuesHandleInput<R: Runtime> {
+pub struct QuantValuesHandleInput {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
     pub precision: FuseType,
-    pub handle: CubeFusionHandle<R>,
+    pub handle: CubeFusionHandle,
     pub vector_size: VectorSize,
 }
 
 /// An input handle containing parameters (scales/offsets) for quantization.
 #[derive(Debug, Clone)]
-pub struct QuantParamsHandleInput<R: Runtime> {
+pub struct QuantParamsHandleInput {
     pub precision: FuseType,
-    pub handle: CubeFusionHandle<R>,
+    pub handle: CubeFusionHandle,
     pub shape: Shape,
 }
 
 /// Different types of inputs that can be passed to a fused kernel.
 #[derive(Debug, Clone)]
-pub enum HandleInput<R: Runtime> {
-    Normal(NormalHandleInput<R>),
-    QuantValues(QuantValuesHandleInput<R>),
-    QuantParams(QuantParamsHandleInput<R>),
+pub enum HandleInput {
+    Normal(NormalHandleInput),
+    QuantValues(QuantValuesHandleInput),
+    QuantParams(QuantParamsHandleInput),
 }
 
-impl<R: Runtime> HandleInput<R> {
+impl HandleInput {
     /// Returns a reference to the inner `NormalHandleInput` if the variant matches.
-    pub fn as_normal(&self) -> Option<&NormalHandleInput<R>> {
+    pub fn as_normal(&self) -> Option<&NormalHandleInput> {
         match self {
             HandleInput::Normal(normal) => Some(normal),
             _ => None,
@@ -216,13 +216,13 @@ impl<R: Runtime> HandleInput<R> {
     }
 }
 
-impl<R: Runtime> NormalHandleInput<R> {
+impl NormalHandleInput {
     /// Creates a new `NormalHandleInput` tracking original strides.
     pub fn new(
         tensor_global: TensorIr,
         tensor_relative: &TensorIr,
         precision: FuseType,
-        mut handle: CubeFusionHandle<R>,
+        mut handle: CubeFusionHandle,
         mut strides: Strides,
     ) -> Self {
         // Swap current handle strides with provided strides to track the original state for rollback.
@@ -241,7 +241,7 @@ impl<R: Runtime> NormalHandleInput<R> {
     /// Restores the handle's original strides and returns the handle.
     ///
     /// Used when a plan is invalidated or needs to be rolled back.
-    pub fn handle_rollback(mut self) -> CubeFusionHandle<R> {
+    pub fn handle_rollback(mut self) -> CubeFusionHandle {
         core::mem::swap(&mut self.handle.strides, &mut self.orig_strides);
         self.handle
     }

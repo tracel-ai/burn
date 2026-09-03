@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::{
         AddOp, AssignOp, BinaryMaxOp, BinaryMinOp, BinaryOp, BinaryOpFamily, MulOp,
         utils::{address_type, shape_divmod_range},
@@ -86,12 +85,12 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     data[data_idx] = result.extract(0usize);
 }
 
-pub(crate) fn scatter_nd<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    indices: CubeTensor<R>,
-    values: CubeTensor<R>,
+pub(crate) fn scatter_nd(
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    values: CubeTensor,
     reduction: IndexingUpdateOp,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     // Ensure we can write in-place
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,

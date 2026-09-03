@@ -7,7 +7,7 @@ use cubecl::{
 use cubek::convolution::{AcceleratedTileKind, DepthwiseStrategy, DepthwiseTiling};
 
 use crate::{
-    CubeAutotuneKey, CubeRuntime, CubeTuneId,
+    CubeAutotuneKey, CubeTuneId,
     kernel::conv::{
         ConvAutotuneKey, conv_direct, conv_im2col_1x1, forward::depthwise::conv_depthwise,
         forward::implicit_gemm::*,
@@ -47,22 +47,22 @@ const DEPTHWISE_4X2_SCALAR: DepthwiseStrategy = DepthwiseStrategy::Fixed(Depthwi
 });
 
 /// Executes autotune on convolution operations
-pub fn conv_autotune<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_autotune<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let client = input.client.clone();
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tune_id = CubeTuneId::new(&input.client, &input.device);
     let tunables = TUNER.init(&tune_id, || {
-        TunableSet::new(create_key::<R, N>, create_conv_input::<R, N>)
+        TunableSet::new(create_key::<N>, create_conv_input::<N>)
             .with(Tunable::new(
                 "conv_direct",
-                |(input, weight, bias, options)| conv_direct::<R, N>(input, weight, bias, options),
+                |(input, weight, bias, options)| conv_direct::<N>(input, weight, bias, options),
             ))
             // Declines with `NotDepthwise` on anything that is not one filter per channel, so
             // each of these costs a dense shape nothing but the setup call that rejects it.
@@ -75,38 +75,36 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
             .with(Tunable::new(
                 "conv_depthwise",
                 |(input, weight, bias, options)| {
-                    conv_depthwise::<R, N>(input, weight, bias, options, DepthwiseStrategy::Routine)
+                    conv_depthwise::<N>(input, weight, bias, options, DepthwiseStrategy::Routine)
                 },
             ))
             .with(Tunable::new(
                 "conv_depthwise_8x4_lined",
                 |(input, weight, bias, options)| {
-                    conv_depthwise::<R, N>(input, weight, bias, options, DEPTHWISE_8X4_LINED)
+                    conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_8X4_LINED)
                 },
             ))
             .with(Tunable::new(
                 "conv_depthwise_2x4_scalar",
                 |(input, weight, bias, options)| {
-                    conv_depthwise::<R, N>(input, weight, bias, options, DEPTHWISE_2X4_SCALAR)
+                    conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_2X4_SCALAR)
                 },
             ))
             .with(Tunable::new(
                 "conv_depthwise_8x2_lined",
                 |(input, weight, bias, options)| {
-                    conv_depthwise::<R, N>(input, weight, bias, options, DEPTHWISE_8X2_LINED)
+                    conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_8X2_LINED)
                 },
             ))
             .with(Tunable::new(
                 "conv_depthwise_4x2_scalar",
                 |(input, weight, bias, options)| {
-                    conv_depthwise::<R, N>(input, weight, bias, options, DEPTHWISE_4X2_SCALAR)
+                    conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_4X2_SCALAR)
                 },
             ))
             .with(Tunable::new(
                 "conv_im2col_1x1",
-                |(input, weight, bias, options)| {
-                    conv_im2col_1x1::<R, N>(input, weight, bias, options)
-                },
+                |(input, weight, bias, options)| conv_im2col_1x1::<N>(input, weight, bias, options),
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",
@@ -149,20 +147,10 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
     TUNER.execute(&tune_id, &client, tunables, (input, weight, bias, options))
 }
 
-pub fn create_conv_input<R: CubeRuntime, const N: usize>(
+pub fn create_conv_input<const N: usize>(
     _key: &CubeAutotuneKey,
-    (input, weights, bias, options): &(
-        CubeTensor<R>,
-        CubeTensor<R>,
-        Option<CubeTensor<R>>,
-        ConvOptions<N>,
-    ),
-) -> (
-    CubeTensor<R>,
-    CubeTensor<R>,
-    Option<CubeTensor<R>>,
-    ConvOptions<N>,
-) {
+    (input, weights, bias, options): &(CubeTensor, CubeTensor, Option<CubeTensor>, ConvOptions<N>),
+) -> (CubeTensor, CubeTensor, Option<CubeTensor>, ConvOptions<N>) {
     (
         input.clone(),
         weights.clone(),
@@ -171,13 +159,8 @@ pub fn create_conv_input<R: CubeRuntime, const N: usize>(
     )
 }
 
-fn create_key<R: CubeRuntime, const N: usize>(
-    (input, weights, bias, options): &(
-        CubeTensor<R>,
-        CubeTensor<R>,
-        Option<CubeTensor<R>>,
-        ConvOptions<N>,
-    ),
+fn create_key<const N: usize>(
+    (input, weights, bias, options): &(CubeTensor, CubeTensor, Option<CubeTensor>, ConvOptions<N>),
 ) -> CubeAutotuneKey {
     let dtype = input.dtype;
     let rank = input.meta.shape().num_dims();

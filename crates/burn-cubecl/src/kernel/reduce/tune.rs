@@ -2,7 +2,7 @@
 
 use super::{SumAutotuneKey, accumulator_len};
 use crate::{
-    CubeAutotuneKey, CubeRuntime, CubeTuneId,
+    CubeAutotuneKey, CubeTuneId,
     kernel::reduce::bounds::{
         with_reduce_bounds, with_reduce_with_indices_bounds, with_sum_bounds,
     },
@@ -169,10 +169,10 @@ where
 }
 
 /// Executes autotune on reduce operations.
-pub fn autotune_reduce<R: CubeRuntime>(
+pub fn autotune_reduce(
     client: &Client,
-    input: CubeTensor<R>,
-    output: CubeTensor<R>,
+    input: CubeTensor,
+    output: CubeTensor,
     axis: usize,
     config: ReduceOperationConfig,
     dtypes: ReduceDtypes,
@@ -184,12 +184,12 @@ pub fn autotune_reduce<R: CubeRuntime>(
     let tune_id = CubeTuneId::new(&input.client, &input.device);
     let tunables = TUNER.init(&tune_id, || {
         with_routine_tunables(
-            with_reduce_bounds(TunableSet::new(create_key::<R>, reduce_input_gen::<R>)),
+            with_reduce_bounds(TunableSet::new(create_key, reduce_input_gen)),
             "reduce",
             |strategy,
              (input, output, axis, config, dtypes): (
-                CubeTensor<R>,
-                CubeTensor<R>,
+                CubeTensor,
+                CubeTensor,
                 usize,
                 ReduceOperationConfig,
                 ReduceDtypes,
@@ -216,10 +216,10 @@ pub fn autotune_reduce<R: CubeRuntime>(
     );
 }
 
-pub(crate) fn create_key<Run: CubeRuntime>(
+pub(crate) fn create_key(
     (input, output, axis, config, dtypes): &(
-        CubeTensor<Run>,
-        CubeTensor<Run>,
+        CubeTensor,
+        CubeTensor,
         usize,
         ReduceOperationConfig,
         ReduceDtypes,
@@ -251,11 +251,11 @@ pub(crate) fn create_key<Run: CubeRuntime>(
 /// than plane/cube on a large reduce, which would make one fused launch lose to the two
 /// autotuned launches it replaces.
 #[allow(clippy::too_many_arguments)]
-pub fn autotune_reduce_with_indices<R: CubeRuntime>(
+pub fn autotune_reduce_with_indices(
     client: &Client,
-    input: CubeTensor<R>,
-    values: CubeTensor<R>,
-    indices: CubeTensor<R>,
+    input: CubeTensor,
+    values: CubeTensor,
+    indices: CubeTensor,
     axis: usize,
     config: ReduceOperationConfig,
     dtypes: ReduceWithIndicesDtypes,
@@ -269,15 +269,15 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
     let tunables = TUNER.init(&tune_id, || {
         with_routine_tunables(
             with_reduce_with_indices_bounds(TunableSet::new(
-                create_key_with_indices::<R>,
-                reduce_with_indices_input_gen::<R>,
+                create_key_with_indices,
+                reduce_with_indices_input_gen,
             )),
             "reduce_with_indices",
             |strategy,
              (input, values, indices, axis, config, dtypes): (
-                CubeTensor<R>,
-                CubeTensor<R>,
-                CubeTensor<R>,
+                CubeTensor,
+                CubeTensor,
+                CubeTensor,
                 usize,
                 ReduceOperationConfig,
                 ReduceWithIndicesDtypes,
@@ -305,11 +305,11 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
     );
 }
 
-pub(crate) fn create_key_with_indices<Run: CubeRuntime>(
+pub(crate) fn create_key_with_indices(
     (input, values, _indices, axis, config, dtypes): &(
-        CubeTensor<Run>,
-        CubeTensor<Run>,
-        CubeTensor<Run>,
+        CubeTensor,
+        CubeTensor,
+        CubeTensor,
         usize,
         ReduceOperationConfig,
         ReduceWithIndicesDtypes,
@@ -337,20 +337,20 @@ mod reduce_with_indices_ops {
 
     use super::*;
 
-    pub(crate) fn reduce_with_indices_input_gen<Run: CubeRuntime>(
+    pub(crate) fn reduce_with_indices_input_gen(
         _key: &ReduceDimAutotuneKey,
         (input, values, indices, dim, config, dtypes): &(
-            CubeTensor<Run>,
-            CubeTensor<Run>,
-            CubeTensor<Run>,
+            CubeTensor,
+            CubeTensor,
+            CubeTensor,
             usize,
             ReduceOperationConfig,
             ReduceWithIndicesDtypes,
         ),
     ) -> (
-        CubeTensor<Run>,
-        CubeTensor<Run>,
-        CubeTensor<Run>,
+        CubeTensor,
+        CubeTensor,
+        CubeTensor,
         usize,
         ReduceOperationConfig,
         ReduceWithIndicesDtypes,
@@ -373,18 +373,18 @@ mod reduce_ops {
 
     use super::*;
 
-    pub(crate) fn reduce_input_gen<Run: CubeRuntime>(
+    pub(crate) fn reduce_input_gen(
         _key: &ReduceDimAutotuneKey,
         (input, output, dim, config, dtypes): &(
-            CubeTensor<Run>,
-            CubeTensor<Run>,
+            CubeTensor,
+            CubeTensor,
             usize,
             ReduceOperationConfig,
             ReduceDtypes,
         ),
     ) -> (
-        CubeTensor<Run>,
-        CubeTensor<Run>,
+        CubeTensor,
+        CubeTensor,
         usize,
         ReduceOperationConfig,
         ReduceDtypes,
@@ -395,34 +395,34 @@ mod reduce_ops {
 
 /// Executes autotune on reduce operations.
 #[cfg(feature = "autotune")]
-pub fn autotune_sum<R: CubeRuntime>(client: &Client, input: CubeTensor<R>) -> CubeTensor<R> {
+pub fn autotune_sum(client: &Client, input: CubeTensor) -> CubeTensor {
     use sum_ops::*;
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!("autotune-sum");
 
     let tune_id = CubeTuneId::new(&input.client, &input.device);
     let tunables = TUNER.init(&tune_id, || {
-        with_sum_bounds(TunableSet::new(create_key_sum::<R>, sum_input_gen::<R>))
-            .with(Tunable::new("sum_chained", sum_chained::<R>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 1>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 2>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 4>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 8>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 16>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 32>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 64>))
+        with_sum_bounds(TunableSet::new(create_key_sum, sum_input_gen))
+            .with(Tunable::new("sum_chained", sum_chained))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<1>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<2>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<4>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<8>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<16>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<32>))
+            .with(Tunable::new("sum_one_shot", sum_one_shot::<64>))
     });
 
     TUNER.execute(&tune_id, client, tunables, input)
 }
 
-pub(crate) fn create_key_sum<Run: CubeRuntime>(input: &CubeTensor<Run>) -> CubeAutotuneKey {
+pub(crate) fn create_key_sum(input: &CubeTensor) -> CubeAutotuneKey {
     CubeAutotuneKey::Sum(SumAutotuneKey::generate(input))
 }
 
 impl SumAutotuneKey {
     #[allow(unused)]
-    pub(crate) fn generate<Run: CubeRuntime>(input: &CubeTensor<Run>) -> Self {
+    pub(crate) fn generate(input: &CubeTensor) -> Self {
         let dtype = input.dtype;
         let length = input.meta.num_elements();
         Self::new(dtype, length)
@@ -434,16 +434,11 @@ mod sum_ops {
 
     use super::*;
 
-    pub(crate) fn sum_input_gen<Run: CubeRuntime>(
-        _key: &CubeAutotuneKey,
-        input: &CubeTensor<Run>,
-    ) -> CubeTensor<Run> {
+    pub(crate) fn sum_input_gen(_key: &CubeAutotuneKey, input: &CubeTensor) -> CubeTensor {
         input.clone()
     }
 
-    pub(crate) fn sum_one_shot<Run: CubeRuntime, const C: u32>(
-        input: CubeTensor<Run>,
-    ) -> Result<CubeTensor<Run>, String> {
+    pub(crate) fn sum_one_shot<const C: u32>(input: CubeTensor) -> Result<CubeTensor, String> {
         let client = input.client.clone();
         let device = input.device.clone();
         let output = zeros_client(client.clone(), device, [1].into(), input.dtype);
@@ -461,9 +456,7 @@ mod sum_ops {
     }
 
     #[cfg(feature = "autotune")]
-    pub(crate) fn sum_chained<Run: CubeRuntime>(
-        input: CubeTensor<Run>,
-    ) -> Result<CubeTensor<Run>, String> {
+    pub(crate) fn sum_chained(input: CubeTensor) -> Result<CubeTensor, String> {
         crate::kernel::reduce::reduce(
             input,
             None,

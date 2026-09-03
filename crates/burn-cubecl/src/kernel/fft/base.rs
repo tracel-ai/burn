@@ -1,6 +1,6 @@
 use crate::kernel::index::slice;
 use crate::ops::numeric::{empty_device_dtype, zeros};
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::tensor::CubeTensor;
 use burn_backend::{DType, TensorMetadata};
 use burn_std::Slice;
 use cubecl::prelude::*;
@@ -9,11 +9,7 @@ use cubek::fft::{irfft_launch, rfft_launch};
 // Materializes a padded tensor (allocate + copy) because rfft_launch/irfft_launch
 // in the external cubek crate don't support virtual padding via a length parameter.
 // See: https://github.com/tracel-ai/cubek/issues/194
-fn pad_to_length<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    dim: usize,
-    target: usize,
-) -> CubeTensor<R> {
+fn pad_to_length(tensor: CubeTensor, dim: usize, target: usize) -> CubeTensor {
     let shape = tensor.shape();
     let current = shape[dim];
     if current == target {
@@ -29,9 +25,9 @@ fn pad_to_length<R: CubeRuntime>(
     }
     let mut padded_shape = shape.clone();
     padded_shape[dim] = target;
-    let padded = zeros::<R>(tensor.device.clone(), padded_shape, tensor.dtype);
+    let padded = zeros(tensor.device.clone(), padded_shape, tensor.dtype);
     let slices: Vec<Slice> = shape.iter().map(|&s| Slice::from(0..s)).collect();
-    crate::kernel::index::slice_assign::<R>(padded, &slices, tensor)
+    crate::kernel::index::slice_assign(padded, &slices, tensor)
 }
 
 /// Launch the rfft kernel with optional padding for non-power-of-two sizes.
@@ -39,11 +35,7 @@ fn pad_to_length<R: CubeRuntime>(
 /// Signal is first truncated or zero-padded to `n` (when provided), then internally
 /// padded to the next power of two so the kernel operates on a pow2 length.
 /// Output bin count is `fft_size / 2 + 1` where `fft_size = next_pow2(n)`.
-pub fn rfft<R: CubeRuntime>(
-    signal: CubeTensor<R>,
-    dim: usize,
-    n: Option<usize>,
-) -> (CubeTensor<R>, CubeTensor<R>) {
+pub fn rfft(signal: CubeTensor, dim: usize, n: Option<usize>) -> (CubeTensor, CubeTensor) {
     let dtype = match signal.dtype {
         DType::F64 => f64::elem_type_native(),
         DType::F32 => f32::elem_type_native(),
@@ -97,12 +89,12 @@ pub fn rfft<R: CubeRuntime>(
 }
 
 /// Launch the irfft kernel with optional padding for non-power-of-two sizes.
-pub fn irfft<R: CubeRuntime>(
-    spectrum_re: CubeTensor<R>,
-    spectrum_im: CubeTensor<R>,
+pub fn irfft(
+    spectrum_re: CubeTensor,
+    spectrum_im: CubeTensor,
     dim: usize,
     n: Option<usize>,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     assert!(
         spectrum_re.shape() == spectrum_im.shape(),
         "irfft: spectrum_re and spectrum_im shapes must match"

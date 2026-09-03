@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, decompose_linear, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
@@ -127,12 +126,12 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_direct<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_transpose2d_direct(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvTransposeOptions<2>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let [batch_size, _, in_height, in_width] = input.meta.shape().dims();
     let [_, out_channels, kernel_0, kernel_1] = weight.meta.shape().dims();
 

@@ -18,21 +18,21 @@ pub use hardware_accelerated::*;
 
 use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive, dispatch_int_dtype};
 
-pub(crate) fn stats_from_opts<R: CubeRuntime>(
-    l: CubeTensor<R>,
+pub(crate) fn stats_from_opts(
+    l: CubeTensor,
     opts: ConnectedStatsOptions,
     int_dtype: DType,
-) -> ConnectedStatsPrimitive<CubeBackend<R>> {
+) -> ConnectedStatsPrimitive<CubeBackend> {
     let [height, width] = l.meta.shape().dims();
     let shape = Shape::new([height * width]);
-    let zeros = || zeros_client::<R>(l.client.clone(), l.device.clone(), shape.clone(), int_dtype);
+    let zeros = || zeros_client::(l.client.clone(), l.device.clone(), shape.clone(), int_dtype);
 
     let max = dispatch_int_dtype!(int_dtype.into(), |I| InputScalar::new(
         I::MAX,
         dtype_to_storage_type(int_dtype)
     ));
     let max = || {
-        full_device_dtype::<R>(
+        full_device_dtype::(
             l.client.clone(),
             shape.clone(),
             l.device.clone(),
@@ -57,7 +57,7 @@ pub(crate) fn stats_from_opts<R: CubeRuntime>(
         top: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
         right: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
         bottom: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
-        max_label: zeros_client::<R>(
+        max_label: zeros_client::(
             l.client.clone(),
             l.device.clone(),
             Shape::new([1]),

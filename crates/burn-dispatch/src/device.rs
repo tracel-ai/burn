@@ -13,7 +13,9 @@ use alloc::boxed::Box;
 #[cfg(feature = "cubecl")]
 use alloc::vec::Vec;
 #[cfg(feature = "cubecl")]
-use burn_backend::cubecl::{ThroughputError, ThroughputKey, ThroughputValue};
+use burn_backend::cubecl::{
+    Device as CubeDevice, ThroughputError, ThroughputKey, ThroughputValue, measure_peak_throughput,
+};
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
@@ -24,41 +26,19 @@ use burn_backend::cubecl::{ThroughputError, ThroughputKey, ThroughputValue};
 /// ```ignore
 /// use burn::DispatchDevice;
 ///
-/// #[cfg(feature = "cpu")]
-/// let cpu_device = DispatchDevice::Cpu(Default::default());
-///
+/// // One variant covers every cubecl runtime; the device inside says which.
 /// #[cfg(feature = "cuda")]
-/// let cuda_device = DispatchDevice::Cuda(Default::default());
+/// let cuda_device = DispatchDevice::Cube(cubecl::Device::Cuda(Default::default()));
+///
+/// #[cfg(feature = "ndarray")]
+/// let ndarray_device = DispatchDevice::NdArray(Default::default());
 /// ```
 #[derive(Clone, Eq)]
 pub enum DispatchDevice {
-    /// The [CPU backend](Cpu) device.
-    #[cfg(feature = "cpu")]
-    Cpu(CpuDevice),
-
-    /// The [CUDA backend](Cuda) device.
-    #[cfg(feature = "cuda")]
-    Cuda(CudaDevice),
-
-    /// The [Metal backend](Metal) device (via WGPU runtime).
-    #[cfg(feature = "metal")]
-    Metal(WgpuDevice),
-
-    /// The [ROCm backend](Rocm) device.
-    #[cfg(feature = "rocm")]
-    Rocm(RocmDevice),
-
-    /// The [Vulkan backend](Vulkan) device.
-    #[cfg(feature = "vulkan")]
-    Vulkan(WgpuDevice),
-
-    /// The [Wgpu backend](Wgpu) device (via WGPU runtime with auto-selected compiler).
-    #[cfg(feature = "wgpu")]
-    Wgpu(WgpuDevice),
-
-    /// The [WebGPU backend](WebGpu) device (via WGPU runtime).
-    #[cfg(feature = "webgpu")]
-    WebGpu(WgpuDevice),
+    /// A device of the [cubecl backend](Cube): CUDA, ROCm, Metal, Vulkan,
+    /// WebGPU, wgpu or the CPU runtime.
+    #[cfg(cube_backend)]
+    Cube(CubeDevice),
 
     /// The [Flex backend](Flex) device (CPU-only).
     #[cfg(any(feature = "flex", default_backend))]
@@ -101,20 +81,13 @@ impl DispatchDevice {
         // No catch-all arm: a new backend must fail to compile here rather
         // than silently report no peaks.
         match self {
-            #[cfg(feature = "cpu")]
-            DispatchDevice::Cpu(device) => burn_cpu::device_throughput(device, keys),
-            #[cfg(feature = "cuda")]
-            DispatchDevice::Cuda(device) => burn_cuda::device_throughput(device, keys),
-            #[cfg(feature = "rocm")]
-            DispatchDevice::Rocm(device) => burn_rocm::device_throughput(device, keys),
-            #[cfg(feature = "wgpu")]
-            DispatchDevice::Wgpu(device) => burn_wgpu::device_throughput(device, keys),
-            #[cfg(feature = "vulkan")]
-            DispatchDevice::Vulkan(device) => burn_wgpu::device_throughput(device, keys),
-            #[cfg(feature = "metal")]
-            DispatchDevice::Metal(device) => burn_wgpu::device_throughput(device, keys),
-            #[cfg(feature = "webgpu")]
-            DispatchDevice::WebGpu(device) => burn_wgpu::device_throughput(device, keys),
+            #[cfg(cube_backend)]
+            DispatchDevice::Cube(device) => {
+                let client = device.client();
+                keys.iter()
+                    .map(|key| measure_peak_throughput(&client, *key))
+                    .collect()
+            }
             // Autodiff does not change the hardware, so measure the wrapped device.
             #[cfg(feature = "autodiff")]
             DispatchDevice::Autodiff(device) => device.performance_stats(keys),
@@ -213,20 +186,8 @@ pub enum GradientCheckpointingStrategy {
 impl core::fmt::Debug for DispatchDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(device) => f.debug_tuple("Cpu").field(device).finish(),
-            #[cfg(feature = "cuda")]
-            Self::Cuda(device) => f.debug_tuple("Cuda").field(device).finish(),
-            #[cfg(feature = "metal")]
-            Self::Metal(device) => f.debug_tuple("Metal").field(device).finish(),
-            #[cfg(feature = "rocm")]
-            Self::Rocm(device) => f.debug_tuple("Rocm").field(device).finish(),
-            #[cfg(feature = "vulkan")]
-            Self::Vulkan(device) => f.debug_tuple("Vulkan").field(device).finish(),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(device) => f.debug_tuple("Wgpu").field(device).finish(),
-            #[cfg(feature = "webgpu")]
-            Self::WebGpu(device) => f.debug_tuple("WebGpu").field(device).finish(),
+            #[cfg(cube_backend)]
+            Self::Cube(device) => f.debug_tuple("Cube").field(device).finish(),
             #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
             #[cfg(feature = "ndarray")]
@@ -261,51 +222,38 @@ impl Default for DispatchDevice {
         {
             if let Ok(device_str) = std::env::var("BURN_DEVICE") {
                 match device_str.to_lowercase().as_str() {
+                    // Every cubecl runtime is the one `Cube` backend; the name here
+                    // picks the runtime the device names, and the wgpu spellings all
+                    // reach wgpu, whose compiler is chosen for it at runtime.
                     "cuda" => {
                         #[cfg(feature = "cuda")]
-                        return Self::Cuda(CudaDevice::default());
+                        return Self::Cube(CubeDevice::Cuda(Default::default()));
                         panic!(
                             "BURN_DEVICE=cuda requested, but the 'cuda' feature is not enabled."
                         );
                     }
-                    "metal" => {
-                        #[cfg(feature = "metal")]
-                        return Self::Metal(burn_wgpu::WgpuDevice::default());
-                        panic!(
-                            "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
-                        );
-                    }
                     "rocm" => {
                         #[cfg(feature = "rocm")]
-                        return Self::Rocm(RocmDevice::default());
+                        return Self::Cube(CubeDevice::Hip(Default::default()));
                         panic!(
                             "BURN_DEVICE=rocm requested, but the 'rocm' feature is not enabled."
                         );
                     }
-                    "vulkan" => {
-                        #[cfg(feature = "vulkan")]
-                        return Self::Vulkan(burn_wgpu::WgpuDevice::default());
+                    "metal" | "vulkan" | "webgpu" | "wgpu" => {
+                        #[cfg(any(
+                            feature = "metal",
+                            feature = "vulkan",
+                            feature = "webgpu",
+                            feature = "wgpu"
+                        ))]
+                        return Self::Cube(CubeDevice::Wgpu(Default::default()));
                         panic!(
-                            "BURN_DEVICE=vulkan requested, but the 'vulkan' feature is not enabled."
-                        );
-                    }
-                    "webgpu" => {
-                        #[cfg(feature = "webgpu")]
-                        return Self::WebGpu(burn_wgpu::WgpuDevice::default());
-                        panic!(
-                            "BURN_DEVICE=webgpu requested, but the 'webgpu' feature is not enabled."
-                        );
-                    }
-                    "wgpu" => {
-                        #[cfg(feature = "wgpu")]
-                        return Self::Wgpu(burn_wgpu::WgpuDevice::default());
-                        panic!(
-                            "BURN_DEVICE=wgpu requested, but the 'wgpu' feature is not enabled."
+                            "BURN_DEVICE={device_str} requested, but no wgpu feature is enabled."
                         );
                     }
                     "cpu" => {
                         #[cfg(feature = "cpu")]
-                        return Self::Cpu(CpuDevice);
+                        return Self::Cube(CubeDevice::Cpu(Default::default()));
                         panic!("BURN_DEVICE=cpu requested, but the 'cpu' feature is not enabled.");
                     }
                     "tch" => {
@@ -339,26 +287,8 @@ impl Default for DispatchDevice {
             }
         }
 
-        #[cfg(feature = "cuda")]
-        return Self::Cuda(CudaDevice::default());
-
-        #[cfg(feature = "metal")]
-        return Self::Metal(burn_wgpu::WgpuDevice::default());
-
-        #[cfg(feature = "rocm")]
-        return Self::Rocm(RocmDevice::default());
-
-        #[cfg(feature = "vulkan")]
-        return Self::Vulkan(burn_wgpu::WgpuDevice::default());
-
-        #[cfg(feature = "webgpu")]
-        return Self::WebGpu(burn_wgpu::WgpuDevice::default());
-
-        #[cfg(feature = "wgpu")]
-        return Self::Wgpu(burn_wgpu::WgpuDevice::default());
-
-        #[cfg(feature = "cpu")]
-        return Self::Cpu(CpuDevice);
+        #[cfg(cube_backend)]
+        return Self::Cube(Default::default());
 
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
@@ -393,20 +323,8 @@ impl PartialEq for DispatchDevice {
             (DispatchDevice::Autodiff(a), b) => a.inner.as_ref() == b,
             #[cfg(feature = "autodiff")]
             (a, DispatchDevice::Autodiff(b)) => a == b.inner.as_ref(),
-            #[cfg(feature = "cpu")]
-            (Self::Cpu(a), Self::Cpu(b)) => a == b,
-            #[cfg(feature = "cuda")]
-            (Self::Cuda(a), Self::Cuda(b)) => a == b,
-            #[cfg(feature = "metal")]
-            (Self::Metal(a), Self::Metal(b)) => a == b,
-            #[cfg(feature = "rocm")]
-            (Self::Rocm(a), Self::Rocm(b)) => a == b,
-            #[cfg(feature = "vulkan")]
-            (Self::Vulkan(a), Self::Vulkan(b)) => a == b,
-            #[cfg(feature = "wgpu")]
-            (Self::Wgpu(a), Self::Wgpu(b)) => a == b,
-            #[cfg(feature = "webgpu")]
-            (Self::WebGpu(a), Self::WebGpu(b)) => a == b,
+            #[cfg(cube_backend)]
+            (Self::Cube(a), Self::Cube(b)) => a == b,
             #[cfg(any(feature = "flex", default_backend))]
             (Self::Flex(a), Self::Flex(b)) => a == b,
             #[cfg(feature = "ndarray")]
@@ -463,20 +381,8 @@ impl DispatchDevice {
     /// Returns a unique number per variant to encode into type_id.
     fn backend_id(&self) -> DispatchDeviceId {
         match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(_) => DispatchDeviceId::Cpu,
-            #[cfg(feature = "cuda")]
-            Self::Cuda(_) => DispatchDeviceId::Cuda,
-            #[cfg(feature = "metal")]
-            Self::Metal(_) => DispatchDeviceId::Metal,
-            #[cfg(feature = "rocm")]
-            Self::Rocm(_) => DispatchDeviceId::Rocm,
-            #[cfg(feature = "vulkan")]
-            Self::Vulkan(_) => DispatchDeviceId::Vulkan,
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(_) => DispatchDeviceId::Wgpu,
-            #[cfg(feature = "webgpu")]
-            Self::WebGpu(_) => DispatchDeviceId::WebGpu,
+            #[cfg(cube_backend)]
+            Self::Cube(_) => DispatchDeviceId::Cube,
             #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(_) => DispatchDeviceId::Flex,
             #[cfg(feature = "ndarray")]
@@ -516,16 +422,11 @@ impl DispatchDevice {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum DispatchDeviceId {
-    Cpu = 0,
-    Cuda = 1,
-    Wgpu = 2,
-    Rocm = 3,
+    /// Every cubecl runtime: which one is in the device's own id.
+    Cube = 0,
     Flex = 4,
     LibTorch = 5,
     NdArray = 6,
-    Metal = 7,
-    Vulkan = 8,
-    WebGpu = 9,
     Remote = 10,
     Capture = 11,
 }
@@ -541,26 +442,14 @@ impl TryFrom<u16> for DispatchDeviceId {
 
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
-            #[cfg(feature = "cpu")]
-            0 => Ok(Self::Cpu),
-            #[cfg(feature = "cuda")]
-            1 => Ok(Self::Cuda),
-            #[cfg(feature = "wgpu")]
-            2 => Ok(Self::Wgpu),
-            #[cfg(feature = "rocm")]
-            3 => Ok(Self::Rocm),
+            #[cfg(cube_backend)]
+            0 => Ok(Self::Cube),
             #[cfg(any(feature = "flex", default_backend))]
             4 => Ok(Self::Flex),
             #[cfg(feature = "tch")]
             5 => Ok(Self::LibTorch),
             #[cfg(feature = "ndarray")]
             6 => Ok(Self::NdArray),
-            #[cfg(feature = "metal")]
-            7 => Ok(Self::Metal),
-            #[cfg(feature = "vulkan")]
-            8 => Ok(Self::Vulkan),
-            #[cfg(feature = "webgpu")]
-            9 => Ok(Self::WebGpu),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
             #[cfg(feature = "capture")]
@@ -573,20 +462,8 @@ impl TryFrom<u16> for DispatchDeviceId {
 impl DeviceOps for DispatchDevice {
     fn defaults(&self) -> DeviceSettings {
         match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(device) => device.defaults(),
-            #[cfg(feature = "cuda")]
-            Self::Cuda(device) => device.defaults(),
-            #[cfg(feature = "metal")]
-            Self::Metal(device) => device.defaults(),
-            #[cfg(feature = "rocm")]
-            Self::Rocm(device) => device.defaults(),
-            #[cfg(feature = "vulkan")]
-            Self::Vulkan(device) => device.defaults(),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(device) => device.defaults(),
-            #[cfg(feature = "webgpu")]
-            Self::WebGpu(device) => device.defaults(),
+            #[cfg(cube_backend)]
+            Self::Cube(device) => device.defaults(),
             #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(device) => device.defaults(),
             #[cfg(feature = "ndarray")]
@@ -609,20 +486,8 @@ impl burn_backend::Device for DispatchDevice {
         device_id.type_id = backend_type_id;
 
         match dispatch_id {
-            #[cfg(feature = "cpu")]
-            DispatchDeviceId::Cpu => Self::Cpu(CpuDevice::from_id(device_id)),
-            #[cfg(feature = "cuda")]
-            DispatchDeviceId::Cuda => Self::Cuda(CudaDevice::from_id(device_id)),
-            #[cfg(feature = "metal")]
-            DispatchDeviceId::Metal => Self::Metal(WgpuDevice::from_id(device_id)),
-            #[cfg(feature = "rocm")]
-            DispatchDeviceId::Rocm => Self::Rocm(RocmDevice::from_id(device_id)),
-            #[cfg(feature = "vulkan")]
-            DispatchDeviceId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
-            #[cfg(feature = "wgpu")]
-            DispatchDeviceId::Wgpu => Self::Wgpu(WgpuDevice::from_id(device_id)),
-            #[cfg(feature = "webgpu")]
-            DispatchDeviceId::WebGpu => Self::WebGpu(WgpuDevice::from_id(device_id)),
+            #[cfg(cube_backend)]
+            DispatchDeviceId::Cube => Self::Cube(burn_backend::Device::from_id(device_id)),
             #[cfg(any(feature = "flex", default_backend))]
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
             #[cfg(feature = "ndarray")]
@@ -639,20 +504,8 @@ impl burn_backend::Device for DispatchDevice {
 
     fn to_id(&self) -> DeviceId {
         let mut device_id = match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(device) => device.to_id(),
-            #[cfg(feature = "cuda")]
-            Self::Cuda(device) => device.to_id(),
-            #[cfg(feature = "metal")]
-            Self::Metal(device) => device.to_id(),
-            #[cfg(feature = "rocm")]
-            Self::Rocm(device) => device.to_id(),
-            #[cfg(feature = "vulkan")]
-            Self::Vulkan(device) => device.to_id(),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(device) => device.to_id(),
-            #[cfg(feature = "webgpu")]
-            Self::WebGpu(device) => device.to_id(),
+            #[cfg(cube_backend)]
+            Self::Cube(device) => device.to_id(),
             #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(device) => device.to_id(),
             #[cfg(feature = "ndarray")]
@@ -671,61 +524,47 @@ impl burn_backend::Device for DispatchDevice {
     }
 }
 
+/// Every cubecl device reaches the one cubecl variant.
+#[cfg(cube_backend)]
+impl From<CubeDevice> for DispatchDevice {
+    fn from(device: CubeDevice) -> Self {
+        DispatchDevice::Cube(device)
+    }
+}
+
+// A runtime's own device type converts too, since that is what its crate hands
+// out. There is one variant to reach now, so a wgpu device no longer needs a
+// priority chain of gates to decide which of four it lands in.
 #[cfg(feature = "cpu")]
-impl From<CpuDevice> for DispatchDevice {
-    fn from(device: CpuDevice) -> Self {
-        DispatchDevice::Cpu(device)
+impl From<burn_cpu::CpuDevice> for DispatchDevice {
+    fn from(device: burn_cpu::CpuDevice) -> Self {
+        DispatchDevice::Cube(CubeDevice::Cpu(device))
     }
 }
 
 #[cfg(feature = "cuda")]
-impl From<CudaDevice> for DispatchDevice {
-    fn from(device: CudaDevice) -> Self {
-        DispatchDevice::Cuda(device)
+impl From<burn_cuda::CudaDevice> for DispatchDevice {
+    fn from(device: burn_cuda::CudaDevice) -> Self {
+        DispatchDevice::Cube(CubeDevice::Cuda(device))
     }
 }
 
 #[cfg(feature = "rocm")]
-impl From<RocmDevice> for DispatchDevice {
-    fn from(device: RocmDevice) -> Self {
-        DispatchDevice::Rocm(device)
+impl From<burn_rocm::RocmDevice> for DispatchDevice {
+    fn from(device: burn_rocm::RocmDevice) -> Self {
+        DispatchDevice::Cube(CubeDevice::Hip(device))
     }
 }
 
-// A bare `WgpuDevice` maps to the auto-compiler [`DispatchDevice::Wgpu`] variant. To target a
-// specific wgpu specialization (Metal, Vulkan, WebGpu) construct the variant explicitly.
-//
-// The gates form a priority chain (metal, then vulkan, then webgpu) rather than mutually
-// exclusive conditions: cargo unifies features across a workspace, so several specializations
-// can be on at once and exclusive gates would leave the conversion with no impl at all.
-#[cfg(all(
+#[cfg(any(
     feature = "wgpu",
-    not(any(feature = "metal", feature = "vulkan", feature = "webgpu"))
+    feature = "metal",
+    feature = "vulkan",
+    feature = "webgpu"
 ))]
-impl From<WgpuDevice> for DispatchDevice {
-    fn from(device: WgpuDevice) -> Self {
-        DispatchDevice::Wgpu(device)
-    }
-}
-
-#[cfg(feature = "metal")]
-impl From<WgpuDevice> for DispatchDevice {
-    fn from(device: WgpuDevice) -> Self {
-        DispatchDevice::Metal(device)
-    }
-}
-
-#[cfg(all(feature = "vulkan", not(feature = "metal")))]
-impl From<WgpuDevice> for DispatchDevice {
-    fn from(device: WgpuDevice) -> Self {
-        DispatchDevice::Vulkan(device)
-    }
-}
-
-#[cfg(all(feature = "webgpu", not(any(feature = "metal", feature = "vulkan"))))]
-impl From<WgpuDevice> for DispatchDevice {
-    fn from(device: WgpuDevice) -> Self {
-        DispatchDevice::WebGpu(device)
+impl From<burn_wgpu::WgpuDevice> for DispatchDevice {
+    fn from(device: burn_wgpu::WgpuDevice) -> Self {
+        DispatchDevice::Cube(CubeDevice::Wgpu(device))
     }
 }
 

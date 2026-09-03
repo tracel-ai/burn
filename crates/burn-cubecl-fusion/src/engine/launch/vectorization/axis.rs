@@ -23,7 +23,6 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
-use cubecl::Runtime;
 use std::collections::{BTreeMap, HashMap};
 
 /// What to do with one tensor's vectorization axis.
@@ -117,7 +116,7 @@ impl VectorAxisPolicy {
     ///
     /// Unless some block iterates in a permuted order there is nothing to decide,
     /// and saying so up front skips the whole analysis.
-    pub fn of_plan<R: Runtime>(plan: &LaunchPlan<'_, R>) -> Self {
+    pub fn of_plan(plan: &LaunchPlan<'_>) -> Self {
         match plan
             .blocks
             .iter()
@@ -173,11 +172,11 @@ pub struct Refusals {
 
 impl VectorAxes {
     /// Decide the axes for a plan.
-    pub fn resolve<R: Runtime, Runner: Vectorization<R>>(
+    pub fn resolve<Runner: Vectorization>(
         runner: &Runner,
         resources: &FuseResources,
-        context: &Context<CubeFusionHandle<R>>,
-        plan: &LaunchPlan<'_, R>,
+        context: &Context<CubeFusionHandle>,
+        plan: &LaunchPlan<'_>,
     ) -> Self {
         // The runner knows better for its own operands — the matmul one places the
         // axis by matrix layout — so anything it sets wins, refusals included.
@@ -255,11 +254,11 @@ struct Actions {
 }
 
 impl Actions {
-    fn gather<R: Runtime>(
+    fn gather(
         policy: VectorAxisPolicy,
         resources: &FuseResources,
-        context: &Context<CubeFusionHandle<R>>,
-        plan: &LaunchPlan<'_, R>,
+        context: &Context<CubeFusionHandle>,
+        plan: &LaunchPlan<'_>,
     ) -> Self {
         let mut actions = Self {
             per_tensor: HashMap::new(),

@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(new)]
 /// Fuse layout conversions into a single kernel for NHWC/NLC layout.
-pub struct NHWCRelayoutOptimization<R: Runtime> {
+pub struct NHWCRelayoutOptimization {
     pub(crate) trace: FuseTrace,
     client: Client,
-    device: R::Device,
+    device: cubecl::Device,
     len: usize,
 }
 
@@ -23,11 +23,11 @@ pub struct RelayoutOptimizationState {
     len: usize,
 }
 
-impl<R: Runtime> NHWCRelayoutOptimization<R> {
+impl NHWCRelayoutOptimization {
     pub fn execute(
         &self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation>,
     ) {
         let launcher_elemwise = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
 
@@ -45,11 +45,11 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
     }
 
     /// Create an optimization from its [state](RelayoutOptimizationState).
-    pub fn from_state(device: &R::Device, state: RelayoutOptimizationState) -> Self {
+    pub fn from_state(device: &cubecl::Device, state: RelayoutOptimizationState) -> Self {
         Self {
             trace: state.trace,
             len: state.len,
-            client: R::client(device),
+            client: device.client(),
             device: device.clone(),
         }
     }
@@ -66,7 +66,7 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
 /// Name of the NHWC relayout fusion optimization.
 pub const NAME: &str = "NHWCRelayout";
 
-impl<R: Runtime> FusedOperation<R> for NHWCRelayoutOptimization<R> {
+impl FusedOperation for NHWCRelayoutOptimization {
     fn max_relative_shape_id(&self) -> Option<usize> {
         self.trace.max_relative_shape_id()
     }
@@ -80,8 +80,8 @@ impl<R: Runtime> FusedOperation<R> for NHWCRelayoutOptimization<R> {
 
     fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     ) {
         Self::execute(self, context, |index| fallback(index))
     }
@@ -90,7 +90,7 @@ impl<R: Runtime> FusedOperation<R> for NHWCRelayoutOptimization<R> {
         Self::to_state(self)
     }
 
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
+    fn from_state(device: &cubecl::Device, state: Self::State) -> Self {
         Self::from_state(device, state)
     }
 }

@@ -8,7 +8,6 @@ use burn_backend::{
 };
 
 use crate::{
-    CubeRuntime,
     kernel::{
         AddOp, into_contiguous_aligned, launch_binop,
         matmul::{MatmulStrategy, matmul},
@@ -186,14 +185,14 @@ pub(crate) fn bilinear_interpolate<F: Float>(
     result
 }
 
-pub(crate) fn deform_im2col<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    offset: CubeTensor<R>,
-    mask: Option<CubeTensor<R>>,
+pub(crate) fn deform_im2col(
+    input: CubeTensor,
+    offset: CubeTensor,
+    mask: Option<CubeTensor>,
     options: DeformConvOptions<2>,
     out_dims: (usize, usize),
     kernel_dims: (usize, usize),
-) -> Result<CubeTensor<R>, LaunchError> {
+) -> Result<CubeTensor, LaunchError> {
     let client = input.client.clone();
     let device = input.device.clone();
     let dtype = input.dtype;
@@ -254,14 +253,14 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     Ok(output)
 }
 
-pub(crate) fn deform_conv2d<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    offset: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    mask: Option<CubeTensor<R>>,
-    bias: Option<CubeTensor<R>>,
+pub(crate) fn deform_conv2d(
+    input: CubeTensor,
+    offset: CubeTensor,
+    weight: CubeTensor,
+    mask: Option<CubeTensor>,
+    bias: Option<CubeTensor>,
     options: DeformConvOptions<2>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let input = into_contiguous_aligned(input);
     let offset = into_contiguous_aligned(offset);
     let weight = into_contiguous_aligned(weight);
@@ -304,7 +303,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        Ok(launch_binop::<R, AddOp>(out, bias))
+        Ok(launch_binop::<AddOp>(out, bias))
     } else {
         Ok(out)
     }

@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -117,10 +116,10 @@ pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
     );
 }
 
-pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn launch_binop_int<O: BinaryOpIntFamily>(
+    lhs: CubeTensor,
+    rhs: CubeTensor,
+) -> CubeTensor {
     let vector_size_lhs = max_vector_size(&lhs);
     let vector_size_rhs = max_vector_size(&rhs);
     let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
@@ -191,10 +190,10 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     }
 }
 
-pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
-    tensor: CubeTensor<R>,
+pub(crate) fn launch_scalar_binop_int<O: BinaryOpIntFamily>(
+    tensor: CubeTensor,
     scalar: InputScalar,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let vector_size = max_vector_size(&tensor);
     let client = tensor.client.clone();
     let num_elems = tensor.meta.shape.num_elements();

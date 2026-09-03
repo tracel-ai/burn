@@ -15,6 +15,11 @@ pub use cubecl::throughput::{
     MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
 };
 
+/// The device of every cubecl runtime, re-exported so a crate routing through
+/// `burn-backend` — `burn-dispatch` does — needs no cubecl dependency of its own.
+pub use cubecl::Device;
+pub use cubecl::std::throughput::measure_peak_throughput;
+
 /// Convert a cubecl [`ElemType`] into the corresponding burn [`DType`].
 ///
 /// Panics if the cubecl type has no direct burn equivalent (e.g. `TF32`).

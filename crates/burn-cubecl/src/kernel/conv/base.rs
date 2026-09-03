@@ -5,7 +5,6 @@ use cubek::convolution::{AcceleratedTileKind, components::ConvSetupError};
 #[cfg(feature = "autotune")]
 use crate::kernel::conv::{backward_weight::wgrad_autotune, dgrad_autotune};
 use crate::{
-    CubeRuntime,
     kernel::conv::{
         backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
         backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
@@ -50,13 +49,13 @@ impl Default for ConvStrategy {
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
-pub fn conv_forward<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_forward<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
     strategy: ConvStrategy,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let input = permute_nchw_to_nhwc(input);
     let weight = permute_nchw_to_nhwc(weight);
 
@@ -72,28 +71,22 @@ pub fn conv_forward<R: CubeRuntime, const N: usize>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
-pub fn conv_forward_nhwc<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_forward_nhwc<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
     strategy: ConvStrategy,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     match strategy {
-        ConvStrategy::Direct => conv_direct::<R, N>(input, weight, bias, options),
+        ConvStrategy::Direct => conv_direct::<N>(input, weight, bias, options),
         #[cfg(feature = "autotune")]
-        ConvStrategy::Autotune => Ok(conv_autotune::<R, N>(input, weight, bias, options)),
+        ConvStrategy::Autotune => Ok(conv_autotune::<N>(input, weight, bias, options)),
         ConvStrategy::ImplicitGemm => {
             if options.groups != 1 {
-                conv_direct::<R, N>(input, weight, bias, options)
+                conv_direct::<N>(input, weight, bias, options)
             } else {
-                conv_gemm_simple_sync::<R, N>(
-                    input,
-                    weight,
-                    bias,
-                    options,
-                    AcceleratedTileKind::Cmma,
-                )
+                conv_gemm_simple_sync::<N>(input, weight, bias, options, AcceleratedTileKind::Cmma)
             }
         }
     }
@@ -106,33 +99,28 @@ pub fn conv_forward_nhwc<R: CubeRuntime, const N: usize>(
 /// * `weight_shape` - The shape of the weights/weight gradients
 /// * `options` - The options used for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
-pub fn conv_weight_backward<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    out_grad: CubeTensor<R>,
+pub fn conv_weight_backward<const N: usize>(
+    input: CubeTensor,
+    out_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N>,
     strategy: ConvStrategy,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let input = permute_nchw_to_nhwc(input);
     let out_grad = permute_nchw_to_nhwc(out_grad);
     let weight_shape = permute_nchw_to_nhwc_shape(weight_shape);
 
     let weight_grad = match strategy {
         ConvStrategy::Direct => {
-            conv_weight_backward_fallback::<R, N>(input, out_grad, weight_shape, options)
+            conv_weight_backward_fallback::<N>(input, out_grad, weight_shape, options)
         }
         #[cfg(feature = "autotune")]
-        ConvStrategy::Autotune => Ok(wgrad_autotune::<R, N>(
-            input,
-            out_grad,
-            weight_shape,
-            options,
-        )),
+        ConvStrategy::Autotune => Ok(wgrad_autotune::<N>(input, out_grad, weight_shape, options)),
         ConvStrategy::ImplicitGemm => {
             if options.groups != 1 {
-                conv_weight_backward_fallback::<R, N>(input, out_grad, weight_shape, options)
+                conv_weight_backward_fallback::<N>(input, out_grad, weight_shape, options)
             } else {
-                wgrad_gemm_simple_sync::<R, N>(
+                wgrad_gemm_simple_sync::<N>(
                     input,
                     out_grad,
                     weight_shape,
@@ -153,28 +141,28 @@ pub fn conv_weight_backward<R: CubeRuntime, const N: usize>(
 /// * `in_shape` - The shape of the input to the layer
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
-pub fn conv_data_backward<R: CubeRuntime, const N: usize>(
-    out_grad: CubeTensor<R>,
-    weights: CubeTensor<R>,
+pub fn conv_data_backward<const N: usize>(
+    out_grad: CubeTensor,
+    weights: CubeTensor,
     in_shape: Shape,
     options: ConvOptions<N>,
     strategy: ConvStrategy,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let out_grad = permute_nchw_to_nhwc(out_grad);
     let weights = permute_nchw_to_nhwc(weights);
     let in_shape = permute_nchw_to_nhwc_shape(in_shape);
 
     let weight_grad = match strategy {
         ConvStrategy::Direct => {
-            conv_data_backward_fallback::<R, N>(out_grad, weights, in_shape, options)?
+            conv_data_backward_fallback::<N>(out_grad, weights, in_shape, options)?
         }
         #[cfg(feature = "autotune")]
-        ConvStrategy::Autotune => dgrad_autotune::<R, N>(out_grad, weights, in_shape, options),
+        ConvStrategy::Autotune => dgrad_autotune::<N>(out_grad, weights, in_shape, options),
         ConvStrategy::ImplicitGemm => {
             if options.groups != 1 || options.stride.iter().any(|&s| s != 1) {
-                conv_data_backward_fallback::<R, N>(out_grad, weights, in_shape, options)?
+                conv_data_backward_fallback::<N>(out_grad, weights, in_shape, options)?
             } else {
-                dgrad_gemm_simple_sync::<R, N>(
+                dgrad_gemm_simple_sync::<N>(
                     out_grad,
                     weights,
                     in_shape,

@@ -24,7 +24,8 @@ tracing = ["burn-std/tracing", "cubecl/tracing"]
 # For DTypeUsage de/serialization
 serde = ["enumset/serde"]
 
-cubecl = ["dep:cubecl"]
+# `stdlib` carries the throughput probes a device measures itself with.
+cubecl = ["dep:cubecl", "cubecl/stdlib"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]

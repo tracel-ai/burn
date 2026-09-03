@@ -8,7 +8,6 @@ use crate::{
     },
 };
 use cubecl::{
-    Runtime,
     ir::{ElemType, FloatKind},
     prelude::*,
     server::LaunchError,
@@ -40,9 +39,9 @@ pub struct FusedReduceBroadcastedLaunch<'a> {
     _strategy: RoutineStrategy,
 }
 
-impl<R: Runtime> Vectorization<R> for FusedReduceBroadcastedLaunch<'_> {}
+impl Vectorization for FusedReduceBroadcastedLaunch<'_> {}
 
-impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
+impl TraceRunner for FusedReduceBroadcastedLaunch<'_> {
     type Error = LaunchError;
 
     fn run<'a>(

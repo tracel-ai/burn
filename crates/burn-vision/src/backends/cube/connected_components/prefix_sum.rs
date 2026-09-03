@@ -222,7 +222,7 @@ fn count_trailing_zeros(num: u32) -> u32 {
 }
 
 /// Compute the prefix sum of a tensor
-pub fn prefix_sum<R: CubeRuntime>(input: CubeTensor<R>, int_dtype: DType) -> CubeTensor<R> {
+pub fn prefix_sum(input: CubeTensor, int_dtype: DType) -> CubeTensor {
     let client = input.client.clone();
     let device = input.device.clone();
     let num_elems = input.meta.num_elements();
@@ -230,19 +230,19 @@ pub fn prefix_sum<R: CubeRuntime>(input: CubeTensor<R>, int_dtype: DType) -> Cub
     let batches = num_elems / numbers;
 
     let input = reshape(input, Shape::new([batches, numbers]));
-    let out = empty_device_dtype::<R>(client.clone(), device.clone(), input.shape(), int_dtype);
+    let out = empty_device_dtype::(client.clone(), device.clone(), input.shape(), int_dtype);
 
     let cubes = numbers.div_ceil(PART_SIZE);
     let cube_dim = CubeDim::new_1d(CUBE_SIZE as u32);
     let cube_count = CubeCount::new_3d(cubes as u32, 1, batches as u32);
 
-    let bump = zeros_client::<R>(
+    let bump = zeros_client::(
         client.clone(),
         device.clone(),
         Shape::new([batches]),
         int_dtype,
     );
-    let reduction = zeros_client::<R>(
+    let reduction = zeros_client::(
         client.clone(),
         device.clone(),
         Shape::new([batches, cubes]),

@@ -5,24 +5,24 @@ use cubek::attention::forward::{
     launch::AttentionAutotuneKey,
 };
 
-use crate::{CubeRuntime, kernel::autotune_bounds, tensor::CubeTensor};
+use crate::{kernel::autotune_bounds, tensor::CubeTensor};
 
-type Inputs<R> = (
-    CubeTensor<R>,
-    CubeTensor<R>,
-    CubeTensor<R>,
-    Option<CubeTensor<R>>,
-    Option<CubeTensor<R>>,
+type Inputs = (
+    CubeTensor,
+    CubeTensor,
+    CubeTensor,
+    Option<CubeTensor>,
+    Option<CubeTensor>,
     burn_backend::ops::AttentionModuleOptions,
 );
 
-type AttentionTunables<R, Out> = TunableSet<AttentionAutotuneKey, Inputs<R>, Out>;
+type AttentionTunables<Out> = TunableSet<AttentionAutotuneKey, Inputs, Out>;
 
 /// Registers the performance bounds used for attention autotuning.
-pub(super) fn with_attention_bounds<R: CubeRuntime, Out: 'static>(
-    set: AttentionTunables<R, Out>,
-) -> AttentionTunables<R, Out> {
-    autotune_bounds::with_bounds(set, |_key, inputs: &Inputs<R>, thresholds| {
+pub(super) fn with_attention_bounds<Out: 'static>(
+    set: AttentionTunables<Out>,
+) -> AttentionTunables<Out> {
+    autotune_bounds::with_bounds(set, |_key, inputs: &Inputs, thresholds| {
         let client = &inputs.0.client;
         let cost = cost(inputs);
 
@@ -30,9 +30,7 @@ pub(super) fn with_attention_bounds<R: CubeRuntime, Out: 'static>(
     })
 }
 
-fn cost<R: CubeRuntime>(
-    (query, key, value, mask, _attn_bias, options): &Inputs<R>,
-) -> AttentionCost {
+fn cost((query, key, value, mask, _attn_bias, options): &Inputs) -> AttentionCost {
     let query_type = dtype_to_storage_type(query.dtype);
 
     AttentionCost {

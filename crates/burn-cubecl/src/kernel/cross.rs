@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::{
         into_contiguous,
         utils::{address_type, broadcast_shape},
@@ -45,11 +44,7 @@ fn cross_kernel<E: Float>(
     output.write(base_pos + 2, z);
 }
 
-pub(crate) fn cross<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    dim: usize,
-) -> CubeTensor<R> {
+pub(crate) fn cross(lhs: CubeTensor, rhs: CubeTensor, dim: usize) -> CubeTensor {
     let ndims = lhs.meta.num_dims();
 
     // Validate that the cross dimension has size 3

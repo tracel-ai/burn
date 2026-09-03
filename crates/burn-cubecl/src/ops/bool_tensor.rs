@@ -1,5 +1,5 @@
 use crate::{
-    CubeBackend, CubeRuntime,
+    CubeBackend,
     element::BoolElement,
     kernel::{self, AndOp, OrOp},
     tensor::CubeTensor,
@@ -20,14 +20,14 @@ use super::{expand, numeric, permute, unfold};
 
 /// The boolean storage of a cubecl bool tensor. Cubecl backends never use
 /// native bool (see `CubeBackend::supports_dtype`), so it is always `U8`/`U32`.
-fn bool_store<R: CubeRuntime>(tensor: &CubeTensor<R>) -> BoolDType {
+fn bool_store(tensor: &CubeTensor) -> BoolDType {
     match tensor.dtype {
         DType::Bool(store) => store,
         other => unreachable!("cubecl bool tensors are always Bool(_): {other:?}"),
     }
 }
 
-impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
+impl BoolTensorOps<Self> for CubeBackend {
     fn bool_empty(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
         super::empty(shape, device, dtype.into())
     }
@@ -115,11 +115,11 @@ impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
     }
 
     fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::launch_binop::<R, AndOp>(lhs, rhs)
+        kernel::launch_binop::<AndOp>(lhs, rhs)
     }
 
     fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::launch_binop::<R, OrOp>(lhs, rhs)
+        kernel::launch_binop::<OrOp>(lhs, rhs)
     }
 
     fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {

@@ -3,29 +3,28 @@ use burn_std::{Shape, Slice};
 use cubek::convolution::components::ConvSetupError;
 
 use crate::{
-    CubeRuntime,
     kernel::{conv::base::conv_forward_nhwc, slice, slice_assign},
     ops::{numeric::empty_device_dtype, permute, reshape, swap_dims},
     tensor::CubeTensor,
 };
 
 /// Calculate the convolution backward pass with regard to the weight gradients.
-pub fn conv_weight_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
-    input: CubeTensor<R>,
-    output_grad: CubeTensor<R>,
+pub fn conv_weight_backward_fallback<const N_DIM: usize>(
+    input: CubeTensor,
+    output_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N_DIM>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let in_channels = input.meta.shape()[input.rank() - 1];
 
     // Depthwise is separated out because the general grouped path costs a
     // kernel per group, and a depthwise convolution has one group per channel.
     match options.groups {
-        1 => conv_weight_grad_no_groups::<R, N_DIM>(input, output_grad, weight_shape, options),
+        1 => conv_weight_grad_no_groups::<N_DIM>(input, output_grad, weight_shape, options),
         groups if groups == in_channels => {
-            conv_weight_grad_depthwise::<R, N_DIM>(input, output_grad, weight_shape, options)
+            conv_weight_grad_depthwise::<N_DIM>(input, output_grad, weight_shape, options)
         }
-        _ => conv_weight_grad_groups::<R, N_DIM>(input, output_grad, weight_shape, options),
+        _ => conv_weight_grad_groups::<N_DIM>(input, output_grad, weight_shape, options),
     }
 }
 
@@ -48,12 +47,12 @@ pub fn conv_weight_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
 /// Restricted to `groups == in_channels`. A group carrying several input
 /// channels needs them kept apart in the result, and a filter sums over every
 /// channel of its group.
-fn conv_weight_grad_depthwise<R: CubeRuntime, const N_DIM: usize>(
-    input: CubeTensor<R>,
-    output_grad: CubeTensor<R>,
+fn conv_weight_grad_depthwise<const N_DIM: usize>(
+    input: CubeTensor,
+    output_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N_DIM>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let rank = input.rank();
     let dim_c = rank - 1;
 
@@ -101,12 +100,12 @@ fn conv_weight_grad_depthwise<R: CubeRuntime, const N_DIM: usize>(
     Ok(weight_grad)
 }
 
-fn conv_weight_grad_no_groups<R: CubeRuntime, const N_DIM: usize>(
-    input: CubeTensor<R>,
-    output_grad: CubeTensor<R>,
+fn conv_weight_grad_no_groups<const N_DIM: usize>(
+    input: CubeTensor,
+    output_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N_DIM>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let dim_c = input.rank() - 1;
 
     let input_swapped = swap_dims(input, 0, dim_c);
@@ -128,12 +127,12 @@ fn conv_weight_grad_no_groups<R: CubeRuntime, const N_DIM: usize>(
 }
 
 #[allow(clippy::single_range_in_vec_init, reason = "False positive")]
-fn conv_weight_grad_groups<R: CubeRuntime, const N_DIM: usize>(
-    input: CubeTensor<R>,
-    output_grad: CubeTensor<R>,
+fn conv_weight_grad_groups<const N_DIM: usize>(
+    input: CubeTensor,
+    output_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N_DIM>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let mut weight_grad = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),

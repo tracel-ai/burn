@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -136,11 +135,11 @@ pub(crate) fn kernel_cmp<T: Numeric, Bool: Numeric, N: Size, O: ComparisonOpFami
     );
 }
 
-pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
+pub(crate) fn launch_cmp<O: ComparisonOpFamily>(
+    lhs: CubeTensor,
+    rhs: CubeTensor,
     dtype_bool: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let vector_size_lhs = max_vector_size(&lhs);
     let vector_size_rhs = max_vector_size(&rhs);
 
@@ -241,11 +240,11 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
     }
 }
 
-pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
-    tensor: CubeTensor<R>,
+pub(crate) fn launch_scalar_cmp<O: ComparisonOpFamily>(
+    tensor: CubeTensor,
     scalar: InputScalar,
     dtype_bool: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let vector_size = max_vector_size(&tensor);
     let client = tensor.client.clone();
     let num_elems = tensor.meta.num_elements();
@@ -308,100 +307,52 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
     }
 }
 
-pub fn equal<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_cmp::<R, EqualOp>(lhs, rhs, dtype_bool)
+pub fn equal(lhs: CubeTensor, rhs: CubeTensor, dtype_bool: DType) -> CubeTensor {
+    launch_cmp::<EqualOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn not_equal<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_cmp::<R, NotEqualOp>(lhs, rhs, dtype_bool)
+pub fn not_equal(lhs: CubeTensor, rhs: CubeTensor, dtype_bool: DType) -> CubeTensor {
+    launch_cmp::<NotEqualOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn greater<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_cmp::<R, GreaterOp>(lhs, rhs, dtype_bool)
+pub fn greater(lhs: CubeTensor, rhs: CubeTensor, dtype_bool: DType) -> CubeTensor {
+    launch_cmp::<GreaterOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn greater_equal<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_cmp::<R, GreaterEqualOp>(lhs, rhs, dtype_bool)
+pub fn greater_equal(lhs: CubeTensor, rhs: CubeTensor, dtype_bool: DType) -> CubeTensor {
+    launch_cmp::<GreaterEqualOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn lower<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_cmp::<R, LowerOp>(lhs, rhs, dtype_bool)
+pub fn lower(lhs: CubeTensor, rhs: CubeTensor, dtype_bool: DType) -> CubeTensor {
+    launch_cmp::<LowerOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn lower_equal<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_cmp::<R, LowerEqualOp>(lhs, rhs, dtype_bool)
+pub fn lower_equal(lhs: CubeTensor, rhs: CubeTensor, dtype_bool: DType) -> CubeTensor {
+    launch_cmp::<LowerEqualOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn equal_elem<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: InputScalar,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_scalar_cmp::<R, EqualOp>(lhs, rhs, dtype_bool)
+pub fn equal_elem(lhs: CubeTensor, rhs: InputScalar, dtype_bool: DType) -> CubeTensor {
+    launch_scalar_cmp::<EqualOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn not_equal_elem<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: InputScalar,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_scalar_cmp::<R, NotEqualOp>(lhs, rhs, dtype_bool)
+pub fn not_equal_elem(lhs: CubeTensor, rhs: InputScalar, dtype_bool: DType) -> CubeTensor {
+    launch_scalar_cmp::<NotEqualOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn greater_elem<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: InputScalar,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_scalar_cmp::<R, GreaterOp>(lhs, rhs, dtype_bool)
+pub fn greater_elem(lhs: CubeTensor, rhs: InputScalar, dtype_bool: DType) -> CubeTensor {
+    launch_scalar_cmp::<GreaterOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn lower_elem<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: InputScalar,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_scalar_cmp::<R, LowerOp>(lhs, rhs, dtype_bool)
+pub fn lower_elem(lhs: CubeTensor, rhs: InputScalar, dtype_bool: DType) -> CubeTensor {
+    launch_scalar_cmp::<LowerOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn greater_equal_elem<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: InputScalar,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_scalar_cmp::<R, GreaterEqualOp>(lhs, rhs, dtype_bool)
+pub fn greater_equal_elem(lhs: CubeTensor, rhs: InputScalar, dtype_bool: DType) -> CubeTensor {
+    launch_scalar_cmp::<GreaterEqualOp>(lhs, rhs, dtype_bool)
 }
 
-pub fn lower_equal_elem<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: InputScalar,
-    dtype_bool: DType,
-) -> CubeTensor<R> {
-    launch_scalar_cmp::<R, LowerEqualOp>(lhs, rhs, dtype_bool)
+pub fn lower_equal_elem(lhs: CubeTensor, rhs: InputScalar, dtype_bool: DType) -> CubeTensor {
+    launch_scalar_cmp::<LowerEqualOp>(lhs, rhs, dtype_bool)
 }
 
 // Unary comparison / predicate / relational ops
@@ -456,10 +407,10 @@ pub(crate) fn kernel_predicate<F: Float, Bool: Numeric, N: Size, O: PredicateOpF
     );
 }
 
-pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
-    tensor: CubeTensor<R>,
+pub(crate) fn launch_predicate<O: PredicateOpFamily>(
+    tensor: CubeTensor,
     dtype_bool: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let vector_size = max_vector_size(&tensor);
 
     let client = tensor.client.clone();
@@ -496,10 +447,10 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
     output
 }
 
-pub fn is_nan<R: CubeRuntime>(tensor: CubeTensor<R>, dtype_bool: DType) -> CubeTensor<R> {
-    launch_predicate::<R, IsNanOp>(tensor, dtype_bool)
+pub fn is_nan(tensor: CubeTensor, dtype_bool: DType) -> CubeTensor {
+    launch_predicate::<IsNanOp>(tensor, dtype_bool)
 }
 
-pub fn is_inf<R: CubeRuntime>(tensor: CubeTensor<R>, dtype_bool: DType) -> CubeTensor<R> {
-    launch_predicate::<R, IsInfOp>(tensor, dtype_bool)
+pub fn is_inf(tensor: CubeTensor, dtype_bool: DType) -> CubeTensor {
+    launch_predicate::<IsInfOp>(tensor, dtype_bool)
 }

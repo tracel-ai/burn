@@ -9,22 +9,10 @@ use cubecl::{
     throughput::{ThroughputError, ThroughputKey, ThroughputValue},
 };
 
-#[cfg(not(feature = "fusion"))]
-pub type Cpu = CubeBackend<CpuRuntime>;
-
-#[cfg(feature = "fusion")]
-pub type Cpu = burn_fusion::Fusion<CubeBackend<CpuRuntime>>;
-
-/// Measure peak throughput on a CPU `device` for each of the given `keys`.
-///
-/// One result per key, in order; a key the device has no peak for carries the
-/// [`ThroughputError`] saying why.
-pub fn device_throughput(
-    device: &CpuDevice,
-    keys: &[ThroughputKey],
-) -> alloc::vec::Vec<Result<ThroughputValue, ThroughputError>> {
-    cubecl::std::throughput::device_throughput::<CpuRuntime>(device, keys)
-}
+/// The cubecl backend, under the name of the runtime this crate compiles in.
+/// Every cubecl backend is the same type — a tensor's device is what says which
+/// runtime it runs on.
+pub type Cpu = burn_cubecl::Cube;
 
 #[cfg(test)]
 mod tests {
@@ -34,7 +22,7 @@ mod tests {
     #[test]
     fn should_support_dtypes() {
         type B = Cpu;
-        let device = CpuDevice;
+        let device = cubecl::Device::Cpu(CpuDevice);
         let scheme = device.defaults().quantization.scheme;
 
         assert!(B::supports_dtype(&device, DType::F64));

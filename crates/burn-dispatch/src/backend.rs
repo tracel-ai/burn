@@ -1,6 +1,8 @@
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+#[cfg(cube_backend)]
+use burn_backend::cubecl::Device as CubeDevice;
 
 #[cfg(any(
     feature = "cpu",
@@ -24,33 +26,9 @@ use burn_backend::{
 /// captured by, and can only replay on, the backend it was recorded on.
 #[derive(Debug, Clone)]
 pub enum DispatchGraph {
-    /// A graph captured on the [CPU backend](Cpu).
-    #[cfg(feature = "cpu")]
-    Cpu(BackendGraph<Cpu>),
-
-    /// A graph captured on the [CUDA backend](Cuda).
-    #[cfg(feature = "cuda")]
-    Cuda(BackendGraph<Cuda>),
-
-    /// A graph captured on the [Metal backend](Metal).
-    #[cfg(feature = "metal")]
-    Metal(BackendGraph<Metal>),
-
-    /// A graph captured on the [ROCm backend](Rocm).
-    #[cfg(feature = "rocm")]
-    Rocm(BackendGraph<Rocm>),
-
-    /// A graph captured on the [Vulkan backend](Vulkan).
-    #[cfg(feature = "vulkan")]
-    Vulkan(BackendGraph<Vulkan>),
-
-    /// A graph captured on the [Wgpu backend](Wgpu).
-    #[cfg(feature = "wgpu")]
-    Wgpu(BackendGraph<Wgpu>),
-
-    /// A graph captured on the [WebGPU backend](WebGpu).
-    #[cfg(feature = "webgpu")]
-    WebGpu(BackendGraph<WebGpu>),
+    /// A graph captured on the [cubecl backend](Cube).
+    #[cfg(cube_backend)]
+    Cube(BackendGraph<Cube>),
 
     /// A graph captured on the [Flex backend](Flex).
     #[cfg(any(feature = "flex", default_backend))]
@@ -221,20 +199,8 @@ impl Backend for Dispatch {
     fn device_count(type_id: u16) -> usize {
         let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
         match dispatch_id {
-            #[cfg(feature = "cpu")]
-            DispatchDeviceId::Cpu => Cpu::device_count(backend_type_id),
-            #[cfg(feature = "cuda")]
-            DispatchDeviceId::Cuda => Cuda::device_count(backend_type_id),
-            #[cfg(feature = "metal")]
-            DispatchDeviceId::Metal => Metal::device_count(backend_type_id),
-            #[cfg(feature = "rocm")]
-            DispatchDeviceId::Rocm => Rocm::device_count(backend_type_id),
-            #[cfg(feature = "vulkan")]
-            DispatchDeviceId::Vulkan => Vulkan::device_count(backend_type_id),
-            #[cfg(feature = "wgpu")]
-            DispatchDeviceId::Wgpu => Wgpu::device_count(backend_type_id),
-            #[cfg(feature = "webgpu")]
-            DispatchDeviceId::WebGpu => WebGpu::device_count(backend_type_id),
+            #[cfg(cube_backend)]
+            DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
             #[cfg(any(feature = "flex", default_backend))]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
             #[cfg(feature = "ndarray")]
@@ -331,20 +297,8 @@ impl AutodiffBackend for Dispatch {
 
         match kind {
             DispatchTensorKind::Autodiff(tensor) => match *tensor {
-                #[cfg(feature = "cpu")]
-                DispatchTensorKind::Cpu(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "metal")]
-                DispatchTensorKind::Metal(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "rocm")]
-                DispatchTensorKind::Rocm(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "vulkan")]
-                DispatchTensorKind::Vulkan(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "wgpu")]
-                DispatchTensorKind::Wgpu(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "webgpu")]
-                DispatchTensorKind::WebGpu(tensor) => tensor.autodiff().backward(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
                 #[cfg(any(feature = "flex", default_backend))]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "ndarray")]
@@ -1234,31 +1188,10 @@ impl Dispatch {
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
         // TODO: right now this assumes `type_id = 0`, but WgpuDevice and LibTorchDevice have other types.
         match type_id {
-            #[cfg(feature = "cpu")]
-            DispatchDeviceId::Cpu => vec![CpuDevice.into()],
-            #[cfg(feature = "cuda")]
-            DispatchDeviceId::Cuda => (0..Cuda::device_count(0))
-                .map(|i| CudaDevice::new(i).into())
-                .collect(),
-            #[cfg(feature = "metal")]
-            DispatchDeviceId::Metal => (0..Metal::device_count(0))
-                .map(|i| DispatchDevice::Metal(WgpuDevice::DiscreteGpu(i)))
-                .collect(),
-            #[cfg(feature = "rocm")]
-            DispatchDeviceId::Rocm => (0..Rocm::device_count(0))
-                .map(|i| RocmDevice::new(i).into())
-                .collect(),
-            #[cfg(feature = "vulkan")]
-            DispatchDeviceId::Vulkan => (0..Vulkan::device_count(0))
-                .map(|i| DispatchDevice::Vulkan(WgpuDevice::DiscreteGpu(i)))
-                .collect(),
-            #[cfg(feature = "wgpu")]
-            DispatchDeviceId::Wgpu => (0..Wgpu::device_count(0))
-                .map(|i| DispatchDevice::Wgpu(WgpuDevice::DiscreteGpu(i)))
-                .collect(),
-            #[cfg(feature = "webgpu")]
-            DispatchDeviceId::WebGpu => (0..WebGpu::device_count(0))
-                .map(|i| DispatchDevice::WebGpu(WgpuDevice::DiscreteGpu(i)))
+            #[cfg(cube_backend)]
+            DispatchDeviceId::Cube => CubeDevice::enumerate_all()
+                .into_iter()
+                .map(DispatchDevice::Cube)
                 .collect(),
             #[cfg(any(feature = "flex", default_backend))]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],

@@ -1,4 +1,4 @@
-use crate::CubeRuntime;
+use crate::CubeDevice;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use burn_backend::quantization::QuantScheme;
@@ -16,7 +16,7 @@ use cubecl::{
 use super::QParams;
 
 /// The basic tensor primitive struct.
-pub struct CubeTensor<R: CubeRuntime> {
+pub struct CubeTensor {
     /// Compute client for the [runtime](CubeRuntime).
     pub client: Client,
     /// The buffer where the data are stored.
@@ -24,15 +24,15 @@ pub struct CubeTensor<R: CubeRuntime> {
     /// The metadata of the tensor.
     pub meta: Box<Metadata>,
     /// The device of the tensor.
-    pub device: R::Device,
+    pub device: CubeDevice,
     /// The datatype of the tensor.
     pub dtype: DType,
     /// Runtime quantization parameters, if applicable
     pub qparams: Option<QParams>,
 }
 
-impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle {
-    fn from(val: CubeTensor<R>) -> Self {
+impl From<CubeTensor> for TensorHandle {
+    fn from(val: CubeTensor) -> Self {
         TensorHandle::new(
             val.handle.clone(),
             val.meta.shape().clone(),
@@ -42,14 +42,14 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle {
     }
 }
 
-impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
+impl cubecl::tune::AutotuneOutput for CubeTensor {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
         use crate::ops::into_data_sync;
         use burn_backend::Tolerance;
 
-        let expected = into_data_sync::<R>(self.clone());
-        let actual = into_data_sync::<R>(other);
+        let expected = into_data_sync(self.clone());
+        let actual = into_data_sync(other);
         expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
     }
 }
@@ -59,16 +59,13 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
 // Maybe not needed when fusion is activated, since we have a detector there.
 // We could rely on basic GC strategy when not using fusion.
 //
-// impl<R: CubeRuntime> Drop for CubeTensor<R> {
+// impl Drop for CubeTensor {
 //     fn drop(&mut self) {
 //         todo!()
 //     }
 // }
 
-impl<R> core::fmt::Debug for CubeTensor<R>
-where
-    R: CubeRuntime,
-{
+impl core::fmt::Debug for CubeTensor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "CubeTensor {{ shape: {:?}, device: {:?}, strides: {:?}, elem: {}, runtime: {}}}",
@@ -81,10 +78,7 @@ where
     }
 }
 
-impl<R> Clone for CubeTensor<R>
-where
-    R: CubeRuntime,
-{
+impl Clone for CubeTensor {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -97,8 +91,8 @@ where
     }
 }
 
-impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
-    type Device = R::CubeDevice;
+impl TensorMetadata for CubeTensor {
+    type Device = CubeDevice;
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -120,16 +114,13 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     }
 }
 
-impl<R> CubeTensor<R>
-where
-    R: CubeRuntime,
-{
+impl CubeTensor {
     /// Create a new standard tensor
     pub fn new(
         client: Client,
         handle: Handle,
         metadata: Metadata,
-        device: R::Device,
+        device: CubeDevice,
         dtype: DType,
     ) -> Self {
         CubeTensor {
@@ -145,7 +136,7 @@ where
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
         client: Client,
-        device: R::Device,
+        device: CubeDevice,
         shape: Shape,
         handle: Handle,
         dtype: DType,
@@ -170,7 +161,7 @@ where
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(&mut self, client: Client, device: R::Device) -> Self {
+    pub fn to_client(&mut self, client: Client, device: CubeDevice) -> Self {
         let desc = self.handle.clone().copy_descriptor(
             self.meta.shape().clone(),
             self.meta.strides().clone(),
@@ -301,7 +292,7 @@ where
         }
 
         let tensor = self.clone();
-        launch_unary_numeric::<R, Copy, _>(tensor, |_| ())
+        launch_unary_numeric::<Copy, _>(tensor, |_| ())
     }
 
     /// Check if the tensor is safe to mutate.

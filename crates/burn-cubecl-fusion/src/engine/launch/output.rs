@@ -23,16 +23,16 @@ use burn_std::{
     Strides,
     tensor::{ReshapeAction, contiguous_strides, is_contiguous, is_dense, reshape_action},
 };
-use cubecl::{Runtime, client::Client};
+use cubecl::client::Client;
 use std::collections::BTreeMap;
 
 /// Create or reuse handles for the outputs.
 ///
 /// It is also responsible to select the reference tensor.
-pub struct OutputPlanner<'a, R: Runtime> {
+pub struct OutputPlanner<'a> {
     resources: &'a FuseResources,
     outputs_sorted: Vec<OutputSorted<'a>>,
-    handles: Vec<Option<HandleOutput<R>>>,
+    handles: Vec<Option<HandleOutput>>,
     globals: Vec<Option<TensorIr>>,
     blocks: &'a Vec<FuseBlock>,
 }
@@ -54,7 +54,7 @@ enum OutputKind {
     Transform(TensorView),
 }
 
-impl<'a, R: Runtime> OutputPlanner<'a, R> {
+impl<'a> OutputPlanner<'a> {
     pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
         let mut outputs_sorted: Vec<_> = resources
             .outputs
@@ -99,9 +99,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     pub fn run(
         mut self,
         client: &Client,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
     ) {
         // So that we can borrow self during the iteration.
         let mut outputs = Vec::new();
@@ -242,7 +242,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     fn select_reference_from_inputs(
         block: &FuseBlock,
         block_plan: &mut BlockPlan<'_>,
-        handle_inputs: &[HandleInput<R>],
+        handle_inputs: &[HandleInput],
     ) -> Option<Shape> {
         if let Some(input_ref) = block_plan.potential_reference_input.take() {
             match input_ref {
@@ -328,7 +328,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
     }
 
-    fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
+    fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput]) {
         for hi in handle_inputs.iter().filter_map(|h| match h {
             HandleInput::Normal(input) => Some(input),
             _ => None,
@@ -361,7 +361,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     /// they are not.
     fn chosen_strides(
         &self,
-        plan: &LaunchPlan<'a, R>,
+        plan: &LaunchPlan<'a>,
         block_idx: usize,
         shape: &Shape,
         shape_relative: &Shape,
@@ -419,7 +419,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     /// each convolution stay the metadata changes they are meant to be.
     fn preferred_dim_order(
         &self,
-        plan: &LaunchPlan<'a, R>,
+        plan: &LaunchPlan<'a>,
         block_idx: usize,
         shape: &Shape,
     ) -> Option<DimOrder> {
@@ -495,7 +495,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     fn output_kind(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<'a>,
         tensor_global: &TensorIr,
         output: &OutputSorted,
     ) -> (OutputKind, usize) {
@@ -569,8 +569,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn inplace_output(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         input_index: usize,
@@ -664,9 +664,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     fn normal_output(
         &mut self,
         client: &Client,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Strides,
@@ -751,9 +751,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     fn reshaped_output(
         &mut self,
         client: &Client,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Strides,
@@ -830,9 +830,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     fn swapped_dims_output(
         &mut self,
         client: &Client,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         original: TensorId,
@@ -885,9 +885,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     fn nhwc_strides_output(
         &mut self,
         client: &Client,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         mut strides: Strides,
@@ -917,9 +917,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     fn find_child_input(
-        handle_inputs: &[HandleInput<R>],
+        handle_inputs: &[HandleInput],
         original: TensorId,
-    ) -> (usize, &NormalHandleInput<R>) {
+    ) -> (usize, &NormalHandleInput) {
         handle_inputs
             .iter()
             .enumerate()

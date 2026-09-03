@@ -13,7 +13,7 @@ use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy}
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
 use crate::{
-    CubeBackend, CubeRuntime,
+    CubeBackend, CubeDevice,
     kernel::{self, matmul::MatmulStrategy},
     tensor::{CubeTensor, QParams},
 };
@@ -28,53 +28,53 @@ fn scales_region_len(total: usize, scheme: &QuantScheme) -> usize {
 }
 
 /// Create a quantized tensor with packed values (u32).
-fn new_qtensor_optimized<R: CubeRuntime>(
+fn new_qtensor_optimized(
     data: Bytes,
     shape: impl Into<Shape>,
     scheme: QuantScheme,
-    device: &R::Device,
-) -> CubeTensor<R> {
+    device: &CubeDevice,
+) -> CubeTensor {
     new_qtensor(data, shape, scheme, device, MemoryLayoutStrategy::Optimized)
 }
 
 /// Create a quantized tensor with packed values (u32).
-fn new_qtensor<R: CubeRuntime>(
+fn new_qtensor(
     data: Bytes,
     shape: impl Into<Shape>,
     scheme: QuantScheme,
-    device: &R::Device,
+    device: &CubeDevice,
     kind: MemoryLayoutStrategy,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     new_quantized(shape, scheme, device, Some(data), kind)
 }
 
 /// Create an empty quantized tensor.
-pub fn empty_qtensor_optimized<R: CubeRuntime>(
+pub fn empty_qtensor_optimized(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
-    device: &R::Device,
-) -> CubeTensor<R> {
+    device: &CubeDevice,
+) -> CubeTensor {
     empty_qtensor(shape, scheme, device, MemoryLayoutStrategy::Optimized)
 }
 
 /// Create an empty quantized tensor.
-pub fn empty_qtensor<R: CubeRuntime>(
+pub fn empty_qtensor(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
-    device: &R::Device,
+    device: &CubeDevice,
     kind: MemoryLayoutStrategy,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     new_quantized(shape, scheme, device, None, kind)
 }
 
-fn new_quantized<R: CubeRuntime>(
+fn new_quantized(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
-    device: &R::Device,
+    device: &CubeDevice,
     data: Option<Bytes>,
     alloc_kind: MemoryLayoutStrategy,
-) -> CubeTensor<R> {
-    let client = R::client(device);
+) -> CubeTensor {
+    let client = device.client();
     let shape: Shape = shape.into();
     let mut shape_value: Shape = shape.clone();
 
@@ -215,7 +215,7 @@ fn new_quantized<R: CubeRuntime>(
     )
 }
 
-impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
+impl QTensorOps<Self> for CubeBackend {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
