@@ -464,3 +464,29 @@ fn float_should_panic_when_inner_dimensions_are_not_equal() {
 
     tensor_3.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+#[should_panic]
+fn float_should_panic_when_batch_dimensions_are_not_broadcastable() {
+    let device = Default::default();
+    // Inner dims match (2 == 2) but batch dims [4, 5] vs [2, 3] cannot broadcast.
+    let tensor_1 = TestTensor::<3>::from_data(
+        [
+            [[1.0, 7.0], [2.0, 3.0], [1.0, 5.0], [2.0, 8.0], [3.0, 4.0]],
+            [[1.0, 7.0], [2.0, 3.0], [1.0, 5.0], [2.0, 8.0], [3.0, 4.0]],
+            [[1.0, 7.0], [2.0, 3.0], [1.0, 5.0], [2.0, 8.0], [3.0, 4.0]],
+            [[1.0, 7.0], [2.0, 3.0], [1.0, 5.0], [2.0, 8.0], [3.0, 4.0]],
+        ],
+        &device,
+    );
+    let tensor_2 = TestTensor::<3>::from_data(
+        [
+            [[4.0, 7.0], [2.0, 3.0], [1.0, 5.0]],
+            [[4.0, 7.0], [2.0, 3.0], [1.0, 5.0]],
+        ],
+        &device,
+    );
+
+    let tensor_3 = tensor_1.matmul(tensor_2);
+    tensor_3.into_data();
+}
