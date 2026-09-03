@@ -347,7 +347,7 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
         let is_active = self.is_active;
         let mut param = Param::from_mapped_value(
             self.id,
-            self.val().no_grad().set_require_grad(false),
+            self.val().without_autodiff().set_require_grad(false),
             self.param_mapper.clone(),
         );
         param.is_active = is_active;
@@ -373,7 +373,11 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
     fn valid(&self) -> Self {
-        Param::from_mapped_value(self.id, self.val().no_grad(), self.param_mapper.clone())
+        Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff(),
+            self.param_mapper.clone(),
+        )
     }
 
     fn from_inner(module: Self) -> Self {
@@ -387,7 +391,11 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
     fn valid(&self) -> Self {
-        Param::from_mapped_value(self.id, self.val().no_grad(), self.param_mapper.clone())
+        Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff(),
+            self.param_mapper.clone(),
+        )
     }
 
     fn from_inner(module: Self) -> Self {

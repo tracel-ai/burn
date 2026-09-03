@@ -98,41 +98,69 @@ fn grad_replace_impl(p: &BridgeTensor, grads: &mut Gradients, grad: BridgeTensor
 }
 
 impl<const D: usize, K: Autodiff> Tensor<D, K> {
-    /// Returns the inner tensor without the autodiff information.
+    /// Returns this tensor without its autodiff association.
+    ///
+    /// If the tensor uses autodiff, this moves it to the inner backend and drops any graph
+    /// reference it carries. If autodiff is already disabled, the tensor is returned unchanged.
+    /// This operation is idempotent.
+    ///
+    /// This is equivalent to [`without_autodiff`](Tensor::without_autodiff). `inner` reflects the
+    /// underlying backend-decorator model, while `without_autodiff` describes the operation in
+    /// terms of the high-level tensor API.
     pub fn inner(self) -> Tensor<D, K> {
-        Tensor::new(K::inner(self.primitive))
+        self.without_autodiff()
     }
 
-    /// Take the tensor off the autodiff backend, dropping any graph reference
-    /// it carries. A tensor that is not on an autodiff backend is returned as
-    /// is.
+    /// Returns this tensor without its autodiff association.
     ///
-    /// Unlike [detach](Tensor::detach), which severs the tensor from the graph
-    /// but leaves it on the autodiff backend, the result lives on the inner
-    /// backend: later operations pay no autodiff dispatch and can never be
-    /// recorded. And unlike [inner](Self::inner), which panics on a tensor
-    /// with no autodiff wrapper, this is safe to call anywhere — batchers,
-    /// metric pipelines, anything that must guarantee a tensor is off the
-    /// tape without knowing where it came from.
-    pub fn no_grad(self) -> Self {
+    /// If the tensor uses autodiff, this moves it to the inner backend and drops any graph
+    /// reference it carries. If autodiff is already disabled, the tensor is returned unchanged.
+    /// This operation is idempotent.
+    ///
+    /// Unlike [`detach`](Tensor::detach), which severs the tensor from its current graph but keeps
+    /// its autodiff association, the returned tensor pays no autodiff dispatch for subsequent
+    /// operations involving only tensors without autodiff. When combined with a tensor that still
+    /// uses autodiff, it is treated as a constant for that operation.
+    pub fn without_autodiff(self) -> Self {
         if self.device().is_autodiff() {
-            self.inner()
+            Tensor::new(K::inner(self.primitive))
         } else {
             self
         }
     }
 
-    /// Convert a tensor to the autodiff backend.
+    /// Returns this tensor with autodiff enabled.
     ///
-    /// # Arguments
+    /// If autodiff is disabled, this associates the tensor with the autodiff backend using the
+    /// default gradient-checkpointing strategy. If autodiff is already enabled, the tensor and its
+    /// current strategy are returned unchanged. This operation is idempotent.
     ///
-    /// * `inner` - The tensor to convert.
+    /// Enabling autodiff does not make a floating-point tensor require gradients. Use
+    /// [`require_grad`](Tensor::require_grad) when its gradient should be retained during the
+    /// backward pass.
+    pub fn autodiff(self) -> Self {
+        if self.device().is_autodiff() {
+            self
+        } else {
+            Self::new(K::from_inner(self.primitive))
+        }
+    }
+
+    /// Returns the provided tensor with autodiff enabled.
     ///
-    /// # Returns
+    /// If the tensor does not yet use autodiff, this associates it with the autodiff backend using
+    /// the default gradient-checkpointing strategy. If autodiff is already enabled, the tensor and
+    /// its current strategy are returned unchanged. This operation is idempotent.
     ///
-    /// The tensor converted to the autodiff backend.
+    /// This is equivalent to [`autodiff`](Tensor::autodiff). `from_inner` reflects the underlying
+    /// backend-decorator model, while `autodiff` describes the operation in terms of the high-level
+    /// tensor API.
+    ///
+    /// Enabling autodiff does not make a floating-point tensor require gradients. Use
+    /// [`require_grad`](Tensor::require_grad) when its gradient should be retained during the
+    /// backward pass.
     pub fn from_inner(inner: Tensor<D, K>) -> Self {
-        Self::new(K::from_inner(inner.primitive))
+        inner.autodiff()
     }
 
     /// Sets the autodiff checkpointing strategy carried by this tensor.
@@ -165,6 +193,3 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
         })
     }
 }
-
-// TODO: a lot of the `tensor.inner` / `Tensor::from_inner(...)` are actually scoped to perform some operations
-// so it might be cleaner and easier to manage the device etc. if we provide a method to scope the autodiff?

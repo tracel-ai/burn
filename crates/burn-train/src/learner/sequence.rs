@@ -60,10 +60,10 @@ impl ItemLazy for SequenceOutput {
         self.loss.device().flush();
 
         SequenceOutput {
-            logits: self.logits.no_grad(),
-            loss: self.loss.no_grad(),
-            targets: self.targets.no_grad(),
-            predictions: self.predictions.map(|tensor| tensor.no_grad()),
+            logits: self.logits.without_autodiff(),
+            loss: self.loss.without_autodiff(),
+            targets: self.targets.without_autodiff(),
+            predictions: self.predictions.map(|tensor| tensor.without_autodiff()),
         }
     }
 }
