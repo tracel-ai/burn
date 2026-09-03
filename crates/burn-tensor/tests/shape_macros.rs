@@ -1,11 +1,12 @@
 //! Integration tests for `unpack_shape!`, `assert_shape!` and `debug_assert_shape!`.
 //!
-//! Rank mismatches and misuse of the slot kinds are compile errors, covered by the
-//! `compile_fail` doctests in `burn_tensor::shape_macro_compile_fail`. The tests here cover
-//! the runtime behavior: bindings, axis checks, panic messages, and the debug-only gating of
-//! `debug_assert_shape!`.
+//! Rank mismatches, non-tensor arguments and misuse of the slot kinds are compile errors,
+//! covered by the `compile_fail` doctests on the macros themselves. The tests here cover the
+//! runtime behavior: returned sizes, axis checks, panic messages, evaluation counts, hygiene,
+//! and the debug-only gating of `debug_assert_shape!`.
 
 use burn_tensor::{Int, Tensor, assert_shape, debug_assert_shape, unpack_shape};
+use core::cell::Cell;
 
 fn t<const D: usize>(shape: [usize; D]) -> Tensor<D> {
     Tensor::zeros(shape, &Default::default())
@@ -188,4 +189,54 @@ fn debug_assert_mismatch_panics_in_debug() {
 fn debug_assert_mismatch_compiles_out_in_release() {
     let x = t([2, 3]);
     debug_assert_shape!(x, [99, 99]);
+}
+
+#[test]
+fn debug_assert_evaluates_arguments_only_in_debug() {
+    let x = t([2, 3]);
+    let evals = Cell::new(0);
+    debug_assert_shape!(
+        {
+            evals.set(evals.get() + 1);
+            &x
+        },
+        [2, ={
+            evals.set(evals.get() + 1);
+            3
+        }]
+    );
+    assert_eq!(evals.get(), if cfg!(debug_assertions) { 2 } else { 0 });
+}
+
+// ---- grammar, evaluation, hygiene ----
+
+#[test]
+#[rustfmt::skip]
+fn accepts_trailing_comma() {
+    let x = t([2, 3]);
+    let (b, c) = unpack_shape!(x, [B, C,]);
+    assert_shape!(x, [2, 3,]);
+    assert_eq!((b, c), (2, 3));
+}
+
+#[test]
+fn check_expressions_evaluate_once() {
+    let x = t([2, 3]);
+    let evals = Cell::new(0);
+    assert_shape!(x, [2, ={
+        evals.set(evals.get() + 1);
+        3
+    }]);
+    assert_eq!(evals.get(), 1);
+}
+
+#[test]
+fn internals_do_not_shadow_caller_names() {
+    let x = t([2, 3]);
+    let __tensor = 2usize;
+    let __dims = 3usize;
+    let __expected = 3usize;
+    assert_shape!(x, [=__tensor, =__dims]);
+    let (b,) = unpack_shape!(x, [B, =__expected]);
+    assert_eq!(b, 2);
 }

@@ -303,6 +303,17 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "assert_shape!(targets, [=batch_size]): axis 0 expected 4, got 3")]
+    fn test_cross_entropy_loss_targets_must_match_batch_size() {
+        let (logits, _, _) = setup!();
+        let device = logits.device();
+        let targets = Tensor::<1, Int>::from_data(TensorData::from([2, 0, 4]), &device);
+        let _ = CrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(logits, targets);
+    }
+
+    #[test]
     fn test_cross_entropy_loss_with_weights() {
         let (logits, targets, targets_logits) = setup!();
         let weights = vec![1.0, 2., 3., 4., 5.];

@@ -88,65 +88,36 @@ pub fn record_state_derive(input: TokenStream) -> TokenStream {
     record_state::derive_impl(&input)
 }
 
-/// Binds tensor axis sizes to names while checking the rest of the shape.
-///
-/// `unpack_shape!(tensor, [B, T, 80])` evaluates to a tuple with one `usize` per bare
-/// identifier, in pattern order. The other slots are checks: `=expr` compares the axis with an
-/// in-scope `usize` expression, an integer literal compares with that value, and `_` skips
-/// the axis.
-///
-/// The pattern length must equal the tensor rank, otherwise the call does not compile. Axis
-/// checks are always-on runtime assertions; a mismatch panics with the axis, the expected and
-/// actual sizes, and the full dims.
-///
-/// ```ignore
-/// let (b, t) = unpack_shape!(x, [B, T, 80]);
-/// let (t,) = unpack_shape!(mask, [=b, T]);
-/// let (c,) = unpack_shape!(y, [_, _, C]);
-/// ```
-///
-/// Inspired by the `burn-contracts` crate by Crutcher Dunnavant.
+/// Implementation of `burn_tensor::unpack_shape!`. Not part of the public API.
+#[doc(hidden)]
 #[proc_macro]
-pub fn unpack_shape(input: TokenStream) -> TokenStream {
-    let call = input.to_string();
-    let input = syn::parse_macro_input!(input as shape::ShapeInput);
-    shape::expand(input, shape::Mode::Unpack, &call).into()
+pub fn __unpack_shape(input: TokenStream) -> TokenStream {
+    shape_macro(input, shape::Mode::Unpack)
 }
 
-/// Asserts a tensor's rank at compile time and its axis sizes at runtime.
-///
-/// `assert_shape!(tensor, [=b, =t, 256])` accepts `=expr` slots (an in-scope `usize`
-/// expression), integer literals, and `_` to skip an axis. Bare identifiers are rejected: use
-/// [`unpack_shape!`] to bind names.
-///
-/// The pattern length must equal the tensor rank, otherwise the call does not compile. Axis
-/// checks stay enabled in release builds; see [`debug_assert_shape!`] for the debug-only
-/// variant.
-///
-/// ```ignore
-/// assert_shape!(y, [=b, =t, =self.d_model]);
-/// assert_shape!(mask, [=b, _]);
-/// ```
-///
-/// Inspired by the `burn-contracts` crate by Crutcher Dunnavant.
+/// Implementation of `burn_tensor::assert_shape!`. Not part of the public API.
+#[doc(hidden)]
 #[proc_macro]
-pub fn assert_shape(input: TokenStream) -> TokenStream {
-    let call = input.to_string();
-    let input = syn::parse_macro_input!(input as shape::ShapeInput);
-    shape::expand(input, shape::Mode::Assert, &call).into()
+pub fn __assert_shape(input: TokenStream) -> TokenStream {
+    shape_macro(input, shape::Mode::Assert)
 }
 
-/// Same as [`assert_shape!`], but the axis checks compile out unless `debug_assertions` is on.
-///
-/// The rank check is a type check and stays in every build. Like `debug_assert!`, the tensor
-/// expression is not evaluated in release builds.
-///
-/// ```ignore
-/// debug_assert_shape!(hidden, [=b, =t, =self.d_model]);
-/// ```
+/// Implementation of `burn_tensor::debug_assert_shape!`. Not part of the public API.
+#[doc(hidden)]
 #[proc_macro]
-pub fn debug_assert_shape(input: TokenStream) -> TokenStream {
-    let call = input.to_string();
+pub fn __debug_assert_shape(input: TokenStream) -> TokenStream {
+    shape_macro(input, shape::Mode::DebugAssert)
+}
+
+/// The input is `$crate, tensor, [pattern]`, see the wrappers in burn-tensor. Panic messages
+/// echo everything after the crate path, as rendered by the compiler's token printer.
+fn shape_macro(input: TokenStream, mode: shape::Mode) -> TokenStream {
+    let call = input
+        .clone()
+        .into_iter()
+        .skip(2)
+        .collect::<TokenStream>()
+        .to_string();
     let input = syn::parse_macro_input!(input as shape::ShapeInput);
-    shape::expand(input, shape::Mode::DebugAssert, &call).into()
+    shape::expand(input, mode, &call).into()
 }

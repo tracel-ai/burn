@@ -10,7 +10,7 @@
 use crate::cache::TensorCache;
 use crate::modules::{Linear, LinearConfig};
 use crate::{Dropout, DropoutConfig};
-use burn::tensor::debug_assert_shape;
+use burn::tensor::{assert_shape, unpack_shape};
 use burn_core as burn;
 
 use burn::{
@@ -165,9 +165,8 @@ impl CrossAttention {
         context: Tensor<3>,
         mask: Option<Tensor<2, Bool>>,
     ) -> Tensor<3> {
-        let [batch, l_q, _] = query.dims();
-        let [_, l_k, _] = context.dims();
-        debug_assert_shape!(context, [=batch, _, _]);
+        let (batch, l_q) = unpack_shape!(query, [B, L, _]);
+        let (l_k,) = unpack_shape!(context, [=batch, L, _]);
 
         // 1. Projections
         let q = self.query.forward(query);
@@ -249,22 +248,21 @@ impl CrossAttention {
         mask: Option<Tensor<2, Bool>>,
         cache: &mut CrossAttentionCache,
     ) -> Tensor<3> {
-        let [batch, l_q, _] = query.dims();
+        let (batch, l_q) = unpack_shape!(query, [B, L, _]);
+        assert_shape!(context, [=batch, _, _]);
 
         // 1. Projections
         let q = self.query.forward(query);
 
         let k_compute = |context: Tensor<3>| {
-            let [_, l_k, _] = context.dims();
-            debug_assert_shape!(context, [=batch, _, _]);
+            let [batch, l_k, _] = context.dims();
             self.key
                 .forward(context)
                 .reshape([batch, l_k, self.n_heads_kv, self.d_head])
                 .swap_dims(1, 2)
         };
         let v_compute = |context: Tensor<3>| {
-            let [_, l_k, _] = context.dims();
-            debug_assert_shape!(context, [=batch, _, _]);
+            let [batch, l_k, _] = context.dims();
             self.value
                 .forward(context)
                 .reshape([batch, l_k, self.n_heads_kv, self.d_head])
@@ -537,6 +535,16 @@ mod tests {
         output_1
             .into_data()
             .assert_approx_eq(&output_2.into_data(), Tolerance::<f32>::default());
+    }
+
+    #[test]
+    #[should_panic(expected = "unpack_shape!(context, [=batch, L, _]): axis 0 expected 2, got 1")]
+    fn context_batch_must_match_query_batch() {
+        let device = Default::default();
+        let attn = CrossAttentionConfig::new(16, 16, 2, 2, 8).init(&device);
+        let query = Tensor::zeros([2, 3, 16], &device);
+        let context = Tensor::zeros([1, 4, 16], &device);
+        let _ = attn.forward(query, context, None);
     }
 
     #[test]

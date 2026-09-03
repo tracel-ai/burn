@@ -5,7 +5,7 @@ use crate::cache::TensorCache;
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn::tensor::{Bool, Device, Tensor, debug_assert_shape};
+use burn::tensor::{Bool, Device, Tensor, assert_shape, unpack_shape};
 
 use burn::tensor::activation::{quiet_softmax, softmax};
 #[cfg(not(feature = "std"))]
@@ -210,10 +210,9 @@ impl MultiHeadAttention {
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
     pub fn forward(&self, input: MhaInput) -> MhaOutput {
-        let [batch_size, seq_length_1, d_model] = input.query.dims();
-        debug_assert_shape!(input.query, [_, _, =self.d_model]);
-        debug_assert_shape!(input.key, [=batch_size, _, =self.d_model]);
-        debug_assert_shape!(input.value, [=batch_size, =input.key.dims()[1], =self.d_model]);
+        let (batch_size, seq_length_1) = unpack_shape!(input.query, [B, T, =self.d_model]);
+        let (seq_length_2,) = unpack_shape!(input.key, [=batch_size, T, =self.d_model]);
+        assert_shape!(input.value, [=batch_size, =seq_length_2, =self.d_model]);
 
         let query = self.attention_linear(input.query, &self.query);
         let key = self.attention_linear(input.key, &self.key);
@@ -225,7 +224,7 @@ impl MultiHeadAttention {
         let context = weights.clone().matmul(value);
         let context = context
             .swap_dims(1, 2)
-            .reshape([batch_size, seq_length_1, d_model]);
+            .reshape([batch_size, seq_length_1, self.d_model]);
         let context = self.output.forward(context);
 
         MhaOutput { weights, context }
@@ -240,10 +239,9 @@ impl MultiHeadAttention {
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
     pub fn forward_cache(&self, input: MhaInput, cache: &mut MhaCache) -> MhaOutput {
-        let [batch_size, seq_length_1, d_model] = input.query.dims();
-        debug_assert_shape!(input.query, [_, _, =self.d_model]);
-        debug_assert_shape!(input.key, [=batch_size, _, =self.d_model]);
-        debug_assert_shape!(input.value, [=batch_size, =input.key.dims()[1], =self.d_model]);
+        let (batch_size, seq_length_1) = unpack_shape!(input.query, [B, T, =self.d_model]);
+        let (seq_length_2,) = unpack_shape!(input.key, [=batch_size, T, =self.d_model]);
+        assert_shape!(input.value, [=batch_size, =seq_length_2, =self.d_model]);
 
         let query = cache
             .query
@@ -261,7 +259,7 @@ impl MultiHeadAttention {
         let context = weights.clone().matmul(value);
         let context = context
             .swap_dims(1, 2)
-            .reshape([batch_size, seq_length_1, d_model]);
+            .reshape([batch_size, seq_length_1, self.d_model]);
 
         let context = cache.output.forward(context, |t| self.output.forward(t));
 
@@ -377,6 +375,18 @@ mod tests {
     use burn::tensor::Int;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, Shape};
+
+    #[test]
+    #[should_panic(
+        expected = "unpack_shape!(input.key, [=batch_size, T, =self.d_model]): axis 0 expected 2, got 1"
+    )]
+    fn key_batch_must_match_query_batch() {
+        let device = Default::default();
+        let mha = MultiHeadAttentionConfig::new(8, 2).init(&device);
+        let query = Tensor::zeros([2, 3, 8], &device);
+        let key = Tensor::zeros([1, 3, 8], &device);
+        let _ = mha.forward(MhaInput::new(query, key.clone(), key));
+    }
 
     #[test]
     fn test_enable_bias() {

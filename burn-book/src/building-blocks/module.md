@@ -66,7 +66,7 @@ Each takes a tensor and a bracketed pattern with one slot per axis:
 
 | Slot                   | Meaning                                               |
 | ---------------------- | ----------------------------------------------------- |
-| `B` (bare name)        | Bind the axis size. Only valid in `unpack_shape!`.    |
+| `B` (bare name)        | Return the axis size. Only valid in `unpack_shape!`.  |
 | `=expr`                | The axis must equal this in-scope `usize` expression. |
 | `80` (integer literal) | The axis must equal this value.                       |
 | `_`                    | Skip the axis.                                        |
@@ -79,7 +79,7 @@ use burn::nn::{Gelu, Linear};
 use burn::prelude::*;
 
 #[derive(Module, Debug)]
-pub struct PositionWiseFeedForward {
+pub struct FeedForward {
     linear_inner: Linear,
     linear_outer: Linear,
     gelu: Gelu,
@@ -87,7 +87,7 @@ pub struct PositionWiseFeedForward {
     d_ff: usize,
 }
 
-impl PositionWiseFeedForward {
+impl FeedForward {
     /// # Shapes
     ///
     /// - input: `[batch_size, seq_length, d_model]`
@@ -107,8 +107,9 @@ impl PositionWiseFeedForward {
 }
 ```
 
-`unpack_shape!` evaluates to a tuple with one `usize` per bare name, in pattern order. A single name
-still yields a tuple: `let (n,) = unpack_shape!(x, [N]);`.
+`unpack_shape!` evaluates to a tuple with one `usize` per bare name, in pattern order. The names are
+labels, not bindings, so `let (c, b) = unpack_shape!(x, [B, _, C]);` swaps the two sizes without
+complaint. A single name still yields a tuple: `let (n,) = unpack_shape!(x, [N]);`.
 
 A failed check panics with the macro call, the axis, the expected and actual sizes, and the full
 dims of the tensor:
@@ -122,16 +123,14 @@ bind, is a compile error with a hint toward the right macro.
 
 ### Choosing a macro
 
-The question for each check is whether a later operation would reject the mismatch anyway.
-
 - `unpack_shape!` at the top of `forward` names the runtime axes once, and every later check refers
   to them with `=name`.
-- `assert_shape!` is for mismatches nothing else would catch: an output that callers rely on, or an
-  input that a following operation would silently broadcast. The check is a few integer comparisons,
-  so its cost does not matter next to a kernel launch.
-- `debug_assert_shape!` is for checks that only improve the error message, because the following
-  operation already rejects the mismatch in every build. Burn's own modules use it in their forward
-  passes for this reason.
+- `assert_shape!` is the default for a contract check. A mismatch that reaches a tensor operation
+  may fail there with a message about that operation's arguments, or broadcast silently when an axis
+  has size 1. The check is a few integer comparisons, so its cost does not matter next to a kernel
+  launch. Burn's own modules use it at their boundaries.
+- `debug_assert_shape!` is for hot inner loops, or for internal invariants that an earlier always-on
+  check already implies.
 
 These checks complement the validation Burn performs inside each tensor operation. An operation
 reports a mismatch in terms of its own arguments; a boundary check reports it in terms of the
