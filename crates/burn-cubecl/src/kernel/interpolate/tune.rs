@@ -56,7 +56,8 @@ pub fn interpolate_autotune<R: CubeRuntime>(
 
     static TUNER: LocalTuner<InterpolateAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(move || {
+    let tune_id = CubeTuneId::new(&client, &input.device);
+    let tunables = TUNER.init(&tune_id, move || {
         let mut set = with_bounds(TunableSet::new(create_key::<R>, input_gen::<R>));
 
         for (name, strategy) in STRATEGIES {
@@ -68,12 +69,7 @@ pub fn interpolate_autotune<R: CubeRuntime>(
         set
     });
 
-    TUNER.execute(
-        &CubeTuneId::new(&client, &input.device),
-        &client,
-        tunables,
-        (input, output_size, options),
-    )
+    TUNER.execute(&tune_id, &client, tunables, (input, output_size, options))
 }
 
 /// Registers the roofline bounds the short circuit needs.

@@ -93,7 +93,8 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(move || {
+    let tune_id = CubeTuneId::new(&lhs.client, &lhs.device);
+    let tunables = TUNER.init(&tune_id, move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_HIGH: i8 = 2;
         const PRIORITY_MEDIUM: i8 = 1;
@@ -587,12 +588,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         set
     });
 
-    TUNER.execute(
-        &CubeTuneId::new(&lhs.client, &lhs.device),
-        &client,
-        tunables,
-        (lhs, rhs, output.clone()),
-    );
+    TUNER.execute(&tune_id, &client, tunables, (lhs, rhs, output.clone()));
 
     output
 }

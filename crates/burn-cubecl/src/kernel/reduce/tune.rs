@@ -181,7 +181,8 @@ pub fn autotune_reduce<R: CubeRuntime>(
 
     static TUNER: LocalTuner<ReduceDimAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
-    let tunables = TUNER.init(|| {
+    let tune_id = CubeTuneId::new(&input.client, &input.device);
+    let tunables = TUNER.init(&tune_id, || {
         with_routine_tunables(
             with_reduce_bounds(TunableSet::new(create_key::<R>, reduce_input_gen::<R>)),
             "reduce",
@@ -208,7 +209,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&input.client, &input.device),
+        &tune_id,
         client,
         tunables,
         (input, output, axis, config, dtypes),
@@ -264,7 +265,8 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
     static TUNER: LocalTuner<ReduceDimAutotuneKey, CubeTuneId> =
         local_tuner!("reduce-dim-with-indices");
 
-    let tunables = TUNER.init(|| {
+    let tune_id = CubeTuneId::new(&input.client, &input.device);
+    let tunables = TUNER.init(&tune_id, || {
         with_routine_tunables(
             with_reduce_with_indices_bounds(TunableSet::new(
                 create_key_with_indices::<R>,
@@ -296,7 +298,7 @@ pub fn autotune_reduce_with_indices<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&input.client, &input.device),
+        &tune_id,
         client,
         tunables,
         (input, values, indices, axis, config, dtypes),
@@ -398,7 +400,8 @@ pub fn autotune_sum<R: CubeRuntime>(client: &ComputeClient, input: CubeTensor<R>
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!("autotune-sum");
 
-    let tunables = TUNER.init(|| {
+    let tune_id = CubeTuneId::new(&input.client, &input.device);
+    let tunables = TUNER.init(&tune_id, || {
         with_sum_bounds(TunableSet::new(create_key_sum::<R>, sum_input_gen::<R>))
             .with(Tunable::new("sum_chained", sum_chained::<R>))
             .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 1>))
@@ -410,12 +413,7 @@ pub fn autotune_sum<R: CubeRuntime>(client: &ComputeClient, input: CubeTensor<R>
             .with(Tunable::new("sum_one_shot", sum_one_shot::<R, 64>))
     });
 
-    TUNER.execute(
-        &CubeTuneId::new(&input.client, &input.device),
-        client,
-        tunables,
-        input,
-    )
+    TUNER.execute(&tune_id, client, tunables, input)
 }
 
 pub(crate) fn create_key_sum<Run: CubeRuntime>(input: &CubeTensor<Run>) -> CubeAutotuneKey {

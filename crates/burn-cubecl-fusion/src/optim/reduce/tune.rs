@@ -41,7 +41,8 @@ pub fn fused_reduce_autotune<R: Runtime>(
 ) {
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tune_id = CubeTuneId::new(&arg.info.client, &arg.info.device);
+    let tunables = TUNER.init(&tune_id, || {
         const PRIORITY_MAX: i8 = 2;
         const PRIORITY_MIN: i8 = 1;
 
@@ -109,7 +110,7 @@ pub fn fused_reduce_autotune<R: Runtime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&arg.info.client, &arg.info.device),
+        &tune_id,
         &arg.info.client.clone(),
         tunables,
         TuneInput::new(context, arg),

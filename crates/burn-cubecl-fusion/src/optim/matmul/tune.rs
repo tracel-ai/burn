@@ -67,7 +67,8 @@ pub fn fused_matmul_autotune<R: Runtime>(
     let tune_client = optimization.info.client.clone();
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(move || {
+    let tune_id = CubeTuneId::new(&optimization.info.client, &optimization.info.device);
+    let tunables = TUNER.init(&tune_id, move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_HIGH: i8 = 2;
         const PRIORITY_MEDIUM: i8 = 1;
@@ -285,7 +286,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&optimization.info.client, &optimization.info.device),
+        &tune_id,
         &optimization.info.client.clone(),
         tunables,
         TuneInput::new(context, optimization),

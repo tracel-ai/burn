@@ -31,7 +31,8 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
     // Note: TMA isn't currently implemented properly, and will always error.
     // It's kept here so it gets automatically enabled as soon as cubek updates.
     // No CMMA for TMA because swizzling will be mandatory for good performance on dgrad.
-    let tunables = TUNER.init(|| {
+    let tune_id = CubeTuneId::new(&out_grad.client, &out_grad.device);
+    let tunables = TUNER.init(&tune_id, || {
         TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
             .with(Tunable::new(
                 "wgrad_fallback",
@@ -81,7 +82,7 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&out_grad.client, &out_grad.device),
+        &tune_id,
         &client,
         tunables,
         (out_grad, weights, input_shape, options),

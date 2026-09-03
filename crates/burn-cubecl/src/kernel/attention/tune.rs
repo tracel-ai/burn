@@ -26,7 +26,8 @@ pub fn attention_autotune<R: CubeRuntime>(
 
     static TUNER: LocalTuner<AttentionAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(move || {
+    let tune_id = CubeTuneId::new(&accelerated_client, &query.device);
+    let tunables = TUNER.init(&tune_id, move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_MIN: i8 = 0;
 
@@ -148,7 +149,7 @@ pub fn attention_autotune<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&accelerated_client, &query.device),
+        &tune_id,
         &accelerated_client,
         tunables,
         (query, key, value, mask, attn_bias, options),

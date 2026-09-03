@@ -18,7 +18,8 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime>(
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tune_set = TUNER.init(|| {
+    let tune_id = CubeTuneId::new(&input.client, &input.device);
+    let tune_set = TUNER.init(&tune_id, || {
         TunableSet::new(create_key::<R>, create_transpose2d_input::<R>)
             .with(Tunable::new(
                 "conv_transpose2d_direct",
@@ -34,12 +35,7 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime>(
             ))
     });
 
-    TUNER.execute(
-        &CubeTuneId::new(&input.client, &input.device),
-        &client,
-        tune_set,
-        (input, weights, bias, options),
-    )
+    TUNER.execute(&tune_id, &client, tune_set, (input, weights, bias, options))
 }
 
 pub fn create_transpose2d_input<R: CubeRuntime>(
