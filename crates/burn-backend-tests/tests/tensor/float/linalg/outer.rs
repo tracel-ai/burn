@@ -1,6 +1,7 @@
 use super::*;
+use burn_linalg as linalg;
+use burn_tensor::TensorData;
 use burn_tensor::{ElementConversion, Tolerance};
-use burn_tensor::{TensorData, linalg};
 
 // ---------- Vector (D=1, R=2) tests ----------
 

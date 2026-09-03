@@ -1,4 +1,3 @@
-use crate::check;
 use crate::check::TensorCheck;
 use crate::kind::Basic;
 use crate::tensor::{Int, Tensor};

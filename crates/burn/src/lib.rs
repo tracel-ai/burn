@@ -122,6 +122,27 @@
 
 pub use burn_core::*;
 
+/// Linear algebra operations.
+pub mod linalg {
+    pub use burn_linalg::*;
+}
+
+/// Core module infrastructure and neural-network initializers.
+pub mod module {
+    pub use burn_core::module::*;
+    pub use burn_nn::Initializer;
+}
+
+/// Tensor types and compatibility re-exports.
+pub mod tensor {
+    pub use burn_core::tensor::*;
+
+    /// Compatibility path for linear algebra operations.
+    pub mod linalg {
+        pub use burn_linalg::*;
+    }
+}
+
 /// Train module
 #[cfg(feature = "train")]
 pub mod train {

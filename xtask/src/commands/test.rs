@@ -323,6 +323,7 @@ pub(crate) fn handle_command(
                     let args_vulkan = args_vulkan.try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_vulkan)?;
                     handle_wgpu_test("burn-core", &args_vulkan)?;
+                    handle_wgpu_test("burn-linalg", &args_vulkan)?;
                     handle_wgpu_test("burn-vision", &args_vulkan)?;
 
                     // Enable burn-core/vulkan
@@ -351,6 +352,7 @@ pub(crate) fn handle_command(
                     let args_wgpu = args_wgpu.try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_wgpu)?;
                     handle_wgpu_test("burn-core", &args_wgpu)?;
+                    handle_wgpu_test("burn-linalg", &args_wgpu)?;
                     handle_wgpu_test("burn-vision", &args_wgpu)?;
 
                     // Enable burn-core/webgpu
@@ -372,7 +374,13 @@ pub(crate) fn handle_command(
                     // Capture is intentionally opt-in, so workspace-default tests don't compile
                     // the dispatch, tensor, core, or facade integration tests that exercise it.
                     build_helpers::custom_crates_tests(
-                        vec!["burn-dispatch", "burn-tensor", "burn-core", "burn"],
+                        vec![
+                            "burn-dispatch",
+                            "burn-tensor",
+                            "burn-core",
+                            "burn-linalg",
+                            "burn",
+                        ],
                         handle_test_args(&["--features", "capture"], args.release),
                         None,
                         None,
@@ -396,6 +404,16 @@ pub(crate) fn handle_command(
                         None,
                         None,
                         "std with features: tch",
+                    )?;
+
+                    // burn-linalg
+                    set_burn_device("flex");
+                    build_helpers::custom_crates_tests(
+                        vec!["burn-linalg"],
+                        handle_test_args(&["--features", "flex"], args.release),
+                        None,
+                        None,
+                        "std cpu (flex)",
                     )?;
 
                     // burn-nn (pretrained and local tests)
@@ -437,6 +455,13 @@ pub(crate) fn handle_command(
                     set_burn_device("metal");
                     build_helpers::custom_crates_tests(
                         vec!["burn-core"],
+                        handle_test_args(&["--features", "metal"], args.release),
+                        None,
+                        None,
+                        "std metal",
+                    )?;
+                    build_helpers::custom_crates_tests(
+                        vec!["burn-linalg"],
                         handle_test_args(&["--features", "metal"], args.release),
                         None,
                         None,

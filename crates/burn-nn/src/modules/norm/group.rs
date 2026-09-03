@@ -1,4 +1,4 @@
-use burn::module::Initializer;
+use crate::Initializer;
 use burn_core as burn;
 
 use burn::config::Config;

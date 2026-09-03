@@ -1,5 +1,6 @@
 use super::*;
-use burn_tensor::{DType, Distribution, Element, Tolerance, linalg::qr, s};
+use burn_linalg::qr;
+use burn_tensor::{DType, Distribution, Element, Tolerance, s};
 
 const REL: f32 = 5e-3;
 // Householder updates are expressed as matmuls, for which accelerated CUDA

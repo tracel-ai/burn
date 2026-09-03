@@ -800,6 +800,7 @@ name = "burn"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn-core",
+ "burn-linalg",
  "burn-nn",
  "burn-optim",
  "burn-rl",
@@ -862,6 +863,7 @@ dependencies = [
  "burn-cubecl-fusion",
  "burn-flex",
  "burn-fusion",
+ "burn-linalg",
  "burn-ndarray",
  "burn-tensor",
  "ctor",
@@ -1105,6 +1107,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-linalg"
+version = "0.22.0-pre.3"
+dependencies = [
+ "burn-core",
+ "burn-cubecl",
+ "burn-fusion",
+ "burn-router",
+ "burn-std",
+ "num-traits",
+]
+
+[[package]]
 name = "burn-ndarray"
 version = "0.22.0-pre.3"
 dependencies = [
@@ -1134,6 +1148,7 @@ name = "burn-nn"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn-core",
+ "burn-linalg",
  "num-traits",
  "rstest",
 ]

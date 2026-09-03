@@ -2,7 +2,7 @@
 //! + Givens factor assembly, over plain slices.
 //!
 //! This is the reference implementation backing the default
-//! [`FloatTensorOps::float_svd`](super::tensor::FloatTensorOps#method.float_svd):
+//! [`LinalgOps::svd`](crate::LinalgOps::svd):
 //! pure scalar math over tensor data, deterministic and identical on every
 //! backend. Backends may override the trait method with a native SVD (tch)
 //! or a fused GPU kernel (cubecl); this module stays the correctness

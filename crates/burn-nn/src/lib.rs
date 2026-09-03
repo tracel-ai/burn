@@ -4,6 +4,10 @@
 #![recursion_limit = "256"]
 
 //! Burn neural network module.
+//!
+//! [`Initializer`] is defined by this crate. The former direct-crate path
+//! `burn_core::module::Initializer` has been removed; umbrella users can keep
+//! using `burn::nn::Initializer` or `burn::module::Initializer`.
 
 /// Loss module
 pub mod loss;
@@ -19,11 +23,15 @@ pub use activation::{
     tanh::*, thresholded_relu::*,
 };
 
+mod initializer;
 mod padding;
 
+pub use initializer::*;
 pub use padding::*;
 
-// For backward compat, `burn::nn::Initializer`
-pub use burn_core::module::Initializer;
-
 extern crate alloc;
+
+#[cfg(test)]
+fn test_device() -> burn_core::tensor::Device {
+    burn_core::tensor::Device::flex()
+}

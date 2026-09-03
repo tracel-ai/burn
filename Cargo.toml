@@ -204,6 +204,7 @@ burn-dispatch = { path = "crates/burn-dispatch", version = "=0.22.0-pre.3", defa
 burn-flex = { path = "crates/burn-flex", version = "=0.22.0-pre.3", default-features = false }
 burn-fusion = { path = "crates/burn-fusion", version = "=0.22.0-pre.3", default-features = false }
 burn-ir = { path = "crates/burn-ir", version = "=0.22.0-pre.3", default-features = false }
+burn-linalg = { path = "crates/burn-linalg", version = "=0.22.0-pre.3", default-features = false }
 burn-ndarray = { path = "crates/burn-ndarray", version = "=0.22.0-pre.3", default-features = false }
 burn-nn = { path = "crates/burn-nn", version = "=0.22.0-pre.3", default-features = false }
 burn-optim = { path = "crates/burn-optim", version = "=0.22.0-pre.3", default-features = false }

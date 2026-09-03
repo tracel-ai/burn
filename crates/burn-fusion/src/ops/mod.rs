@@ -11,3 +11,4 @@ mod unary;
 
 mod base;
 pub use base::NoOp;
+pub use tensor::register_float_tensor;

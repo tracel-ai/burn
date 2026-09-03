@@ -1,5 +1,5 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::{DType, Shape, Slice, Tensor, cast::ToElement};
+use crate::{Shape, Slice, Tensor, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -979,34 +979,6 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn diag<const D: usize, const DO: usize>() -> Self {
-        let mut check = Self::Ok;
-
-        if D < 2 {
-            check = check.register(
-                "Diag",
-                TensorError::new(
-                    "Diagonal operations require
-                tensors with at least 2 dimensions.",
-                )
-                .details(format!(
-                    "Got tensor with {D} dimensions,
-                expected at least 2"
-                )),
-            );
-        }
-
-        if DO != D - 1 {
-            check = check.register(
-                "Diag",
-                TensorError::new("Output rank must be input rank minus 1 for diagonal")
-                    .details(format!("Expected output rank {}, got {DO}", D - 1)),
-            );
-        }
-
-        check
-    }
-
     pub(crate) fn select_assign<const D: usize>(
         dim: usize,
         shape_indices: &Shape,
@@ -1323,146 +1295,6 @@ impl TensorCheck {
                 .details(format!("got: {channels}, expected: {expected}")),
             );
         }
-        check
-    }
-
-    /// Check the generic parameters for lu decomposition is valid.
-    pub fn lu_generic_param<const D: usize, const D1: usize>(ops: &str) -> Self {
-        let mut check = TensorCheck::Ok;
-        if D - 1 != D1 {
-            check = check.register(
-                ops,
-                TensorError::new(
-                    "D - 1 = D1 must hold for the generic parameters of LU decomposition.",
-                )
-                .details(format!("Got generic parameters D = {} and D1 = {}", D, D1)),
-            );
-        }
-        check
-    }
-
-    /// Check the input tensor for lu decomposition is valid.
-    pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize], dtype: DType) -> Self {
-        let mut check = TensorCheck::Ok;
-
-        if matches!(dtype, DType::QFloat(_)) {
-            check = check.register(
-                ops,
-                TensorError::new("The input tensor must have a real float dtype")
-                    .details("Got an input tensor with a quantized float dtype".to_string()),
-            );
-        }
-
-        let n_dims = dims.len();
-        if n_dims < 2 {
-            check = check.register(
-                ops,
-                TensorError::new(
-                    "The input tensor for LU decomposition must have at least two dimensions.",
-                )
-                .details(format!("Got input tensor with {} dimensions", n_dims)),
-            );
-        }
-
-        check
-    }
-
-    /// Check if input tensor for qr decomposition is valid
-    pub fn qr_input_tensor<const D: usize>(ops: &str, dims: &[usize], dtype: DType) -> Self {
-        Self::lu_input_tensor::<D>(ops, dims, dtype)
-    }
-
-    /// Check if input tensor and generic parameters of `linalg::svd()` are valid.
-    pub fn svd_input_tensor<const D: usize, const D1: usize>(
-        ops: &str,
-        dims: &[usize],
-        dtype: DType,
-    ) -> Self {
-        let mut check = TensorCheck::Ok;
-
-        if matches!(dtype, DType::QFloat(_)) {
-            check = check.register(
-                ops,
-                TensorError::new("The input tensor must have a real float dtype")
-                    .details("Got an input tensor with a quantized float dtype".to_string()),
-            );
-        }
-
-        if dims.len() < 2 {
-            check = check.register(
-                ops,
-                TensorError::new(
-                    "The input tensor for SVD decomposition must have at least two dimensions.",
-                )
-                .details(format!("Got input tensor with {} dimensions", dims.len())),
-            );
-        }
-
-        if D1 != D - 1 {
-            check = check.register(
-                ops,
-                TensorError::new(
-                    "D - 1 = D1 must hold for the generic parameters of the linalg::svd function.",
-                )
-                .details(format!("Got generic parameters D = {D} and D1 = {D1}")),
-            );
-        }
-
-        check
-    }
-
-    /// Check if input tensor and generic parameters of `linalg::det()` are valid.
-    pub fn det<const D: usize, const D1: usize, const D2: usize>(
-        dims: [usize; D],
-        dtype: DType,
-    ) -> Self {
-        let mut check = TensorCheck::Ok;
-
-        if matches!(dtype, DType::QFloat(_)) {
-            check = check.register(
-                "det",
-                TensorError::new("The input tensor must have a real float dtype.")
-                    .details("Got an input tensor with a quantized float dtype".to_string()),
-            );
-        }
-
-        if D1 != D - 1 {
-            check = check.register(
-                "det",
-                TensorError::new(
-                    "D - 1 = D1 must hold for the generic parameters of the linalg::det function.",
-                )
-                .details(format!("Got generic parameters D = {D} and D1 = {D1}")),
-            );
-        }
-
-        if D2 != D - 2 {
-            check = check.register(
-                "det",
-                TensorError::new("The output tensor rank must be less than input tensor rank by 2")
-                    .details(format!(
-                        "Got input tensor rank {D} and output tensor rank {D2}"
-                    )),
-            );
-        }
-
-        if D < 3 {
-            check = check.register(
-                "det",
-                TensorError::new(format!(
-                    "The input tensor must have at least 3 dimensions, got {D}"
-                )),
-            );
-        }
-
-        if dims[D - 1] != dims[D - 2] {
-            check = check.register(
-                "det",
-                TensorError::new("The last two dimensions of the input tensor must be equal")
-                    .details(format!("Got input tensor with shape {:?}", dims)),
-            );
-        }
-
         check
     }
 

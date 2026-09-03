@@ -15,20 +15,21 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "burn-core/default"]
+default = ["std", "burn-core/default", "burn-linalg/default"]
 doc = [
     "std",
     # Doc features
     "burn-core/doc",
 ]
-std = ["burn-core/std", "num-traits/std"]
+std = ["burn-core/std", "burn-linalg/std", "num-traits/std"]
 
-tracing = ["burn-core/tracing"]
+tracing = ["burn-core/tracing", "burn-linalg/tracing"]
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 burn-core = { workspace = true }
+burn-linalg = { workspace = true }
 
 num-traits = { workspace = true }
 

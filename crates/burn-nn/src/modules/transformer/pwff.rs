@@ -1,9 +1,10 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::{Activation, ActivationConfig};
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Device, Tensor};
 
 /// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer using the [init function](PositionWiseFeedForwardConfig::init).

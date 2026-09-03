@@ -24,30 +24,31 @@ default = [
     # "ndarray",
     "std",
 ]
-std = ["burn-tensor/std"]
+std = ["burn-tensor/std", "burn-linalg/std"]
 bench-disable-alloc = []
 # Backends
-cuda = ["burn-tensor/cuda", "quantization", "cube"]
-rocm = ["burn-tensor/rocm", "quantization", "cube"]
-flex = ["burn-tensor/flex", "quantization"]
+cuda = ["burn-tensor/cuda", "burn-linalg/cuda", "quantization", "cube"]
+rocm = ["burn-tensor/rocm", "burn-linalg/rocm", "quantization", "cube"]
+flex = ["burn-tensor/flex", "burn-linalg/flex", "quantization"]
 flex-simd = ["flex", "burn-flex/simd"]
 flex-rayon = ["flex", "burn-flex/rayon"]
-ndarray = ["burn-tensor/ndarray", "quantization"]
-tch = ["burn-tensor/tch"]
-vulkan = ["wgpu", "burn-tensor/vulkan"]
-webgpu = ["wgpu", "burn-tensor/webgpu"]
-metal = ["wgpu", "burn-tensor/metal"]
-wgpu = ["burn-tensor/wgpu", "quantization", "cube"]
-cpu = ["burn-tensor/cpu", "cube"]
+ndarray = ["burn-tensor/ndarray", "burn-linalg/ndarray", "quantization"]
+tch = ["burn-tensor/tch", "burn-linalg/tch"]
+vulkan = ["wgpu", "burn-tensor/vulkan", "burn-linalg/vulkan"]
+webgpu = ["wgpu", "burn-tensor/webgpu", "burn-linalg/webgpu"]
+metal = ["wgpu", "burn-tensor/metal", "burn-linalg/metal"]
+wgpu = ["burn-tensor/wgpu", "burn-linalg/wgpu", "quantization", "cube"]
+cpu = ["burn-tensor/cpu", "burn-linalg/cpu", "cube"]
 # Runs the test suite against a remote `burn-remote` server.
 # At runtime, set `BURN_DEVICE=remote` (and optionally `BURN_REMOTE_ADDRESS=ws://host:port`).
-remote = ["burn-tensor/remote"]
+remote = ["burn-tensor/remote", "burn-linalg/remote"]
 
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
 fusion = [
     "burn-tensor/fusion",
+    "burn-linalg/fusion",
     "burn-fusion/test-util",
     "burn-cubecl-fusion?/test-util",
 ]
@@ -72,6 +73,7 @@ distributed = ["cuda"]
 
 [dependencies]
 burn-tensor = { workspace = true, features = ["autodiff"] }
+burn-linalg = { workspace = true }
 burn-backend = { workspace = true }
 
 # For random tests

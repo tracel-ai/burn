@@ -40,4 +40,6 @@ pub(crate) use server::*;
 
 pub use backend::*;
 pub use ops::NoOp;
+#[doc(hidden)]
+pub use ops::register_float_tensor;
 pub use tensor::*;

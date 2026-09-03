@@ -1,9 +1,9 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::Content;
 use burn::module::DisplaySettings;
-use burn::module::Initializer;
 use burn::module::Module;
 use burn::module::ModuleDisplay;
 use burn::module::Param;

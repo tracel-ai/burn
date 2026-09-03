@@ -15,7 +15,12 @@ use burn_backend::{
 use burn_ir::*;
 use std::marker::PhantomData;
 
-fn register_float_tensor<B: FusionBackend>(
+/// Registers an already-computed inner-backend float tensor with Fusion.
+///
+/// Backend extension crates use this after executing an operation that has no
+/// Fusion IR representation.
+#[doc(hidden)]
+pub fn register_float_tensor<B: FusionBackend>(
     tensor: FloatTensor<B>,
     client: &GlobalFusionClient<B::FusionRuntime>,
 ) -> FloatTensor<Fusion<B>> {
@@ -254,33 +259,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.into_data::<B>().await
-    }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(
-            from = ?tensor.client.device(),
-            shape = ?tensor.shape,
-            dtype = ?tensor.dtype
-        )
-    ))]
-    fn float_svd(
-        tensor: FloatTensor<Self>,
-        sweeps: usize,
-        swap: bool,
-    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
-        // Resolve through the fusion server into the inner backend's
-        // primitive and let the backend run its SVD (fused kernel or host
-        // pipeline); fusion has no IR op for SVD.
-        let client = tensor.client.clone();
-        let resolved = client.resolve_tensor_float::<B>(tensor);
-        let (u, s, vt) = B::float_svd(resolved, sweeps, swap);
-        (
-            register_float_tensor::<B>(u, &client),
-            register_float_tensor::<B>(s, &client),
-            register_float_tensor::<B>(vt, &client),
-        )
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(

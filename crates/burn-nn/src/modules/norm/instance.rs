@@ -1,8 +1,8 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use crate::norm::group_norm;
 use burn::config::Config;
-use burn::module::Initializer;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::module::{Module, Param};
 use burn::tensor::{Device, Tensor};

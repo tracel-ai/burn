@@ -1,4 +1,4 @@
-use crate::{Bool, Device, ElementConversion, Float, Int, Tensor, check, check::TensorCheck};
+use crate::{Bool, Device, ElementConversion, Float, Int, Tensor, check::TensorCheck};
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_std::{DType, FloatDType, IndexingUpdateOp, Slice};
@@ -44,7 +44,7 @@ use burn_std::{DType, FloatDType, IndexingUpdateOp, Slice};
 /// ```rust,ignore
 /// use burn::tensor::Tensor;
 /// use burn::backend::Flex;
-/// use burn::tensor::linalg;
+/// use burn::linalg;
 ///
 /// fn example() {
 ///     let device = Default::default();
