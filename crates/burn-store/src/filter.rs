@@ -63,16 +63,22 @@ impl PathFilter {
     }
 
     /// Add a regex pattern for matching paths
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
     #[cfg(feature = "std")]
     pub fn with_regex<S: AsRef<str>>(mut self, pattern: S) -> Self {
-        if let Ok(regex) = Regex::new(pattern.as_ref()) {
-            self.regex_patterns.push(regex);
-        }
-        // TODO: Consider returning Result to handle regex compilation errors
+        let regex = Regex::new(pattern.as_ref()).expect("Invalid regex pattern");
+        self.regex_patterns.push(regex);
         self
     }
 
     /// Add multiple regex patterns
+    ///
+    /// # Panics
+    ///
+    /// Panics if any pattern is not a valid regular expression.
     #[cfg(feature = "std")]
     pub fn with_regexes<I, S>(mut self, patterns: I) -> Self
     where
@@ -80,9 +86,8 @@ impl PathFilter {
         S: AsRef<str>,
     {
         for pattern in patterns {
-            if let Ok(regex) = Regex::new(pattern.as_ref()) {
-                self.regex_patterns.push(regex);
-            }
+            let regex = Regex::new(pattern.as_ref()).expect("Invalid regex pattern");
+            self.regex_patterns.push(regex);
         }
         self
     }
@@ -358,6 +363,20 @@ mod tests {
         assert!(filter.matches("decoder.weight"));
         assert!(filter.matches("encoder.weight"));
         assert!(!filter.matches("decoder.bias"));
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    #[should_panic(expected = "Invalid regex pattern")]
+    fn invalid_regex_panics() {
+        let _ = PathFilter::new().with_regex("[");
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    #[should_panic(expected = "Invalid regex pattern")]
+    fn invalid_regex_in_collection_panics() {
+        let _ = PathFilter::new().with_regexes([r"^valid$", "["]);
     }
 
     #[test]
