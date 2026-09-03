@@ -129,7 +129,9 @@ rejected with a hint to use `assert_shape!`.
   obvious from the preceding call. The check is a few integer comparisons next to tensor operations
   that launch kernels, so its cost does not matter.
 - Use `debug_assert_shape!` inside hot loops, or for internal invariants already implied by an
-  earlier always-on check.
+  earlier always-on check. Burn's own modules use it in their forward passes: the tensor operations
+  they call validate shapes in every build, so the boundary check only needs to improve the message
+  during development.
 
 These checks complement the validation Burn performs inside each tensor operation. An operation
 reports a mismatch in terms of its own arguments; a boundary check reports it in terms of the

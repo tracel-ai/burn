@@ -5,7 +5,7 @@ use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
 use burn::tensor::TensorData;
-use burn::tensor::{Device, Tensor, unpack_shape};
+use burn::tensor::{Device, Tensor, debug_assert_shape};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -101,8 +101,9 @@ impl PositionalEncoding {
     /// * Panics if the input sequence length is greater than the maximum sequence size.
     /// * Panics if the input d_model is not equal to the d_model of the sinusoids.
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
+        let [_, seq_length, _] = input.dims();
         let [batch_size, max_sequence_size, d_model] = self.sinusoids.dims();
-        let (seq_length,) = unpack_shape!(input, [_, T, =d_model]);
+        debug_assert_shape!(input, [_, _, =d_model]);
 
         assert!(
             max_sequence_size >= seq_length,
