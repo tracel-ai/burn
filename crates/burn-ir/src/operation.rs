@@ -1507,7 +1507,7 @@ pub struct ConvTranspose3dOpIr {
 #[allow(missing_docs)]
 pub struct Conv1dOptionsIr {
     pub stride: [usize; 1],
-    pub padding: [usize; 1],
+    pub padding: [(usize, usize); 1],
     pub dilation: [usize; 1],
     pub groups: usize,
 }
@@ -1516,7 +1516,7 @@ pub struct Conv1dOptionsIr {
 #[allow(missing_docs)]
 pub struct Conv2dOptionsIr {
     pub stride: [usize; 2],
-    pub padding: [usize; 2],
+    pub padding: [(usize, usize); 2],
     pub dilation: [usize; 2],
     pub groups: usize,
 }
@@ -1622,7 +1622,7 @@ impl From<ConvOptions<3>> for Conv3dOptionsIr {
     fn from(value: ConvOptions<3>) -> Self {
         Self {
             stride: value.stride,
-            padding: value.padding,
+            padding: value.symmetric_padding(),
             dilation: value.dilation,
             groups: value.groups,
         }
@@ -1703,7 +1703,7 @@ impl From<Conv3dOptionsIr> for ConvOptions<3> {
     fn from(val: Conv3dOptionsIr) -> Self {
         ConvOptions {
             stride: val.stride,
-            padding: val.padding,
+            padding: val.padding.map(|padding| (padding, padding)),
             dilation: val.dilation,
             groups: val.groups,
         }
@@ -5235,9 +5235,18 @@ activation_ir_tensor_access! {
 }
 
 #[cfg(test)]
-mod visit_mut_tests {
+mod tests {
     use super::*;
     use burn_backend::{DType, Shape};
+
+    #[test]
+    #[should_panic(expected = "expected symmetric convolution padding")]
+    fn conv3d_options_ir_rejects_asymmetric_padding() {
+        let options =
+            ConvOptions::new_with_padding([1, 1, 1], [(0, 1), (2, 2), (3, 3)], [1, 1, 1], 1);
+
+        let _: Conv3dOptionsIr = options.into();
+    }
 
     fn tensor(id: u64) -> TensorIr {
         TensorIr::uninit(TensorId::new(id), Shape::from([2, 2]), DType::F32)

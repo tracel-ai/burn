@@ -21,7 +21,7 @@ use crate::{
 };
 use burn_backend::{
     TensorMetadata,
-    ops::{attention::attention_fallback, *},
+    ops::{attention::attention_fallback, conv::pad_asymmetric_conv_input, *},
     tensor::FloatTensor,
 };
 use burn_std::IntDType;
@@ -58,6 +58,7 @@ impl ModuleOps<Self> for NdArray {
         bias: Option<NdArrayTensor>,
         options: ConvOptions<2>,
     ) -> NdArrayTensor {
+        let (x, options) = pad_asymmetric_conv_input::<NdArray, 2>(x, options);
         module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
             #[cfg(feature = "simd")]
             let (x, weight, bias) = match try_conv2d_simd(x, weight, bias, options.clone()) {

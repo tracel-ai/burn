@@ -252,6 +252,8 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
         &options.dilation,
         in_shape,
     );
+    let check_spatial_bounds =
+        should_check_spatial_bounds(in_shape, kernel_shape, &out_size, &options);
 
     let mut shape_out = vec![batch_size];
     shape_out.extend(out_size.iter().copied());
@@ -289,7 +291,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
         conv_params.push(ConvParamLaunch::new(
             options.stride[i] as u32,
             options.dilation[i] as u32,
-            options.padding[i] as i32,
+            options.padding_begin()[i] as i32,
         ));
     }
 
@@ -312,10 +314,26 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             Conv2dArgsLaunch::new(conv_params, channels_per_group as u32),
             shape_out,
             shape_out_c,
-            options.padding.iter().any(|it| *it != 0),
+            check_spatial_bounds,
             dtype_to_storage_type(out_dtype),
         )
     };
 
     Ok(output)
+}
+
+fn should_check_spatial_bounds<const N: usize>(
+    in_shape: &[usize],
+    kernel_shape: &[usize],
+    out_shape: &[usize],
+    options: &ConvOptions<N>,
+) -> bool {
+    (0..N).any(|dim| {
+        let begin = options.padding[dim].0 as i64;
+        let first = -begin;
+        let last = (out_shape[dim] as i64 - 1) * options.stride[dim] as i64
+            + (kernel_shape[dim] as i64 - 1) * options.dilation[dim] as i64
+            - begin;
+        first < 0 || last >= in_shape[dim] as i64
+    })
 }

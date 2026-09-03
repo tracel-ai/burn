@@ -83,7 +83,7 @@ fn conv_weight_grad_depthwise<R: CubeRuntime, const N_DIM: usize>(
         image,
         filter,
         None,
-        ConvOptions::new(options.dilation, options.padding, options.stride, channels),
+        ConvOptions::new_with_padding(options.dilation, options.padding, options.stride, channels),
         Default::default(),
     )?;
 
@@ -115,7 +115,7 @@ fn conv_weight_grad_no_groups<R: CubeRuntime, const N_DIM: usize>(
         input_swapped,
         out_grad_swapped,
         None,
-        ConvOptions::new(options.dilation, options.padding, options.stride, 1),
+        ConvOptions::new_with_padding(options.dilation, options.padding, options.stride, 1),
         Default::default(),
     )?;
     let mut weight_grad = swap_dims(weight_grad_swapped, 0, dim_c);
@@ -166,7 +166,7 @@ fn conv_weight_grad_groups<R: CubeRuntime, const N_DIM: usize>(
             input,
             grad,
             None,
-            ConvOptions::new(options.dilation, options.padding, options.stride, 1),
+            ConvOptions::new_with_padding(options.dilation, options.padding, options.stride, 1),
             Default::default(),
         )?;
         let mut weight_grad_tmp = swap_dims(weight_grad_tmp, 0, dim_c);

@@ -9,7 +9,7 @@ use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, Param};
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::module::conv2d;
-use burn::tensor::ops::PaddedConvOptions;
+use burn::tensor::ops::ConvOptions;
 
 use crate::conv::checks;
 
@@ -172,10 +172,9 @@ impl Conv2d {
             &self.stride,
         );
 
-        let options = PaddedConvOptions::asymmetric(
+        let options = ConvOptions::new_with_padding(
             self.stride,
-            [top, left],
-            [bottom, right],
+            [(top, bottom), (left, right)],
             self.dilation,
             self.groups,
         );

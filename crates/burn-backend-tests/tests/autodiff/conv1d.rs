@@ -1,11 +1,7 @@
 #![allow(clippy::identity_op)]
 
 use super::*;
-use burn_tensor::{
-    Shape, Tolerance,
-    module::conv1d,
-    ops::{ConvOptions, PaddedConvOptions},
-};
+use burn_tensor::{Shape, Tolerance, module::conv1d, ops::ConvOptions};
 
 #[test]
 fn test_conv1d_basic() {
@@ -248,9 +244,10 @@ fn test_conv1d_backward_shape_with_remainder() {
 
 /// Regression test for the asymmetric-padding backward-shape path referenced
 /// in https://github.com/tracel-ai/burn/issues/4799. Reduced to a single
-/// `conv1d`: the asymmetric path routes through `x.pad(...) -> B::conv1d(padding=0)`,
-/// and the backward must restore the original input shape without triggering
-/// shape-mismatch failures when the forward drops multiple tail inputs.
+/// `conv1d`: the backend fallback materializes the padding and invokes a
+/// zero-padding convolution, and the backward must restore the original input
+/// shape without triggering shape-mismatch failures when the forward drops
+/// multiple tail inputs.
 #[test]
 fn test_conv1d_asymmetric_padding_backward_shape() {
     let device = AutodiffDevice::new();
@@ -262,7 +259,7 @@ fn test_conv1d_asymmetric_padding_backward_shape() {
         x.clone(),
         weight.clone(),
         None,
-        PaddedConvOptions::asymmetric([4], [3], [0], [1], 1),
+        ConvOptions::new_with_padding([4], [(3, 0)], [1], 1),
     );
     let grads = output.sum().backward();
 

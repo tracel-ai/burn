@@ -5,6 +5,7 @@ use burn_backend::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
         MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
+        conv::pad_asymmetric_conv_input,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -66,12 +67,13 @@ impl ModuleOps<Self> for LibTorch {
         bias: Option<TchTensor>,
         options: ConvOptions<1>,
     ) -> TchTensor {
+        let (x, options) = pad_asymmetric_conv_input::<LibTorch, 1>(x, options);
         let tensor = tch::Tensor::conv1d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
@@ -85,12 +87,13 @@ impl ModuleOps<Self> for LibTorch {
         bias: Option<TchTensor>,
         options: ConvOptions<2>,
     ) -> TchTensor {
+        let (x, options) = pad_asymmetric_conv_input::<LibTorch, 2>(x, options);
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
@@ -109,7 +112,7 @@ impl ModuleOps<Self> for LibTorch {
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );

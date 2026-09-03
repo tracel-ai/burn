@@ -108,7 +108,7 @@ where
     NdArrayTensor: From<SharedArray<E>>,
 {
     let [dilation_height, dilation_width] = options.dilation;
-    let [padding_height, padding_width] = options.padding;
+    let [padding_height, padding_width] = options.padding_begin();
     let [stride_height, stride_width] = options.stride;
     let [batch_size, _in_channels, in_height, in_width] = x.shape().try_into().unwrap();
     let [out_channels, in_channels, kernel_height, kernel_width] =
@@ -130,7 +130,7 @@ where
         in_width,
     );
 
-    let x = apply_padding_4d::<E>(x, options.padding, 0i32.elem());
+    let x = apply_padding_4d::<E>(x, options.padding_begin(), 0i32.elem());
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
@@ -323,7 +323,7 @@ where
     NdArrayTensor: From<SharedArray<E>>,
 {
     let [dilation_depth, dilation_height, dilation_width] = options.dilation;
-    let [padding_depth, padding_height, padding_width] = options.padding;
+    let [padding_depth, padding_height, padding_width] = options.padding_begin();
     let [stride_depth, stride_height, stride_width] = options.stride;
     let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().try_into().unwrap();
     let [
@@ -357,7 +357,7 @@ where
         in_width,
     );
 
-    let x = apply_padding_5d::<E>(x, options.padding, 0i32.elem());
+    let x = apply_padding_5d::<E>(x, options.padding_begin(), 0i32.elem());
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix5>().unwrap();
