@@ -103,6 +103,9 @@ impl From<f64> for Norm {
 ///
 /// Generic dispatch wrapper over specialized / optimized norms.
 ///
+/// If `dims` is empty, no dimensions are reduced, matching ONNX `noop_with_empty_axes=true`
+/// semantics (the norm transformation is applied elementwise without collapsing axes).
+///
 /// See:
 /// - [torch.linalg.vector_norm](https://pytorch.org/docs/stable/generated/torch.linalg.vector_norm.html)
 /// - [numpy.linalg.vector_norm](https://numpy.org/doc/stable/reference/generated/numpy.linalg.vector_norm.html)
@@ -122,9 +125,6 @@ pub fn vector_norm_dims<const D: usize, I: AsIndex>(
     norm: impl Into<Norm>,
     dims: &[I],
 ) -> Tensor<D> {
-    if dims.is_empty() {
-        return x;
-    }
     if dims.len() == 1 {
         let dim = unwrap_dim_index(dims[0].try_dim_index(D), "Vector Norm");
         return vector_norm_impl(x, norm, &[dim]);
@@ -173,6 +173,9 @@ fn vector_norm_impl<const D: usize>(
 
 /// Computes the general ``L(p)`` norm of a tensor along specified dimensions.
 ///
+/// If `dims` is empty, no dimensions are reduced, matching ONNX `noop_with_empty_axes=true`
+/// semantics (the norm transformation is applied elementwise without collapsing axes).
+///
 /// Uses the specialized implementations for:
 /// * 0.0
 /// * 1.0
@@ -192,9 +195,6 @@ fn vector_norm_impl<const D: usize>(
 ///
 /// The ``L(p)`` norm of the input tensor.
 pub fn lp_norm_dims<const D: usize, I: AsIndex>(x: Tensor<D>, p: f64, dims: &[I]) -> Tensor<D> {
-    if dims.is_empty() {
-        return x;
-    }
     if dims.len() == 1 {
         let dim = unwrap_dim_index(dims[0].try_dim_index(D), "Lp Norm");
         return lp_norm_impl(x, p, &[dim]);
@@ -271,6 +271,9 @@ pub fn vector_normalize<const D: usize, E: ElementConversion>(
 
 /// Computes the L0 norm of a tensor along specified dimensions.
 ///
+/// If `dims` is empty, no dimensions are reduced, matching ONNX `noop_with_empty_axes=true`
+/// semantics (the norm transformation is applied elementwise without collapsing axes).
+///
 /// # Arguments
 ///
 /// * `x` - The input tensor.
@@ -284,9 +287,6 @@ pub fn l0_norm_dims<const D: usize, K, I: AsIndex>(x: Tensor<D, K>, dims: &[I]) 
 where
     K: Numeric,
 {
-    if dims.is_empty() {
-        return x;
-    }
     if dims.len() == 1 {
         let dim = unwrap_dim_index(dims[0].try_dim_index(D), "L0 Norm");
         return l0_norm_impl(x, &[dim]);
@@ -328,6 +328,9 @@ where
 
 /// Computes the L1 norm of a tensor along specified dimensions.
 ///
+/// If `dims` is empty, no dimensions are reduced, matching ONNX `noop_with_empty_axes=true`
+/// semantics (the norm transformation is applied elementwise without collapsing axes).
+///
 /// This is a convenience function that wraps `vector_norm_dims` with `p = 1.0`.
 ///
 /// # Arguments
@@ -343,9 +346,6 @@ pub fn l1_norm_dims<const D: usize, K, I: AsIndex>(x: Tensor<D, K>, dims: &[I]) 
 where
     K: Numeric,
 {
-    if dims.is_empty() {
-        return x;
-    }
     if dims.len() == 1 {
         let dim = unwrap_dim_index(dims[0].try_dim_index(D), "L1 Norm");
         return l1_norm_impl(x, &[dim]);
@@ -387,6 +387,9 @@ where
 
 /// Computes the L2 norm of a tensor along specified dimensions.
 ///
+/// If `dims` is empty, no dimensions are reduced, matching ONNX `noop_with_empty_axes=true`
+/// semantics (the norm transformation is applied elementwise without collapsing axes).
+///
 /// # Arguments
 ///
 /// * `x` - The input tensor.
@@ -397,9 +400,6 @@ where
 ///
 /// The L2 norm of the input tensor.
 pub fn l2_norm_dims<const D: usize, I: AsIndex>(x: Tensor<D>, dims: &[I]) -> Tensor<D> {
-    if dims.is_empty() {
-        return x;
-    }
     if dims.len() == 1 {
         let dim = unwrap_dim_index(dims[0].try_dim_index(D), "L2 Norm");
         return l2_norm_impl(x, &[dim]);
@@ -454,6 +454,9 @@ fn lp_norm_base<const D: usize>(x: Tensor<D>, p: f64, dims: &[usize]) -> Tensor<
 
 /// Computes the L:INFINITY norm of a tensor along specified dimensions.
 ///
+/// If `dims` is empty, no dimensions are reduced, matching ONNX `noop_with_empty_axes=true`
+/// semantics (the norm transformation is applied elementwise without collapsing axes).
+///
 /// # Arguments
 ///
 /// * `x` - The input tensor.
@@ -467,9 +470,6 @@ pub fn max_abs_norm_dims<const D: usize, K, I: AsIndex>(x: Tensor<D, K>, dims: &
 where
     K: Ordered,
 {
-    if dims.is_empty() {
-        return x;
-    }
     if dims.len() == 1 {
         let dim = unwrap_dim_index(dims[0].try_dim_index(D), "Max Abs Norm");
         return max_abs_norm_impl(x, &[dim]);
@@ -504,11 +504,13 @@ fn max_abs_norm_impl<const D: usize, K>(x: Tensor<D, K>, dims: &[usize]) -> Tens
 where
     K: Ordered,
 {
-    dims.iter()
-        .fold(x.abs(), |tensor, &dim| tensor.max_dim(dim))
+    x.max_abs_dims(dims)
 }
 
 /// Computes the L:NEG_INFINITY norm of a tensor along specified dimensions.
+///
+/// If `dims` is empty, no dimensions are reduced, matching ONNX `noop_with_empty_axes=true`
+/// semantics (the norm transformation is applied elementwise without collapsing axes).
 ///
 /// # Arguments
 ///
@@ -523,9 +525,6 @@ pub fn min_abs_norm_dims<const D: usize, K, I: AsIndex>(x: Tensor<D, K>, dims: &
 where
     K: Ordered,
 {
-    if dims.is_empty() {
-        return x;
-    }
     if dims.len() == 1 {
         let dim = unwrap_dim_index(dims[0].try_dim_index(D), "Min Abs Norm");
         return min_abs_norm_impl(x, &[dim]);

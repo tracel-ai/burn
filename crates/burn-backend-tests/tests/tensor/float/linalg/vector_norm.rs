@@ -500,36 +500,75 @@ fn test_multi_axis_negative_dimensions() {
 
 #[test]
 fn test_empty_dims() {
-    let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
-    let expected = x.clone().into_data();
+    let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
+    let x = TestTensor::<1>::from([-2.0, 0.0, 3.0]);
+    let expected_abs = TestTensor::<1>::from([2.0, 0.0, 3.0]).into_data();
+    let expected_l0 = TestTensor::<1>::from([1.0, 0.0, 1.0]).into_data();
 
-    linalg::vector_norm_dims(x.clone(), linalg::Norm::L2, &[] as &[usize])
-        .into_data()
-        .assert_eq(&expected, true);
-
-    linalg::lp_norm_dims(x.clone(), 2.0, &[] as &[usize])
-        .into_data()
-        .assert_eq(&expected, true);
-
+    // L1 norm: elementwise absolute value
     linalg::l1_norm_dims(x.clone(), &[] as &[usize])
         .into_data()
-        .assert_eq(&expected, true);
+        .assert_eq(&expected_abs, true);
 
+    // L2 norm: elementwise absolute value
     linalg::l2_norm_dims(x.clone(), &[] as &[usize])
         .into_data()
-        .assert_eq(&expected, true);
+        .assert_approx_eq::<FloatElem>(&expected_abs, tolerance);
 
+    // L_infinity norm: elementwise absolute value
     linalg::max_abs_norm_dims(x.clone(), &[] as &[usize])
         .into_data()
-        .assert_eq(&expected, true);
+        .assert_eq(&expected_abs, true);
 
+    // L_neg_infinity norm: elementwise absolute value
     linalg::min_abs_norm_dims(x.clone(), &[] as &[usize])
         .into_data()
-        .assert_eq(&expected, true);
+        .assert_eq(&expected_abs, true);
 
-    linalg::l0_norm_dims(x, &[] as &[usize])
+    // Lp norm (odd and even p): elementwise absolute value
+    linalg::lp_norm_dims(x.clone(), 3.0, &[] as &[usize])
         .into_data()
-        .assert_eq(&expected, true);
+        .assert_approx_eq::<FloatElem>(&expected_abs, tolerance);
+    linalg::lp_norm_dims(x.clone(), 4.0, &[] as &[usize])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_abs, tolerance);
+
+    // Vector norm dispatch
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::L1, &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected_abs, true);
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::L2, &[] as &[usize])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_abs, tolerance);
+    linalg::vector_norm_dims(x.clone(), linalg::Norm::LInf, &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected_abs, true);
+
+    // L0 norm: elementwise non-zero indicator mask
+    linalg::l0_norm_dims(x.clone(), &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected_l0, true);
+    linalg::vector_norm_dims(x, linalg::Norm::L0, &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected_l0, true);
+
+    // Multi-dimensional tensor with empty dims
+    let x_2d = TestTensor::<2>::from([[-2.0, 0.0], [3.0, -4.0]]);
+    let expected_abs_2d = TestTensor::<2>::from([[2.0, 0.0], [3.0, 4.0]]).into_data();
+    let expected_l0_2d = TestTensor::<2>::from([[1.0, 0.0], [1.0, 1.0]]).into_data();
+
+    linalg::l1_norm_dims(x_2d.clone(), &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected_abs_2d, true);
+    linalg::l2_norm_dims(x_2d.clone(), &[] as &[usize])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_abs_2d, tolerance);
+    linalg::max_abs_norm_dims(x_2d.clone(), &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected_abs_2d, true);
+    linalg::l0_norm_dims(x_2d, &[] as &[usize])
+        .into_data()
+        .assert_eq(&expected_l0_2d, true);
 }
 
 #[test]
