@@ -1,4 +1,4 @@
-use super::{conv, ctc, linear, pool};
+use super::{conv, ctc, group_norm, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, Scalar, TensorMetadata};
@@ -873,6 +873,32 @@ pub trait ModuleOps<B: Backend> {
             }
             None => scaled,
         }
+    }
+
+    /// Applies Group Normalization over a mini-batch of inputs.
+    ///
+    /// Computes `(x - mean) / sqrt(var + epsilon) * gamma + beta`, where `mean` and
+    /// (biased) `var` are calculated independently for each sample and group.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - Input tensor of shape `[batch_size, num_channels, ...]`.
+    /// * `gamma` - Optional scale tensor of shape `[num_channels]`.
+    /// * `beta` - Optional bias tensor of shape `[num_channels]`.
+    /// * `num_groups` - Number of groups used to partition the channels.
+    /// * `epsilon` - Numerical stability term added to the variance before the square root.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor`.
+    fn group_norm(
+        tensor: FloatTensor<B>,
+        gamma: Option<FloatTensor<B>>,
+        beta: Option<FloatTensor<B>>,
+        num_groups: usize,
+        epsilon: f64,
+    ) -> FloatTensor<B> {
+        group_norm::group_norm_fallback::<B>(tensor, gamma, beta, num_groups, epsilon)
     }
 
     /// Computes the Connectionist Temporal Classification (CTC) loss.

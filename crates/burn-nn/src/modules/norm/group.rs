@@ -6,10 +6,8 @@ use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Device;
-use burn::tensor::FloatDType;
 use burn::tensor::Tensor;
-
-use super::accumulation_dtype;
+use burn::tensor::module::group_norm as group_norm_op;
 
 /// Configuration to create a [GroupNorm](GroupNorm) layer using the [init function](GroupNormConfig::init).
 #[derive(Debug, Config)]
@@ -152,58 +150,13 @@ pub(crate) fn group_norm<const D: usize>(
     epsilon: f64,
     affine: bool,
 ) -> Tensor<D> {
-    if (beta.is_none() || gamma.is_none()) && affine {
-        panic!("Affine is set to true, but gamma or beta is None");
-    }
-
-    let shape = input.shape();
-    if shape.num_elements() <= 2 {
-        panic!(
-            "input rank for GroupNorm should be at least 3, but got {}",
-            shape.num_elements()
-        );
-    }
-
-    let batch_size = shape[0];
-    let num_channels = shape[1];
-
-    let hidden_size = shape[2..].iter().product::<usize>() * num_channels / num_groups;
-    let input = input.reshape([batch_size, num_groups, hidden_size]);
-
-    // Widen before the reduction when the input dtype cannot hold a sum of
-    // squares (see [`accumulation_dtype`]); `square()` below is what overflows.
-    // Narrowed again straight after, so the affine still runs at the model's
-    // own dtype and only the statistics pay for the wider arithmetic.
-    let original: FloatDType = input.dtype().into();
-    let widened = accumulation_dtype(input.dtype());
-    let input = match widened {
-        Some(dtype) => input.cast(dtype),
-        None => input,
-    };
-
-    // Keep the denominator inside the backend reduction so it is applied in
-    // the accumulator precision instead of through a narrow `div_scalar`.
-    let mean = input.clone().mean_dim(2);
-    let input = input.sub(mean);
-
-    let var = input.clone().square().mean_dim(2);
-    let input_normalized = input.div(var.add_scalar(epsilon).sqrt());
-
-    let input_normalized = match widened {
-        Some(_) => input_normalized.cast(original),
-        None => input_normalized,
-    };
-
     if affine {
-        let mut affine_shape = [1; D];
-        affine_shape[1] = num_channels;
-
-        input_normalized
-            .reshape(shape)
-            .mul(gamma.clone().unwrap().reshape(affine_shape))
-            .add(beta.clone().unwrap().reshape(affine_shape))
+        if beta.is_none() || gamma.is_none() {
+            panic!("Affine is set to true, but gamma or beta is None");
+        }
+        group_norm_op(input, gamma, beta, num_groups, epsilon)
     } else {
-        input_normalized.reshape(shape)
+        group_norm_op(input, None, None, num_groups, epsilon)
     }
 }
 
@@ -268,6 +221,20 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn group_norm_affine_false_ignores_parameters() {
+        let device = Default::default();
+        let input =
+            Tensor::<3>::from_data([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]], &device);
+        let gamma = Tensor::<1>::full([4], 2.0, &device);
+        let beta = Tensor::<1>::full([4], 1.0, &device);
+
+        let output = group_norm(input.clone(), Some(gamma), Some(beta), 2, 1e-5, false);
+        let expected = group_norm(input, None, None, 2, 1e-5, false);
+
+        output.to_data().assert_eq(&expected.to_data(), false);
     }
 
     #[test]

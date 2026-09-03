@@ -636,6 +636,20 @@ impl RelativeOps for ModuleOperationIr {
                 epsilon: desc.epsilon,
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::GroupNorm(desc) => ModuleOperationIr::GroupNorm(GroupNormOpIr {
+                input: desc.input.to_relative(converter),
+                gamma: desc
+                    .gamma
+                    .as_ref()
+                    .map(|tensor| tensor.to_relative(converter)),
+                beta: desc
+                    .beta
+                    .as_ref()
+                    .map(|tensor| tensor.to_relative(converter)),
+                num_groups: desc.num_groups,
+                epsilon: desc.epsilon,
+                out: desc.out.to_relative(converter),
+            }),
             ModuleOperationIr::Unfold4d(desc) => ModuleOperationIr::Unfold4d(Unfold4dOpIr {
                 x: desc.x.to_relative(converter),
                 kernel_size: desc.kernel_size,

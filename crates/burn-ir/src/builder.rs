@@ -596,6 +596,38 @@ impl LayerNormOpIr {
     }
 }
 
+impl GroupNormOpIr {
+    /// Create a group-norm IR.
+    pub fn create(
+        input: TensorIr,
+        gamma: Option<TensorIr>,
+        beta: Option<TensorIr>,
+        num_groups: usize,
+        epsilon: f64,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        let dtype = output_dtype(
+            [
+                Some(&input.dtype),
+                gamma.as_ref().map(|gamma| &gamma.dtype),
+                beta.as_ref().map(|beta| &beta.dtype),
+            ]
+            .iter()
+            .filter_map(|&dtype| dtype),
+        )
+        .unwrap();
+        let out = TensorIr::uninit(new_id(), input.shape.clone(), dtype);
+        GroupNormOpIr {
+            input,
+            gamma,
+            beta,
+            num_groups,
+            epsilon: ScalarIr::Float(epsilon),
+            out,
+        }
+    }
+}
+
 impl Unfold4dOpIr {
     /// Create an unfold4d IR.
     pub fn create(

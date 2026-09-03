@@ -43,6 +43,7 @@ mod gather_scatter;
 mod gather_scatter_nd;
 mod gelu;
 mod gradients;
+mod group_norm;
 mod hypot;
 mod linear;
 mod log;
