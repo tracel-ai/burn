@@ -32,9 +32,9 @@ impl ItemLazy for RegressionOutput {
         self.loss.device().flush();
 
         RegressionOutput {
-            output: self.output.no_grad(),
-            loss: self.loss.no_grad(),
-            targets: self.targets.no_grad(),
+            output: self.output.without_autodiff(),
+            loss: self.loss.without_autodiff(),
+            targets: self.targets.without_autodiff(),
         }
     }
 }

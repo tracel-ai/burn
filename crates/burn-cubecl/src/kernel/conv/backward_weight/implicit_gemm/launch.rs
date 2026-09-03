@@ -125,7 +125,7 @@ pub fn launch_backwards_weight<R: CubeRuntime, const N: usize>(
         },
         ConvolutionArgs {
             stride: options.stride,
-            padding: options.padding,
+            padding: options.padding_begin(),
             dilation: options.dilation,
         },
         dtypes,

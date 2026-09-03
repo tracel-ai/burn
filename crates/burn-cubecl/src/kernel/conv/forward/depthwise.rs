@@ -63,9 +63,10 @@ pub fn conv_depthwise<R: CubeRuntime, const N: usize>(
         out_dtype,
     );
 
+    let padding = options.padding_begin();
     let args = ConvolutionArgs::<2> {
         stride: [options.stride[0], options.stride[1]],
-        padding: [options.padding[0], options.padding[1]],
+        padding: [padding[0], padding[1]],
         dilation: [options.dilation[0], options.dilation[1]],
     };
 

@@ -4,12 +4,11 @@ use burn_backend::{DType, Shape};
 pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
 use burn_fusion::{
     FusionBackend, FusionRuntime,
-    stream::{FallbackOp, Operation, OrderedExecution},
+    stream::{FallbackOp, OrderedExecution},
 };
 use burn_ir::{BackendIr, TensorHandle};
 use burn_std::Metadata;
 use core::marker::PhantomData;
-use std::sync::Arc;
 
 mod registry;
 pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
@@ -50,14 +49,6 @@ struct FallbackOperationWrapper<O: Clone> {
 impl<O: Clone> FallbackOperationWrapper<O> {
     fn new(op: O) -> Self {
         Self { operation: op }
-    }
-}
-
-impl<R: CubeRuntime> FallbackOperation<R>
-    for FallbackOperationWrapper<Arc<dyn Operation<FusionCubeRuntime<R>>>>
-{
-    fn run(&self, context: &mut burn_fusion::stream::Context<CubeFusionHandle<R>>) {
-        self.operation.as_ref().execute(&mut context.handles);
     }
 }
 

@@ -1,26 +1,49 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use burn_ir::{HandleContainer, OperationIr, TensorError};
 
-use super::{input_error, panic_message, set_output_errors};
+use super::{OnPanic, Outcome, Panic, WriteScope, claim_block};
 
 use crate::{FusionRuntime, NumOperations, Optimization, UnfusedOp, stream::Context};
 
 /// What a finished [`OrderedExecution`] hands back to the queue.
 pub(crate) struct Executed<R: FusionRuntime> {
     /// The operations it did not consume, to go back on the queue.
-    pub(crate) operations: Vec<UnfusedOp<R>>,
+    pub operations: Vec<UnfusedOp<R>>,
     /// The segment's IR, likewise.
-    pub(crate) ir: Vec<OperationIr>,
+    pub ir: Vec<OperationIr>,
     /// How many operations it consumed, run or errored.
-    pub(crate) num_executed: usize,
+    pub num_executed: usize,
     /// Which of those consumed operations never ran — skipped on an errored
     /// input, or torn down by a panic. Indices into `ir`. Empty while nothing
     /// has failed, so carrying it allocates nothing on the common path.
-    pub(crate) did_not_run: Vec<usize>,
+    pub did_not_run: Vec<usize>,
     /// The first panic raised, kept only so the caller can log it — every
     /// failure's report is the error it left on the tensors.
-    pub(crate) failed: Option<Box<dyn core::any::Any + Send>>,
+    pub failed: Option<Panic>,
+}
+
+/// What work inside a fused block reports back to the execution running it.
+///
+/// A [`FallbackOp`] outlives the borrow it was built from, so it cannot reach
+/// the [`OrderedExecution`] directly. Both things it has to say travel through
+/// one shared slot rather than two, because they are said together: a fallback
+/// that did not run is both an operation the server never replayed and a
+/// failure of the block it sits in.
+#[derive(Default)]
+struct FallbackReports {
+    /// Positions, into the segment's IR, of fallbacks that did not run. Merged
+    /// into [`OrderedExecution::did_not_run`] by [`finish`](OrderedExecution::finish).
+    did_not_run: Vec<usize>,
+    /// The first failure a fallback reported or skipped on, if any.
+    ///
+    /// The first rather than the last: a later one is either the same failure
+    /// arriving again through a tensor this one claimed, or a consequence of
+    /// running on bytes it never wrote. Taken by
+    /// [`execute_optimization`](OrderedExecution::execute_optimization), so a
+    /// [`Composed`](crate::stream::store::ExecutionStrategy::Composed) strategy
+    /// cannot carry one block's failure into the next.
+    failure: Option<TensorError>,
 }
 
 /// Manage the execution of potentially multiple optimizations and operations out of order.
@@ -35,11 +58,14 @@ pub struct OrderedExecution<R: FusionRuntime> {
     /// Which consumed operations never ran. See
     /// [`Executed::did_not_run`](Executed#structfield.did_not_run).
     did_not_run: Vec<usize>,
+    /// What work inside a fused block reported back. Allocated on the first
+    /// fallback and never otherwise, so a segment that uses none pays nothing.
+    reports: OnceLock<Arc<Mutex<FallbackReports>>>,
     ordering: Option<Arc<Vec<usize>>>,
     /// The first panic a unit of this execution raised, kept only so the
     /// caller can log it. Every failure's report is the error it left on the
     /// tensors, not this.
-    failed: Option<Box<dyn core::any::Any + Send>>,
+    failed: Option<Panic>,
 }
 
 /// One operation of an optimization's block, runnable on its own.
@@ -54,6 +80,12 @@ pub struct OrderedExecution<R: FusionRuntime> {
 pub struct FallbackOp<R: FusionRuntime> {
     operation: UnfusedOp<R>,
     ir: OperationIr,
+    /// This operation's position in the segment, and where to report back to.
+    /// A fallback that did not run was never replayed server-side, so a runtime
+    /// whose handles live there has to hear about it or it strands the buffer —
+    /// the same reason the unfused path records one.
+    position: usize,
+    reports: Arc<Mutex<FallbackReports>>,
 }
 
 impl<R: FusionRuntime> Clone for FallbackOp<R> {
@@ -61,6 +93,8 @@ impl<R: FusionRuntime> Clone for FallbackOp<R> {
         Self {
             operation: self.operation.clone(),
             ir: self.ir.clone(),
+            position: self.position,
+            reports: self.reports.clone(),
         }
     }
 }
@@ -73,13 +107,35 @@ impl<R: FusionRuntime> FallbackOp<R> {
     /// inside the optimization's own `catch_unwind`, which claims the whole
     /// block's write set, and that is the honest report for a fused unit that
     /// stopped part way.
+    ///
+    /// A fallback that skips or reports gets there by a different road to the
+    /// same place. Both return normally, so neither stops the optimization —
+    /// it goes on launching the kernels around this operation, and they write
+    /// their outputs from bytes it never produced. So the failure is reported
+    /// back to the execution, which claims the block's whole write set once the
+    /// optimization returns. Nothing is claimed twice that matters: the claim
+    /// carries this same failure, so a read below any of it names one cause.
     pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
-        if let Some(error) = input_error(&self.ir, handles).map(TensorError::propagated) {
-            set_output_errors(&self.ir, handles, &error);
-            return;
-        }
+        let outcome = WriteScope::over(&self.ir, handles)
+            .run(OnPanic::Raise, |handles| self.operation.execute(handles));
 
-        self.operation.execute(handles);
+        let failure = match outcome {
+            Outcome::Ran => return,
+            Outcome::Skipped(error) | Outcome::Reported(error) => Some(error),
+            // Not reached: this scope raises, so a panic is left to the block's
+            // scope, which records the whole block. Handled rather than
+            // unreachable, because being wrong about that would strand a
+            // buffer rather than say so.
+            Outcome::Panicked(_) => None,
+        };
+
+        // It did not write, so a runtime whose handles live on a server has to
+        // hear about it.
+        let mut reports = self.reports.lock().expect("no panic holds this lock");
+        reports.did_not_run.push(self.position);
+        if let Some(failure) = failure {
+            reports.failure.get_or_insert(failure);
+        }
     }
 }
 
@@ -95,6 +151,8 @@ impl<R: FusionRuntime> OrderedExecution<R> {
                 FallbackOp {
                     operation: self.operations[index].clone(),
                     ir: self.ir[index].clone(),
+                    position: index,
+                    reports: self.reports().clone(),
                 }
             }
             None => panic!("No ordering provided"),
@@ -107,15 +165,37 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             ir,
             num_executed: 0,
             did_not_run: Vec::new(),
+            reports: OnceLock::new(),
             ordering: None,
             failed: None,
         }
+    }
+
+    /// Where work that cannot reach this execution directly reports back.
+    fn reports(&self) -> &Arc<Mutex<FallbackReports>> {
+        self.reports.get_or_init(Default::default)
+    }
+
+    /// The failure a fallback of the block just run reported, taken so no later
+    /// block sees it.
+    fn fallback_failure(&self) -> Option<TensorError> {
+        self.reports
+            .get()?
+            .lock()
+            .expect("no panic holds this lock")
+            .failure
+            .take()
     }
 
     pub(crate) fn finish(mut self) -> Executed<R> {
         // `min`: the count is taken before the work runs (see
         // `execute_optimization`), so a strategy torn down by a panic can
         // leave it describing operations a shorter list never held.
+        if let Some(reports) = self.reports.get() {
+            let mut reports = reports.lock().expect("no panic holds this lock");
+            self.did_not_run.append(&mut reports.did_not_run);
+        }
+
         let num_executed = self.num_executed.min(self.operations.len());
         self.operations.drain(0..num_executed);
 
@@ -130,17 +210,22 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
     /// Guarantee forward progress after a panic escaped the strategy walk.
     ///
-    /// Every unit of work counts its operations *before* it runs, so an
-    /// escape normally leaves at least one consumed and the queue shrinks. A
-    /// panic raised before the first count — one of the strategy walk's own
-    /// guards — consumes nothing, and an unchanged queue is not a safe place
-    /// to stop: the policy re-plans it identically, re-selects the same
-    /// strategy and raises the same panic, without end.
+    /// Every unit of work counts its operations *before* it runs, so an escape
+    /// normally leaves at least one consumed and the queue shrinks. One that
+    /// consumes nothing is not a safe place to stop: the policy re-plans the
+    /// identical queue, re-selects the same strategy and raises the same panic,
+    /// without end — a silent hang, which is a worse outcome than the panic it
+    /// replaced.
     ///
-    /// So the block the strategy was going to run is consumed as one unit.
-    /// `planned` is that block's length; nothing in it ran, so the claim on
-    /// its write set is honest, and the caller reports it exactly as any
-    /// other failure.
+    /// No path is known to reach it: a plan that does not fit its segment is
+    /// replaced before the walk begins, and every other failure happens inside
+    /// a scope that counts first. It stays because the only argument for
+    /// deleting it is that no panic escapes, which is the kind of claim that
+    /// stops being true quietly — and it costs one comparison. Delete it when
+    /// a panic can no longer cross this frame at all.
+    ///
+    /// `planned` is the block the strategy was going to run, consumed as one
+    /// unit; nothing in it ran, so a claim on its write set is honest.
     pub(crate) fn consume_stalled(&mut self, planned: usize) {
         if self.num_executed > 0 {
             return;
@@ -155,17 +240,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         context: &mut Context<R::FusionHandle>,
         ordering: Arc<Vec<usize>>,
     ) {
-        if ordering.len() > self.operations.len() {
-            panic!(
-                "Ordering is bigger than operations: ordering len {}, operations len {}, \
-                 num_executed {}, optimization len {}, ordering {:?}",
-                ordering.len(),
-                self.operations.len(),
-                self.num_executed,
-                optimization.len(),
-                ordering,
-            );
-        }
         self.ordering = Some(ordering.clone());
         let num_drained = optimization.len();
         // Counted before the call rather than after, so an unwind out of
@@ -176,44 +250,43 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         // of one of them has to report.
         self.num_executed += num_drained;
 
-        // A fused kernel is one unit of work: it reads every input of every
-        // operation it replaced and writes every output, so one errored input
-        // anywhere in it stops the whole thing, and a panic anywhere in it
-        // leaves the whole write set unwritten. Either way the error lands on
-        // all of them together.
-        let skip = ordering
-            .iter()
-            .map(|id| &self.ir[*id])
-            .find_map(|op| input_error(op, &context.handles))
-            .map(TensorError::propagated);
+        // One scope over the whole block, because a fused kernel is one unit of
+        // work: it reads every input of every operation it replaced and writes
+        // every output. One claimed input anywhere in it stops all of it, and a
+        // failure anywhere in it leaves the whole write set unwritten.
+        // Reborrowed: the optimization reads this execution while the scope
+        // holds the context it writes through.
+        let this = &*self;
+        let outcome =
+            WriteScope::over_block(&this.ir, &ordering, context).run(OnPanic::Catch, |context| {
+                optimization.execute(context, this);
+                Ok(())
+            });
 
-        if let Some(error) = skip {
-            self.set_errors(&ordering, &mut context.handles, &error);
-            self.did_not_run.extend(ordering.iter().copied());
-            return;
+        match outcome {
+            Outcome::Ran => {}
+            Outcome::Skipped(_) | Outcome::Reported(_) => {
+                self.did_not_run.extend(ordering.iter().copied())
+            }
+            Outcome::Panicked(panic) => {
+                self.did_not_run.extend(ordering.iter().copied());
+                self.failed.get_or_insert(panic);
+            }
         }
 
-        let executed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            optimization.execute(context, self)
-        }));
-
-        if let Err(panic) = executed {
-            let error = TensorError::new(panic_message(panic.as_ref()));
-            self.set_errors(&ordering, &mut context.handles, &error);
+        // A fallback that did not run is a failure of the block around it, and
+        // one the scope above cannot have seen: the optimization returned
+        // normally, so `Outcome::Ran` is what it reports. Claiming here says
+        // what that scope would have said had the failure reached it.
+        //
+        // It displaces on purpose, including over a panic the scope just
+        // claimed with: the fallback's failure came first, and a panic raised
+        // after it is either that same failure arriving through a tensor it
+        // claimed or a consequence of running without one. The first cause is
+        // the one a read should name.
+        if let Some(failure) = self.fallback_failure() {
+            claim_block(&self.ir, &ordering, &mut context.handles, &failure);
             self.did_not_run.extend(ordering.iter().copied());
-            self.failed.get_or_insert(panic);
-        }
-    }
-
-    /// Record `error` on the write sets of every operation at `ordering`.
-    fn set_errors(
-        &self,
-        ordering: &[usize],
-        handles: &mut HandleContainer<R::FusionHandle>,
-        error: &TensorError,
-    ) {
-        for op in ordering.iter().map(|id| &self.ir[*id]) {
-            set_output_errors(op, handles, error);
         }
     }
 
@@ -226,33 +299,24 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
         for id in ordering {
             let ir = &self.ir[*id];
+            let op = &self.operations[*id];
 
-            // A skip: an input this operation needs was never written, so it
-            // does not run and its outputs take the same error — naming the
-            // failure that started it rather than one of their own.
-            let skip = input_error(ir, handles).map(TensorError::propagated);
-
-            if let Some(error) = skip {
-                set_output_errors(ir, handles, &error);
-                self.did_not_run.push(*id);
-                continue;
-            }
-
-            // Caught per operation, not per segment: a segment is just what
+            // One scope per operation, not per segment: a segment is just what
             // happened to be queued together, so a failure in one operation
             // says nothing about the next one unless they share a tensor — and
-            // if they do, the next one skips on the error its input now
-            // carries. Stopping the loop instead would make an unrelated
+            // if they do, the next one skips on the claim its input now
+            // carries. Scoping the whole loop instead would make an unrelated
             // operation's outcome depend on queue order.
-            let op = &self.operations[*id];
-            let executed =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| op.execute(handles)));
+            let outcome =
+                WriteScope::over(ir, handles).run(OnPanic::Catch, |handles| op.execute(handles));
 
-            if let Err(panic) = executed {
-                let error = TensorError::new(panic_message(panic.as_ref()));
-                set_output_errors(ir, handles, &error);
-                self.did_not_run.push(*id);
-                self.failed.get_or_insert(panic);
+            match outcome {
+                Outcome::Ran => {}
+                Outcome::Skipped(_) | Outcome::Reported(_) => self.did_not_run.push(*id),
+                Outcome::Panicked(panic) => {
+                    self.did_not_run.push(*id);
+                    self.failed.get_or_insert(panic);
+                }
             }
         }
     }

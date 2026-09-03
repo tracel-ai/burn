@@ -9,12 +9,12 @@
 //!                                               └─> ExtensionType mapping for structs/enums
 //! ```
 //!
-//! - [`dispatch`] lowers Burn's built-in `Dispatch` implementations.
-//! - [`extension`] lowers user-defined backend extension traits.
-//! - [`ir`] describes tensor inputs, outputs, and backend calls independently of either frontend.
-//! - [`routing`] owns shared backend selection, input extraction, invocation, and output wrapping.
-//! - [`derive`] maps extension structs and enums across the dispatch boundary.
-//! - [`catalog`] is the single list of runtime backends used by generated and handwritten paths.
+//! - `dispatch` lowers Burn's built-in `Dispatch` implementations.
+//! - `extension` lowers user-defined backend extension traits.
+//! - `ir` describes tensor inputs, outputs, and backend calls independently of either frontend.
+//! - `routing` owns shared backend selection, input extraction, invocation, and output wrapping.
+//! - `derive` maps extension structs and enums across the dispatch boundary.
+//! - `catalog` is the single list of runtime backends used by generated and handwritten paths.
 
 use proc_macro::TokenStream;
 
@@ -63,9 +63,9 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Generates the `Dispatch` implementation for a backend extension trait.
 ///
-/// The backend and autodiff context come from one routing tensor, preferring a float. Every
-/// tensor-bearing input must share that backend and context; generated routing
-/// validates contexts while unwrapping the inputs.
+/// The backend comes from one routing tensor, preferring a float. The autodiff contexts of all
+/// tensor-bearing inputs are merged; disabled inputs act as constants, while enabled inputs must
+/// share a gradient-checkpointing strategy.
 ///
 /// ```rust,ignore
 /// #[backend_extension(Autodiff, Wgpu)]

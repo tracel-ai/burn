@@ -969,7 +969,7 @@ impl core::fmt::Display for ThroughputStat {
             ThroughputMode::Memory(_) | ThroughputMode::Launch => alloc::string::String::new(),
         };
 
-        let value = match self.value {
+        let value = match &self.value {
             Ok(value) => value.format(&self.key),
             Err(error) => alloc::format!("{error}"),
         };

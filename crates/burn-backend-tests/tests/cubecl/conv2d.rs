@@ -27,6 +27,78 @@ fn conv2d_should_match_reference_backend() {
 }
 
 #[test]
+fn conv2d_end_padding_should_match_reference_backend() {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let input = TestTensor::<4>::random([2, 4, 7, 8], Distribution::Default, &device);
+    let weight = TestTensor::<4>::random([6, 2, 2, 3], Distribution::Default, &device);
+    let bias = TestTensor::<1>::random([6], Distribution::Default, &device);
+
+    let input_ref = TestTensor::<4>::from_data(input.to_data(), &ref_device);
+    let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
+    let bias_ref = TestTensor::<1>::from_data(bias.to_data(), &ref_device);
+
+    // Groups force the CubeCL direct path; both axes have zero beginning
+    // padding and nonzero end padding.
+    let options = ConvOptions::new_with_padding([1, 2], [(0, 1), (0, 2)], [1, 2], 2);
+
+    let output = module::conv2d(input, weight, Some(bias), options.clone());
+    let output_ref = module::conv2d(input_ref, weight_ref, Some(bias_ref), options);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
+}
+
+#[test]
+fn conv2d_depthwise_end_padding_should_match_reference_backend() {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let input = TestTensor::<4>::random([1, 32, 8, 8], Distribution::Default, &device);
+    let weight = TestTensor::<4>::random([32, 1, 3, 3], Distribution::Default, &device);
+
+    let input_ref = TestTensor::<4>::from_data(input.to_data(), &ref_device);
+    let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
+
+    // Preserve the spatial extent using end-only padding. Eight output cells
+    // divide all depthwise tuner tile sizes, so bounds checks can't rely on a
+    // ragged output tile being present.
+    let options = ConvOptions::new_with_padding([1, 1], [(0, 2), (0, 2)], [1, 1], 32);
+
+    let output = module::conv2d(input, weight, None, options.clone());
+    let output_ref = module::conv2d(input_ref, weight_ref, None, options);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
+}
+
+#[test]
+fn conv2d_asymmetric_weight_backward_should_match_reference_backend() {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let input = TestTensor::<4>::random([2, 3, 6, 7], Distribution::Default, &device);
+    let weight = TestTensor::<4>::random([5, 3, 3, 2], Distribution::Default, &device);
+    let options = ConvOptions::new_with_padding([1, 1], [(0, 2), (1, 0)], [1, 2], 1);
+    let output_shape = module::conv2d(input.clone(), weight.clone(), None, options.clone()).dims();
+    let output_grad = TestTensor::<4>::random(output_shape, Distribution::Default, &device);
+
+    let input_ref = TestTensor::<4>::from_data(input.to_data(), &ref_device);
+    let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
+    let output_grad_ref = TestTensor::<4>::from_data(output_grad.to_data(), &ref_device);
+
+    let weight_grad = module::conv2d_weight_backward(input, weight, output_grad, options.clone());
+    let weight_grad_ref =
+        module::conv2d_weight_backward(input_ref, weight_ref, output_grad_ref, options);
+    weight_grad
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&weight_grad_ref.into_data(), Tolerance::default());
+}
+
+#[test]
 fn conv2d_should_match_reference_backend_implicit() {
     let device = Default::default();
     let ref_device = ReferenceDevice::new();

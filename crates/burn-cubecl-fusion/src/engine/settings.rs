@@ -14,7 +14,7 @@ pub struct FuseSettings {
     pub inplace: bool,
     /// Whether vectorization is enabled.
     pub vectorization: VectorizationSetting,
-    /// How [reference layout](super::ir::RefLayout) selection is done.
+    /// How [reference layout](crate::engine::codegen::ir::RefLayout) selection is done.
     pub ref_layout: RefLayoutSetting,
     /// Whether the block may write its outputs in a permuted dimension order.
     ///
@@ -59,7 +59,7 @@ pub enum VectorizationSetting {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-/// Influence how the [reference layout](super::ir::RefLayout) selection is done.
+/// Influence how the [reference layout](crate::engine::codegen::ir::RefLayout) selection is done.
 pub enum RefLayoutSetting {
     /// Any reference layout is allowed.
     Any,

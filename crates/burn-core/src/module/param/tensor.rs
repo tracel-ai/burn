@@ -115,7 +115,7 @@ impl<const D: usize> Parameter for Tensor<D, Bool> {
 }
 
 impl<const D: usize> Param<Tensor<D>> {
-    /// Create a new parameter from a float tensor.
+    /// Create a new trainable parameter from a float tensor.
     ///
     /// # Warnings
     ///
@@ -123,9 +123,11 @@ impl<const D: usize> Param<Tensor<D>> {
     /// initialize parameters inside a module, since the tensor initialization will be lazy,
     /// making the loading of weights more performant.
     pub fn from_tensor(value: Tensor<D>) -> Self {
-        // When creating a parameter from a float tensor, we automatically mark it as requiring
-        // gradients, so that it can be updated by an optimizer.
-        Param::initialized(ParamId::new(), value.require_grad())
+        // A plain backend can't activate gradients immediately, so record the setting explicitly
+        // for a later transition to training.
+        let mut param = Param::initialized(ParamId::new(), value.require_grad());
+        param.is_active = true;
+        param
     }
 
     /// Create a new parameter from data.
@@ -134,11 +136,13 @@ impl<const D: usize> Param<Tensor<D>> {
         T: Into<TensorData>,
     {
         let data: TensorData = data.into();
-        // When creating a parameter from a float tensor, we automatically mark it as requiring
-        // gradients, so that it can be updated by an optimizer.
+        // A plain backend can't activate gradients immediately, so record the setting explicitly
+        // for a later transition to training.
         device.memory_persistent_allocations(data, |data| {
             let value = Tensor::from_data(data, device);
-            Param::initialized(ParamId::new(), value.require_grad())
+            let mut param = Param::initialized(ParamId::new(), value.require_grad());
+            param.is_active = true;
+            param
         })
     }
 
@@ -343,7 +347,7 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
         let is_active = self.is_active;
         let mut param = Param::from_mapped_value(
             self.id,
-            self.val().no_grad().set_require_grad(false),
+            self.val().without_autodiff().set_require_grad(false),
             self.param_mapper.clone(),
         );
         param.is_active = is_active;
@@ -354,8 +358,10 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
         // Keep the reparameterization structure and its parameters on the autodiff backend.
         let reparameterization = module.reparameterization.take();
         // Reinstate the parameter's training state.
-        let tensor = Tensor::from_inner(module.val()).set_require_grad(module.is_active);
-        let base = Param::from_mapped_value(module.id, tensor, module.param_mapper);
+        let is_active = module.is_active;
+        let tensor = Tensor::from_inner(module.val()).set_require_grad(is_active);
+        let mut base = Param::from_mapped_value(module.id, tensor, module.param_mapper);
+        base.is_active = is_active;
         match reparameterization {
             None => base,
             Some(reparameterization) => {
@@ -367,7 +373,11 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
     fn valid(&self) -> Self {
-        Param::from_mapped_value(self.id, self.val().no_grad(), self.param_mapper.clone())
+        Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff(),
+            self.param_mapper.clone(),
+        )
     }
 
     fn from_inner(module: Self) -> Self {
@@ -381,7 +391,11 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
     fn valid(&self) -> Self {
-        Param::from_mapped_value(self.id, self.val().no_grad(), self.param_mapper.clone())
+        Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff(),
+            self.param_mapper.clone(),
+        )
     }
 
     fn from_inner(module: Self) -> Self {
@@ -419,6 +433,110 @@ mod tests {
 
         assert!(!param.is_require_grad());
         assert!(!param.is_active);
+    }
+
+    #[test]
+    fn set_require_grad_on_a_plain_tensor_is_applied_by_train() {
+        let device = test_device();
+        let param = Param::initialized(
+            ParamId::new(),
+            Tensor::<2>::ones([2, 3], &device).set_require_grad(false),
+        )
+        .set_require_grad(true);
+
+        assert!(!param.is_require_grad());
+        assert!(param.is_active);
+
+        let param = param.train();
+
+        assert!(param.is_require_grad());
+        assert!(param.is_active);
+    }
+
+    #[test]
+    fn trainable_param_created_on_a_plain_device_is_applied_by_train() {
+        let device = test_device();
+        let param = Param::from_tensor(Tensor::<2>::ones([2, 3], &device));
+
+        assert!(!param.is_require_grad());
+        assert!(param.is_active);
+
+        let param = param.train();
+
+        assert!(param.is_require_grad());
+        assert!(param.is_active);
+    }
+
+    #[test]
+    fn lazy_activation_setting_on_a_plain_device_is_applied_by_train() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device,
+            false,
+            [2, 3].into(),
+        )
+        .set_require_grad(true);
+
+        assert!(!param.is_initialized());
+        assert!(param.is_active);
+        assert!(!param.val().is_require_grad());
+
+        let param = param.train();
+
+        assert!(param.is_require_grad());
+        assert!(param.is_active);
+    }
+
+    #[test]
+    fn mapping_a_validation_param_preserves_what_train_restores() {
+        let device = test_device().autodiff();
+        let param = Param::from_tensor(Tensor::<2>::ones([2, 3], &device))
+            .valid()
+            .map(|tensor| tensor);
+
+        assert!(!param.is_require_grad());
+        assert!(param.is_active);
+
+        let param = param.train();
+
+        assert!(param.is_require_grad());
+        assert!(param.is_active);
+    }
+
+    #[test]
+    fn mapped_value_reconstruction_preserves_what_train_restores() {
+        let device = test_device().autodiff();
+        let valid = Param::from_tensor(Tensor::<2>::ones([2, 3], &device)).valid();
+        let (id, tensor, mapper) = valid.consume();
+
+        let param = Param::from_mapped_value(id, tensor, mapper);
+
+        assert!(!param.is_require_grad());
+        assert!(param.is_active);
+
+        let param = param.train();
+
+        assert!(param.is_require_grad());
+        assert!(param.is_active);
+    }
+
+    #[test]
+    fn loading_a_validation_param_preserves_what_train_restores() {
+        let device = test_device().autodiff();
+        let valid = Param::from_tensor(Tensor::<2>::ones([2, 3], &device)).valid();
+        let record = Tensor::<2>::zeros([2, 3], &test_device());
+
+        let param = valid.transform_for_load(record, ParamId::new());
+
+        assert!(!param.is_require_grad());
+        assert!(param.is_active);
+
+        let param = param.train();
+
+        assert!(param.is_require_grad());
+        assert!(param.is_active);
     }
 
     #[test]

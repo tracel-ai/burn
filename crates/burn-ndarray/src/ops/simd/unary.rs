@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use bytemuck::cast;
 use macerator::{
-    Scalar, Simd, VAbs, VBitNot, VRecip, Vector, vload, vload_unaligned, vstore, vstore_unaligned,
+    Scalar, Simd, VAbs, VBitNot, VDiv, Vector, vload, vload_unaligned, vstore, vstore_unaligned,
 };
 use ndarray::ArrayD;
 use num_traits::Signed;
@@ -10,7 +10,7 @@ use seq_macro::seq;
 
 use crate::{NdArrayElement, SharedArray};
 
-use super::should_use_simd;
+use super::{should_use_simd, uninit_array_like};
 
 pub trait SimdUnop<T: Scalar, Out: Scalar> {
     fn apply_vec<S: Simd>(input: Vector<S, T>) -> Vector<S, Out>;
@@ -22,7 +22,9 @@ pub struct RecipVec;
 
 impl SimdUnop<f32, f32> for RecipVec {
     fn apply_vec<S: Simd>(input: Vector<S, f32>) -> Vector<S, f32> {
-        input.recip()
+        // `VRecip` can use a low-precision reciprocal estimate. Vector division preserves the
+        // scalar operation's accuracy and its behavior for zeros, infinities, and subnormals.
+        1.0f32.splat::<S>() / input
     }
 
     fn apply(input: f32) -> f32 {
@@ -30,7 +32,7 @@ impl SimdUnop<f32, f32> for RecipVec {
     }
 
     fn is_accelerated<S: Simd>() -> bool {
-        <f32 as VRecip>::is_accelerated::<S>()
+        <f32 as VDiv>::is_accelerated::<S>()
     }
 }
 
@@ -129,7 +131,7 @@ fn unary_scalar_simd_owned<
 >(
     input: SharedArray<T>,
 ) -> SharedArray<Out> {
-    let mut out = unsafe { ArrayD::uninit(input.shape()).assume_init() };
+    let mut out = uninit_array_like(&input);
     let input = input.as_slice_memory_order().unwrap();
     let out_slice = out.as_slice_memory_order_mut().unwrap();
     unary_slice::<T, Out, Op>(input, out_slice, PhantomData);
@@ -230,5 +232,61 @@ unsafe fn unary_slice_inplace<
         // Store a full vector at the same position as the input. Cast is safe because `Out` is
         // size and align compatible
         unsafe { vstore(elem as *mut _ as *mut Out, s0) };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ndarray::{ArrayD, IxDyn, ShapeBuilder};
+
+    use super::*;
+
+    #[test]
+    fn owned_unary_preserves_non_standard_layout() {
+        let input = ArrayD::from_shape_vec(
+            IxDyn(&[4, 8]).f(),
+            (0..32).map(|value| value as f32 - 16.0).collect(),
+        )
+        .unwrap()
+        .into_shared();
+        let shared = input.clone();
+        let expected = input.iter().map(|value| value.abs()).collect::<Vec<_>>();
+
+        assert!(!input.is_standard_layout());
+        assert!(input.as_slice_memory_order().is_some());
+        assert!(!input.is_unique());
+
+        let output = unary_scalar_simd_owned::<f32, f32, VecAbs>(input);
+
+        assert_eq!(output.strides(), shared.strides());
+        assert_eq!(output.iter().copied().collect::<Vec<_>>(), expected);
+    }
+
+    #[test]
+    fn simd_recip_matches_scalar_division() {
+        let mut values = vec![
+            0.0,
+            -0.0,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::MIN_POSITIVE,
+            f32::from_bits(1),
+            -f32::from_bits(1),
+        ];
+        values.extend((1..=25).map(|value| value as f32));
+        let expected = values
+            .iter()
+            .map(|value| (1.0 / value).to_bits())
+            .collect::<Vec<_>>();
+        let input = ArrayD::from_shape_vec(IxDyn(&[32]), values)
+            .unwrap()
+            .into_shared();
+
+        let output = unary_scalar_simd_owned::<f32, f32, RecipVec>(input)
+            .iter()
+            .map(|value| value.to_bits())
+            .collect::<Vec<_>>();
+
+        assert_eq!(output, expected);
     }
 }

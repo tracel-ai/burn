@@ -11,7 +11,7 @@ use cubecl::Runtime;
 use std::marker::PhantomData;
 
 /// Fetch and register [input handles](HandleInput). Also identifies potential inputs that
-/// can be used inplace and/or as the [reference layout](super::super::ir::RefLayout).
+/// can be used inplace and/or as the [reference layout](crate::engine::codegen::ir::RefLayout).
 pub struct InputPlanner<'a, R: Runtime> {
     resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,

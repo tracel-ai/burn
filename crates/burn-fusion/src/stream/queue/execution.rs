@@ -1,4 +1,5 @@
-use burn_ir::{ExistingHandle, HandleContainer, OperationIr, TensorError, TensorStatus};
+use burn_backend::ExecutionError;
+use burn_ir::{HandleContainer, OperationIr, TensorError, TensorStatus};
 use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use std::sync::Arc;
 
@@ -51,14 +52,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
                 )
             });
 
-            let ordering: Vec<usize> = (0..len).collect();
-            let mut fallback = BlockOptimization::new(
-                ExecutionStrategy::Operations {
-                    ordering: Arc::new(ordering.clone()),
-                },
-                ordering,
-            );
-            self.execute_block_optimization(&mut fallback, handles, stream_id);
+            self.execute_in_submission_order(len, handles, stream_id);
             return;
         }
 
@@ -78,12 +72,64 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.execute_block_optimization(&mut optimization, handles, stream_id);
     }
 
+    /// Run the first `len` queued operations in submission order, unfused —
+    /// the answer to a plan that does not fit the stream it matched.
+    ///
+    /// The operations are all still here and every one of them can run; only
+    /// the plan for running them together was wrong. Submission order is always
+    /// a legal order, so a misfit costs fusion rather than the work.
+    ///
+    /// Terminates: the replacement names only indices below `operations.len()`,
+    /// so the segment it is handed cannot be found unfitting in turn.
+    fn execute_in_submission_order(
+        &mut self,
+        len: usize,
+        handles: &mut HandleContainer<R::FusionHandle>,
+        stream_id: StreamId,
+    ) {
+        let ordering: Vec<usize> = (0..len.min(self.operations.len())).collect();
+        let mut unfused = BlockOptimization::new(
+            ExecutionStrategy::Operations {
+                ordering: Arc::new(ordering.clone()),
+            },
+            ordering,
+        );
+
+        self.execute_block_optimization(&mut unfused, handles, stream_id);
+    }
+
     fn execute_block_optimization(
         &mut self,
         step: &mut BlockOptimization<R::Optimization>,
         handles: &mut HandleContainer<R::FusionHandle>,
         stream_id: StreamId,
     ) {
+        // The other way a plan can fail to fit the stream it matched: it names
+        // an operation index the segment does not hold. Checked here rather
+        // than beside its sibling above because this is the last point every
+        // strategy passes through, cached or one-off, and the last one where an
+        // unfitting plan can be replaced rather than survived: past it the
+        // indices are used inside the walk, where an out-of-range one panics
+        // outside every scope — nothing knows what it was going to write, so
+        // nothing can say why those tensors hold no data.
+        //
+        // One pass over the plan's indices, once per segment. Removing it
+        // entirely does not move `execution_path_throughput`: 257-282 ns/op
+        // with it, 264-277 without, three runs each.
+        let held = self.operations.len();
+        if let Some(max) = step.strategy.max_index()
+            && max >= held
+        {
+            log_fusion(FusionLogLevel::Medium, || {
+                format!(
+                    "[plan] names operation {max} but the segment holds {held}; \
+                     running its {held} operations unfused"
+                )
+            });
+
+            return self.execute_in_submission_order(held, handles, stream_id);
+        }
+
         log_execution_table(stream_id, &step.strategy, &self.global);
 
         let operations = core::mem::take(&mut self.operations);
@@ -206,13 +252,16 @@ fn run_strategy<R: FusionRuntime>(
     let mut executed = execution.finish();
 
     if let Some(escaped) = escaped {
-        // Nothing says which operation it came from, so the whole consumed
-        // segment takes the error — conservatively, leaving alone any output
-        // an operation did write, so one failure does not turn into several.
-        let error = TensorError::new(panic_message(escaped.as_ref()));
+        // Work that fails inside a scope has already claimed its own write set
+        // on the way out. What reaches here is the rest: a panic raised by the
+        // strategy walk itself — its own guards, outside every scope — where
+        // nothing has claimed anything and nothing says which operation it came
+        // from. So the sweep claims only what nothing wrote and nothing else
+        // already claims, which is the set no scope can account for.
+        let error = TensorError::new(ExecutionError::generic(panic_message(escaped.as_ref())));
         for op in executed.ir.iter().take(executed.num_executed) {
             for node in op.outputs() {
-                handles.set_error(node.id, error.clone(), ExistingHandle::Keep);
+                handles.claim_unwritten(node.id, error.clone());
             }
         }
 

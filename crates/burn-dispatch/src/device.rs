@@ -91,9 +91,9 @@ impl DispatchDevice {
     ///
     /// Only cubecl-backed devices can measure throughput; other backends
     /// (ndarray, libtorch, remote, ...) return an empty vector. An autodiff
-    /// device reports the peaks of the device it wraps. Each returned
-    /// result corresponds positionally to the key at the same index, carrying a
-    /// [`ThroughputError`] where the device has no peak to report for it.
+    /// device reports the peaks of the device it wraps. Each returned result
+    /// corresponds positionally to the key at the same index, and carries a
+    /// [`ThroughputError`] where the device has no peak for that key.
     pub fn performance_stats(
         &self,
         keys: &[ThroughputKey],

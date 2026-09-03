@@ -362,7 +362,7 @@ impl FuseOp {
 
 #[derive(CubeType, CubeLaunch, Default, Clone)]
 #[expand(derive(Clone))]
-/// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
+/// Global arguments that are used for fusing [fuse operations](FuseOp).
 pub struct GlobalArgs {
     /// Tensors that are stored in global memory.
     pub tensors: Sequence<GlobalTensor>,
@@ -401,7 +401,7 @@ impl MultiBlockVariables {
     ///
     /// # Notes
     ///
-    /// The type of [`NumericExpand<DYN_ELEM_ID>`] must be set before calling this function.
+    /// The type of [`DynElem`] must be set before calling this function.
     pub fn init(&mut self, #[comptime] key: MultiBlockPos) {
         let mut registers =
             Registry::<usize, Registry<usize, RuntimeCell<DynVector>>>::find_or_default::<usize>(
@@ -478,7 +478,7 @@ impl core::fmt::Debug for GlobalArgsLaunch {
 }
 
 impl GlobalArgsLaunch {
-    /// Get the shape of the given [argument](Arg).
+    /// Get the shape of the given [argument](FuseArg).
     ///
     /// # Panics
     ///
@@ -518,7 +518,7 @@ impl GlobalArgsLaunch {
         }
     }
 
-    /// Get the strides of the given [argument](Arg).
+    /// Get the strides of the given [argument](FuseArg).
     ///
     /// # Panics
     ///
@@ -549,7 +549,7 @@ impl GlobalArgsLaunch {
         }
     }
 
-    /// Get the vector size of the given [argument](Arg).
+    /// Get the vector size of the given [argument](FuseArg).
     ///
     /// # Panics
     ///
@@ -562,7 +562,7 @@ impl GlobalArgsLaunch {
         }
     }
 
-    /// Resolve the [argument](Arg) to a [tensor argument](TensorArg).
+    /// Resolve the [argument](FuseArg) to a [tensor argument](TensorArg).
     ///
     /// # Panics
     ///
@@ -578,8 +578,8 @@ impl GlobalArgsLaunch {
 
 #[derive(CubeType, Clone)]
 #[expand(derive(Clone))]
-/// Keep track of all local variables that are used as argument in fused
-/// [element wise operations](ElemwiseOp).
+/// Keep track of all local variables that are used as arguments in fused
+/// [operations](FuseOp).
 pub struct LocalArgs {
     pub l_f64: Registry<usize, Vector<f64, DynSize>>,
     pub l_f32: Registry<usize, Vector<f32, DynSize>>,
@@ -628,14 +628,14 @@ impl LocalArgs {
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-/// Unary [element wise operation](ElemwiseOp) arguments.
+/// Unary [fuse operation](FuseOp) arguments.
 pub struct UnaryFuseArgs {
     pub input: FuseArg,
     pub out: FuseArg,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-/// Binary [element wise operation](ElemwiseOp) arguments.
+/// Binary [fuse operation](FuseOp) arguments.
 pub struct BinaryFuseArgs {
     pub lhs: FuseArg,
     pub rhs: FuseArg,
@@ -645,7 +645,7 @@ pub struct BinaryFuseArgs {
 #[derive(
     CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
-/// Precisions supported by [element wise operations](ElemwiseOp).
+/// Precisions supported by [fuse operations](FuseOp).
 ///
 /// This is a custom type instead of [ElemType] so it can implement [CubeType]
 /// and restricts the supported types for fusion.

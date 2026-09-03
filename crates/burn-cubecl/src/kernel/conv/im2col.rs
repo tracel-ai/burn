@@ -208,7 +208,10 @@ fn check_pointwise_strided<const N: usize>(
     }
 
     let pointwise = kernel_shape.iter().all(|size| *size == 1)
-        && options.padding.iter().all(|padding| *padding == 0)
+        && options
+            .padding
+            .iter()
+            .all(|&(begin, end)| begin == 0 && end == 0)
         && options.dilation.iter().all(|dilation| *dilation == 1);
 
     match pointwise {
@@ -510,8 +513,8 @@ fn im2col<R: CubeRuntime, const N: usize>(
         for axis in 0..N {
             let stride = options.stride[axis] as isize;
             // Where this tap reads for output zero. Negative under padding.
-            let base =
-                (offsets[axis] * options.dilation[axis]) as isize - options.padding[axis] as isize;
+            let base = (offsets[axis] * options.dilation[axis]) as isize
+                - options.padding_begin()[axis] as isize;
             let extent = in_shape[axis] as isize;
 
             // The outputs whose read lands inside the image. Everything else is

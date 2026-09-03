@@ -7,7 +7,7 @@ use crate::{
     check::TensorCheck,
     ops::{
         AttentionModuleOptions, BridgeTensor, ConvOptions, ConvTransposeOptions, DeformConvOptions,
-        InterpolateOptions, PadMode, PaddedConvOptions, UnfoldOptions,
+        InterpolateOptions, UnfoldOptions,
     },
 };
 
@@ -86,117 +86,78 @@ pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
 
 /// Applies a [1D convolution](burn_backend::ops::ModuleOps::conv1d).
 ///
-/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
-/// asymmetric padding. When asymmetric padding is specified, an explicit pad
-/// operation is applied before the convolution backend op.
+/// Supports symmetric and asymmetric padding through [`ConvOptions`].
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv1d(
     x: Tensor<3>,
     weight: Tensor<3>,
     bias: Option<Tensor<1>>,
-    options: impl Into<PaddedConvOptions<1>>,
+    options: impl Into<ConvOptions<1>>,
 ) -> Tensor<3> {
-    let padded_options = options.into();
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv1d",
         x.dims(),
         weight.dims(),
-        padded_options.options.groups,
+        options.groups,
     ));
 
-    if let Some(padding_end) = padded_options.padding_end {
-        let left = padded_options.options.padding[0];
-        let right = padding_end[0];
-        // For 1D (NCL format), pad the length dimension
-        let padded = x.pad((left, right, 0, 0), PadMode::Constant(0.0));
-        let zero_options = ConvOptions::new(
-            padded_options.options.stride,
-            [0],
-            padded_options.options.dilation,
-            padded_options.options.groups,
-        );
-        Tensor::new(BridgeTensor::float(Dispatch::conv1d(
-            padded.primitive.into_float(),
-            weight.primitive.into_float(),
-            bias.map(|b| b.primitive.into_float()),
-            zero_options,
-        )))
-    } else {
-        Tensor::new(BridgeTensor::float(Dispatch::conv1d(
-            x.primitive.into_float(),
-            weight.primitive.into_float(),
-            bias.map(|b| b.primitive.into_float()),
-            padded_options.options,
-        )))
-    }
+    Tensor::new(BridgeTensor::float(Dispatch::conv1d(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        bias.map(|b| b.primitive.into_float()),
+        options,
+    )))
 }
 
 /// Applies a [2D convolution](burn_backend::ops::ModuleOps::conv2d).
 ///
-/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
-/// asymmetric padding. When asymmetric padding is specified, an explicit pad
-/// operation is applied before the convolution backend op.
+/// Supports symmetric and asymmetric padding through [`ConvOptions`].
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv2d(
     x: Tensor<4>,
     weight: Tensor<4>,
     bias: Option<Tensor<1>>,
-    options: impl Into<PaddedConvOptions<2>>,
+    options: impl Into<ConvOptions<2>>,
 ) -> Tensor<4> {
-    let padded_options = options.into();
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv2d",
         x.dims(),
         weight.dims(),
-        padded_options.options.groups,
+        options.groups,
     ));
 
-    if let Some(padding_end) = padded_options.padding_end {
-        let top = padded_options.options.padding[0];
-        let left = padded_options.options.padding[1];
-        let bottom = padding_end[0];
-        let right = padding_end[1];
-        // For 2D (NCHW format), pad height and width
-        let padded = x.pad((left, right, top, bottom), PadMode::Constant(0.0));
-        let zero_options = ConvOptions::new(
-            padded_options.options.stride,
-            [0, 0],
-            padded_options.options.dilation,
-            padded_options.options.groups,
-        );
-        Tensor::new(BridgeTensor::float(Dispatch::conv2d(
-            padded.primitive.into_float(),
-            weight.primitive.into_float(),
-            bias.map(|b| b.primitive.into_float()),
-            zero_options,
-        )))
-    } else {
-        Tensor::new(BridgeTensor::float(Dispatch::conv2d(
-            x.primitive.into_float(),
-            weight.primitive.into_float(),
-            bias.map(|b| b.primitive.into_float()),
-            padded_options.options,
-        )))
-    }
+    Tensor::new(BridgeTensor::float(Dispatch::conv2d(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        bias.map(|b| b.primitive.into_float()),
+        options,
+    )))
 }
 
 /// Applies a [3D convolution](burn_backend::ops::ModuleOps::conv3d).
 ///
-/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
-/// asymmetric padding. Asymmetric 3D padding is not yet supported.
+/// Asymmetric 3D padding is not yet supported.
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv3d(
     x: Tensor<5>,
     weight: Tensor<5>,
     bias: Option<Tensor<1>>,
-    options: impl Into<PaddedConvOptions<3>>,
+    options: impl Into<ConvOptions<3>>,
 ) -> Tensor<5> {
-    let padded_options = options.into();
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv3d",
         x.dims(),
         weight.dims(),
-        padded_options.options.groups,
+        options.groups,
     ));
 
-    if padded_options.is_asymmetric() {
+    if options.is_asymmetric() {
         panic!("Asymmetric padding is not yet supported for conv3d");
     }
 
@@ -204,7 +165,7 @@ pub fn conv3d(
         x.primitive.into_float(),
         weight.primitive.into_float(),
         bias.map(|b| b.primitive.into_float()),
-        padded_options.options,
+        options,
     )))
 }
 

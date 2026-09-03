@@ -41,6 +41,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
     shape_out: Sequence<FastDivmod<u32>>,
     shape_out_c: FastDivmod<u32>,
     #[comptime] has_padding: bool,
+    #[comptime] accumulate_lanes: bool,
     #[define(E)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -104,6 +105,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
         &loop_params,
         0usize,
         has_padding,
+        accumulate_lanes,
     );
 
     output.write(ABSOLUTE_POS, sum);
@@ -133,6 +135,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
     params: &LoopParams,
     #[comptime] kernel_dim: usize,
     #[comptime] has_padding: bool,
+    #[comptime] accumulate_lanes: bool,
 ) {
     if comptime![kernel_dim < params.kernel_shape.len()] {
         let out_idx = *params.out_pos.index(kernel_dim);
@@ -161,6 +164,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
                 params,
                 comptime![kernel_dim + 1],
                 has_padding,
+                accumulate_lanes,
             );
         }
     } else {
@@ -173,6 +177,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
             weight_offs,
             params.in_c_per_group,
             params.stride_oc,
+            accumulate_lanes,
         );
     }
 }
@@ -187,28 +192,99 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
     weight_offs: usize,
     in_c_per_group: u32,
     stride_oc: usize,
+    #[comptime] accumulate_lanes: bool,
+) {
+    if in_bounds {
+        if accumulate_lanes {
+            accumulate_in_lanes(
+                input,
+                weight,
+                sum,
+                in_offs,
+                weight_offs,
+                in_c_per_group,
+                stride_oc,
+            );
+        } else {
+            accumulate_per_step(
+                input,
+                weight,
+                sum,
+                in_offs,
+                weight_offs,
+                in_c_per_group,
+                stride_oc,
+            );
+        }
+    }
+}
+
+/// One input read per output channel buys a channel loop with no dependency chain.
+#[cube]
+fn accumulate_in_lanes<E: Numeric, NIn: Size, NOut: Size>(
+    input: &Tensor<Vector<E, NIn>>,
+    weight: &Tensor<Vector<E, NIn>>,
+    sum: &mut Vector<E, NOut>,
+    in_offs: usize,
+    weight_offs: usize,
+    in_c_per_group: u32,
+    stride_oc: usize,
 ) {
     let vector_size_in = input.vector_size();
     let vector_size_out = sum.vector_size();
 
-    if in_bounds {
-        for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
-            let in_pos = in_offs + in_c as usize;
-            let mut weight_pos = weight_offs + in_c as usize;
+    #[unroll]
+    for v in 0..vector_size_out {
+        let mut lanes = Vector::<E, NIn>::zero();
+        let weight_offs = weight_offs + v * stride_oc;
 
-            let val = input[in_pos / vector_size_in];
+        for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
+            let val = input[(in_offs + in_c as usize) / vector_size_in];
+
+            lanes += val * weight[(weight_offs + in_c as usize) / vector_size_in];
+        }
+
+        let mut channel = sum.extract(v);
+
+        #[unroll]
+        for i in 0..vector_size_in {
+            channel += lanes.extract(i);
+        }
+
+        sum.insert(v, channel);
+    }
+}
+
+/// One input read serves every output channel, which is all a one-step channel loop can win.
+#[cube]
+fn accumulate_per_step<E: Numeric, NIn: Size, NOut: Size>(
+    input: &Tensor<Vector<E, NIn>>,
+    weight: &Tensor<Vector<E, NIn>>,
+    sum: &mut Vector<E, NOut>,
+    in_offs: usize,
+    weight_offs: usize,
+    in_c_per_group: u32,
+    stride_oc: usize,
+) {
+    let vector_size_in = input.vector_size();
+    let vector_size_out = sum.vector_size();
+
+    for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
+        let in_pos = in_offs + in_c as usize;
+        let mut weight_pos = weight_offs + in_c as usize;
+
+        let val = input[in_pos / vector_size_in];
+
+        #[unroll]
+        for v in 0..vector_size_out {
+            let weight = weight[weight_pos / vector_size_in];
+            let val = val * weight;
 
             #[unroll]
-            for v in 0..vector_size_out {
-                let weight = weight[weight_pos / vector_size_in];
-                let val = val * weight;
-
-                #[unroll]
-                for i in 0..vector_size_in {
-                    sum.insert(v, sum.extract(v) + val.extract(i));
-                }
-                weight_pos += stride_oc;
+            for i in 0..vector_size_in {
+                sum.insert(v, sum.extract(v) + val.extract(i));
             }
+            weight_pos += stride_oc;
         }
     }
 }
@@ -252,6 +328,8 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
         &options.dilation,
         in_shape,
     );
+    let check_spatial_bounds =
+        should_check_spatial_bounds(in_shape, kernel_shape, &out_size, &options);
 
     let mut shape_out = vec![batch_size];
     shape_out.extend(out_size.iter().copied());
@@ -277,6 +355,13 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     // Use channels_per_group instead of in_channels to avoid issues here
     let vector_size_in = max_vector_size(&weight);
 
+    // Only a single-unit plane pays the dependency chain in full; a wide plane hides it and is
+    // left with the extra input read per output channel. One lane is exactly as serial as `sum`,
+    // and a channel loop of one step has nothing to amortize the fold over.
+    let accumulate_lanes = input.client.properties().hardware.plane_size_max == 1
+        && vector_size_in > 1
+        && weight.meta.shape()[dim_c] > vector_size_in as usize;
+
     let shape_out = output.meta.shape()[1..dim_c]
         .iter()
         .map(|s| *s as u32)
@@ -289,7 +374,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
         conv_params.push(ConvParamLaunch::new(
             options.stride[i] as u32,
             options.dilation[i] as u32,
-            options.padding[i] as i32,
+            options.padding_begin()[i] as i32,
         ));
     }
 
@@ -312,10 +397,27 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             Conv2dArgsLaunch::new(conv_params, channels_per_group as u32),
             shape_out,
             shape_out_c,
-            options.padding.iter().any(|it| *it != 0),
+            check_spatial_bounds,
+            accumulate_lanes,
             dtype_to_storage_type(out_dtype),
         )
     };
 
     Ok(output)
+}
+
+fn should_check_spatial_bounds<const N: usize>(
+    in_shape: &[usize],
+    kernel_shape: &[usize],
+    out_shape: &[usize],
+    options: &ConvOptions<N>,
+) -> bool {
+    (0..N).any(|dim| {
+        let begin = options.padding[dim].0 as i64;
+        let first = -begin;
+        let last = (out_shape[dim] as i64 - 1) * options.stride[dim] as i64
+            + (kernel_shape[dim] as i64 - 1) * options.dilation[dim] as i64
+            - begin;
+        first < 0 || last >= in_shape[dim] as i64
+    })
 }

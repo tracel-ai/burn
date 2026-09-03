@@ -27,6 +27,9 @@ serde = { workspace = true }
 hashbrown = { workspace = true } # no_std compatible
 
 burn-backend = { workspace = true }
+# `Arc`, on targets without pointer-width atomics too (`burn_std::sync::Arc`):
+# `alloc::sync` does not exist on thumbv6m, and an errored handle's cause is
+# shared behind one.
 burn-std = { workspace = true }
 
 [package.metadata.docs.rs]

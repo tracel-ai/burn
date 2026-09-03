@@ -109,6 +109,11 @@ impl Numeric for AccuracyMetric {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        ClassificationOutput,
+        metric::{Adaptor, ItemLazy},
+    };
+    use burn_core::tensor::Device;
 
     #[test]
     fn test_accuracy_without_padding() {
@@ -153,5 +158,21 @@ mod tests {
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert_eq!(50.0, metric.value().unwrap().current());
+    }
+
+    #[test]
+    fn test_accuracy_after_syncing_autodiff_classification_output() {
+        let device = Device::flex().autodiff();
+        let mut metric = AccuracyMetric::new();
+        let output = ClassificationOutput::new(
+            Tensor::from_data([0.0], &device),
+            Tensor::from_data([[0.1, 0.9]], &device),
+            Tensor::from_data([1], &device),
+        )
+        .sync();
+        let input = output.adapt();
+
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert_eq!(100.0, metric.value().unwrap().current());
     }
 }

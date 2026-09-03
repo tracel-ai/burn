@@ -24,7 +24,7 @@ pub struct GaussianNoise {
     /// Standard deviation of the normal noise distribution.
     pub std: f64,
     /// Whether to behave as during training. Cleared by
-    /// [`no_grad`](burn::module::Module::no_grad) and matching
+    /// [`freeze`](burn::module::Module::freeze) and matching
     /// [`freeze_group`](burn::module::Module::freeze_group) traversals.
     pub training: Param<Flag>,
 }
@@ -120,7 +120,7 @@ mod tests {
         // because that is where the rest of the graph is.
         let device = Device::default().autodiff();
         let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
-        let noise = GaussianNoiseConfig::new(0.5).init().no_grad();
+        let noise = GaussianNoiseConfig::new(0.5).init().freeze();
 
         let output = noise.forward(tensor.clone());
 
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn display_shows_a_frozen_layer() {
         use burn::module::Module;
-        let layer = GaussianNoiseConfig::new(0.5).init().no_grad();
+        let layer = GaussianNoiseConfig::new(0.5).init().freeze();
 
         assert_eq!(
             alloc::format!("{layer}"),

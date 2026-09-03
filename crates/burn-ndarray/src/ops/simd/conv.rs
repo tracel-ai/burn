@@ -72,8 +72,8 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
     let [batch_size, _in_channels, in_height, in_width] = x.shape().try_into().unwrap();
     let [dilate_h, dilate_w] = options.dilation;
     let [stride_h, stride_w] = options.stride;
-    let [pad_h, pad_w] = options.padding;
-    let padded = options.padding != [0, 0];
+    let [pad_h, pad_w] = options.padding_begin();
+    let padded = options.padding_begin() != [0, 0];
     let strided = options.stride != [1, 1] || options.dilation != [1, 1];
     let grouped = options.groups != 1;
 
@@ -174,7 +174,7 @@ unsafe fn conv2d_launch<
     let channels_per_group = out_channels / options.groups;
     let lanes = E::lanes::<S>();
 
-    let [mut pad_h, mut pad_w] = options.padding;
+    let [mut pad_h, mut pad_w] = options.padding_begin();
     let [stride_h, stride_w] = options.stride;
     let [dilate_h, dilate_w] = options.dilation;
 

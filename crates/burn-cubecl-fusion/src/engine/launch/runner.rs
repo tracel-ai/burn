@@ -20,8 +20,8 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
 
     /// Run the trace with the given inputs and outputs.
     ///
-    /// There is one [fuse config](FuseBlockConfig) for each [block](super::block::FuseBlock) registered
-    /// in the [optimization builder](burn_fusion::OptimizationBuilder).
+    /// There is one [fuse config](FuseBlockConfig) for each [block](crate::engine::trace::block::FuseBlock) registered
+    /// in the [operation fuser](burn_fusion::OperationFuser).
     fn run<'a>(
         &'a self,
         client: &'a Client,

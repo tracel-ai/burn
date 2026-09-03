@@ -1185,7 +1185,7 @@ impl_ir_create!(
             &x.shape,
             &weight.shape,
             &options.stride,
-            &options.padding,
+            &options.padding.map(|padding| (padding, padding)),
             &options.dilation,
         )
         .unwrap(),
@@ -1246,7 +1246,7 @@ impl_ir_create!(
             &x.shape,
             &weight.shape,
             &options.stride,
-            &options.padding,
+            &options.padding.map(|padding| (padding, padding)),
             &options.dilation,
         )
         .unwrap(),

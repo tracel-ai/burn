@@ -220,7 +220,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum FusedMatmulSelector {
     Simple {
         multi_rows: bool,

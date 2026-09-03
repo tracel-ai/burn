@@ -1,11 +1,10 @@
 //! Shared routing code generation for backend dispatch and backend extensions.
 //!
 //! Both attribute macros normalize a method into [`Operation`] and use this module for the routing
-//! contract. Generated code selects a concrete backend and autodiff context from one routing tensor,
-//! unwraps every input for the selected backend, invokes the operation, and wraps its output back
-//! into dispatch tensors. Routing validates every tensor-bearing input against the selected
-//! context while unwrapping it. Backend selection remains an enum match: this layer does not
-//! introduce trait-object dispatch or backend lookup tables.
+//! contract. Generated code selects a concrete backend from one routing tensor, merges the autodiff
+//! context of every input, unwraps the inputs for the resolved backend and context, invokes the
+//! operation, and wraps its output back into dispatch tensors. Backend selection remains an enum
+//! match: this layer does not introduce trait-object dispatch or backend lookup tables.
 //!
 //! A required bare tensor can be matched and extracted directly. Operations containing only
 //! optional, vector, quantization-parameter, or extension inputs first search those inputs for a
@@ -349,6 +348,57 @@ pub(crate) fn operation_routing_tensor(
     )
 }
 
+/// Merge the autodiff contexts of every active tensor input into `__ad_ctx`.
+///
+/// This is separate from backend selection: one tensor supplies the concrete backend tag, while
+/// all tensors participate in choosing whether the operation runs through autodiff.
+pub(crate) fn operation_autodiff_context(
+    operation: &Operation,
+    paths: &RoutingPaths,
+) -> TokenStream {
+    let dispatch_root = &paths.dispatch_root;
+    let extension_trait = &paths.extension_trait;
+    let merges = operation.inputs.iter().filter_map(|input| {
+        let name = &input.name;
+        match &input.kind {
+            InputKind::Tensor { .. } => Some(quote! {
+                __ad_ctx = __ad_ctx.merge(#name.autodiff);
+            }),
+            InputKind::OptionTensor(_) => Some(quote! {
+                if let Some(__tensor) = #name.as_ref() {
+                    __ad_ctx = __ad_ctx.merge(__tensor.autodiff);
+                }
+            }),
+            InputKind::VecTensor(_) => Some(quote! {
+                for __tensor in &#name {
+                    __ad_ctx = __ad_ctx.merge(__tensor.autodiff);
+                }
+            }),
+            InputKind::QuantizationParameters => Some(quote! {
+                __ad_ctx = __ad_ctx.merge(#name.scales.autodiff);
+                if let Some(__tensor) = #name.global.as_ref() {
+                    __ad_ctx = __ad_ctx.merge(__tensor.autodiff);
+                }
+            }),
+            InputKind::Extension(ty) => {
+                let dispatch_backend = quote!(#dispatch_root::Dispatch);
+                let target = ir::with_backend(ty, dispatch_backend.clone());
+                Some(quote! {
+                    __ad_ctx = __ad_ctx.merge(
+                        <#target as #extension_trait<#dispatch_backend>>::autodiff_context(&#name)
+                    );
+                })
+            }
+            InputKind::Other => None,
+        }
+    });
+
+    quote! {
+        let mut __ad_ctx = #dispatch_root::DispatchAutodiffContext::Disabled;
+        #(#merges)*
+    }
+}
+
 fn routing_candidate(
     input: &OperationInput,
     paths: &RoutingPaths,
@@ -588,12 +638,16 @@ fn extract_tensor(
     let ad_cfg = cfg_attr(extraction.autodiff_cfg);
     let accessor = kind.accessor();
     let accessor_ref = format_ident!("as_{accessor}");
-    let validate_context = quote! {
-        assert_eq!(
-            __ad_ctx,
-            #name.autodiff,
-            "Autodiff context mismatch: all tensors in the same operation must share a context"
-        );
+    let context = quote!(#dispatch_root::DispatchAutodiffContext);
+    let validate_enabled_float = quote! {
+        let #context::Enabled(_) = #name.autodiff else {
+            panic!("an autodiff float primitive must have an enabled autodiff context")
+        };
+    };
+    let validate_disabled_float = quote! {
+        let #context::Disabled = #name.autodiff else {
+            panic!("an enabled float tensor must use an autodiff primitive")
+        };
     };
     let invalid_autodiff_float = extraction.has_autodiff_variant.then(|| {
         quote! {
@@ -610,16 +664,17 @@ fn extract_tensor(
         if borrowed {
             let lifted = format_ident!("__lifted_{name}");
             quote! {
-                #validate_context
                 let #lifted;
                 let #name = match &#name.kind {
                     #dispatch_kind::Autodiff(__inner) => {
+                        #validate_enabled_float
                         match __inner.as_ref() {
                             #dispatch_kind::#backend(__inner) => __inner.as_autodiff(),
                             _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
                         }
                     }
                     #dispatch_kind::#backend(__inner) => {
+                        #validate_disabled_float
                         #lifted = <#backend_alias as #autodiff_trait>::from_inner(__inner.as_float().clone());
                         &#lifted
                     }
@@ -628,15 +683,16 @@ fn extract_tensor(
             }
         } else {
             quote! {
-                #validate_context
                 let #name = match #name.kind {
                     #dispatch_kind::Autodiff(__inner) => {
+                        #validate_enabled_float
                         match *__inner {
                             #dispatch_kind::#backend(__inner) => __inner.autodiff(),
                             _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
                         }
                     }
                     #dispatch_kind::#backend(__inner) => {
+                        #validate_disabled_float
                         <#backend_alias as #autodiff_trait>::from_inner(__inner.float())
                     }
                     _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
@@ -646,7 +702,6 @@ fn extract_tensor(
     } else if kind == TensorKind::Float {
         if borrowed {
             quote! {
-                #validate_context
                 let #name = match &#name.kind {
                     #dispatch_kind::#backend(__inner) => __inner.as_float(),
                     #invalid_autodiff_float
@@ -655,7 +710,6 @@ fn extract_tensor(
             }
         } else {
             quote! {
-                #validate_context
                 let #name = match #name.kind {
                     #dispatch_kind::#backend(__inner) => __inner.float(),
                     #invalid_autodiff_float
@@ -665,7 +719,6 @@ fn extract_tensor(
         }
     } else if borrowed {
         quote! {
-            #validate_context
             let #name = match &#name.kind {
                 #dispatch_kind::#backend(__inner) => __inner.#accessor_ref(),
                 #invalid_autodiff_kind
@@ -674,7 +727,6 @@ fn extract_tensor(
         }
     } else {
         quote! {
-            #validate_context
             let #name = match #name.kind {
                 #dispatch_kind::#backend(__inner) => __inner.#accessor(),
                 #invalid_autodiff_kind
@@ -701,31 +753,43 @@ fn extract_extension(
     let mismatch = quote!(panic!("backend extension input is on the wrong backend"));
     if autodiff {
         let target = ir::with_backend(ty, quote!(#backend_alias));
+        let context = quote!(#dispatch_root::DispatchAutodiffContext);
         quote! {
             let #name = <#target as #extension_trait<#backend_alias>>::map_from_dispatch(#name, |__tensor| {
-                assert_eq!(
-                    __ad_ctx,
-                    __tensor.autodiff,
-                    "Autodiff context mismatch: all tensors in the same operation must share a context"
-                );
-                let tensor = match __tensor.kind {
-                    #dispatch_kind::Autodiff(inner) => match *inner {
-                        #dispatch_kind::#backend(tensor) => tensor,
-                        #[allow(unreachable_patterns)]
-                        _ => #mismatch,
+                let __input_context = __tensor.autodiff;
+                match __tensor.kind {
+                    #dispatch_kind::Autodiff(inner) => {
+                        let #context::Enabled(_) = __input_context else {
+                            panic!("an autodiff float primitive must have an enabled autodiff context")
+                        };
+                        let tensor = match *inner {
+                            #dispatch_kind::#backend(tensor) => tensor,
+                            #[allow(unreachable_patterns)]
+                            _ => #mismatch,
+                        };
+                        match tensor {
+                            #backend_tensor::Autodiff(tensor) => #backend_tensor::Float(tensor),
+                            _ => panic!("only float tensors may use an autodiff primitive"),
+                        }
+                    }
+                    #dispatch_kind::#backend(tensor) => match tensor {
+                        #backend_tensor::Float(tensor) => {
+                            let #context::Disabled = __input_context else {
+                                panic!("an enabled float tensor must use an autodiff primitive")
+                            };
+                            #backend_tensor::Float(
+                                <#backend_alias as #autodiff_trait>::from_inner(tensor)
+                            )
+                        }
+                        #backend_tensor::Int(tensor) => #backend_tensor::Int(tensor),
+                        #backend_tensor::Bool(tensor) => #backend_tensor::Bool(tensor),
+                        #backend_tensor::Quantized(tensor) => #backend_tensor::Quantized(tensor),
+                        #backend_tensor::Autodiff(_) => {
+                            panic!("autodiff float input reached concrete dispatch")
+                        }
                     },
-                    #dispatch_kind::#backend(tensor) => tensor,
                     #[allow(unreachable_patterns)]
                     _ => #mismatch,
-                };
-                match tensor {
-                    #backend_tensor::Autodiff(tensor) => #backend_tensor::Float(tensor),
-                    #backend_tensor::Float(tensor) => #backend_tensor::Float(
-                        <#backend_alias as #autodiff_trait>::from_inner(tensor)
-                    ),
-                    #backend_tensor::Int(tensor) => #backend_tensor::Int(tensor),
-                    #backend_tensor::Bool(tensor) => #backend_tensor::Bool(tensor),
-                    #backend_tensor::Quantized(tensor) => #backend_tensor::Quantized(tensor),
                 }
             });
         }
@@ -735,11 +799,6 @@ fn extract_extension(
             let #name = <#target as #extension_trait<#backend_root::#backend>>::map_from_dispatch(
                 #name,
                 |__tensor| {
-                    assert_eq!(
-                        __ad_ctx,
-                        __tensor.autodiff,
-                        "Autodiff context mismatch: all tensors in the same operation must share a context"
-                    );
                     match __tensor.kind {
                         #dispatch_kind::#backend(tensor) => tensor,
                         #[allow(unreachable_patterns)]

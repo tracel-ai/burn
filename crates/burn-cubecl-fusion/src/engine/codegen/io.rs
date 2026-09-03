@@ -468,7 +468,7 @@ pub fn read_output<C: Scalar, N: Size>(
 }
 
 #[cube]
-/// Write the given value at the [arg](Arg) position.
+/// Write the given value at the [arg](FuseArg) position.
 pub fn write<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
@@ -583,7 +583,7 @@ fn write_output_aligned<C: Scalar, N: Size>(
 }
 
 #[cube]
-/// Write the given value at the [arg](Arg) position.
+/// Write the given value at the [arg](FuseArg) position.
 pub fn write_scalar<C: Scalar, N: Size>(
     locals: &mut LocalArgs,
     value: Vector<C, N>,

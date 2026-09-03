@@ -78,7 +78,9 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
         let param_out = mapper.map_float(param);
         let (_, tensor_out, _) = param_out.consume();
 
-        *tensor = tensor_out;
+        // Running state is a buffer, not an optimizer target. Mappers may transform its value,
+        // but must not make it require gradients.
+        *tensor = tensor_out.set_require_grad(false);
         core::mem::drop(tensor);
 
         self
@@ -215,7 +217,7 @@ impl<const D: usize> AutodiffModule for RunningState<Tensor<D>> {
         self.sync();
         let value = self.value();
 
-        RunningState::with_id(self.id, value.no_grad())
+        RunningState::with_id(self.id, value.without_autodiff())
     }
 
     fn from_inner(module: Self) -> Self {

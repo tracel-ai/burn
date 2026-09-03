@@ -8,13 +8,67 @@ use alloc::vec::Vec;
 use hashbrown::{HashMap, HashSet};
 
 use burn_core::module::{ModuleMapper, Param, ParamId};
-use burn_core::tensor::{Bool, Device, Int, Shape, Tensor};
+use burn_core::tensor::{Bool, DType, Device, Int, Shape, Tensor};
 
 use burn_pack::Tensor as PackTensor;
 
 use crate::apply_result::{ApplyError, ApplyResult};
 use crate::bridge;
 use crate::{ModuleAdapter, ModuleContext, PathFilter};
+
+/// The kind of parameter a loaded tensor is going into.
+///
+/// A loaded float or int parameter keeps whatever dtype the source declared. For floats that
+/// is what makes a half-precision save loadable into a module written for full precision
+/// (`dtype_preservation_f64` below pins it); for ints it is what keeps a PyTorch checkpoint's
+/// int64 buffers at int64 rather than narrowing them to the backend's element (pinned by
+/// `pytorch-tests`' `integer_full_precision`, added deliberately in #4854).
+///
+/// Bool is the exception, and is not preserved: `TensorCreationOptions::resolve_dtype` always
+/// resolves a bool tensor to the device's own bool storage, because a `BoolStore` variant is a
+/// backend-specific layout rather than a semantic type and the one a file names may not exist
+/// on this device. A bool source is accepted for its kind and then re-stored.
+///
+/// What is checked here is only that the source is of the right *kind*. Shape agreement says
+/// nothing about that, so before #5478 float data loaded into an `Int` parameter and left it
+/// holding `F32` - a tensor whose declared element type cannot read its own data.
+#[derive(Clone, Copy)]
+enum TargetDType {
+    Float,
+    Int,
+    Bool,
+}
+
+impl TargetDType {
+    /// Whether a source of `dtype` can be loaded into a parameter of this kind.
+    fn accepts(self, dtype: DType) -> bool {
+        match self {
+            // Quantized data is a float tensor's packed form, so it belongs to this kind too.
+            Self::Float => dtype.is_float() || matches!(dtype, DType::QFloat(_)),
+            // `is_int` covers only signed integers, so unsigned needs asking for separately.
+            Self::Int => dtype.is_int() || dtype.is_uint(),
+            // An integer source is how bools survive a format with no boolean dtype:
+            // SafeTensors stores `Bool(U32)` as `U32` and reads it back as an integer. Only
+            // the widths `BoolStore` actually uses qualify: accepting any integer would let
+            // an I64 tensor land in a bool parameter unremarked.
+            Self::Bool => dtype.is_bool() || matches!(dtype, DType::U8 | DType::U32),
+        }
+    }
+
+    /// What to name as expected when [`accepts`](Self::accepts) turns a source away.
+    ///
+    /// The device's own element for this kind, which is the best available stand-in: there is
+    /// no `lazy_dtype` on [`Param`] to ask a lazily-initialized parameter for its dtype
+    /// without forcing it to materialize. Only the kind is load-bearing in the message.
+    fn expected(self, device: &Device) -> DType {
+        let settings = device.settings();
+        match self {
+            Self::Float => settings.float_dtype.into(),
+            Self::Int => settings.int_dtype.into(),
+            Self::Bool => settings.bool_dtype.into(),
+        }
+    }
+}
 
 /// Applier that applies loaded tensors to module parameters
 /// with proper adapter support using container type information
@@ -158,6 +212,7 @@ impl Applier {
         &mut self,
         target_device: &Device,
         target_shape: Shape,
+        target_dtype: TargetDType,
     ) -> Option<(Tensor<D, K>, Option<ParamId>)>
     where
         K: burn_core::tensor::kind::Basic,
@@ -212,9 +267,26 @@ impl Applier {
             return None;
         }
 
+        // Validate the dtype's kind. Shape agreement alone is not enough: it says nothing
+        // about whether the bytes mean what the parameter's element type says they mean. The
+        // width is left alone on purpose, so a half-precision or int64 source still loads as
+        // itself; only a source of the wrong kind entirely is refused.
+        //
+        // Checked before the load rather than after, since the kind is already in the
+        // descriptor: a rejected tensor is then never read, which for a file-backed source
+        // would be the whole thing off disk.
+        let dtype = tensor.dtype;
+        if !target_dtype.accepts(dtype) {
+            self.errors.push(ApplyError::DTypeMismatch {
+                path: path.clone(),
+                expected: target_dtype.expected(target_device),
+                found: dtype,
+            });
+            return None; // Signal caller to fall back to initialization
+        }
+
         // Load tensor data. The tensor is not needed afterwards, so take its bytes rather
         // than copying them out.
-        let dtype = tensor.dtype;
         let data = match bridge::into_data(tensor) {
             Ok(data) => data,
             Err(e) => {
@@ -268,7 +340,7 @@ impl ModuleMapper for Applier {
         let target_shape = param.lazy_shape();
 
         // Try to apply the loaded tensor with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Float) {
             Some((tensor, source_id)) => {
                 // Prefer the source's persisted ParamId so optimizer state (keyed by ParamId)
                 // survives save/load cycles, but keep the target's id when the source format
@@ -288,7 +360,7 @@ impl ModuleMapper for Applier {
         let target_shape = param.lazy_shape();
 
         // Try to apply the loaded tensor with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Int) {
             Some((tensor, source_id)) => {
                 param.transform_for_load(tensor, source_id.unwrap_or(param_id))
             }
@@ -308,7 +380,7 @@ impl ModuleMapper for Applier {
         let target_shape = param.lazy_shape();
 
         // Try to apply the loaded tensor with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Bool) {
             Some((tensor, source_id)) => {
                 param.transform_for_load(tensor, source_id.unwrap_or(param_id))
             }

@@ -54,12 +54,13 @@ torch.no_grad():
 ```
 
 With Burn, tensors shouldn't be on an autodiff device for inference, and you can call
-`inner()` to obtain the inner tensor, which is useful for validation.
+`without_autodiff()` to obtain a tensor without autodiff, which is useful for validation. The
+historical `inner()` method is equivalent.
 
 ```rust, ignore
 fn example_validation(tensor: Tensor<2>) {
     debug_assert!(tensor.device().is_autodiff());
-    let inner_tensor = tensor.inner();
+    let inner_tensor = tensor.without_autodiff();
     let _ = inner_tensor + 5;
 }
 

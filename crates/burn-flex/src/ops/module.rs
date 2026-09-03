@@ -9,7 +9,7 @@ use burn_backend::{
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, FloatTensorOps, IntTensorOps, InterpolateMode, InterpolateOptions,
-        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, conv::pad_asymmetric_conv_input,
     },
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
@@ -49,6 +49,7 @@ impl ModuleOps<Flex> for Flex {
         bias: Option<FloatTensor<Flex>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Flex> {
+        let (x, options) = pad_asymmetric_conv_input::<Flex, 1>(x, options);
         match x.dtype() {
             DType::F32 => conv::conv1d_f32(x, weight, bias, &options),
             DType::F64 => conv::conv1d_f64(x, weight, bias, &options),
@@ -64,6 +65,7 @@ impl ModuleOps<Flex> for Flex {
         bias: Option<FloatTensor<Flex>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Flex> {
+        let (x, options) = pad_asymmetric_conv_input::<Flex, 2>(x, options);
         match x.dtype() {
             DType::F32 => conv::conv2d_f32(x, weight, bias, &options),
             DType::F64 => conv::conv2d_f64(x, weight, bias, &options),
