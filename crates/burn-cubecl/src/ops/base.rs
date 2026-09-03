@@ -476,7 +476,8 @@ pub(crate) fn max_vector_size_many<R: CubeRuntime>(
 /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
 /// where windows are advanced by `step` at each index.
 ///
-/// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+/// The number of windows is `0` when `shape[dim] < size`, and otherwise
+/// `(shape[dim] - size) / step + 1`.
 ///
 /// The new view will have the unfolded dimension replaced by two dimensions;
 /// one in the position of the original dimension, with size equal to the number of windows,
