@@ -43,6 +43,43 @@ mod tensor;
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
+// Shape assertion macros.
+pub use burn_derive::{assert_shape, debug_assert_shape, unpack_shape};
+
+/// Compile-time guarantees of the shape macros, checked as `compile_fail` doctests.
+///
+/// A pattern whose length differs from the tensor rank does not compile:
+///
+/// ```compile_fail
+/// use burn_tensor::{Tensor, assert_shape};
+/// let x = Tensor::<2>::zeros([2, 3], &Default::default());
+/// assert_shape!(x, [2, 3, 1]);
+/// ```
+///
+/// Neither does binding a name inside `assert_shape!` or `debug_assert_shape!`:
+///
+/// ```compile_fail
+/// use burn_tensor::{Tensor, assert_shape};
+/// let x = Tensor::<2>::zeros([2, 3], &Default::default());
+/// assert_shape!(x, [B, 3]);
+/// ```
+///
+/// ```compile_fail
+/// use burn_tensor::{Tensor, debug_assert_shape};
+/// let x = Tensor::<2>::zeros([2, 3], &Default::default());
+/// debug_assert_shape!(x, [B, 3]);
+/// ```
+///
+/// Nor does an `unpack_shape!` with nothing to bind:
+///
+/// ```compile_fail
+/// use burn_tensor::{Tensor, unpack_shape};
+/// let x = Tensor::<2>::zeros([2, 3], &Default::default());
+/// unpack_shape!(x, [2, 3]);
+/// ```
+#[cfg(doctest)]
+pub mod shape_macro_compile_fail {}
+
 // Re-exported types
 #[cfg(feature = "autodiff")]
 pub use burn_dispatch::GradientCheckpointingStrategy;

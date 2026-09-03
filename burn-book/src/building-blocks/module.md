@@ -29,6 +29,115 @@ impl PositionWiseFeedForward {
 
 Note that all fields declared in the struct must also implement the `Module` trait.
 
+## Forward Contract
+
+The derive does not constrain `forward`, so a module's shape contract lives in two places: the doc
+comment of the method, and assertions at its boundary.
+
+### Documenting shapes
+
+Modules in `burn::nn` document input and output shapes in a `# Shapes` section, one line per tensor,
+with names for the axes that vary at runtime:
+
+```rust, ignore
+/// Applies the feed-forward block.
+///
+/// # Shapes
+///
+/// - input: `[batch_size, seq_length, d_model]`
+/// - output: `[batch_size, seq_length, d_model]`
+pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
+```
+
+Use the same convention for your own modules. It is the first thing a caller reads, and it is the
+reference for the assertions below.
+
+### Enforcing the contract
+
+The rank of a `Tensor<D>` is a type parameter, so a caller cannot pass a `Tensor<4>` where a
+`Tensor<3>` is expected. The size of each axis is only known at runtime. Three macros, available
+from the prelude, check those sizes at the boundary of a method:
+
+- `unpack_shape!` binds axis sizes to names and checks the remaining axes.
+- `assert_shape!` checks every axis of a tensor. It stays on in release builds.
+- `debug_assert_shape!` is the same check, compiled out unless debug assertions are enabled.
+
+Each takes a tensor and a bracketed pattern with one slot per axis:
+
+| Slot                   | Meaning                                               |
+| ---------------------- | ----------------------------------------------------- |
+| `B` (bare name)        | Bind the axis size. Only valid in `unpack_shape!`.    |
+| `=expr`                | The axis must equal this in-scope `usize` expression. |
+| `80` (integer literal) | The axis must equal this value.                       |
+| `_`                    | Skip the axis.                                        |
+
+The pattern length is the expected rank. Since `tensor.dims()` returns `[usize; D]`, a pattern whose
+length differs from `D` is a compile error rather than a runtime panic.
+
+```rust, ignore
+use burn::nn::{Gelu, Linear};
+use burn::prelude::*;
+
+#[derive(Module, Debug)]
+pub struct PositionWiseFeedForward {
+    linear_inner: Linear,
+    linear_outer: Linear,
+    gelu: Gelu,
+    d_model: usize,
+    d_ff: usize,
+}
+
+impl PositionWiseFeedForward {
+    /// # Shapes
+    ///
+    /// - input: `[batch_size, seq_length, d_model]`
+    /// - output: `[batch_size, seq_length, d_model]`
+    pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
+        let (batch_size, seq_length) = unpack_shape!(input, [B, T, =self.d_model]);
+
+        let x = self.linear_inner.forward(input);
+        assert_shape!(x, [=batch_size, =seq_length, =self.d_ff]);
+
+        let x = self.gelu.forward(x);
+        let output = self.linear_outer.forward(x);
+
+        debug_assert_shape!(output, [=batch_size, =seq_length, =self.d_model]);
+        output
+    }
+}
+```
+
+`unpack_shape!` evaluates to a tuple with one `usize` per bare name, in pattern order. A single name
+still yields a tuple: `let (n,) = unpack_shape!(x, [N]);`.
+
+A failed check panics with the macro call, the axis, the expected and actual sizes, and the full
+dims of the tensor:
+
+```text
+assert_shape!(x, [=batch_size, =seq_length, =self.d_ff]): axis 2 expected 2048, got 512 (dims [8, 128, 512])
+```
+
+Misuse is caught at compile time: a bare name inside `assert_shape!` or `debug_assert_shape!` is
+rejected with a hint to use `unpack_shape!` or `=`, and an `unpack_shape!` with nothing to bind is
+rejected with a hint to use `assert_shape!`.
+
+### Choosing a macro
+
+- Start `forward` with `unpack_shape!` on the input. It names the runtime axes once, and every later
+  check refers to them with `=name`.
+- Use `assert_shape!` for the contract itself: the output, and any intermediate whose shape is not
+  obvious from the preceding call. The check is a few integer comparisons next to tensor operations
+  that launch kernels, so its cost does not matter.
+- Use `debug_assert_shape!` inside hot loops, or for internal invariants already implied by an
+  earlier always-on check.
+
+These checks complement the validation Burn performs inside each tensor operation. An operation
+reports a mismatch in terms of its own arguments; a boundary check reports it in terms of the
+module's contract, before any kernel runs.
+
+These macros were inspired by the [`burn-contracts`](https://github.com/crutcher/burn-contracts)
+crate by Crutcher Dunnavant.
+
 ## Tensor
 
 If you want to create your own module that contains tensors, and not just other modules defined with
