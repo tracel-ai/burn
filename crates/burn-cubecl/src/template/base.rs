@@ -41,6 +41,9 @@ impl<K: KernelSource> CubeKernel for SourceKernel<K> {
         Some(PrecompiledSource {
             source: self.kernel_source.source().complete(),
             entrypoint_name: "main".to_string(),
+            // `burn-wgpu` is the only backend that re-exports this path, so a
+            // template is WGSL; any other target rejects it by its own tag.
+            lang: "wgsl",
         })
     }
 }

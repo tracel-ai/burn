@@ -3,7 +3,9 @@ pub use burn_std::{
 };
 
 #[cfg(feature = "cubecl")]
-pub use burn_backend::cubecl::{MemoryAccess, ThroughputKey, ThroughputMode, ThroughputValue};
+pub use burn_backend::cubecl::{
+    MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
+};
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
     InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
@@ -909,9 +911,10 @@ impl Device {
     /// Measure peak compute and memory throughput for this device.
     ///
     /// Runs cubecl-std's throughput benchmarks for each [`ThroughputKey`],
-    /// returning one [`ThroughputStat`] per key (in the same order). Only
-    /// cubecl-backed devices (cuda, wgpu, ...) report measurements; other
-    /// backends return an empty vector.
+    /// returning one [`ThroughputStat`] per key (in the same order). A key the
+    /// device has no peak for keeps its place, carrying the [`ThroughputError`]
+    /// saying why. Only cubecl-backed devices (cuda, wgpu, ...) report
+    /// measurements; other backends return an empty vector.
     #[cfg(feature = "cubecl")]
     pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputStat> {
         self.as_dispatch()
@@ -929,8 +932,8 @@ impl Device {
 pub struct ThroughputStat {
     /// The measurement key (mode + dtype) that was benchmarked.
     pub key: ThroughputKey,
-    /// The measured throughput for that key.
-    pub value: ThroughputValue,
+    /// The measured throughput for that key, or why the device has none.
+    pub value: Result<ThroughputValue, ThroughputError>,
 }
 
 /// Short, column-friendly name for a throughput mode.
@@ -966,7 +969,10 @@ impl core::fmt::Display for ThroughputStat {
             ThroughputMode::Memory(_) | ThroughputMode::Launch => alloc::string::String::new(),
         };
 
-        let value = self.value.format(&self.key);
+        let value = match self.value {
+            Ok(value) => value.format(&self.key),
+            Err(error) => alloc::format!("{error}"),
+        };
 
         write!(f, "{mode:<14} {dtype:<5} {value}")
     }

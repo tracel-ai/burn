@@ -13,7 +13,7 @@ pub use burn_cubecl::{BoolElement, FloatElement, IntElement};
 pub use burn_cubecl::{CubeBackend, tensor::CubeTensor};
 pub use cubecl::CubeDim;
 pub use cubecl::flex32;
-use cubecl::throughput::{ThroughputKey, ThroughputValue};
+use cubecl::throughput::{ThroughputError, ThroughputKey, ThroughputValue};
 
 #[cfg(feature = "metal")]
 use cubecl::wgpu::MslCompiler;
@@ -78,10 +78,12 @@ pub type Wgpu = WgpuInner<AutoCompiler>;
 /// Measure peak throughput on a wgpu `device` for each of the given `keys`.
 ///
 /// Uses the auto-selected shader compiler, matching the default [`Wgpu`] backend.
+/// One result per key, in order; a key the device has no peak for carries the
+/// [`ThroughputError`] saying why.
 pub fn device_throughput(
     device: &WgpuDevice,
     keys: &[ThroughputKey],
-) -> alloc::vec::Vec<ThroughputValue> {
+) -> alloc::vec::Vec<Result<ThroughputValue, ThroughputError>> {
     cubecl::std::throughput::device_throughput::<cubecl::wgpu::WgpuRuntime<AutoCompiler>>(
         device, keys,
     )

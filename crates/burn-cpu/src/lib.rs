@@ -6,7 +6,7 @@ use burn_cubecl::CubeBackend;
 pub use cubecl::cpu::CpuDevice;
 use cubecl::{
     cpu::CpuRuntime,
-    throughput::{ThroughputKey, ThroughputValue},
+    throughput::{ThroughputError, ThroughputKey, ThroughputValue},
 };
 
 #[cfg(not(feature = "fusion"))]
@@ -16,10 +16,13 @@ pub type Cpu = CubeBackend<CpuRuntime>;
 pub type Cpu = burn_fusion::Fusion<CubeBackend<CpuRuntime>>;
 
 /// Measure peak throughput on a CPU `device` for each of the given `keys`.
+///
+/// One result per key, in order; a key the device has no peak for carries the
+/// [`ThroughputError`] saying why.
 pub fn device_throughput(
     device: &CpuDevice,
     keys: &[ThroughputKey],
-) -> alloc::vec::Vec<ThroughputValue> {
+) -> alloc::vec::Vec<Result<ThroughputValue, ThroughputError>> {
     cubecl::std::throughput::device_throughput::<CpuRuntime>(device, keys)
 }
 

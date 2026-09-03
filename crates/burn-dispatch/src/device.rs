@@ -13,7 +13,7 @@ use alloc::boxed::Box;
 #[cfg(feature = "cubecl")]
 use alloc::vec::Vec;
 #[cfg(feature = "cubecl")]
-use burn_backend::cubecl::{ThroughputKey, ThroughputValue};
+use burn_backend::cubecl::{ThroughputError, ThroughputKey, ThroughputValue};
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
@@ -92,8 +92,12 @@ impl DispatchDevice {
     /// Only cubecl-backed devices can measure throughput; other backends
     /// (ndarray, libtorch, remote, ...) return an empty vector. An autodiff
     /// device reports the peaks of the device it wraps. Each returned
-    /// [`ThroughputValue`] corresponds positionally to the key at the same index.
-    pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputValue> {
+    /// result corresponds positionally to the key at the same index, carrying a
+    /// [`ThroughputError`] where the device has no peak to report for it.
+    pub fn performance_stats(
+        &self,
+        keys: &[ThroughputKey],
+    ) -> Vec<Result<ThroughputValue, ThroughputError>> {
         // No catch-all arm: a new backend must fail to compile here rather
         // than silently report no peaks.
         match self {
