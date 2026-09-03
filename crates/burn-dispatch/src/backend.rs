@@ -126,6 +126,8 @@ use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
 
+#[cfg(feature = "autodiff")]
+use crate::DispatchAutodiffContext;
 #[allow(unused)]
 use crate::DispatchDeviceId;
 #[allow(unused)]
@@ -300,6 +302,25 @@ impl Backend for Dispatch {
 }
 
 #[cfg(feature = "autodiff")]
+fn disable_autodiff_context(context: DispatchAutodiffContext) -> DispatchAutodiffContext {
+    assert!(
+        matches!(context, DispatchAutodiffContext::Enabled(_)),
+        "tensor is already on the inner backend"
+    );
+    DispatchAutodiffContext::Disabled
+}
+
+#[cfg(feature = "autodiff")]
+fn enable_autodiff_context(context: DispatchAutodiffContext) -> DispatchAutodiffContext {
+    assert_eq!(
+        context,
+        DispatchAutodiffContext::Disabled,
+        "tensor is already associated with autodiff"
+    );
+    DispatchAutodiffContext::Enabled(crate::GradientCheckpointingStrategy::Disabled)
+}
+
+#[cfg(feature = "autodiff")]
 impl AutodiffBackend for Dispatch {
     type InnerBackend = Dispatch;
 
@@ -345,10 +366,7 @@ impl AutodiffBackend for Dispatch {
     }
 
     fn grad(tensor: &DispatchTensor, grads: &Self::Gradients) -> Option<DispatchTensor> {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, .. } = tensor;
         let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(feature = "cpu")]
@@ -418,15 +436,12 @@ impl AutodiffBackend for Dispatch {
         };
         grad.map(|kind| DispatchTensor {
             kind,
-            checkpointing: *checkpointing,
+            autodiff: DispatchAutodiffContext::Disabled,
         })
     }
 
     fn grad_remove(tensor: &DispatchTensor, grads: &mut Self::Gradients) -> Option<DispatchTensor> {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, .. } = tensor;
         let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(feature = "cpu")]
@@ -496,18 +511,21 @@ impl AutodiffBackend for Dispatch {
         };
         grad.map(|kind| DispatchTensor {
             kind,
-            checkpointing: *checkpointing,
+            autodiff: DispatchAutodiffContext::Disabled,
         })
     }
 
     fn grad_replace(tensor: &DispatchTensor, grads: &mut Self::Gradients, grad: DispatchTensor) {
-        // The replacement gradient is an inner-backend tensor, so it carries no
-        // checkpointing strategy of its own. Only a gradient obtained from `grad()` does,
-        // because that getter copies the source tensor's strategy onto its result.
-        // Comparing the two therefore only holds when a gradient is round-tripped through
-        // `grad()`, which the public API does not require.
         let DispatchTensor { kind, .. } = tensor;
-        let DispatchTensor { kind: grad, .. } = grad;
+        let DispatchTensor {
+            kind: grad,
+            autodiff,
+        } = grad;
+        assert_eq!(
+            autodiff,
+            DispatchAutodiffContext::Disabled,
+            "replacement gradients must use the inner backend"
+        );
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match (&**inner_kind, grad) {
@@ -564,10 +582,11 @@ impl AutodiffBackend for Dispatch {
     }
 
     fn inner(tensor: DispatchTensor) -> DispatchTensor {
-        let DispatchTensor {
-            kind,
-            checkpointing: _,
-        } = tensor;
+        let DispatchTensor { kind, autodiff } = tensor;
+        assert!(
+            matches!(autodiff, DispatchAutodiffContext::Enabled(_)),
+            "Requires autodiff tensor."
+        );
 
         let kind = match kind {
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
@@ -627,27 +646,32 @@ impl AutodiffBackend for Dispatch {
         };
         DispatchTensor {
             kind,
-            checkpointing: None,
+            autodiff: DispatchAutodiffContext::Disabled,
         }
     }
 
-    fn int_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn int_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = disable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    fn bool_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn bool_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = disable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    fn q_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn q_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = disable_autodiff_context(tensor.autodiff);
         tensor
     }
 
     fn from_inner(tensor: DispatchTensor) -> DispatchTensor {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, autodiff } = tensor;
+        assert_eq!(
+            autodiff,
+            DispatchAutodiffContext::Disabled,
+            "tensor is already associated with autodiff"
+        );
 
         let kind = match kind {
             #[cfg(feature = "cpu")]
@@ -725,27 +749,26 @@ impl AutodiffBackend for Dispatch {
             }
         };
 
-        // TODO: should use C::STRATEGY
-        let checkpointing = if let Some(strategy) = checkpointing {
-            Some(strategy)
-        } else {
-            Some(crate::GradientCheckpointingStrategy::Disabled)
-        };
         DispatchTensor {
             kind,
-            checkpointing,
+            autodiff: DispatchAutodiffContext::Enabled(
+                crate::GradientCheckpointingStrategy::Disabled,
+            ),
         }
     }
 
-    fn int_from_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn int_from_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = enable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    fn bool_from_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn bool_from_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = enable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    fn q_from_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn q_from_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = enable_autodiff_context(tensor.autodiff);
         tensor
     }
 
@@ -756,10 +779,11 @@ impl AutodiffBackend for Dispatch {
         tensor: DispatchTensor,
         param_id: DistributedParamId,
     ) -> DispatchTensor {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, autodiff } = tensor;
+        assert!(
+            matches!(autodiff, DispatchAutodiffContext::Enabled(_)),
+            "Requires autodiff tensor."
+        );
 
         let kind = match kind {
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
@@ -791,23 +815,12 @@ impl AutodiffBackend for Dispatch {
             _ => panic!("Requires autodiff tensor."),
         };
 
-        let checkpointing = if let Some(strategy) = checkpointing {
-            Some(strategy)
-        } else {
-            Some(crate::GradientCheckpointingStrategy::Disabled)
-        };
-        DispatchTensor {
-            kind,
-            checkpointing,
-        }
+        DispatchTensor { kind, autodiff }
     }
 
     #[allow(unused_variables)]
     fn distributed_params(tensor: &DispatchTensor) -> Option<DistributedParams> {
-        let DispatchTensor {
-            kind,
-            checkpointing: _,
-        } = tensor;
+        let DispatchTensor { kind, autodiff: _ } = tensor;
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
@@ -832,10 +845,7 @@ impl AutodiffBackend for Dispatch {
 
     #[allow(unused_variables)]
     fn is_distributed(tensor: &DispatchTensor) -> bool {
-        let DispatchTensor {
-            kind,
-            checkpointing: _,
-        } = tensor;
+        let DispatchTensor { kind, autodiff: _ } = tensor;
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
@@ -856,6 +866,307 @@ impl AutodiffBackend for Dispatch {
             },
             _ => panic!("Requires autodiff tensor."),
         }
+    }
+}
+
+#[cfg(all(test, feature = "autodiff", any(feature = "flex", default_backend)))]
+mod autodiff_context_tests {
+    use super::*;
+    use crate::{DispatchAutodiffContext, DispatchTensorKind, GradientCheckpointingStrategy};
+    use alloc::vec;
+    use burn_backend::{
+        TensorData, TensorMetadata, TensorPrimitive,
+        ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, ModuleOps, QTensorOps},
+        quantization::QuantScheme,
+        tensor::{FloatTensor, IntTensor},
+    };
+    use burn_backend_extension::backend_dispatch;
+
+    #[backend_dispatch]
+    impl Dispatch {
+        fn direct_float(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+            tensor
+        }
+
+        fn conditional_float_route(
+            int: IntTensor<Self>,
+            float: Option<FloatTensor<Self>>,
+        ) -> IntTensor<Self> {
+            // `optional_float_only_uses_autodiff_when_present` exercises both routes: an enabled
+            // int alone uses the concrete backend, while a present float selects `Autodiff<B>`.
+            assert_eq!(float.is_some(), B::ad_enabled(&int.device()));
+            int
+        }
+
+        fn optional_routing_tensor(
+            first: Option<FloatTensor<Self>>,
+            second: Option<FloatTensor<Self>>,
+        ) -> FloatTensor<Self> {
+            first.or(second).expect("test requires one tensor")
+        }
+
+        fn vector_routing_tensor(
+            first: Vec<IntTensor<Self>>,
+            second: Vec<IntTensor<Self>>,
+        ) -> IntTensor<Self> {
+            first
+                .into_iter()
+                .chain(second)
+                .next()
+                .expect("test requires one tensor")
+        }
+    }
+
+    fn device(strategy: GradientCheckpointingStrategy) -> DispatchDevice {
+        DispatchDevice::autodiff_with_gradient_checkpointing(
+            DispatchDevice::Flex(Default::default()),
+            strategy,
+        )
+    }
+
+    fn inner_device() -> DispatchDevice {
+        DispatchDevice::Flex(Default::default())
+    }
+
+    fn float(values: [f32; 2], device: &DispatchDevice) -> DispatchTensor {
+        Dispatch::float_from_data(TensorData::from(values), device)
+    }
+
+    fn float_2d(values: [[f32; 2]; 2], device: &DispatchDevice) -> DispatchTensor {
+        Dispatch::float_from_data(TensorData::from(values), device)
+    }
+
+    fn assert_enabled_float(tensor: &DispatchTensor, strategy: GradientCheckpointingStrategy) {
+        assert_eq!(tensor.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        assert!(matches!(tensor.kind, DispatchTensorKind::Autodiff(_)));
+        let DispatchDevice::Autodiff(device) = tensor.device() else {
+            panic!("enabled float should report an autodiff device")
+        };
+        assert_eq!(device.checkpointing, strategy);
+    }
+
+    #[test]
+    fn enabled_float_creation_is_untracked_for_both_strategies() {
+        for strategy in [
+            GradientCheckpointingStrategy::Disabled,
+            GradientCheckpointingStrategy::Balanced,
+        ] {
+            let tensor = float([1.0, 2.0], &device(strategy));
+            assert_enabled_float(&tensor, strategy);
+            assert!(!Dispatch::float_is_require_grad(&tensor));
+        }
+    }
+
+    #[test]
+    fn enabled_int_bool_and_float_conversions_preserve_association() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let device = device(strategy);
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device);
+        assert_eq!(int.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        assert!(!matches!(int.kind, DispatchTensorKind::Autodiff(_)));
+        assert!(matches!(int.device(), DispatchDevice::Autodiff(_)));
+
+        let converted = Dispatch::int_into_float(int, burn_backend::FloatDType::F32);
+        assert_enabled_float(&converted, strategy);
+
+        let boolean = Dispatch::bool_from_data(TensorData::from([true, false]), &device);
+        assert_eq!(boolean.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        assert!(!matches!(boolean.kind, DispatchTensorKind::Autodiff(_)));
+        let converted = Dispatch::bool_into_float(boolean, burn_backend::FloatDType::F32);
+        assert_enabled_float(&converted, strategy);
+    }
+
+    #[test]
+    fn uniform_contexts_propagate_through_fixed_arity_and_vector_ops() {
+        let strategy = GradientCheckpointingStrategy::Disabled;
+        let lhs = float([1.0, 2.0], &device(strategy));
+        let rhs = float([3.0, 4.0], &device(strategy));
+
+        let added = Dispatch::float_add(lhs.clone(), rhs.clone());
+        assert_enabled_float(&added, strategy);
+
+        let concatenated = Dispatch::float_cat(vec![lhs.clone(), rhs], 0);
+        assert_enabled_float(&concatenated, strategy);
+
+        let normalized = Dispatch::layer_norm(
+            lhs,
+            float([1.0, 1.0], &device(strategy)),
+            Some(float([0.0, 0.0], &device(strategy))),
+            1e-5,
+        );
+        assert_enabled_float(&normalized, strategy);
+    }
+
+    #[test]
+    fn optional_and_vector_routing_candidates_skip_empty_inputs() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let float = float([1.0, 2.0], &device(strategy));
+        let output = Dispatch::optional_routing_tensor(None, Some(float));
+        assert_enabled_float(&output, strategy);
+
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let output = Dispatch::vector_routing_tensor(vec![], vec![int]);
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    fn optional_float_only_uses_autodiff_when_present() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let output = Dispatch::conditional_float_route(int, None);
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
+        let float = float([1.0, 2.0], &device(strategy));
+        let output = Dispatch::conditional_float_route(int, Some(float));
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    #[should_panic(expected = "an enabled float tensor must use an autodiff primitive")]
+    fn direct_routing_tensor_validates_its_context() {
+        let mut malformed = float([1.0, 2.0], &inner_device());
+        malformed.autodiff =
+            DispatchAutodiffContext::Enabled(GradientCheckpointingStrategy::Disabled);
+        let _ = Dispatch::direct_float(malformed);
+    }
+
+    #[test]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
+    fn fixed_arity_inputs_reject_mismatched_checkpointing_strategies() {
+        let lhs = float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced));
+        let rhs = float([3.0, 4.0], &device(GradientCheckpointingStrategy::Disabled));
+        let _ = Dispatch::float_add(lhs, rhs);
+    }
+
+    #[test]
+    fn disabled_and_enabled_integer_contexts_merge_in_both_orders() {
+        for strategy in [
+            GradientCheckpointingStrategy::Disabled,
+            GradientCheckpointingStrategy::Balanced,
+        ] {
+            let lhs = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
+            let rhs = Dispatch::int_from_data(TensorData::from([3i32, 4]), &device(strategy));
+            let output = Dispatch::int_add(lhs, rhs);
+            assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+            let lhs = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+            let rhs = Dispatch::int_from_data(TensorData::from([3i32, 4]), &inner_device());
+            let output = Dispatch::int_add(lhs, rhs);
+            assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        }
+    }
+
+    #[test]
+    fn disabled_and_enabled_float_contexts_merge_in_both_orders() {
+        for strategy in [
+            GradientCheckpointingStrategy::Disabled,
+            GradientCheckpointingStrategy::Balanced,
+        ] {
+            let enabled = float([1.0, 2.0], &device(strategy));
+            let disabled = float([3.0, 4.0], &inner_device());
+
+            let output = Dispatch::float_add(enabled, disabled);
+            assert_enabled_float(&output, strategy);
+
+            let enabled = float([1.0, 2.0], &device(strategy));
+            let disabled = float([3.0, 4.0], &inner_device());
+            let output = Dispatch::float_add(disabled, enabled);
+            assert_enabled_float(&output, strategy);
+        }
+    }
+
+    #[test]
+    fn disabled_and_enabled_contexts_merge_across_vector_inputs() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let disabled = float([1.0, 2.0], &inner_device());
+        let enabled = float([3.0, 4.0], &device(strategy));
+
+        let output = Dispatch::float_cat(vec![disabled, enabled], 0);
+        assert_enabled_float(&output, strategy);
+    }
+
+    #[test]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
+    fn vector_inputs_reject_mismatched_checkpointing_strategies() {
+        let balanced = float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced));
+        let disabled = float([3.0, 4.0], &device(GradientCheckpointingStrategy::Disabled));
+        let _ = Dispatch::float_cat(vec![balanced, disabled], 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
+    fn q_matmul_rejects_mismatched_checkpointing_strategies() {
+        let balanced = Dispatch::quantize_dynamic(
+            float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced)),
+            &QuantScheme::default(),
+        );
+        let disabled = Dispatch::quantize_dynamic(
+            float([3.0, 4.0], &device(GradientCheckpointingStrategy::Disabled)),
+            &QuantScheme::default(),
+        );
+        let _ = Dispatch::q_matmul(
+            TensorPrimitive::QFloat(balanced),
+            TensorPrimitive::QFloat(disabled),
+        );
+    }
+
+    #[test]
+    fn q_matmul_merges_disabled_and_enabled_contexts() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let disabled = Dispatch::quantize_dynamic(
+            float_2d([[1.0, 2.0], [3.0, 4.0]], &inner_device()),
+            &QuantScheme::default(),
+        );
+        let enabled = Dispatch::quantize_dynamic(
+            float_2d([[1.0, 0.0], [0.0, 1.0]], &device(strategy)),
+            &QuantScheme::default(),
+        );
+        let output = Dispatch::q_matmul(
+            TensorPrimitive::QFloat(disabled),
+            TensorPrimitive::QFloat(enabled),
+        );
+        let output = match output {
+            TensorPrimitive::QFloat(output) | TensorPrimitive::Float(output) => output,
+        };
+
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    fn inner_transitions_clear_and_restore_context() {
+        let tensor = float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced));
+        let inner = <Dispatch as AutodiffBackend>::inner(tensor);
+        assert_eq!(inner.autodiff, DispatchAutodiffContext::Disabled);
+        assert!(!matches!(inner.kind, DispatchTensorKind::Autodiff(_)));
+
+        let enabled = <Dispatch as AutodiffBackend>::from_inner(inner);
+        assert_enabled_float(&enabled, GradientCheckpointingStrategy::Disabled);
+
+        let int = Dispatch::int_from_data(
+            TensorData::from([1i32, 2]),
+            &device(GradientCheckpointingStrategy::Balanced),
+        );
+        let int = <Dispatch as AutodiffBackend>::int_inner(int);
+        assert_eq!(int.autodiff, DispatchAutodiffContext::Disabled);
+        let int = <Dispatch as AutodiffBackend>::int_from_inner(int);
+        assert_eq!(
+            int.autodiff,
+            DispatchAutodiffContext::Enabled(GradientCheckpointingStrategy::Disabled)
+        );
+    }
+
+    #[test]
+    fn gradients_are_inner_backend_tensors() {
+        let x = Dispatch::float_set_require_grad(
+            float([2.0, 3.0], &device(GradientCheckpointingStrategy::Balanced)),
+            true,
+        );
+        let output = Dispatch::float_mul(x.clone(), x.clone());
+        let gradients = <Dispatch as AutodiffBackend>::backward(output);
+        let gradient = <Dispatch as AutodiffBackend>::grad(&x, &gradients).unwrap();
+        assert_eq!(gradient.autodiff, DispatchAutodiffContext::Disabled);
+        assert!(!matches!(gradient.kind, DispatchTensorKind::Autodiff(_)));
     }
 }
 

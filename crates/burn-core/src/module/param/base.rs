@@ -9,15 +9,9 @@ use super::sync_once_cell::SyncOnceCell;
 use alloc::format;
 
 use alloc::boxed::Box;
-use burn_std::sync::RwLock;
+use burn_std::sync::{Arc, RwLock};
 use burn_tensor::{Device, Shape};
 use core::ops::Deref;
-
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
 
 #[cfg(target_has_atomic = "ptr")]
 type Mapper<T> = Arc<dyn Fn(T) -> T + Send + Sync>;
@@ -128,11 +122,12 @@ pub struct Param<T: ParameterValue> {
     /// shared-ownership mechanism. Any mutation forks into a new `LazyInitState`.
     pub(crate) state: Arc<LazyInitState<T>>,
     pub(crate) param_mapper: ParamMapper<T>,
-    /// Whether this value should participate in training behavior.
+    /// Whether this value is configured to participate in training behavior.
     ///
-    /// This is kept separately from the effective value so
-    /// [`AutodiffModule::valid`](crate::module::AutodiffModule::valid) can temporarily deactivate
-    /// it and restore the previous state on `train`.
+    /// This is authoritative and kept separately from the effective value so transformations and
+    /// backends that cannot currently activate the value don't erase the state that
+    /// [`AutodiffModule::valid`](crate::module::AutodiffModule::valid) temporarily suspends and
+    /// `train` restores.
     pub(crate) is_active: bool,
     /// Optional transformation that materializes the effective value from the stored base.
     pub(crate) reparameterization: Option<Box<dyn DynReparameterization>>,
@@ -154,6 +149,8 @@ pub struct Param<T: ParameterValue> {
 pub struct ParamMapper<T: ParameterValue> {
     load: Option<Mapper<T>>,
     save: Option<Mapper<T>>,
+    /// Carries configured training state across `consume` / `from_mapped_value` reconstruction.
+    mapped_is_active: Option<bool>,
 }
 
 impl<T: ParameterValue> core::fmt::Debug for ParamMapper<T> {
@@ -188,6 +185,7 @@ impl<T: ParameterValue> Default for ParamMapper<T> {
         Self {
             load: None,
             save: None,
+            mapped_is_active: None,
         }
     }
 }
@@ -330,37 +328,40 @@ impl<T: ParameterValue> Param<T> {
 
     /// Gets the parameter id and raw value while consuming the parameter.
     ///
-    /// Any reparameterization is dropped. Module traversals strip it before calling into
-    /// `map_float`, so mappers always observe the structural base.
+    /// Any attached reparameterization is dropped. During module traversal,
+    /// `Param<Tensor<D>>::map` detaches the reparameterization before calling
+    /// `ModuleMapper::map_float`, traverses it separately, and reattaches it afterward.
     pub fn consume(self) -> (ParamId, T, ParamMapper<T>) {
         let tensor = self.deref().clone();
+        let mut param_mapper = self.param_mapper;
+        param_mapper.mapped_is_active = Some(self.is_active);
 
         core::mem::drop(self.state);
 
-        (self.id, tensor, self.param_mapper)
+        (self.id, tensor, param_mapper)
     }
 
-    /// Execute the given function on the inner value.
+    /// Execute the given function on the inner value while preserving its configured training
+    /// state.
+    ///
+    /// Transforming the effective value must not implicitly change what
+    /// [`Module::train`](crate::module::Module::train) restores. Use the explicit activation APIs,
+    /// such as [`Param::set_require_grad`] for tensor parameters, to change that state.
     pub fn map<F: FnOnce(T) -> T>(self, func: F) -> Self {
         let (id, tensor, param_mapper) = self.consume();
         let tensor = func(tensor);
-        let is_active = tensor.is_active();
-
-        Self {
-            id,
-            state: LazyInitState::initialized(tensor),
-            param_mapper,
-            is_active,
-            reparameterization: None,
-        }
+        Self::from_mapped_value(id, tensor, param_mapper)
     }
 
     /// Create an initialized parameter with the given id, value, and param mapper.
     ///
     /// This is a helper method for creating parameters while preserving the param mapper,
     /// typically used in ModuleMapper implementations.
-    pub fn from_mapped_value(id: ParamId, value: T, param_mapper: ParamMapper<T>) -> Self {
-        let is_active = value.is_active();
+    pub fn from_mapped_value(id: ParamId, value: T, mut param_mapper: ParamMapper<T>) -> Self {
+        let is_active = param_mapper
+            .mapped_is_active
+            .take()
+            .unwrap_or_else(|| value.is_active());
         Self {
             id,
             state: LazyInitState::initialized(value),
@@ -532,22 +533,29 @@ impl<T: Parameter> Param<T> {
     pub(crate) fn lazy_is_require_grad(&self) -> bool {
         let initialization = match &self.state.initialization {
             Some(init) => init,
-            None => return self.is_require_grad(),
+            None => return self.is_active,
         };
 
         let init = initialization.read();
 
         match init.as_ref() {
             Some(value) => value.is_require_grad,
-            None => self.is_require_grad(),
+            None => self.is_active,
         }
     }
 
-    /// Override the gradient requirement for the current parameter.
+    /// Override the gradient-tracking setting for the current parameter.
+    ///
+    /// On a backend without autodiff the effective tensor remains detached, but the setting is
+    /// preserved and takes effect through [`Module::train`](crate::module::Module::train).
     pub fn set_require_grad(mut self, require_grad: bool) -> Self {
         let initialization = match &self.state.initialization {
             Some(init) => init,
-            None => return self.map(|tensor| tensor.set_require_grad(require_grad)),
+            None => {
+                let mut param = self.map(|tensor| tensor.set_require_grad(require_grad));
+                param.is_active = require_grad;
+                return param;
+            }
         };
 
         let mut init = initialization.write();
@@ -565,7 +573,9 @@ impl<T: Parameter> Param<T> {
             return self;
         }
 
-        self.map(|tensor| tensor.set_require_grad(require_grad))
+        let mut param = self.map(|tensor| tensor.set_require_grad(require_grad));
+        param.is_active = require_grad;
+        param
     }
 
     /// The shape of the parameter, **without triggering initialization**.
@@ -613,6 +623,7 @@ impl<T: Parameter> Param<T> {
 
         let mut loaded = Self::initialized(param_id, new_tensor);
         loaded.param_mapper = mapper;
+        loaded.is_active = expected_require_grad;
         loaded
     }
 
@@ -627,7 +638,9 @@ impl<T: Parameter> Param<T> {
 
         tensor = mapper.on_save(tensor);
 
-        Self::initialized(self.id, tensor)
+        let mut transformed = Self::initialized(self.id, tensor);
+        transformed.is_active = self.is_active;
+        transformed
     }
 }
 

@@ -169,8 +169,6 @@ pub trait Backend:
     ///
     /// [`InstallMemoryPoolsError::PoolsInUse`] when something is still live in
     /// the pools being rebuilt, worth retrying once it drains;
-    /// [`StreamUnavailable`](InstallMemoryPoolsError::StreamUnavailable) when
-    /// the calling stream has already failed;
     /// [`InvalidLayout`](InstallMemoryPoolsError::InvalidLayout) when the
     /// layout cannot be honoured; and
     /// [`Unsupported`](InstallMemoryPoolsError::Unsupported) — the default — on

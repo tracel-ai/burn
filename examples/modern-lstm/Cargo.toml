@@ -24,5 +24,4 @@ rand_distr = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 
 # Organise the results in dataframe
-planus = { workspace = true }
 polars = { workspace = true }

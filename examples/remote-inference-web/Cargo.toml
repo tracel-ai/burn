@@ -27,5 +27,3 @@ iroh = { workspace = true }
 
 # Wasm dependencies
 wasm-bindgen = { workspace = true }
-wasm-bindgen-futures = { workspace = true }
-js-sys = { workspace = true }

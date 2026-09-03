@@ -41,8 +41,8 @@ use crate::{FlexTensor, Layout};
 ///
 /// # History
 ///
-/// Earlier versions of `int_gather`, `int_scatter_add`, `int_select`, and
-/// `int_select_add` carried a `debug_assert_eq!(indices.dtype(), DType::I64,
+/// Earlier versions of `int_gather`, `int_scatter`, `int_select`, and
+/// `int_select_assign` carried a `debug_assert_eq!(indices.dtype(), DType::I64,
 /// ..)` that contradicted this helper's contract. The asserts were dropped
 /// in tracel-ai/burn#4776 once it was confirmed that `read_indices` had
 /// always handled every supported width correctly at runtime. If you're
@@ -374,6 +374,23 @@ pub fn scatter_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Se
         value,
         "scatter_add",
         |target, value| *target += value,
+    )
+}
+
+/// Scatter assign: replaces tensor values at positions specified by indices.
+pub fn scatter_assign<E: Element + Pod + Default + Copy + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    scatter_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "scatter_assign",
+        |target, value| *target = value,
     )
 }
 
@@ -800,6 +817,23 @@ pub fn select_add<E: Element + Pod + Default + Copy + core::ops::AddAssign + Sen
         value,
         "select_add",
         |target, value| *target += value,
+    )
+}
+
+/// Select assign: replaces tensor values at positions specified by 1D indices.
+pub fn select_assign<E: Element + Pod + Default + Copy + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    select_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_assign",
+        |target, value| *target = value,
     )
 }
 

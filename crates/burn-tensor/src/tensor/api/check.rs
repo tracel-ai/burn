@@ -1352,6 +1352,45 @@ impl TensorCheck {
         Self::lu_input_tensor::<D>(ops, dims, dtype)
     }
 
+    /// Check if input tensor and generic parameters of `linalg::svd()` are valid.
+    pub fn svd_input_tensor<const D: usize, const D1: usize>(
+        ops: &str,
+        dims: &[usize],
+        dtype: DType,
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+
+        if matches!(dtype, DType::QFloat(_)) {
+            check = check.register(
+                ops,
+                TensorError::new("The input tensor must have a real float dtype")
+                    .details("Got an input tensor with a quantized float dtype".to_string()),
+            );
+        }
+
+        if dims.len() < 2 {
+            check = check.register(
+                ops,
+                TensorError::new(
+                    "The input tensor for SVD decomposition must have at least two dimensions.",
+                )
+                .details(format!("Got input tensor with {} dimensions", dims.len())),
+            );
+        }
+
+        if D1 != D - 1 {
+            check = check.register(
+                ops,
+                TensorError::new(
+                    "D - 1 = D1 must hold for the generic parameters of the linalg::svd function.",
+                )
+                .details(format!("Got generic parameters D = {D} and D1 = {D1}")),
+            );
+        }
+
+        check
+    }
+
     /// Check if input tensor and generic parameters of `linalg::det()` are valid.
     pub fn det<const D: usize, const D1: usize, const D2: usize>(
         dims: [usize; D],

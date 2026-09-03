@@ -163,27 +163,6 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn int_scatter_add(
-        dim: usize,
-        tensor: IntTensor<Self>,
-        indices: IntTensor<Self>,
-        value: IntTensor<Self>,
-    ) -> IntTensor<Self> {
-        let client = tensor.client.clone();
-        let desc = ScatterOpIr::create(
-            tensor.into_ir(),
-            dim,
-            indices.into_ir(),
-            value.into_ir(),
-            IndexingUpdateOp::Add,
-            || client.create_empty_handle(),
-        );
-
-        client
-            .register(OperationIr::BaseInt(BaseOperationIr::Scatter(desc)))
-            .output()
-    }
-
     fn int_scatter(
         dim: usize,
         tensor: IntTensor<Self>,
@@ -249,27 +228,6 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::BaseInt(BaseOperationIr::Select(desc)))
-            .output()
-    }
-
-    fn int_select_add(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        indices: IntTensor<Self>,
-        value: IntTensor<Self>,
-    ) -> IntTensor<Self> {
-        let client = tensor.client.clone();
-        let desc = SelectAssignOpIr::create(
-            tensor.into_ir(),
-            dim,
-            indices.into_ir(),
-            value.into_ir(),
-            IndexingUpdateOp::Add,
-            || client.create_empty_handle(),
-        );
-
-        client
-            .register(OperationIr::BaseInt(BaseOperationIr::SelectAssign(desc)))
             .output()
     }
 

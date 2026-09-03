@@ -2,25 +2,19 @@ pub use burn_std::device::*;
 use burn_std::{BoolDType, DType, FloatDType, IntDType};
 pub use burn_std::{DeviceError, DeviceSettings};
 
-use burn_std::sync::RwLock;
-
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
+use burn_std::sync::{Arc, LazyLock, RwLock};
 
 use core::any::TypeId;
 
 #[cfg(feature = "std")]
 pub use std::collections::HashMap;
 #[cfg(feature = "std")]
-use std::sync::{LazyLock, OnceLock};
+use std::sync::OnceLock;
 
 #[cfg(not(feature = "std"))]
 pub use hashbrown::HashMap;
 #[cfg(not(feature = "std"))]
-use spin::{Lazy as LazyLock, Once as OnceLock};
+use spin::Once as OnceLock;
 
 use crate::Backend;
 

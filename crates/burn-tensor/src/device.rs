@@ -3,7 +3,7 @@ pub use burn_std::{
 };
 
 #[cfg(feature = "cubecl")]
-pub use burn_backend::cubecl::{ThroughputKey, ThroughputMode, ThroughputValue};
+pub use burn_backend::cubecl::{MemoryAccess, ThroughputKey, ThroughputMode, ThroughputValue};
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
     InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
@@ -357,12 +357,22 @@ impl Device {
 
     /// LibTorch CPU device.
     #[cfg(feature = "tch")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch() -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cpu)
     }
 
     /// LibTorch CUDA device at the given hardware index.
     #[cfg(feature = "tch")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch_cuda(index: impl Into<DeviceIndex>) -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(
             index.into().resolve(),
@@ -371,12 +381,22 @@ impl Device {
 
     /// LibTorch Metal Performance Shaders (MPS) device.
     #[cfg(feature = "tch")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch_mps() -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Mps)
     }
 
     /// LibTorch Vulkan device.
     #[cfg(feature = "tch")]
+    #[deprecated(
+        since = "0.22.0",
+        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
+    )]
+    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch_vulkan() -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
     }
@@ -919,10 +939,11 @@ fn mode_label(mode: &ThroughputMode) -> &'static str {
     match mode {
         ThroughputMode::ComputeDirect { .. } => "compute-direct",
         ThroughputMode::ComputeCmma { .. } => "compute-cmma",
-        ThroughputMode::Memory => "memory",
-        ThroughputMode::MemoryRead => "memory-read",
-        ThroughputMode::MemoryWrite => "memory-write",
-        ThroughputMode::MemoryWorkingSet { .. } => "memory-working-set",
+        ThroughputMode::Memory(spec) => match spec.access {
+            MemoryAccess::Copy => "memory",
+            MemoryAccess::Read => "memory-read",
+            MemoryAccess::Write => "memory-write",
+        },
         ThroughputMode::Launch => "launch",
     }
 }
@@ -942,11 +963,7 @@ impl core::fmt::Display for ThroughputStat {
             ThroughputMode::ComputeDirect { dtype } | ThroughputMode::ComputeCmma { dtype, .. } => {
                 alloc::format!("{dtype}")
             }
-            ThroughputMode::Memory
-            | ThroughputMode::MemoryRead
-            | ThroughputMode::MemoryWrite
-            | ThroughputMode::MemoryWorkingSet { .. }
-            | ThroughputMode::Launch => alloc::string::String::new(),
+            ThroughputMode::Memory(_) | ThroughputMode::Launch => alloc::string::String::new(),
         };
 
         let value = self.value.format(&self.key);

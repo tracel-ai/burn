@@ -283,15 +283,6 @@ impl IntTensorOps<Self> for LibTorch {
         TchOps::gather(dim, tensor, indices)
     }
 
-    fn int_scatter_add(
-        dim: usize,
-        tensor: TchTensor,
-        indices: TchTensor,
-        value: TchTensor,
-    ) -> TchTensor {
-        TchOps::scatter(dim, tensor, indices, value)
-    }
-
     fn int_scatter(
         dim: usize,
         tensor: TchTensor,
@@ -300,6 +291,9 @@ impl IntTensorOps<Self> for LibTorch {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> TchTensor {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                TchOps::scatter_assign(dim, tensor, indices, value)
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 TchOps::scatter(dim, tensor, indices, value)
             }
@@ -327,15 +321,6 @@ impl IntTensorOps<Self> for LibTorch {
         TchOps::index_select_dim(tensor, dim, indices)
     }
 
-    fn int_select_add(
-        tensor: TchTensor,
-        dim: usize,
-        indices: TchTensor,
-        value: TchTensor,
-    ) -> TchTensor {
-        TchOps::select_assign(tensor, dim, indices, value)
-    }
-
     fn int_select_assign(
         tensor: TchTensor,
         dim: usize,
@@ -344,6 +329,9 @@ impl IntTensorOps<Self> for LibTorch {
         update: burn_backend::tensor::IndexingUpdateOp,
     ) -> TchTensor {
         match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                TchOps::select_assign_replace(tensor, dim, indices, value)
+            }
             burn_backend::tensor::IndexingUpdateOp::Add => {
                 TchOps::select_assign(tensor, dim, indices, value)
             }

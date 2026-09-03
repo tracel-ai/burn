@@ -141,7 +141,7 @@ mod tests {
         let group = ParamGroup::ids_from_module(model.clone());
         assert!(group.matches(&custom.enabled.id, None));
 
-        let frozen = model.clone().no_grad();
+        let frozen = model.clone().freeze();
         let frozen_custom = frozen
             .weight
             .reparameterization::<CustomScale>()

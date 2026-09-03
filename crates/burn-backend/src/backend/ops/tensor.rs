@@ -110,6 +110,54 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
+    /// Computes the reduced singular value decomposition of a batch of matrices.
+    ///
+    /// For an input of shape `[..., m, n]`, where `m >= n`, returns `(u, s, vt)`
+    /// with non-negative singular values in descending order. When `swap` is
+    /// false, the factors have shapes `[..., m, n]`, `[..., n]`, and
+    /// `[..., n, n]`, respectively, and reconstruct the input as
+    /// `u @ diag(s) @ vt`.
+    ///
+    /// When `swap` is true, the input is the transpose of the original wide
+    /// matrix. The returned factors reconstruct that original matrix and have
+    /// shapes `[..., n, n]`, `[..., n]`, and `[..., n, m]`, respectively.
+    ///
+    /// The returned tensors must use the same dtype and device as the input.
+    /// The default implementation synchronously transfers the input to the
+    /// host, computes the decomposition there, and transfers the factors back
+    /// to the input device. Backends may override it with a native implementation.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor of shape `[..., m, n]`, with `m >= n`.
+    /// * `sweeps` - Maximum number of QR sweeps per singular value.
+    /// * `swap` - Whether `tensor` is the transpose of the matrix being decomposed.
+    ///
+    /// # Panics
+    ///
+    /// The default implementation panics if the input cannot be read
+    /// synchronously or if the QR iteration does not converge within the
+    /// requested sweep budget.
+    fn float_svd(
+        tensor: FloatTensor<B>,
+        sweeps: usize,
+        swap: bool,
+    ) -> (FloatTensor<B>, FloatTensor<B>, FloatTensor<B>) {
+        let device = tensor.device();
+        let msg = "SVD fallback failed to synchronously read tensor data";
+        let data = try_read_sync(Self::float_into_data(tensor))
+            .expect(msg)
+            .expect(msg);
+        let (u, s, vt) = super::svd::svd_host_data(data, sweeps, swap)
+            .unwrap_or_else(|err| panic!("SVD fallback failed: {err}"));
+
+        (
+            Self::float_from_data(u, &device),
+            Self::float_from_data(s, &device),
+            Self::float_from_data(vt, &device),
+        )
+    }
+
     /// Moves the tensor to the given device.
     ///
     /// # Arguments
@@ -434,40 +482,14 @@ pub trait FloatTensorOps<B: Backend> {
     /// The gathered elements.
     fn float_gather(dim: usize, tensor: FloatTensor<B>, indices: IntTensor<B>) -> FloatTensor<B>;
 
-    /// Scatter elements into a tensor using sum reduction.
-    ///
-    /// # Arguments
-    ///
-    /// * `dim` - The dimension to scatter into.
-    /// * `tensor` - The tensor to scatter into.
-    /// * `indices` - The indices to scatter into.
-    /// * `value` - The value to scatter.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the scattered elements.
-    fn float_scatter_add(
-        dim: usize,
-        tensor: FloatTensor<B>,
-        indices: IntTensor<B>,
-        value: FloatTensor<B>,
-    ) -> FloatTensor<B>;
-
     /// Scatter elements into a tensor using the specified update operation.
-    ///
-    /// Backend implementations may override this to support operations beyond add.
     fn float_scatter(
         dim: usize,
         tensor: FloatTensor<B>,
         indices: IntTensor<B>,
         value: FloatTensor<B>,
         update: IndexingUpdateOp,
-    ) -> FloatTensor<B> {
-        match update {
-            IndexingUpdateOp::Add => Self::float_scatter_add(dim, tensor, indices, value),
-            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
-        }
-    }
+    ) -> FloatTensor<B>;
 
     /// Multi-dimensional scatter: update `data` at locations specified by `indices` with `values`.
     ///
@@ -517,43 +539,14 @@ pub trait FloatTensorOps<B: Backend> {
     /// The selected elements.
     fn float_select(tensor: FloatTensor<B>, dim: usize, indices: IntTensor<B>) -> FloatTensor<B>;
 
-    /// Assign the selected elements along the given dimension corresponding for the given indices
-    /// to the given value using sum reduction.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to select from.
-    /// * `dim` - The dimension to select from.
-    /// * `indices` - The indices to select.
-    /// * `value` - The value to assign.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the selected elements assigned to the given value.
-    fn float_select_add(
-        tensor: FloatTensor<B>,
-        dim: usize,
-        indices: IntTensor<B>,
-        value: FloatTensor<B>,
-    ) -> FloatTensor<B>;
-
     /// Assign selected elements along a dimension using the specified update operation.
-    ///
-    /// Backend implementations may override this to support operations beyond add.
     fn float_select_assign(
         tensor: FloatTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
         value: FloatTensor<B>,
         update: IndexingUpdateOp,
-    ) -> FloatTensor<B> {
-        match update {
-            IndexingUpdateOp::Add => Self::float_select_add(tensor, dim, indices, value),
-            other => {
-                unimplemented!("float_select_assign with {other:?} update is not implemented")
-            }
-        }
-    }
+    ) -> FloatTensor<B>;
 
     /// Select tensor elements corresponding to the given slices.
     ///

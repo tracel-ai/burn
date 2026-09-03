@@ -3,7 +3,7 @@ mod forward;
 mod kernel;
 
 use burn::{
-    backend::{Autodiff, Dispatch, Wgpu, backend_extension, tensor::FloatTensor},
+    backend::{Dispatch, backend_extension, tensor::FloatTensor},
     tensor::{Tensor, activation},
 };
 

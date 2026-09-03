@@ -71,15 +71,13 @@ impl Param<Flag> {
 
     /// Return this parameter with its flag set to the given value.
     pub fn with_value(self, value: bool) -> Self {
-        self.map(|flag| flag.with(value))
+        let mut flag = self.map(|flag| flag.with(value));
+        flag.is_active = value;
+        flag
     }
 }
 
 impl Module for Param<Flag> {
-    fn no_grad(self) -> Self {
-        self.with_value(false)
-    }
-
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_flag(self)
     }
@@ -111,7 +109,9 @@ impl AutodiffModule for Param<Flag> {
 
     fn from_inner(module: Self) -> Self {
         let enabled = module.is_active;
-        Self::initialized(module.id, Flag::new(enabled))
+        let mut flag = Self::initialized(module.id, Flag::new(enabled));
+        flag.is_active = enabled;
+        flag
     }
 }
 
@@ -125,6 +125,8 @@ impl ModuleDisplay for Param<Flag> {}
 
 #[cfg(test)]
 mod tests {
+    use crate::test_device;
+
     use super::*;
 
     #[test]
@@ -146,6 +148,34 @@ mod tests {
     }
 
     #[test]
+    fn enabling_a_flag_during_validation_is_preserved_by_train() {
+        let flag = Param::<Flag>::from_bool(false).valid().with_value(true);
+
+        assert!(flag.is_enabled());
+        assert!(flag.is_active);
+
+        let flag = flag.train();
+
+        assert!(flag.is_enabled());
+        assert!(flag.is_active);
+    }
+
+    #[test]
+    fn mapping_a_validation_flag_preserves_what_train_restores() {
+        let flag = Param::<Flag>::from_bool(true)
+            .valid()
+            .map(|flag| flag.with(false));
+
+        assert!(!flag.is_enabled());
+        assert!(flag.is_active);
+
+        let flag = flag.train();
+
+        assert!(flag.is_enabled());
+        assert!(flag.is_active);
+    }
+
+    #[test]
     fn flag_transitions_preserve_identity() {
         let flag = Param::<Flag>::from_bool(true);
         let id = flag.id;
@@ -159,7 +189,7 @@ mod tests {
     fn flags_are_device_independent() {
         let flag = Param::<Flag>::from_bool(true);
         let id = flag.id;
-        let device = Device::default();
+        let device = test_device();
 
         let moved = flag.clone().to_device(&device);
         assert!(moved.is_enabled());
@@ -170,5 +200,24 @@ mod tests {
         assert!(forked.is_enabled());
         assert_eq!(forked.id, id);
         assert!(forked.devices().is_empty());
+    }
+
+    #[test]
+    fn no_grad_does_not_disable_a_flag() {
+        let flag = Param::<Flag>::from_bool(true).no_grad();
+
+        assert!(flag.is_enabled());
+    }
+
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn validation_state_is_restored_only_by_train() {
+        let device = test_device().autodiff();
+        let valid = Param::<Flag>::from_bool(true).valid();
+
+        assert!(!valid.is_enabled());
+        assert!(!valid.clone().to_device(&device).is_enabled());
+        assert!(!valid.clone().fork(&device).is_enabled());
+        assert!(valid.train().is_enabled());
     }
 }

@@ -2,15 +2,13 @@ use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
 pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
-use burn_fusion::UnfusedOp;
 use burn_fusion::{
     FusionBackend, FusionRuntime,
-    stream::{Operation, OrderedExecution},
+    stream::{FallbackOp, OrderedExecution},
 };
 use burn_ir::{BackendIr, TensorHandle};
 use burn_std::Metadata;
 use core::marker::PhantomData;
-use std::sync::Arc;
 
 mod registry;
 pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
@@ -55,17 +53,12 @@ impl<O: Clone> FallbackOperationWrapper<O> {
 }
 
 impl<R: CubeRuntime> FallbackOperation<R>
-    for FallbackOperationWrapper<Arc<dyn Operation<FusionCubeRuntime<R>>>>
+    for FallbackOperationWrapper<FallbackOp<FusionCubeRuntime<R>>>
 {
     fn run(&self, context: &mut burn_fusion::stream::Context<CubeFusionHandle<R>>) {
-        self.operation.as_ref().execute(&mut context.handles);
-    }
-}
-
-impl<R: CubeRuntime> FallbackOperation<R>
-    for FallbackOperationWrapper<UnfusedOp<FusionCubeRuntime<R>>>
-{
-    fn run(&self, context: &mut burn_fusion::stream::Context<CubeFusionHandle<R>>) {
+        // Through `FallbackOp`, so unfused work inside a fused block obeys the
+        // same rule as unfused work outside one: an operation whose input a
+        // failure claims does not run, and its outputs take that failure.
         self.operation.execute(&mut context.handles);
     }
 }
