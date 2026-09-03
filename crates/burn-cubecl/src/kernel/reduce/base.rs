@@ -8,9 +8,7 @@ use crate::{
 use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type, elem_type_to_dtype};
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{BoolDType, Metadata};
-use cubecl::{
-    AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type, prelude::InputScalar,
-};
+use cubecl::{AutotuneKey, client::Client, features::AtomicUsage, ir::Type, prelude::InputScalar};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy, ReduceWithIndicesDtypes,
     components::instructions::ReduceOperationConfig,
@@ -81,7 +79,7 @@ fn reduce_empty_axis<Run: CubeRuntime>(
 }
 
 /// Check if the client supports atomic add for the given element type.
-fn supports_atomic_add(client: &ComputeClient, dtype: DType) -> bool {
+fn supports_atomic_add(client: &Client, dtype: DType) -> bool {
     client
         .properties()
         .atomic_type_usage(Type::atomic(dtype_to_elem_type(dtype)))

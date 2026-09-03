@@ -1,7 +1,7 @@
 use burn_backend::{DType, Shape, TensorMetadata as _, quantization::QParamTensor};
 use burn_std::{Metadata, Strides};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
-use cubecl::{client::ComputeClient, server::Handle};
+use cubecl::{client::Client, server::Handle};
 
 use crate::CubeRuntime;
 
@@ -14,7 +14,7 @@ pub type QParams = burn_backend::quantization::QParams<QParamTensor>;
 impl<R: CubeRuntime> CubeTensor<R> {
     /// Create a new quantized tensor
     pub fn new_quantized(
-        client: ComputeClient,
+        client: Client,
         handle: Handle,
         shape: Shape,
         device: R::Device,

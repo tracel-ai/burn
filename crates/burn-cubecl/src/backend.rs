@@ -8,12 +8,12 @@ use burn_backend::{
 use burn_std::{BoolStore, DType, quantization::quantizable};
 use cubecl::{
     MemoryConfiguration, MemoryPoolKind,
-    client::ComputeClient,
+    client::Client,
     config::memory::{MemoryPoolConfig, MemoryPoolsConfig, MemoryPoolsPreset},
     config::size::MemorySize,
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
-    server::ComputeServer,
+    server::Server,
 };
 use std::marker::PhantomData;
 
@@ -24,7 +24,7 @@ use burn_ir::{BackendIr, TensorHandle};
 
 /// Whether the runtime can hold a quantized dtype's scales, which `dtype_to_storage_type` misses
 /// because it doesn't see the scheme's scale levels. Non-quantized dtypes always pass.
-fn qfloat_params_usable(client: &ComputeClient, dtype: DType) -> bool {
+fn qfloat_params_usable(client: &Client, dtype: DType) -> bool {
     let DType::QFloat(scheme) = dtype else {
         return true;
     };
@@ -52,7 +52,7 @@ pub struct CubeBackend<R: CubeRuntime> {
 impl<R> BackendTypes for CubeBackend<R>
 where
     R: CubeRuntime,
-    R::Server: ComputeServer,
+    R::Server: Server,
     R::Device: DeviceOps,
 {
     type Device = R::Device;
@@ -68,7 +68,7 @@ where
 impl<R> Backend for CubeBackend<R>
 where
     R: CubeRuntime,
-    R::Server: ComputeServer,
+    R::Server: Server,
     R::Device: DeviceOps,
 {
     fn name(device: &Self::Device) -> String {

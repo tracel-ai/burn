@@ -23,7 +23,7 @@ use burn_std::{
     Strides,
     tensor::{ReshapeAction, contiguous_strides, is_contiguous, is_dense, reshape_action},
 };
-use cubecl::{Runtime, client::ComputeClient};
+use cubecl::{Runtime, client::Client};
 use std::collections::BTreeMap;
 
 /// Create or reuse handles for the outputs.
@@ -98,7 +98,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     pub fn run(
         mut self,
-        client: &ComputeClient,
+        client: &Client,
         device: &R::Device,
         context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -663,7 +663,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn normal_output(
         &mut self,
-        client: &ComputeClient,
+        client: &Client,
         device: &R::Device,
         context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -750,7 +750,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn reshaped_output(
         &mut self,
-        client: &ComputeClient,
+        client: &Client,
         device: &R::Device,
         context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -829,7 +829,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn swapped_dims_output(
         &mut self,
-        client: &ComputeClient,
+        client: &Client,
         device: &R::Device,
         context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -884,7 +884,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn nhwc_strides_output(
         &mut self,
-        client: &ComputeClient,
+        client: &Client,
         device: &R::Device,
         context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,

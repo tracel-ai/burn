@@ -6,7 +6,7 @@ use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
-use cubecl::{client::ComputeClient, std::tensor::layout::linear::LinearViewLaunch};
+use cubecl::{client::Client, std::tensor::layout::linear::LinearViewLaunch};
 use cubecl::{frontend::Numeric, std::tensor::layout::linear::LinearViewLayoutLaunch};
 use cubecl::{
     prelude::{TensorBinding, *},
@@ -18,7 +18,7 @@ use super::QParams;
 /// The basic tensor primitive struct.
 pub struct CubeTensor<R: CubeRuntime> {
     /// Compute client for the [runtime](CubeRuntime).
-    pub client: ComputeClient,
+    pub client: Client,
     /// The buffer where the data are stored.
     pub handle: Handle,
     /// The metadata of the tensor.
@@ -126,7 +126,7 @@ where
 {
     /// Create a new standard tensor
     pub fn new(
-        client: ComputeClient,
+        client: Client,
         handle: Handle,
         metadata: Metadata,
         device: R::Device,
@@ -144,7 +144,7 @@ where
 
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
-        client: ComputeClient,
+        client: Client,
         device: R::Device,
         shape: Shape,
         handle: Handle,
@@ -170,7 +170,7 @@ where
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(&mut self, client: ComputeClient, device: R::Device) -> Self {
+    pub fn to_client(&mut self, client: Client, device: R::Device) -> Self {
         let desc = self.handle.clone().copy_descriptor(
             self.meta.shape().clone(),
             self.meta.strides().clone(),

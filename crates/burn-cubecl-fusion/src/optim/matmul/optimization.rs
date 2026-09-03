@@ -20,7 +20,7 @@ use crate::{
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use cubecl::{
-    client::ComputeClient,
+    client::Client,
     prelude::*,
     std::tensor::{MatrixBatchLayout, matrix_batch_layout},
 };
@@ -70,7 +70,7 @@ pub struct MatmulOptimizationTuneArg<R: Runtime> {
 pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
-    pub(crate) client: ComputeClient,
+    pub(crate) client: Client,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) matmul: FusedMatmul,
@@ -145,7 +145,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn new(
         trace: FuseTrace,
         trace_fallback: FuseTrace,
-        client: ComputeClient,
+        client: Client,
         device: R::Device,
         len: usize,
         matmul: FusedMatmul,
@@ -368,7 +368,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient,
+        client: &'a Client,
         inputs: GlobalArgsLaunch,
         outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
@@ -394,7 +394,7 @@ pub enum AcceleratedTileKind {
 impl FusedMatmulLaunch<'_> {
     fn matmul_fused<'a>(
         &'a self,
-        client: &'a ComputeClient,
+        client: &'a Client,
         inputs: GlobalArgsLaunch,
         outputs: GlobalArgsLaunch,
         config: &'a FuseBlockConfig,
@@ -695,7 +695,7 @@ impl FusedMatmulLaunch<'_> {
 }
 
 fn launch_inner_fix_dtype<A: BatchMatmulRoutine<()>>(
-    client: &ComputeClient,
+    client: &Client,
     input: FusedMatmulInputLaunch,
     output: GlobalArgsLaunch,
     problem: MatmulProblem,

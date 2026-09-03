@@ -47,7 +47,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient,
+        client: &'a Client,
         inputs: GlobalArgsLaunch,
         outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],

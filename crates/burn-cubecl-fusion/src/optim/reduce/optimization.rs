@@ -22,7 +22,7 @@ use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_std::DType;
-use cubecl::{Runtime, client::ComputeClient, prelude::*};
+use cubecl::{Runtime, client::Client, prelude::*};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, VectorizationMode,
     components::instructions::ReduceOperationConfig,
@@ -48,7 +48,7 @@ pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
-    pub(crate) client: ComputeClient,
+    pub(crate) client: Client,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) len_read: usize,
@@ -229,7 +229,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         trace: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
-        client: ComputeClient,
+        client: Client,
         device: R::Device,
         len: usize,
         len_read: usize,
@@ -330,7 +330,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient,
+        client: &'a Client,
         inputs: GlobalArgsLaunch,
         outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
@@ -430,7 +430,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
 }
 
 struct ReduceKwArgs<'b> {
-    client: &'b ComputeClient,
+    client: &'b Client,
     inputs: GlobalArgsLaunch,
     outputs: GlobalArgsLaunch,
     reduce_axis: usize,

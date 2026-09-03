@@ -19,14 +19,14 @@ use crate::{
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{CubeDim, calculate_cube_count_elemwise, client::ComputeClient, prelude::*};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, client::Client, prelude::*};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
 pub struct ElemwiseOptimization<R: Runtime> {
     pub(crate) trace: FuseTrace,
-    client: ComputeClient,
+    client: Client,
     device: R::Device,
     len: usize,
 }
@@ -83,7 +83,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient,
+        client: &'a Client,
         inputs: GlobalArgsLaunch,
         outputs: GlobalArgsLaunch,
         configs: &[FuseBlockConfig],

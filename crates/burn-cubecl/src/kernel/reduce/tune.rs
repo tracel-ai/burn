@@ -11,7 +11,7 @@ use crate::{
 use burn_backend::cubecl::dtype_to_elem_type;
 use cubecl::{
     AutotuneKey,
-    client::ComputeClient,
+    client::Client,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::reduce::{
@@ -170,7 +170,7 @@ where
 
 /// Executes autotune on reduce operations.
 pub fn autotune_reduce<R: CubeRuntime>(
-    client: &ComputeClient,
+    client: &Client,
     input: CubeTensor<R>,
     output: CubeTensor<R>,
     axis: usize,
@@ -252,7 +252,7 @@ pub(crate) fn create_key<Run: CubeRuntime>(
 /// autotuned launches it replaces.
 #[allow(clippy::too_many_arguments)]
 pub fn autotune_reduce_with_indices<R: CubeRuntime>(
-    client: &ComputeClient,
+    client: &Client,
     input: CubeTensor<R>,
     values: CubeTensor<R>,
     indices: CubeTensor<R>,
@@ -395,7 +395,7 @@ mod reduce_ops {
 
 /// Executes autotune on reduce operations.
 #[cfg(feature = "autotune")]
-pub fn autotune_sum<R: CubeRuntime>(client: &ComputeClient, input: CubeTensor<R>) -> CubeTensor<R> {
+pub fn autotune_sum<R: CubeRuntime>(client: &Client, input: CubeTensor<R>) -> CubeTensor<R> {
     use sum_ops::*;
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!("autotune-sum");

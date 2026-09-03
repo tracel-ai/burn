@@ -44,7 +44,7 @@ pub trait CubeRuntime: Runtime<Device = Self::CubeDevice, Server = Self::CubeSer
     /// The device that should also implement [burn_backend::backend::DeviceOps].
     type CubeDevice: burn_backend::DeviceOps;
     /// The cube server backing the runtime.
-    type CubeServer: cubecl::server::ComputeServer;
+    type CubeServer: cubecl::server::Server;
 }
 
 pub use cubecl::CubeTuneId;

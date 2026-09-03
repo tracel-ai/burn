@@ -9,7 +9,7 @@ use crate::{
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
-    client::ComputeClient,
+    client::Client,
     std::tensor::MatrixBatchLayout,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
@@ -45,7 +45,7 @@ pub(super) type Inputs<R> = (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>);
 /// f16). Without the same promotion here, every f32 problem would look unsupported and the tf32
 /// tensor core path would be lost.
 pub(crate) fn tile_matmul_supported(
-    client: &ComputeClient,
+    client: &Client,
     tile_matmul: TileMatmulKind,
     definition: &MatmulProblemDefinition,
 ) -> bool {
@@ -560,7 +560,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             // they are built on, otherwise they would be compiled just to fail. They keep the
             // minimum priority rather than being discarded, so they remain a last resort and
             // the tune plan can never end up empty.
-            let accelerated_priority = move |key: &MatmulAutotuneKey, client: &ComputeClient| {
+            let accelerated_priority = move |key: &MatmulAutotuneKey, client: &Client| {
                 if !tile_matmul_supported(client, tile_matmul, &key.definition) {
                     return PRIORITY_MIN;
                 }

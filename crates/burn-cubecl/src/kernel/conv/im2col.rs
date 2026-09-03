@@ -158,7 +158,7 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 }
 
 fn from_handle<R: CubeRuntime>(
-    client: ComputeClient,
+    client: Client,
     device: R::Device,
     handle: TensorHandle,
     dtype: DType,

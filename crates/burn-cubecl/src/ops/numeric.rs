@@ -19,7 +19,7 @@ use cubecl::{
     prelude::*,
     std::tensor::layout::linear::LinearViewMut,
 };
-use cubecl::{client::ComputeClient, server::MemoryLayout};
+use cubecl::{client::Client, server::MemoryLayout};
 use cubecl::{server::MemoryLayoutDescriptor, std::FastDivmod};
 
 /// Creates a tensor filled with `value`
@@ -35,7 +35,7 @@ pub fn full<R: CubeRuntime, E: CubeElement>(
 
 /// Creates a tensor filled with `value`
 pub fn full_client<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient,
+    client: Client,
     shape: Shape,
     device: R::Device,
     value: E,
@@ -52,7 +52,7 @@ pub fn full_client<R: CubeRuntime, E: CubeElement>(
 
 /// Creates a tensor filled with `value`
 pub fn full_device_dtype<R: CubeRuntime>(
-    client: ComputeClient,
+    client: Client,
     shape: Shape,
     device: R::Device,
     value: InputScalar,
@@ -130,7 +130,7 @@ pub fn ones<R: CubeRuntime>(device: R::Device, shape: Shape, dtype: DType) -> Cu
 
 /// Creates a tensor filled with zeros
 pub fn zeros_client<R: CubeRuntime>(
-    client: ComputeClient,
+    client: Client,
     device: R::Device,
     shape: Shape,
     dtype: DType,
@@ -146,7 +146,7 @@ pub fn zeros_client<R: CubeRuntime>(
 
 /// Creates a tensor filled with ones
 pub fn ones_client<R: CubeRuntime>(
-    client: ComputeClient,
+    client: Client,
     device: R::Device,
     shape: Shape,
     dtype: DType,
@@ -162,7 +162,7 @@ pub fn ones_client<R: CubeRuntime>(
 
 /// Create a tensor with uninitialized memory
 pub fn empty_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient,
+    client: Client,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -179,7 +179,7 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
 
 /// Create a tensor with uninitialized memory
 pub fn empty_device_dtype<R: CubeRuntime>(
-    client: ComputeClient,
+    client: Client,
     device: R::Device,
     shape: Shape,
     dtype: DType,
@@ -191,7 +191,7 @@ pub fn empty_device_dtype<R: CubeRuntime>(
 
 /// Create a contiguous tensor with uninitialized memory
 pub fn empty_device_contiguous_dtype<R: CubeRuntime>(
-    client: ComputeClient,
+    client: Client,
     device: R::Device,
     shape: Shape,
     dtype: DType,

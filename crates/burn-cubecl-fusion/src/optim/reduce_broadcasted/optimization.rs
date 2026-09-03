@@ -66,7 +66,7 @@ impl<R: Runtime> ReduceBlockOptimInfo<R> {
 pub(crate) struct ReduceBroadcastedOptimizationTuneArg<R: Runtime> {
     pub(crate) fallbacks: Vec<ReduceBlockOptimArg<R>>,
     pub(crate) broadcasted: Arc<ReduceBroadcastedInfo>,
-    pub(crate) client: ComputeClient,
+    pub(crate) client: Client,
     pub(crate) device: R::Device,
 }
 

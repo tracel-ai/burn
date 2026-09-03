@@ -15,7 +15,7 @@ use burn_fusion::stream::{Context, ScalarId};
 use burn_ir::ScalarIr;
 use cubecl::{
     Runtime,
-    client::ComputeClient,
+    client::Client,
     ir::{AddressType, Type},
     prelude::{InputScalar, TensorArg},
 };
@@ -46,7 +46,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
     pub fn execute<Runner: TraceRunner<R>>(
         self,
-        client: &ComputeClient,
+        client: &Client,
         runner: &Runner,
         context: &mut Context<CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,

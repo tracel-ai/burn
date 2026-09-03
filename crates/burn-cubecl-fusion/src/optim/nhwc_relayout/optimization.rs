@@ -4,14 +4,14 @@ use crate::{
     optim::{FusedOperation, elemwise::ElemwiseRunner},
 };
 use burn_fusion::stream::Context;
-use cubecl::{client::ComputeClient, prelude::*};
+use cubecl::{client::Client, prelude::*};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
 /// Fuse layout conversions into a single kernel for NHWC/NLC layout.
 pub struct NHWCRelayoutOptimization<R: Runtime> {
     pub(crate) trace: FuseTrace,
-    client: ComputeClient,
+    client: Client,
     device: R::Device,
     len: usize,
 }

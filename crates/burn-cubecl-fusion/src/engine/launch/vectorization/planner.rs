@@ -19,7 +19,7 @@ use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{
     Runtime,
-    client::ComputeClient,
+    client::Client,
     ir::{ElemType, UIntKind},
 };
 use cubecl::{
@@ -46,7 +46,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
     pub fn run<Runner: Vectorization<R>>(
         self,
-        client: &ComputeClient,
+        client: &Client,
         runner: &Runner,
         context: &Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -392,7 +392,7 @@ fn apply_vectorization_block<R: Runtime>(
 }
 
 fn vector_sizes_quants(
-    client: &ComputeClient,
+    client: &Client,
     quants_vector_sizes: &mut Option<Vec<VectorSize>>,
     scheme: QuantScheme,
 ) {

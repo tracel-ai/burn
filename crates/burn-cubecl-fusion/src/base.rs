@@ -7,7 +7,7 @@ use burn_std::{
 use cubecl::quant::scheme::{QuantScheme, ScaleDtype};
 use cubecl::{
     Runtime,
-    client::ComputeClient,
+    client::Client,
     ir::AddressType,
     prelude::{TensorArg, TensorBinding},
 };
@@ -25,7 +25,7 @@ pub type QParams = burn_std::quantization::QParams<QParamTensor>;
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {
     /// Compute client for jit.
-    pub client: ComputeClient,
+    pub client: Client,
     /// The buffer where the data are stored.
     pub handle: cubecl::server::Handle,
     /// The device of the current tensor.

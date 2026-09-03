@@ -9,7 +9,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,
-    client::ComputeClient,
+    client::Client,
     std::tensor::MatrixBatchLayout,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 /// f16). Without the same promotion here, every f32 problem would look unsupported and the tf32
 /// tensor core path would be lost.
 fn tile_matmul_supported(
-    client: &ComputeClient,
+    client: &Client,
     tile_matmul: TileMatmulKind,
     definition: &MatmulProblemDefinition,
 ) -> bool {
@@ -253,17 +253,16 @@ pub fn fused_matmul_autotune<R: Runtime>(
                 // matmul they are built on, otherwise they would be compiled just to fail. They
                 // keep the minimum priority rather than being discarded, so they remain a last
                 // resort and the tune plan can never end up empty.
-                let accelerated_priority =
-                    move |key: &FusedMatmulAutotuneKey, client: &ComputeClient| {
-                        if !tile_matmul_supported(client, tm, &key.matmul_key.definition) {
-                            return PRIORITY_MIN;
-                        }
+                let accelerated_priority = move |key: &FusedMatmulAutotuneKey, client: &Client| {
+                    if !tile_matmul_supported(client, tm, &key.matmul_key.definition) {
+                        return PRIORITY_MIN;
+                    }
 
-                        match double_buf {
-                            false => PRIORITY_MAX,
-                            true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                        }
-                    };
+                    match double_buf {
+                        false => PRIORITY_MAX,
+                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                    }
+                };
 
                 let client_accelerated = tune_client.clone();
                 let mut tunable = Tunable::new(&selector.name(), move |input| {
