@@ -365,12 +365,12 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     // Use channels_per_group instead of in_channels to avoid issues here
     let vector_size_in = max_vector_size(&weight);
 
-    // Two things have to hold for a vector accumulator to pay. There has to be a vector: at
-    // one lane, accumulating into it is exactly as serial as accumulating into `sum`, and
-    // only the extra reads are left. And the channel loop has to run more than once, or
-    // there is nothing to amortize the reduction over.
-    let accumulate_lanes =
-        vector_size_in > 1 && weight.meta.shape()[dim_c] > vector_size_in as usize;
+    // The vector accumulator breaks a dependency chain that only a single-unit plane pays in
+    // full: a wide plane hides it behind its other lanes and is left with the extra input read
+    // per output channel. It also needs a vector, and a channel loop that runs more than once.
+    let accumulate_lanes = input.client.properties().hardware.plane_size_max == 1
+        && vector_size_in > 1
+        && weight.meta.shape()[dim_c] > vector_size_in as usize;
 
     let shape_out = output.meta.shape()[1..dim_c]
         .iter()
