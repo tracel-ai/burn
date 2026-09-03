@@ -7,7 +7,7 @@ pub use cubecl::hip::AmdDevice as RocmDevice;
 
 use cubecl::{
     hip::HipRuntime,
-    throughput::{ThroughputKey, ThroughputValue},
+    throughput::{ThroughputError, ThroughputKey, ThroughputValue},
 };
 
 #[cfg(not(feature = "fusion"))]
@@ -20,9 +20,6 @@ pub type Rocm = burn_fusion::Fusion<CubeBackend<HipRuntime>>;
 pub fn device_throughput(
     device: &RocmDevice,
     keys: &[ThroughputKey],
-) -> alloc::vec::Vec<ThroughputValue> {
+) -> alloc::vec::Vec<Result<ThroughputValue, ThroughputError>> {
     cubecl::std::throughput::device_throughput::<HipRuntime>(device, keys)
-        .into_iter()
-        .map(|peak| peak.unwrap_or(ThroughputValue::ZERO))
-        .collect()
 }

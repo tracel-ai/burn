@@ -11,7 +11,9 @@
 use burn_std::{BoolStore, DType, QuantScheme, QuantStore, QuantValue};
 use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
-pub use cubecl::throughput::{MemoryAccess, ThroughputKey, ThroughputMode, ThroughputValue};
+pub use cubecl::throughput::{
+    MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
+};
 
 /// Convert a cubecl [`ElemType`] into the corresponding burn [`DType`].
 ///
