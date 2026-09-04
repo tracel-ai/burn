@@ -1307,6 +1307,7 @@ name = "burn-tensor"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn-backend",
+ "burn-derive",
  "burn-dispatch",
  "burn-std",
  "colored 3.1.1",

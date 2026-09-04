@@ -5,7 +5,7 @@ use crate::cache::TensorCache;
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn::tensor::{Bool, Device, Tensor};
+use burn::tensor::{Bool, Device, Tensor, assert_shape};
 
 use burn::tensor::activation::{quiet_softmax, softmax};
 #[cfg(not(feature = "std"))]
@@ -209,8 +209,18 @@ impl MultiHeadAttention {
     /// - key: `[batch_size, seq_length_2, d_model]`
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `query`, `key` or `value` is not `d_model`, if the batch size
+    /// of `key` or `value` differs from `query`, or if the sequence length of `value` differs
+    /// from `key`.
     pub fn forward(&self, input: MhaInput) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
+        let [_, seq_length_2, _] = input.key.dims();
+        assert_shape!(input.query, [_, _, self.d_model]);
+        assert_shape!(input.key, [batch_size, _, self.d_model]);
+        assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]);
 
         let query = self.attention_linear(input.query, &self.query);
         let key = self.attention_linear(input.key, &self.key);
@@ -236,8 +246,18 @@ impl MultiHeadAttention {
     /// - key: `[batch_size, seq_length_2, d_model]`
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `query`, `key` or `value` is not `d_model`, if the batch size
+    /// of `key` or `value` differs from `query`, or if the sequence length of `value` differs
+    /// from `key`.
     pub fn forward_cache(&self, input: MhaInput, cache: &mut MhaCache) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
+        let [_, seq_length_2, _] = input.key.dims();
+        assert_shape!(input.query, [_, _, self.d_model]);
+        assert_shape!(input.key, [batch_size, _, self.d_model]);
+        assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]);
 
         let query = cache
             .query
@@ -371,6 +391,44 @@ mod tests {
     use burn::tensor::Int;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, Shape};
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input.key, [batch_size, _, self.d_model]): axis 0 expected 2, got 1"
+    )]
+    fn key_batch_must_match_query_batch() {
+        let device = Default::default();
+        let mha = MultiHeadAttentionConfig::new(8, 2).init(&device);
+        let query = Tensor::zeros([2, 3, 8], &device);
+        let key = Tensor::zeros([1, 3, 8], &device);
+        let _ = mha.forward(MhaInput::new(query, key.clone(), key));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]): axis 0 expected 2, got 1"
+    )]
+    fn value_batch_must_match_query_batch() {
+        let device = Default::default();
+        let mha = MultiHeadAttentionConfig::new(8, 2).init(&device);
+        let query = Tensor::zeros([2, 3, 8], &device);
+        let key = Tensor::zeros([2, 3, 8], &device);
+        let value = Tensor::zeros([1, 3, 8], &device);
+        let _ = mha.forward(MhaInput::new(query, key, value));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input.key, [batch_size, _, self.d_model]): axis 0 expected 2, got 1"
+    )]
+    fn cache_key_batch_must_match_query_batch() {
+        let device = Default::default();
+        let mha = MultiHeadAttentionConfig::new(8, 2).init(&device);
+        let mut cache = MhaCache::autoregressive();
+        let query = Tensor::zeros([2, 3, 8], &device);
+        let key = Tensor::zeros([1, 3, 8], &device);
+        let _ = mha.forward_cache(MhaInput::new(query, key.clone(), key), &mut cache);
+    }
 
     #[test]
     fn test_enable_bias() {

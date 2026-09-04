@@ -4,7 +4,7 @@ use crate::activation::{Activation, ActivationConfig};
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, Tensor, assert_shape};
 
 /// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer using the [init function](PositionWiseFeedForwardConfig::init).
 #[derive(Config, Debug)]
@@ -100,9 +100,16 @@ impl PositionWiseFeedForward {
     ///
     /// # Shapes
     ///
-    /// - tensor: `[batch_size, seq_length, d_model]`
+    /// - input: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `input` is not `d_model`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
+        let [d_model, _] = self.linear_inner.weight.shape().dims();
+        assert_shape!(input, [.., d_model]);
+
         let x = self.linear_inner.forward(input);
         let x = self.activation.forward(x);
         let x = self.dropout.forward(x);
@@ -114,6 +121,14 @@ impl PositionWiseFeedForward {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(input, [.., d_model]): axis 2 expected 2, got 3")]
+    fn input_d_model_must_match() {
+        let device = Default::default();
+        let pwff = PositionWiseFeedForwardConfig::new(2, 4).init(&device);
+        let _ = pwff.forward(Tensor::<3>::zeros([1, 5, 3], &device));
+    }
 
     #[test]
     fn display() {

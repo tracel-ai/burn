@@ -6,7 +6,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::activation::log_softmax;
-use burn::tensor::{Bool, Device, Int, Tensor};
+use burn::tensor::{Bool, Device, Int, Tensor, assert_shape};
 use burn::{config::Config, module::Module};
 
 #[cfg(not(feature = "std"))]
@@ -243,12 +243,8 @@ impl CrossEntropyLoss {
     }
 
     fn assertions(logits: Tensor<2>, targets: Tensor<1, Int>) {
-        let [logits_height, _] = logits.dims();
-        let [targets_height] = targets.dims();
-        assert!(
-            logits_height == targets_height,
-            "Shape of targets ({targets_height}) should correspond to outer shape of logits ({logits_height})."
-        );
+        let [batch_size, _] = logits.dims();
+        assert_shape!(targets, [batch_size]);
     }
 }
 
@@ -304,6 +300,17 @@ mod tests {
             );
             (logits, targets, targets_logits)
         }};
+    }
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(targets, [batch_size]): axis 0 expected 4, got 3")]
+    fn test_cross_entropy_loss_targets_must_match_batch_size() {
+        let (logits, _, _) = setup!();
+        let device = logits.device();
+        let targets = Tensor::<1, Int>::from_data(TensorData::from([2, 0, 4]), &device);
+        let _ = CrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(logits, targets);
     }
 
     #[test]

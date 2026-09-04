@@ -2,9 +2,9 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use burn::tensor::Tensor;
 use burn::tensor::module::avg_pool1d;
 use burn::tensor::ops::PadMode;
+use burn::tensor::{Tensor, assert_shape};
 
 /// Configuration to create a [LocalResponseNorm](LocalResponseNorm) layer
 /// using the [init function](LocalResponseNormConfig::init).
@@ -78,10 +78,7 @@ impl LocalResponseNorm {
     ///
     /// Panics if the input tensor rank is less than 3.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        assert!(
-            D >= 3,
-            "LocalResponseNorm requires input rank >= 3, got {D}"
-        );
+        assert_shape!(input, [_, _, _, ..]);
 
         let shape = input.dims();
         let n = shape[0];
@@ -592,7 +589,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "LocalResponseNorm requires input rank >= 3")]
+    #[should_panic(
+        expected = "assert_shape!(input, [_, _, _, ..]): expected rank at least 3, got 2"
+    )]
     fn forward_rank_2_panics() {
         let module = LocalResponseNormConfig::new(3).init();
         let input = Tensor::<2>::zeros([2, 4], &Default::default());

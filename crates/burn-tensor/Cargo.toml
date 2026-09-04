@@ -76,6 +76,7 @@ template = ["burn-dispatch/template"]
 burn-std = { workspace = true }
 burn-backend = { workspace = true }
 burn-dispatch = { workspace = true }
+burn-derive = { workspace = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

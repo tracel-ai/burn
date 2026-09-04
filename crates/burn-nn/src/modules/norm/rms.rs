@@ -1,5 +1,6 @@
 use burn::tensor::DType;
 
+use burn::tensor::assert_shape;
 use burn_core as burn;
 
 use burn::config::Config;
@@ -68,7 +69,14 @@ impl RmsNorm {
     ///
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `x` is not `d_model`.
     pub fn forward<const D: usize>(&self, x: Tensor<D>) -> Tensor<D> {
+        let [d_model] = self.gamma.shape().dims();
+        assert_shape!(x, [.., d_model]);
+
         // Calculate the root-mean-square norm of the input tensor along the last dimension
         let dtype = x.dtype();
         let rms = (x.clone().cast(DType::F32).square().mean_dim(D - 1) + self.epsilon).sqrt();
@@ -99,6 +107,14 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(x, [.., d_model]): axis 1 expected 3, got 4")]
+    fn input_d_model_must_match() {
+        let device = Default::default();
+        let module = RmsNormConfig::new(3).init(&device);
+        let _ = module.forward(Tensor::<2>::zeros([2, 4], &device));
+    }
 
     #[test]
     fn rms_norm_forward() {

@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::module::{Flag, Initializer};
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, Tensor, assert_shape};
 use burn::{
     config::Config,
     module::{Module, Param, RunningState},
@@ -86,22 +86,15 @@ impl BatchNorm {
     ///
     /// # Shapes
     ///
-    /// - `input`: ``[batch_size, channels, ...]``
-    /// - `output`: ``[batch_size, channels, ...]``
+    /// - `input`: ``[batch_size, num_features, ...]``
+    /// - `output`: ``[batch_size, num_features, ...]``
     ///
     /// # Panics
     ///
-    /// This function will panic if the input tensor has rank < 2.
+    /// Panics if the input has rank < 2 or its second axis is not `num_features`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        // Should be move to a compilation error when const generic support that kind of
-        // validation. https://github.com/rust-lang/rust/issues/76560
-        if D < 2 {
-            panic!(
-                "BatchNorm can only be applied on tensors of rank >= 2 with the following shape \
-                 [batch_size, channels, ...], received {}D tensor",
-                D
-            );
-        }
+        let [num_features] = self.gamma.shape().dims();
+        assert_shape!(input, [_, num_features, ..]);
 
         // Training behavior is selected by the device *and* the layer state. The device alone
         // says a backward is possible, not that this layer takes part in one: partial finetuning
@@ -234,6 +227,26 @@ mod tests_1d {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input, [_, num_features, ..]): expected rank at least 2, got 1"
+    )]
+    fn input_rank_must_be_at_least_two() {
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init(&device);
+        let _ = module.forward(Tensor::<1>::zeros([4], &device));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input, [_, num_features, ..]): axis 1 expected 3, got 4"
+    )]
+    fn input_channels_must_match() {
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init(&device);
+        let _ = module.forward(Tensor::<3>::zeros([1, 4, 2], &device));
+    }
 
     #[test]
     fn batch_norm_forward_train() {
