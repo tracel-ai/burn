@@ -1,10 +1,10 @@
-use crate::{CubeDevice, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{CubeBackend, CubeDevice, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType, ExecutionError, Shape, TensorData,
     quantization::{QuantStore, params_shape},
 };
-use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
+use burn_backend::{TensorMetadata, ops::QTensorOps, ops::unfold::calculate_unfold_shape};
 use burn_std::{
     Metadata, QuantValue, ReshapeAnalysis, reshape_analysis, strides,
     tensor::{ReshapeAction, contiguous_strides, reshape_action},
@@ -73,9 +73,58 @@ pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
         return tensor;
     }
 
+    if tensor.device.runtime() != device.runtime() {
+        return to_device_across_runtimes(tensor, device);
+    }
+
     let mut tensor = kernel::into_contiguous_aligned(tensor);
     let client = device.client();
     tensor.to_client(client, device.clone())
+}
+
+/// Move a tensor to a device belonging to a *different* cubecl runtime.
+///
+/// The peer transfer [`CubeTensor::to_client`] uses is runtime-internal — it bottoms out in
+/// `ComputeServer::send`/`recv`, where each server addresses memory its own runtime owns — so it
+/// cannot carry a tensor from, say, the CPU runtime to ROCm. Those bytes have to land on the host
+/// in between.
+///
+/// The copy is of the tensor's whole allocation rather than of its logical elements, so a
+/// non-contiguous tensor arrives with the strides it left with instead of being materialized
+/// contiguous on the way.
+///
+/// A quantized tensor is the exception. Its values, scales and per-tensor scale are three regions
+/// of one allocation, and `handle` bounds the values region alone — copying it would leave the
+/// scales behind while `qparams` went on naming offsets that no longer hold them. Those travel by
+/// the layout built for exactly this, the one `q_into_data` writes and `q_from_data` reads back.
+fn to_device_across_runtimes(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
+    if tensor.qparams.is_some() {
+        let from = tensor.device.clone();
+        let data = burn_std::future::block_on(CubeBackend::q_into_data(tensor))
+            .unwrap_or_else(|err| transfer_failed(&from, device, err));
+        return CubeBackend::q_from_data(data, device);
+    }
+
+    let bytes = tensor
+        .client
+        .read_one(tensor.handle.clone())
+        .unwrap_or_else(|err| transfer_failed(&tensor.device, device, err));
+
+    let client = device.client();
+    let handle = client.create(bytes);
+
+    CubeTensor {
+        client,
+        handle,
+        meta: tensor.meta,
+        device: device.clone(),
+        dtype: tensor.dtype,
+        qparams: tensor.qparams,
+    }
+}
+
+fn transfer_failed(from: &CubeDevice, to: &CubeDevice, err: impl core::fmt::Display) -> ! {
+    panic!("Failed to read a tensor off {from:?} on the way to {to:?}: {err}")
 }
 
 pub(crate) fn empty(shape: Shape, device: &CubeDevice, dtype: DType) -> CubeTensor {
@@ -492,5 +541,47 @@ pub fn unfold(tensor: CubeTensor, dim: usize, size: usize, step: usize) -> CubeT
         device: tensor.device.clone(),
         dtype: tensor.dtype,
         qparams: tensor.qparams.clone(),
+    }
+}
+
+// Two runtimes have to be compiled in for there to be a crossing to test, and both have to be
+// present on the machine — so this is opt-in, not part of a default `cargo test`.
+#[cfg(all(test, feature = "cpu", feature = "wgpu"))]
+mod cross_runtime_tests {
+    use super::*;
+    use burn_std::TensorData;
+
+    /// `to_device` between two cubecl runtimes: the peer transfer within a runtime cannot reach
+    /// another one, so this goes through the host. Regression test for the runtime-erasure
+    /// migration, which made a cross-runtime move indistinguishable from a same-runtime one.
+    #[test]
+    fn crosses_between_runtimes_in_both_directions() {
+        let cpu = CubeDevice::Cpu(Default::default());
+        let wgpu = CubeDevice::Wgpu(Default::default());
+
+        for (from, to) in [(&cpu, &wgpu), (&wgpu, &cpu)] {
+            let data = TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+            let tensor = from_data(data.clone(), from);
+
+            let moved = to_device(tensor, to);
+            assert_eq!(&moved.device, to);
+
+            into_data_sync(moved).assert_eq(&data, true);
+        }
+    }
+
+    /// A tensor whose strides do not describe a contiguous buffer keeps them across the crossing:
+    /// the allocation travels as it is rather than being materialized contiguous on the way.
+    #[test]
+    fn a_non_contiguous_tensor_keeps_its_strides() {
+        let cpu = CubeDevice::Cpu(Default::default());
+        let wgpu = CubeDevice::Wgpu(Default::default());
+
+        let data = TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+        let swapped = swap_dims(from_data(data, &cpu), 0, 1);
+        let expected = into_data_sync(swapped.clone());
+
+        let moved = to_device(swapped, &wgpu);
+        into_data_sync(moved).assert_eq(&expected, true);
     }
 }
