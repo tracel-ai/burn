@@ -18,6 +18,12 @@ pub(crate) const BACKENDS: &[BackendSpec] = &[
         // it runs on. `cube_backend` is set when any of their features is.
         name: "Cube",
         cfg: "cube_backend",
+        // One entry covers every runtime, so this claims collectives for all of them where only
+        // CUDA implements them today: a collective on a wgpu or CPU device reaches cubecl's
+        // `ComputeServer::all_reduce` and panics there, rather than being turned away here as it
+        // was when each runtime had its own spec. That is the intended direction — the remaining
+        // runtimes are meant to implement it — but until they do the panic comes from cubecl with
+        // no mention of the device that caused it.
         distributed: true,
         unidirectional_transfer: false,
     },
