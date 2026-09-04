@@ -12,6 +12,14 @@ pub trait KernelSource: Send + 'static + Sync {
     fn source(&self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> KernelId;
+    /// The language [`source`](Self::source) is written in, as the compiler for the target tags
+    /// it: `"wgsl"`, `"spirv"`, `"msl"`, `"cpp"`, ...
+    ///
+    /// A template is text the compiler never sees, so nothing can infer this — and nothing can
+    /// translate it either. It is checked against the compiler the runtime selected, and a
+    /// mismatch is a launch error rather than a silent reinterpretation: a wgpu build that picks
+    /// SPIR-V will not run a WGSL template, whatever this says.
+    fn lang(&self) -> &'static str;
 }
 
 #[derive(new)]
@@ -41,9 +49,7 @@ impl<K: KernelSource> CubeKernel for SourceKernel<K> {
         Some(PrecompiledSource {
             source: self.kernel_source.source().complete(),
             entrypoint_name: "main".to_string(),
-            // `burn-wgpu` is the only backend that re-exports this path, so a
-            // template is WGSL; any other target rejects it by its own tag.
-            lang: "wgsl",
+            lang: self.kernel_source.lang(),
         })
     }
 }

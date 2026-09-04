@@ -37,6 +37,12 @@ impl KernelSource for FusedMatmulAddRelu {
     fn id(&self) -> KernelId {
         KernelId::new::<Self>().info(self.cube_dim)
     }
+
+    // `kernel.wgsl` is WGSL, so this runs on a wgpu build that compiles to WGSL. A build whose
+    // `AutoCompiler` picks SPIR-V or MSL instead rejects the kernel rather than mis-reading it.
+    fn lang(&self) -> &'static str {
+        "wgsl"
+    }
 }
 
 /// Implement our custom backend trait for the cubecl backend. The WGSL source below only
