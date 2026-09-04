@@ -174,6 +174,10 @@ impl SafetensorsStore {
     ///
     /// Multiple patterns can be added and they work with OR logic.
     ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    ///
     /// # Example
     /// ```rust,no_run
     /// # use burn_store::SafetensorsStore;
@@ -192,6 +196,10 @@ impl SafetensorsStore {
     }
 
     /// Add multiple regex patterns to filter tensors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any pattern is not a valid regular expression.
     #[cfg(feature = "std")]
     pub fn with_regexes<I, S>(mut self, patterns: I) -> Self
     where
