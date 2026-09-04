@@ -127,6 +127,7 @@ jobs:
   publish-burn-tensor:
     needs:
       - publish-burn-std
+      - publish-burn-derive
       - publish-burn-backend
       - publish-burn-dispatch
       - publish-burn-backend-extension

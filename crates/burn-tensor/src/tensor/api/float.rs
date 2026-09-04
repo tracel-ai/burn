@@ -57,6 +57,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i^2 + y_i^2}$"#)]
     #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i^2 + y_i^2)`")]
     pub fn hypot(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Hypot", &self, &other));
         Self::new(hypot_impl(self.primitive, other.primitive))
     }
 
@@ -315,29 +316,48 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Detach the current tensor from the autodiff graph.
     ///
-    /// This function does nothing when autodiff is not enabled.
-    /// This can be used in batchers or elsewhere to ensure that previous operations are not
-    /// considered in the autodiff graph.
+    /// The returned tensor keeps its autodiff association but starts a new graph lineage, so
+    /// previous operations aren't considered during backward. A leaf tensor also preserves its
+    /// current `require_grad` setting. This function does nothing when autodiff isn't enabled.
+    #[must_use]
     pub fn detach(self) -> Self {
         Self::new(detach_impl(self.primitive))
     }
 
     /// Mark the tensor to keep gradients during the backward pass.
     ///
-    /// This function does nothing when autodiff is not enabled.
+    /// This function does nothing when autodiff isn't enabled or when the tensor is quantized.
+    /// Enabling gradient retention doesn't enable autodiff; use [`autodiff`](Tensor::autodiff)
+    /// first when needed.
+    ///
+    /// # Panics
+    ///
+    /// Panics when called on a non-leaf tensor. Use [`detach`](Tensor::detach) first to start a new
+    /// graph lineage.
+    #[must_use]
     pub fn require_grad(self) -> Self {
         self.set_require_grad(true)
     }
 
-    /// Returns true if the tensor requires gradients during the backward pass.
+    /// Returns whether this tensor's gradient is retained after backward.
+    ///
+    /// This is distinct from [`Tensor::is_autodiff`], which reports whether operations use an
+    /// autodiff context, and `Tensor::is_tracked()`, which reports graph participation when the
+    /// `autodiff` feature is enabled.
     pub fn is_require_grad(&self) -> bool {
         is_require_grad_impl(&self.primitive)
     }
 
-    /// Mark the tensor as tracked or untracked depending on the require_grad argument.
-    /// When tracked, the gradients will be available after the backward pass.
+    /// Sets whether this tensor's gradient is retained after backward.
     ///
-    /// This function does nothing when autodiff is not enabled.
+    /// This function does nothing when autodiff isn't enabled or when the tensor is quantized.
+    /// Setting this to `false` on a non-leaf tensor starts a new graph lineage, like
+    /// [`detach`](Tensor::detach), while leaving gradient retention disabled.
+    ///
+    /// # Panics
+    ///
+    /// Panics when setting this to `true` on a non-leaf tensor.
+    #[must_use]
     pub fn set_require_grad(self, require_grad: bool) -> Self {
         Self::new(set_require_grad_impl(self.primitive, require_grad))
     }
@@ -701,6 +721,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
     /// ```
     pub fn powf(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Powf", &self, &other));
         Tensor::new(powf_impl(self.primitive, other.primitive))
     }
 
@@ -1084,6 +1105,7 @@ where
     /// println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
     /// ```
     pub fn atan2(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Atan2", &self, &other));
         Tensor::new(K::atan2(self.primitive, other.primitive))
     }
 }

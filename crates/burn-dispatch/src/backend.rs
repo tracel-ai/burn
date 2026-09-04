@@ -97,6 +97,26 @@ macro_rules! graph_replay_arms {
 }
 
 #[cfg(feature = "autodiff")]
+macro_rules! is_tracked_arms {
+    ($tensor:expr; $([$Backend:ident, $cfg:meta]),*) => {
+        match &$tensor.kind {
+            DispatchTensorKind::Autodiff(inner) => match &**inner {
+                $(
+                    #[cfg($cfg)]
+                    DispatchTensorKind::$Backend(tensor) => tensor.as_autodiff().is_tracked(),
+                )*
+                DispatchTensorKind::Autodiff(_) => {
+                    unreachable!("Autodiff should not wrap an autodiff tensor")
+                }
+                #[allow(unreachable_patterns)]
+                _ => false,
+            },
+            _ => false,
+        }
+    };
+}
+
+#[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
@@ -107,8 +127,15 @@ use crate::DispatchAutodiffContext;
 use crate::DispatchDeviceId;
 #[allow(unused)]
 use crate::DispatchTensorKind;
-use crate::backends::*;
-use crate::{DispatchDevice, DispatchTensor};
+#[cfg(any(feature = "flex", default_backend))]
+use crate::devices::FlexDevice;
+#[cfg(feature = "tch")]
+use crate::devices::LibTorchDevice;
+#[cfg(feature = "ndarray")]
+use crate::devices::NdArrayDevice;
+#[cfg(feature = "remote-websocket")]
+use crate::devices::RemoteDevice;
+use crate::{DispatchDevice, DispatchTensor, backends::*};
 
 /// The main execution backend in Burn.
 ///
@@ -136,6 +163,15 @@ use crate::{DispatchDevice, DispatchTensor};
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct Dispatch;
+
+#[cfg(feature = "autodiff")]
+impl Dispatch {
+    /// Returns whether an autodiff tensor participates in a recorded graph.
+    #[doc(hidden)]
+    pub fn is_tracked(tensor: &DispatchTensor) -> bool {
+        backend_list!(is_tracked_arms, tensor)
+    }
+}
 
 impl BackendTypes for Dispatch {
     type Device = DispatchDevice;

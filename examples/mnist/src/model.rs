@@ -21,6 +21,7 @@ pub struct Model {
 }
 
 const NUM_CLASSES: usize = 10;
+const IMAGE_SIZE: usize = 28;
 
 impl Model {
     pub fn new(device: &Device) -> Self {
@@ -44,10 +45,17 @@ impl Model {
         }
     }
 
+    /// # Shapes
+    ///
+    /// - input: `[batch_size, 28, 28]`
+    /// - output: `[batch_size, 10]`
     pub fn forward(&self, input: Tensor<3>) -> Tensor<2> {
-        let [batch_size, height, width] = input.dims();
+        let [batch_size, _, _] = input.dims();
+        assert_shape!(input, [_, IMAGE_SIZE, IMAGE_SIZE]);
 
-        let x = input.reshape([batch_size, 1, height, width]).detach();
+        let x = input
+            .reshape([batch_size, 1, IMAGE_SIZE, IMAGE_SIZE])
+            .detach();
         let x = self.conv1.forward(x);
         let x = self.conv2.forward(x);
 

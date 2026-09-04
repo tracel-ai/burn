@@ -21,54 +21,42 @@ workspace = true
 default = [
     "std",
     "burn-autodiff?/default",
-    "burn-cpu?/default",
     "burn-cubecl?/default",
-    "burn-cuda?/default",
     "burn-flex/default",
     "burn-ndarray?/default",
-    "burn-rocm?/default",
     "burn-tch?/default",
-    "burn-wgpu?/default",
 ]
 doc = ["default"]
 std = [
     "burn-backend/std",
     "burn-autodiff?/std",
-    "burn-cpu?/std",
     "burn-cubecl?/std",
-    "burn-cuda?/std",
     "burn-flex/std",
     "burn-ndarray?/std",
-    "burn-rocm?/std",
     "burn-tch?/std",
-    "burn-wgpu?/std",
 ]
 tracing = [
     "burn-autodiff?/tracing",
-    "burn-cpu?/tracing",
     "burn-cubecl?/tracing",
-    "burn-cuda?/tracing",
     "burn-flex/tracing",
     "burn-ndarray?/tracing",
-    "burn-rocm?/tracing",
     "burn-tch?/tracing",
-    "burn-wgpu?/tracing",
 ]
 
 # Enables cubecl-facing APIs (e.g. throughput measurement) on cubecl-backed devices.
 cubecl = ["dep:burn-cubecl", "burn-backend/cubecl"]
 
 # Backends
-cuda = ["burn-cuda", "cubecl"]
+cuda = ["cubecl", "burn-cubecl/cuda"]
 flex = [] # default
-rocm = ["burn-rocm", "cubecl"]
+rocm = ["cubecl", "burn-cubecl/hip"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
-vulkan = ["wgpu", "burn-wgpu/vulkan"]
-webgpu = ["wgpu", "burn-wgpu/webgpu"]
-metal = ["wgpu", "burn-wgpu/metal"]
-wgpu = ["burn-wgpu", "cubecl"]
-cpu = ["burn-cpu", "cubecl"]
+vulkan = ["wgpu", "burn-cubecl/vulkan"]
+webgpu = ["wgpu", "burn-cubecl/webgpu"]
+metal = ["wgpu", "burn-cubecl/metal"]
+wgpu = ["cubecl", "burn-cubecl/wgpu"]
+cpu = ["cubecl", "burn-cubecl/cpu"]
 autodiff = ["burn-autodiff"]
 # Remote compute client over Iroh.
 remote = ["std", "burn-remote", "burn-remote/iroh"]
@@ -79,23 +67,10 @@ remote-websocket = ["remote", "burn-remote/websocket"]
 capture = ["burn-capture"]
 
 # Backend features
-autotune = [
-    "burn-wgpu?/autotune",
-    "burn-cuda?/autotune",
-    "burn-rocm?/autotune",
-    "burn-cpu?/autotune",
-]
-autotune-checks = [
-    "burn-wgpu?/autotune-checks",
-    "burn-cuda?/autotune-checks",
-    "burn-rocm?/autotune-checks",
-    "burn-cpu?/autotune-checks",
-]
+autotune = ["burn-cubecl?/autotune"]
+autotune-checks = ["burn-cubecl?/autotune-checks"]
 fusion = [
-    "burn-wgpu?/fusion",
-    "burn-cuda?/fusion",
-    "burn-rocm?/fusion",
-    "burn-cpu?/fusion",
+    "burn-cubecl?/fusion",
     "burn-remote?/fusion",
 ]
 
@@ -115,7 +90,7 @@ blas-netlib = ["burn-ndarray?/blas-netlib"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
 
-template = ["burn-wgpu?/template"]
+template = ["burn-cubecl?/template"]
 
 [dependencies]
 burn-backend = { workspace = true }
@@ -123,15 +98,11 @@ burn-backend-extension = { workspace = true }
 
 # Backends
 burn-autodiff = { workspace = true, optional = true }
-burn-cpu = { workspace = true, optional = true }
-# The one cubecl backend the runtime-specific crates above all alias.
+# The one backend shared by every CubeCL runtime.
 burn-cubecl = { workspace = true, optional = true }
-burn-cuda = { workspace = true, optional = true }
 burn-flex = { workspace = true }
 burn-ndarray = { workspace = true, optional = true }
 burn-tch = { workspace = true, optional = true }
-burn-rocm = { workspace = true, optional = true }
-burn-wgpu = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true, features = ["client"] }
 burn-capture = { workspace = true, optional = true }

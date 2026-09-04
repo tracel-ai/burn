@@ -59,15 +59,6 @@ pub mod backends {
     #[cfg(feature = "autodiff")]
     pub use burn_autodiff::Autodiff; // re-export for extensions
 
-    #[cfg(feature = "cpu")]
-    pub use burn_cpu as cpu;
-    #[cfg(feature = "cuda")]
-    pub use burn_cuda as cuda;
-    #[cfg(feature = "rocm")]
-    pub use burn_rocm as rocm;
-    #[cfg(feature = "wgpu")]
-    pub use burn_wgpu as wgpu;
-
     /// The cubecl backend: CUDA, ROCm, Metal, Vulkan, WebGPU, wgpu and the CPU
     /// runtime are all this one type, and a tensor's device says which of them
     /// it runs on. The features still decide which runtimes are compiled in.
@@ -102,8 +93,6 @@ pub mod backends {
     }
     #[cfg(feature = "capture")]
     pub use burn_capture::CaptureBackend as Capture;
-
-    pub use super::devices::*;
 }
 
 // Re-export devices
@@ -111,13 +100,15 @@ pub mod backends {
 /// Backend devices.
 pub mod devices {
     #[cfg(feature = "cpu")]
-    pub use burn_cpu::CpuDevice;
+    pub use burn_cubecl::cubecl::cpu::CpuDevice;
     #[cfg(feature = "cuda")]
-    pub use burn_cuda::CudaDevice;
+    pub use burn_cubecl::cubecl::cuda::CudaDevice;
     #[cfg(feature = "rocm")]
-    pub use burn_rocm::RocmDevice;
+    pub use burn_cubecl::cubecl::hip::AmdDevice as RocmDevice;
     #[cfg(feature = "wgpu")]
-    pub use burn_wgpu::WgpuDevice;
+    pub use burn_cubecl::cubecl::wgpu::{
+        AutoCompiler, AutoGraphicsApi, WgpuDevice, init_setup_async,
+    };
 
     /// The device every cubecl runtime shares; which runtime it names is a
     /// property of the value, not of its type, and [`RuntimeId`] is how that

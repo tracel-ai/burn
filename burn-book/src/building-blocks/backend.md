@@ -84,25 +84,29 @@ let model = model.to_device(&gpu);
 
 ## Autodiff and Execution
 
-Automatic differentiation is a device capability. Calling `autodiff` returns a device that records
-the operations required for backpropagation:
+Automatic differentiation is configured on a device. Tensors created on an autodiff device inherit
+that context and can later change it independently. Calling `autodiff` returns such a device:
 
 ```rust, ignore
 let device = Device::wgpu(Default::default());
 let training_device = device.autodiff();
 
 assert!(training_device.is_autodiff());
-let inference_device = training_device.inner();
+let inference_device = training_device.without_autodiff();
 assert!(!inference_device.is_autodiff());
 ```
 
-`gradient_checkpointing` adds gradient checkpointing to an autodiff device. The following methods
-are also useful when coordinating execution:
+`autodiff()` and `without_autodiff()` are idempotent. The historical `inner()` method is equivalent
+to `without_autodiff()`. Chain `autodiff().gradient_checkpointing()` to enable autodiff with the
+balanced checkpointing strategy.
+
+The following methods are also useful when coordinating execution:
 
 - `seed(seed)` seeds random operations on the device.
 - `sync()` waits for queued work and reports an execution error if one occurred.
 - `flush()` submits queued work without waiting for completion.
-- `is_autodiff()` reports whether gradient tracking is enabled.
+- `is_autodiff()` reports whether autodiff is associated with the device.
+- `gradient_checkpointing_strategy()` returns the active strategy, or `None` without autodiff.
 - `supports_dtype(dtype)` reports whether the device supports a dtype.
 - `memory_cleanup()` asks the backend to release unused cached allocations.
 

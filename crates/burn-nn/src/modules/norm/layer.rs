@@ -10,6 +10,7 @@ use burn::module::Param;
 use burn::tensor::Device;
 use burn::tensor::FloatDType;
 use burn::tensor::Tensor;
+use burn::tensor::assert_shape;
 use burn::tensor::module::layer_norm;
 
 use super::accumulation_dtype;
@@ -76,8 +77,14 @@ impl LayerNorm {
     ///
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `input` is not `d_model`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let gamma = self.gamma.val();
+        let [d_model] = gamma.dims();
+        assert_shape!(input, [.., d_model]);
         let beta = self.beta.as_ref().map(|b| b.val());
 
         // Widen when the input dtype cannot hold the sum of squares the
@@ -122,6 +129,14 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(input, [.., d_model]): axis 1 expected 10, got 3")]
+    fn input_d_model_must_match() {
+        let device = Default::default();
+        let module = LayerNormConfig::new(10).init(&device);
+        let _ = module.forward(Tensor::<2>::zeros([1, 3], &device));
+    }
 
     #[test]
     fn layer_norm_forward() {

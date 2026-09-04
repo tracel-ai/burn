@@ -5,7 +5,7 @@ use burn::config::Config;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::module::linear;
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, Tensor, assert_shape};
 
 /// Configuration to create a [`Linear`] layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
@@ -126,12 +126,16 @@ impl Linear {
     /// # Returns
     ///
     /// The transformed tensor of shape `[..., d_output]`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `input` is not `d_input`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        linear(
-            input,
-            self.weight.val(),
-            self.bias.as_ref().map(|b| b.val()),
-        )
+        let weight = self.weight.val();
+        let [d_input, _] = weight.dims();
+        assert_shape!(input, [.., d_input]);
+
+        linear(input, weight, self.bias.as_ref().map(|b| b.val()))
     }
 }
 
@@ -161,6 +165,14 @@ mod tests {
     use burn::tensor::Tolerance;
     use burn::tensor::{Shape, TensorData};
     type FT = f32;
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(input, [.., d_input]): axis 1 expected 4, got 3")]
+    fn input_d_input_must_match() {
+        let device = Default::default();
+        let linear = LinearConfig::new(4, 2).init(&device);
+        let _ = linear.forward(Tensor::<2>::zeros([1, 3], &device));
+    }
 
     #[test]
     fn initializer_default() {

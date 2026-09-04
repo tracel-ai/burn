@@ -17,10 +17,11 @@ pub(crate) fn handle_command(
     // it is always available on the CI runners.
     set_burn_device("flex");
 
-    if args.get_command() == DocSubCommand::Build {
-        args.exclude
-            .extend(vec!["burn-cuda".to_string(), "burn-rocm".to_string()]);
-    }
+    // Neither backend can link on the portable documentation runner. This also applies to
+    // doctests: workspace feature unification would otherwise enable the HIP/CUDA runtime in
+    // shared crates and make their doctest binaries link against unavailable system libraries.
+    args.exclude
+        .extend(vec!["burn-cuda".to_string(), "burn-rocm".to_string()]);
 
     // Execute documentation command on workspace
     base_commands::doc::handle_command(args.clone(), env, ctx)?;
