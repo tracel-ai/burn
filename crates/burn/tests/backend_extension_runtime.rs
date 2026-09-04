@@ -216,7 +216,10 @@ mod checkpoint_strategy_routing {
             let output = Tensor::<1>::from_dispatch(output);
 
             assert_eq!(EXECUTED_STRATEGY.load(Ordering::SeqCst), expected);
-            assert_eq!(output.device().gradient_checkpointing_strategy(), strategy);
+            assert_eq!(
+                output.device().gradient_checkpointing_strategy(),
+                Some(strategy)
+            );
         }
     }
 
@@ -230,7 +233,10 @@ mod checkpoint_strategy_routing {
 
         let output = <Dispatch as StrategyBackend>::add(lhs.into_dispatch(), rhs.into_dispatch());
         let output = Tensor::<1>::from_dispatch(output);
-        assert_eq!(output.device().gradient_checkpointing_strategy(), strategy);
+        assert_eq!(
+            output.device().gradient_checkpointing_strategy(),
+            Some(strategy)
+        );
         output
             .into_data()
             .assert_eq(&burn::tensor::TensorData::from([3.0f32]), true);
@@ -317,7 +323,7 @@ mod extension_context_contract {
 
         assert_eq!(
             output.device().gradient_checkpointing_strategy(),
-            GradientCheckpointingStrategy::Balanced
+            Some(GradientCheckpointingStrategy::Balanced)
         );
     }
 
@@ -334,7 +340,7 @@ mod extension_context_contract {
 
         assert_eq!(
             output.device().gradient_checkpointing_strategy(),
-            GradientCheckpointingStrategy::Balanced
+            Some(GradientCheckpointingStrategy::Balanced)
         );
     }
 

@@ -1594,7 +1594,21 @@ where
         K::device(&self.primitive)
     }
 
-    /// Move the tensor to the given device.
+    /// Moves the tensor to the target device's compute resource.
+    ///
+    /// Autodiff is tensor context as well as device metadata, so the returned tensor isn't
+    /// guaranteed to adopt the target device's autodiff setting. In particular, moving a
+    /// floating-point tensor without autodiff to an autodiff device keeps the tensor outside
+    /// autodiff. Inspect that state with [`is_autodiff`](Tensor::is_autodiff), and change it
+    /// explicitly with [`autodiff`](Tensor::autodiff) or
+    /// [`without_autodiff`](Tensor::without_autodiff).
+    ///
+    /// # Panics
+    ///
+    /// Panics when the backend doesn't support the requested transfer. Autodiff tensors currently
+    /// can't be moved between different backend implementations; remove their autodiff association
+    /// before such a transfer and enable it again afterwards.
+    #[must_use]
     pub fn to_device(self, device: &Device) -> Self {
         Self::new(K::to_device(self.primitive, device))
     }

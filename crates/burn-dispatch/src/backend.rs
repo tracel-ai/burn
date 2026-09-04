@@ -97,6 +97,26 @@ macro_rules! graph_replay_arms {
 }
 
 #[cfg(feature = "autodiff")]
+macro_rules! is_tracked_arms {
+    ($tensor:expr; $([$Backend:ident, $cfg:meta]),*) => {
+        match &$tensor.kind {
+            DispatchTensorKind::Autodiff(inner) => match &**inner {
+                $(
+                    #[cfg($cfg)]
+                    DispatchTensorKind::$Backend(tensor) => tensor.as_autodiff().is_tracked(),
+                )*
+                DispatchTensorKind::Autodiff(_) => {
+                    unreachable!("Autodiff should not wrap an autodiff tensor")
+                }
+                #[allow(unreachable_patterns)]
+                _ => false,
+            },
+            _ => false,
+        }
+    };
+}
+
+#[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
@@ -143,6 +163,15 @@ use crate::{DispatchDevice, DispatchTensor, backends::*};
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct Dispatch;
+
+#[cfg(feature = "autodiff")]
+impl Dispatch {
+    /// Returns whether an autodiff tensor participates in a recorded graph.
+    #[doc(hidden)]
+    pub fn is_tracked(tensor: &DispatchTensor) -> bool {
+        backend_list!(is_tracked_arms, tensor)
+    }
+}
 
 impl BackendTypes for Dispatch {
     type Device = DispatchDevice;
