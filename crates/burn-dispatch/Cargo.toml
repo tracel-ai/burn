@@ -22,6 +22,7 @@ default = [
     "std",
     "burn-autodiff?/default",
     "burn-cpu?/default",
+    "burn-cubecl?/default",
     "burn-cuda?/default",
     "burn-flex/default",
     "burn-ndarray?/default",
@@ -34,6 +35,7 @@ std = [
     "burn-backend/std",
     "burn-autodiff?/std",
     "burn-cpu?/std",
+    "burn-cubecl?/std",
     "burn-cuda?/std",
     "burn-flex/std",
     "burn-ndarray?/std",
@@ -44,6 +46,7 @@ std = [
 tracing = [
     "burn-autodiff?/tracing",
     "burn-cpu?/tracing",
+    "burn-cubecl?/tracing",
     "burn-cuda?/tracing",
     "burn-flex/tracing",
     "burn-ndarray?/tracing",
@@ -53,7 +56,7 @@ tracing = [
 ]
 
 # Enables cubecl-facing APIs (e.g. throughput measurement) on cubecl-backed devices.
-cubecl = ["burn-backend/cubecl"]
+cubecl = ["dep:burn-cubecl", "burn-backend/cubecl"]
 
 # Backends
 cuda = ["burn-cuda", "cubecl"]
@@ -121,6 +124,8 @@ burn-backend-extension = { workspace = true }
 # Backends
 burn-autodiff = { workspace = true, optional = true }
 burn-cpu = { workspace = true, optional = true }
+# The one cubecl backend the runtime-specific crates above all alias.
+burn-cubecl = { workspace = true, optional = true }
 burn-cuda = { workspace = true, optional = true }
 burn-flex = { workspace = true }
 burn-ndarray = { workspace = true, optional = true }

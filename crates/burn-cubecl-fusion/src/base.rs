@@ -6,17 +6,15 @@ use burn_std::{
 };
 use cubecl::quant::scheme::{QuantScheme, ScaleDtype};
 use cubecl::{
-    Runtime,
-    client::ComputeClient,
+    client::Client,
     ir::AddressType,
     prelude::{TensorArg, TensorBinding},
 };
-use std::marker::PhantomData;
 
 /// Defines a fallback operation when fusion isn't possible.
-pub trait FallbackOperation<R: Runtime>: Send + Sync {
+pub trait FallbackOperation: Send + Sync {
     /// Executes the fallback procedure.
-    fn run(&self, context: &mut Context<CubeFusionHandle<R>>);
+    fn run(&self, context: &mut Context<CubeFusionHandle>);
 }
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
@@ -24,13 +22,13 @@ pub trait FallbackOperation<R: Runtime>: Send + Sync {
 pub type QParams = burn_std::quantization::QParams<QParamTensor>;
 
 /// Handle to be used when fusing operations.
-pub struct CubeFusionHandle<R: Runtime> {
+pub struct CubeFusionHandle {
     /// Compute client for jit.
-    pub client: ComputeClient<R>,
+    pub client: Client,
     /// The buffer where the data are stored.
     pub handle: cubecl::server::Handle,
     /// The device of the current tensor.
-    pub device: R::Device,
+    pub device: cubecl::Device,
     /// The element type of the tensor.
     pub dtype: DType,
     /// The strides of the tensor.
@@ -39,17 +37,17 @@ pub struct CubeFusionHandle<R: Runtime> {
     pub qparams: Option<QParams>,
 }
 
-impl<R: Runtime> core::fmt::Debug for CubeFusionHandle<R> {
+impl core::fmt::Debug for CubeFusionHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "CubeFusionHandle {{ device: {:?}, runtime: {}}}",
             self.device,
-            R::name(&self.client),
+            self.client.name(),
         ))
     }
 }
 
-impl<R: Runtime> Clone for CubeFusionHandle<R> {
+impl Clone for CubeFusionHandle {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -62,17 +60,16 @@ impl<R: Runtime> Clone for CubeFusionHandle<R> {
     }
 }
 
-unsafe impl<R: Runtime> Send for CubeFusionHandle<R> {}
-unsafe impl<R: Runtime> Sync for CubeFusionHandle<R> {}
+unsafe impl Send for CubeFusionHandle {}
+unsafe impl Sync for CubeFusionHandle {}
 
-impl<R: Runtime> CubeFusionHandle<R> {
+impl CubeFusionHandle {
     /// Return the reference to a tensor handle.
-    pub fn binding(self, shape: Shape) -> TensorBinding<R> {
+    pub fn binding(self, shape: Shape) -> TensorBinding {
         TensorBinding {
             handle: self.handle.binding(),
             strides: self.strides.clone(),
             shape,
-            runtime: PhantomData,
         }
     }
 
@@ -87,7 +84,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
     }
 
     /// Return the reference to a tensor argument.
-    pub fn into_tensor_arg(self, shape: Shape) -> TensorArg<R> {
+    pub fn into_tensor_arg(self, shape: Shape) -> TensorArg {
         let handle = self.binding(shape);
         handle.into_tensor_arg()
     }

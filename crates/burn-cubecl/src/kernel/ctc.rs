@@ -1,9 +1,7 @@
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::prelude::*;
 
-use crate::{
-    CubeRuntime, kernel::into_contiguous, ops::numeric::empty_device_dtype, tensor::CubeTensor,
-};
+use crate::{kernel::into_contiguous, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{Shape, TensorMetadata};
 
 /// Maximum `2 * max_target_len + 1` the kernel supports. The alpha/beta state is
@@ -282,13 +280,13 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
 /// alpha recursion across all timesteps.
 ///
 /// Panics if `2 * max_target_len + 1` exceeds `SHARED_ALPHA_CAPACITY` (8192).
-pub fn ctc_loss<R: CubeRuntime>(
-    log_probs: CubeTensor<R>,
-    targets: CubeTensor<R>,
-    input_lengths: CubeTensor<R>,
-    target_lengths: CubeTensor<R>,
+pub fn ctc_loss(
+    log_probs: CubeTensor,
+    targets: CubeTensor,
+    input_lengths: CubeTensor,
+    target_lengths: CubeTensor,
     blank: usize,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     // Manual stride indexing below requires a contiguous physical layout;
     // fusion-produced tensors may arrive with layouts that break that
     // assumption. No-op when already contiguous.
@@ -320,7 +318,7 @@ pub fn ctc_loss<R: CubeRuntime>(
     let device = log_probs.device.clone();
     let f_dtype = log_probs.dtype;
     let i_dtype = targets.dtype;
-    let output = empty_device_dtype::<R>(client.clone(), device, Shape::new([batch_size]), f_dtype);
+    let output = empty_device_dtype(client.clone(), device, Shape::new([batch_size]), f_dtype);
 
     let cube_count = CubeCount::Static(batch_size as u32, 1, 1);
     let cube_dim = CubeDim::new_1d(cube_dim_x);
@@ -331,7 +329,7 @@ pub fn ctc_loss<R: CubeRuntime>(
     // Apple GPUs. Different max_l_prime values trigger separate kernel
     // compilations (it's a comptime param), but that's fine: target lengths
     // are stable within a dataset.
-    ctc_loss_kernel::launch::<R>(
+    ctc_loss_kernel::launch(
         &client,
         cube_count,
         cube_dim,
@@ -585,13 +583,13 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
 /// pre-fill value `-inf`, matching the default backend's convention.
 ///
 /// Panics if `2 * max_target_len + 1` exceeds `SHARED_ALPHA_CAPACITY`.
-pub fn ctc_alpha_beta<R: CubeRuntime>(
-    log_probs: CubeTensor<R>,
-    targets: CubeTensor<R>,
-    input_lengths: CubeTensor<R>,
-    target_lengths: CubeTensor<R>,
+pub fn ctc_alpha_beta(
+    log_probs: CubeTensor,
+    targets: CubeTensor,
+    input_lengths: CubeTensor,
+    target_lengths: CubeTensor,
     blank: usize,
-) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
+) -> (CubeTensor, CubeTensor, CubeTensor) {
     // Manual stride indexing below requires a contiguous physical layout;
     // fusion-produced tensors may arrive with layouts that break that
     // assumption. No-op when already contiguous.
@@ -627,27 +625,26 @@ pub fn ctc_alpha_beta<R: CubeRuntime>(
     // element) are not read as stale zeros by the gradient composition.
     let shape_abt = Shape::new([max_input_length, batch_size, max_l_prime]);
     let neg_inf = InputScalar::new(f32::NEG_INFINITY, dtype_to_storage_type(f_dtype));
-    let alpha_out = crate::ops::numeric::full_device_dtype::<R>(
+    let alpha_out = crate::ops::numeric::full_device_dtype(
         client.clone(),
         shape_abt.clone(),
         device.clone(),
         neg_inf,
         f_dtype,
     );
-    let beta_out = crate::ops::numeric::full_device_dtype::<R>(
+    let beta_out = crate::ops::numeric::full_device_dtype(
         client.clone(),
         shape_abt,
         device.clone(),
         neg_inf,
         f_dtype,
     );
-    let nll_out =
-        empty_device_dtype::<R>(client.clone(), device, Shape::new([batch_size]), f_dtype);
+    let nll_out = empty_device_dtype(client.clone(), device, Shape::new([batch_size]), f_dtype);
 
     let cube_count = CubeCount::Static(batch_size as u32, 1, 1);
     let cube_dim = CubeDim::new_1d(cube_dim_x);
 
-    ctc_alpha_beta_kernel::launch::<R>(
+    ctc_alpha_beta_kernel::launch(
         &client,
         cube_count,
         cube_dim,

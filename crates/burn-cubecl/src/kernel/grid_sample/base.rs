@@ -1,16 +1,12 @@
 use cubecl::prelude::*;
 
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::tensor::CubeTensor;
 use burn_backend::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
 
 use super::bilinear::grid_sample_bilinear_launch;
 
 /// Grid sample operation supporting bilinear interpolation
-pub fn grid_sample<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    grid: CubeTensor<R>,
-    options: GridSampleOptions,
-) -> CubeTensor<R> {
+pub fn grid_sample(input: CubeTensor, grid: CubeTensor, options: GridSampleOptions) -> CubeTensor {
     match options.mode {
         InterpolateMode::Bilinear => grid_sample_bilinear_launch(input, grid, options),
         _ => panic!(

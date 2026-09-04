@@ -10,35 +10,29 @@ use crate::{
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{Runtime, client::ComputeClient};
-use std::marker::PhantomData;
+use cubecl::client::Client;
 
 /// The launcher is responsible to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
 ///
 /// TODO: We can reuse the same launcher between runs and avoid a lot of allocation, by simply
 /// resetting the state.
-pub struct FuseTraceLauncher<'a, R: Runtime, Runner: TraceRunner<R>> {
+pub struct FuseTraceLauncher<'a, Runner: TraceRunner> {
     trace: &'a FuseTrace,
     runner: &'a Runner,
-    _runtime: PhantomData<R>,
 }
 
-impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
+impl<'a, Runner: TraceRunner> FuseTraceLauncher<'a, Runner> {
     /// Creates a new launcher.
     pub fn new(trace: &'a FuseTrace, runner: &'a Runner) -> Self {
-        Self {
-            trace,
-            runner,
-            _runtime: PhantomData,
-        }
+        Self { trace, runner }
     }
     /// Launches the fuse kernel on the given device modifying the context.
     pub fn launch(
         &self,
-        client: &ComputeClient<R>,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
+        client: &Client,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+    ) -> Result<TuneOutput, TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::new(&self.trace.blocks);
 
         InputPlanner::new(&self.trace.resources, &self.trace.blocks).run(context, &mut plan);
@@ -69,9 +63,9 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
 
     fn rollback(
         &self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        handle_inputs: Vec<HandleInput<R>>,
-        handle_outputs: Vec<HandleOutput<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        handle_inputs: Vec<HandleInput>,
+        handle_outputs: Vec<HandleOutput>,
     ) {
         for input in handle_inputs {
             match input {

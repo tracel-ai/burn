@@ -4,12 +4,8 @@ use crate::engine::{
 };
 use burn_ir::{TensorId, TensorIr};
 use burn_std::{Shape, Strides};
-use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashSet},
-    marker::PhantomData,
-};
+use std::collections::{BTreeMap, HashSet};
 
 #[cfg(feature = "autotune-checks")]
 use crate::CubeFusionHandle;
@@ -62,24 +58,24 @@ impl core::fmt::Display for FuseTrace {
     }
 }
 
-pub enum TuneOutput<R: Runtime> {
-    UnChecked(PhantomData<R>),
+pub enum TuneOutput {
+    UnChecked,
     #[cfg(feature = "autotune-checks")]
     Checked {
-        handles: HashMap<TensorId, (Shape, CubeFusionHandle<R>)>,
+        handles: HashMap<TensorId, (Shape, CubeFusionHandle)>,
     },
 }
 
-impl<R: Runtime> TuneOutput<R> {
+impl TuneOutput {
     #[allow(unused_variables)]
     pub fn merge(self, other: Self) -> Self {
         let mut result = self;
 
         match &mut result {
-            TuneOutput::UnChecked(..) => {}
+            TuneOutput::UnChecked => {}
             #[cfg(feature = "autotune-checks")]
             TuneOutput::Checked { handles } => match other {
-                TuneOutput::UnChecked(..) => {}
+                TuneOutput::UnChecked => {}
                 TuneOutput::Checked { handles: o } => {
                     for (k, v) in o.into_iter() {
                         handles.insert(k, v);
@@ -92,7 +88,7 @@ impl<R: Runtime> TuneOutput<R> {
     }
 }
 
-impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
+impl cubecl::tune::AutotuneOutput for TuneOutput {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
         use burn_backend::Tolerance;
@@ -114,7 +110,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                     use cubecl::std::tensor::into_contiguous;
 
                     let current_handle = if !is_contiguous(shape, &handle.strides) {
-                        into_contiguous::<R>(
+                        into_contiguous(
                             &handle.client,
                             handle.clone().binding(shape.clone()),
                             dtype_to_storage_type(handle.dtype),
@@ -124,7 +120,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                         handle.handle.clone()
                     };
                     let other_handle = if !is_contiguous(shape, &other.strides) {
-                        into_contiguous::<R>(
+                        into_contiguous(
                             &other.client,
                             other.clone().binding(shape.clone()),
                             dtype_to_storage_type(other.dtype),

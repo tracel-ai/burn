@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -223,10 +222,7 @@ pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
     );
 }
 
-pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn launch_binop<O: BinaryOpFamily>(lhs: CubeTensor, rhs: CubeTensor) -> CubeTensor {
     let vector_size_lhs = max_vector_size(&lhs);
     let vector_size_rhs = max_vector_size(&rhs);
     let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
@@ -249,7 +245,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -263,7 +259,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -280,7 +276,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
             let output =
                 empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
 
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -297,10 +293,10 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
     }
 }
 
-pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
-    tensor: CubeTensor<R>,
+pub(crate) fn launch_scalar_binop<O: BinaryOpFamily>(
+    tensor: CubeTensor,
     scalar: InputScalar,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     // Vectorization is only enabled when the last dimension is contiguous.
     let vector_size = max_vector_size(&tensor);
     let client = tensor.client.clone();
@@ -313,7 +309,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
     unsafe {
         if tensor.can_mut() && tensor.is_nonoverlapping() {
-            kernel_scalar_binop::launch_unchecked::<O, R>(
+            kernel_scalar_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -334,7 +330,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 dtype,
             );
 
-            kernel_scalar_binop::launch_unchecked::<O, R>(
+            kernel_scalar_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,

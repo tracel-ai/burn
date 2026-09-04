@@ -13,14 +13,6 @@ pub use burn_cubecl::{BoolElement, FloatElement, IntElement};
 pub use burn_cubecl::{CubeBackend, tensor::CubeTensor};
 pub use cubecl::CubeDim;
 pub use cubecl::flex32;
-use cubecl::throughput::{ThroughputError, ThroughputKey, ThroughputValue};
-
-#[cfg(feature = "metal")]
-use cubecl::wgpu::MslCompiler;
-#[cfg(feature = "vulkan")]
-use cubecl::wgpu::SpirvCompiler;
-#[cfg(feature = "webgpu")]
-use cubecl::wgpu::WgslCompiler;
 
 pub use cubecl::wgpu::{
     AutoCompiler, MemoryConfiguration, RuntimeOptions, WgpuDevice, WgpuResource, WgpuRuntime,
@@ -32,10 +24,10 @@ pub mod graphics {
 }
 
 #[cfg(feature = "fusion")]
-type WgpuInner<C> = burn_fusion::Fusion<CubeBackend<cubecl::wgpu::WgpuRuntime<C>>>;
+type WgpuInner = burn_fusion::Fusion<CubeBackend>;
 
 #[cfg(not(feature = "fusion"))]
-type WgpuInner<C> = CubeBackend<cubecl::wgpu::WgpuRuntime<C>>;
+type WgpuInner = CubeBackend;
 
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
 ///
@@ -47,10 +39,9 @@ type WgpuInner<C> = CubeBackend<cubecl::wgpu::WgpuRuntime<C>>;
 ///   - [WebGPU](crate::graphics::WebGpu) on supported browsers and `wasm` runtimes.
 ///
 /// The selected graphics API is chosen automatically at runtime, and the appropriate shader
-/// compiler (WGSL, SPIR-V or MSL) is dispatched via [`AutoCompiler`]. When the target API is
-/// known ahead of time, prefer the dedicated `Vulkan`, `WebGpu` or `Metal` backend aliases
-/// (enabled by their respective Cargo features), which lock the compiler at compile time and
-/// avoid the runtime dispatch.
+/// compiler (WGSL, SPIR-V or MSL) is dispatched via [`AutoCompiler`]. The `Vulkan`, `WebGpu`
+/// and `Metal` aliases name the same backend; the compiler is a runtime choice, not a
+/// compile-time one.
 ///
 /// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
 /// you have to manually initialize the runtime. For example:
@@ -73,42 +64,29 @@ type WgpuInner<C> = CubeBackend<cubecl::wgpu::WgpuRuntime<C>>;
 /// compile and optimize streams of tensor operations for improved performance. You can disable
 /// the `fusion` feature flag to remove that functionality, which might be necessary on `wasm`
 /// for now.
-pub type Wgpu = WgpuInner<AutoCompiler>;
-
-/// Measure peak throughput on a wgpu `device` for each of the given `keys`.
-///
-/// Uses the auto-selected shader compiler, matching the default [`Wgpu`] backend.
-pub fn device_throughput(
-    device: &WgpuDevice,
-    keys: &[ThroughputKey],
-) -> alloc::vec::Vec<Result<ThroughputValue, ThroughputError>> {
-    cubecl::std::throughput::device_throughput::<cubecl::wgpu::WgpuRuntime<AutoCompiler>>(
-        device, keys,
-    )
-}
+pub type Wgpu = WgpuInner;
 
 /// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.
 ///
-/// This is a specialization of [`Wgpu`] that pins the shader compiler to SPIR-V at compile time,
-/// removing the runtime [`AutoCompiler`] dispatch. Enable the `vulkan` feature to use it.
-/// Multiple wgpu backend aliases (`Vulkan`, `WebGpu`, `Metal`) can be enabled simultaneously
-/// since each is a distinct type parameterized by its own compiler.
+/// An alias of [`Wgpu`] kept for the name: a backend no longer carries its
+/// runtime, so the shader compiler is chosen by [`AutoCompiler`] from the
+/// features the build enables rather than by which alias is named here.
 #[cfg(feature = "vulkan")]
-pub type Vulkan = WgpuInner<SpirvCompiler>;
+pub type Vulkan = WgpuInner;
 
 /// Tensor backend that uses the wgpu crate to execute GPU compute shaders written in WGSL.
 ///
-/// This is a specialization of [`Wgpu`] that pins the shader compiler to WGSL at compile time,
-/// removing the runtime [`AutoCompiler`] dispatch. Enable the `webgpu` feature to use it.
+/// An alias of [`Wgpu`]; see [`Vulkan`] for why the compiler is no longer part
+/// of the type.
 #[cfg(feature = "webgpu")]
-pub type WebGpu = WgpuInner<WgslCompiler>;
+pub type WebGpu = WgpuInner;
 
 /// Tensor backend that leverages the Metal graphics API to execute GPU compute shaders compiled to MSL.
 ///
-/// This is a specialization of [`Wgpu`] that pins the shader compiler to MSL at compile time,
-/// removing the runtime [`AutoCompiler`] dispatch. Enable the `metal` feature to use it.
+/// An alias of [`Wgpu`]; see [`Vulkan`] for why the compiler is no longer part
+/// of the type.
 #[cfg(feature = "metal")]
-pub type Metal = WgpuInner<MslCompiler>;
+pub type Metal = WgpuInner;
 
 #[cfg(test)]
 mod tests {
@@ -118,7 +96,7 @@ mod tests {
     #[test]
     fn should_support_dtypes() {
         type B = Wgpu;
-        let device = WgpuDevice::default();
+        let device = cubecl::Device::Wgpu(WgpuDevice::default());
         let scheme = device.defaults().quantization.scheme;
 
         assert!(B::supports_dtype(&device, DType::F32));

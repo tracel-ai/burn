@@ -7,7 +7,6 @@ use cubecl::{
 };
 
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -52,13 +51,13 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    mask: CubeTensor<R>,
-    value: CubeTensor<R>,
+pub fn mask_where(
+    input: CubeTensor,
+    mask: CubeTensor,
+    value: CubeTensor,
     strategy: MaskWhereStrategy,
     dtype_bool: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let vector_size = max_vector_size_many(&[&input, &mask, &value], input.meta.num_dims() - 1);
 
     let working_units = input.meta.num_elements() / vector_size as usize;

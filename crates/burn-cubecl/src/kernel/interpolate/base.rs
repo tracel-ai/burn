@@ -1,7 +1,6 @@
 #[cfg(feature = "autotune")]
 use crate::kernel::interpolate::interpolate_autotune;
 use crate::{
-    CubeRuntime,
     kernel::into_contiguous,
     ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
@@ -46,12 +45,12 @@ impl Default for InterpolateStrategy {
 /// Interpolate operation
 ///
 /// Supports nearest, bilinear, bicubic and lanczos3 modes
-pub fn interpolate<R: CubeRuntime>(
-    input: CubeTensor<R>,
+pub fn interpolate(
+    input: CubeTensor,
     output_size: [usize; 2],
     options: InterpolateOptions,
     strategy: InterpolateStrategy,
-) -> Result<CubeTensor<R>, InterpolateError> {
+) -> Result<CubeTensor, InterpolateError> {
     match strategy {
         InterpolateStrategy::Specific(strategy) => {
             execute_interpolate(input, output_size, options, strategy)
@@ -63,12 +62,12 @@ pub fn interpolate<R: CubeRuntime>(
 
 /// Execute interpolation with the given strategy, without autotuning. This is used by the
 /// autotune implementation to run each candidate strategy.
-pub fn execute_interpolate<R: CubeRuntime>(
-    input: CubeTensor<R>,
+pub fn execute_interpolate(
+    input: CubeTensor,
     output_size: [usize; 2],
     options: InterpolateOptions,
     strategy: CubekInterpolateStrategy,
-) -> Result<CubeTensor<R>, InterpolateError> {
+) -> Result<CubeTensor, InterpolateError> {
     let [batch_size, channels, _, _] = input.meta.shape().dims();
     let [out_height, out_width] = output_size;
 
@@ -97,12 +96,12 @@ pub fn execute_interpolate<R: CubeRuntime>(
 /// Backward interpolate operation
 ///
 /// Note: only nearest mode is supported
-pub fn interpolate_backward<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    out_grad: CubeTensor<R>,
+pub fn interpolate_backward(
+    input: CubeTensor,
+    out_grad: CubeTensor,
     _output_size: [usize; 2],
     options: InterpolateOptions,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let input = permute_nchw_to_nhwc(input);
     let out_grad = permute_nchw_to_nhwc(out_grad);
 

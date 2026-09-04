@@ -7,7 +7,6 @@ use cubecl::{
 };
 
 use crate::{
-    CubeRuntime,
     kernel::utils::address_type,
     ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -46,13 +45,13 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    mask: CubeTensor<R>,
+pub fn mask_fill(
+    input: CubeTensor,
+    mask: CubeTensor,
     value: InputScalar,
     strategy: MaskFillStrategy,
     dtype_bool: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let ndims = input.meta.num_dims();
     let output = match strategy {
         MaskFillStrategy::Readonly => empty_device_dtype(

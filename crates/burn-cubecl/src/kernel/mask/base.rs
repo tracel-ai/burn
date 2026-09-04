@@ -2,15 +2,15 @@ use burn_backend::DType;
 use cubecl::prelude::InputScalar;
 
 use super::{MaskFillStrategy, mask_where::MaskWhereStrategy};
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::tensor::CubeTensor;
 
 /// Execute the mask fill kernel.
-pub(crate) fn mask_fill_auto<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    mask: CubeTensor<R>,
+pub(crate) fn mask_fill_auto(
+    tensor: CubeTensor,
+    mask: CubeTensor,
     value: InputScalar,
     dtype_bool: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let strategy = if tensor.can_mut() && tensor.is_nonoverlapping() {
         MaskFillStrategy::Inplace
     } else {
@@ -21,12 +21,12 @@ pub(crate) fn mask_fill_auto<R: CubeRuntime>(
 }
 
 /// Execute the mask where kernel.
-pub(crate) fn mask_where_auto<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    mask: CubeTensor<R>,
-    value: CubeTensor<R>,
+pub(crate) fn mask_where_auto(
+    tensor: CubeTensor,
+    mask: CubeTensor,
+    value: CubeTensor,
     dtype_bool: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let strategy = if tensor.can_mut_broadcast(&value) {
         MaskWhereStrategy::InplaceLhs
     } else if value.can_mut_broadcast(&tensor) {

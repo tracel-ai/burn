@@ -49,6 +49,10 @@ macro_rules! dispatch_distributed_devices_arms {
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
+                            // In a build with only one dispatch variant compiled in, the
+                            // pattern is irrefutable and the else clause is dead — which is
+                            // the point: it only guards the multi-backend builds.
+                            #[allow(irrefutable_let_patterns)]
                             let DispatchDevice::$Backend(dev) = d else {
                                 unreachable!("All devices are expected to be of the same variant.")
                             };
@@ -58,6 +62,7 @@ macro_rules! dispatch_distributed_devices_arms {
                     $body
                 }
             )*
+            #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };
@@ -76,6 +81,10 @@ macro_rules! dispatch_distributed_devices_arms {
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
+                            // In a build with only one dispatch variant compiled in, the
+                            // pattern is irrefutable and the else clause is dead — which is
+                            // the point: it only guards the multi-backend builds.
+                            #[allow(irrefutable_let_patterns)]
                             let DispatchDevice::$Backend(dev) = d else {
                                 unreachable!("All devices are expected to be of the same variant.")
                             };
@@ -86,6 +95,7 @@ macro_rules! dispatch_distributed_devices_arms {
                 }
             )*
             $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device."),
+            #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };

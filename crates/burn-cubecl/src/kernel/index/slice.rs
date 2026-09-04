@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
@@ -15,7 +14,7 @@ use cubecl::{
 use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
-pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) -> CubeTensor<R> {
+pub fn slice(tensor: CubeTensor, indices: &[Range<usize>]) -> CubeTensor {
     let mut dims = tensor.shape();
     let mut offset_start = 0u64;
     let mut offset_end = 0u64;
@@ -89,13 +88,13 @@ fn slice_kernel<E: Numeric>(
     output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
-pub(crate) fn slice_on_output<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    output: CubeTensor<R>,
+pub(crate) fn slice_on_output(
+    tensor: CubeTensor,
+    output: CubeTensor,
     indices: &[Range<usize>],
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let ndims = tensor.meta.num_dims();
-    let mut indices_sequence = SequenceArg::<R, usize>::new();
+    let mut indices_sequence = SequenceArg::<usize>::new();
 
     for i in 0..ndims {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
@@ -172,7 +171,7 @@ fn slice_with_steps_kernel<E: Numeric>(
 }
 
 /// Slice a tensor with steps
-pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice]) -> CubeTensor<R> {
+pub fn slice_with_steps(tensor: CubeTensor, slices: &[Slice]) -> CubeTensor {
     // Check if all steps are 1 - if so, use the optimized regular slice
     let all_steps_one = slices.iter().all(|info| info.step == 1);
 
@@ -198,9 +197,9 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
     );
 
     // Prepare three separate sequences for kernel
-    let mut starts = SequenceArg::<R, usize>::new();
-    let mut ends = SequenceArg::<R, usize>::new();
-    let mut steps = SequenceArg::<R, i32>::new();
+    let mut starts = SequenceArg::<usize>::new();
+    let mut ends = SequenceArg::<usize>::new();
+    let mut steps = SequenceArg::<i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
         let range = slice.to_range(tensor.meta.shape()[dim]);

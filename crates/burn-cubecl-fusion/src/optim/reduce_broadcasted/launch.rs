@@ -8,7 +8,6 @@ use crate::{
     },
 };
 use cubecl::{
-    Runtime,
     ir::{ElemType, FloatKind},
     prelude::*,
     server::LaunchError,
@@ -40,16 +39,16 @@ pub struct FusedReduceBroadcastedLaunch<'a> {
     _strategy: RoutineStrategy,
 }
 
-impl<R: Runtime> Vectorization<R> for FusedReduceBroadcastedLaunch<'_> {}
+impl Vectorization for FusedReduceBroadcastedLaunch<'_> {}
 
-impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
+impl TraceRunner for FusedReduceBroadcastedLaunch<'_> {
     type Error = LaunchError;
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a Client,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), Self::Error> {
         let routine = UnitRoutine;
@@ -69,7 +68,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             .max(outputs.required_address_type());
 
         let (blueprint, settings) = routine
-            .prepare::<R>(
+            .prepare(
                 client,
                 ReduceProblem {
                     reduce_len,
@@ -136,7 +135,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         // TODO: Ensure parallel is selected.
 
         unsafe {
-            reduce_kernel_broadcasted::launch_unchecked::<R>(
+            reduce_kernel_broadcasted::launch_unchecked(
                 client,
                 settings.cube_count,
                 settings.cube_dim,

@@ -7,27 +7,20 @@ use crate::engine::trace::{FuseResources, RegisterTensor, TensorView};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use burn_std::quantization::params_shape;
-use cubecl::Runtime;
-use std::marker::PhantomData;
 
 /// Fetch and register [input handles](HandleInput). Also identifies potential inputs that
 /// can be used inplace and/or as the [reference layout](crate::engine::codegen::ir::RefLayout).
-pub struct InputPlanner<'a, R: Runtime> {
+pub struct InputPlanner<'a> {
     resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
-    _r: PhantomData<R>,
 }
 
-impl<'a, R: Runtime> InputPlanner<'a, R> {
+impl<'a> InputPlanner<'a> {
     pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
-        Self {
-            resources,
-            blocks,
-            _r: PhantomData,
-        }
+        Self { resources, blocks }
     }
 
-    pub fn run(self, context: &mut Context<CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
+    pub fn run(self, context: &mut Context<CubeFusionHandle>, plan: &mut LaunchPlan<'a>) {
         for (pos, input) in self.resources.inputs.iter().enumerate() {
             match input {
                 RegisterTensor::Normal(tensor_relative, precision) => {
@@ -107,10 +100,10 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
     fn analyze(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<'a>,
         pos: usize,
         tensor_relative: &'a TensorIr,
-        handle: &CubeFusionHandle<R>,
+        handle: &CubeFusionHandle,
     ) {
         if !self
             .resources
@@ -135,10 +128,10 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     /// Analyzes if the given tensor can be used inplace in one of the block.
     fn analyze_normal(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<'a>,
         pos: usize,
         tensor_relative: &'a TensorIr,
-        handle: &CubeFusionHandle<R>,
+        handle: &CubeFusionHandle,
     ) {
         enum BlockInplaceSelection {
             Notinit,

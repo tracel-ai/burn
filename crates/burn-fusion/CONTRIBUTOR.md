@@ -149,11 +149,11 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
 
 ### Known gaps
 
-- Device failures in **unfused cubecl operations** do not enter this system. `ComputeClient::launch`
+- Device failures in **unfused cubecl operations** do not enter this system. `cubecl::Client::launch`
   returns `()`; the failure is a cubecl-side taint that surfaces at the read as `Err(ServerError)`.
   cubecl skips its own downstream work through its `ExecuteScope`, `burn-fusion` skips its own
   through `input_error`. The two layers stack rather than sharing one mechanism.
-  `ComputeClient::check` is the seam if this is ever unified.
+  `cubecl::Client::check` is the seam if this is ever unified.
 - The scope claims on failure rather than **on entry**. This was tried and measured, and rejected
   on both counts. Claiming the write set on the way in costs **+49 ns per operation, about 20%** of
   the execution path (249 → 298 ns/op on `execution_path_throughput`) — paid by every operation a

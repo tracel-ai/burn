@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
     tensor::CubeTensor,
 };
@@ -96,11 +95,11 @@ fn slice_assign_with_steps_kernel<E: Numeric>(
     input[input_offset] = value.read(ABSOLUTE_POS);
 }
 
-pub(crate) fn slice_assign<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
+pub(crate) fn slice_assign(
+    tensor: CubeTensor,
     indices: &[burn_backend::Slice],
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
+    value: CubeTensor,
+) -> CubeTensor {
     // Check if any slice has non-unit step
     let has_non_unit_step = indices.iter().any(|s| s.step != 1 && s.step != 0);
 
@@ -143,8 +142,8 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             1
         };
 
-    let mut shape = SequenceArg::<R, FastDivmod<usize>>::new();
-    let mut offsets = SequenceArg::<R, usize>::new();
+    let mut shape = SequenceArg::<FastDivmod<usize>>::new();
+    let mut offsets = SequenceArg::<usize>::new();
 
     for i in 0..ndims {
         let slice = indices.get(i).cloned().unwrap_or(burn_backend::Slice {
@@ -191,20 +190,20 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
 /// - values[0] goes to index 5
 /// - values[1] goes to index 4
 /// - etc.
-pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
+pub(crate) fn slice_assign_with_steps(
+    tensor: CubeTensor,
     slices: &[burn_backend::Slice],
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
+    value: CubeTensor,
+) -> CubeTensor {
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
     };
 
     // Prepare sequences for kernel
-    let mut starts = SequenceArg::<R, usize>::new();
-    let mut ends = SequenceArg::<R, usize>::new();
-    let mut steps = SequenceArg::<R, i32>::new();
+    let mut starts = SequenceArg::<usize>::new();
+    let mut ends = SequenceArg::<usize>::new();
+    let mut steps = SequenceArg::<i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
         let range = slice.to_range(tensor.meta.shape()[dim]);

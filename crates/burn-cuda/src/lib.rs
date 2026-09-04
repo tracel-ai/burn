@@ -2,26 +2,12 @@
 
 extern crate alloc;
 
-use burn_cubecl::CubeBackend;
 pub use cubecl::cuda::CudaDevice;
-use cubecl::{
-    cuda::CudaRuntime,
-    throughput::{ThroughputError, ThroughputKey, ThroughputValue},
-};
 
-#[cfg(not(feature = "fusion"))]
-pub type Cuda = CubeBackend<CudaRuntime>;
-
-#[cfg(feature = "fusion")]
-pub type Cuda = burn_fusion::Fusion<CubeBackend<CudaRuntime>>;
-
-/// Measure peak throughput on a CUDA `device` for each of the given `keys`.
-pub fn device_throughput(
-    device: &CudaDevice,
-    keys: &[ThroughputKey],
-) -> alloc::vec::Vec<Result<ThroughputValue, ThroughputError>> {
-    cubecl::std::throughput::device_throughput::<CudaRuntime>(device, keys)
-}
+/// The cubecl backend, under the name of the runtime this crate compiles in.
+/// Every cubecl backend is the same type — a tensor's device is what says which
+/// runtime it runs on.
+pub type Cuda = burn_cubecl::Cube;
 
 #[cfg(all(test, not(target_os = "macos")))]
 mod tests {
@@ -31,7 +17,7 @@ mod tests {
     #[test]
     fn should_support_dtypes() {
         type B = Cuda;
-        let device = CudaDevice::default();
+        let device = cubecl::Device::Cuda(CudaDevice::default());
         let scheme = device.defaults().quantization.scheme;
 
         assert!(B::supports_dtype(&device, DType::F32));

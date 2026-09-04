@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -41,10 +40,9 @@ pub(crate) fn unary_int<I: Int, N: Size, O: IntUnaryOpFamily>(
     );
 }
 
-pub(crate) fn launch_unary_int<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+pub(crate) fn launch_unary_int<O, Args>(tensor: CubeTensor, args: Args) -> CubeTensor
 where
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
-    R: CubeRuntime,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options>,
     O: IntUnaryOpFamily,
 {
     let vector_size = max_vector_size(&tensor);
@@ -58,7 +56,7 @@ where
 
     unsafe {
         if tensor.can_mut() && tensor.is_nonoverlapping() {
-            unary_int::launch_unchecked::<O, R>(
+            unary_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -79,7 +77,7 @@ where
                 tensor.dtype,
             );
 
-            unary_int::launch_unchecked::<O, R>(
+            unary_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -102,12 +100,11 @@ pub(crate) mod unary_basic_int {
 
     use super::*;
 
-    pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+    pub(crate) fn launch<Args>(tensor: CubeTensor, args: Args) -> CubeTensor
     where
-        R: CubeRuntime,
         for<'a> Args: FnOnce(&'a ()) -> BasicIntUnaryKind,
     {
-        launch_unary_int::<R, BasicIntUnary, _>(tensor, |input| {
+        launch_unary_int::<BasicIntUnary, _>(tensor, |input| {
             BasicIntUnaryOptionsLaunch::new(args(input))
         })
     }

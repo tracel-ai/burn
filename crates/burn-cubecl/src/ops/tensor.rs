@@ -1,6 +1,6 @@
 use super::{expand, numeric, permute, unfold};
 use crate::CubeBackend;
-use crate::CubeRuntime;
+use crate::CubeDevice;
 use crate::kernel::matmul::{MatmulStrategy, matmul};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::unary_basic::BasicFloatUnaryKind;
@@ -18,10 +18,7 @@ use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 use std::ops::Range;
 
-impl<R> FloatTensorOps<Self> for CubeBackend<R>
-where
-    R: CubeRuntime,
-{
+impl FloatTensorOps<Self> for CubeBackend {
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(data),
@@ -93,11 +90,11 @@ where
     fn float_full(
         shape: Shape,
         fill_value: Scalar,
-        device: &R::Device,
+        device: &CubeDevice,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
         let dtype: DType = dtype.into();
-        let client = R::client(device);
+        let client = device.client();
         numeric::full_device_dtype(
             client,
             shape,
@@ -568,15 +565,15 @@ where
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Exp)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Exp)
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Log)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Log)
     }
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Log1p)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Log1p)
     }
 
     fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
@@ -597,93 +594,91 @@ where
         }
 
         let dtype = lhs.dtype;
-        launch_unary_float::<R, Powf, _>(lhs, |_| {
-            InputScalar::new(rhs, dtype_to_storage_type(dtype))
-        })
+        launch_unary_float::<Powf, _>(lhs, |_| InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sqrt)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Sqrt)
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Abs)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Abs)
     }
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sign)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Sign)
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Cos)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Cos)
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sin)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Sin)
     }
 
     fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Tan)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Tan)
     }
 
     fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Cosh)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Cosh)
     }
 
     fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sinh)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Sinh)
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Tanh)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Tanh)
     }
 
     fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcCos)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::ArcCos)
     }
 
     fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcCosh)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::ArcCosh)
     }
 
     fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcSin)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::ArcSin)
     }
 
     fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcSinh)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::ArcSinh)
     }
 
     fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcTan)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::ArcTan)
     }
 
     fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcTanh)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::ArcTanh)
     }
 
     fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        crate::kernel::atan2::<R>(lhs, rhs)
+        crate::kernel::atan2(lhs, rhs)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Round)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Round)
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Floor)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Floor)
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Ceil)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Ceil)
     }
 
     fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Trunc)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Trunc)
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Erf)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Erf)
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
@@ -799,7 +794,7 @@ where
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Recip)
+        unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Recip)
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {

@@ -19,7 +19,7 @@ the ugly disambiguation with associated types.
 
 ```rust, ignore
 /// We create our own Backend trait that extends the Burn backend trait.
-#[backend_extension(Autodiff, Wgpu)]
+#[backend_extension(Autodiff, Cube)]
 pub trait Backend: burn::backend::Backend {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -127,12 +127,13 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
 ```
 
 Now, let's move on to the next step, which involves implementing the remaining code to launch the
-kernel. We'll go into implementing our custom backend trait for the generic JIT backend. This
-automatically implements the trait for `burn-cuda`, `burn-wgpu` as well as fusion.
+kernel. We'll go into implementing our custom backend trait for the JIT backend. There is one such
+backend covering every cubecl runtime — a tensor's device says which one it runs on — so this single
+impl covers `burn-cuda` and `burn-wgpu` alike, as well as fusion.
 
 ```rust, ignore
-/// Implement our custom backend trait for the generic `CubeBackend`.
-impl<R: CubeRuntime> Backend for CubeBackend<R>
+/// Implement our custom backend trait for `CubeBackend`.
+impl Backend for CubeBackend
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -362,7 +363,7 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our JIT Backend.
 
 ```rust, ignore
-impl<R: CubeRuntime> AutodiffBackend for Autodiff<CubeBackend<R>>
+impl AutodiffBackend for Autodiff<CubeBackend>
 {
 }
 ```

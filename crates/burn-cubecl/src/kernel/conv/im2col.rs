@@ -12,7 +12,7 @@ use cubecl::{
 use cubek::convolution::components::ConvSetupError;
 
 use crate::{
-    CubeRuntime,
+    CubeDevice,
     kernel::{
         AddOp, into_contiguous_aligned, launch_binop,
         matmul::{MatmulStrategy, matmul},
@@ -63,12 +63,12 @@ pub(crate) fn batches_per_run(
     Ok(1)
 }
 
-pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_im2col_1x1<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let rank = input.meta.num_dims();
     let dim_c = rank - 1;
 
@@ -108,14 +108,14 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
         let mut bias_shape = iter::repeat_n(1, rank - 1).collect::<Vec<_>>();
         bias_shape.push(out_channels);
         let bias = reshape(bias, bias_shape.into());
-        out = launch_binop::<R, AddOp>(out, bias);
+        out = launch_binop::<AddOp>(out, bias);
     }
 
     Ok(out)
 }
 
 /// Reshapes NHWC input to [(N, H, W), C]
-fn reshape_input<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
+fn reshape_input(input: CubeTensor) -> CubeTensor {
     let rank = input.meta.num_dims();
     let dim_c = rank - 1;
     let dtype = input.dtype;
@@ -157,12 +157,12 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     true
 }
 
-fn from_handle<R: CubeRuntime>(
-    client: ComputeClient<R>,
-    device: R::Device,
-    handle: TensorHandle<R>,
+fn from_handle(
+    client: Client,
+    device: CubeDevice,
+    handle: TensorHandle,
     dtype: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     CubeTensor::new(
         client.clone(),
         handle.handle,
@@ -223,11 +223,11 @@ fn check_pointwise_strided<const N: usize>(
 /// The view a strided pointwise convolution actually reads: every `stride`-th
 /// position along each spatial dim. Multiplying the spatial strides leaves the
 /// contiguous copy in [`reshape_input`] to gather exactly those rows.
-fn strided_spatial_view<R: CubeRuntime>(
-    mut input: CubeTensor<R>,
+fn strided_spatial_view(
+    mut input: CubeTensor,
     out_shape: &[usize],
     stride: &[usize],
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let mut shape = input.meta.shape().to_vec();
     let mut strides = input.meta.strides().to_vec();
 
@@ -246,7 +246,7 @@ fn strided_spatial_view<R: CubeRuntime>(
 /// so a weight the pitched allocator already aligned for TMA is not copied to
 /// say so. One that is not gets a pitched copy here rather than a second kernel
 /// inside the matmul.
-fn reshape_weight<R: CubeRuntime>(mut weight: CubeTensor<R>) -> CubeTensor<R> {
+fn reshape_weight(mut weight: CubeTensor) -> CubeTensor {
     let dim_c = weight.meta.num_dims() - 1;
     let strides = [weight.meta.strides()[0], weight.meta.strides()[dim_c]];
     let shape = [weight.meta.shape()[0], weight.meta.shape()[dim_c]];
@@ -266,12 +266,12 @@ fn reshape_weight<R: CubeRuntime>(mut weight: CubeTensor<R>) -> CubeTensor<R> {
 /// weight[c_out, c_in]`. The fallback computes the same thing as a transposed
 /// convolution, which has no NHWC path and falls back to a naive kernel on a
 /// device with no accelerated matmul for the dtype.
-pub fn dgrad_im2col_1x1<R: CubeRuntime, const N: usize>(
-    out_grad: CubeTensor<R>,
-    weight: CubeTensor<R>,
+pub fn dgrad_im2col_1x1<const N: usize>(
+    out_grad: CubeTensor,
+    weight: CubeTensor,
     input_shape: Shape,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let dim_c = out_grad.meta.num_dims() - 1;
 
     check_pointwise(&weight.meta.shape()[1..dim_c], &options)?;
@@ -299,12 +299,12 @@ pub fn dgrad_im2col_1x1<R: CubeRuntime, const N: usize>(
 /// input[(n, h, w), c_in]` — a tall reduction into a small output, which the
 /// fallback's "convolve the input by the gradient" framing hides from the
 /// matmul tuner.
-pub fn wgrad_im2col_1x1<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    out_grad: CubeTensor<R>,
+pub fn wgrad_im2col_1x1<const N: usize>(
+    input: CubeTensor,
+    out_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let dim_c = input.meta.num_dims() - 1;
 
     check_pointwise(&weight_shape[1..dim_c], &options)?;
@@ -383,12 +383,12 @@ fn split_count(k: usize) -> Option<usize> {
 /// decides per shape: the cut is a large win where the output is small and a
 /// small loss where it is not, and which side a shape falls on is exactly the
 /// kind of thing measuring answers better than a rule.
-pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    out_grad: CubeTensor<R>,
+pub fn wgrad_im2col_1x1_split<const N: usize>(
+    input: CubeTensor,
+    out_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let dim_c = input.meta.num_dims() - 1;
 
     check_pointwise(&weight_shape[1..dim_c], &options)?;
@@ -407,7 +407,7 @@ pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
             weight_shape.clone(),
             options.clone(),
         );
-        move || wgrad_im2col_1x1::<R, N>(args.0, args.1, args.2, args.3)
+        move || wgrad_im2col_1x1::<N>(args.0, args.1, args.2, args.3)
     };
 
     let rows: usize = input.meta.shape()[..dim_c].iter().product();
@@ -437,7 +437,7 @@ pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
 
     // `[split, C_out, C_in]` -> `[1, C_out, C_in]`. Small next to the matmul:
     // the pieces are the only thing being added, not the contraction.
-    let grad = reduce_dim::<R>(
+    let grad = reduce_dim(
         partials,
         None,
         0,
@@ -472,12 +472,12 @@ pub fn wgrad_im2col_1x1_split<R: CubeRuntime, const N: usize>(
 /// **This materialises.** The column matrix holds every pixel once per tap that
 /// reads it — nine times over for a 3x3 — which is what im2col costs everywhere
 /// and what buys the contraction a shape a matmul can hold.
-fn im2col<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
+fn im2col<const N: usize>(
+    input: CubeTensor,
     out_shape: &[usize],
     kernel_shape: &[usize],
     options: &ConvOptions<N>,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let rank = input.meta.num_dims();
     let dim_c = rank - 1;
 
@@ -609,12 +609,12 @@ fn im2col<R: CubeRuntime, const N: usize>(
 ///
 /// The cost is the materialisation: see [`im2col`]. That is the trade this
 /// makes, and it is why it is offered to autotune rather than taken as a rule.
-pub fn wgrad_im2col<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    out_grad: CubeTensor<R>,
+pub fn wgrad_im2col<const N: usize>(
+    input: CubeTensor,
+    out_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let rank = input.meta.num_dims();
     let dim_c = rank - 1;
 
@@ -639,7 +639,7 @@ pub fn wgrad_im2col<R: CubeRuntime, const N: usize>(
     let cols = kernel_shape.iter().product::<usize>() * in_channels;
     let rows = out_grad.meta.shape()[..dim_c].iter().product::<usize>();
 
-    let columns = im2col::<R, N>(input, &out_shape, &kernel_shape, &options);
+    let columns = im2col::<N>(input, &out_shape, &kernel_shape, &options);
     // `[batch, ..out spatial, cols]` -> `[m, cols]`. Free: only leading
     // dimensions merge, and they are dense in that order.
     let columns = reshape(columns, Shape::new([rows, cols]));
@@ -652,7 +652,7 @@ pub fn wgrad_im2col<R: CubeRuntime, const N: usize>(
     // holds the spatial dimensions and the batch only anchored: a shape that
     // declines can share a key with one that did not, and the tuner unwraps
     // whatever it already picked, so declining on a cached hit aborts.
-    let uncut = |columns: CubeTensor<R>, out_grad: CubeTensor<R>| {
+    let uncut = |columns: CubeTensor, out_grad: CubeTensor| {
         let out_grad = swap_dims(out_grad, 0, 1); // [c_out, m]
         matmul(out_grad, columns, None, MatmulStrategy::default(), dtype)
     };
@@ -669,7 +669,7 @@ pub fn wgrad_im2col<R: CubeRuntime, const N: usize>(
             let partials = matmul(grad, cut, None, MatmulStrategy::default(), dtype)
                 .ok()
                 .and_then(|partials| {
-                    reduce_dim::<R>(
+                    reduce_dim(
                         partials,
                         None,
                         0,

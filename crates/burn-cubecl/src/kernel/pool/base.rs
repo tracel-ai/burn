@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::{
         into_contiguous_aligned,
         reduce::{KernelReduceStrategy, reduce_dim},
@@ -15,14 +14,14 @@ use cubek::pool::{
 };
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 
-pub(crate) fn max_pool2d<R: CubeRuntime>(
-    x: CubeTensor<R>,
+pub(crate) fn max_pool2d(
+    x: CubeTensor,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
     ceil_mode: bool,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let [batch_size, channels, height, width] = x.meta.shape().dims();
 
     let size_0 = calculate_pool_output_size(
@@ -67,15 +66,15 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
-pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
-    x: CubeTensor<R>,
+pub(crate) fn max_pool2d_with_indices(
+    x: CubeTensor,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
     ceil_mode: bool,
     dtype_indices: DType,
-) -> (CubeTensor<R>, CubeTensor<R>) {
+) -> (CubeTensor, CubeTensor) {
     let [batch_size, channels, size_0, size_1] = x.meta.shape().dims();
 
     let size_0 = calculate_pool_output_size(
@@ -130,16 +129,16 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
-    x: CubeTensor<R>,
-    grad: CubeTensor<R>,
-    indices: CubeTensor<R>,
+pub(crate) fn max_pool2d_with_indices_backward(
+    x: CubeTensor,
+    grad: CubeTensor,
+    indices: CubeTensor,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
     ceil_mode: bool,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let [batches, channels, height, width] = x.meta.shape().dims();
     let input = into_contiguous_aligned(permute_nchw_to_nhwc(x));
     let grad = into_contiguous_aligned(permute_nchw_to_nhwc(grad));
@@ -176,14 +175,14 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
-pub(crate) fn avg_pool2d<R: CubeRuntime>(
-    x: CubeTensor<R>,
+pub(crate) fn avg_pool2d(
+    x: CubeTensor,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let [batch_size, channels, in_h, in_w] = x.meta.shape().dims();
     let dilation = 1;
 
@@ -229,15 +228,15 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
-pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
-    x: CubeTensor<R>,
-    grad: CubeTensor<R>,
+pub(crate) fn avg_pool2d_backward(
+    x: CubeTensor,
+    grad: CubeTensor,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let [batches, channels, height, width] = x.meta.shape().dims();
     let input = into_contiguous_aligned(permute_nchw_to_nhwc(x));
     let grad = into_contiguous_aligned(permute_nchw_to_nhwc(grad));
@@ -288,7 +287,7 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
 /// costs more than the reduction it feeds. There the free flattening is
 /// `[b, h * w, c]`, reduced over the middle axis, which also leaves `c`
 /// innermost and the reduction coalesced across it.
-fn global_avg_pool2d<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
+fn global_avg_pool2d(input: CubeTensor) -> CubeTensor {
     let [batch_size, channels, height, width] = input.meta.shape().dims();
 
     // Channels innermost is the signature of NHWC memory. A single channel is
@@ -309,7 +308,7 @@ fn global_avg_pool2d<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
         ),
     };
 
-    let reduced = reduce_dim::<R>(
+    let reduced = reduce_dim(
         flattened,
         None,
         axis,
@@ -321,10 +320,7 @@ fn global_avg_pool2d<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
     reshape(reduced, Shape::new([batch_size, channels, 1, 1]))
 }
 
-pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    output_size: [usize; 2],
-) -> CubeTensor<R> {
+pub(crate) fn adaptive_avg_pool2d(input: CubeTensor, output_size: [usize; 2]) -> CubeTensor {
     // A `1x1` output is a reduction, and the pooling kernel is the wrong shape
     // of parallelism for it — see [`global_avg_pool2d`].
     if output_size == [1, 1] {
@@ -356,10 +352,7 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
-pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
-    x: CubeTensor<R>,
-    out_grad: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn adaptive_avg_pool2d_backward(x: CubeTensor, out_grad: CubeTensor) -> CubeTensor {
     let [batches, channels, height, width] = x.meta.shape().dims();
     let [_, _, out_h, out_w] = out_grad.meta.shape().dims();
     let input = into_contiguous_aligned(permute_nchw_to_nhwc(x));
@@ -388,7 +381,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
     permute_nhwc_to_nchw(output)
 }
 
-fn pool_panic<R: CubeRuntime>(label: &str, input: &CubeTensor<R>, error: PoolError) -> ! {
+fn pool_panic(label: &str, input: &CubeTensor, error: PoolError) -> ! {
     panic!(
         "{0} kernel failed (device={1:?}, dtype={2:?}): {3}",
         label, input.device, input.dtype, error

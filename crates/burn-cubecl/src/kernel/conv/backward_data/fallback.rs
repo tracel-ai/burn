@@ -6,7 +6,6 @@ use burn_std::Shape;
 use cubek::convolution::components::ConvSetupError;
 
 use crate::{
-    CubeRuntime,
     kernel::{
         conv::{conv_transpose2d, conv_transpose3d},
         slice,
@@ -15,12 +14,12 @@ use crate::{
     tensor::CubeTensor,
 };
 
-pub(crate) fn conv_data_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
-    out_grad: CubeTensor<R>,
-    weights: CubeTensor<R>,
+pub(crate) fn conv_data_backward_fallback<const N_DIM: usize>(
+    out_grad: CubeTensor,
+    weights: CubeTensor,
     in_shape: Shape,
     options: ConvOptions<N_DIM>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     if options.is_asymmetric() {
         let original_shape = in_shape.clone();
         let mut padded_shape = original_shape.to_vec();
@@ -120,11 +119,11 @@ pub(crate) fn conv_data_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
     Ok(permute_nchw_to_nhwc(in_grad))
 }
 
-fn conv_transpose1d_from_conv_transpose2d<R: CubeRuntime>(
-    x: CubeTensor<R>,
-    weight: CubeTensor<R>,
+fn conv_transpose1d_from_conv_transpose2d(
+    x: CubeTensor,
+    weight: CubeTensor,
     options: ConvTransposeOptions<1>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let [channels_in, channels_out, kernel_size] = weight.shape().dims();
     let [batch_size, _channels_in, length_in] = x.shape().dims();
 

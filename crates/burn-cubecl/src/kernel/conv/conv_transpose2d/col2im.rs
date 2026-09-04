@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::{
         conv::batches_per_run,
         into_contiguous_aligned,
@@ -28,12 +27,12 @@ use cubek::convolution::components::ConvSetupError;
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv_transpose2d_col2im<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_transpose2d_col2im(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvTransposeOptions<2>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.meta.shape().dims();
     let [batch_size, _, input_h, input_w] = input.meta.shape().dims();
     let groups = options.groups;
@@ -133,7 +132,7 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
     }
 }
 
-pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
+pub(crate) fn index(tensor: CubeTensor, i: usize) -> CubeTensor {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
     for dim in tensor.meta.shape()[1..].iter() {
@@ -145,11 +144,11 @@ pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTens
 }
 
 #[allow(clippy::too_many_arguments)]
-fn execute<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
-    image: CubeTensor<R>,
+fn execute(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
+    image: CubeTensor,
     options: ConvTransposeOptions<2>,
     kernel_h: usize,
     kernel_w: usize,
@@ -175,10 +174,10 @@ fn execute<R: CubeRuntime>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn col2im<R: CubeRuntime>(
-    columns: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
-    out: CubeTensor<R>,
+fn col2im(
+    columns: CubeTensor,
+    bias: Option<CubeTensor>,
+    out: CubeTensor,
     kernel_h: usize,
     kernel_w: usize,
     out_h: usize,

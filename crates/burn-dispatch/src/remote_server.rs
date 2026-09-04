@@ -1,9 +1,9 @@
 //! Concrete-backend dispatch for `burn-remote`'s server entry points.
 //!
 //! Lives in `burn-dispatch` because matching on [`DispatchDevice`] requires the
-//! local `wgpu_metal`/`wgpu_vulkan`/`wgpu_webgpu` cfgs set by this crate's
-//! `build.rs`, plus visibility of every in-tree `BackendIr` type. The user
-//! surface (`Channel` enum, opaque `Device` argument) lives in `burn-tensor`.
+//! local `cube_backend`/`default_backend` cfgs set by this crate's `build.rs`,
+//! plus visibility of every in-tree `BackendIr` type. The user surface
+//! (`Channel` enum, opaque `Device` argument) lives in `burn-tensor`.
 
 use std::sync::Arc;
 
@@ -11,8 +11,12 @@ use burn_remote::Endpoint;
 use burn_remote::server::{CustomOpRegistry, IrohRemoteProtocol, PeerAuthorizer, RemoteProtocol};
 use burn_remote::telemetry::TelemetryProbe;
 
+use crate::DispatchDevice;
 use crate::backends::*;
-use crate::{Dispatch, DispatchDevice, DispatchDeviceId};
+// Only the non-cubecl backends still enumerate through `Dispatch`; the cubecl one enumerates
+// its devices directly (see `host_devices!`).
+#[cfg(any(feature = "flex", feature = "ndarray", default_backend))]
+use crate::{Dispatch, DispatchDeviceId};
 
 /// Transport used to serve remote clients. Re-exported from `burn-remote` so the whole stack
 /// shares one definition.
@@ -24,17 +28,30 @@ pub use burn_remote::server::Channel;
 /// hardware device index, which is exactly the index a client selects with `Device::remote`.
 ///
 /// Enumeration is only trustworthy when it finds **more than one** device: several backends (the
-/// wgpu family — Vulkan/WebGpu/Wgpu — and the CPU-only ones like Flex) can't enumerate hardware
-/// and report either nothing or a single placeholder index that isn't the device you'd actually
-/// run on. In that case fall back to hosting a single backend-specific default device
-/// (`Device::<B>::default()`, e.g. `WgpuDevice::DefaultDevice`) rather than a possibly-empty or
-/// bogus enumerated list. This generalizes what used to be a hardcoded Vulkan special-case.
+/// wgpu family and the CPU-only ones like Flex) can't enumerate hardware and report either
+/// nothing or a single placeholder index that isn't the device you'd actually run on. In that
+/// case fall back to hosting a single device rather than a possibly-empty or bogus enumerated
+/// list.
 macro_rules! host_devices {
+    // The cubecl runtimes are one backend, so `Dispatch::enumerate` lists every device of every
+    // runtime the build compiled in. Hosting a CUDA server should not hand clients the wgpu and
+    // CPU devices found alongside it, so narrow the list to the runtime `$device` names, and fall
+    // back to `$device` itself — the runtime-specific default the caller already chose — rather
+    // than to `Device::default()`, which is whichever runtime cubecl ranks highest.
+    (cube: $device:expr) => {{
+        let devices = $crate::backend::cube_devices($device.runtime());
+        if devices.len() > 1 {
+            devices
+        } else {
+            vec![$device.clone()]
+        }
+    }};
     ($id:expr, $variant:ident) => {{
         let devices = Dispatch::enumerate($id)
             .into_iter()
             .filter_map(|device| match device {
                 DispatchDevice::$variant(device) => Some(device),
+                #[allow(unreachable_patterns)]
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -51,51 +68,16 @@ macro_rules! host_devices {
 ///
 /// This is the single source of truth for the `DispatchDevice` → concrete-`BackendIr` mapping.
 /// The sync and async server entry points differ only in whether `$body` awaits the call, so they
-/// share this one match instead of duplicating eleven `#[cfg]`-gated arms each. Backends without a
-/// `BackendIr` impl (`LibTorch`, `Remote`) panic; `Autodiff` is already stripped by `.inner()`.
+/// share this one match instead of duplicating a `#[cfg]`-gated arm per backend each. Backends
+/// without a `BackendIr` impl (`LibTorch`, `Remote`) panic; `Autodiff` is already stripped by
+/// `.inner()`.
 macro_rules! with_backend {
     ($device:expr, |$b:ident, $devices:ident| $body:expr) => {
         match $device.inner() {
-            #[cfg(feature = "cpu")]
-            DispatchDevice::Cpu(_) => {
-                type $b = Cpu;
-                let $devices = host_devices!(DispatchDeviceId::Cpu, Cpu);
-                $body
-            }
-            #[cfg(feature = "cuda")]
-            DispatchDevice::Cuda(_) => {
-                type $b = Cuda;
-                let $devices = host_devices!(DispatchDeviceId::Cuda, Cuda);
-                $body
-            }
-            #[cfg(feature = "metal")]
-            DispatchDevice::Metal(_) => {
-                type $b = Metal;
-                let $devices = host_devices!(DispatchDeviceId::Metal, Metal);
-                $body
-            }
-            #[cfg(feature = "rocm")]
-            DispatchDevice::Rocm(_) => {
-                type $b = Rocm;
-                let $devices = host_devices!(DispatchDeviceId::Rocm, Rocm);
-                $body
-            }
-            #[cfg(feature = "vulkan")]
-            DispatchDevice::Vulkan(_) => {
-                type $b = Vulkan;
-                let $devices = host_devices!(DispatchDeviceId::Vulkan, Vulkan);
-                $body
-            }
-            #[cfg(feature = "wgpu")]
-            DispatchDevice::Wgpu(_) => {
-                type $b = Wgpu;
-                let $devices = host_devices!(DispatchDeviceId::Wgpu, Wgpu);
-                $body
-            }
-            #[cfg(feature = "webgpu")]
-            DispatchDevice::WebGpu(_) => {
-                type $b = WebGpu;
-                let $devices = host_devices!(DispatchDeviceId::WebGpu, WebGpu);
+            #[cfg(cube_backend)]
+            DispatchDevice::Cube(device) => {
+                type $b = Cube;
+                let $devices = host_devices!(cube: device);
                 $body
             }
             #[cfg(any(feature = "flex", default_backend))]

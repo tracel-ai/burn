@@ -24,14 +24,22 @@ tracing = ["burn-std/tracing", "cubecl/tracing"]
 # For DTypeUsage de/serialization
 serde = ["enumset/serde"]
 
-cubecl = ["dep:cubecl"]
-cubecl-cuda = ["cubecl", "cubecl/cuda"]
-cubecl-hip = ["cubecl", "cubecl/hip"]
-cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-cubecl-metal = ["cubecl", "cubecl/metal"]
-cubecl-vulkan = ["cubecl", "cubecl/vulkan"]
-cubecl-webgpu = ["cubecl", "cubecl/webgpu"]
-cubecl-cpu = ["cubecl", "cubecl/cpu"]
+# `stdlib` carries the throughput probes a device measures itself with.
+cubecl = ["dep:cubecl", "cubecl/stdlib"]
+
+# The `DeviceOps` impl for `cubecl::Device`. Separate from `cubecl` because cubecl only implements
+# the `Device` supertrait once it has a runtime compiled in, and it can get one from any crate in
+# the build — so this is asked for rather than inferred from the features named here. Enabling it
+# without a cubecl runtime anywhere in the graph does not compile.
+cubecl-device = ["cubecl"]
+
+cubecl-cuda = ["cubecl-device", "cubecl/cuda"]
+cubecl-hip = ["cubecl-device", "cubecl/hip"]
+cubecl-wgpu = ["cubecl-device", "cubecl/wgpu"]
+cubecl-metal = ["cubecl-device", "cubecl/metal"]
+cubecl-vulkan = ["cubecl-device", "cubecl/vulkan"]
+cubecl-webgpu = ["cubecl-device", "cubecl/webgpu"]
+cubecl-cpu = ["cubecl-device", "cubecl/cpu"]
 
 [dependencies]
 burn-std = { workspace = true }

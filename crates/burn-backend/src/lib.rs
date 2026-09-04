@@ -55,88 +55,34 @@ pub mod quantization;
 #[cfg(feature = "cubecl")]
 pub mod cubecl;
 
-#[cfg(any(
-    feature = "cubecl-wgpu",
-    feature = "cubecl-metal",
-    feature = "cubecl-vulkan",
-    feature = "cubecl-webgpu"
-))]
-mod cube_wgpu {
+// Not gated on the `cubecl-*` runtime features: a build gets its cubecl runtime from whichever
+// crate asked for one, which need not be this one — `burn-cubecl` compiles with no runtime feature
+// of its own and still needs this impl. So the impl is its own feature, and a crate that needs
+// `cubecl::Device` to be a burn device says so.
+#[cfg(feature = "cubecl-device")]
+mod cube_device {
     use crate::backend::DeviceOps;
     use burn_std::{BoolStore, DType, DeviceSettings};
-    use cubecl::wgpu::WgpuDevice;
+    use cubecl::{Device, RuntimeId};
 
-    impl DeviceOps for WgpuDevice {
-        #[cfg(not(any(feature = "cubecl-metal", feature = "cubecl-vulkan")))]
+    impl DeviceOps for Device {
         fn defaults(&self) -> DeviceSettings {
+            // wgsl has no 8-bit type to store a bool in, so under the portable
+            // compiler a bool costs a word. Compiling straight to Metal or
+            // SPIR-V, and on every other runtime, a byte will do.
+            let bool_store = match self.runtime() {
+                RuntimeId::Wgpu
+                    if !cfg!(any(feature = "cubecl-metal", feature = "cubecl-vulkan")) =>
+                {
+                    BoolStore::U32
+                }
+                _ => BoolStore::U8,
+            };
+
             DeviceSettings::new(
                 DType::F32,
                 DType::I32,
-                DType::Bool(BoolStore::U32),
-                Default::default(),
-            )
-        }
-
-        #[cfg(any(feature = "cubecl-metal", feature = "cubecl-vulkan"))]
-        fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                Default::default(),
-            )
-        }
-    }
-}
-
-#[cfg(feature = "cubecl-cuda")]
-mod cube_cuda {
-    use crate::backend::DeviceOps;
-    use burn_std::{BoolStore, DType, DeviceSettings};
-    use cubecl::cuda::CudaDevice;
-
-    impl DeviceOps for CudaDevice {
-        fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                Default::default(),
-            )
-        }
-    }
-}
-
-#[cfg(feature = "cubecl-cpu")]
-mod cube_cpu {
-    use crate::backend::DeviceOps;
-    use burn_std::{BoolStore, DType, DeviceSettings};
-    use cubecl::cpu::CpuDevice;
-
-    impl DeviceOps for CpuDevice {
-        fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
-                Default::default(),
-            )
-        }
-    }
-}
-
-#[cfg(feature = "cubecl-hip")]
-mod cube_hip {
-    use crate::backend::DeviceOps;
-    use burn_std::{BoolStore, DType, DeviceSettings};
-    use cubecl::hip::AmdDevice;
-
-    impl DeviceOps for AmdDevice {
-        fn defaults(&self) -> DeviceSettings {
-            DeviceSettings::new(
-                DType::F32,
-                DType::I32,
-                DType::Bool(BoolStore::U8),
+                DType::Bool(bool_store),
                 Default::default(),
             )
         }

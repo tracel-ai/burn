@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -50,10 +49,10 @@ pub(crate) fn kernel_binop<C: Float, N: Size, O: BinaryOpFloatFamily>(
     out.write(ABSOLUTE_POS, res)
 }
 
-pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn launch_binop_float<O: BinaryOpFloatFamily>(
+    lhs: CubeTensor,
+    rhs: CubeTensor,
+) -> CubeTensor {
     let vector_size_lhs = max_vector_size(&lhs);
     let vector_size_rhs = max_vector_size(&rhs);
     let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
@@ -76,7 +75,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -90,7 +89,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -107,7 +106,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
             let output =
                 empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
 
-            kernel_binop::launch_unchecked::<O, R>(
+            kernel_binop::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -125,6 +124,6 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
 }
 
 /// Calculate the four-quadrant inverse tangent of `lhs / rhs`.
-pub fn atan2<R: CubeRuntime>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
-    launch_binop_float::<R, ArcTan2Op>(lhs, rhs)
+pub fn atan2(lhs: CubeTensor, rhs: CubeTensor) -> CubeTensor {
+    launch_binop_float::<ArcTan2Op>(lhs, rhs)
 }

@@ -1,5 +1,5 @@
 use super::init_matmul_output;
-use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
+use crate::{kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{MatmulTransformAnalysis, MatmulTransformPolicy};
@@ -34,14 +34,14 @@ impl Default for MatmulStrategy {
     }
 }
 
-fn is_two_level<R: CubeRuntime>(tensor: &CubeTensor<R>) -> bool {
+fn is_two_level(tensor: &CubeTensor) -> bool {
     match tensor.dtype {
         DType::QFloat(scheme) => burn_backend::quantization::global_scale_dtype(&scheme).is_some(),
         _ => false,
     }
 }
 
-fn maybe_dequantize<R: CubeRuntime>(tensor: CubeTensor<R>, dtype: DType) -> CubeTensor<R> {
+fn maybe_dequantize(tensor: CubeTensor, dtype: DType) -> CubeTensor {
     if is_two_level(&tensor) {
         dequantize(tensor, dtype)
     } else {
@@ -50,13 +50,13 @@ fn maybe_dequantize<R: CubeRuntime>(tensor: CubeTensor<R>, dtype: DType) -> Cube
 }
 
 /// Launch a matmul kernel using the given strategy.
-pub fn matmul<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    out: Option<CubeTensor<R>>,
+pub fn matmul(
+    lhs: CubeTensor,
+    rhs: CubeTensor,
+    out: Option<CubeTensor>,
     strategy: MatmulStrategy,
     out_dtype: DType,
-) -> Result<CubeTensor<R>, MatmulSetupError> {
+) -> Result<CubeTensor, MatmulSetupError> {
     let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
     // No quantized matmul kernel applies a per-tensor scale, and the autotune candidates panic on
@@ -90,11 +90,11 @@ pub fn matmul<R: CubeRuntime>(
     }
 }
 
-pub(crate) fn launch_matmul_naive<R: CubeRuntime, S: Clone + Into<Strategy>>(
+pub(crate) fn launch_matmul_naive<S: Clone + Into<Strategy>>(
     strategy: &S,
-    mut lhs: CubeTensor<R>,
-    mut rhs: CubeTensor<R>,
-    out: CubeTensor<R>,
+    mut lhs: CubeTensor,
+    mut rhs: CubeTensor,
+    out: CubeTensor,
 ) -> Result<(), MatmulSetupError> {
     // Naive has very specific layout requirements for block scaled tensors, so we need to manually
     // dequantize if it fails to launch normally. This is because naive is assumed to always work.
@@ -116,11 +116,11 @@ pub(crate) fn launch_matmul_naive<R: CubeRuntime, S: Clone + Into<Strategy>>(
     }
 }
 
-pub(crate) fn launch_matmul<R: CubeRuntime, S: Clone + Into<Strategy>>(
+pub(crate) fn launch_matmul<S: Clone + Into<Strategy>>(
     strategy: &S,
-    lhs: CubeTensor<R>,
-    mut rhs: CubeTensor<R>,
-    out: CubeTensor<R>,
+    lhs: CubeTensor,
+    mut rhs: CubeTensor,
+    out: CubeTensor,
 ) -> Result<(), MatmulSetupError> {
     let strategy: Strategy = strategy.clone().into();
     let client = &out.client;

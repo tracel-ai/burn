@@ -3,10 +3,10 @@ use burn_backend::{DType, TensorMetadata};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::server::MemoryLayoutStrategy;
 
-use crate::{CubeRuntime, ops::empty_qtensor, tensor::CubeTensor};
+use crate::{ops::empty_qtensor, tensor::CubeTensor};
 
 /// Make a jit tensor contiguous.
-pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
+pub fn into_contiguous(tensor: CubeTensor) -> CubeTensor {
     if tensor.is_contiguous() {
         return tensor;
     }
@@ -38,8 +38,11 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     feature = "tracing",
     tracing::instrument(level = "trace", skip(tensor))
 )]
-pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    if R::can_read_tensor(tensor.meta.shape(), tensor.meta.strides()) {
+pub fn into_contiguous_aligned(tensor: CubeTensor) -> CubeTensor {
+    if tensor
+        .device
+        .can_read_tensor(tensor.meta.shape(), tensor.meta.strides())
+    {
         return tensor;
     }
 
@@ -68,10 +71,7 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
     feature = "tracing",
     tracing::instrument(level = "trace", skip(tensor))
 )]
-fn into_contiguous_quantized<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    strategy: MemoryLayoutStrategy,
-) -> CubeTensor<R> {
+fn into_contiguous_quantized(tensor: CubeTensor, strategy: MemoryLayoutStrategy) -> CubeTensor {
     let scheme = tensor.scheme();
     let output = empty_qtensor(tensor.shape(), tensor.scheme(), &tensor.device, strategy);
     let (values, scales) = tensor.quantized_handles().unwrap();

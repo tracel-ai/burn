@@ -22,7 +22,7 @@ use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_std::DType;
-use cubecl::{Runtime, client::ComputeClient, prelude::*};
+use cubecl::{client::Client, prelude::*};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, VectorizationMode,
     components::instructions::ReduceOperationConfig,
@@ -40,25 +40,25 @@ use std::sync::Arc;
 #[cfg(not(feature = "autotune"))]
 use cubek::reduce::routines::{BlueprintStrategy, unit::UnitStrategy};
 
-pub struct ReduceOptimization<R: Runtime> {
-    pub(crate) info: Arc<ReduceOptimizationInfo<R>>,
+pub struct ReduceOptimization {
+    pub(crate) info: Arc<ReduceOptimizationInfo>,
 }
 
-pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
+pub(crate) struct ReduceOptimizationInfo {
     pub(crate) trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
-    pub(crate) client: ComputeClient<R>,
-    pub(crate) device: R::Device,
+    pub(crate) client: Client,
+    pub(crate) device: cubecl::Device,
     pub(crate) len: usize,
     pub(crate) len_read: usize,
     pub(crate) reduce: FusedReduce,
     settings: ReduceSettings,
 }
 
-impl<R: Runtime> ReduceOptimizationInfo<R> {
-    pub fn from_state(device: &R::Device, state: ReduceOptimizationState) -> Self {
-        let client = R::client(device);
+impl ReduceOptimizationInfo {
+    pub fn from_state(device: &cubecl::Device, state: ReduceOptimizationState) -> Self {
+        let client = device.client();
 
         Self {
             trace: state.trace,
@@ -96,12 +96,12 @@ pub enum ReduceSettings {
     Never,
 }
 
-pub(crate) struct ReduceOptimizationTuneArg<R: Runtime> {
-    pub(crate) info: Arc<ReduceOptimizationInfo<R>>,
-    pub(crate) fallback: Arc<Box<dyn FallbackOperation<R>>>,
+pub(crate) struct ReduceOptimizationTuneArg {
+    pub(crate) info: Arc<ReduceOptimizationInfo>,
+    pub(crate) fallback: Arc<Box<dyn FallbackOperation>>,
 }
 
-impl<R: Runtime> Clone for ReduceOptimizationTuneArg<R> {
+impl Clone for ReduceOptimizationTuneArg {
     fn clone(&self) -> Self {
         Self {
             info: self.info.clone(),
@@ -124,8 +124,8 @@ pub enum ReduceInstruction {
     All,
 }
 
-pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
-    fn run(&self, context: &mut Context<CubeFusionHandle<R>>);
+pub trait ReduceFallbackFn: Send + Sync {
+    fn run(&self, context: &mut Context<CubeFusionHandle>);
 }
 
 #[derive(Serialize, Deserialize)]
@@ -179,18 +179,18 @@ impl From<ReduceError> for FusedReduceError {
     }
 }
 
-impl<R: Runtime> ReduceOptimizationTuneArg<R> {
+impl ReduceOptimizationTuneArg {
     pub fn execute_fused(
         &self,
-        context: &mut Context<CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle>,
         strategy: RoutineStrategy,
-    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
+    ) -> Result<TuneOutput, TraceError<FusedReduceError>> {
         let launch = FusedReduceLaunch::new(&self.info.reduce, strategy);
         let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
         launcher.launch(&self.info.client, &self.info.device, context)
     }
 
-    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle<R>>) -> TuneOutput<R> {
+    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle>) -> TuneOutput {
         let launcher = FuseTraceLauncher::new(&self.info.trace_read_fallback, &ElemwiseRunner);
 
         #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
@@ -224,13 +224,13 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
 }
 
 #[allow(clippy::too_many_arguments)]
-impl<R: Runtime> ReduceOptimization<R> {
+impl ReduceOptimization {
     pub fn new(
         trace: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
-        client: ComputeClient<R>,
-        device: R::Device,
+        client: Client,
+        device: cubecl::Device,
         len: usize,
         len_read: usize,
         reduce: FusedReduce,
@@ -255,8 +255,8 @@ impl<R: Runtime> ReduceOptimization<R> {
     /// Execute the optimization.
     pub fn execute(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation>,
     ) {
         // The index of the fallback reduce is the number of ops fused as read.
         let fallback = fallback(self.info.len_read);
@@ -266,7 +266,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         };
 
         #[cfg(feature = "autotune")]
-        fused_reduce_autotune::<R>(arg, context);
+        fused_reduce_autotune(arg, context);
 
         #[cfg(not(feature = "autotune"))]
         if arg
@@ -296,8 +296,8 @@ impl<R: Runtime> ReduceOptimization<R> {
         }
     }
 
-    pub fn from_state(device: &R::Device, state: ReduceOptimizationState) -> Self {
-        let client = R::client(device);
+    pub fn from_state(device: &cubecl::Device, state: ReduceOptimizationState) -> Self {
+        let client = device.client();
 
         let info = ReduceOptimizationInfo {
             trace: state.trace,
@@ -323,16 +323,16 @@ impl<R: Runtime> ReduceOptimization<R> {
 }
 
 // TODO: Implement better vectorization here.
-impl<R: Runtime> Vectorization<R> for FusedReduceLaunch<'_> {}
+impl Vectorization for FusedReduceLaunch<'_> {}
 
-impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
+impl TraceRunner for FusedReduceLaunch<'_> {
     type Error = FusedReduceError;
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a Client,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
@@ -429,10 +429,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
     }
 }
 
-struct ReduceKwArgs<'b, Run: Runtime> {
-    client: &'b ComputeClient<Run>,
-    inputs: GlobalArgsLaunch<Run>,
-    outputs: GlobalArgsLaunch<Run>,
+struct ReduceKwArgs<'b> {
+    client: &'b Client,
+    inputs: GlobalArgsLaunch,
+    outputs: GlobalArgsLaunch,
     reduce_axis: usize,
     out_vec_axis: usize,
     blueprint: ReduceBlueprint,
@@ -443,15 +443,15 @@ struct ReduceKwArgs<'b, Run: Runtime> {
     output: FuseArg,
 }
 
-fn launch_reduce_mixed_precision<Run: Runtime>(
-    kwargs: ReduceKwArgs<'_, Run>,
+fn launch_reduce_mixed_precision(
+    kwargs: ReduceKwArgs<'_>,
     instruction: ReduceInstruction,
     dtype_input: DType,
     dtype_output: DType,
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
     let config = reduce_instruction2config(&instruction);
-    launch_reduce::<Run>(kwargs, config, dtype_input, dtype_output, dtype_acc)
+    launch_reduce(kwargs, config, dtype_input, dtype_output, dtype_acc)
 }
 
 pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> ReduceOperationConfig {
@@ -469,15 +469,15 @@ pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> Redu
     }
 }
 
-fn launch_reduce<Run: Runtime>(
-    kwargs: ReduceKwArgs<'_, Run>,
+fn launch_reduce(
+    kwargs: ReduceKwArgs<'_>,
     inst: ReduceOperationConfig,
     dtype_input: DType,
     dtype_output: DType,
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
     unsafe {
-        reduce_kernel_fused::launch_unchecked::<Run>(
+        reduce_kernel_fused::launch_unchecked(
             kwargs.client,
             kwargs.settings.cube_count,
             kwargs.settings.cube_dim,
@@ -530,7 +530,7 @@ pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Siz
 /// Name of the reduce fusion optimization.
 pub const NAME: &str = "Reduce";
 
-impl<R: Runtime> ReduceOptimizationInfo<R> {
+impl ReduceOptimizationInfo {
     /// The highest relative shape id across this reduce's trace and both of its fallbacks.
     pub(crate) fn max_relative_shape_id(&self) -> Option<usize> {
         [
@@ -544,7 +544,7 @@ impl<R: Runtime> ReduceOptimizationInfo<R> {
     }
 }
 
-impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
+impl FusedOperation for ReduceOptimization {
     fn max_relative_shape_id(&self) -> Option<usize> {
         self.info.max_relative_shape_id()
     }
@@ -558,8 +558,8 @@ impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
 
     fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     ) {
         Self::execute(self, context, |index| fallback(index))
     }
@@ -568,7 +568,7 @@ impl<R: Runtime> FusedOperation<R> for ReduceOptimization<R> {
         Self::to_state(self)
     }
 
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
+    fn from_state(device: &cubecl::Device, state: Self::State) -> Self {
         Self::from_state(device, state)
     }
 }

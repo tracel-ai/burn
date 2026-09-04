@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
@@ -46,11 +45,7 @@ fn flip_kernel<E: Numeric, Bool: Int>(
     output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
-pub(crate) fn flip<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    indices: &[usize],
-    dtype_bool: DType,
-) -> CubeTensor<R> {
+pub(crate) fn flip(tensor: CubeTensor, indices: &[usize], dtype_bool: DType) -> CubeTensor {
     let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
@@ -60,15 +55,15 @@ pub(crate) fn flip<R: CubeRuntime>(
     flip_on_output(tensor, output, indices, dtype_bool)
 }
 
-pub(crate) fn flip_on_output<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    output: CubeTensor<R>,
+pub(crate) fn flip_on_output(
+    tensor: CubeTensor,
+    output: CubeTensor,
     indices: &[usize],
     dtype_bool: DType,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let dtype_input = tensor.dtype;
     let ndims = tensor.meta.num_dims();
-    let mut indices_sequence = SequenceArg::<R, InputScalar>::new();
+    let mut indices_sequence = SequenceArg::<InputScalar>::new();
 
     for i in 0..ndims {
         indices_sequence.push({

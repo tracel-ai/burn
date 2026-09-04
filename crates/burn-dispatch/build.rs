@@ -1,5 +1,6 @@
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(default_backend)");
+    println!("cargo::rustc-check-cfg=cfg(cube_backend)");
 
     // If you try to build with `--no-default-features`, we enable a cpu backend by default
     let cuda = cfg!(feature = "cuda");
@@ -18,5 +19,12 @@ fn main() {
 
     if no_backend_enabled {
         println!("cargo:rustc-cfg=default_backend");
+    }
+
+    // Every cubecl-backed feature selects the same backend type now — the
+    // runtime is what the device says, not what the type is — so they share one
+    // variant, under one cfg rather than a seven-way list at each use.
+    if cuda || rocm || cpu || metal || vulkan || webgpu || wgpu {
+        println!("cargo:rustc-cfg=cube_backend");
     }
 }

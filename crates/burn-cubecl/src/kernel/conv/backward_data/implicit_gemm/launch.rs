@@ -10,20 +10,20 @@ use cubek::{
     std::InputBinding,
 };
 
-use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{ops::numeric::empty_device_dtype, tensor::CubeTensor};
 
-pub fn dgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
-    out_grad: CubeTensor<R>,
-    weights: CubeTensor<R>,
+pub fn dgrad_gemm_simple_sync<const N: usize>(
+    out_grad: CubeTensor,
+    weights: CubeTensor,
     input_shape: Shape,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let algorithm = match tile_kind {
         AcceleratedTileKind::Cmma => ConvAlgorithm::SimpleSyncCyclic,
         AcceleratedTileKind::Mma => ConvAlgorithm::SimpleSyncStrided,
     };
-    launch_backwards_data::<R, N>(
+    launch_backwards_data::<N>(
         &Strategy::Inferred {
             algorithm,
             tile_kind,
@@ -35,18 +35,18 @@ pub fn dgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     )
 }
 
-pub fn dgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
-    out_grad: CubeTensor<R>,
-    weights: CubeTensor<R>,
+pub fn dgrad_gemm_simple_async<const N: usize>(
+    out_grad: CubeTensor,
+    weights: CubeTensor,
     input_shape: Shape,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let algorithm = match tile_kind {
         AcceleratedTileKind::Cmma => ConvAlgorithm::SimpleAsyncCyclic,
         AcceleratedTileKind::Mma => ConvAlgorithm::SimpleAsyncStrided,
     };
-    launch_backwards_data::<R, N>(
+    launch_backwards_data::<N>(
         &Strategy::Inferred {
             algorithm,
             tile_kind,
@@ -58,14 +58,14 @@ pub fn dgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
     )
 }
 
-pub fn dgrad_gemm_simple_tma<R: CubeRuntime, const N: usize>(
-    out_grad: CubeTensor<R>,
-    weights: CubeTensor<R>,
+pub fn dgrad_gemm_simple_tma<const N: usize>(
+    out_grad: CubeTensor,
+    weights: CubeTensor,
     input_shape: Shape,
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
-) -> Result<CubeTensor<R>, ConvSetupError> {
-    launch_backwards_data::<R, N>(
+) -> Result<CubeTensor, ConvSetupError> {
+    launch_backwards_data::<N>(
         &Strategy::Inferred {
             algorithm: ConvAlgorithm::SimpleAsyncTma,
             tile_kind,
@@ -84,13 +84,13 @@ pub fn dgrad_gemm_simple_tma<R: CubeRuntime, const N: usize>(
 /// * `out_grad` - The output gradients
 /// * `weight_shape` - The shape of the weights/weight gradients
 /// * `options` - The options to use for the convolution
-pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
+pub fn launch_backwards_data<const N: usize>(
     strategy: &Strategy,
-    out_grad: CubeTensor<R>,
-    weights: CubeTensor<R>,
+    out_grad: CubeTensor,
+    weights: CubeTensor,
     input_shape: Shape,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     if options.groups != 1 || options.stride.iter().any(|&s| s != 1) {
         return Err(ConvSetupError::Groups(options.groups));
     }
@@ -115,7 +115,7 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
     let out_grad = InputBinding::new(out_grad.binding(), dtype_to_storage_type(out_grad_dtype));
     let weights = InputBinding::new(weights.binding(), dtype_to_storage_type(weights_dtype));
 
-    launch_ref::<R, N>(
+    launch_ref::<N>(
         strategy,
         &client,
         ConvolutionInputs::BackwardData {

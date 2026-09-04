@@ -2,7 +2,7 @@ use crate::kernel::{
     AddOp, AssignOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
     utils::{address_type, shape_divmod},
 };
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::tensor::CubeTensor;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
 use cubecl::{prelude::*, std::FastDivmod};
@@ -59,12 +59,12 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     }
 }
 
-fn select_assign_op<R: CubeRuntime, Op: BinaryOpFamily>(
-    tensor: CubeTensor<R>,
+fn select_assign_op<Op: BinaryOpFamily>(
+    tensor: CubeTensor,
     dim: usize,
-    indices: CubeTensor<R>,
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
@@ -77,7 +77,7 @@ fn select_assign_op<R: CubeRuntime, Op: BinaryOpFamily>(
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
     let shape = shape_divmod(&value);
-    select_assign_kernel::launch::<Op, R>(
+    select_assign_kernel::launch::<Op>(
         &tensor.client,
         cube_count,
         cube_dim,
@@ -97,33 +97,33 @@ fn select_assign_op<R: CubeRuntime, Op: BinaryOpFamily>(
     tensor
 }
 
-pub(crate) fn select_assign<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
+pub(crate) fn select_assign(
+    tensor: CubeTensor,
     dim: usize,
-    indices: CubeTensor<R>,
-    value: CubeTensor<R>,
+    indices: CubeTensor,
+    value: CubeTensor,
     is_bool: bool,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     match is_bool {
-        true => select_assign_op::<R, OrOp>(tensor, dim, indices, value),
-        false => select_assign_op::<R, AddOp>(tensor, dim, indices, value),
+        true => select_assign_op::<OrOp>(tensor, dim, indices, value),
+        false => select_assign_op::<AddOp>(tensor, dim, indices, value),
     }
 }
 
-pub(crate) fn select_assign_mul<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
+pub(crate) fn select_assign_mul(
+    tensor: CubeTensor,
     dim: usize,
-    indices: CubeTensor<R>,
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
-    select_assign_op::<R, MulOp>(tensor, dim, indices, value)
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
+    select_assign_op::<MulOp>(tensor, dim, indices, value)
 }
 
-pub(crate) fn select_assign_replace<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
+pub(crate) fn select_assign_replace(
+    tensor: CubeTensor,
     dim: usize,
-    indices: CubeTensor<R>,
-    value: CubeTensor<R>,
-) -> CubeTensor<R> {
-    select_assign_op::<R, AssignOp>(tensor, dim, indices, value)
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
+    select_assign_op::<AssignOp>(tensor, dim, indices, value)
 }

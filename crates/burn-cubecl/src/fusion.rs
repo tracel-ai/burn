@@ -1,4 +1,4 @@
-use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
+use crate::{CubeBackend, CubeDevice, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
 pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
@@ -8,7 +8,6 @@ use burn_fusion::{
 };
 use burn_ir::{BackendIr, TensorHandle};
 use burn_std::Metadata;
-use core::marker::PhantomData;
 
 mod registry;
 pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
@@ -16,16 +15,13 @@ pub use registry::{
     BUILTIN_NAMES, CubeFuser, OptimizationProvider, RegistryError, register, remove,
 };
 
-impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for CubeOptimization<R>
-where
-    R: CubeRuntime,
-{
+impl burn_fusion::Optimization<FusionCubeRuntime> for CubeOptimization {
     fn execute(
         &mut self,
         context: &mut burn_fusion::stream::Context<
-            <FusionCubeRuntime<R> as FusionRuntime>::FusionHandle,
+            <FusionCubeRuntime as FusionRuntime>::FusionHandle,
         >,
-        execution: &OrderedExecution<FusionCubeRuntime<R>>,
+        execution: &OrderedExecution<FusionCubeRuntime>,
     ) {
         self.run(context, &|index| {
             let operation = execution.operation_within_optimization(index);
@@ -37,8 +33,8 @@ where
         Self::to_state(self)
     }
 
-    fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {
-        registry::restore::<R>(device, state)
+    fn from_state(device: &CubeDevice, state: CubeOptimizationState) -> Self {
+        registry::restore(device, state)
     }
 }
 
@@ -52,10 +48,8 @@ impl<O: Clone> FallbackOperationWrapper<O> {
     }
 }
 
-impl<R: CubeRuntime> FallbackOperation<R>
-    for FallbackOperationWrapper<FallbackOp<FusionCubeRuntime<R>>>
-{
-    fn run(&self, context: &mut burn_fusion::stream::Context<CubeFusionHandle<R>>) {
+impl FallbackOperation for FallbackOperationWrapper<FallbackOp<FusionCubeRuntime>> {
+    fn run(&self, context: &mut burn_fusion::stream::Context<CubeFusionHandle>) {
         // Through `FallbackOp`, so unfused work inside a fused block obeys the
         // same rule as unfused work outside one: an operation whose input a
         // failure claims does not run, and its outputs take that failure.
@@ -63,8 +57,8 @@ impl<R: CubeRuntime> FallbackOperation<R>
     }
 }
 
-impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
-    type Handle = CubeFusionHandle<R>;
+impl BackendIr for CubeBackend {
+    type Handle = CubeFusionHandle;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
         into_tensor(handle.handle, handle.shape)
@@ -99,27 +93,25 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     }
 }
 
-impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
+impl FusionRuntime for FusionCubeRuntime {
     type OptimizationState = CubeOptimizationState;
-    type Optimization = CubeOptimization<R>;
-    type FusionHandle = CubeFusionHandle<R>;
-    type FusionDevice = R::CubeDevice;
+    type Optimization = CubeOptimization;
+    type FusionHandle = CubeFusionHandle;
+    type FusionDevice = CubeDevice;
 
-    fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
-        registry::fusers::<R>(&device)
+    fn fusers(device: CubeDevice) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
+        registry::fusers(&device)
     }
 }
 
 /// Fusion runtime for JIT runtimes.
 #[derive(Debug)]
-pub struct FusionCubeRuntime<R: CubeRuntime> {
-    _b: PhantomData<R>,
-}
+pub struct FusionCubeRuntime;
 
-impl<R: CubeRuntime> FusionBackend for CubeBackend<R> {
-    type FusionRuntime = FusionCubeRuntime<R>;
+impl FusionBackend for CubeBackend {
+    type FusionRuntime = FusionCubeRuntime;
 
-    type FullPrecisionBackend = CubeBackend<R>;
+    type FullPrecisionBackend = CubeBackend;
 
     fn cast_float(tensor: FloatTensor<Self>, dtype: DType) -> Self::Handle {
         kernel::cast(tensor, dtype).into()
@@ -128,7 +120,7 @@ impl<R: CubeRuntime> FusionBackend for CubeBackend<R> {
     fn memory_persistent(device: &Self::Device, enabled: bool) {
         use cubecl::MemoryAllocationMode;
 
-        let client = R::client(device);
+        let client = device.client();
         let mode = match enabled {
             true => MemoryAllocationMode::Persistent,
             false => MemoryAllocationMode::Auto,
@@ -139,7 +131,7 @@ impl<R: CubeRuntime> FusionBackend for CubeBackend<R> {
     }
 }
 
-fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> CubeTensor<R> {
+fn into_tensor(handle: CubeFusionHandle, shape: Shape) -> CubeTensor {
     CubeTensor {
         client: handle.client.clone(),
         handle: handle.handle.clone(),
@@ -150,8 +142,8 @@ fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> Cub
     }
 }
 
-impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
-    fn from(value: CubeTensor<R>) -> Self {
+impl From<CubeTensor> for CubeFusionHandle {
+    fn from(value: CubeTensor) -> Self {
         Self {
             client: value.client.clone(),
             handle: value.handle.clone(),

@@ -2,7 +2,7 @@ use crate::{
     BoolVisionOps, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, FloatVisionOps,
     IntVisionOps, VisionBackend, backends::cpu,
 };
-use burn_cubecl::{CubeBackend, CubeRuntime};
+use burn_cubecl::CubeBackend;
 
 use burn_core::backend::{
     TensorMetadata, ops::IntTensorOps, tensor::{BoolTensor, IntTensor}
@@ -11,7 +11,7 @@ use burn_core::tensor::IntDType;
 
 use super::connected_components::hardware_accelerated;
 
-impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
+impl BoolVisionOps for CubeBackend {
     fn connected_components(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
@@ -40,7 +40,7 @@ impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
         out_dtype: IntDType,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         let device = &img.device();
-        hardware_accelerated::<R>(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
+        hardware_accelerated(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
             |_| {
                 let (labels, stats) = cpu::connected_components_with_stats::<Self>(
                     img,
@@ -54,9 +54,9 @@ impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
     }
 }
 
-impl<R: CubeRuntime> IntVisionOps for CubeBackend<R> {}
-impl<R: CubeRuntime> FloatVisionOps for CubeBackend<R> {}
-impl<R: CubeRuntime> VisionBackend for CubeBackend<R> {}
+impl IntVisionOps for CubeBackend {}
+impl FloatVisionOps for CubeBackend {}
+impl VisionBackend for CubeBackend {}
 
 #[cfg(feature = "fusion")]
 mod fusion {

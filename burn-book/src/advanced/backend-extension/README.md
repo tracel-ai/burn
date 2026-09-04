@@ -111,7 +111,7 @@ Such a type can be returned from an operation directly. To pass one as an input,
 with `#[extension_type]`:
 
 ```rust, ignore
-#[backend_extension(Wgpu, Cuda, Autodiff)]
+#[backend_extension(Cube, Autodiff)]
 pub trait Backend: burn::backend::Backend {
     // Struct as an output.
     fn detect(image: FloatTensor<Self>) -> Boxes<Self>;

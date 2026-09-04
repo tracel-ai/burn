@@ -8,15 +8,14 @@ use crate::{
 };
 use burn_fusion::OperationFuser;
 use burn_std::Shape;
-use cubecl::Runtime;
 
 /// Fuses element wise operations.
-pub struct ElementWiseFuser<R: Runtime> {
+pub struct ElementWiseFuser {
     fuser: TraceOperationFuser,
-    device: R::Device,
+    device: cubecl::Device,
 }
 
-impl<R: Runtime> Clone for ElementWiseFuser<R> {
+impl Clone for ElementWiseFuser {
     fn clone(&self) -> Self {
         Self {
             fuser: self.fuser.clone(),
@@ -25,12 +24,12 @@ impl<R: Runtime> Clone for ElementWiseFuser<R> {
     }
 }
 
-impl<R: Runtime> ElementWiseFuser<R> {
+impl ElementWiseFuser {
     pub fn shape_id(&self) -> Shape {
         self.fuser.current_output_shape.clone()
     }
-    pub fn new(device: R::Device) -> Self {
-        let client = R::client(&device);
+    pub fn new(device: cubecl::Device) -> Self {
+        let client = device.client();
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
 
@@ -54,13 +53,13 @@ impl<R: Runtime> ElementWiseFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ElementWiseFuser<R> {
+impl OperationFuser<CubeOptimization> for ElementWiseFuser {
     fn fuse(&mut self, operation: &burn_ir::OperationIr) {
         self.fuser.fuse(operation);
     }
 
-    fn finish(&mut self) -> CubeOptimization<R> {
-        let client = R::client(&self.device);
+    fn finish(&mut self) -> CubeOptimization {
+        let client = self.device.client();
         let trace = self.fuser.finish();
         let elementwise = ElemwiseOptimization::new(trace, client, self.device.clone(), self.len());
 
@@ -83,7 +82,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ElementWiseFuser<R> {
         self.fuser.len()
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization>> {
         Box::new(self.clone())
     }
 }

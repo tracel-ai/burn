@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -41,12 +40,11 @@ pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
     );
 }
 
-pub(crate) fn launch_unary_float<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+pub(crate) fn launch_unary_float<O, Args>(tensor: CubeTensor, args: Args) -> CubeTensor
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
-    R: CubeRuntime,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options>,
     O: FloatUnaryOpFamily,
 {
     let vector_size = max_vector_size(&tensor);
@@ -61,7 +59,7 @@ where
 
     unsafe {
         if tensor.can_mut() && tensor.is_nonoverlapping() {
-            unary_float::launch_unchecked::<O, R>(
+            unary_float::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -82,7 +80,7 @@ where
                 tensor.dtype,
             );
 
-            unary_float::launch_unchecked::<O, R>(
+            unary_float::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -106,12 +104,11 @@ pub(crate) mod unary_basic {
 
     use super::*;
 
-    pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+    pub(crate) fn launch<Args>(tensor: CubeTensor, args: Args) -> CubeTensor
     where
-        R: CubeRuntime,
         for<'a> Args: FnOnce(&'a ()) -> BasicFloatUnaryKind,
     {
-        launch_unary_float::<R, BasicFloatUnary, _>(tensor, |input| {
+        launch_unary_float::<BasicFloatUnary, _>(tensor, |input| {
             BasicFloatUnaryOptionsLaunch::new(args(input))
         })
     }

@@ -2,11 +2,12 @@ use crate::{FloatTensor, kernel::fused_matmul_add_relu_kernel};
 
 use super::Backend;
 use burn::{backend::cubecl::dtype_to_storage_type, tensor::Shape};
-use burn_cubecl::{CubeBackend, CubeRuntime, kernel::into_contiguous, tensor::CubeTensor};
+use burn_cubecl::{CubeBackend, kernel::into_contiguous, tensor::CubeTensor};
 use cubecl::{CubeCount, CubeDim};
 
-/// Implement our custom backend trait for the generic `CubeBackend`.
-impl<R: CubeRuntime> Backend for CubeBackend<R> {
+/// Implement our custom backend trait for the cubecl backend. One impl covers every runtime:
+/// a tensor's device says which one it runs on.
+impl Backend for CubeBackend {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -76,7 +77,7 @@ impl<R: CubeRuntime> Backend for CubeBackend<R> {
     }
 }
 
-impl<R: CubeRuntime> Backend for burn_fusion::Fusion<CubeBackend<R>> {
+impl Backend for burn_fusion::Fusion<CubeBackend> {
     fn fused_matmul_add_relu(
         _lhs: FloatTensor<Self>,
         _rhs: FloatTensor<Self>,

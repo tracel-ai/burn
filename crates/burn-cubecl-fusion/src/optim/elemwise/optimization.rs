@@ -19,15 +19,15 @@ use crate::{
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{CubeDim, calculate_cube_count_elemwise, client::ComputeClient, prelude::*};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, client::Client, prelude::*};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
-pub struct ElemwiseOptimization<R: Runtime> {
+pub struct ElemwiseOptimization {
     pub(crate) trace: FuseTrace,
-    client: ComputeClient<R>,
-    device: R::Device,
+    client: Client,
+    device: cubecl::Device,
     len: usize,
 }
 
@@ -38,9 +38,9 @@ pub struct ElemwiseOptimizationState {
     len: usize,
 }
 
-impl<R: Runtime> ElemwiseOptimization<R> {
+impl ElemwiseOptimization {
     /// Execute the optimization.
-    pub fn execute(&self, context: &mut Context<CubeFusionHandle<R>>) {
+    pub fn execute(&self, context: &mut Context<CubeFusionHandle>) {
         let launcher = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
 
         match launcher.launch(&self.client, &self.device, context) {
@@ -57,11 +57,11 @@ impl<R: Runtime> ElemwiseOptimization<R> {
     }
 
     /// Create an optimization from its [state](ElemwiseOptimizationState).
-    pub fn from_state(device: &R::Device, state: ElemwiseOptimizationState) -> Self {
+    pub fn from_state(device: &cubecl::Device, state: ElemwiseOptimizationState) -> Self {
         Self {
             trace: state.trace,
             len: state.len,
-            client: R::client(device),
+            client: device.client(),
             device: device.clone(),
         }
     }
@@ -77,15 +77,15 @@ impl<R: Runtime> ElemwiseOptimization<R> {
 
 pub struct ElemwiseRunner;
 
-impl<R: Runtime> Vectorization<R> for ElemwiseRunner {}
-impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
+impl Vectorization for ElemwiseRunner {}
+impl TraceRunner for ElemwiseRunner {
     type Error = LaunchError; // No error possible
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a Client,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &[FuseBlockConfig],
     ) -> Result<(), Self::Error> {
         let config = &configs[0];
@@ -144,7 +144,7 @@ fn elemwise_fuse(
 /// Name of the element-wise fusion optimization.
 pub const NAME: &str = "ElementWise";
 
-impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
+impl FusedOperation for ElemwiseOptimization {
     fn max_relative_shape_id(&self) -> Option<usize> {
         self.trace.max_relative_shape_id()
     }
@@ -158,8 +158,8 @@ impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
 
     fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        _fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        _fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     ) {
         Self::execute(self, context)
     }
@@ -168,7 +168,7 @@ impl<R: Runtime> FusedOperation<R> for ElemwiseOptimization<R> {
         Self::to_state(self)
     }
 
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
+    fn from_state(device: &cubecl::Device, state: Self::State) -> Self {
         Self::from_state(device, state)
     }
 }

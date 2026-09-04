@@ -8,7 +8,7 @@ use cubecl::{
 use cubek::convolution::AcceleratedTileKind;
 
 use crate::{
-    CubeAutotuneKey, CubeRuntime, CubeTuneId,
+    CubeAutotuneKey, CubeTuneId,
     kernel::conv::{
         ConvAutotuneKey,
         backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
@@ -18,36 +18,37 @@ use crate::{
 };
 
 /// Executes autotune on the weight gradients pass for convolution
-pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    out_grad: CubeTensor<R>,
+pub fn wgrad_autotune<const N: usize>(
+    input: CubeTensor,
+    out_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N>,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let client = input.client.clone();
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
-        TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
+    let tune_id = CubeTuneId::new(&input.client, &input.device);
+    let tunables = TUNER.init(&tune_id, || {
+        TunableSet::new(create_key::<N>, create_wgrad_input::<N>)
             .with(Tunable::new(
                 "wgrad_fallback",
                 |(input, grad, shape, options)| {
-                    conv_weight_backward_fallback::<R, N>(input, grad, shape, options)
+                    conv_weight_backward_fallback::<N>(input, grad, shape, options)
                 },
             ))
             // The dense case, which the two pointwise candidates decline and
             // the fallback computes as a convolution by the gradient.
             .with(Tunable::new(
                 "wgrad_im2col",
-                |(input, grad, shape, options)| wgrad_im2col::<R, N>(input, grad, shape, options),
+                |(input, grad, shape, options)| wgrad_im2col::<N>(input, grad, shape, options),
             ))
             // The same matmul with its contraction cut into pieces, which is
             // what a weight gradient's shape asks for — see `split_count`.
             .with(Tunable::new(
                 "wgrad_im2col_1x1_split",
                 |(input, grad, shape, options)| {
-                    wgrad_im2col_1x1_split::<R, N>(input, grad, shape, options)
+                    wgrad_im2col_1x1_split::<N>(input, grad, shape, options)
                 },
             ))
             // Declines every shape but the pointwise one. It earns its place
@@ -55,9 +56,7 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
             // declines every candidate below, leaving the fallback unopposed.
             .with(Tunable::new(
                 "wgrad_im2col_1x1",
-                |(input, grad, shape, options)| {
-                    wgrad_im2col_1x1::<R, N>(input, grad, shape, options)
-                },
+                |(input, grad, shape, options)| wgrad_im2col_1x1::<N>(input, grad, shape, options),
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",
@@ -98,22 +97,17 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&input.client, &input.device),
+        &tune_id,
         &client,
         tunables,
         (input, out_grad, weight_shape, options),
     )
 }
 
-pub fn create_wgrad_input<R: CubeRuntime, const N: usize>(
+pub fn create_wgrad_input<const N: usize>(
     _key: &CubeAutotuneKey,
-    (input, out_grad, weight_shape, options): &(
-        CubeTensor<R>,
-        CubeTensor<R>,
-        Shape,
-        ConvOptions<N>,
-    ),
-) -> (CubeTensor<R>, CubeTensor<R>, Shape, ConvOptions<N>) {
+    (input, out_grad, weight_shape, options): &(CubeTensor, CubeTensor, Shape, ConvOptions<N>),
+) -> (CubeTensor, CubeTensor, Shape, ConvOptions<N>) {
     (
         input.clone(),
         out_grad.clone(),
@@ -122,13 +116,8 @@ pub fn create_wgrad_input<R: CubeRuntime, const N: usize>(
     )
 }
 
-fn create_key<R: CubeRuntime, const N: usize>(
-    (input, out_grad, weight_shape, options): &(
-        CubeTensor<R>,
-        CubeTensor<R>,
-        Shape,
-        ConvOptions<N>,
-    ),
+fn create_key<const N: usize>(
+    (input, out_grad, weight_shape, options): &(CubeTensor, CubeTensor, Shape, ConvOptions<N>),
 ) -> CubeAutotuneKey {
     let dtype = input.dtype;
     let rank = input.meta.num_dims();

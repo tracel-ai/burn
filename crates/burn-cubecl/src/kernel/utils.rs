@@ -5,9 +5,9 @@ use cubecl::{
     std::{FastDivmod, FastDivmodInt},
 };
 
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::tensor::CubeTensor;
 
-pub fn shape_divmod<R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<R, FastDivmod<usize>> {
+pub fn shape_divmod(tensor: &CubeTensor) -> SequenceArg<FastDivmod<usize>> {
     let mut arg = SequenceArg::new();
     for dim in tensor.meta.shape().iter() {
         arg.push(*dim);
@@ -15,10 +15,10 @@ pub fn shape_divmod<R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<R, Fa
     arg
 }
 
-pub fn shape_divmod_range<R: CubeRuntime>(
-    tensor: &CubeTensor<R>,
+pub fn shape_divmod_range(
+    tensor: &CubeTensor,
     range: core::ops::Range<usize>,
-) -> SequenceArg<R, FastDivmod<usize>> {
+) -> SequenceArg<FastDivmod<usize>> {
     let mut arg = SequenceArg::new();
     let shape = &tensor.meta.shape;
     for i in range {
@@ -27,11 +27,7 @@ pub fn shape_divmod_range<R: CubeRuntime>(
     arg
 }
 
-pub fn split_dim<R: CubeRuntime>(
-    mut tensor: CubeTensor<R>,
-    dim: usize,
-    shape: &[usize],
-) -> CubeTensor<R> {
+pub fn split_dim(mut tensor: CubeTensor, dim: usize, shape: &[usize]) -> CubeTensor {
     let mut stride = tensor.meta.strides()[dim];
     tensor.meta.remove(dim);
 
@@ -43,7 +39,7 @@ pub fn split_dim<R: CubeRuntime>(
     tensor
 }
 
-pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
+pub fn broadcast_shape(tensors: &[&CubeTensor]) -> Shape {
     let rank = tensors[0].meta.num_dims();
     debug_assert!(
         tensors.iter().all(|it| it.meta.num_dims() == rank),
@@ -71,10 +67,7 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
     Shape::from(dims)
 }
 
-pub fn broadcast_strides<R: CubeRuntime>(
-    reference: &CubeTensor<R>,
-    tensor: &CubeTensor<R>,
-) -> SequenceArg<R, usize> {
+pub fn broadcast_strides(reference: &CubeTensor, tensor: &CubeTensor) -> SequenceArg<usize> {
     if reference.meta.shape() != tensor.meta.shape() {
         tensor
             .meta
@@ -118,12 +111,12 @@ pub(crate) trait RequiredAddrType {
     fn required_address_type(&self) -> AddressType;
 }
 
-impl<R: CubeRuntime> RequiredAddrType for CubeTensor<R> {
+impl RequiredAddrType for CubeTensor {
     fn required_address_type(&self) -> AddressType {
         self.required_address_type()
     }
 }
-impl<R: CubeRuntime> RequiredAddrType for Option<CubeTensor<R>> {
+impl RequiredAddrType for Option<CubeTensor> {
     fn required_address_type(&self) -> AddressType {
         self.as_ref()
             .map(|it| it.required_address_type())

@@ -4,7 +4,7 @@
 //! model autotunes against `conv_direct` alone — the accelerated candidates all decline before
 //! they are timed. This wrapper reaches the one routine that does accept it.
 
-use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::convolution::{
@@ -23,13 +23,13 @@ use cubek::convolution::{
 /// A bias is not folded in here. The convolutions this targets carry none — every grouped shape
 /// in the model has `has_bias: false` — and adding one would be a second pass over the output
 /// that the caller can already express.
-pub fn conv_depthwise<R: CubeRuntime, const N: usize>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_depthwise<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvOptions<N>,
     strategy: DepthwiseStrategy,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     if N != 2 {
         return Err(ConvSetupError::Unknown);
     }
@@ -81,7 +81,7 @@ pub fn conv_depthwise<R: CubeRuntime, const N: usize>(
         out: out.clone().binding(),
     };
 
-    launch_depthwise::<R>(&client, tensors, args, options.groups, dtype, strategy)?;
+    launch_depthwise(&client, tensors, args, options.groups, dtype, strategy)?;
 
     Ok(out)
 }

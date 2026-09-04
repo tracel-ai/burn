@@ -3,8 +3,8 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        CubeBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
-        build_info, into_contiguous, kernel_source,
+        CubeBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, build_info,
+        into_contiguous, kernel_source,
     },
     tensor::{DType, Shape},
 };
@@ -37,10 +37,17 @@ impl KernelSource for FusedMatmulAddRelu {
     fn id(&self) -> KernelId {
         KernelId::new::<Self>().info(self.cube_dim)
     }
+
+    // `kernel.wgsl` is WGSL, so this runs on a wgpu build that compiles to WGSL. A build whose
+    // `AutoCompiler` picks SPIR-V or MSL instead rejects the kernel rather than mis-reading it.
+    fn lang(&self) -> &'static str {
+        "wgsl"
+    }
 }
 
-/// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl Backend for CubeBackend<WgpuRuntime> {
+/// Implement our custom backend trait for the cubecl backend. The WGSL source below only
+/// compiles on the wgpu runtime, which is the one this example's device selects.
+impl Backend for CubeBackend {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -117,7 +124,7 @@ impl Backend for CubeBackend<WgpuRuntime> {
     }
 }
 
-impl Backend for burn_fusion::Fusion<CubeBackend<WgpuRuntime>> {
+impl Backend for burn_fusion::Fusion<CubeBackend> {
     fn fused_matmul_add_relu(
         _lhs: FloatTensor<Self>,
         _rhs: FloatTensor<Self>,

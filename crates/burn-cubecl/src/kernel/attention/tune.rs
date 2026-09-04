@@ -1,5 +1,5 @@
 use crate::{
-    CubeRuntime, CubeTuneId,
+    CubeTuneId,
     kernel::attention::{AttentionStrategy, attention, bounds::with_attention_bounds},
     tensor::CubeTensor,
 };
@@ -12,21 +12,22 @@ use cubek::attention::forward::{
 };
 
 /// Executes autotune on attention operations
-pub fn attention_autotune<R: CubeRuntime>(
-    query: CubeTensor<R>,
-    key: CubeTensor<R>,
-    value: CubeTensor<R>,
-    mask: Option<CubeTensor<R>>,
-    attn_bias: Option<CubeTensor<R>>,
+pub fn attention_autotune(
+    query: CubeTensor,
+    key: CubeTensor,
+    value: CubeTensor,
+    mask: Option<CubeTensor>,
+    attn_bias: Option<CubeTensor>,
     options: AttentionModuleOptions,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let client = query.client.clone();
 
     let accelerated_client = client.clone();
 
     static TUNER: LocalTuner<AttentionAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(move || {
+    let tune_id = CubeTuneId::new(&accelerated_client, &query.device);
+    let tunables = TUNER.init(&tune_id, move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_MIN: i8 = 0;
 
@@ -53,14 +54,14 @@ pub fn attention_autotune<R: CubeRuntime>(
             }
         });
 
-        let mut set = with_attention_bounds(TunableSet::new(create_key::<R>, input_gen::<R>));
+        let mut set = with_attention_bounds(TunableSet::new(create_key, input_gen));
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
             Tunable::new(
                 "fallback",
                 |(query, key, value, mask, attn_bias, options)| {
-                    attention::<R>(
+                    attention(
                         query,
                         key,
                         value,
@@ -84,7 +85,7 @@ pub fn attention_autotune<R: CubeRuntime>(
                 Tunable::new(
                     &name,
                     move |(query, key, value, mask, attn_bias, options)| {
-                        attention::<R>(
+                        attention(
                             query,
                             key,
                             value,
@@ -130,7 +131,7 @@ pub fn attention_autotune<R: CubeRuntime>(
 
         set = set.with(
             Tunable::new("unit", |(query, key, value, mask, attn_bias, options)| {
-                attention::<R>(
+                attention(
                     query,
                     key,
                     value,
@@ -148,7 +149,7 @@ pub fn attention_autotune<R: CubeRuntime>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new(&accelerated_client, &query.device),
+        &tune_id,
         &accelerated_client,
         tunables,
         (query, key, value, mask, attn_bias, options),
@@ -156,13 +157,13 @@ pub fn attention_autotune<R: CubeRuntime>(
 }
 
 #[allow(clippy::type_complexity)]
-fn create_key<R: CubeRuntime>(
+fn create_key(
     (query, key, value, mask, _attn_bias, _options): &(
-        CubeTensor<R>,
-        CubeTensor<R>,
-        CubeTensor<R>,
-        Option<CubeTensor<R>>,
-        Option<CubeTensor<R>>,
+        CubeTensor,
+        CubeTensor,
+        CubeTensor,
+        Option<CubeTensor>,
+        Option<CubeTensor>,
         AttentionModuleOptions,
     ),
 ) -> AttentionAutotuneKey {
@@ -187,22 +188,22 @@ fn create_key<R: CubeRuntime>(
 }
 
 #[allow(clippy::type_complexity)]
-fn input_gen<R: CubeRuntime>(
+fn input_gen(
     _key: &AttentionAutotuneKey,
     (query, key, value, mask, attn_bias, options): &(
-        CubeTensor<R>,
-        CubeTensor<R>,
-        CubeTensor<R>,
-        Option<CubeTensor<R>>,
-        Option<CubeTensor<R>>,
+        CubeTensor,
+        CubeTensor,
+        CubeTensor,
+        Option<CubeTensor>,
+        Option<CubeTensor>,
         AttentionModuleOptions,
     ),
 ) -> (
-    CubeTensor<R>,
-    CubeTensor<R>,
-    CubeTensor<R>,
-    Option<CubeTensor<R>>,
-    Option<CubeTensor<R>>,
+    CubeTensor,
+    CubeTensor,
+    CubeTensor,
+    Option<CubeTensor>,
+    Option<CubeTensor>,
     AttentionModuleOptions,
 ) {
     (
