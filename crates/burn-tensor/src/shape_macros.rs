@@ -7,8 +7,8 @@
 /// Asserts a tensor's rank at compile time and its axis sizes at runtime.
 ///
 /// The pattern has one slot per axis. A slot is either `_`, which skips the axis, or any `usize`
-/// expression the axis must equal: a name from `dims()`, a config field, a literal. To name
-/// axes, destructure `tensor.dims()` first and use the names as slots.
+/// expression the axis must equal: a name from `dims()`, a config field, a literal, arithmetic
+/// on any of those. To name axes, destructure `tensor.dims()` first and use the names as slots.
 ///
 /// The pattern length must equal the tensor rank, otherwise the call does not compile. The
 /// tensor is borrowed, not moved, and every expression is evaluated once. Checks stay on in
@@ -21,10 +21,15 @@
 /// let device = Default::default();
 /// let x = Tensor::<3>::zeros([2, 5, 256], &device);
 /// let mask = Tensor::<2>::zeros([2, 5], &device);
+/// let patch = Tensor::<2>::zeros([6, 2], &device);
 ///
 /// let [batch_size, seq_length, _] = x.dims();
-/// assert_shape!(x, [_, _, 256]);
-/// assert_shape!(mask, [batch_size, seq_length]);
+/// let flat = x.clone().reshape([batch_size * seq_length, 256]);
+///
+/// assert_shape!(x, [batch_size, seq_length, 256]);     // names from dims() and a literal
+/// assert_shape!(flat, [batch_size * seq_length, 256]); // arithmetic on names
+/// assert_shape!(patch, [3 * 2, 2]);                    // arithmetic on literals
+/// assert_shape!(mask, [batch_size, _]);                // skip an axis
 /// ```
 ///
 /// A mismatch panics with the call and the offending axis:

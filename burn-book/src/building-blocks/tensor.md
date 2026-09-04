@@ -178,6 +178,7 @@ To check the size of each axis, use the shape macros from the prelude:
 let [batch_size, seq_length, _] = x.dims();
 assert_shape!(x, [_, _, 80]);
 assert_shape!(y, [batch_size, seq_length, 256]);
+assert_shape!(flat, [batch_size * seq_length, 256]);
 debug_assert_shape!(z, [batch_size, _, 256]);
 ```
 

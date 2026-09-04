@@ -63,8 +63,18 @@ available from the prelude, check those sizes at the boundary of a method:
 - `debug_assert_shape!` is the same check, compiled out unless debug assertions are enabled.
 
 Each takes a tensor and a bracketed pattern with one slot per axis. A slot is either `_`, which
-skips the axis, or any `usize` expression the axis must equal: a name from `dims()`, a config field,
-a literal.
+skips the axis, or any `usize` expression the axis must equal:
+
+```rust, ignore
+let [batch_size, seq_length, _] = x.dims();
+let flat = x.clone().reshape([batch_size * seq_length, 256]);
+
+assert_shape!(x, [batch_size, seq_length, 256]);       // names from dims() and a literal
+assert_shape!(flat, [batch_size * seq_length, 256]);   // arithmetic on names
+assert_shape!(patch, [3 * 2, 2]);                      // arithmetic on literals
+assert_shape!(mask, [batch_size, _]);                  // skip an axis
+assert_shape!(hidden, [_, _, self.d_model]);           // a config field
+```
 
 The pattern length is the expected rank. Since `tensor.dims()` returns `[usize; D]`, a pattern whose
 length differs from `D` is a compile error rather than a runtime panic, and so is passing anything
