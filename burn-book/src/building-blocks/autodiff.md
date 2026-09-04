@@ -21,8 +21,19 @@ field on every parameter. Passing that container to `grad` or `grad_remove` make
 between the backward pass and gradient access explicit. `grad_remove` can also enable in-place
 optimizations when a gradient is consumed only once.
 
-Note that some functions will always be available even if the tensor is not on an autodiff-enabled
-device. In such cases, those functions will do nothing.
+Autodiff association, graph participation, and gradient retention are related but independent
+properties:
+
+| Property               | Accessor                                   | Related APIs                                                                             |
+| ---------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| Autodiff association   | `tensor.is_autodiff()`                     | `autodiff()` / `without_autodiff()`                                                      |
+| Graph participation    | `tensor.is_tracked()`                      | `detach()` / operations with tracked inputs                                              |
+| Gradient retention     | `tensor.is_require_grad()`                 | `require_grad()` / `set_require_grad(...)`                                               |
+| Checkpointing strategy | `tensor.gradient_checkpointing_strategy()` | `autodiff().with_gradient_checkpointing_strategy(...)`                                   |
+
+`require_grad()` only controls whether a tensor's gradient is retained; it does not enable autodiff.
+On a tensor without autodiff, it is a no-op. `detach()` keeps the autodiff association but starts a
+new graph lineage, while `without_autodiff()` removes the association entirely.
 
 | Burn API                                | PyTorch Equivalent           |
 | --------------------------------------- | ---------------------------- |
@@ -57,6 +68,9 @@ With Burn, tensors shouldn't be on an autodiff device for inference, and you can
 `without_autodiff()` to obtain a tensor without autodiff, which is useful for validation. The
 historical `inner()` method is equivalent.
 
+When an operation combines a tensor with autodiff and a tensor without it, the operation uses
+autodiff and treats the latter tensor as a constant. The original tensor remains unchanged.
+
 ```rust, ignore
 fn example_validation(tensor: Tensor<2>) {
     debug_assert!(tensor.device().is_autodiff());
@@ -74,8 +88,8 @@ fn example_inference(tensor: Tensor<2>) {
 ## Gradients with Optimizers
 
 We've seen how gradients can be used with tensors, but the process is a bit different when working
-with optimizers from `burn-optim`. To work with the `Module` trait, a translation step is required to
-link tensor parameters with their gradients. This step is necessary to easily support gradient
+with optimizers from `burn-optim`. To work with the `Module` trait, a translation step is required
+to link tensor parameters with their gradients. This step is necessary to easily support gradient
 accumulation and training on multiple devices, where each module can be forked and run on different
 devices in parallel. The [Optimizer](./optimizer.md) section explains how those gradients update
 module parameters.

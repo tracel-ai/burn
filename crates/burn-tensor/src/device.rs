@@ -33,7 +33,8 @@ use alloc::vec::Vec;
 ///
 /// [`Device`] provides a unified interface to interact with the underlying compute backend.
 ///
-/// Autodiff support is a property of the device rather than a separate type parameter.
+/// Autodiff support is configured on the device rather than through a separate type parameter.
+/// Tensors inherit that context when created and can later change it independently.
 #[cfg_attr(
     feature = "autodiff",
     doc = "Wrap a device with [`.autodiff()`](Device::autodiff) to enable automatic differentiation with the device."
@@ -78,8 +79,8 @@ use alloc::vec::Vec;
 /// ```rust,ignore
 /// let device = Device::default().autodiff();
 ///
-/// // Tensors created on this device will track gradients
-/// let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
+/// // Tensors created on this device can participate in an autodiff graph.
+/// let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device).require_grad();
 /// ```
 pub struct Device {
     blob: device_opaque::Opaque,
@@ -118,8 +119,9 @@ impl PartialEq for Device {
     /// Compares devices based on hardware identity.
     ///
     /// Returns `true` if both devices represent the same compute resource.
-    /// Note that this comparison ignores autodiff and checkpointing settings.
-    /// To check if two devices have identical capabilities, check [`Device::is_autodiff`].
+    /// Note that this comparison ignores autodiff and checkpointing settings. Inspect
+    /// [`Device::is_autodiff`] and `Device::gradient_checkpointing_strategy()` when execution
+    /// context also matters.
     fn eq(&self, other: &Self) -> bool {
         self.as_dispatch() == other.as_dispatch()
     }
@@ -542,41 +544,36 @@ impl Device {
 
     /// Enables autodiff on this device.
     ///
-    /// Autodiff is a property of the device: tensors created on the returned device
-    /// will participate in the autodiff graph.
+    /// Tensors created on the returned device inherit its autodiff context. A tensor can later
+    /// change that context independently with [`Tensor::autodiff`](crate::Tensor::autodiff) or
+    /// [`Tensor::without_autodiff`](crate::Tensor::without_autodiff).
     ///
-    /// Only first-order autodiff is supported. Calling this method on a device that
-    /// already has autodiff enabled will panic.
+    /// Calling this method on a device that already has autodiff enabled returns it unchanged,
+    /// preserving its gradient-checkpointing strategy. This operation is idempotent.
     ///
     /// # Example
     ///
     /// ```rust,ignore
     /// let device = Device::default().autodiff();
-    /// let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
-    /// // x.backward() is now available
+    /// let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device).require_grad();
+    /// let gradients = x.backward();
     /// ```
     ///
-    /// # Panics
-    ///
-    /// Panics if autodiff is already enabled on this device.
     #[cfg(feature = "autodiff")]
+    #[must_use]
     pub fn autodiff(self) -> Self {
         match self.into_dispatch() {
-            DispatchDevice::Autodiff(_) => unimplemented!("Only first-order autodiff is supported"),
+            device @ DispatchDevice::Autodiff(_) => Self::new(device),
             other => Self::new(DispatchDevice::autodiff(other)),
         }
     }
 
-    /// Returns an autodiff device's gradient checkpointing strategy.
-    ///
-    /// # Panics
-    ///
-    /// Panics if autodiff is not enabled on this device.
+    /// Returns this device's gradient-checkpointing strategy when autodiff is enabled.
     #[cfg(feature = "autodiff")]
-    pub fn gradient_checkpointing_strategy(&self) -> GradientCheckpointingStrategy {
+    pub fn gradient_checkpointing_strategy(&self) -> Option<GradientCheckpointingStrategy> {
         match self.as_dispatch() {
-            DispatchDevice::Autodiff(device) => device.gradient_checkpointing_strategy(),
-            _ => panic!("Autodiff is not enabled on this device"),
+            DispatchDevice::Autodiff(device) => Some(device.gradient_checkpointing_strategy()),
+            _ => None,
         }
     }
 
@@ -597,6 +594,7 @@ impl Device {
     ///
     /// Panics if autodiff is not enabled on this device.
     #[cfg(feature = "autodiff")]
+    #[must_use]
     pub fn gradient_checkpointing(self) -> Self {
         match self.into_dispatch() {
             DispatchDevice::Autodiff(device) => {
@@ -605,28 +603,41 @@ impl Device {
                     GradientCheckpointingStrategy::Balanced,
                 ))
             }
-            _ => panic!("Autodiff is not enabled on this device"),
+            _ => panic!(
+                "Device::gradient_checkpointing requires autodiff; call Device::autodiff first"
+            ),
         }
     }
 
-    /// Returns the underlying device, removing the autodiff capability if present.
+    /// Returns this device without its autodiff association.
     ///
-    /// If autodiff is not enabled, this method returns the device as-is.
+    /// If autodiff is not enabled, the device is returned unchanged. This operation is idempotent.
     ///
     /// # Example
     ///
     /// ```rust,ignore
     /// let device = Device::default().autodiff();
-    /// let inner_device = device.inner();
+    /// let inference_device = device.without_autodiff();
     ///
-    /// assert!(!inner_device.is_autodiff());
+    /// assert!(!inference_device.is_autodiff());
     /// ```
-    pub fn inner(self) -> Self {
+    #[must_use]
+    pub fn without_autodiff(self) -> Self {
         if self.is_autodiff() {
             Self::new(self.into_dispatch().inner())
         } else {
             self
         }
+    }
+
+    /// Returns this device without its autodiff association.
+    ///
+    /// This is equivalent to [`without_autodiff`](Self::without_autodiff). `inner` reflects the
+    /// historical backend-decorator model, while `without_autodiff` describes the device's runtime
+    /// property directly.
+    #[must_use]
+    pub fn inner(self) -> Self {
+        self.without_autodiff()
     }
 
     /// Synchronize the device, waiting for all pending operations to complete.
@@ -1243,14 +1254,27 @@ pub struct Devices(Vec<Device>);
 impl Devices {
     /// Enables autodiff across all contained devices.
     ///
-    /// Only first-order autodiff is supported. Calling this method on a device that
-    /// already has autodiff enabled will panic.
+    /// Devices that already have autodiff enabled are left unchanged, preserving their
+    /// gradient-checkpointing strategy.
     ///
     /// See [`Device::autodiff`].
     #[cfg(feature = "autodiff")]
+    #[must_use]
     pub fn autodiff(mut self) -> Self {
         for device in &mut self.0 {
             *device = core::mem::take(device).autodiff();
+        }
+
+        self
+    }
+
+    /// Removes the autodiff association from every contained device.
+    ///
+    /// See [`Device::without_autodiff`].
+    #[must_use]
+    pub fn without_autodiff(mut self) -> Self {
+        for device in &mut self.0 {
+            *device = core::mem::take(device).without_autodiff();
         }
 
         self
@@ -1357,6 +1381,8 @@ mod autodiff_move_tests {
         let t = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
         let moved = t.to_device(&ad_device);
 
+        assert!(!moved.is_autodiff());
+        assert!(!moved.is_tracked());
         assert_eq!(
             moved.try_into_vec_as::<f32>().unwrap(),
             vec![1.0, 2.0, 3.0, 4.0]
