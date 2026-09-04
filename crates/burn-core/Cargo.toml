@@ -20,6 +20,10 @@ default = [
     "burn-std/default",
     "burn-dataset?/default",
     "burn-tensor/default",
+    "burn-cpu?/default",
+    "burn-cuda?/default",
+    "burn-rocm?/default",
+    "burn-wgpu?/default",
 ]
 doc = [
     "std",
@@ -31,7 +35,15 @@ doc = [
     "burn-tensor/doc",
     "dep:regex"
 ]
-tracing = ["burn-std/tracing", "burn-tensor/tracing", "burn-dataset?/tracing"]
+tracing = [
+    "burn-std/tracing",
+    "burn-tensor/tracing",
+    "burn-dataset?/tracing",
+    "burn-cpu?/tracing",
+    "burn-cuda?/tracing",
+    "burn-rocm?/tracing",
+    "burn-wgpu?/tracing",
+]
 
 dataset = ["burn-dataset"]
 
@@ -48,6 +60,10 @@ std = [
     "serde/std",
     "serde_json/std",
     "num-traits/std",
+    "burn-cpu?/std",
+    "burn-cuda?/std",
+    "burn-rocm?/std",
+    "burn-wgpu?/std",
 ]
 vision = ["burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
@@ -56,24 +72,42 @@ audio = ["burn-dataset?/audio"]
 remote = ["burn-tensor/remote"]
 remote-server = ["burn-tensor/remote-server"]
 remote-websocket = ["burn-tensor/remote-websocket"]
-cuda = ["burn-tensor/cuda"]
-rocm = ["burn-tensor/rocm"]
+cuda = ["burn-tensor/cuda", "dep:burn-cuda"]
+rocm = ["burn-tensor/rocm", "dep:burn-rocm"]
 flex = ["burn-tensor/flex"]
 ndarray = ["burn-tensor/ndarray"]
 tch = ["burn-tensor/tch"]
-vulkan = ["burn-tensor/vulkan"]
-webgpu = ["burn-tensor/webgpu"]
-wgpu = ["burn-tensor/wgpu"]
-metal = ["burn-tensor/metal"]
-cpu = ["burn-tensor/cpu"]
+vulkan = ["wgpu", "burn-tensor/vulkan", "burn-wgpu/vulkan"]
+webgpu = ["wgpu", "burn-tensor/webgpu", "burn-wgpu/webgpu"]
+wgpu = ["burn-tensor/wgpu", "dep:burn-wgpu"]
+metal = ["wgpu", "burn-tensor/metal", "burn-wgpu/metal"]
+cpu = ["burn-tensor/cpu", "dep:burn-cpu"]
 autodiff = ["burn-tensor/autodiff"]
 capture = ["burn-tensor/capture"]
 ir = ["burn-ir"]
 
 # Backend features
-autotune = ["burn-tensor/autotune"]
-autotune-checks = ["burn-tensor/autotune-checks"]
-fusion = ["burn-tensor/fusion"]
+autotune = [
+    "burn-tensor/autotune",
+    "burn-cpu?/autotune",
+    "burn-cuda?/autotune",
+    "burn-rocm?/autotune",
+    "burn-wgpu?/autotune",
+]
+autotune-checks = [
+    "burn-tensor/autotune-checks",
+    "burn-cpu?/autotune-checks",
+    "burn-cuda?/autotune-checks",
+    "burn-rocm?/autotune-checks",
+    "burn-wgpu?/autotune-checks",
+]
+fusion = [
+    "burn-tensor/fusion",
+    "burn-cpu?/fusion",
+    "burn-cuda?/fusion",
+    "burn-rocm?/fusion",
+    "burn-wgpu?/fusion",
+]
 simd = ["burn-tensor/simd"]
 rayon = ["burn-tensor/rayon"]
 x86-v4 = ["burn-tensor/x86-v4"]
@@ -82,7 +116,7 @@ accelerate = ["burn-tensor/accelerate"]
 blas-netlib = ["burn-tensor/blas-netlib"]
 openblas = ["burn-tensor/openblas"]
 openblas-system = ["burn-tensor/openblas-system"]
-template = ["burn-tensor/template"]
+template = ["burn-tensor/template", "burn-wgpu?/template"]
 
 # Backend extensions
 # burn-dispatch features are enabled from burn-tensor, we just re-export the public types
@@ -97,6 +131,12 @@ burn-dataset = { workspace = true, optional = true }
 burn-derive = { workspace = true }
 burn-pack = { workspace = true, default-features = false }
 burn-tensor = { workspace = true }
+
+# Public backend facades re-exported by `burn-core::backend`.
+burn-cpu = { workspace = true, optional = true }
+burn-cuda = { workspace = true, optional = true }
+burn-rocm = { workspace = true, optional = true }
+burn-wgpu = { workspace = true, optional = true }
 
 # Backend extensions
 burn-backend = { workspace = true, optional = true }

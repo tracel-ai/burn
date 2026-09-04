@@ -494,7 +494,7 @@ impl Device {
 
     /// WGPU device, selected via [`DeviceKind`].
     ///
-    /// [`AutoCompiler`](burn_dispatch::backends::wgpu::AutoCompiler) dispatches to the most
+    /// [`AutoCompiler`](burn_dispatch::devices::AutoCompiler) dispatches to the most
     /// appropriate shader language (WGSL, SPIR-V, or MSL) based on the enabled features.
     ///
     /// For [`DeviceKind::DefaultDevice`], the adapter is picked by `wgpu`'s
@@ -1042,7 +1042,7 @@ fn wgpu_device(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
 // TODO: this is only helpful for the default graphics api and runtime options.. we'd have to expose other methods but that leaks the types
 // so we might have to introduce some wrapper types.
 async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
-    use burn_dispatch::backends::wgpu::{graphics::AutoGraphicsApi, init_setup_async};
+    use burn_dispatch::devices::{AutoGraphicsApi, init_setup_async};
 
     let device = wgpu_device(device_kind);
     init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;

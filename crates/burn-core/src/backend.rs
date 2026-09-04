@@ -6,8 +6,27 @@ pub use burn_backend_extension::{ExtensionType, backend_extension};
 
 // Dispatch backend extension types
 pub use burn_dispatch::{backend::*, device::*, tensor::*};
-// Re-export backends (e.g., Cuda)
+// Re-export the backends dispatches directly.
 pub use burn_dispatch::backends::*;
+// Re-export their devices without conflating them with backend implementations in burn-dispatch.
+pub use burn_dispatch::devices::*;
+
+// Public runtime facade crates. CubeCL runtimes share one dispatch backend, but these aliases and
+// modules remain the stable user-facing API under `burn::backend`.
+#[cfg(feature = "cpu")]
+pub use burn_cpu::{self as cpu, Cpu};
+#[cfg(feature = "cuda")]
+pub use burn_cuda::{self as cuda, Cuda};
+#[cfg(feature = "rocm")]
+pub use burn_rocm::{self as rocm, Rocm};
+#[cfg(feature = "metal")]
+pub use burn_wgpu::Metal;
+#[cfg(feature = "vulkan")]
+pub use burn_wgpu::Vulkan;
+#[cfg(feature = "webgpu")]
+pub use burn_wgpu::WebGpu;
+#[cfg(feature = "wgpu")]
+pub use burn_wgpu::{self as wgpu, Wgpu};
 
 /// A trait to map custom structs and enums of tensor primitives across the [`Dispatch`] boundary, in
 /// both directions.
