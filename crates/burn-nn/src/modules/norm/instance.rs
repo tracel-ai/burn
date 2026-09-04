@@ -5,7 +5,7 @@ use burn::config::Config;
 use burn::module::Initializer;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::module::{Module, Param};
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, Tensor, assert_shape};
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
@@ -87,7 +87,13 @@ impl InstanceNorm {
     ///
     /// - input: `[batch_size, num_channels, *]`
     /// - output: `[batch_size, num_channels, *]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input has rank < 2 or its second axis is not `num_channels`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
+        assert_shape!(input, [_, self.num_channels, ..]);
+
         // Instance norm is equivalent to group norm when the number of groups is equal to the number of channels.
         let num_groups = self.num_channels;
 
@@ -105,6 +111,16 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input, [_, self.num_channels, ..]): axis 1 expected 6, got 4"
+    )]
+    fn input_channels_must_match() {
+        let device = Default::default();
+        let module = InstanceNormConfig::new(6).init(&device);
+        let _ = module.forward(Tensor::<3>::zeros([1, 4, 2], &device));
+    }
 
     #[test]
     fn instance_norm_forward_affine_false() {

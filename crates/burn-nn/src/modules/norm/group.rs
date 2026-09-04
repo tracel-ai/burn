@@ -8,6 +8,7 @@ use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Device;
 use burn::tensor::FloatDType;
 use burn::tensor::Tensor;
+use burn::tensor::assert_shape;
 
 use super::accumulation_dtype;
 
@@ -111,14 +112,12 @@ impl GroupNorm {
     ///
     /// - input: `[batch_size, num_channels, *]`
     /// - output: `[batch_size, num_channels, *]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input has rank < 2 or its second axis is not `num_channels`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if input.shape()[1] != self.num_channels {
-            panic!(
-                "The number of channels in the input tensor should be equal to the number of channels in the GroupNorm module. Expected {}, got {}",
-                self.num_channels,
-                input.shape()[1]
-            );
-        }
+        assert_shape!(input, [_, self.num_channels, ..]);
 
         let gamma = self.gamma.as_ref().map(|x| x.val());
         let beta = self.beta.as_ref().map(|x| x.val());
@@ -214,6 +213,16 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input, [_, self.num_channels, ..]): axis 1 expected 6, got 4"
+    )]
+    fn input_channels_must_match() {
+        let device = Default::default();
+        let module = GroupNormConfig::new(3, 6).init(&device);
+        let _ = module.forward(Tensor::<3>::zeros([1, 4, 2], &device));
+    }
 
     #[test]
     fn group_norm_forward_affine_false() {

@@ -4,7 +4,7 @@ use alloc::vec;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Int;
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, Tensor, assert_shape};
 use core::ops::Range;
 
 #[cfg(not(feature = "std"))]
@@ -143,7 +143,7 @@ impl RotaryEncoding {
     /// Output tensor with the same shape as input tensor after applying rotary encoding.
     ///
     /// # Panics
-    /// If the input tensor does not have at least 2 dimensions for sequence length and hidden dimension.
+    /// If the input has fewer than 2 dimensions or its last axis is not `d_model`.
     pub fn forward<const D: usize>(&self, x: Tensor<D>) -> Tensor<D> {
         self.apply(x, 0)
     }
@@ -160,19 +160,17 @@ impl RotaryEncoding {
     /// Output tensor with the same shape as input tensor after applying rotary encoding.
     ///
     /// # Panics
-    /// If the input tensor does not have at least 2 dimensions for sequence length and hidden dimension.
+    /// If the input has fewer than 2 dimensions or its last axis is not `d_model`.
     pub fn apply<const D: usize>(&self, x: Tensor<D>, start: usize) -> Tensor<D> {
-        assert!(
-            D >= 2,
-            "Input tensor must have at least 2 dimensions for sequence length and hidden dimension"
-        );
+        let [_, d_model, _] = self.freq_complex.dims();
+        assert_shape!(x, [.., _, d_model]);
 
         let device = x.device();
         let input_shape = x.shape();
 
         // Extract the sequence length and embedding dimension, other dimensions are kept generic
         // to allow both 3D and 4D tensors i.e. batch_size or (batch_size, num_heads)
-        let (seq_len, d_model) = (x.dims()[D - 2], x.dims()[D - 1]);
+        let seq_len = x.dims()[D - 2];
         let dummy_dim_size = input_shape.num_elements() / (seq_len * d_model);
 
         // Create a dummy tensor with signed ones based on the 2D rotation matrix
@@ -284,6 +282,14 @@ mod tests {
     use super::*;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(x, [.., _, d_model]): axis 2 expected 4, got 6")]
+    fn input_d_model_must_match() {
+        let device = Default::default();
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);
+        let _ = rotary_encoding.forward(Tensor::<3>::zeros([1, 5, 6], &device));
+    }
 
     #[test]
     fn test_rotary_encoding_forward() {
