@@ -107,8 +107,15 @@ use crate::DispatchAutodiffContext;
 use crate::DispatchDeviceId;
 #[allow(unused)]
 use crate::DispatchTensorKind;
-use crate::backends::*;
-use crate::{DispatchDevice, DispatchTensor};
+#[cfg(any(feature = "flex", default_backend))]
+use crate::devices::FlexDevice;
+#[cfg(feature = "tch")]
+use crate::devices::LibTorchDevice;
+#[cfg(feature = "ndarray")]
+use crate::devices::NdArrayDevice;
+#[cfg(feature = "remote-websocket")]
+use crate::devices::RemoteDevice;
+use crate::{DispatchDevice, DispatchTensor, backends::*};
 
 /// The main execution backend in Burn.
 ///

@@ -143,7 +143,7 @@ burn-rl = { workspace = true, optional = true }
 burn-vision = { workspace = true, optional = true }
 burn-std = { workspace = true }
 
-# Backends are pulled in through the dispatch chain
-# (burn-core -> burn-tensor -> burn-dispatch), not from here.
+# Backend implementations and their public facade re-exports are owned by burn-core;
+# dispatch itself continues through burn-tensor -> burn-dispatch.
 
 cubecl = { workspace = true, optional = true }

@@ -1,6 +1,6 @@
 use burn_backend::{DeviceId, DeviceOps, DeviceSettings};
 
-use crate::backends::*;
+use crate::devices::*;
 
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
@@ -563,22 +563,22 @@ impl From<CubeDevice> for DispatchDevice {
 // out. There is one variant to reach now, so a wgpu device no longer needs a
 // priority chain of gates to decide which of four it lands in.
 #[cfg(feature = "cpu")]
-impl From<burn_cpu::CpuDevice> for DispatchDevice {
-    fn from(device: burn_cpu::CpuDevice) -> Self {
+impl From<CpuDevice> for DispatchDevice {
+    fn from(device: CpuDevice) -> Self {
         DispatchDevice::Cube(CubeDevice::Cpu(device))
     }
 }
 
 #[cfg(feature = "cuda")]
-impl From<burn_cuda::CudaDevice> for DispatchDevice {
-    fn from(device: burn_cuda::CudaDevice) -> Self {
+impl From<CudaDevice> for DispatchDevice {
+    fn from(device: CudaDevice) -> Self {
         DispatchDevice::Cube(CubeDevice::Cuda(device))
     }
 }
 
 #[cfg(feature = "rocm")]
-impl From<burn_rocm::RocmDevice> for DispatchDevice {
-    fn from(device: burn_rocm::RocmDevice) -> Self {
+impl From<RocmDevice> for DispatchDevice {
+    fn from(device: RocmDevice) -> Self {
         DispatchDevice::Cube(CubeDevice::Hip(device))
     }
 }
@@ -589,8 +589,8 @@ impl From<burn_rocm::RocmDevice> for DispatchDevice {
     feature = "vulkan",
     feature = "webgpu"
 ))]
-impl From<burn_wgpu::WgpuDevice> for DispatchDevice {
-    fn from(device: burn_wgpu::WgpuDevice) -> Self {
+impl From<WgpuDevice> for DispatchDevice {
+    fn from(device: WgpuDevice) -> Self {
         DispatchDevice::Cube(CubeDevice::Wgpu(device))
     }
 }
