@@ -1,4 +1,6 @@
-use crate::{CubeBackend, CubeDevice, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{
+    CubeBackend, CubeDevice, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor,
+};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType, ExecutionError, Shape, TensorData,
