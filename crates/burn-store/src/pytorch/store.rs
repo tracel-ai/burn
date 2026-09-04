@@ -139,6 +139,10 @@ impl PytorchStore {
     ///
     /// Multiple patterns can be added and they work with OR logic.
     ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    ///
     /// # Example
     /// ```rust,no_run
     /// # use burn_store::PytorchStore;
@@ -152,6 +156,10 @@ impl PytorchStore {
     }
 
     /// Add multiple regex patterns to filter tensors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any pattern is not a valid regular expression.
     pub fn with_regexes<I, S>(mut self, patterns: I) -> Self
     where
         I: IntoIterator<Item = S>,

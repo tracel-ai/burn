@@ -247,6 +247,10 @@ impl PathFilter {
     }
 
     /// Create a filter from regex patterns only
+    ///
+    /// # Panics
+    ///
+    /// Panics if any pattern is not a valid regular expression.
     #[cfg(feature = "std")]
     pub fn from_regex_patterns<I, S>(patterns: I) -> Self
     where

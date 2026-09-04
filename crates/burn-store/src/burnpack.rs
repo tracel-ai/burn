@@ -259,6 +259,10 @@ impl BurnpackStore {
     }
 
     /// Add regex pattern to filter
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
     #[cfg(feature = "std")]
     pub fn with_regex(mut self, pattern: &str) -> Self {
         let filter = self.filter.unwrap_or_default();
