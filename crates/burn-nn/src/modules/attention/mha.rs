@@ -1,10 +1,11 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::Gelu;
 use crate::cache::TensorCache;
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Bool, Device, Tensor, assert_shape};
 
 use burn::tensor::activation::{quiet_softmax, softmax};

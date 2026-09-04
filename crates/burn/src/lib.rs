@@ -113,6 +113,7 @@
 //!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
+//!   - `linalg`: Enables linear algebra operations
 //!   - `capture`: Makes the non-executing graph capture backend available.
 //!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `server`: Enables the remote server.
@@ -121,6 +122,29 @@
 //! You can also check the details in sub-crates [`burn-core`](https://docs.rs/burn-core) and [`burn-train`](https://docs.rs/burn-train).
 
 pub use burn_core::*;
+
+/// Linear algebra operations.
+#[cfg(feature = "linalg")]
+pub mod linalg {
+    pub use burn_linalg::*;
+}
+
+/// Core module infrastructure and neural-network initializers.
+pub mod module {
+    pub use burn_core::module::*;
+    pub use burn_nn::Initializer;
+}
+
+/// Tensor types and compatibility re-exports.
+pub mod tensor {
+    pub use burn_core::tensor::*;
+
+    /// Compatibility path for linear algebra operations.
+    #[cfg(feature = "linalg")]
+    pub mod linalg {
+        pub use burn_linalg::*;
+    }
+}
 
 /// Train module
 #[cfg(feature = "train")]

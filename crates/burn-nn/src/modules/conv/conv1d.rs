@@ -2,11 +2,11 @@ use alloc::format;
 
 use burn_core as burn;
 
-use crate::{PaddingConfig1d, conv::checks};
+use crate::{Initializer, PaddingConfig1d, conv::checks};
 use burn::tensor::{Device, Tensor, module::conv1d, ops::ConvOptions};
 use burn::{
     config::Config,
-    module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay, Param},
+    module::{Content, DisplaySettings, Module, ModuleDisplay, Param},
 };
 
 /// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).

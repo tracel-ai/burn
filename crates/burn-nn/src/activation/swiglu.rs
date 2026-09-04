@@ -1,7 +1,8 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::activation::silu;
 use burn::tensor::{Device, Tensor};
 

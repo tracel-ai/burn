@@ -1,5 +1,6 @@
 use super::*;
-use burn_tensor::{TensorData, linalg::diag};
+use burn_core::tensor::TensorData;
+use burn_linalg::diag;
 
 #[test]
 fn test_diag_2d_square() {

@@ -1,6 +1,7 @@
 use super::*;
-use burn_tensor::Tolerance;
-use burn_tensor::{TensorData, linalg};
+use burn_core::tensor::TensorData;
+use burn_core::tensor::Tolerance;
+use burn_linalg as linalg;
 
 #[test]
 fn test_cosine_similarity_basic() {

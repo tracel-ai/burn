@@ -25,9 +25,6 @@ pub mod container {
 /// The grid module.
 pub mod grid;
 
-/// The linalg module.
-pub mod linalg;
-
 /// The loss module.
 pub mod loss;
 

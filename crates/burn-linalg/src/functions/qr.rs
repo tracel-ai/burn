@@ -1,4 +1,5 @@
-use crate::{Tensor, check, check::TensorCheck, linalg::l2_norm, s};
+use super::l2_norm;
+use crate::{Tensor, check::TensorCheck, s};
 use alloc::vec;
 use burn_std::Slice;
 
@@ -31,7 +32,7 @@ use burn_std::Slice;
 /// ```rust,ignore
 /// use burn::tensor::Tensor;
 /// use burn::backend::Flex;
-/// use burn::tensor::linalg;
+/// use burn::linalg;
 ///
 /// fn example() {
 ///     let device = Default::default();

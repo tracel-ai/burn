@@ -1,10 +1,10 @@
+use crate::Initializer;
 use alloc::format;
 
 use burn_core as burn;
 
 use crate::PaddingConfig3d;
 use burn::config::Config;
-use burn::module::Initializer;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, Param};
 use burn::tensor::Device;
 use burn::tensor::Tensor;

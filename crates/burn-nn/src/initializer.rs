@@ -1,14 +1,12 @@
 #![allow(clippy::manual_range_contains)]
 
-use crate::tensor::Shape;
-
-use crate::config::Config;
-use crate::module::{Param, ParamId};
-use crate::tensor::{Distribution, Tensor};
-
-use crate as burn;
-
-use burn_tensor::{Device, linalg};
+use burn_core as burn;
+use burn_core::{
+    config::Config,
+    module::{Param, ParamId},
+    tensor::{Device, Distribution, Shape, Tensor},
+};
+use burn_linalg as linalg;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
@@ -252,10 +250,10 @@ mod tests {
 
     use super::*;
 
-    use burn_tensor::{ElementConversion, TensorData};
+    use burn_core::tensor::{ElementConversion, TensorData};
     use num_traits::Pow;
 
-    use burn_tensor::Tolerance;
+    use burn_core::tensor::Tolerance;
     type FT = f32;
 
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<2>) {

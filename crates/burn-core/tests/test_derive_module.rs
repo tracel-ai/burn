@@ -1,6 +1,5 @@
-use burn::module::Initializer;
 use burn::module::{Module, Param};
-use burn::tensor::{Int, Tensor};
+use burn::tensor::{Distribution, Int, Tensor};
 use burn_core as burn;
 use burn_tensor::Device;
 
@@ -18,11 +17,11 @@ struct ModuleTensorConstInt {
 impl ModuleBasic {
     fn new(device: &Device) -> Self {
         Self {
-            weight_basic: Initializer::Normal {
-                std: 1.0,
-                mean: 0.0,
-            }
-            .init([20, 20], device),
+            weight_basic: Param::from_tensor(Tensor::random(
+                [20, 20],
+                Distribution::Normal(0.0, 1.0),
+                device,
+            )),
         }
     }
 }
@@ -66,11 +65,11 @@ pub struct ModuleComposed {
 
 impl ModuleComposed {
     fn new(device: &Device) -> Self {
-        let weight = Initializer::Normal {
-            std: 1.0,
-            mean: 0.0,
-        }
-        .init([20, 20], device);
+        let weight = Param::from_tensor(Tensor::random(
+            [20, 20],
+            Distribution::Normal(0.0, 1.0),
+            device,
+        ));
 
         Self {
             weight,

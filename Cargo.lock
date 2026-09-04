@@ -800,6 +800,7 @@ name = "burn"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn-core",
+ "burn-linalg",
  "burn-nn",
  "burn-optim",
  "burn-rl",
@@ -1104,6 +1105,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-linalg"
+version = "0.22.0-pre.3"
+dependencies = [
+ "burn-core",
+ "burn-cubecl",
+ "burn-fusion",
+ "burn-router",
+ "burn-std",
+ "ctor",
+ "num-traits",
+]
+
+[[package]]
 name = "burn-ndarray"
 version = "0.22.0-pre.3"
 dependencies = [
@@ -1133,6 +1147,7 @@ name = "burn-nn"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn-core",
+ "burn-linalg",
  "num-traits",
  "rstest",
 ]
@@ -1322,6 +1337,7 @@ dependencies = [
  "async-channel",
  "burn-core",
  "burn-flex",
+ "burn-linalg",
  "burn-nn",
  "burn-optim",
  "burn-rl",
@@ -1354,7 +1370,6 @@ dependencies = [
  "burn-core",
  "burn-cubecl",
  "burn-fusion",
- "burn-ir",
  "burn-std",
  "burn-store",
  "bytemuck",

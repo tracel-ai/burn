@@ -1,5 +1,6 @@
 use super::*;
-use burn_tensor::{TensorData, Tolerance, linalg};
+use burn_core::tensor::{TensorData, Tolerance};
+use burn_linalg as linalg;
 
 #[test]
 fn test_matvec_basic_float() {

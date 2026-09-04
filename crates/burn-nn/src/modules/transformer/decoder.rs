@@ -1,9 +1,10 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use alloc::vec::Vec;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Bool, Device, Tensor};
 
 use crate::activation::ActivationConfig;

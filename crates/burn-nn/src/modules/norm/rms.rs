@@ -1,10 +1,10 @@
+use crate::Initializer;
 use burn::tensor::DType;
 
 use burn::tensor::assert_shape;
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::Initializer;
 use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
