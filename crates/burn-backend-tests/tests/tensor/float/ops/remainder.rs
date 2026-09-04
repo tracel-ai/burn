@@ -2,6 +2,38 @@ use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
+#[test]
+fn should_support_remainder_broadcast() {
+    let device = Default::default();
+    let lhs = TestTensor::<2>::from_data(TensorData::from([[3.0, 4.0, 5.0]]), &device);
+    let rhs = TestTensor::<2>::from_data(
+        TensorData::from([[2.0, 2.0, 2.0], [3.0, 3.0, 3.0]]),
+        &device,
+    );
+
+    let output = lhs.remainder(rhs);
+    let expected = TensorData::from([[1.0, 0.0, 1.0], [0.0, 1.0, 2.0]]);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+#[should_panic(expected = "The provided tensors have incompatible shapes.")]
+fn should_panic_remainder_incompatible_shapes() {
+    let device = Default::default();
+    // Same rank, but [2, 2] vs [2, 3]: dimension 1 cannot broadcast.
+    let lhs = TestTensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+    let rhs = TestTensor::<2>::from_data(
+        TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        &device,
+    );
+
+    let output = lhs.remainder(rhs);
+    output.into_data();
+}
+
 /// From https://pytorch.org/docs/stable/generated/torch.remainder.html
 #[test]
 fn should_support_remainder_basic() {

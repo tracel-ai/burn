@@ -63,6 +63,18 @@ fn should_support_neg_values_with_odd_power() {
 }
 
 #[test]
+#[should_panic(expected = "The provided tensors have incompatible shapes.")]
+fn should_panic_powf_incompatible_shapes() {
+    let device = Default::default();
+    // Same rank, but [2, 2] vs [2, 3]: dimension 1 cannot broadcast.
+    let lhs = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+    let rhs = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+
+    let output = lhs.powf(rhs);
+    output.into_data();
+}
+
+#[test]
 fn should_support_powf_broadcasted() {
     let device = Default::default();
     let tensor_1 = TestTensor::<1>::from_data([2.0, 3.0, 4.0], &device);

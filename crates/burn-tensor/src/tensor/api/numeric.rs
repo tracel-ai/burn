@@ -170,6 +170,7 @@ where
     ///
     /// `y = x2 % x1`
     pub fn remainder(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Remainder", &self, &other));
         Self::new(K::remainder(self.primitive, other.primitive))
     }
 
@@ -711,6 +712,7 @@ where
     /// // [[1, -8, 81], [5, 81, 216]]
     /// ```
     pub fn powi(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Powi", &self, &other));
         Self::new(K::powi(self.primitive, other.primitive))
     }
 
