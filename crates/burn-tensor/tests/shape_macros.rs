@@ -111,6 +111,55 @@ fn assert_reports_the_first_failing_axis() {
     assert_shape!(x, [99, 99]);
 }
 
+// ---- `..` rest slot ----
+
+fn check_last_axis<const D: usize>(x: &Tensor<D>, size: usize) {
+    assert_shape!(x, [.., size]);
+}
+
+#[test]
+fn rest_works_for_any_rank() {
+    check_last_axis(&t([4]), 4);
+    check_last_axis(&t([2, 4]), 4);
+    check_last_axis(&t([2, 3, 5, 4]), 4);
+}
+
+#[test]
+fn rest_in_every_position() {
+    let x = t([2, 3, 4, 5]);
+    assert_shape!(x, [2, ..]);
+    assert_shape!(x, [2, 3, .., 5]);
+    assert_shape!(x, [.., _, 5]);
+    assert_shape!(x, [..]);
+    assert_shape!(x, [2, 3, 4, 5, ..]);
+}
+
+#[test]
+#[should_panic(
+    expected = "assert_shape!(x, [.., _, 99]): axis 3 expected 99, got 5 (dims [2, 3, 4, 5])"
+)]
+fn rest_suffix_mismatch_reports_the_real_axis() {
+    let x = t([2, 3, 4, 5]);
+    assert_shape!(x, [.., _, 99]);
+}
+
+#[test]
+#[should_panic(
+    expected = "assert_shape!(x, [2, 3, .., 5]): expected rank at least 3, got 2 (dims [2, 3])"
+)]
+fn rest_with_too_few_axes_panics() {
+    let x = t([2, 3]);
+    assert_shape!(x, [2, 3, .., 5]);
+}
+
+#[test]
+#[cfg(not(debug_assertions))]
+fn debug_assert_with_rest_compiles_out_in_release() {
+    let x = t([2, 3]);
+    debug_assert_shape!(x, [.., 99]);
+    debug_assert_shape!(x, [1, 2, 3, ..]);
+}
+
 // ---- debug_assert_shape! ----
 
 #[test]

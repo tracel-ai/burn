@@ -179,6 +179,7 @@ let [batch_size, seq_length, _] = x.dims();
 assert_shape!(x, [_, _, 80]);
 assert_shape!(y, [batch_size, seq_length, 256]);
 assert_shape!(flat, [batch_size * seq_length, 256]);
+assert_shape!(w, [.., 256]); // any rank, last axis checked
 debug_assert_shape!(z, [batch_size, _, 256]);
 ```
 

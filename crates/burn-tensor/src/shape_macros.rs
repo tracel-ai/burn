@@ -10,7 +10,9 @@
 /// expression the axis must equal: a name from `dims()`, a config field, a literal, arithmetic
 /// on any of those. To name axes, destructure `tensor.dims()` first and use the names as slots.
 ///
-/// The pattern length must equal the tensor rank, otherwise the call does not compile. The
+/// The pattern length must equal the tensor rank, otherwise the call does not compile. One
+/// slot may be `..`, which stands for any number of axes; the pattern then fixes only a
+/// minimum rank, checked at runtime, and fits a function generic over `const D: usize`. The
 /// tensor is borrowed, not moved, and every expression is evaluated once. Checks stay on in
 /// release builds; see [`debug_assert_shape!`](crate::debug_assert_shape) for the debug-only
 /// variant.
@@ -30,6 +32,20 @@
 /// assert_shape!(flat, [batch_size * seq_length, 256]); // arithmetic on names
 /// assert_shape!(patch, [3 * 2, 2]);                    // arithmetic on literals
 /// assert_shape!(mask, [batch_size, _]);                // skip an axis
+/// ```
+///
+/// With `..`, the same check works whatever the rank:
+///
+/// ```
+/// use burn_tensor::{Tensor, assert_shape};
+///
+/// fn check_features<const D: usize>(x: &Tensor<D>, d_model: usize) {
+///     assert_shape!(x, [.., d_model]);
+/// }
+///
+/// let device = Default::default();
+/// check_features(&Tensor::<2>::zeros([5, 256], &device), 256);
+/// check_features(&Tensor::<4>::zeros([2, 3, 5, 256], &device), 256);
 /// ```
 ///
 /// A mismatch panics with the call and the offending axis:
@@ -63,6 +79,14 @@
 /// use burn_tensor::{Tensor, assert_shape};
 /// let x = Tensor::<3>::zeros([2, 3, 4], &Default::default());
 /// assert_shape!(x.shape(), [2, 3]);
+/// ```
+///
+/// A pattern may contain `..` only once:
+///
+/// ```compile_fail
+/// use burn_tensor::{Tensor, assert_shape};
+/// let x = Tensor::<3>::zeros([2, 3, 4], &Default::default());
+/// assert_shape!(x, [.., 3, ..]);
 /// ```
 #[macro_export]
 macro_rules! assert_shape {

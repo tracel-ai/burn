@@ -63,7 +63,8 @@ available from the prelude, check those sizes at the boundary of a method:
 - `debug_assert_shape!` is the same check, compiled out unless debug assertions are enabled.
 
 Each takes a tensor and a bracketed pattern with one slot per axis. A slot is either `_`, which
-skips the axis, or any `usize` expression the axis must equal:
+skips the axis, `..`, which stands for any number of axes and may appear once, or any `usize`
+expression the axis must equal:
 
 ```rust, ignore
 let [batch_size, seq_length, _] = x.dims();
@@ -74,11 +75,21 @@ assert_shape!(flat, [batch_size * seq_length, 256]);   // arithmetic on names
 assert_shape!(patch, [3 * 2, 2]);                      // arithmetic on literals
 assert_shape!(mask, [batch_size, _]);                  // skip an axis
 assert_shape!(hidden, [_, _, self.d_model]);           // a config field
+assert_shape!(hidden, [.., self.d_model]);             // any rank, last axis checked
 ```
 
 The pattern length is the expected rank. Since `tensor.dims()` returns `[usize; D]`, a pattern whose
 length differs from `D` is a compile error rather than a runtime panic, and so is passing anything
-other than a `Tensor`.
+other than a `Tensor`. That makes an exact pattern unusable in a method generic over
+`const D: usize`, like the `PositionWiseFeedForward` at the top of this page. Use `..` there for the
+axes you do not name; the pattern then checks a minimum rank at runtime instead:
+
+```rust, ignore
+pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
+    assert_shape!(input, [.., self.d_model]);
+    // ...
+}
+```
 
 ```rust, ignore
 use burn::nn::{Gelu, Linear};

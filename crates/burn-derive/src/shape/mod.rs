@@ -17,11 +17,15 @@ enum Slot {
     Check(Box<Expr>),
     /// `_`: the axis is not checked.
     Wildcard,
+    /// `..`: any number of axes, none of them checked. At most one per pattern.
+    Rest(Token![..]),
 }
 
 impl Parse for Slot {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.peek(Token![_]) {
+        if input.peek(Token![..]) {
+            Ok(Slot::Rest(input.parse()?))
+        } else if input.peek(Token![_]) {
             input.parse::<Token![_]>()?;
             Ok(Slot::Wildcard)
         } else {
@@ -46,9 +50,20 @@ impl Parse for ShapeInput {
         input.parse::<Token![,]>()?;
         let content;
         bracketed!(content in input);
-        let slots = Punctuated::<Slot, Token![,]>::parse_terminated(&content)?
+        let slots: Vec<Slot> = Punctuated::<Slot, Token![,]>::parse_terminated(&content)?
             .into_iter()
             .collect();
+        let mut rests = slots.iter().filter_map(|slot| match slot {
+            Slot::Rest(token) => Some(token),
+            _ => None,
+        });
+        rests.next();
+        if let Some(second) = rests.next() {
+            return Err(syn::Error::new(
+                second.span(),
+                "at most one `..` per pattern",
+            ));
+        }
         Ok(ShapeInput {
             krate,
             tensor,
@@ -86,40 +101,92 @@ pub(crate) fn expand(input: ShapeInput, mode: Mode, call: &str) -> TokenStream {
     // mentions `__dims` still resolves to the user's own binding.
     let t = Ident::new("__tensor", Span::mixed_site());
     let dims = Ident::new("__dims", Span::mixed_site());
+    let rank = Ident::new("__rank", Span::mixed_site());
+    let axis = Ident::new("__axis", Span::mixed_site());
     let expected = Ident::new("__expected", Span::mixed_site());
 
-    let rank = slots.len();
     let call = format!("{}({call})", mode.name());
 
-    let checks = slots
+    // A pattern with `..` splits into the axes before it and the axes after it. The latter are
+    // addressed from the end, since the number of axes `..` stands for is only known at runtime.
+    let rest = slots.iter().position(|slot| matches!(slot, Slot::Rest(_)));
+    let (prefix, suffix): (&[Slot], &[Slot]) = match rest {
+        Some(position) => (&slots[..position], &slots[position + 1..]),
+        None => (&slots[..], &[]),
+    };
+
+    let check = |index: TokenStream, expr: &Expr| {
+        quote_spanned! { expr.span() =>
+            {
+                let #axis: usize = #index;
+                let #expected: usize = #expr;
+                ::core::assert!(
+                    #dims[#axis] == #expected,
+                    "{}: axis {} expected {}, got {} (dims {:?})",
+                    #call, #axis, #expected, #dims[#axis], #dims
+                );
+            }
+        }
+    };
+    let prefix_checks = prefix
         .iter()
         .enumerate()
-        .filter_map(|(axis, slot)| match slot {
+        .filter_map(|(i, slot)| match slot {
             Slot::Check(expr) => {
-                let index = Literal::usize_unsuffixed(axis);
-                Some(quote_spanned! { expr.span() =>
-                    {
-                        let #expected: usize = #expr;
-                        ::core::assert!(
-                            #dims[#index] == #expected,
-                            "{}: axis {} expected {}, got {} (dims {:?})",
-                            #call, #index, #expected, #dims[#index], #dims
-                        );
-                    }
-                })
+                let index = Literal::usize_unsuffixed(i);
+                Some(check(quote! { #index }, expr))
             }
-            Slot::Wildcard => None,
+            _ => None,
+        });
+    let suffix_checks = suffix
+        .iter()
+        .enumerate()
+        .filter_map(|(j, slot)| match slot {
+            Slot::Check(expr) => {
+                let from_end = Literal::usize_unsuffixed(suffix.len() - j);
+                Some(check(quote! { #rank - #from_end }, expr))
+            }
+            _ => None,
         });
 
-    // The type annotation is the rank check: `Tensor<D>::dims()` returns `[usize; D]`. Calling
+    // Without `..`, the type annotation is the rank check: `Tensor<D>::dims()` returns
+    // `[usize; D]`. With `..`, only a minimum rank is known, so it is checked at runtime. Calling
     // `Tensor::dims` by path rather than as a method makes any other receiver a type error;
     // `Shape::dims::<N>` would infer `N` from the annotation and truncate silently. Going through
     // a reference keeps a `&x` argument free of `clippy::needless_borrow`, which a
     // `(#tensor).dims()` receiver would trigger.
-    let body = quote_spanned! { tensor.span() =>
-        let #t = &#tensor;
-        let #dims: [usize; #rank] = #krate::Tensor::dims(#t);
-        #(#checks)*
+    let rank_check = match rest {
+        None => {
+            let exact = slots.len();
+            quote_spanned! { tensor.span() =>
+                let #t = &#tensor;
+                let #dims: [usize; #exact] = #krate::Tensor::dims(#t);
+            }
+        }
+        Some(_) => {
+            let min = prefix.len() + suffix.len();
+            let min_check = (min > 0).then(|| {
+                quote! {
+                    ::core::assert!(
+                        #rank >= #min,
+                        "{}: expected rank at least {}, got {} (dims {:?})",
+                        #call, #min, #rank, #dims
+                    );
+                }
+            });
+            quote_spanned! { tensor.span() =>
+                let #t = &#tensor;
+                let #dims = #krate::Tensor::dims(#t);
+                let #rank = #dims.len();
+                #min_check
+            }
+        }
+    };
+
+    let body = quote! {
+        #rank_check
+        #(#prefix_checks)*
+        #(#suffix_checks)*
     };
 
     match mode {
