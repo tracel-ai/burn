@@ -19,8 +19,9 @@ pub struct CrossEntropyLossConfig {
     /// Create padded cross entropy.
     ///
     /// Prevents pad tokens from impacting loss calculation.
+    ///
+    /// An entirely padded batch returns NaN, since the mean has no valid samples.
     pub pad_tokens: Option<Vec<usize>>,
-
     /// Create weighted cross-entropy.
     ///
     /// The loss of a specific sample will simply be given by: weight * log(p(x)) * 1,
@@ -150,7 +151,7 @@ impl CrossEntropyLoss {
         let tensor = tensor
             * Self::compute_smoothed_targets([batch_size, nr_classes], targets.clone(), alpha);
 
-        match &self.weights {
+        let (tensor, weights) = match &self.weights {
             Some(weights) => {
                 let tensor = tensor
                     * weights
@@ -158,14 +159,13 @@ impl CrossEntropyLoss {
                         .reshape([1, nr_classes])
                         .repeat_dim(0, batch_size);
                 let weights = weights.clone().gather(0, targets);
-                let tensor = Self::apply_mask_2d(tensor, mask);
-                tensor.sum().neg() / weights.sum()
+                (tensor, Some(weights))
             }
-            None => {
-                let tensor = Self::apply_mask_2d(tensor, mask);
-                tensor.sum_dim(1).mean().neg()
-            }
-        }
+            None => (tensor, None),
+        };
+
+        let tensor = tensor.sum_dim(1).squeeze_dim::<1>(1);
+        Self::reduce_mean(tensor, weights, mask)
     }
 
     fn forward_default(&self, logits: Tensor<2>, targets: Tensor<1, Int>) -> Tensor<1> {
@@ -182,18 +182,16 @@ impl CrossEntropyLoss {
             logits.clamp_min(eps).gather(1, target_indices).log()
         };
 
-        match &self.weights {
+        let tensor = tensor.reshape([batch_size]);
+        let (tensor, weights) = match &self.weights {
             Some(weights) => {
                 let weights = weights.clone().gather(0, targets);
-                let tensor = tensor.reshape([batch_size]) * weights.clone();
-                let tensor = Self::apply_mask_1d(tensor, mask);
-                tensor.sum().neg() / weights.sum()
+                (tensor * weights.clone(), Some(weights))
             }
-            None => {
-                let tensor = Self::apply_mask_1d(tensor.reshape([batch_size]), mask);
-                tensor.mean().neg()
-            }
-        }
+            None => (tensor, None),
+        };
+
+        Self::reduce_mean(tensor, weights, mask)
     }
 
     fn compute_smoothed_targets(
@@ -213,30 +211,33 @@ impl CrossEntropyLoss {
     }
 
     fn padding_mask(&self, targets: &Tensor<1, Int>) -> Option<Tensor<1, Bool>> {
-        let mut mask = None;
-        if let Some(pad_tokens) = &self.pad_tokens {
-            let mut res = targets.clone().equal_scalar(pad_tokens[0] as i64).int();
-            for x in pad_tokens {
-                res = res + targets.clone().equal_scalar(*x as i64).int();
-            }
-            mask = Some(res.greater_scalar(0));
-        }
-
-        mask
+        self.pad_tokens.as_ref().and_then(|pad_tokens| {
+            pad_tokens
+                .iter()
+                .map(|token| targets.clone().equal_scalar(*token as i64))
+                .reduce(|mask, token_mask| mask.bool_or(token_mask))
+        })
     }
 
-    fn apply_mask_1d(mut tensor: Tensor<1>, mask: Option<Tensor<1, Bool>>) -> Tensor<1> {
+    fn reduce_mean(
+        tensor: Tensor<1>,
+        weights: Option<Tensor<1>>,
+        mask: Option<Tensor<1, Bool>>,
+    ) -> Tensor<1> {
+        if weights.is_none() && mask.is_none() {
+            return tensor.mean().neg();
+        }
+
+        let normalizer = weights.unwrap_or_else(|| tensor.ones_like());
+        let tensor = Self::apply_mask(tensor, mask.clone());
+        let normalizer = Self::apply_mask(normalizer, mask);
+
+        tensor.sum().neg() / normalizer.sum()
+    }
+
+    fn apply_mask(mut tensor: Tensor<1>, mask: Option<Tensor<1, Bool>>) -> Tensor<1> {
         if let Some(mask) = mask {
             tensor = tensor.mask_fill(mask, 0);
-        }
-
-        tensor
-    }
-
-    fn apply_mask_2d(mut tensor: Tensor<2>, mask: Option<Tensor<1, Bool>>) -> Tensor<2> {
-        if let Some(mask) = mask {
-            let [batch_size, nr_classes] = tensor.dims();
-            tensor = tensor.mask_fill(mask.reshape([batch_size, 1]).repeat_dim(1, nr_classes), 0);
         }
 
         tensor
@@ -387,13 +388,18 @@ mod tests {
     #[test]
     fn test_cross_entropy_loss_with_pad_token() {
         let (logits, targets, targets_logits) = setup_padded!();
+        let device = logits.device();
         let pad_index = 1;
 
         let loss_1 = CrossEntropyLossConfig::new()
             .with_pad_tokens(Some(vec![pad_index, 2]))
-            .init(&logits.device())
+            .init(&device)
             .forward(logits.clone(), targets);
-        let loss_2 = cross_entropy_with_logits(logits, targets_logits);
+        let valid_indices = Tensor::<1, Int>::from_data(TensorData::from([1i64, 2]), &device);
+        let loss_2 = cross_entropy_with_logits(
+            logits.select(0, valid_indices.clone()),
+            targets_logits.select(0, valid_indices),
+        );
 
         loss_1
             .into_data()
@@ -504,6 +510,154 @@ mod tests {
         );
     }
 
+    fn assert_padding_invariant(weights: Option<Vec<f32>>, smoothing: Option<f32>, logits: bool) {
+        let device = Default::default();
+        let valid_input = Tensor::<2>::from_data(
+            TensorData::from([[0.7f32, 0.2, 0.1], [0.1, 0.7, 0.2]]),
+            &device,
+        );
+        let valid_targets = Tensor::<1, Int>::from_data(TensorData::from([0i64, 1]), &device);
+        let padded_input = Tensor::<2>::from_data(
+            TensorData::from([
+                [0.7f32, 0.2, 0.1],
+                [0.1, 0.7, 0.2],
+                [0.2, 0.3, 0.5],
+                [0.3, 0.2, 0.5],
+            ]),
+            &device,
+        );
+        let padded_targets =
+            Tensor::<1, Int>::from_data(TensorData::from([0i64, 1, 2, 2]), &device);
+
+        let create_loss = || {
+            CrossEntropyLossConfig::new()
+                .with_pad_tokens(Some(vec![2]))
+                .with_weights(weights.clone())
+                .with_smoothing(smoothing)
+                .with_logits(logits)
+                .init(&device)
+        };
+        let expected = create_loss().forward(valid_input, valid_targets);
+        let actual = create_loss().forward(padded_input, padded_targets);
+
+        actual
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn padding_does_not_change_default_loss() {
+        assert_padding_invariant(None, None, true);
+    }
+
+    #[test]
+    fn padding_does_not_change_weighted_loss() {
+        assert_padding_invariant(Some(vec![1.0, 2.0, 4.0]), None, true);
+    }
+
+    #[test]
+    fn padding_does_not_change_smoothed_loss() {
+        assert_padding_invariant(None, Some(0.1), true);
+    }
+
+    #[test]
+    fn padding_does_not_change_smoothed_weighted_loss() {
+        assert_padding_invariant(Some(vec![1.0, 2.0, 4.0]), Some(0.1), true);
+    }
+
+    #[test]
+    fn padding_does_not_change_probability_loss() {
+        assert_padding_invariant(None, None, false);
+    }
+
+    #[test]
+    fn multiple_pad_tokens_are_excluded_from_normalization() {
+        let device = Default::default();
+        let valid_input = Tensor::<2>::from_data(TensorData::from([[0.7f32, 0.2, 0.1]]), &device);
+        let valid_targets = Tensor::<1, Int>::from_data(TensorData::from([0i64]), &device);
+        let padded_input = Tensor::<2>::from_data(
+            TensorData::from([[0.7f32, 0.2, 0.1], [0.2, 0.6, 0.2], [0.1, 0.2, 0.7]]),
+            &device,
+        );
+        let padded_targets = Tensor::<1, Int>::from_data(TensorData::from([0i64, 1, 2]), &device);
+
+        let create_loss = || {
+            CrossEntropyLossConfig::new()
+                .with_pad_tokens(Some(vec![1, 2]))
+                .init(&device)
+        };
+        let expected = create_loss().forward(valid_input, valid_targets);
+        let actual = create_loss().forward(padded_input, padded_targets);
+
+        actual
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn empty_pad_token_list_behaves_like_no_padding() {
+        let device = Default::default();
+        let input = Tensor::<2>::from_data(
+            TensorData::from([[0.7f32, 0.2, 0.1], [0.1, 0.7, 0.2]]),
+            &device,
+        );
+        let targets = Tensor::<1, Int>::from_data(TensorData::from([0i64, 1]), &device);
+
+        let expected = CrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(input.clone(), targets.clone());
+        let actual = CrossEntropyLossConfig::new()
+            .with_pad_tokens(Some(vec![]))
+            .init(&device)
+            .forward(input, targets);
+
+        actual
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn entirely_padded_batch_returns_nan() {
+        let device = Default::default();
+        let input = Tensor::<2>::from_data(
+            TensorData::from([[0.7f32, 0.2, 0.1], [0.1, 0.2, 0.7]]),
+            &device,
+        );
+        let targets = Tensor::<1, Int>::from_data(TensorData::from([2i64, 2]), &device);
+
+        let loss = CrossEntropyLossConfig::new()
+            .with_pad_tokens(Some(vec![2]))
+            .init(&device)
+            .forward(input, targets)
+            .into_scalar::<FT>();
+
+        assert!(loss.is_nan());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn padded_targets_have_zero_gradient_without_scaling_valid_gradients() {
+        let device = Device::default().autodiff();
+        let logits = Tensor::<2>::from_data(
+            TensorData::from([[2.0f32, 0.0, -1.0], [0.0, 0.0, 0.0]]),
+            &device,
+        )
+        .require_grad();
+        let targets = Tensor::<1, Int>::from_data(TensorData::from([0i64, 2]), &device);
+
+        let loss = CrossEntropyLossConfig::new()
+            .with_pad_tokens(Some(vec![2]))
+            .init(&device)
+            .forward(logits.clone(), targets);
+        let grads = loss.backward();
+        let grads_logits = logits.grad(&grads).unwrap();
+
+        let expected = TensorData::from([[-0.1562053f32, 0.1141952, 0.04201007], [0.0, 0.0, 0.0]]);
+        grads_logits
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(1e-4));
+    }
+
     #[test]
     fn display() {
         let config = CrossEntropyLossConfig::new()
@@ -516,6 +670,4 @@ mod tests {
             "CrossEntropyLoss {pad_tokens: None, weights: Tensor {rank: 1, shape: [3]}, smoothing: 0.5, logits: true}"
         );
     }
-
-    // TODO: backward tests
 }
