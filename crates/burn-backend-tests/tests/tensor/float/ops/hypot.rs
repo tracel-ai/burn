@@ -2,6 +2,21 @@ use super::*;
 use burn_tensor::{TensorData, Tolerance};
 
 #[test]
+#[should_panic(expected = "The provided tensors have incompatible shapes.")]
+fn should_panic_hypot_incompatible_shapes() {
+    let device = Default::default();
+    // Same rank, but [2, 2] vs [2, 3]: dimension 1 cannot broadcast.
+    let lhs = TestTensor::<2>::from_data(TensorData::from([[3.0, 4.0], [5.0, 12.0]]), &device);
+    let rhs = TestTensor::<2>::from_data(
+        TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        &device,
+    );
+
+    let output = lhs.hypot(rhs);
+    output.into_data();
+}
+
+#[test]
 fn should_support_hypot_basic() {
     let data_a = TensorData::from([[3.0, 4.0], [5.0, 12.0]]);
     let data_b = TensorData::from([[4.0, 3.0], [12.0, 5.0]]);

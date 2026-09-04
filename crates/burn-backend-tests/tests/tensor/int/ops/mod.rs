@@ -31,6 +31,7 @@ mod movedim;
 mod mul;
 mod one_hot;
 mod permute;
+mod powi;
 mod random;
 mod remainder;
 mod repeat;

@@ -57,6 +57,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i^2 + y_i^2}$"#)]
     #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i^2 + y_i^2)`")]
     pub fn hypot(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Hypot", &self, &other));
         Self::new(hypot_impl(self.primitive, other.primitive))
     }
 
@@ -701,6 +702,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
     /// ```
     pub fn powf(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Powf", &self, &other));
         Tensor::new(powf_impl(self.primitive, other.primitive))
     }
 
@@ -1084,6 +1086,7 @@ where
     /// println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
     /// ```
     pub fn atan2(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Atan2", &self, &other));
         Tensor::new(K::atan2(self.primitive, other.primitive))
     }
 }
