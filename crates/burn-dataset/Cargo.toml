@@ -15,28 +15,31 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["sqlite-bundled"]
-doc = ["default"]
+# `sqlite` is opt-in: it pulls the Turso engine and its dependency tree, which a dataset pipeline
+# built on CSV or in-memory sources has no use for.
+default = []
+doc = ["default", "sqlite"]
 tracing = [
     "burn-std/tracing",
 ]
 
-audio = ["hound"]
+audio = ["hound", "sqlite"]
 builtin-sources = ["vision", "dep:tar", "nlp"]
 fake = ["dep:fake"]
 network = ["dep:burn-std"]
-sqlite = ["__sqlite-shared", "dep:rusqlite"]
-sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
-vision = ["dep:flate2", "dep:globwalk", "dep:image", "network"]
-nlp = ["dep:zip", "dep:encoding_rs"]
-# internal
-__sqlite-shared = [
+sqlite = [
+    "dep:turso",
+    "dep:futures-lite",
     "dep:r2d2",
-    "dep:r2d2_sqlite",
-    "dep:serde_rusqlite",
     "dep:image",
     "dep:gix-tempfile",
 ]
+# Deprecated alias for `sqlite`. Turso implements the engine in Rust rather than linking
+# libsqlite3, so there is no longer a bundled-versus-system split to choose between; kept so
+# existing dependents keep building.
+sqlite-bundled = ["sqlite"]
+vision = ["dep:flate2", "dep:globwalk", "dep:image", "network"]
+nlp = ["dep:zip", "dep:encoding_rs"]
 dataframe = ["dep:polars", "dep:planus"]
 
 [dependencies]
@@ -49,6 +52,7 @@ derive-new = { workspace = true }
 dirs = { workspace = true }
 fake = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
+futures-lite = { workspace = true, optional = true, features = ["std"] }
 gix-tempfile = { workspace = true, optional = true }
 globwalk = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
@@ -57,20 +61,22 @@ planus = { workspace = true, optional = true }
 encoding_rs = { workspace = true, optional = true }
 polars = { workspace = true, optional = true }
 r2d2 = { workspace = true, optional = true }
-r2d2_sqlite = { workspace = true, optional = true }
 rand = { workspace = true, features = ["std", "sys_rng"] }
 zip = { workspace = true, optional = true }
 rmp-serde = { workspace = true }
-rusqlite = { workspace = true, optional = true }
 sanitize-filename = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 serde_json = { workspace = true, features = ["std"] }
-serde_rusqlite = { workspace = true, optional = true }
 strum = { workspace = true }
 tar = { workspace = true, optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
+turso = { workspace = true, optional = true }
 
+
+[[example]]
+name = "hf_dataset"
+required-features = ["sqlite"]
 
 [dev-dependencies]
 fake = { workspace = true }

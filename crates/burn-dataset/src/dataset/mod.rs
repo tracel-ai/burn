@@ -20,8 +20,8 @@ mod dataframe;
 #[cfg(feature = "dataframe")]
 pub use dataframe::*;
 
-#[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
+#[cfg(feature = "sqlite")]
 pub use sqlite::*;
 
-#[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
+#[cfg(feature = "sqlite")]
 mod sqlite;
