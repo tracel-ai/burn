@@ -159,6 +159,10 @@ impl CrossAttention {
     /// # Returns
     ///
     /// Output tensor of shape `[batch, seq_len_query, d_model]`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the batch size of `context` differs from `query`.
     pub fn forward(
         &self,
         query: Tensor<3>,
@@ -242,6 +246,10 @@ impl CrossAttention {
     /// # Returns
     ///
     /// Output tensor of shape `[batch, seq_len_query, d_model]`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the batch size of `context` differs from `query`.
     pub fn forward_cache(
         &self,
         query: Tensor<3>,
@@ -546,6 +554,17 @@ mod tests {
         let query = Tensor::zeros([2, 3, 16], &device);
         let context = Tensor::zeros([1, 4, 16], &device);
         let _ = attn.forward(query, context, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(context, [batch, _, _]): axis 0 expected 2, got 1")]
+    fn cache_context_batch_must_match_query_batch() {
+        let device = Default::default();
+        let attn = CrossAttentionConfig::new(16, 16, 2, 2, 8).init(&device);
+        let mut cache = CrossAttentionCache::new();
+        let query = Tensor::zeros([2, 3, 16], &device);
+        let context = Tensor::zeros([1, 4, 16], &device);
+        let _ = attn.forward_cache(query, context, None, &mut cache);
     }
 
     #[test]

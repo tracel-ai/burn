@@ -100,14 +100,14 @@ impl PositionWiseFeedForward {
     ///
     /// # Shapes
     ///
-    /// - tensor: `[batch_size, seq_length, d_model]`
+    /// - input: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
     ///
     /// # Panics
     ///
     /// Panics if the last axis of `input` is not `d_model`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        let [d_model, _] = self.linear_inner.weight.val().dims();
+        let [d_model, _] = self.linear_inner.weight.shape().dims();
         assert_shape!(input, [.., d_model]);
 
         let x = self.linear_inner.forward(input);

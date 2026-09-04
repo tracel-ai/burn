@@ -166,6 +166,30 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "assert_shape!(input2, [batch_size, dim]): axis 1 expected 3, got 1")]
+    fn embedding_dim_of_inputs_must_match() {
+        let device = Default::default();
+        let input1 = Tensor::<2>::zeros([2, 3], &device);
+        let input2 = Tensor::<2>::zeros([2, 1], &device);
+        let target = Tensor::<1, Int>::zeros([2], &device);
+        let _ = CosineEmbeddingLossConfig::new()
+            .init()
+            .forward_no_reduction(input1, input2, target);
+    }
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(target, [batch_size]): axis 0 expected 2, got 1")]
+    fn target_length_must_match_batch_size() {
+        let device = Default::default();
+        let input1 = Tensor::<2>::zeros([2, 3], &device);
+        let input2 = Tensor::<2>::zeros([2, 3], &device);
+        let target = Tensor::<1, Int>::zeros([1], &device);
+        let _ = CosineEmbeddingLossConfig::new()
+            .init()
+            .forward_no_reduction(input1, input2, target);
+    }
+
+    #[test]
     fn cosine_embedding_loss_positive_target() {
         let device = Default::default();
 

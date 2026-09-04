@@ -104,6 +104,11 @@ impl CTCLoss {
     /// - `targets`: `[batch_size, max_target_length]`
     /// - `input_lengths`: `[batch_size]`
     /// - `target_lengths`: `[batch_size]`
+    ///
+    /// # Panics
+    ///
+    /// - If the batch dimension of `targets`, `input_lengths` or `target_lengths` differs from `log_probs`.
+    /// - If `blank` is greater than or equal to `num_classes`.
     pub fn forward(
         &self,
         log_probs: Tensor<3>,

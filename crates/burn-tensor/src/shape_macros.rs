@@ -4,7 +4,8 @@
 //!
 //! Inspired by the `burn-contracts` crate by Crutcher Dunnavant.
 
-/// Asserts a tensor's rank at compile time and its axis sizes at runtime.
+/// Asserts a tensor's rank, at compile time unless the pattern has `..`, and its axis sizes at
+/// runtime.
 ///
 /// The pattern has one slot per axis. A slot is either `_`, which skips the axis, or any `usize`
 /// expression the axis must equal: a name from `dims()`, a config field, a literal, arithmetic
@@ -12,10 +13,10 @@
 ///
 /// The pattern length must equal the tensor rank, otherwise the call does not compile. One
 /// slot may be `..`, which stands for any number of axes; the pattern then fixes only a
-/// minimum rank, checked at runtime, and fits a function generic over `const D: usize`. The
-/// tensor is borrowed, not moved, and every expression is evaluated once. Checks stay on in
-/// release builds; see [`debug_assert_shape!`](crate::debug_assert_shape) for the debug-only
-/// variant.
+/// minimum rank, checked at runtime, and fits a function generic over `const D: usize`. A
+/// pattern of just `[..]` checks nothing beyond the argument being a tensor. The tensor is
+/// borrowed, not moved, and every expression is evaluated once. Checks stay on in release
+/// builds; see [`debug_assert_shape!`](crate::debug_assert_shape) for the debug-only variant.
 ///
 /// ```
 /// use burn_tensor::{Tensor, assert_shape};
@@ -104,8 +105,10 @@ macro_rules! assert_shape {
 /// Same as [`assert_shape!`](crate::assert_shape), but compiled out unless `debug_assertions`
 /// is on.
 ///
-/// The rank check is a type check and stays in every build. Like `debug_assert!`, neither the
-/// tensor expression nor the slot expressions are evaluated in release builds.
+/// Without `..` the rank check is a type check and stays in every build; with `..` the
+/// minimum-rank check is a runtime assertion and is compiled out with the axis checks. Like
+/// `debug_assert!`, neither the tensor expression nor the slot expressions are evaluated in
+/// release builds.
 ///
 /// ```
 /// use burn_tensor::{Tensor, debug_assert_shape};

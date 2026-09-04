@@ -86,14 +86,14 @@ impl BatchNorm {
     ///
     /// # Shapes
     ///
-    /// - `input`: ``[batch_size, channels, ...]``
-    /// - `output`: ``[batch_size, channels, ...]``
+    /// - `input`: ``[batch_size, num_features, ...]``
+    /// - `output`: ``[batch_size, num_features, ...]``
     ///
     /// # Panics
     ///
     /// Panics if the input has rank < 2 or its second axis is not `num_features`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        let [num_features] = self.gamma.val().dims();
+        let [num_features] = self.gamma.shape().dims();
         assert_shape!(input, [_, num_features, ..]);
 
         // Training behavior is selected by the device *and* the layer state. The device alone
@@ -224,6 +224,16 @@ mod tests_1d {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input, [_, num_features, ..]): expected rank at least 2, got 1"
+    )]
+    fn input_rank_must_be_at_least_two() {
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init(&device);
+        let _ = module.forward(Tensor::<1>::zeros([4], &device));
+    }
 
     #[test]
     #[should_panic(

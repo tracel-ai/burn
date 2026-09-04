@@ -1,9 +1,9 @@
 //! Integration tests for `assert_shape!` and `debug_assert_shape!`.
 //!
-//! Rank mismatches, non-tensor arguments and non-`usize` slots are compile errors, covered by
-//! the `compile_fail` doctests on the macros themselves. The tests here cover the runtime
-//! behavior: axis checks, panic messages, evaluation counts, hygiene, and the debug-only gating
-//! of `debug_assert_shape!`.
+//! Rank mismatches against an exact pattern, non-tensor arguments and non-`usize` slots are
+//! compile errors, covered by the `compile_fail` doctests on the macros themselves. The tests
+//! here cover the runtime behavior: axis checks, panic messages, the `..` rest slot, evaluation
+//! counts, hygiene, and the debug-only gating of `debug_assert_shape!`.
 
 use burn_tensor::{Int, Tensor, assert_shape, debug_assert_shape};
 use core::cell::Cell;
@@ -153,6 +153,45 @@ fn rest_with_too_few_axes_panics() {
 }
 
 #[test]
+#[should_panic(
+    expected = "assert_shape!(x, [.., 99, _]): axis 2 expected 99, got 4 (dims [2, 3, 4, 5])"
+)]
+fn rest_suffix_slot_before_a_wildcard_reports_the_real_axis() {
+    let x = t([2, 3, 4, 5]);
+    assert_shape!(x, [.., 99, _]);
+}
+
+#[test]
+#[should_panic(expected = "assert_shape!(x, [99, .., 5]): axis 0 expected 99, got 2")]
+fn rest_prefix_mismatch_panics() {
+    let x = t([2, 3, 4, 5]);
+    assert_shape!(x, [99, .., 5]);
+}
+
+#[test]
+fn rest_may_match_zero_axes_between_prefix_and_suffix() {
+    let x = t([2, 3, 4, 5]);
+    assert_shape!(x, [2, 3, .., 4, 5]);
+}
+
+#[test]
+#[should_panic(
+    expected = "assert_shape!(x, [.., 2, 3]): expected rank at least 2, got 1 (dims [3])"
+)]
+fn rest_with_fewer_axes_than_the_suffix_panics() {
+    let x = t([3]);
+    assert_shape!(x, [.., 2, 3]);
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "debug_assert_shape!(x, [.., 99]): axis 1 expected 99, got 3")]
+fn debug_assert_with_rest_panics_in_debug() {
+    let x = t([2, 3]);
+    debug_assert_shape!(x, [.., 99]);
+}
+
+#[test]
 #[cfg(not(debug_assertions))]
 fn debug_assert_with_rest_compiles_out_in_release() {
     let x = t([2, 3]);
@@ -231,6 +270,9 @@ fn internals_do_not_shadow_caller_names() {
     let __tensor = 2usize;
     let __dims = 3usize;
     let __expected = 3usize;
+    let __rank = 2usize;
+    let __axis = 3usize;
     assert_shape!(x, [__tensor, __dims]);
+    assert_shape!(x, [__rank, .., __axis]);
     debug_assert_shape!(x, [_, __expected]);
 }

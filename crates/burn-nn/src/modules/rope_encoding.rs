@@ -292,6 +292,16 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(
+        expected = "assert_shape!(x, [.., _, d_model]): expected rank at least 2, got 1"
+    )]
+    fn input_rank_must_be_at_least_two() {
+        let device = Default::default();
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);
+        let _ = rotary_encoding.forward(Tensor::<1>::zeros([4], &device));
+    }
+
+    #[test]
     fn test_rotary_encoding_forward() {
         let device = Default::default();
         let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);

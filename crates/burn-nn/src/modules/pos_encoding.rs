@@ -272,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "max_sequence_size(")]
     fn input_length_should_be_less_than_max_len() {
         let d_model = 8;
         let device = Default::default();

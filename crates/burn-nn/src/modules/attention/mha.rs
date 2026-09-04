@@ -209,6 +209,12 @@ impl MultiHeadAttention {
     /// - key: `[batch_size, seq_length_2, d_model]`
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `query`, `key` or `value` is not `d_model`, if the batch size
+    /// of `key` or `value` differs from `query`, or if the sequence length of `value` differs
+    /// from `key`.
     pub fn forward(&self, input: MhaInput) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
         let [_, seq_length_2, _] = input.key.dims();
@@ -240,6 +246,12 @@ impl MultiHeadAttention {
     /// - key: `[batch_size, seq_length_2, d_model]`
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `query`, `key` or `value` is not `d_model`, if the batch size
+    /// of `key` or `value` differs from `query`, or if the sequence length of `value` differs
+    /// from `key`.
     pub fn forward_cache(&self, input: MhaInput, cache: &mut MhaCache) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
         let [_, seq_length_2, _] = input.key.dims();
@@ -390,6 +402,32 @@ mod tests {
         let query = Tensor::zeros([2, 3, 8], &device);
         let key = Tensor::zeros([1, 3, 8], &device);
         let _ = mha.forward(MhaInput::new(query, key.clone(), key));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]): axis 0 expected 2, got 1"
+    )]
+    fn value_batch_must_match_query_batch() {
+        let device = Default::default();
+        let mha = MultiHeadAttentionConfig::new(8, 2).init(&device);
+        let query = Tensor::zeros([2, 3, 8], &device);
+        let key = Tensor::zeros([2, 3, 8], &device);
+        let value = Tensor::zeros([1, 3, 8], &device);
+        let _ = mha.forward(MhaInput::new(query, key, value));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input.key, [batch_size, _, self.d_model]): axis 0 expected 2, got 1"
+    )]
+    fn cache_key_batch_must_match_query_batch() {
+        let device = Default::default();
+        let mha = MultiHeadAttentionConfig::new(8, 2).init(&device);
+        let mut cache = MhaCache::autoregressive();
+        let query = Tensor::zeros([2, 3, 8], &device);
+        let key = Tensor::zeros([1, 3, 8], &device);
+        let _ = mha.forward_cache(MhaInput::new(query, key.clone(), key), &mut cache);
     }
 
     #[test]

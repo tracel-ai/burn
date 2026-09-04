@@ -317,6 +317,19 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "assert_shape!(targets, [b, max_u]): axis 1 expected 2, got 1")]
+    fn panics_on_target_length_mismatch() {
+        let dev = Default::default();
+        let rnnt = RNNTLossConfig::new().init();
+        rnnt.forward(
+            Tensor::<4>::zeros([2, 3, 3, 3], &dev),
+            Tensor::<2, Int>::from_data([[1_i32], [2]], &dev),
+            Tensor::<1, Int>::from_data([3, 3], &dev),
+            Tensor::<1, Int>::from_data([1, 1], &dev),
+        );
+    }
+
+    #[test]
     #[should_panic(expected = "assert_shape!(logit_lengths, [b]): axis 0 expected 2, got 1")]
     fn panics_on_logit_lengths_mismatch() {
         let dev = Default::default();

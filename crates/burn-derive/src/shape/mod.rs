@@ -38,6 +38,9 @@ impl Parse for Slot {
 /// the public macro, forwarded by its `macro_rules!` wrapper.
 pub(crate) struct ShapeInput {
     krate: Path,
+    /// Everything after the crate path, as rendered by the compiler's token printer: whitespace
+    /// is normalized and comments are dropped. Echoed in panic messages.
+    call: String,
     tensor: Expr,
     slots: Vec<Slot>,
 }
@@ -46,6 +49,7 @@ impl Parse for ShapeInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let krate: Path = input.parse()?;
         input.parse::<Token![,]>()?;
+        let call = input.fork().parse::<TokenStream>()?.to_string();
         let tensor: Expr = input.parse()?;
         input.parse::<Token![,]>()?;
         let content;
@@ -66,6 +70,7 @@ impl Parse for ShapeInput {
         }
         Ok(ShapeInput {
             krate,
+            call,
             tensor,
             slots,
         })
@@ -88,11 +93,10 @@ impl Mode {
     }
 }
 
-/// `call` is the macro input after the crate path, as rendered by the compiler's token
-/// printer: whitespace is normalized and comments are dropped. It is echoed in panic messages.
-pub(crate) fn expand(input: ShapeInput, mode: Mode, call: &str) -> TokenStream {
+pub(crate) fn expand(input: ShapeInput, mode: Mode) -> TokenStream {
     let ShapeInput {
         krate,
+        call,
         tensor,
         slots,
     } = input;
@@ -108,7 +112,7 @@ pub(crate) fn expand(input: ShapeInput, mode: Mode, call: &str) -> TokenStream {
     let call = format!("{}({call})", mode.name());
 
     // A pattern with `..` splits into the axes before it and the axes after it. The latter are
-    // addressed from the end, since the number of axes `..` stands for is only known at runtime.
+    // addressed from the end, since the macro cannot know how many axes `..` stands for.
     let rest = slots.iter().position(|slot| matches!(slot, Slot::Rest(_)));
     let (prefix, suffix): (&[Slot], &[Slot]) = match rest {
         Some(position) => (&slots[..position], &slots[position + 1..]),

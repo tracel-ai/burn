@@ -74,7 +74,7 @@ impl RmsNorm {
     ///
     /// Panics if the last axis of `x` is not `d_model`.
     pub fn forward<const D: usize>(&self, x: Tensor<D>) -> Tensor<D> {
-        let [d_model] = self.gamma.val().dims();
+        let [d_model] = self.gamma.shape().dims();
         assert_shape!(x, [.., d_model]);
 
         // Calculate the root-mean-square norm of the input tensor along the last dimension

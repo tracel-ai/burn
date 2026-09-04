@@ -102,15 +102,8 @@ pub fn __debug_assert_shape(input: TokenStream) -> TokenStream {
     shape_macro(input, shape::Mode::DebugAssert)
 }
 
-/// The input is `$crate, tensor, [pattern]`, see the wrappers in burn-tensor. Panic messages
-/// echo everything after the crate path, as rendered by the compiler's token printer.
+/// The input is `$crate, tensor, [pattern]`, see the wrappers in burn-tensor.
 fn shape_macro(input: TokenStream, mode: shape::Mode) -> TokenStream {
-    let call = input
-        .clone()
-        .into_iter()
-        .skip(2)
-        .collect::<TokenStream>()
-        .to_string();
     let input = syn::parse_macro_input!(input as shape::ShapeInput);
-    shape::expand(input, mode, &call).into()
+    shape::expand(input, mode).into()
 }
