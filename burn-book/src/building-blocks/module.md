@@ -76,6 +76,7 @@ assert_shape!(patch, [3 * 2, 2]);                      // arithmetic on literals
 assert_shape!(mask, [batch_size, _]);                  // skip an axis
 assert_shape!(hidden, [_, _, self.d_model]);           // a config field
 assert_shape!(hidden, [.., self.d_model]);             // any rank, last axis checked
+assert_shape!(image, [_, self.num_channels, ..]);      // channels first, any spatial rank
 ```
 
 The pattern length is the expected rank. Since `tensor.dims()` returns `[usize; D]`, a pattern whose

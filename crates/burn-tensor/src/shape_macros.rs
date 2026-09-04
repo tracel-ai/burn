@@ -43,9 +43,15 @@
 ///     assert_shape!(x, [.., d_model]);
 /// }
 ///
+/// fn check_channels<const D: usize>(x: &Tensor<D>, channels: usize) {
+///     assert_shape!(x, [_, channels, ..]);
+/// }
+///
 /// let device = Default::default();
 /// check_features(&Tensor::<2>::zeros([5, 256], &device), 256);
 /// check_features(&Tensor::<4>::zeros([2, 3, 5, 256], &device), 256);
+/// check_channels(&Tensor::<3>::zeros([2, 16, 100], &device), 16);
+/// check_channels(&Tensor::<5>::zeros([2, 16, 4, 8, 8], &device), 16);
 /// ```
 ///
 /// A mismatch panics with the call and the offending axis:
