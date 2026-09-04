@@ -74,6 +74,8 @@ burn-ir = { workspace = true }
 burn-std = { workspace = true }
 burn-backend = { workspace = true, features = [
     "cubecl",
+    # `CubeBackend`'s device *is* `cubecl::Device`, so it has to be a burn device.
+    "cubecl-device",
 ] }
 cubecl = { workspace = true, features = ["stdlib"] }
 cubek = { workspace = true, features = [

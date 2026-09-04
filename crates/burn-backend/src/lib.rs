@@ -55,15 +55,11 @@ pub mod quantization;
 #[cfg(feature = "cubecl")]
 pub mod cubecl;
 
-#[cfg(any(
-    feature = "cubecl-wgpu",
-    feature = "cubecl-metal",
-    feature = "cubecl-vulkan",
-    feature = "cubecl-webgpu",
-    feature = "cubecl-cuda",
-    feature = "cubecl-cpu",
-    feature = "cubecl-hip"
-))]
+// Not gated on the `cubecl-*` runtime features: a build gets its cubecl runtime from whichever
+// crate asked for one, which need not be this one — `burn-cubecl` compiles with no runtime feature
+// of its own and still needs this impl. So the impl is its own feature, and a crate that needs
+// `cubecl::Device` to be a burn device says so.
+#[cfg(feature = "cubecl-device")]
 mod cube_device {
     use crate::backend::DeviceOps;
     use burn_std::{BoolStore, DType, DeviceSettings};
