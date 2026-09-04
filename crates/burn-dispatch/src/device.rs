@@ -13,9 +13,11 @@ use alloc::boxed::Box;
 #[cfg(feature = "cubecl")]
 use alloc::vec::Vec;
 #[cfg(feature = "cubecl")]
-use burn_backend::cubecl::{
-    ThroughputError, ThroughputKey, ThroughputValue, measure_peak_throughput,
-};
+use burn_backend::cubecl::{ThroughputError, ThroughputKey, ThroughputValue};
+// `cubecl` without a runtime feature gives the throughput *types* but no `Cube` device to
+// measure, so the measurement itself follows `cube_backend` rather than the feature.
+#[cfg(cube_backend)]
+use burn_backend::cubecl::measure_peak_throughput;
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
@@ -74,6 +76,8 @@ impl DispatchDevice {
     /// device reports the peaks of the device it wraps. Each returned result
     /// corresponds positionally to the key at the same index, and carries a
     /// [`ThroughputError`] where the device has no peak for that key.
+    // With `cubecl` on but no runtime compiled in, every arm below ignores `keys`.
+    #[cfg_attr(not(cube_backend), allow(unused_variables))]
     pub fn performance_stats(
         &self,
         keys: &[ThroughputKey],

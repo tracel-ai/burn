@@ -4,12 +4,9 @@ use alloc::vec::Vec;
 #[cfg(cube_backend)]
 use burn_backend::cubecl::{Device as CubeDevice, RuntimeId};
 
-#[cfg(any(
-    feature = "cpu",
-    feature = "ndarray",
-    feature = "flex",
-    default_backend
-))]
+// The cubecl runtimes — `cpu` among them — enumerate through `cube_devices` rather than a
+// `vec![]` literal, so only the backends that still list a fixed device need this.
+#[cfg(any(feature = "ndarray", feature = "flex", default_backend))]
 use alloc::vec;
 
 #[cfg(feature = "autodiff")]
