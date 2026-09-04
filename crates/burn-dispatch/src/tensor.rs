@@ -578,15 +578,11 @@ macro_rules! impl_dispatch_conversion {
     };
 }
 
+// One invocation per dispatch variant. Every cubecl runtime is the same `Cube`
+// backend, so they share the one impl rather than getting seven identical ones.
+impl_dispatch_conversion!(Cube, cube_backend);
 impl_dispatch_conversion!(Flex, any(feature = "flex", default_backend));
-impl_dispatch_conversion!(Cpu, feature = "cpu");
-impl_dispatch_conversion!(Cuda, feature = "cuda");
-impl_dispatch_conversion!(Rocm, feature = "rocm");
 impl_dispatch_conversion!(Remote, feature = "remote");
 impl_dispatch_conversion!(Capture, feature = "capture");
-impl_dispatch_conversion!(Metal, feature = "metal");
-impl_dispatch_conversion!(Vulkan, feature = "vulkan");
-impl_dispatch_conversion!(Wgpu, feature = "wgpu");
-impl_dispatch_conversion!(WebGpu, feature = "webgpu");
 impl_dispatch_conversion!(NdArray, feature = "ndarray");
 impl_dispatch_conversion!(LibTorch, feature = "tch");

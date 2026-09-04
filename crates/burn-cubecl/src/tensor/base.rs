@@ -17,7 +17,7 @@ use super::QParams;
 
 /// The basic tensor primitive struct.
 pub struct CubeTensor {
-    /// Compute client for the [runtime](CubeRuntime).
+    /// Compute client for the runtime this tensor's device names.
     pub client: Client,
     /// The buffer where the data are stored.
     pub handle: Handle,

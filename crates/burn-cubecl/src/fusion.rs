@@ -8,7 +8,6 @@ use burn_fusion::{
 };
 use burn_ir::{BackendIr, TensorHandle};
 use burn_std::Metadata;
-use core::marker::PhantomData;
 
 mod registry;
 pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};

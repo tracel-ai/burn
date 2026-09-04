@@ -264,8 +264,8 @@ pub(crate) fn deform_conv2d(
     let input = into_contiguous_aligned(input);
     let offset = into_contiguous_aligned(offset);
     let weight = into_contiguous_aligned(weight);
-    let mask = mask.map(|it| into_contiguous_aligned(it));
-    let bias = bias.map(|it| into_contiguous_aligned(it));
+    let mask = mask.map(into_contiguous_aligned);
+    let bias = bias.map(into_contiguous_aligned);
 
     let [batch_size, _, in_height, in_width] = input.meta.shape().dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.meta.shape().dims();

@@ -11,7 +11,6 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use cubecl::client::Client;
-use std::marker::PhantomData;
 
 /// The launcher is responsible to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
 ///

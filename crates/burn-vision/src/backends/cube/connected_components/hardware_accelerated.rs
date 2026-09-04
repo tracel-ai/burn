@@ -12,7 +12,7 @@ use burn_core::backend::{TensorMetadata, ops::IntTensorOps};
 use burn_core::tensor::DType;
 use burn_core::tensor::{Shape, cast::ToElement};
 use burn_cubecl::{
-    CubeBackend, CubeRuntime, kernel,
+    CubeBackend, kernel,
     ops::{into_data_sync, numeric::zeros_client},
     tensor::CubeTensor,
 };
@@ -500,7 +500,7 @@ pub fn hardware_accelerated(
 
     let [rows, cols] = img.meta.shape().dims();
 
-    let labels = zeros_client::(client.clone(), device.clone(), img.shape(), int_dtype);
+    let labels = zeros_client(client.clone(), device.clone(), img.shape(), int_dtype);
 
     // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
     // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp
@@ -546,7 +546,7 @@ pub fn hardware_accelerated(
         (rows as u32).div_ceil(cube_dim.y),
     );
 
-    let mut stats = stats_from_opts::(labels.clone(), stats_opt, int_dtype);
+    let mut stats = stats_from_opts(labels.clone(), stats_opt, int_dtype);
 
     if stats_opt == ConnectedStatsOptions::none() {
         unsafe {
@@ -578,15 +578,15 @@ pub fn hardware_accelerated(
             )
         };
         if stats_opt.compact_labels {
-            let max_label = CubeBackend::::int_max(stats.max_label);
-            let max_label = into_data_sync::(max_label);
+            let max_label = CubeBackend::int_max(stats.max_label);
+            let max_label = into_data_sync(max_label);
             let max_label = ToElement::to_usize(&max_label.iter::<i32>().next().unwrap());
-            let sliced = kernel::slice::(
+            let sliced = kernel::slice(
                 stats.area.clone(),
                 #[allow(clippy::single_range_in_vec_init)]
                 &[0..(max_label + 1).next_multiple_of(4)],
             );
-            let relabel = prefix_sum::(sliced, int_dtype);
+            let relabel = prefix_sum(sliced, int_dtype);
 
             let cube_dim = CubeDim::new_2d(32, 8);
             let cube_count = CubeCount::new_2d(
@@ -594,7 +594,7 @@ pub fn hardware_accelerated(
                 (rows as u32).div_ceil(cube_dim.y),
             );
             stats.max_label =
-                zeros_client::(client.clone(), device.clone(), Shape::new([1]), int_dtype);
+                zeros_client(client.clone(), device.clone(), Shape::new([1]), int_dtype);
             unsafe {
                 compact_labels::launch_unchecked(
                     &client,

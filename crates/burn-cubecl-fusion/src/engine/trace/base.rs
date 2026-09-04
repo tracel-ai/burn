@@ -4,12 +4,8 @@ use crate::engine::{
 };
 use burn_ir::{TensorId, TensorIr};
 use burn_std::{Shape, Strides};
-use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashSet},
-    marker::PhantomData,
-};
+use std::collections::{BTreeMap, HashSet};
 
 #[cfg(feature = "autotune-checks")]
 use crate::CubeFusionHandle;

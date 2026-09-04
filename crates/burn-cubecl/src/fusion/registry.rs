@@ -8,8 +8,7 @@ use burn_cubecl_fusion::optim::reduce_broadcasted::{
 };
 use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
 use burn_fusion::OperationFuser;
-use core::any::{Any, TypeId};
-use std::collections::HashMap;
+use core::any::Any;
 use std::sync::{Mutex, OnceLock};
 
 /// A fuser competing for the operation segments of an execution stream,

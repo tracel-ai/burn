@@ -18,7 +18,6 @@ use cubecl::{
     ir::{AddressType, Type},
     prelude::{InputScalar, TensorArg},
 };
-use std::marker::PhantomData;
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
 pub struct LaunchPlanExecutor<'a> {

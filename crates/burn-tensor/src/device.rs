@@ -14,6 +14,8 @@ pub use burn_backend::{
 use burn_dispatch::DispatchDeviceId;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::GradientCheckpointingStrategy;
+#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+use burn_dispatch::devices::RuntimeId;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
@@ -492,50 +494,50 @@ impl Device {
 
     /// WGPU device, selected via [`DeviceKind`].
     ///
-    /// This variant uses the runtime [`AutoCompiler`](burn_dispatch::backends::wgpu::AutoCompiler)
-    /// to dispatch to the most appropriate shader language (WGSL, SPIR-V, or MSL) based on the
-    /// enabled features.
+    /// [`AutoCompiler`](burn_dispatch::backends::wgpu::AutoCompiler) dispatches to the most
+    /// appropriate shader language (WGSL, SPIR-V, or MSL) based on the enabled features.
     ///
     /// For [`DeviceKind::DefaultDevice`], the adapter is picked by `wgpu`'s
     /// selection heuristics (high-power GPU preferred, or overridden by
     /// `CUBECL_WGPU_DEFAULT_DEVICE`).
     ///
-    /// `Device::vulkan`, `Device::metal`, and `Device::webgpu` also use the Wgpu runtime,
-    /// but bypass runtime dispatch by pinning specific compilers at compile time.
+    /// `Device::vulkan`, `Device::metal` and `Device::webgpu` return the same device: the
+    /// compiler is chosen at runtime from the enabled features, so it is not something the
+    /// constructor can pin.
     #[cfg(feature = "wgpu")]
     pub fn wgpu(device_kind: DeviceKind) -> Self {
-        Self::new(DispatchDevice::Wgpu(wgpu_device(device_kind)))
+        Self::new(wgpu_device(device_kind))
     }
 
     #[cfg(all(feature = "wgpu", target_family = "wasm"))]
     /// Asynchronously creates a WGPU device, initializing the client.
     pub async fn wgpu_async(device_kind: DeviceKind) -> Self {
-        Self::new(DispatchDevice::Wgpu(wgpu_init_async(device_kind).await))
+        Self::new(wgpu_init_async(device_kind).await)
     }
 
     /// Vulkan-backed WGPU device, selected via [`DeviceKind`].
     ///
-    /// Pins the wgpu shader compiler to SPIR-V at compile time, avoiding
-    /// the runtime [`AutoCompiler`](burn_dispatch::backends::wgpu::AutoCompiler) dispatch.
+    /// The same device as [`Device::wgpu`]; see it for why the shader compiler is no longer
+    /// pinned by the constructor.
     #[cfg(feature = "vulkan")]
     pub fn vulkan(device_kind: DeviceKind) -> Self {
-        Self::new(DispatchDevice::Vulkan(wgpu_device(device_kind)))
+        Self::new(wgpu_device(device_kind))
     }
 
     /// Metal-backed WGPU device, selected via [`DeviceKind`].
     ///
-    /// Pins the wgpu shader compiler to MSL at compile time.
+    /// The same device as [`Device::wgpu`].
     #[cfg(feature = "metal")]
     pub fn metal(device_kind: DeviceKind) -> Self {
-        Self::new(DispatchDevice::Metal(wgpu_device(device_kind)))
+        Self::new(wgpu_device(device_kind))
     }
 
     /// WebGPU-backed device, selected via [`DeviceKind`].
     ///
-    /// Pins the wgpu shader compiler to WGSL at compile time.
+    /// The same device as [`Device::wgpu`].
     #[cfg(feature = "webgpu")]
     pub fn webgpu(device_kind: DeviceKind) -> Self {
-        Self::new(DispatchDevice::WebGpu(wgpu_device(device_kind)))
+        Self::new(wgpu_device(device_kind))
     }
 
     /// Enables autodiff on this device.
@@ -868,20 +870,46 @@ impl Device {
         for device_type in filter.into() {
             #[allow(unused)]
             let type_id = match device_type {
+                // The cubecl runtimes are one dispatch backend, so `DispatchDeviceId::Cube`
+                // would list every runtime's devices at once. These name the runtime the
+                // caller asked for instead. `Metal`, `Vulkan` and `WebGpu` are wgpu with a
+                // particular shader compiler, which is a runtime choice rather than a
+                // separate runtime, so all three enumerate the wgpu devices.
                 #[cfg(feature = "cpu")]
-                DeviceType::Cpu => DispatchDeviceId::Cpu,
+                DeviceType::Cpu => {
+                    push_cube(&mut devices, RuntimeId::Cpu);
+                    continue;
+                }
                 #[cfg(feature = "cuda")]
-                DeviceType::Cuda => DispatchDeviceId::Cuda,
+                DeviceType::Cuda => {
+                    push_cube(&mut devices, RuntimeId::Cuda);
+                    continue;
+                }
                 #[cfg(feature = "rocm")]
-                DeviceType::Rocm => DispatchDeviceId::Rocm,
+                DeviceType::Rocm => {
+                    push_cube(&mut devices, RuntimeId::Hip);
+                    continue;
+                }
                 #[cfg(feature = "wgpu")]
-                DeviceType::Wgpu => DispatchDeviceId::Wgpu,
+                DeviceType::Wgpu => {
+                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    continue;
+                }
                 #[cfg(feature = "metal")]
-                DeviceType::Metal => DispatchDeviceId::Metal,
+                DeviceType::Metal => {
+                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    continue;
+                }
                 #[cfg(feature = "vulkan")]
-                DeviceType::Vulkan => DispatchDeviceId::Vulkan,
+                DeviceType::Vulkan => {
+                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    continue;
+                }
                 #[cfg(feature = "webgpu")]
-                DeviceType::WebGpu => DispatchDeviceId::WebGpu,
+                DeviceType::WebGpu => {
+                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    continue;
+                }
                 #[cfg(feature = "flex")]
                 DeviceType::Flex => DispatchDeviceId::Flex,
                 #[cfg(feature = "ndarray")]
@@ -975,6 +1003,21 @@ impl core::fmt::Display for ThroughputStat {
         };
 
         write!(f, "{mode:<14} {dtype:<5} {value}")
+    }
+}
+
+/// Append every device of the cubecl `runtime` to `devices`, skipping any already listed.
+///
+/// A filter can name the same runtime twice — `DeviceType::Vulkan | DeviceType::Wgpu` both mean
+/// wgpu now that the compiler is not part of the device — and a caller enumerating hardware
+/// should see each device once.
+#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
+    for device in Dispatch::enumerate_cube(runtime) {
+        let device = Device::new(device);
+        if !devices.contains(&device) {
+            devices.push(device);
+        }
     }
 }
 

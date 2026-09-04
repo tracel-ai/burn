@@ -120,9 +120,12 @@ pub mod devices {
     pub use burn_wgpu::WgpuDevice;
 
     /// The device every cubecl runtime shares; which runtime it names is a
-    /// property of the value, not of its type.
+    /// property of the value, not of its type, and [`RuntimeId`] is how that
+    /// property is named.
     #[cfg(cube_backend)]
     pub use burn_cubecl::CubeDevice;
+    #[cfg(cube_backend)]
+    pub use burn_cubecl::cubecl::RuntimeId;
     #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex::FlexDevice;
     #[cfg(feature = "ndarray")]

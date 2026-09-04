@@ -7,7 +7,6 @@ use crate::engine::trace::{FuseResources, RegisterTensor, TensorView};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use burn_std::quantization::params_shape;
-use std::marker::PhantomData;
 
 /// Fetch and register [input handles](HandleInput). Also identifies potential inputs that
 /// can be used inplace and/or as the [reference layout](crate::engine::codegen::ir::RefLayout).

@@ -1,7 +1,7 @@
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
+    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError,
     InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
     TensorData,
 };
@@ -14,7 +14,6 @@ use cubecl::{
     config::size::MemorySize,
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
-    server::Server,
 };
 
 #[cfg(not(feature = "fusion"))]

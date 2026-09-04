@@ -2,7 +2,7 @@ use crate::{
     BoolVisionOps, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, FloatVisionOps,
     IntVisionOps, VisionBackend, backends::cpu,
 };
-use burn_cubecl::{CubeBackend, CubeRuntime};
+use burn_cubecl::CubeBackend;
 
 use burn_core::backend::{
     TensorMetadata, ops::IntTensorOps, tensor::{BoolTensor, IntTensor}
@@ -40,7 +40,7 @@ impl BoolVisionOps for CubeBackend {
         out_dtype: IntDType,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         let device = &img.device();
-        hardware_accelerated::(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
+        hardware_accelerated(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
             |_| {
                 let (labels, stats) = cpu::connected_components_with_stats::<Self>(
                     img,

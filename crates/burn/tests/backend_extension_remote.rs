@@ -130,6 +130,9 @@ fn remote_backend_extension_dispatch_compiles() {
 #[backend_extension(Remote)]
 #[allow(async_fn_in_trait)]
 pub trait SignatureBackend: burn::backend::Backend {
+    // The explicit lifetime is the point: it must survive the macro's round trip through the
+    // operation IR, so clippy's suggestion to elide it would erase what this checks.
+    #[allow(clippy::needless_lifetimes)]
     fn borrowed<'a>(tensor: &'a FloatTensor<Self>) -> FloatTensor<Self>;
 
     fn single_tuple(tensor: FloatTensor<Self>) -> (FloatTensor<Self>,);
@@ -157,6 +160,7 @@ pub trait SignatureBackend: burn::backend::Backend {
 }
 
 impl SignatureBackend for Remote {
+    #[allow(clippy::needless_lifetimes)]
     fn borrowed<'a>(_tensor: &'a FloatTensor<Self>) -> FloatTensor<Self> {
         unimplemented!("stub")
     }

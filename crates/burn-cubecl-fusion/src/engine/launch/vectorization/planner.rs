@@ -25,7 +25,6 @@ use cubecl::{
     ir::VectorSize,
     quant::scheme::{QuantScheme, QuantStore, QuantValue},
 };
-use std::marker::PhantomData;
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a> {

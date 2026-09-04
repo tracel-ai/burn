@@ -21,7 +21,6 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use cubecl::{
     client::Client,
-    prelude::*,
     std::tensor::{MatrixBatchLayout, matrix_batch_layout},
 };
 use cubek::{

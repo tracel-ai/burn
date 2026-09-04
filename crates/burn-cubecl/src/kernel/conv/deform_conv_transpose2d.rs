@@ -90,7 +90,7 @@ pub(crate) fn deform_conv2d_backward(
     let input = into_contiguous_aligned(input);
     let offset = into_contiguous_aligned(offset);
     let weight = into_contiguous_aligned(weight);
-    let mask = mask.map(|it| into_contiguous_aligned(it));
+    let mask = mask.map(into_contiguous_aligned);
 
     let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs(
         input.clone(),

@@ -4,7 +4,6 @@ use burn_cubecl::ops::numeric::empty_device_dtype;
 use cubecl::prelude::*;
 
 use burn_cubecl::{
-    CubeRuntime,
     ops::{numeric::zeros_client, reshape},
     tensor::CubeTensor,
 };
@@ -230,19 +229,19 @@ pub fn prefix_sum(input: CubeTensor, int_dtype: DType) -> CubeTensor {
     let batches = num_elems / numbers;
 
     let input = reshape(input, Shape::new([batches, numbers]));
-    let out = empty_device_dtype::(client.clone(), device.clone(), input.shape(), int_dtype);
+    let out = empty_device_dtype(client.clone(), device.clone(), input.shape(), int_dtype);
 
     let cubes = numbers.div_ceil(PART_SIZE);
     let cube_dim = CubeDim::new_1d(CUBE_SIZE as u32);
     let cube_count = CubeCount::new_3d(cubes as u32, 1, batches as u32);
 
-    let bump = zeros_client::(
+    let bump = zeros_client(
         client.clone(),
         device.clone(),
         Shape::new([batches]),
         int_dtype,
     );
-    let reduction = zeros_client::(
+    let reduction = zeros_client(
         client.clone(),
         device.clone(),
         Shape::new([batches, cubes]),

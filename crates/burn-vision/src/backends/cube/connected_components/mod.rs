@@ -9,7 +9,7 @@ use burn_core::{
     tensor::{DType, Shape},
 };
 use burn_cubecl::{
-    CubeBackend, CubeRuntime,
+    CubeBackend,
     ops::numeric::{full_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
@@ -25,14 +25,14 @@ pub(crate) fn stats_from_opts(
 ) -> ConnectedStatsPrimitive<CubeBackend> {
     let [height, width] = l.meta.shape().dims();
     let shape = Shape::new([height * width]);
-    let zeros = || zeros_client::(l.client.clone(), l.device.clone(), shape.clone(), int_dtype);
+    let zeros = || zeros_client(l.client.clone(), l.device.clone(), shape.clone(), int_dtype);
 
     let max = dispatch_int_dtype!(int_dtype.into(), |I| InputScalar::new(
         I::MAX,
         dtype_to_storage_type(int_dtype)
     ));
     let max = || {
-        full_device_dtype::(
+        full_device_dtype(
             l.client.clone(),
             shape.clone(),
             l.device.clone(),
@@ -57,7 +57,7 @@ pub(crate) fn stats_from_opts(
         top: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
         right: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
         bottom: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
-        max_label: zeros_client::(
+        max_label: zeros_client(
             l.client.clone(),
             l.device.clone(),
             Shape::new([1]),

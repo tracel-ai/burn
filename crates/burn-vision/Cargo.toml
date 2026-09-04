@@ -19,7 +19,7 @@ workspace = true
 
 
 [features]
-default = ["burn-core/default", "flex", "cubecl-backend", "fusion", "std"]
+default = ["burn-core/default", "flex", "fusion", "std"]
 std = ["aligned-vec/std", "burn-core/std", "burn-store?/std"]
 tracing = [
     "burn-cubecl?/tracing",
@@ -29,16 +29,19 @@ tracing = [
     "cubecl/tracing",
 ]
 
+# The cubecl vision ops. Implied by every runtime feature below and not selectable on its own:
+# the backend no longer carries its runtime in its type, so `CubeBackend` — and the ops
+# implemented on it — exist only once a runtime is compiled in.
 cubecl-backend = ["cubecl", "burn-cubecl"]
 fusion = ["burn-fusion", "burn-core/fusion"]
 
-cuda = ["cubecl-backend", "burn-core/cuda"]
-rocm = ["cubecl-backend", "burn-core/rocm"]
-wgpu = ["cubecl-backend", "burn-core/wgpu"]
-vulkan = ["cubecl-backend", "burn-core/vulkan"]
-webgpu = ["cubecl-backend", "burn-core/webgpu"]
-metal = ["cubecl-backend", "burn-core/metal"]
-cpu = ["cubecl-backend", "burn-core/cpu"]
+cuda = ["cubecl-backend", "burn-core/cuda", "burn-cubecl/cuda"]
+rocm = ["cubecl-backend", "burn-core/rocm", "burn-cubecl/hip"]
+wgpu = ["cubecl-backend", "burn-core/wgpu", "burn-cubecl/wgpu"]
+vulkan = ["cubecl-backend", "burn-core/vulkan", "burn-cubecl/vulkan"]
+webgpu = ["cubecl-backend", "burn-core/webgpu", "burn-cubecl/webgpu"]
+metal = ["cubecl-backend", "burn-core/metal", "burn-cubecl/metal"]
+cpu = ["cubecl-backend", "burn-core/cpu", "burn-cubecl/cpu"]
 flex = ["burn-core/flex"]
 tch = ["burn-core/tch"]
 

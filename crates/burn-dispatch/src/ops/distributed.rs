@@ -58,6 +58,7 @@ macro_rules! dispatch_distributed_devices_arms {
                     $body
                 }
             )*
+            #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };
@@ -86,6 +87,7 @@ macro_rules! dispatch_distributed_devices_arms {
                 }
             )*
             $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device."),
+            #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };

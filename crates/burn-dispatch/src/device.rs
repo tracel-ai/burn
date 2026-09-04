@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 #[cfg(feature = "cubecl")]
 use burn_backend::cubecl::{
-    Device as CubeDevice, ThroughputError, ThroughputKey, ThroughputValue, measure_peak_throughput,
+    ThroughputError, ThroughputKey, ThroughputValue, measure_peak_throughput,
 };
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
@@ -287,8 +287,31 @@ impl Default for DispatchDevice {
             }
         }
 
-        #[cfg(cube_backend)]
-        return Self::Cube(Default::default());
+        // Spelled out per feature rather than left to `CubeDevice::default()`: that answers for
+        // the runtimes *cubecl* compiled in, and cargo unifies features across a build, so a
+        // workspace that also builds `burn-cuda` would hand this crate a CUDA default even when
+        // it was built with only `wgpu`. The order is the one a caller who did not choose would
+        // want — a discrete accelerator, then the portable path, then the CPU.
+        #[cfg(feature = "cuda")]
+        return Self::Cube(CubeDevice::Cuda(Default::default()));
+
+        #[cfg(feature = "metal")]
+        return Self::Cube(CubeDevice::Wgpu(Default::default()));
+
+        #[cfg(feature = "rocm")]
+        return Self::Cube(CubeDevice::Hip(Default::default()));
+
+        #[cfg(feature = "vulkan")]
+        return Self::Cube(CubeDevice::Wgpu(Default::default()));
+
+        #[cfg(feature = "webgpu")]
+        return Self::Cube(CubeDevice::Wgpu(Default::default()));
+
+        #[cfg(feature = "wgpu")]
+        return Self::Cube(CubeDevice::Wgpu(Default::default()));
+
+        #[cfg(feature = "cpu")]
+        return Self::Cube(CubeDevice::Cpu(Default::default()));
 
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());

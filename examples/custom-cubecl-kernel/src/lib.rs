@@ -8,7 +8,7 @@ use burn::{
 };
 
 /// We create our own Backend trait that extends the Burn backend trait.
-#[backend_extension(Autodiff, Wgpu)]
+#[backend_extension(Autodiff, Cube)]
 pub trait Backend: burn::backend::Backend {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,

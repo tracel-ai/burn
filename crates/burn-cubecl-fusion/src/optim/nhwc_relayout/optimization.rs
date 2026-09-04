@@ -4,7 +4,7 @@ use crate::{
     optim::{FusedOperation, elemwise::ElemwiseRunner},
 };
 use burn_fusion::stream::Context;
-use cubecl::{client::Client, prelude::*};
+use cubecl::client::Client;
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]

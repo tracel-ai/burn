@@ -2,12 +2,7 @@
 
 extern crate alloc;
 
-use burn_cubecl::CubeBackend;
 pub use cubecl::cpu::CpuDevice;
-use cubecl::{
-    cpu::CpuRuntime,
-    throughput::{ThroughputError, ThroughputKey, ThroughputValue},
-};
 
 /// The cubecl backend, under the name of the runtime this crate compiles in.
 /// Every cubecl backend is the same type — a tensor's device is what says which

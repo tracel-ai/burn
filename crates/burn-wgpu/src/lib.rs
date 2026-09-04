@@ -13,14 +13,6 @@ pub use burn_cubecl::{BoolElement, FloatElement, IntElement};
 pub use burn_cubecl::{CubeBackend, tensor::CubeTensor};
 pub use cubecl::CubeDim;
 pub use cubecl::flex32;
-use cubecl::throughput::{ThroughputError, ThroughputKey, ThroughputValue};
-
-#[cfg(feature = "metal")]
-use cubecl::wgpu::MslCompiler;
-#[cfg(feature = "vulkan")]
-use cubecl::wgpu::SpirvCompiler;
-#[cfg(feature = "webgpu")]
-use cubecl::wgpu::WgslCompiler;
 
 pub use cubecl::wgpu::{
     AutoCompiler, MemoryConfiguration, RuntimeOptions, WgpuDevice, WgpuResource, WgpuRuntime,
@@ -47,10 +39,9 @@ type WgpuInner = CubeBackend;
 ///   - [WebGPU](crate::graphics::WebGpu) on supported browsers and `wasm` runtimes.
 ///
 /// The selected graphics API is chosen automatically at runtime, and the appropriate shader
-/// compiler (WGSL, SPIR-V or MSL) is dispatched via [`AutoCompiler`]. When the target API is
-/// known ahead of time, prefer the dedicated `Vulkan`, `WebGpu` or `Metal` backend aliases
-/// (enabled by their respective Cargo features), which lock the compiler at compile time and
-/// avoid the runtime dispatch.
+/// compiler (WGSL, SPIR-V or MSL) is dispatched via [`AutoCompiler`]. The `Vulkan`, `WebGpu`
+/// and `Metal` aliases name the same backend; the compiler is a runtime choice, not a
+/// compile-time one.
 ///
 /// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
 /// you have to manually initialize the runtime. For example:

@@ -17,7 +17,7 @@ the ugly disambiguation with associated types.
 
 ```rust, ignore
 /// We create our own Backend trait that extends the Burn backend trait.
-#[backend_extension(Autodiff, Wgpu)]
+#[backend_extension(Autodiff, Cube)]
 pub trait Backend: burn::backend::Backend {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -201,7 +201,7 @@ the raw `WgpuBackend` type.
 
 ```rust, ignore
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl Backend for CubeBackend<WgpuRuntime>
+impl Backend for CubeBackend
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -441,7 +441,7 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our WGPU Backend.
 
 ```rust, ignore
-impl AutodiffBackend for Autodiff<CubeBackend<WgpuRuntime>>
+impl AutodiffBackend for Autodiff<CubeBackend>
 {
 }
 ```

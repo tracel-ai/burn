@@ -165,26 +165,34 @@ impl Default for NmsOptions {
 /// Vision capable backend, implemented by each backend
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
-    WebGpu: cfg(feature = "webgpu"),
-    Vulkan: cfg(feature = "vulkan"),
-    Metal: cfg(feature = "metal"),
-    Cuda: cfg(feature = "cuda"),
-    Rocm: cfg(feature = "rocm"),
-    Cpu: cfg(feature = "cpu"),
+    // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
+    // row per runtime; the features still decide whether any of them is compiled in.
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     LibTorch: cfg(feature = "tch"),
 )]
 pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps {}
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
-    WebGpu: cfg(feature = "webgpu"),
-    Vulkan: cfg(feature = "vulkan"),
-    Metal: cfg(feature = "metal"),
-    Cuda: cfg(feature = "cuda"),
-    Rocm: cfg(feature = "rocm"),
-    Cpu: cfg(feature = "cpu"),
+    // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
+    // row per runtime; the features still decide whether any of them is compiled in.
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on bool tensors
@@ -251,13 +259,17 @@ pub trait BoolVisionOps: Backend {
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
-    WebGpu: cfg(feature = "webgpu"),
-    Vulkan: cfg(feature = "vulkan"),
-    Metal: cfg(feature = "metal"),
-    Cuda: cfg(feature = "cuda"),
-    Rocm: cfg(feature = "rocm"),
-    Cpu: cfg(feature = "cpu"),
+    // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
+    // row per runtime; the features still decide whether any of them is compiled in.
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on int tensors
@@ -291,13 +303,17 @@ pub trait IntVisionOps: Backend {
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
-    WebGpu: cfg(feature = "webgpu"),
-    Vulkan: cfg(feature = "vulkan"),
-    Metal: cfg(feature = "metal"),
-    Cuda: cfg(feature = "cuda"),
-    Rocm: cfg(feature = "rocm"),
-    Cpu: cfg(feature = "cpu"),
+    // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
+    // row per runtime; the features still decide whether any of them is compiled in.
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on float tensors

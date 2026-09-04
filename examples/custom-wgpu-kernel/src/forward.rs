@@ -3,8 +3,8 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        CubeBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
-        build_info, into_contiguous, kernel_source,
+        CubeBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, build_info,
+        into_contiguous, kernel_source,
     },
     tensor::{DType, Shape},
 };
@@ -39,8 +39,9 @@ impl KernelSource for FusedMatmulAddRelu {
     }
 }
 
-/// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl Backend for CubeBackend<WgpuRuntime> {
+/// Implement our custom backend trait for the cubecl backend. The WGSL source below only
+/// compiles on the wgpu runtime, which is the one this example's device selects.
+impl Backend for CubeBackend {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -117,7 +118,7 @@ impl Backend for CubeBackend<WgpuRuntime> {
     }
 }
 
-impl Backend for burn_fusion::Fusion<CubeBackend<WgpuRuntime>> {
+impl Backend for burn_fusion::Fusion<CubeBackend> {
     fn fused_matmul_add_relu(
         _lhs: FloatTensor<Self>,
         _rhs: FloatTensor<Self>,

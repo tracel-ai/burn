@@ -231,8 +231,6 @@ mod tests {
 
     use super::*;
 
-    type Run = cubecl::TestRuntime;
-
     #[test]
     fn reduce_broadcast_workflow_1() {
         let device: cubecl::Device = Default::default();
