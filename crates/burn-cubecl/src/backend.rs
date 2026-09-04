@@ -42,6 +42,18 @@ fn graph_err(err: impl core::fmt::Display) -> ExecutionError {
     }
 }
 
+/// A captured launch sequence, tagged with the device it was captured on.
+///
+/// `cubecl::client::Graph` is self-contained: it owns a handle to the device it recorded on and
+/// replays there no matter what device the caller names. Every cubecl runtime is one backend now,
+/// so a graph captured on CUDA and replayed with a wgpu device is no longer a variant mismatch the
+/// dispatch layer catches — without this tag it would replay, silently, on the wrong device.
+#[derive(Clone, Debug)]
+pub struct CubeGraph {
+    graph: cubecl::client::Graph,
+    device: CubeDevice,
+}
+
 /// Tensor backend that compiles just-in-time for whichever runtime its device
 /// names.
 #[derive(new)]
@@ -55,7 +67,7 @@ impl BackendTypes for CubeBackend {
     type BoolTensorPrimitive = CubeTensor;
     type QuantizedTensorPrimitive = CubeTensor;
 
-    type GraphPrimitive = cubecl::client::Graph;
+    type GraphPrimitive = CubeGraph;
 }
 
 impl Backend for CubeBackend {
@@ -96,20 +108,36 @@ impl Backend for CubeBackend {
 
     fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
         let client = device.client();
-        client.stop_capture().map_err(graph_err)
+        let graph = client.stop_capture().map_err(graph_err)?;
+
+        Ok(CubeGraph {
+            graph,
+            device: device.clone(),
+        })
     }
 
     unsafe fn graph_replay(
-        _device: &Self::Device,
+        device: &Self::Device,
         graph: &BackendGraph<Self>,
     ) -> Result<(), ExecutionError> {
+        // The replay goes to the device the graph was captured on whatever is passed here, so a
+        // caller naming a different one gets told rather than silently served the other device.
+        if &graph.device != device {
+            return Err(ExecutionError::WithContext {
+                reason: format!(
+                    "The graph was captured on {:?} and cannot replay on {device:?}",
+                    graph.device
+                ),
+            });
+        }
+
         // cubecl's `Graph::replay` blocks on the enqueue and reports what the
         // enqueue said; a failure also leaves the graph's write set carrying
         // it, so a read of those buffers keeps failing until a replay lands.
         //
         // Safety: the buffer-liveness and stream-ordering obligations are the
         // caller's, forwarded verbatim from this method's own contract.
-        unsafe { graph.replay() }.map_err(graph_err)
+        unsafe { graph.graph.replay() }.map_err(graph_err)
     }
 
     fn memory_persistent_allocations<
