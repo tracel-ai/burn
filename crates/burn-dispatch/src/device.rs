@@ -37,24 +37,24 @@ use burn_backend::cubecl::measure_peak_throughput;
 /// ```
 #[derive(Clone, Eq)]
 pub enum DispatchDevice {
-    /// A device of the [cubecl backend](Cube): CUDA, ROCm, Metal, Vulkan,
+    /// A device of the [cubecl backend](crate::backends::Cube): CUDA, ROCm, Metal, Vulkan,
     /// WebGPU, wgpu or the CPU runtime.
     #[cfg(cube_backend)]
     Cube(CubeDevice),
 
-    /// The [Flex backend](Flex) device (CPU-only).
+    /// The [Flex backend](crate::backends::Flex) device (CPU-only).
     #[cfg(any(feature = "flex", default_backend))]
     Flex(FlexDevice),
 
-    /// The [NdArray backend](NdArray) device (CPU-only).
+    /// The [NdArray backend](crate::backends::NdArray) device (CPU-only).
     #[cfg(feature = "ndarray")]
     NdArray(NdArrayDevice),
 
-    /// The [LibTorch backend](LibTorch) device.
+    /// The [LibTorch backend](crate::backends::LibTorch) device.
     #[cfg(feature = "tch")]
     LibTorch(LibTorchDevice),
 
-    /// The [remote backend](Remote) device, identified by a network address.
+    /// The [remote backend](crate::backends::Remote) device, identified by a network address.
     #[cfg(feature = "remote")]
     Remote(RemoteDevice),
 
@@ -62,7 +62,7 @@ pub enum DispatchDevice {
     #[cfg(feature = "capture")]
     Capture(CaptureDevice),
 
-    /// The [autodiff enabled backend](Autodiff) device.
+    /// The [autodiff enabled backend](crate::backends::Autodiff) device.
     #[cfg(feature = "autodiff")]
     Autodiff(AutodiffDevice),
 }
@@ -380,7 +380,8 @@ impl DispatchDevice {
     }
 
     #[cfg(feature = "autodiff")]
-    /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
+    /// Creates a new [`DispatchDevice`] with
+    /// [automatic differentiation](crate::backends::Autodiff) enabled.
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
         Self::autodiff_with_gradient_checkpointing(device, GradientCheckpointingStrategy::Disabled)
     }
