@@ -28,7 +28,6 @@ jobs:
       - publish-burn-fusion
       - publish-burn-cubecl
       - publish-burn-core
-      - publish-burn-ir
       - publish-burn-store
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
     with:

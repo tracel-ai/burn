@@ -4,10 +4,6 @@
 #![recursion_limit = "256"]
 
 //! Burn neural network module.
-//!
-//! [`Initializer`] is defined by this crate. The former direct-crate path
-//! `burn_core::module::Initializer` has been removed; umbrella users can keep
-//! using `burn::nn::Initializer` or `burn::module::Initializer`.
 
 /// Loss module
 pub mod loss;

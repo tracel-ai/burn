@@ -84,6 +84,8 @@ pub(crate) fn handle_backend_tests(
         test_args.extend(["--features", "std"])
     }
 
+    let linalg_test_args = test_args.clone();
+
     if matches!(backend, TestBackend::Cuda) {
         // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
         // provides. Kept behind its own feature so plain `--features cuda` still works without it.
@@ -102,16 +104,31 @@ pub(crate) fn handle_backend_tests(
             None,
             "fusion backend tests",
         )?;
-        // base_commands::test::handle_command(fusion_args, env.clone(), context.clone())?;
+
+        let mut linalg_fusion_args = linalg_test_args.clone();
+        linalg_fusion_args.extend(["--features", "fusion"]);
+        build_helpers::custom_crates_tests(
+            vec!["burn-linalg"],
+            handle_test_args(&linalg_fusion_args, args.release),
+            None,
+            None,
+            "linalg fusion backend tests",
+        )?;
     }
 
-    // base_commands::test::handle_command(args, env, context)
     build_helpers::custom_crates_tests(
         vec!["burn-backend-tests"],
         handle_test_args(&test_args, args.release),
         None,
         None,
         "backend tests",
+    )?;
+    build_helpers::custom_crates_tests(
+        vec!["burn-linalg"],
+        handle_test_args(&linalg_test_args, args.release),
+        None,
+        None,
+        "linalg backend tests",
     )
 }
 
@@ -323,7 +340,6 @@ pub(crate) fn handle_command(
                     let args_vulkan = args_vulkan.try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_vulkan)?;
                     handle_wgpu_test("burn-core", &args_vulkan)?;
-                    handle_wgpu_test("burn-linalg", &args_vulkan)?;
                     handle_wgpu_test("burn-vision", &args_vulkan)?;
 
                     // Enable burn-core/vulkan
@@ -352,7 +368,6 @@ pub(crate) fn handle_command(
                     let args_wgpu = args_wgpu.try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_wgpu)?;
                     handle_wgpu_test("burn-core", &args_wgpu)?;
-                    handle_wgpu_test("burn-linalg", &args_wgpu)?;
                     handle_wgpu_test("burn-vision", &args_wgpu)?;
 
                     // Enable burn-core/webgpu
@@ -406,16 +421,6 @@ pub(crate) fn handle_command(
                         "std with features: tch",
                     )?;
 
-                    // burn-linalg
-                    set_burn_device("flex");
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-linalg"],
-                        handle_test_args(&["--features", "flex"], args.release),
-                        None,
-                        None,
-                        "std cpu (flex)",
-                    )?;
-
                     // burn-nn (pretrained and local tests)
                     // If the "CI" environment variable is missing, we are running locally.
                     // if std::env::var("CI").is_err() {
@@ -455,13 +460,6 @@ pub(crate) fn handle_command(
                     set_burn_device("metal");
                     build_helpers::custom_crates_tests(
                         vec!["burn-core"],
-                        handle_test_args(&["--features", "metal"], args.release),
-                        None,
-                        None,
-                        "std metal",
-                    )?;
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-linalg"],
                         handle_test_args(&["--features", "metal"], args.release),
                         None,
                         None,

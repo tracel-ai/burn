@@ -8,35 +8,12 @@ use crate::{
 };
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
-    TensorData, TensorMetadata,
+    TensorData,
     ops::{FloatTensorOps, GridSampleOptions, PadMode},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
-
-/// Registers an already-computed inner-backend float tensor with Fusion.
-///
-/// Backend extension crates use this after executing an operation that has no
-/// Fusion IR representation.
-#[doc(hidden)]
-pub fn register_float_tensor<B: FusionBackend>(
-    tensor: FloatTensor<B>,
-    client: &GlobalFusionClient<B::FusionRuntime>,
-) -> FloatTensor<Fusion<B>> {
-    let dtype = tensor.dtype();
-    let shape = tensor.shape();
-    let handle = B::float_tensor_handle(tensor);
-    let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
-
-    client
-        .register(
-            StreamId::current(),
-            OperationIr::Init(desc),
-            NoOp::<B>::new(),
-        )
-        .output()
-}
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_pad(

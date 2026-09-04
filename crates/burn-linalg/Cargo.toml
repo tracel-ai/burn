@@ -1,6 +1,6 @@
 [package]
-authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-categories = ["science", "no-std", "embedded", "wasm"]
+authors = ["laggui <lagrange.guillaume.1@gmail.com>"]
+categories = ["science", "mathematics", "no-std"]
 description = "Linear algebra operations for Burn tensors"
 documentation = "https://docs.rs/burn-linalg"
 edition.workspace = true
@@ -47,3 +47,6 @@ num-traits = { workspace = true }
 [package.metadata.docs.rs]
 features = ["default"]
 rustdoc-args = ["--cfg", "docsrs"]
+
+[dev-dependencies]
+ctor = "0.10.1"

@@ -1,7 +1,7 @@
 use super::*;
+use burn_core::tensor::TensorData;
+use burn_core::tensor::{DType, Distribution, Tolerance};
 use burn_linalg::svd;
-use burn_tensor::TensorData;
-use burn_tensor::{DType, Distribution, Tolerance};
 
 fn tolerance() -> Tolerance<FloatElem> {
     Tolerance::rel_abs(5e-4, 1e-5).set_half_precision_absolute(5e-2)
