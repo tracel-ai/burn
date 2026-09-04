@@ -386,4 +386,24 @@ mod tests {
 
         assert!(registry.provider("builtin").is_some());
     }
+
+    #[test]
+    fn defaults_are_removable_and_reserve_their_name() {
+        let mut registry = Registry::seeded(seeded);
+
+        // A seeded name is held like any other, so it cannot be registered over...
+        assert_eq!(
+            registry.register("builtin".into(), slot()),
+            Err(RegistryError::DuplicateOptimization {
+                name: "builtin".into()
+            })
+        );
+
+        // ...but it is not privileged either: removing it frees the name for a replacement.
+        registry.remove("builtin").unwrap();
+        assert!(registry.provider("builtin").is_none());
+        registry
+            .register("builtin".into(), slot())
+            .expect("the name is free after removal");
+    }
 }
