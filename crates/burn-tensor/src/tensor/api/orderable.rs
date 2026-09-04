@@ -773,7 +773,17 @@ where
     /// println!("{tensor}");
     /// // [[9.0]]
     /// ```
+    ///
+    /// # Empty dimensions
+    ///
+    /// Unlike ordinary reductions such as [`Tensor::max_dims`], this is a composite
+    /// operation equivalent to `self.abs().max_dims(dims)`. If `dims` is empty, no
+    /// reduction is performed, but the elementwise absolute-value operation is
+    /// still applied.
     pub fn max_abs_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        if dims.is_empty() {
+            return self.abs();
+        }
         dims.iter()
             .fold(self, |tensor, &dim| tensor.max_abs_dim(dim))
     }

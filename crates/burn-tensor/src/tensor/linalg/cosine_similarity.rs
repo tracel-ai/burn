@@ -38,8 +38,8 @@ pub fn cosine_similarity<const D: usize>(
     let dot_product = (x1.clone() * x2.clone()).sum_dim(dim);
 
     // Compute L2 norms: ||x1|| and ||x2||
-    let norm_x1 = l2_norm_impl(x1, dim);
-    let norm_x2 = l2_norm_impl(x2, dim);
+    let norm_x1 = l2_norm_impl(x1, &[dim]);
+    let norm_x2 = l2_norm_impl(x2, &[dim]);
 
     // Calculate the denominator (product of the norms) with epsilon to avoid division by zero
     let denominator = norm_x1.clamp_min(eps) * norm_x2.clamp_min(eps);
