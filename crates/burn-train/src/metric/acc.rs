@@ -52,20 +52,20 @@ impl Metric for AccuracyMetric {
 
         let outputs = outputs.argmax(1).reshape([batch_size]);
 
-        let accuracy = match self.pad_token {
+        let (num_matches, num_pad) = match self.pad_token {
             Some(pad_token) => {
                 let mask = targets.clone().equal_scalar(pad_token as i64);
                 let matches = outputs.equal(targets).float().mask_fill(mask.clone(), 0);
-                let num_pad = mask.float().sum();
+                let num_pad = mask.int().sum().into_scalar::<i64>() as usize;
 
-                let acc = matches.sum() / (num_pad.neg() + batch_size as f32);
-
-                acc.into_scalar::<f64>()
+                (matches.sum().into_scalar::<f64>(), num_pad)
             }
-            None => outputs.equal(targets).int().sum().into_scalar::<f64>() / batch_size as f64,
+            None => (outputs.equal(targets).int().sum().into_scalar::<f64>(), 0),
         };
+        let valid_count = batch_size - num_pad;
+        let accuracy = num_matches / valid_count as f64;
 
-        self.state.update(100.0 * accuracy, batch_size);
+        self.state.update(100.0 * accuracy, valid_count);
         self.state
             .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
     }
@@ -158,6 +158,55 @@ mod tests {
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert_eq!(50.0, metric.value().unwrap().current());
+    }
+
+    #[test]
+    fn test_accuracy_epoch_aggregation_excludes_padding() {
+        let device = Default::default();
+        let mut metric = AccuracyMetric::new().with_pad_token(2);
+
+        // One valid, correct sample and three padding samples.
+        metric.update(
+            &AccuracyInput::new(
+                Tensor::from_data([[0.9, 0.1], [0.9, 0.1], [0.9, 0.1], [0.9, 0.1]], &device),
+                Tensor::from_data([0, 2, 2, 2], &device),
+            ),
+            &MetricMetadata::fake(),
+        );
+        // Four valid, incorrect samples.
+        metric.update(
+            &AccuracyInput::new(
+                Tensor::from_data([[0.9, 0.1]; 4], &device),
+                Tensor::from_data([1, 1, 1, 1], &device),
+            ),
+            &MetricMetadata::fake(),
+        );
+
+        // One correct prediction out of five valid samples.
+        assert_eq!(20.0, metric.final_value().current());
+    }
+
+    #[test]
+    fn test_fully_padded_batch_does_not_poison_epoch_accuracy() {
+        let device = Default::default();
+        let mut metric = AccuracyMetric::new().with_pad_token(2);
+
+        metric.update(
+            &AccuracyInput::new(
+                Tensor::from_data([[0.9, 0.1]; 2], &device),
+                Tensor::from_data([2, 2], &device),
+            ),
+            &MetricMetadata::fake(),
+        );
+        metric.update(
+            &AccuracyInput::new(
+                Tensor::from_data([[0.9, 0.1]], &device),
+                Tensor::from_data([0], &device),
+            ),
+            &MetricMetadata::fake(),
+        );
+
+        assert_eq!(100.0, metric.final_value().current());
     }
 
     #[test]
