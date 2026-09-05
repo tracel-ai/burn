@@ -1,6 +1,6 @@
 use super::base::{
     Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, Metadata, Scalar, TENSOR_ALIGNMENT,
-    TensorDescriptor, aligned_data_section_start,
+    TensorDescriptor, aligned_data_section_start, validate_tensor_byte_len,
 };
 use super::tensor::Tensor;
 #[cfg(feature = "std")]
@@ -10,7 +10,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_std::{Bytes, DType, Shape};
+use burn_std::Bytes;
 
 #[cfg(feature = "std")]
 use std::fs::File;
@@ -296,10 +296,10 @@ impl Writer {
         for tensor in &self.tensors {
             let name = &tensor.name;
             let dtype = tensor.dtype;
-            let shape = &tensor.shape;
+            let shape: Vec<u64> = tensor.shape.iter().map(|&size| size as u64).collect();
             let data_len = tensor.byte_len() as u64;
 
-            Self::check_byte_len(name, dtype, shape, data_len)?;
+            validate_tensor_byte_len(name, dtype, &shape, data_len)?;
 
             // Align the start offset for mmap zero-copy support.
             let aligned_start = align_offset(current_offset, TENSOR_ALIGNMENT);
@@ -318,7 +318,7 @@ impl Writer {
                     name.clone(),
                     TensorDescriptor {
                         dtype,
-                        shape: shape.iter().map(|&s| s as u64).collect(),
+                        shape,
                         data_offsets: (aligned_start, end),
                         param_id: tensor.param_id,
                     },
@@ -339,34 +339,6 @@ impl Writer {
         }
 
         Ok((tensors, placements, current_offset as usize))
-    }
-
-    /// Reject a `byte_len` that cannot describe the tensor the entry declares.
-    ///
-    /// A reader sizes a tensor's [`Bytes`] from the descriptor's shape and
-    /// dtype, so a length that disagrees with them produces a container that reads back
-    /// wrong rather than one that fails to write. Catching it during planning costs nothing
-    /// and keeps the mistake from reaching a file at all.
-    ///
-    /// Quantized data is the deliberate exception: values are bit-packed and the scales are
-    /// appended inline, so its length is not `num_elements * dtype.size()`. That layout
-    /// contract belongs to the quantization layer, and burn-pack deliberately does not
-    /// reimplement it - which is why [`Tensor::deferred`] takes a byte length the
-    /// producer supplies rather than something derived here.
-    fn check_byte_len(name: &str, dtype: DType, shape: &Shape, data_len: u64) -> Result<(), Error> {
-        if matches!(dtype, DType::QFloat(_)) {
-            return Ok(());
-        }
-
-        let expected = shape.num_elements() as u64 * dtype.size() as u64;
-        if data_len != expected {
-            return Err(Error::ValidationError(format!(
-                "tensor '{}' declares {} bytes but its shape {} and dtype {:?} need {}",
-                name, data_len, shape, dtype, expected
-            )));
-        }
-
-        Ok(())
     }
 
     /// Emit the full container — header, metadata, alignment padding, then tensor data
