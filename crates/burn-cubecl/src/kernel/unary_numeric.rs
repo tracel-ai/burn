@@ -1,3 +1,4 @@
+use crate::kernel::memory_order::in_memory_order;
 use crate::{
     kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device_dtype},
@@ -47,51 +48,54 @@ where
     for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options>,
     O: NumericUnaryOpFamily,
 {
-    let vector_size = max_vector_size(&tensor);
-    let client = tensor.client.clone();
-    let num_elems = tensor.meta.num_elements();
+    let output_shape = tensor.shape();
+    in_memory_order([tensor], &output_shape, |[tensor]| {
+        let vector_size = max_vector_size(&tensor);
+        let client = tensor.client.clone();
+        let num_elems = tensor.meta.num_elements();
 
-    let working_units = num_elems / vector_size as usize;
-    let cube_dim = CubeDim::new(&tensor.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
-    let dtype = tensor.dtype;
+        let working_units = num_elems / vector_size as usize;
+        let cube_dim = CubeDim::new(&tensor.client, working_units);
+        let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+        let dtype = tensor.dtype;
 
-    unsafe {
-        if tensor.can_mut() && tensor.is_nonoverlapping() {
-            unary_numeric::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(tensor),
-                vector_size,
-                tensor.clone().into_linear_view(),
-                tensor.as_linear_view_alias(0),
-                args(&()),
-                dtype_to_storage_type(dtype),
-            );
+        unsafe {
+            if tensor.can_mut() && tensor.is_nonoverlapping() {
+                unary_numeric::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(tensor),
+                    vector_size,
+                    tensor.clone().into_linear_view(),
+                    tensor.as_linear_view_alias(0),
+                    args(&()),
+                    dtype_to_storage_type(dtype),
+                );
 
-            tensor
-        } else {
-            let output = empty_device_dtype(
-                tensor.client.clone(),
-                tensor.device.clone(),
-                tensor.shape(),
-                tensor.dtype,
-            );
+                tensor
+            } else {
+                let output = empty_device_dtype(
+                    tensor.client.clone(),
+                    tensor.device.clone(),
+                    tensor.shape(),
+                    tensor.dtype,
+                );
 
-            unary_numeric::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(tensor, output),
-                vector_size,
-                tensor.into_linear_view(),
-                output.clone().into_linear_view(),
-                args(&()),
-                dtype_to_storage_type(dtype),
-            );
+                unary_numeric::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(tensor, output),
+                    vector_size,
+                    tensor.into_linear_view(),
+                    output.clone().into_linear_view(),
+                    args(&()),
+                    dtype_to_storage_type(dtype),
+                );
 
-            output
+                output
+            }
         }
-    }
+    })
 }
