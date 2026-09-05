@@ -1,11 +1,14 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
+use crate::ops::permute;
 use crate::{
     ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type, elem_type_to_dtype};
 use burn_backend::{DType, TensorMetadata};
+use burn_std::Shape;
+use burn_std::tensor::{ReshapeAction, reshape_action};
 use burn_std::{BoolDType, Metadata};
 use cubecl::{AutotuneKey, client::Client, features::AtomicUsage, ir::Type, prelude::InputScalar};
 use cubek::reduce::{
@@ -180,6 +183,89 @@ pub fn reduce(
     // reshape to scalar tensor
     *tensor.meta = Metadata::new([1], [1]);
     Ok(tensor)
+}
+
+/// Reduce several `dims` of the `input` tensor with the instruction `config`,
+/// keeping each of them with length one.
+///
+/// Reducing one dimension at a time writes and reads back an intermediate per
+/// dimension, the first of which is nearly the size of the input. Dimensions
+/// that sit next to each other in memory can instead be folded into one axis by
+/// a stride change alone, and reduced in a single launch — for a channels-last
+/// tensor that is every non-channel dimension at once.
+///
+/// The folded axis is put *first* and the kept dimensions after it, so the
+/// kept innermost dimension stays innermost in memory: the reduction then
+/// coalesces across it and writes its output vectorized along it, instead of
+/// walking a strided last axis one element at a time. Where the reduced
+/// dimensions do not all sit together, the outermost is reduced on its own
+/// first; its output is contiguous, so whatever is left then folds, and no
+/// layout takes more than two launches.
+pub fn reduce_dims(
+    input: CubeTensor,
+    output_dtype: Option<DType>,
+    dims: &[usize],
+    strategy: KernelReduceStrategy,
+    config: ReduceOperationConfig,
+) -> Result<CubeTensor, ReduceError> {
+    let rank = input.meta.num_dims();
+    let logical_shape = input.meta.shape().clone();
+    let reduced: Vec<usize> = (0..rank).filter(|dim| dims.contains(dim)).collect();
+
+    match reduced.len() {
+        0 => return Ok(input),
+        1 => return reduce_dim(input, output_dtype, reduced[0], strategy, config),
+        _ => {}
+    }
+
+    // Reduced dimensions first, outermost first so that those adjacent in
+    // memory are adjacent here too; kept dimensions after, in their own order.
+    let kept: Vec<usize> = (0..rank).filter(|dim| !dims.contains(dim)).collect();
+    let mut reduced_outermost_first = reduced.clone();
+    reduced_outermost_first.sort_by(|a, b| input.meta.strides()[*b].cmp(&input.meta.strides()[*a]));
+    let presented: Vec<usize> = reduced_outermost_first
+        .iter()
+        .chain(kept.iter())
+        .copied()
+        .collect();
+    let mut tensor = permute(input, &presented);
+
+    let mut tensor = if fold_leading_dims(&mut tensor, reduced.len()) {
+        reduce_dim(tensor, output_dtype, 0, strategy, config)?
+    } else {
+        let mut tensor = reduce_dim(tensor, output_dtype, 0, strategy.clone(), config)?;
+        // Contiguous now, so the remaining reduced dimensions all fold.
+        let folded = fold_leading_dims(&mut tensor, reduced.len());
+        debug_assert!(folded, "a contiguous tensor's leading dimensions fold");
+        reduce_dim(tensor, output_dtype, 0, strategy, config)?
+    };
+
+    // Back to the logical shape: the kept dimensions kept their order, and the
+    // reduced ones are one, so this is a stride change on a contiguous output.
+    let mut shape = logical_shape;
+    for dim in &reduced {
+        shape[*dim] = 1;
+    }
+    *tensor.meta = Metadata::new(shape.clone(), burn_std::tensor::contiguous_strides(&shape));
+
+    Ok(tensor)
+}
+
+/// Fold the first `count` dimensions of `tensor` into one, where its strides
+/// allow it without a copy; says whether it did.
+fn fold_leading_dims(tensor: &mut CubeTensor, count: usize) -> bool {
+    let mut folded: Vec<usize> = vec![tensor.meta.shape()[..count].iter().product()];
+    folded.extend_from_slice(&tensor.meta.shape()[count..]);
+    let folded = Shape::from(folded);
+
+    let strides = match reshape_action(tensor.meta.shape(), tensor.meta.strides(), &folded) {
+        ReshapeAction::UpdateStrides { strides } => strides,
+        ReshapeAction::NoChange => tensor.meta.strides().clone(),
+        ReshapeAction::Recompute => return false,
+    };
+    *tensor.meta = Metadata::new(folded, strides);
+
+    true
 }
 
 /// Reduce with a logical instruction ([`Any`](ReduceOperationConfig::Any) /

@@ -500,6 +500,20 @@ impl Numeric for Float {
         }
     }
 
+    fn sum_dims(tensor: BridgeTensor, dims: &[usize]) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sum_dims(tensor, dims)),
+            // Quantized reductions have no multi-dimension form; one at a time.
+            BridgeKind::QFloat => dims
+                .iter()
+                .fold(BridgeTensor::qfloat(tensor), |tensor, &dim| {
+                    Self::sum_dim(tensor, dim)
+                }),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
     fn prod(tensor: BridgeTensor) -> BridgeTensor {
         let (kind, tensor) = tensor.into_parts();
         match kind {

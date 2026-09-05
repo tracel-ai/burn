@@ -302,6 +302,12 @@ pub(crate) trait Numeric: BasicOps {
     /// function, which is more high-level and designed for public use.
     fn sum_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
+    /// Sums the elements of the tensor along several dimensions at once.
+    ///
+    /// Users should prefer the [`Tensor::sum_dims`](crate::Tensor::sum_dims) function, which is
+    /// more high-level and designed for public use.
+    fn sum_dims(tensor: BridgeTensor, dims: &[usize]) -> BridgeTensor;
+
     /// Computes the product of all the elements of the tensor.
     ///
     /// # Arguments

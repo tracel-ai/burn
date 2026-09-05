@@ -282,6 +282,11 @@ impl Numeric for Int {
         BridgeTensor::int(Dispatch::int_sum_dim(tensor.into(), dim))
     }
 
+    fn sum_dims(tensor: BridgeTensor, dims: &[usize]) -> BridgeTensor {
+        dims.iter()
+            .fold(tensor, |tensor, &dim| Self::sum_dim(tensor, dim))
+    }
+
     fn prod(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_prod(tensor.into()))
     }
