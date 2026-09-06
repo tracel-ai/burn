@@ -3,6 +3,31 @@ use burn_tensor::Tolerance;
 use burn_tensor::{TensorData, linalg};
 
 #[test]
+fn test_cosine_similarity_zero_vectors() {
+    // Cover both zero inputs and a zero input on either side of a nonzero vector.
+    let x1 = TestTensor::<2>::from([[0.0, 0.0], [0.0, 0.0], [3.0, 4.0]]);
+    let x2 = TestTensor::<2>::from([[0.0, 0.0], [3.0, 4.0], [0.0, 0.0]]);
+    let expected = TensorData::from([[0.0], [0.0], [0.0]]);
+
+    linalg::cosine_similarity(x1, x2, 1, None)
+        .into_data()
+        .assert_eq(&expected, false);
+}
+
+#[test]
+fn test_cosine_similarity_epsilon_clamps_each_norm() {
+    let x1 = TestTensor::<2>::from([[0.25, 0.0], [0.25, 0.0]]);
+    let x2 = TestTensor::<2>::from([[0.25, 0.0], [1.0, 0.0]]);
+    // With eps = 0.5, the normalized vectors are [0.5, 0] and either [0.5, 0]
+    // or [1, 0]. Clamp each norm independently, rather than their product.
+    let expected = TensorData::from([[0.25], [0.5]]);
+
+    linalg::cosine_similarity(x1, x2, 1, Some(0.5))
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
 fn test_cosine_similarity_basic() {
     // Create test tensors
     let x1 = TestTensor::<2>::from([[1.0, 2.0, 3.0], [0.5, 1.5, 2.5]]);
