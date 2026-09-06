@@ -199,6 +199,7 @@ burn-cuda = { path = "crates/burn-cuda", version = "=0.22.0-pre.3", default-feat
 burn-dataset = { path = "crates/burn-dataset", version = "=0.22.0-pre.3", default-features = false }
 burn-derive = { path = "crates/burn-derive", version = "=0.22.0-pre.3", default-features = false }
 burn-dispatch = { path = "crates/burn-dispatch", version = "=0.22.0-pre.3", default-features = false }
+burn-einsum = { path = "crates/burn-einsum", version = "=0.22.0-pre.3", default-features = false }
 burn-flex = { path = "crates/burn-flex", version = "=0.22.0-pre.3", default-features = false }
 burn-fusion = { path = "crates/burn-fusion", version = "=0.22.0-pre.3", default-features = false }
 burn-ir = { path = "crates/burn-ir", version = "=0.22.0-pre.3", default-features = false }

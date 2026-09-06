@@ -17,6 +17,7 @@ mod comparison;
 mod create_like;
 mod cumulative;
 mod div;
+mod einsum;
 mod expand;
 mod flip;
 mod full;

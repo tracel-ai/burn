@@ -34,6 +34,7 @@ mod cumprod;
 mod cumsum;
 mod deform_conv2d;
 mod div;
+mod einsum;
 mod erf;
 mod exp;
 mod expand;
