@@ -164,3 +164,65 @@ fn test_scatter_add_grad_partial_indices() {
         .to_data()
         .assert_eq(&TensorData::from([[1., 1., 1.]]), false);
 }
+
+#[test]
+fn test_scatter_max_grad() {
+    // Max: values win at tensor[1], data wins at tensor[0] (ties route to both).
+    let device = AutodiffDevice::new();
+    let tensor =
+        TestTensor::<1>::from_data(TensorData::from([4.0, 2.0, 1.0, 5.0]), &device).require_grad();
+    let values = TestTensor::from_data(TensorData::from([10.0, 3.0]), &device).require_grad();
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([1, 0]), &device);
+    let weights = TestTensor::from_data(TensorData::from([1.0, 2.0, 3.0, 4.0]), &device);
+
+    let result = tensor
+        .clone()
+        .scatter(0, indices, values.clone(), IndexingUpdateOp::Max);
+
+    result
+        .clone()
+        .into_data()
+        .assert_eq(&TensorData::from([4.0, 10.0, 1.0, 5.0]), false);
+
+    let grads = result.mul(weights).sum().backward();
+    let grad_tensor = tensor.grad(&grads).unwrap();
+    let grad_values = values.grad(&grads).unwrap();
+
+    grad_tensor
+        .to_data()
+        .assert_eq(&TensorData::from([1.0, 0.0, 3.0, 4.0]), false);
+    grad_values
+        .to_data()
+        .assert_eq(&TensorData::from([2.0, 0.0]), false);
+}
+
+#[test]
+fn test_scatter_min_grad() {
+    // Min: data wins at tensor[1], values win at tensor[0].
+    let device = AutodiffDevice::new();
+    let tensor =
+        TestTensor::<1>::from_data(TensorData::from([4.0, 2.0, 1.0, 5.0]), &device).require_grad();
+    let values = TestTensor::from_data(TensorData::from([10.0, 3.0]), &device).require_grad();
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([1, 0]), &device);
+    let weights = TestTensor::from_data(TensorData::from([1.0, 2.0, 3.0, 4.0]), &device);
+
+    let result = tensor
+        .clone()
+        .scatter(0, indices, values.clone(), IndexingUpdateOp::Min);
+
+    result
+        .clone()
+        .into_data()
+        .assert_eq(&TensorData::from([3.0, 2.0, 1.0, 5.0]), false);
+
+    let grads = result.mul(weights).sum().backward();
+    let grad_tensor = tensor.grad(&grads).unwrap();
+    let grad_values = values.grad(&grads).unwrap();
+
+    grad_tensor
+        .to_data()
+        .assert_eq(&TensorData::from([0.0, 2.0, 3.0, 4.0]), false);
+    grad_values
+        .to_data()
+        .assert_eq(&TensorData::from([0.0, 1.0]), false);
+}

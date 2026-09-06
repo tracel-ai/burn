@@ -211,7 +211,12 @@ impl FloatTensorOps<Self> for LibTorch {
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 TchOps::scatter_mul(dim, tensor, indices, value)
             }
-            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                TchOps::scatter_min(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                TchOps::scatter_max(dim, tensor, indices, value)
+            }
         }
     }
 
@@ -249,8 +254,11 @@ impl FloatTensorOps<Self> for LibTorch {
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 TchOps::select_assign_mul(tensor, dim, indices, value)
             }
-            other => {
-                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                TchOps::select_assign_min(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                TchOps::select_assign_max(tensor, dim, indices, value)
             }
         }
     }

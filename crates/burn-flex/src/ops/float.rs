@@ -335,7 +335,36 @@ impl FloatTensorOps<Flex> for Flex {
                 }
                 _ => panic!("float_scatter: unsupported dtype {:?}", tensor.dtype()),
             },
-            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+            burn_backend::tensor::IndexingUpdateOp::Min => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::scatter_min::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::scatter_min::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::scatter_min::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::scatter_min::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!("float_scatter: unsupported dtype {:?}", tensor.dtype()),
+            },
+            burn_backend::tensor::IndexingUpdateOp::Max => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::scatter_max::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::scatter_max::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::scatter_max::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::scatter_max::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!("float_scatter: unsupported dtype {:?}", tensor.dtype()),
+            },
         }
     }
 
@@ -448,9 +477,42 @@ impl FloatTensorOps<Flex> for Flex {
                     tensor.dtype()
                 ),
             },
-            other => {
-                unimplemented!("float_select_assign with {other:?} update is not implemented")
-            }
+            burn_backend::tensor::IndexingUpdateOp::Min => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::select_min::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::select_min::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::select_min::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::select_min::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!(
+                    "float_select_assign: unsupported dtype {:?}",
+                    tensor.dtype()
+                ),
+            },
+            burn_backend::tensor::IndexingUpdateOp::Max => match tensor.dtype() {
+                DType::F32 => {
+                    crate::ops::gather_scatter::select_max::<f32>(tensor, dim, indices, value)
+                }
+                DType::F64 => {
+                    crate::ops::gather_scatter::select_max::<f64>(tensor, dim, indices, value)
+                }
+                DType::F16 => {
+                    crate::ops::gather_scatter::select_max::<f16>(tensor, dim, indices, value)
+                }
+                DType::BF16 => {
+                    crate::ops::gather_scatter::select_max::<bf16>(tensor, dim, indices, value)
+                }
+                _ => panic!(
+                    "float_select_assign: unsupported dtype {:?}",
+                    tensor.dtype()
+                ),
+            },
         }
     }
 

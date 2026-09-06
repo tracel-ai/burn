@@ -411,6 +411,48 @@ pub fn scatter_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E
     )
 }
 
+/// Scatter minimum: keeps the smaller of the tensor and value at each position.
+pub fn scatter_min<E: Element + Pod + Default + Copy + core::cmp::PartialOrd + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    scatter_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "scatter_min",
+        |target, value| {
+            if value < *target {
+                *target = value;
+            }
+        },
+    )
+}
+
+/// Scatter maximum: keeps the larger of the tensor and value at each position.
+pub fn scatter_max<E: Element + Pod + Default + Copy + core::cmp::PartialOrd + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    scatter_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "scatter_max",
+        |target, value| {
+            if value > *target {
+                *target = value;
+            }
+        },
+    )
+}
+
 fn scatter_update<E, F>(
     tensor: FlexTensor,
     dim: usize,
@@ -851,6 +893,48 @@ pub fn select_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E>
         value,
         "select_mul",
         |target, value| *target = *target * value,
+    )
+}
+
+/// Select minimum: keeps the smaller of the tensor and value at each position.
+pub fn select_min<E: Element + Pod + Default + Copy + core::cmp::PartialOrd + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    select_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_min",
+        |target, value| {
+            if value < *target {
+                *target = value;
+            }
+        },
+    )
+}
+
+/// Select maximum: keeps the larger of the tensor and value at each position.
+pub fn select_max<E: Element + Pod + Default + Copy + core::cmp::PartialOrd + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    select_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_max",
+        |target, value| {
+            if value > *target {
+                *target = value;
+            }
+        },
     )
 }
 

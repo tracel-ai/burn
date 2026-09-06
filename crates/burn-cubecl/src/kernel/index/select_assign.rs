@@ -1,5 +1,5 @@
 use crate::kernel::{
-    AddOp, AssignOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
+    AddOp, AssignOp, BinaryMaxOp, BinaryMinOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
     utils::{address_type, shape_divmod},
 };
 use crate::tensor::CubeTensor;
@@ -126,4 +126,22 @@ pub(crate) fn select_assign_replace(
     value: CubeTensor,
 ) -> CubeTensor {
     select_assign_op::<AssignOp>(tensor, dim, indices, value)
+}
+
+pub(crate) fn select_assign_min(
+    tensor: CubeTensor,
+    dim: usize,
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
+    select_assign_op::<BinaryMinOp>(tensor, dim, indices, value)
+}
+
+pub(crate) fn select_assign_max(
+    tensor: CubeTensor,
+    dim: usize,
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
+    select_assign_op::<BinaryMaxOp>(tensor, dim, indices, value)
 }
