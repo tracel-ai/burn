@@ -2,7 +2,7 @@
 
 use burn_core as burn;
 
-use super::GradientsParams;
+use super::{GradientsParams, from_inner_with_strategy};
 use crate::{LearningRate, OptimizerRecord, RecordTensor};
 use crate::{RecordState, StateSink, StateSource};
 use burn::config::Config;
@@ -435,7 +435,9 @@ impl ModuleMapper for ParamsFromFlatMapperInner<'_> {
         let numel = tensor.shape().num_elements();
         let slice_1d = self.take_slice(numel);
         let new_inner = slice_1d.reshape(tensor.shape());
-        let new_tensor = Tensor::from_inner(new_inner).require_grad();
+        let new_tensor =
+            from_inner_with_strategy(new_inner, tensor.gradient_checkpointing_strategy())
+                .require_grad();
         Param::from_mapped_value(id, new_tensor, mapper)
     }
 }

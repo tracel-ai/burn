@@ -1,7 +1,7 @@
 use burn_core as burn;
 use burn_core::module::ParamGroup;
 
-use super::Optimizer;
+use super::{Optimizer, from_inner_with_strategy};
 use crate::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 use crate::{
     DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, RecordTensor, StateSink,
@@ -421,6 +421,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
 
         let tensor = if let Some((grad, device)) = grad {
             let is_require_grad = tensor.is_require_grad();
+            let checkpointing = tensor.gradient_checkpointing_strategy();
             #[cfg(feature = "std")]
             let is_distributed = tensor.is_distributed();
 
@@ -485,8 +486,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 );
             }
 
-            let mut tensor = Tensor::from_inner(Tensor::from_bridge(tensor));
-
+            let mut tensor = from_inner_with_strategy(Tensor::from_bridge(tensor), checkpointing);
             if is_require_grad {
                 tensor = tensor.require_grad();
             }
@@ -536,6 +536,28 @@ mod tests {
 
     fn lr() -> ModuleLearningRate {
         ModuleLearningRate::from(0.01_f64)
+    }
+
+    /// A parameter trains under the checkpointing strategy of the device it
+    /// was created on. The update leaves the tape and comes back, and it must
+    /// come back with that strategy, or the next step's operations merge
+    /// parameters of two strategies and refuse.
+    #[test]
+    fn step_keeps_the_gradient_checkpointing_strategy() {
+        let device = Device::default().autodiff().gradient_checkpointing();
+        let model = make_model(&device);
+        let mut optim = sgd();
+
+        let x = Tensor::<2>::random([2, 4], Distribution::Default, &device);
+        let model = optim.step(lr(), model.clone(), make_grads(&model, x.clone()));
+
+        assert_eq!(
+            model.layer_a.weight.val().gradient_checkpointing_strategy(),
+            device.gradient_checkpointing_strategy()
+        );
+        // Panics without the fix: the updated parameter and the input meet
+        // under two strategies.
+        let _ = optim.step(lr(), model.clone(), make_grads(&model, x));
     }
 
     fn sgd() -> ModuleOptimizer {
