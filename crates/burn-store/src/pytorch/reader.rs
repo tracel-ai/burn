@@ -49,8 +49,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use super::pickle_reader::{
-    Object, PersistentIds, PickleError, StorageRef, build_tensor, extract_tensors, read_pickle,
-    storage_type_to_dtype,
+    Object, PersistentIds, PickleError, StorageRef, build_tensor, extract_tensors, key_string,
+    non_negative, read_pickle, storage_type_to_dtype,
 };
 use super::storage::{LegacySource, StorageSource, TarSource, ZipSource};
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -82,13 +82,7 @@ impl From<std::io::Error> for PytorchError {
 
 impl From<PickleError> for PytorchError {
     fn from(e: PickleError) -> Self {
-        match e {
-            PickleError::NoDataSource => PytorchError::InvalidFormat(
-                "File references tensor storages but holds no tensor data. Tensors can only be loaded from a PyTorch checkpoint file, not a plain pickle."
-                    .to_string(),
-            ),
-            e => PytorchError::Pickle(e),
-        }
+        PytorchError::Pickle(e)
     }
 }
 
@@ -431,16 +425,10 @@ const LEGACY_MAGIC: [u8; 15] = [
 const TAR_MAGIC_OFFSET: usize = 257;
 
 fn detect_format(path: &Path) -> Result<FileFormat> {
-    let mut file = File::open(path)?;
-    let mut header = [0u8; TAR_MAGIC_OFFSET + 5];
-    let mut filled = 0;
-    while filled < header.len() {
-        match file.read(&mut header[filled..])? {
-            0 => break,
-            n => filled += n,
-        }
-    }
-    let header = &header[..filled];
+    let mut header = Vec::new();
+    File::open(path)?
+        .take((TAR_MAGIC_OFFSET + 5) as u64)
+        .read_to_end(&mut header)?;
 
     if header.starts_with(b"PK\x03\x04") || header.starts_with(b"PK\x05\x06") {
         Ok(FileFormat::Zip)
@@ -472,7 +460,7 @@ fn load_zip(path: &Path) -> Result<Loaded> {
     metadata.format_version = source.read_text(".format_version")?;
     metadata.pytorch_version = source.read_text("version")?;
     metadata.has_storage_alignment = source.has_entry(".storage_alignment");
-    metadata.total_data_size = Some(source.data_size() as usize);
+    metadata.total_data_size = Some(source.data_size()? as usize);
 
     let pickle = source.pickle()?;
     let ids = PersistentIds::Storages(Arc::new(StorageSource::Zip(source)));
@@ -500,15 +488,9 @@ fn load_legacy(path: &Path) -> Result<Loaded> {
     // The storage keys, in the order their bytes follow.
     let storage_keys = match read_header(&mut reader, "storage key list")? {
         Object::List(keys) => keys
-            .into_iter()
-            .map(|key| match key {
-                Object::String(key) => Ok(key),
-                Object::Int(key) => Ok(key.to_string()),
-                other => Err(PytorchError::InvalidFormat(format!(
-                    "legacy storage key list holds a non-string entry: {other:?}"
-                ))),
-            })
-            .collect::<Result<Vec<_>>>()?,
+            .iter()
+            .map(|key| key_string(key, "legacy storage key"))
+            .collect::<std::result::Result<Vec<_>, _>>()?,
         other => {
             return Err(PytorchError::InvalidFormat(format!(
                 "legacy storage key list must be a list, got {other:?}"
@@ -574,9 +556,9 @@ fn load_tar(path: &Path) -> Result<Loaded> {
     let pickle = take("pickle")?;
 
     let total_data_size = storages.len();
-    let (tar_source, storage_dtypes) = parse_tar_storages(storages)?;
+    let (tar_source, storage_info) = parse_tar_storages(storages)?;
     let source = Arc::new(StorageSource::Tar(tar_source));
-    let tensors = parse_tar_tensors(&tensors, &storage_dtypes, &source)?;
+    let tensors = parse_tar_tensors(&tensors, &storage_info, &source)?;
     let root = read_pickle(&mut Cursor::new(pickle), &PersistentIds::Tensors(tensors))?;
 
     let mut metadata = PytorchMetadata::for_format(FileFormat::Tar);
@@ -584,31 +566,25 @@ fn load_tar(path: &Path) -> Result<Loaded> {
     Ok(Loaded { root, metadata })
 }
 
+/// Per storage key, the element type and byte length a TAR `storages` entry declares.
+type TarStorageInfo = HashMap<String, (DType, usize)>;
+
 /// Parse the `storages` entry: a count, then per storage `(key, location, storage type)`,
 /// an `i64` element count and the bytes, then a list of storage views.
-fn parse_tar_storages(blob: Vec<u8>) -> Result<(TarSource, HashMap<String, DType>)> {
+fn parse_tar_storages(blob: Vec<u8>) -> Result<(TarSource, TarStorageInfo)> {
     let mut cursor = Cursor::new(blob.as_slice());
     let count = read_tar_count(&mut cursor, "storage")?;
 
     let mut layout: HashMap<String, (usize, usize)> = HashMap::with_capacity(count);
-    let mut dtypes: HashMap<String, DType> = HashMap::with_capacity(count);
+    let mut info = TarStorageInfo::with_capacity(count);
 
     for _ in 0..count {
         let meta = read_pickle(&mut cursor, &PersistentIds::Unavailable)?;
-        let Object::Tuple(fields) = &meta else {
-            return Err(PytorchError::InvalidFormat(format!(
-                "TAR storage metadata must be a tuple, got {meta:?}"
-            )));
-        };
-        let [key, _location, storage_type] = fields.as_slice() else {
-            return Err(PytorchError::InvalidFormat(format!(
-                "TAR storage metadata must have 3 fields, got {}",
-                fields.len()
-            )));
-        };
-        let key = tar_key(key)?;
+        let [key, _location, storage_type] = tar_fields(&meta, "storage metadata")?;
+        // TAR keys are `str(cdata)` in some files and ints in others; both name the same object.
+        let key = key_string(key, "TAR storage key")?;
         let dtype = match storage_type {
-            Object::Class { name, .. } => storage_type_to_dtype(name)?,
+            Object::Class { name, .. } => storage_type_to_dtype(name.as_str())?,
             other => {
                 return Err(PytorchError::InvalidFormat(format!(
                     "TAR storage type must be a class, got {other:?}"
@@ -616,15 +592,10 @@ fn parse_tar_storages(blob: Vec<u8>) -> Result<(TarSource, HashMap<String, DType
             }
         };
 
-        let numel = cursor.read_i64::<LittleEndian>()?;
-        let byte_len = usize::try_from(numel)
-            .ok()
-            .and_then(|numel| numel.checked_mul(dtype.size()))
-            .ok_or_else(|| {
-                PytorchError::InvalidFormat(format!(
-                    "TAR storage '{key}' declares an invalid element count {numel}"
-                ))
-            })?;
+        let numel = read_tar_usize(&mut cursor, "storage element count")?;
+        let byte_len = numel.checked_mul(dtype.size()).ok_or_else(|| {
+            PytorchError::InvalidFormat(format!("TAR storage '{key}' byte length overflows usize"))
+        })?;
         let offset = cursor.position() as usize;
         let end = offset
             .checked_add(byte_len)
@@ -636,7 +607,7 @@ fn parse_tar_storages(blob: Vec<u8>) -> Result<(TarSource, HashMap<String, DType
             })?;
 
         layout.insert(key.clone(), (offset, byte_len));
-        dtypes.insert(key, dtype);
+        info.insert(key, (dtype, byte_len));
         cursor.set_position(end as u64);
     }
 
@@ -649,81 +620,51 @@ fn parse_tar_storages(blob: Vec<u8>) -> Result<(TarSource, HashMap<String, DType
             )));
         };
         for view in views {
-            let Object::Tuple(fields) = &view else {
-                return Err(PytorchError::InvalidFormat(format!(
-                    "TAR storage view must be a tuple, got {view:?}"
-                )));
-            };
-            let [target, root, offset, numel] = fields.as_slice() else {
-                return Err(PytorchError::InvalidFormat(format!(
-                    "TAR storage view must have 4 fields, got {}",
-                    fields.len()
-                )));
-            };
-            let target = tar_key(target)?;
-            let root = tar_key(root)?;
-            let (Object::Int(offset), Object::Int(numel)) = (offset, numel) else {
-                return Err(PytorchError::InvalidFormat(format!(
-                    "TAR storage view '{target}' has non-integer bounds"
-                )));
-            };
-            let (&(root_offset, root_len), &dtype) =
-                layout.get(&root).zip(dtypes.get(&root)).ok_or_else(|| {
-                    PytorchError::InvalidFormat(format!(
-                        "TAR storage view '{target}' refers to unknown storage '{root}'"
-                    ))
-                })?;
+            let [target, root, offset, numel] = tar_fields(&view, "storage view")?;
+            let target = key_string(target, "TAR storage view key")?;
+            let root = key_string(root, "TAR storage view root")?;
+            let offset = non_negative(offset, "TAR storage view offset")?;
+            let numel = non_negative(numel, "TAR storage view element count")?;
+            let &(root_offset, root_len) = layout.get(&root).ok_or_else(|| {
+                PytorchError::InvalidFormat(format!(
+                    "TAR storage view '{target}' refers to unknown storage '{root}'"
+                ))
+            })?;
+            let (dtype, _) = info[&root];
             let element_size = dtype.size();
-            let view_range = usize::try_from(*offset)
-                .ok()
-                .zip(usize::try_from(*numel).ok())
-                .and_then(|(offset, numel)| {
-                    let start = offset.checked_mul(element_size)?;
-                    let len = numel.checked_mul(element_size)?;
-                    (start.checked_add(len)? <= root_len).then_some((root_offset + start, len))
-                })
+            let (start, len) = offset
+                .checked_mul(element_size)
+                .zip(numel.checked_mul(element_size))
+                .filter(|&(start, len)| start.checked_add(len).is_some_and(|end| end <= root_len))
                 .ok_or_else(|| {
                     PytorchError::InvalidFormat(format!(
                         "TAR storage view '{target}' lies outside storage '{root}'"
                     ))
                 })?;
-            layout.insert(target.clone(), view_range);
-            dtypes.insert(target, dtype);
+            layout.insert(target.clone(), (root_offset + start, len));
+            info.insert(target, (dtype, len));
         }
     }
 
-    Ok((TarSource::new(blob, layout), dtypes))
+    Ok((TarSource::new(blob, layout), info))
 }
 
 /// Parse the `tensors` entry: a count, then per tensor `(key, storage key, tensor type)`,
 /// an `i32` rank, 4 unused bytes, `rank` sizes, `rank` strides and the storage offset.
 fn parse_tar_tensors(
     blob: &[u8],
-    storage_dtypes: &HashMap<String, DType>,
+    storage_info: &TarStorageInfo,
     source: &Arc<StorageSource>,
 ) -> Result<HashMap<String, PackTensor>> {
-    let StorageSource::Tar(tar) = &**source else {
-        unreachable!("TAR tensors are always backed by a TAR source");
-    };
     let mut cursor = Cursor::new(blob);
     let count = read_tar_count(&mut cursor, "tensor")?;
     let mut tensors = HashMap::with_capacity(count);
 
     for _ in 0..count {
         let meta = read_pickle(&mut cursor, &PersistentIds::Unavailable)?;
-        let Object::Tuple(fields) = &meta else {
-            return Err(PytorchError::InvalidFormat(format!(
-                "TAR tensor metadata must be a tuple, got {meta:?}"
-            )));
-        };
-        let [key, storage_key, _tensor_type] = fields.as_slice() else {
-            return Err(PytorchError::InvalidFormat(format!(
-                "TAR tensor metadata must have 3 fields, got {}",
-                fields.len()
-            )));
-        };
-        let key = tar_key(key)?;
-        let storage_key = tar_key(storage_key)?;
+        let [key, storage_key, _tensor_type] = tar_fields(&meta, "tensor metadata")?;
+        let key = key_string(key, "TAR tensor key")?;
+        let storage_key = key_string(storage_key, "TAR tensor storage key")?;
 
         let rank = cursor.read_i32::<LittleEndian>()?;
         let rank = usize::try_from(rank)
@@ -733,50 +674,27 @@ fn parse_tar_tensors(
                 PytorchError::InvalidFormat(format!("TAR tensor '{key}' has invalid rank {rank}"))
             })?;
         cursor.read_i32::<LittleEndian>()?; // Padding: the rank was once written as 8 bytes.
-        let read_dims = |cursor: &mut Cursor<&[u8]>, what: &str| -> Result<Vec<usize>> {
-            (0..rank)
-                .map(|_| {
-                    let value = cursor.read_i64::<LittleEndian>()?;
-                    usize::try_from(value).map_err(|_| {
-                        PytorchError::InvalidFormat(format!(
-                            "TAR tensor '{key}' has a negative {what} entry {value}"
-                        ))
-                    })
-                })
-                .collect()
-        };
-        let shape = read_dims(&mut cursor, "shape")?;
-        let stride = read_dims(&mut cursor, "stride")?;
-        let storage_offset = cursor.read_i64::<LittleEndian>()?;
-        let storage_offset = usize::try_from(storage_offset).map_err(|_| {
+        let shape = (0..rank)
+            .map(|_| read_tar_usize(&mut cursor, "tensor shape"))
+            .collect::<Result<Vec<_>>>()?;
+        let stride = (0..rank)
+            .map(|_| read_tar_usize(&mut cursor, "tensor stride"))
+            .collect::<Result<Vec<_>>>()?;
+        let storage_offset = read_tar_usize(&mut cursor, "tensor storage offset")?;
+
+        let &(dtype, byte_len) = storage_info.get(&storage_key).ok_or_else(|| {
             PytorchError::InvalidFormat(format!(
-                "TAR tensor '{key}' has a negative storage offset {storage_offset}"
+                "TAR tensor '{key}' refers to unknown storage '{storage_key}'"
             ))
         })?;
-
-        let (dtype, byte_len) = storage_dtypes
-            .get(&storage_key)
-            .copied()
-            .zip(tar.byte_len(&storage_key))
-            .ok_or_else(|| {
-                PytorchError::InvalidFormat(format!(
-                    "TAR tensor '{key}' refers to unknown storage '{storage_key}'"
-                ))
-            })?;
         let storage = StorageRef {
+            source: source.clone(),
             key: storage_key,
             dtype: Some(dtype),
             byte_len,
             view_offset: 0,
         };
-        let tensor = build_tensor(
-            storage,
-            dtype,
-            storage_offset,
-            shape,
-            stride,
-            source.clone(),
-        )?;
+        let tensor = build_tensor(storage, dtype, storage_offset, shape, stride)?;
         tensors.insert(key, tensor);
     }
 
@@ -784,21 +702,29 @@ fn parse_tar_tensors(
 }
 
 fn read_tar_count(cursor: &mut Cursor<&[u8]>, what: &str) -> Result<usize> {
-    match read_pickle(cursor, &PersistentIds::Unavailable)? {
-        Object::Int(count) if count >= 0 => Ok(count as usize),
-        other => Err(PytorchError::InvalidFormat(format!(
-            "TAR {what} count must be a non-negative int, got {other:?}"
-        ))),
-    }
+    let count = read_pickle(cursor, &PersistentIds::Unavailable)?;
+    Ok(non_negative(&count, &format!("TAR {what} count"))?)
 }
 
-/// TAR keys are `str(cdata)` in some files and ints in others; both name the same object.
-fn tar_key(key: &Object) -> Result<String> {
-    match key {
-        Object::String(key) => Ok(key.clone()),
-        Object::Int(key) => Ok(key.to_string()),
+/// Read one of the `i64` fields in the TAR binary tables as a `usize`.
+fn read_tar_usize(cursor: &mut Cursor<&[u8]>, what: &str) -> Result<usize> {
+    let value = cursor.read_i64::<LittleEndian>()?;
+    usize::try_from(value).map_err(|_| {
+        PytorchError::InvalidFormat(format!("TAR {what} must be non-negative, got {value}"))
+    })
+}
+
+/// View a TAR metadata pickle as a tuple of exactly `N` fields.
+fn tar_fields<'a, const N: usize>(obj: &'a Object, what: &str) -> Result<&'a [Object; N]> {
+    match obj {
+        Object::Tuple(fields) => <&[Object; N]>::try_from(fields.as_slice()).map_err(|_| {
+            PytorchError::InvalidFormat(format!(
+                "TAR {what} must have {N} fields, got {}",
+                fields.len()
+            ))
+        }),
         other => Err(PytorchError::InvalidFormat(format!(
-            "TAR key must be a str or int, got {other:?}"
+            "TAR {what} must be a tuple, got {other:?}"
         ))),
     }
 }
@@ -846,16 +772,13 @@ fn extract_tensors_at(
     root: Object,
     top_level_key: Option<&str>,
 ) -> Result<HashMap<String, PackTensor>> {
-    let root = select_top_level(root, top_level_key)?;
-    if !matches!(root, Object::Dict(_)) {
+    let Object::Dict(dict) = select_top_level(root, top_level_key)? else {
         return Err(PytorchError::InvalidFormat(match top_level_key {
             Some(key) => format!("Top-level key '{key}' does not hold a dictionary"),
             None => "Expected a dictionary at the root of the PyTorch file, but found a different type. The file may be a full model save rather than a state_dict.".to_string(),
         }));
-    }
-    let mut tensors = HashMap::new();
-    extract_tensors(root, &mut tensors);
-    Ok(tensors)
+    };
+    Ok(extract_tensors(dict))
 }
 
 /// Convert an internal object to the public [`PickleValue`].
@@ -881,8 +804,7 @@ fn to_pickle_value(obj: Object) -> PickleValue {
         Object::Mark
         | Object::Class { .. }
         | Object::Storage(_)
-        | Object::Reduce { .. }
-        | Object::Build { .. }
+        | Object::Opaque
         | Object::Tensor(_) => PickleValue::None,
     }
 }

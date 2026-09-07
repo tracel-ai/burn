@@ -13,7 +13,7 @@ use crate::pytorch::reader::{ByteOrder, FileFormat};
 use burn_core::tensor::{BoolStore, DType, TensorData, Tolerance, shape};
 use std::path::PathBuf;
 
-fn test_data_path(filename: &str) -> PathBuf {
+pub(crate) fn test_data_path(filename: &str) -> PathBuf {
     // Get the path relative to the crate root
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("src")

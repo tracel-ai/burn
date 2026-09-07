@@ -4,13 +4,14 @@
 //! the raw little-endian bytes. A [`StorageSource`] maps a storage key from that pickle to
 //! its bytes on demand, so parsing a file costs nothing per tensor until its data is read.
 
+use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use zip::ZipArchive;
-use zip::result::ZipError;
 
 use super::reader::PytorchError;
 
@@ -19,6 +20,16 @@ pub(crate) enum StorageSource {
     Zip(ZipSource),
     Tar(TarSource),
     Legacy(LegacySource),
+}
+
+impl fmt::Debug for StorageSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Zip(_) => "StorageSource::Zip",
+            Self::Tar(_) => "StorageSource::Tar",
+            Self::Legacy(_) => "StorageSource::Legacy",
+        })
+    }
 }
 
 impl StorageSource {
@@ -53,12 +64,19 @@ fn lock_ignoring_poison<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Read exactly `len` bytes without trusting `len` for an up-front allocation.
+/// Read exactly `len` bytes without trusting `len` for the up-front allocation.
 ///
-/// A length read from an untrusted file could be anything, so the buffer grows with the
-/// bytes that actually arrive and a short read is an error rather than a huge allocation.
-pub(crate) fn read_exact_len<R: Read>(reader: &mut R, len: u64) -> io::Result<Vec<u8>> {
-    let mut buffer = Vec::new();
+/// A length read from an untrusted file could be anything, so at most `capacity_bound`
+/// bytes are reserved ahead of the read (the caller's idea of the largest plausible size,
+/// such as the file length); beyond that the buffer grows with the bytes that actually
+/// arrive, and a short read is an error rather than a huge allocation.
+pub(crate) fn read_exact_len<R: Read>(
+    reader: &mut R,
+    len: u64,
+    capacity_bound: usize,
+) -> io::Result<Vec<u8>> {
+    let capacity = usize::try_from(len).map_or(capacity_bound, |len| len.min(capacity_bound));
+    let mut buffer = Vec::with_capacity(capacity);
     reader.by_ref().take(len).read_to_end(&mut buffer)?;
     if buffer.len() as u64 != len {
         return Err(io::Error::new(
@@ -79,13 +97,15 @@ pub(crate) struct ZipSource {
     archive: Mutex<ZipArchive<BufReader<File>>>,
     /// Root directory including its trailing slash, or empty at the archive root.
     root: String,
-    /// Total uncompressed size of the storage entries.
-    data_size: u64,
+    /// Size of the archive file, an upper bound on any entry's real size.
+    file_len: usize,
 }
 
 impl ZipSource {
     pub fn open(path: &Path) -> Result<Self, PytorchError> {
-        let archive = ZipArchive::new(BufReader::new(File::open(path)?))?;
+        let file = File::open(path)?;
+        let file_len = usize::try_from(file.metadata()?.len()).unwrap_or(usize::MAX);
+        let archive = ZipArchive::new(BufReader::new(file))?;
 
         let root = archive
             .file_names()
@@ -100,26 +120,27 @@ impl ZipSource {
                 )
             })?;
 
-        let data_prefix = format!("{root}data/");
-        let mut data_size = 0u64;
-        let mut archive = archive;
-        for index in 0..archive.len() {
-            let entry = archive.by_index_raw(index)?;
-            if entry.name().starts_with(&data_prefix) && !entry.is_dir() {
-                data_size = data_size.saturating_add(entry.size());
-            }
-        }
-
         Ok(Self {
             archive: Mutex::new(archive),
             root,
-            data_size,
+            file_len,
         })
     }
 
     /// Total uncompressed size of the storage entries.
-    pub fn data_size(&self) -> u64 {
-        self.data_size
+    pub fn data_size(&self) -> io::Result<u64> {
+        let data_prefix = format!("{}data/", self.root);
+        let mut archive = lock_ignoring_poison(&self.archive);
+        let indices: Vec<usize> = archive
+            .file_names()
+            .filter(|name| name.starts_with(&data_prefix) && !name.ends_with('/'))
+            .filter_map(|name| archive.index_for_name(name))
+            .collect();
+        let mut data_size = 0u64;
+        for index in indices {
+            data_size = data_size.saturating_add(archive.by_index_raw(index)?.size());
+        }
+        Ok(data_size)
     }
 
     /// The `data.pkl` bytes.
@@ -131,14 +152,12 @@ impl ZipSource {
     /// archive has it.
     pub fn read_text(&self, name: &str) -> io::Result<Option<String>> {
         let full_name = format!("{}{name}", self.root);
-        let mut archive = lock_ignoring_poison(&self.archive);
-        let entry = match archive.by_name(&full_name) {
-            Ok(entry) => entry,
-            Err(ZipError::FileNotFound) => return Ok(None),
-            Err(err) => return Err(err.into()),
-        };
-        let mut text = String::new();
-        entry.take(4096).read_to_string(&mut text)?;
+        if !self.has_entry(name) {
+            return Ok(None);
+        }
+        let bytes = self.read_entry(&full_name)?;
+        let text = String::from_utf8(bytes)
+            .map_err(|err| invalid_data(format!("ZIP entry '{full_name}': {err}")))?;
         Ok(Some(text.trim().to_string()))
     }
 
@@ -160,7 +179,7 @@ impl ZipSource {
             .by_name(name)
             .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
         let size = entry.size();
-        read_exact_len(&mut entry, size)
+        read_exact_len(&mut entry, size, self.file_len)
     }
 }
 
@@ -180,11 +199,6 @@ impl TarSource {
     /// Wrap a parsed `storages` entry. Every range in `layout` must lie within `blob`.
     pub fn new(blob: Vec<u8>, layout: HashMap<String, (usize, usize)>) -> Self {
         Self { blob, layout }
-    }
-
-    /// Byte length of a storage, if the entry declares it.
-    pub fn byte_len(&self, key: &str) -> Option<usize> {
-        self.layout.get(key).map(|&(_, len)| len)
     }
 
     fn read_storage(&self, key: &str) -> io::Result<Vec<u8>> {
@@ -290,9 +304,7 @@ impl LegacySource {
         let mut file = File::open(&self.path)?;
         file.seek(SeekFrom::Start(offset))?;
 
-        let mut count = [0u8; 8];
-        file.read_exact(&mut count)?;
-        let stored_numel = i64::from_le_bytes(count);
+        let stored_numel = file.read_i64::<LittleEndian>()?;
         let expected_numel = (byte_len / element_size) as i64;
         if stored_numel != expected_numel {
             return Err(invalid_data(format!(
@@ -300,6 +312,7 @@ impl LegacySource {
             )));
         }
 
-        read_exact_len(&mut file, byte_len as u64)
+        // `finish` checked that the storage lies within the file, so the length is trusted.
+        read_exact_len(&mut file, byte_len as u64, byte_len)
     }
 }

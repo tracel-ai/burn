@@ -16,19 +16,14 @@ use crate::bridge;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::tensor::{BoolStore, DType, TensorData};
-use burn_pack::{Error as PackError, Tensor as PackTensor};
+use burn_pack::{Error as PackError, MAX_TENSOR_SIZE, Tensor as PackTensor};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::sync::Arc;
 
-/// Materialized size above which a broadcast view is refused.
-///
-/// A view whose logical size exceeds its storage (an `expand`, stride 0) has no upper bound
-/// derivable from the file: a few bytes of storage can declare a shape of any size. Ordinary
-/// expanded tensors in checkpoints are tiny, so a fixed ceiling refuses the pathological
-/// case without touching real files.
-pub(crate) const MAX_BROADCAST_BYTES: usize = 1 << 30;
+/// Largest length-prefixed pickle string or bytes value reserved ahead of the read.
+const STRING_PREALLOC_BOUND: usize = 1 << 16;
 
 /// Error type for pickle operations.
 #[derive(Debug)]
@@ -91,7 +86,7 @@ impl std::fmt::Display for PickleError {
             ),
             PickleError::NoDataSource => write!(
                 f,
-                "Pickle references tensor storages but no data source is available"
+                "Pickle references tensor storages but no tensor data is available. Tensors can only be loaded from a PyTorch checkpoint file, not a plain pickle."
             ),
         }
     }
@@ -182,80 +177,82 @@ impl TryFrom<u8> for OpCode {
     type Error = u8;
     fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
         use OpCode::*;
-        const ALL: [OpCode; 65] = [
-            Int,
-            Long,
-            Float,
-            Unicode,
-            Get,
-            Put,
-            PersId,
-            Global,
-            Mark,
-            Stop,
-            Pop,
-            PopMark,
-            Dup,
-            None,
-            Reduce,
-            Build,
-            Dict,
-            List,
-            Tuple,
-            SetItem,
-            Append,
-            BinInt,
-            BinInt1,
-            BinInt2,
-            BinFloat,
-            BinString,
-            ShortBinString,
-            BinUnicode,
-            EmptyTuple,
-            EmptyList,
-            EmptyDict,
-            Appends,
-            SetItems,
-            BinGet,
-            LongBinGet,
-            BinPut,
-            LongBinPut,
-            BinPersId,
-            Proto,
-            NewObj,
-            Ext1,
-            Ext2,
-            Ext4,
-            Tuple1,
-            Tuple2,
-            Tuple3,
-            NewTrue,
-            NewFalse,
-            Long1,
-            Long4,
-            BinBytes,
-            ShortBinBytes,
-            ShortBinUnicode,
-            BinUnicode8,
-            BinBytes8,
-            EmptySet,
-            AddItems,
-            FrozenSet,
-            NewObjEx,
-            StackGlobal,
-            Memoize,
-            Frame,
-            ByteArray8,
-            NextBuffer,
-            ReadonlyBuffer,
-        ];
-        ALL.into_iter().find(|op| *op as u8 == value).ok_or(value)
+        Ok(match value {
+            b'I' => Int,
+            b'L' => Long,
+            b'F' => Float,
+            b'V' => Unicode,
+            b'g' => Get,
+            b'p' => Put,
+            b'P' => PersId,
+            b'c' => Global,
+            b'(' => Mark,
+            b'.' => Stop,
+            b'0' => Pop,
+            b'1' => PopMark,
+            b'2' => Dup,
+            b'N' => None,
+            b'R' => Reduce,
+            b'b' => Build,
+            b'd' => Dict,
+            b'l' => List,
+            b't' => Tuple,
+            b's' => SetItem,
+            b'a' => Append,
+            b'J' => BinInt,
+            b'K' => BinInt1,
+            b'M' => BinInt2,
+            b'G' => BinFloat,
+            b'T' => BinString,
+            b'U' => ShortBinString,
+            b'X' => BinUnicode,
+            b')' => EmptyTuple,
+            b']' => EmptyList,
+            b'}' => EmptyDict,
+            b'e' => Appends,
+            b'u' => SetItems,
+            b'h' => BinGet,
+            b'j' => LongBinGet,
+            b'q' => BinPut,
+            b'r' => LongBinPut,
+            b'Q' => BinPersId,
+            0x80 => Proto,
+            0x81 => NewObj,
+            0x82 => Ext1,
+            0x83 => Ext2,
+            0x84 => Ext4,
+            0x85 => Tuple1,
+            0x86 => Tuple2,
+            0x87 => Tuple3,
+            0x88 => NewTrue,
+            0x89 => NewFalse,
+            0x8a => Long1,
+            0x8b => Long4,
+            b'B' => BinBytes,
+            b'C' => ShortBinBytes,
+            0x8c => ShortBinUnicode,
+            0x8d => BinUnicode8,
+            0x8e => BinBytes8,
+            0x8f => EmptySet,
+            0x90 => AddItems,
+            0x91 => FrozenSet,
+            0x92 => NewObjEx,
+            0x93 => StackGlobal,
+            0x94 => Memoize,
+            0x95 => Frame,
+            0x96 => ByteArray8,
+            0x97 => NextBuffer,
+            0x98 => ReadonlyBuffer,
+            other => return Err(other),
+        })
     }
 }
 
 /// A storage referenced by a persistent id, before any tensor is built on it.
 #[derive(Debug, Clone)]
 pub struct StorageRef {
+    /// The container that holds the bytes.
+    pub(crate) source: Arc<StorageSource>,
     /// Key of the storage within its container (`"0"`, `"1"`, ...).
     pub key: String,
     /// Element type of a typed storage; `None` for `torch.UntypedStorage`.
@@ -285,16 +282,9 @@ pub enum Object {
         name: String,
     },
     Storage(StorageRef),
-    /// A `REDUCE` or `NEWOBJ` this reader does not interpret, kept opaque.
-    Reduce {
-        callable: Box<Object>,
-        args: Box<Object>,
-    },
-    /// A `BUILD` applied to something other than a dict, kept opaque.
-    Build {
-        object: Box<Object>,
-        state: Box<Object>,
-    },
+    /// A Python object this reader does not interpret: an unknown `REDUCE`, `NEWOBJ` or
+    /// `BUILD`. Nothing downstream looks inside one, so nothing is kept.
+    Opaque,
     Tensor(PackTensor),
 }
 
@@ -307,9 +297,17 @@ impl Object {
                 1 + v.iter().map(|o| o.node_count()).sum::<usize>()
             }
             Object::Dict(m) => 1 + m.values().map(|o| o.node_count()).sum::<usize>(),
-            Object::Reduce { callable, args } => 1 + callable.node_count() + args.node_count(),
-            Object::Build { object, state } => 1 + object.node_count() + state.node_count(),
             _ => 1,
+        }
+    }
+
+    /// Whether the object carries a storage or tensor anywhere inside it.
+    fn holds_tensor_data(&self) -> bool {
+        match self {
+            Object::Storage(_) | Object::Tensor(_) => true,
+            Object::Tuple(v) | Object::List(v) => v.iter().any(Object::holds_tensor_data),
+            Object::Dict(m) => m.values().any(Object::holds_tensor_data),
+            _ => false,
         }
     }
 
@@ -327,8 +325,7 @@ impl Object {
             Object::Dict(_) => "dict",
             Object::Class { .. } => "class",
             Object::Storage(_) => "storage",
-            Object::Reduce { .. } => "object",
-            Object::Build { .. } => "object",
+            Object::Opaque => "object",
             Object::Tensor(_) => "tensor",
         }
     }
@@ -392,7 +389,8 @@ fn torch_dtype_to_dtype(name: &str) -> Result<DType> {
     }
 }
 
-fn non_negative(value: &Object, what: &str) -> Result<usize> {
+/// Read a non-negative Python int as a `usize`.
+pub(crate) fn non_negative(value: &Object, what: &str) -> Result<usize> {
     match value {
         Object::Int(i) => usize::try_from(*i)
             .map_err(|_| PickleError::InvalidData(format!("{what} must be non-negative, got {i}"))),
@@ -403,7 +401,8 @@ fn non_negative(value: &Object, what: &str) -> Result<usize> {
     }
 }
 
-fn key_string(value: &Object, what: &str) -> Result<String> {
+/// Read a Python str or int as a string key. PyTorch uses both for the same purpose.
+pub(crate) fn key_string(value: &Object, what: &str) -> Result<String> {
     match value {
         Object::String(s) => Ok(s.clone()),
         Object::Int(i) => Ok(i.to_string()),
@@ -415,24 +414,21 @@ fn key_string(value: &Object, what: &str) -> Result<String> {
 }
 
 /// Resolve a `('storage', storage_type, key, location, numel[, view_metadata])` tuple.
-fn resolve_storage_id(pid: &[Object], source: &StorageSource) -> Result<StorageRef> {
-    if pid.len() < 5 {
+fn resolve_storage_id(pid: &[Object], source: &Arc<StorageSource>) -> Result<StorageRef> {
+    let [tag, storage_type, key, _location, numel, view @ ..] = pid else {
         return Err(PickleError::InvalidData(format!(
             "storage persistent id has {} fields, expected at least 5",
             pid.len()
         )));
-    }
-    match &pid[0] {
-        Object::String(tag) if tag == "storage" => {}
-        other => {
-            return Err(PickleError::InvalidData(format!(
-                "persistent id tag must be 'storage', got {}",
-                other.type_name()
-            )));
-        }
+    };
+    if !matches!(tag, Object::String(tag) if tag == "storage") {
+        return Err(PickleError::InvalidData(format!(
+            "persistent id tag must be 'storage', got {}",
+            tag.type_name()
+        )));
     }
 
-    let type_name = match &pid[1] {
+    let type_name = match storage_type {
         Object::Class { name, .. } | Object::String(name) => name.as_str(),
         other => {
             return Err(PickleError::InvalidData(format!(
@@ -447,16 +443,15 @@ fn resolve_storage_id(pid: &[Object], source: &StorageSource) -> Result<StorageR
         Some(storage_type_to_dtype(type_name)?)
     };
 
-    let key = key_string(&pid[2], "storage key")?;
-    // pid[3] is the device location, irrelevant for loading.
-    let numel = non_negative(&pid[4], "storage element count")?;
+    let key = key_string(key, "storage key")?;
+    let numel = non_negative(numel, "storage element count")?;
     let element_size = dtype.map_or(1, |dtype| dtype.size());
     let byte_len = numel.checked_mul(element_size).ok_or_else(|| {
         PickleError::InvalidData(format!("storage '{key}' byte length overflows usize"))
     })?;
 
     // Very old files may describe a view of a root storage: (view_key, offset, view_size).
-    let view_offset = match pid.get(5) {
+    let view_offset = match view.first() {
         None | Some(Object::None) => 0,
         Some(Object::Tuple(view)) if view.len() == 3 => {
             non_negative(&view[1], "storage view offset")?
@@ -474,6 +469,7 @@ fn resolve_storage_id(pid: &[Object], source: &StorageSource) -> Result<StorageR
         .map_err(|err| PickleError::InvalidData(err.to_string()))?;
 
     Ok(StorageRef {
+        source: source.clone(),
         key,
         dtype,
         byte_len,
@@ -511,17 +507,17 @@ fn resolve_persistent_id(pid: Object, ids: &PersistentIds) -> Result<Object> {
 /// Only the calls PyTorch uses to rebuild tensors and dicts are interpreted. Any other call
 /// is kept as an opaque object so a checkpoint carrying, say, numpy scalars or a device in
 /// its metadata still loads its tensors.
-fn reduce(callable: Object, args: Object, ids: &PersistentIds) -> Result<Object> {
+fn reduce(callable: Object, args: Object) -> Result<Object> {
     let (module_name, name) = match &callable {
         Object::Class { module_name, name } => (module_name.as_str(), name.as_str()),
-        _ => return Ok(opaque_reduce(callable, args)),
+        _ => return opaque(&callable, &args),
     };
 
     match (module_name, name) {
         ("collections", "OrderedDict") => ordered_dict(args),
-        ("torch._utils", "_rebuild_tensor") => rebuild_tensor(args, ids, TensorRebuild::Legacy),
-        ("torch._utils", "_rebuild_tensor_v2") => rebuild_tensor(args, ids, TensorRebuild::V2),
-        ("torch._utils", "_rebuild_tensor_v3") => rebuild_tensor(args, ids, TensorRebuild::V3),
+        ("torch._utils", "_rebuild_tensor") => rebuild_tensor(args, TensorRebuild::Legacy),
+        ("torch._utils", "_rebuild_tensor_v2") => rebuild_tensor(args, TensorRebuild::V2),
+        ("torch._utils", "_rebuild_tensor_v3") => rebuild_tensor(args, TensorRebuild::V3),
         // _rebuild_parameter(data, requires_grad, backward_hooks[, state])
         ("torch._utils", "_rebuild_parameter" | "_rebuild_parameter_with_state") => match args {
             Object::Tuple(mut fields) if !fields.is_empty() => Ok(fields.swap_remove(0)),
@@ -535,28 +531,31 @@ fn reduce(callable: Object, args: Object, ids: &PersistentIds) -> Result<Object>
             Object::Tuple(mut fields) if fields.len() >= 3 => {
                 let inner_args = fields.swap_remove(2);
                 let func = fields.swap_remove(0);
-                reduce(func, inner_args, ids)
+                reduce(func, inner_args)
             }
             other => Err(PickleError::InvalidData(format!(
                 "_rebuild_from_type_v2: expected at least 3 arguments, got {}",
                 other.type_name()
             ))),
         },
-        // Sparse, quantized, nested and meta tensors are rebuilt through other helpers in
-        // this module. Those are tensors this reader cannot represent, which is worth an
-        // error rather than a silently missing entry.
-        ("torch._utils", name) if name.starts_with("_rebuild") => Err(
-            PickleError::UnsupportedType(format!("{module_name}.{name}")),
-        ),
-        _ => Ok(opaque_reduce(callable, args)),
+        _ => opaque(&callable, &args),
     }
 }
 
-fn opaque_reduce(callable: Object, args: Object) -> Object {
-    Object::Reduce {
-        callable: Box::new(callable),
-        args: Box::new(args),
+/// Leave an uninterpreted call opaque, unless it consumed tensor data.
+///
+/// A call whose arguments hold a storage or tensor (sparse, quantized and nested tensors,
+/// or a tensor subclass) is a tensor this reader cannot represent. That is worth an error
+/// rather than an entry that silently goes missing.
+fn opaque(callable: &Object, args: &Object) -> Result<Object> {
+    if args.holds_tensor_data() {
+        let name = match callable {
+            Object::Class { module_name, name } => format!("{module_name}.{name}"),
+            other => other.type_name().to_string(),
+        };
+        return Err(PickleError::UnsupportedType(name));
     }
+    Ok(Object::Opaque)
 }
 
 /// `OrderedDict()` or `OrderedDict([(key, value), ...])`.
@@ -617,9 +616,9 @@ impl TensorRebuild {
     }
 }
 
-fn rebuild_tensor(args: Object, ids: &PersistentIds, kind: TensorRebuild) -> Result<Object> {
+fn rebuild_tensor(args: Object, kind: TensorRebuild) -> Result<Object> {
     let fn_name = kind.name();
-    let fields = match args {
+    let mut fields = match args {
         Object::Tuple(fields) => fields,
         other => {
             return Err(PickleError::InvalidData(format!(
@@ -636,8 +635,8 @@ fn rebuild_tensor(args: Object, ids: &PersistentIds, kind: TensorRebuild) -> Res
         )));
     }
 
-    let storage = match &fields[0] {
-        Object::Storage(storage) => storage.clone(),
+    let storage = match std::mem::replace(&mut fields[0], Object::None) {
+        Object::Storage(storage) => storage,
         other => {
             return Err(PickleError::InvalidData(format!(
                 "{fn_name}: expected a storage, got {}",
@@ -675,12 +674,7 @@ fn rebuild_tensor(args: Object, ids: &PersistentIds, kind: TensorRebuild) -> Res
         )));
     }
 
-    let source = match ids {
-        PersistentIds::Storages(source) => source.clone(),
-        _ => return Err(PickleError::NoDataSource),
-    };
-
-    build_tensor(storage, dtype, storage_offset, shape, stride, source).map(Object::Tensor)
+    build_tensor(storage, dtype, storage_offset, shape, stride).map(Object::Tensor)
 }
 
 fn parse_dims(value: &Object, what: &str) -> Result<Vec<usize>> {
@@ -798,7 +792,7 @@ fn to_native_endian(bytes: &mut [u8], element_size: usize) {
     }
 }
 
-/// Build a tensor that reads its bytes from `source` on demand.
+/// Build a tensor that reads its bytes from the storage's container on demand.
 ///
 /// Everything derivable from the metadata is validated here, so a file whose declarations are
 /// inconsistent fails at parse time; the data itself is validated when it is read.
@@ -808,7 +802,6 @@ pub(crate) fn build_tensor(
     storage_offset: usize,
     shape: Vec<usize>,
     stride: Vec<usize>,
-    source: Arc<StorageSource>,
 ) -> Result<PackTensor> {
     let element_size = dtype.size();
     let storage_offset = storage_offset
@@ -827,14 +820,16 @@ pub(crate) fn build_tensor(
             storage.key
         )));
     }
-    if byte_len > storage.byte_len && byte_len > MAX_BROADCAST_BYTES {
+    // A view can declare far more logical elements than its storage holds (an `expand` has
+    // stride 0), so the file gives no bound on what a tensor materializes. burn-pack's own
+    // ceiling is the one every other reader lives under.
+    if byte_len > MAX_TENSOR_SIZE {
         return Err(PickleError::InvalidData(format!(
-            "Tensor with shape {shape:?} would materialize {byte_len} bytes from a {} byte storage, above the {MAX_BROADCAST_BYTES} byte limit for broadcast views",
-            storage.byte_len
+            "Tensor with shape {shape:?} would materialize {byte_len} bytes, above the {MAX_TENSOR_SIZE} byte limit"
         )));
     }
 
-    let key = storage.key;
+    let StorageRef { source, key, .. } = storage;
     let provider_shape = shape.clone();
     let provider = move || -> std::result::Result<TensorData, PackError> {
         let shape = &provider_shape;
@@ -1024,12 +1019,12 @@ impl<'a> Unpickler<'a> {
                 }
                 OpCode::Long1 => {
                     let len = r.read_u8()? as u64;
-                    let bytes = read_exact_len(r, len)?;
+                    let bytes = read_exact_len(r, len, STRING_PREALLOC_BOUND)?;
                     self.push(Object::Int(int_from_le_bytes(&bytes)?));
                 }
                 OpCode::Long4 => {
                     let len = r.read_u32::<LittleEndian>()? as u64;
-                    let bytes = read_exact_len(r, len)?;
+                    let bytes = read_exact_len(r, len, STRING_PREALLOC_BOUND)?;
                     self.push(Object::Int(int_from_le_bytes(&bytes)?));
                 }
 
@@ -1056,15 +1051,15 @@ impl<'a> Unpickler<'a> {
                 }
                 OpCode::ShortBinBytes => {
                     let len = r.read_u8()? as u64;
-                    self.push(Object::Bytes(read_exact_len(r, len)?));
+                    self.push(Object::Bytes(read_bytes(r, len)?));
                 }
                 OpCode::BinBytes => {
                     let len = r.read_u32::<LittleEndian>()? as u64;
-                    self.push(Object::Bytes(read_exact_len(r, len)?));
+                    self.push(Object::Bytes(read_bytes(r, len)?));
                 }
                 OpCode::BinBytes8 | OpCode::ByteArray8 => {
                     let len = r.read_u64::<LittleEndian>()?;
-                    self.push(Object::Bytes(read_exact_len(r, len)?));
+                    self.push(Object::Bytes(read_bytes(r, len)?));
                 }
 
                 // Containers
@@ -1211,19 +1206,21 @@ impl<'a> Unpickler<'a> {
                 OpCode::Reduce => {
                     let args = self.pop()?;
                     let callable = self.pop()?;
-                    let obj = reduce(callable, args, self.ids)?;
+                    let obj = reduce(callable, args)?;
                     self.push(obj);
                 }
                 OpCode::NewObj => {
                     let args = self.pop()?;
                     let cls = self.pop()?;
-                    self.push(opaque_reduce(cls, args));
+                    let obj = opaque(&cls, &args)?;
+                    self.push(obj);
                 }
                 OpCode::NewObjEx => {
                     let _kwargs = self.pop()?;
                     let args = self.pop()?;
                     let cls = self.pop()?;
-                    self.push(opaque_reduce(cls, args));
+                    let obj = opaque(&cls, &args)?;
+                    self.push(obj);
                 }
                 OpCode::Build => {
                     let state = self.pop()?;
@@ -1235,10 +1232,10 @@ impl<'a> Unpickler<'a> {
                         }
                         // A dict subclass with non-dict state: the items are what matter.
                         (dict @ Object::Dict(_), _) => self.push(dict),
-                        (object, state) => self.push(Object::Build {
-                            object: Box::new(object),
-                            state: Box::new(state),
-                        }),
+                        (object, state) => {
+                            let obj = opaque(&object, &state)?;
+                            self.push(obj);
+                        }
                     }
                 }
 
@@ -1275,9 +1272,12 @@ fn read_line<R: BufRead>(r: &mut R) -> Result<String> {
     String::from_utf8(data).map_err(|e| PickleError::InvalidData(format!("Invalid UTF-8: {e}")))
 }
 
+fn read_bytes<R: BufRead>(r: &mut R, len: u64) -> Result<Vec<u8>> {
+    Ok(read_exact_len(r, len, STRING_PREALLOC_BOUND)?)
+}
+
 fn read_string<R: BufRead>(r: &mut R, len: u64) -> Result<Object> {
-    let data = read_exact_len(r, len)?;
-    let s = String::from_utf8(data)
+    let s = String::from_utf8(read_bytes(r, len)?)
         .map_err(|e| PickleError::InvalidData(format!("Invalid UTF-8: {e}")))?;
     Ok(Object::String(s))
 }
@@ -1285,8 +1285,7 @@ fn read_string<R: BufRead>(r: &mut R, len: u64) -> Result<Object> {
 /// A Python 2 `str` is bytes that usually hold text, but numpy pickles binary data in them
 /// under protocol 2. Text is kept as a string and anything else as bytes.
 fn read_py2_string<R: BufRead>(r: &mut R, len: u64) -> Result<Object> {
-    let data = read_exact_len(r, len)?;
-    Ok(match String::from_utf8(data) {
+    Ok(match String::from_utf8(read_bytes(r, len)?) {
         Ok(text) => Object::String(text),
         Err(err) => Object::Bytes(err.into_bytes()),
     })
@@ -1321,11 +1320,7 @@ fn int_from_le_bytes(bytes: &[u8]) -> Result<i64> {
 fn dict_key(key: Object) -> Result<String> {
     match key {
         Object::String(s) => Ok(s),
-        Object::Int(i) => Ok(i.to_string()),
-        other => Err(PickleError::InvalidData(format!(
-            "dict key must be a str or int, got {}",
-            other.type_name()
-        ))),
+        other => key_string(&other, "dict key"),
     }
 }
 
@@ -1346,12 +1341,12 @@ fn insert_pairs(dict: &mut HashMap<String, Object>, items: Vec<Object>) -> Resul
 // Tensor extraction
 // ---------------------------------------------------------------------------------------------
 
-/// Walk a parsed pickle object tree, collecting each tensor found under a dict path.
+/// Walk a parsed dict, collecting each tensor found under a nested dict path.
 ///
 /// Only dicts are descended into: a state_dict is one, and a tensor reached any other way is
 /// ignored. A tensor is built without a name, its path being assembled only here, so this is
 /// also where each one gets its final identity.
-pub(crate) fn extract_tensors(obj: Object, tensors: &mut HashMap<String, PackTensor>) {
+pub(crate) fn extract_tensors(dict: HashMap<String, Object>) -> HashMap<String, PackTensor> {
     fn walk(obj: Object, path: &mut Vec<String>, tensors: &mut HashMap<String, PackTensor>) {
         match obj {
             Object::Dict(dict) => {
@@ -1368,7 +1363,9 @@ pub(crate) fn extract_tensors(obj: Object, tensors: &mut HashMap<String, PackTen
             _ => {}
         }
     }
-    walk(obj, &mut Vec::new(), tensors);
+    let mut tensors = HashMap::new();
+    walk(Object::Dict(dict), &mut Vec::new(), &mut tensors);
+    tensors
 }
 
 #[cfg(test)]
@@ -1377,8 +1374,7 @@ mod tests {
     use std::io::Cursor;
 
     fn fixture_source() -> Arc<StorageSource> {
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/pytorch/tests/reader/test_data/non_contiguous.pt");
+        let path = crate::pytorch::tests::reader::test_data_path("non_contiguous.pt");
         Arc::new(StorageSource::Zip(
             super::super::storage::ZipSource::open(&path).unwrap(),
         ))
@@ -1418,9 +1414,8 @@ mod tests {
         ])
     }
 
-    fn rebuild(args: Object, source: Arc<StorageSource>) -> Result<PackTensor> {
-        let ids = PersistentIds::Storages(source);
-        match rebuild_tensor(args, &ids, TensorRebuild::Legacy)? {
+    fn rebuild(args: Object) -> Result<PackTensor> {
+        match rebuild_tensor(args, TensorRebuild::Legacy)? {
             Object::Tensor(tensor) => Ok(tensor),
             other => panic!("expected tensor, got {other:?}"),
         }
@@ -1526,14 +1521,19 @@ mod tests {
     fn unknown_reduce_is_kept_opaque() {
         // The shape of a pickled numpy scalar: REDUCE of numpy.core.multiarray.scalar.
         let bytes = b"\x80\x02cnumpy.core.multiarray\nscalar\nU\x02f8U\x08\x00\x00\x00\x00\x00\x00\xe0?\x86R.";
-        assert!(matches!(plain(bytes).unwrap(), Object::Reduce { .. }));
+        assert!(matches!(plain(bytes).unwrap(), Object::Opaque));
     }
 
     #[test]
-    fn unknown_torch_rebuild_is_an_error() {
-        let bytes = b"\x80\x02ctorch._utils\n_rebuild_qtensor\n)R.";
+    fn unknown_call_consuming_tensor_data_is_an_error() {
+        let source = fixture_source();
+        let callable = Object::Class {
+            module_name: "torch._utils".to_string(),
+            name: "_rebuild_qtensor".to_string(),
+        };
+        let args = rebuild_args("FloatStorage", "0", 32, 0, &[2], &[1], &source);
         assert!(matches!(
-            plain(bytes).unwrap_err(),
+            reduce(callable, args).unwrap_err(),
             PickleError::UnsupportedType(name) if name == "torch._utils._rebuild_qtensor"
         ));
     }
@@ -1588,10 +1588,15 @@ mod tests {
     #[test]
     fn view_beyond_declared_storage_fails_at_parse_time() {
         let source = fixture_source();
-        let err = rebuild(
-            rebuild_args("FloatStorage", "0", 32, 30, &[2, 3], &[3, 1], &source),
-            source,
-        )
+        let err = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            32,
+            30,
+            &[2, 3],
+            &[3, 1],
+            &source,
+        ))
         .unwrap_err();
         assert!(matches!(
             err,
@@ -1602,10 +1607,15 @@ mod tests {
     #[test]
     fn declared_storage_larger_than_file_fails_at_read_time() {
         let source = fixture_source();
-        let tensor = rebuild(
-            rebuild_args("FloatStorage", "0", 64, 40, &[2, 3], &[3, 1], &source),
-            source,
-        )
+        let tensor = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            64,
+            40,
+            &[2, 3],
+            &[3, 1],
+            &source,
+        ))
         .unwrap();
         let err = bridge::into_data(tensor).unwrap_err();
         assert!(matches!(
@@ -1617,32 +1627,34 @@ mod tests {
     #[test]
     fn broadcast_view_above_limit_is_refused() {
         let source = fixture_source();
-        let err = rebuild(
-            rebuild_args(
-                "FloatStorage",
-                "0",
-                32,
-                0,
-                &[1 << 21, 1 << 21],
-                &[0, 0],
-                &source,
-            ),
-            source,
-        )
+        let err = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            32,
+            0,
+            &[1 << 21, 1 << 21],
+            &[0, 0],
+            &source,
+        ))
         .unwrap_err();
         assert!(matches!(
             err,
-            PickleError::InvalidData(msg) if msg.contains("limit for broadcast views")
+            PickleError::InvalidData(msg) if msg.contains("byte limit")
         ));
     }
 
     #[test]
     fn small_broadcast_view_loads() {
         let source = fixture_source();
-        let tensor = rebuild(
-            rebuild_args("FloatStorage", "0", 32, 1, &[2, 3], &[0, 1], &source),
-            source,
-        )
+        let tensor = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            32,
+            1,
+            &[2, 3],
+            &[0, 1],
+            &source,
+        ))
         .unwrap();
         let data = bridge::into_data(tensor).unwrap();
         assert_eq!(
@@ -1654,10 +1666,15 @@ mod tests {
     #[test]
     fn legacy_rebuild_tensor_loads_contiguous_stride() {
         let source = fixture_source();
-        let tensor = rebuild(
-            rebuild_args("FloatStorage", "0", 32, 5, &[2, 3], &[3, 1], &source),
-            source,
-        )
+        let tensor = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            32,
+            5,
+            &[2, 3],
+            &[3, 1],
+            &source,
+        ))
         .unwrap();
         let data = bridge::into_data(tensor).unwrap();
         assert_eq!(
@@ -1669,10 +1686,15 @@ mod tests {
     #[test]
     fn legacy_rebuild_tensor_loads_permuted_stride() {
         let source = fixture_source();
-        let tensor = rebuild(
-            rebuild_args("FloatStorage", "0", 32, 5, &[2, 4, 3], &[12, 1, 4], &source),
-            source,
-        )
+        let tensor = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            32,
+            5,
+            &[2, 4, 3],
+            &[12, 1, 4],
+            &source,
+        ))
         .unwrap();
         let data = bridge::into_data(tensor).unwrap();
         assert_eq!(
@@ -1687,11 +1709,7 @@ mod tests {
     #[test]
     fn legacy_rebuild_tensor_loads_scalar_at_offset() {
         let source = fixture_source();
-        let tensor = rebuild(
-            rebuild_args("FloatStorage", "0", 32, 5, &[], &[], &source),
-            source,
-        )
-        .unwrap();
+        let tensor = rebuild(rebuild_args("FloatStorage", "0", 32, 5, &[], &[], &source)).unwrap();
         let data = bridge::into_data(tensor).unwrap();
         assert_eq!(data.as_slice::<f32>().unwrap(), &[5.0]);
     }
@@ -1710,7 +1728,7 @@ mod tests {
         ]));
         let storage = resolve_storage_id(&pid, &source).unwrap();
         assert_eq!(storage.view_offset, 4);
-        let tensor = build_tensor(storage, DType::F32, 1, vec![3], vec![1], source).unwrap();
+        let tensor = build_tensor(storage, DType::F32, 1, vec![3], vec![1]).unwrap();
         let data = bridge::into_data(tensor).unwrap();
         assert_eq!(data.as_slice::<f32>().unwrap(), &[5.0, 6.0, 7.0]);
     }
@@ -1742,8 +1760,7 @@ mod tests {
                 name: "uint32".to_string(),
             },
         ]);
-        let ids = PersistentIds::Storages(source);
-        let Object::Tensor(tensor) = rebuild_tensor(args, &ids, TensorRebuild::V3).unwrap() else {
+        let Object::Tensor(tensor) = rebuild_tensor(args, TensorRebuild::V3).unwrap() else {
             panic!("expected tensor");
         };
         assert_eq!(tensor.dtype, DType::U32);
@@ -1755,10 +1772,15 @@ mod tests {
     #[test]
     fn missing_storage_returns_contextual_error() {
         let source = fixture_source();
-        let tensor = rebuild(
-            rebuild_args("FloatStorage", "missing", 6, 0, &[2, 3], &[3, 1], &source),
-            source,
-        )
+        let tensor = rebuild(rebuild_args(
+            "FloatStorage",
+            "missing",
+            6,
+            0,
+            &[2, 3],
+            &[3, 1],
+            &source,
+        ))
         .unwrap();
         let err = bridge::into_data(tensor).unwrap_err();
         assert!(matches!(
