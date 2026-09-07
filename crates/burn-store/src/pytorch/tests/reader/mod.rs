@@ -1300,3 +1300,109 @@ fn test_tar_metadata() {
     assert_eq!(metadata.tensor_count, 1);
     assert!(metadata.total_data_size.is_some());
 }
+
+#[test]
+fn test_protocol_4_checkpoint() {
+    // torch.save(..., pickle_protocol=4) emits FRAME, MEMOIZE, STACK_GLOBAL and
+    // SHORT_BINUNICODE, none of which appear in protocol 2 files.
+    let path = test_data_path("protocol4.pt");
+    let reader = PytorchReader::new(&path).expect("Failed to load protocol4.pt");
+    assert_eq!(reader.len(), 2);
+
+    let weight = reader.get("weight").expect("weight not found");
+    assert_eq!(weight.shape, shape![2, 3]);
+    let data = crate::bridge::to_data(weight).unwrap();
+    assert_eq!(
+        data.as_slice::<f32>().unwrap(),
+        &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+    );
+
+    let bias = reader.get("bias").expect("bias not found");
+    let data = crate::bridge::to_data(bias).unwrap();
+    assert_eq!(data.as_slice::<f32>().unwrap(), &[0.5, -0.5]);
+}
+
+#[test]
+fn test_metadata_reads_entries_under_archive_root() {
+    // torch.save keeps `version` next to `data.pkl` under a directory named after the file.
+    let path = test_data_path("float32.pt");
+    let reader = PytorchReader::new(&path).expect("Failed to load float32.pt");
+    let metadata = reader.metadata();
+    assert_eq!(metadata.pytorch_version.as_deref(), Some("3"));
+    assert_eq!(metadata.format_version.as_deref(), Some("1"));
+    assert!(metadata.has_storage_alignment);
+    assert_eq!(metadata.total_data_size, Some(16));
+}
+
+#[test]
+fn test_big_endian_file_is_refused() {
+    let path = test_data_path("big_endian.pt");
+    let err = PytorchReader::new(&path).expect_err("big-endian files are not supported");
+    assert!(
+        err.to_string().contains("Big-endian"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_top_level_key_that_is_not_a_dict() {
+    let path = test_data_path("checkpoint.pt");
+    let err = PytorchReader::with_top_level_key(&path, "epoch").expect_err("epoch is an int");
+    assert!(
+        err.to_string().contains("does not hold a dictionary"),
+        "unexpected error: {err}"
+    );
+
+    // Reading it as pickle data is fine, though.
+    let value = PytorchReader::read_pickle_data(&path, Some("epoch")).unwrap();
+    assert_eq!(value, crate::pytorch::reader::PickleValue::Int(42));
+}
+
+#[test]
+fn test_truncated_legacy_file_fails_at_open() {
+    let original = std::fs::read(test_data_path("legacy_with_offsets.pt")).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("truncated.pt");
+    // Drop the last 16 bytes of storage data.
+    std::fs::write(&path, &original[..original.len() - 16]).unwrap();
+
+    let err = PytorchReader::new(&path).expect_err("truncated storage data must be rejected");
+    assert!(
+        err.to_string()
+            .contains("extends beyond the end of the file"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_tensor_read_errors_are_not_zeros() {
+    // A ZIP entry shorter than the pickle declares must surface as an error when read.
+    let original = test_data_path("float32.pt");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("short.pt");
+    {
+        let mut source = zip::ZipArchive::new(std::fs::File::open(&original).unwrap()).unwrap();
+        let mut target = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        for i in 0..source.len() {
+            let mut entry = source.by_index(i).unwrap();
+            let mut bytes = Vec::new();
+            std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
+            if entry.name().ends_with("/data/0") {
+                bytes.truncate(8);
+            }
+            target
+                .start_file(entry.name(), zip::write::SimpleFileOptions::default())
+                .unwrap();
+            std::io::Write::write_all(&mut target, &bytes).unwrap();
+        }
+        target.finish().unwrap();
+    }
+
+    let reader = PytorchReader::new(&path).expect("metadata alone still parses");
+    let tensor = reader.get("tensor").unwrap();
+    let err = crate::bridge::to_data(tensor).expect_err("short storage must not load");
+    assert!(
+        err.to_string().contains("only 2 are available"),
+        "unexpected error: {err}"
+    );
+}
