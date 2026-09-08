@@ -209,6 +209,22 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn explicit_dtype_is_preserved_after_default_dtype_is_locked() {
+        use burn_backend::TensorMetadata;
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::TensorData;
+
+        type B = NdArray;
+        let device = NdArrayDevice::Cpu;
+
+        let default = burn_backend::get_device_settings::<B>(&device);
+        assert_eq!(default.float_dtype, burn_std::FloatDType::F32);
+        let explicit = B::float_from_data(TensorData::from([1.0f64]), &device);
+
+        assert_eq!(explicit.dtype(), DType::F64);
+    }
+
     /// A scheme this claims and then panics on is worse than one it declines, because the panic
     /// lands on the first tensor rather than where the scheme was chosen.
     #[test]
