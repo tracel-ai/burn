@@ -12,6 +12,20 @@ use rayon::prelude::*;
 
 use crate::{FlexTensor, Layout};
 
+#[cfg(feature = "rayon")]
+const PARALLEL_THRESHOLD: usize = 256 * 1024;
+
+/// Check if a layout is contiguous and not broadcasted.
+#[inline]
+fn is_contiguous_non_broadcast(layout: &Layout) -> bool {
+    layout.is_contiguous()
+        && !layout
+            .strides()
+            .iter()
+            .zip(layout.shape().iter())
+            .any(|(&stride, &dim)| dim > 1 && stride == 0)
+}
+
 /// Read indices from a tensor as `isize`, the native offset type used by the
 /// gather/scatter/select kernels in this module.
 ///
@@ -216,22 +230,40 @@ pub fn gather<E: Element + Pod + Default + Copy + Send + Sync>(
     let gather_dim_size = tensor_shape[dim];
 
     #[cfg(feature = "rayon")]
-    let result: Vec<E> = (0..output_size)
-        .into_par_iter()
-        .map(|out_idx| {
-            let index_val = checked_index(indices_data[out_idx], gather_dim_size);
-            let src_idx = compute_gather_index(
-                out_idx,
-                index_val,
-                dim,
-                dim_stride,
-                &indices_strides,
-                &tensor_strides,
-                ndims,
-            );
-            tensor_data[src_idx]
-        })
-        .collect();
+    let result: Vec<E> = if output_size >= PARALLEL_THRESHOLD {
+        (0..output_size)
+            .into_par_iter()
+            .map(|out_idx| {
+                let index_val = checked_index(indices_data[out_idx], gather_dim_size);
+                let src_idx = compute_gather_index(
+                    out_idx,
+                    index_val,
+                    dim,
+                    dim_stride,
+                    &indices_strides,
+                    &tensor_strides,
+                    ndims,
+                );
+                tensor_data[src_idx]
+            })
+            .collect()
+    } else {
+        (0..output_size)
+            .map(|out_idx| {
+                let index_val = checked_index(indices_data[out_idx], gather_dim_size);
+                let src_idx = compute_gather_index(
+                    out_idx,
+                    index_val,
+                    dim,
+                    dim_stride,
+                    &indices_strides,
+                    &tensor_strides,
+                    ndims,
+                );
+                tensor_data[src_idx]
+            })
+            .collect()
+    };
 
     #[cfg(not(feature = "rayon"))]
     let result: Vec<E> = (0..output_size)
@@ -269,9 +301,6 @@ fn gather_2d<E: Element + Pod + Default + Copy + Send + Sync>(
     let dim_size = if dim == 0 { tensor_rows } else { tensor_cols };
 
     let mut result = vec![E::default(); output_size];
-
-    #[cfg(feature = "rayon")]
-    const PARALLEL_THRESHOLD: usize = 256 * 1024;
 
     #[cfg(feature = "rayon")]
     if output_size >= PARALLEL_THRESHOLD {
@@ -412,7 +441,7 @@ pub fn scatter_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E
 }
 
 fn scatter_update<E, F>(
-    tensor: FlexTensor,
+    mut tensor: FlexTensor,
     dim: usize,
     indices: FlexTensor,
     value: FlexTensor,
@@ -423,7 +452,6 @@ where
     E: Element + Pod + Default + Copy + Send + Sync,
     F: Fn(&mut E, E) + Copy,
 {
-    let tensor = tensor.to_contiguous();
     let indices = indices.to_contiguous();
     let value = value.to_contiguous();
 
@@ -456,18 +484,58 @@ where
         }
     }
 
-    let tensor_data: &[E] = tensor.storage();
     let indices_data = read_indices(&indices);
     let value_data: &[E] = value.storage();
 
-    let mut result: Vec<E> = tensor_data.to_vec();
-
     let tensor_strides: Vec<usize> = compute_strides(&tensor_shape);
     let indices_strides: Vec<usize> = compute_strides(indices_shape);
-
     let num_elements = indices_shape.num_elements();
 
-    // Use specialized 2D implementation
+    let in_place = tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout());
+
+    if in_place {
+        let t_offset = tensor.layout().start_offset();
+        let numel = tensor_shape.num_elements();
+        let target_slice = &mut tensor.storage_mut::<E>()[t_offset..t_offset + numel];
+
+        if ndims == 2 {
+            scatter_update_2d(
+                target_slice,
+                &indices_data,
+                value_data,
+                tensor_shape[0],
+                tensor_shape[1],
+                indices_shape[0],
+                indices_shape[1],
+                dim,
+                update,
+            );
+        } else {
+            let dim_stride = tensor_strides[dim];
+            let scatter_dim_size = tensor_shape[dim];
+            for idx in 0..num_elements {
+                let index_val = checked_index(indices_data[idx], scatter_dim_size);
+                let dst_idx = compute_gather_index(
+                    idx,
+                    index_val,
+                    dim,
+                    dim_stride,
+                    &indices_strides,
+                    &tensor_strides,
+                    ndims,
+                );
+                update(&mut target_slice[dst_idx], value_data[idx]);
+            }
+        }
+        return tensor;
+    }
+
+    let mut result: Vec<E> = if let Some((start, end)) = tensor.layout().contiguous_offsets() {
+        tensor.storage::<E>()[start..end].to_vec()
+    } else {
+        tensor.to_contiguous().storage::<E>().to_vec()
+    };
+
     if ndims == 2 {
         scatter_update_2d(
             &mut result,
@@ -481,7 +549,6 @@ where
             update,
         );
     } else {
-        // General N-D case (sequential due to potential index conflicts)
         let dim_stride = tensor_strides[dim];
         let scatter_dim_size = tensor_shape[dim];
         for idx in 0..num_elements {
@@ -604,24 +671,44 @@ pub fn select<E: Element + Pod + Default + Copy + Send + Sync>(
     if dim == ndims - 1 || slice_size == 1 {
         // Element-wise with parallelism
         #[cfg(feature = "rayon")]
-        let result: Vec<E> = (0..output_size)
-            .into_par_iter()
-            .map(|out_idx| {
-                let mut remaining = out_idx;
-                let mut src_idx = 0;
-                for d in 0..ndims {
-                    let coord = remaining / output_strides[d];
-                    remaining %= output_strides[d];
-                    if d == dim {
-                        let index_val = checked_index(indices_data[coord], select_dim_size);
-                        src_idx += index_val * tensor_strides[d];
-                    } else {
-                        src_idx += coord * tensor_strides[d];
+        let result: Vec<E> = if output_size >= PARALLEL_THRESHOLD {
+            (0..output_size)
+                .into_par_iter()
+                .map(|out_idx| {
+                    let mut remaining = out_idx;
+                    let mut src_idx = 0;
+                    for d in 0..ndims {
+                        let coord = remaining / output_strides[d];
+                        remaining %= output_strides[d];
+                        if d == dim {
+                            let index_val = checked_index(indices_data[coord], select_dim_size);
+                            src_idx += index_val * tensor_strides[d];
+                        } else {
+                            src_idx += coord * tensor_strides[d];
+                        }
                     }
-                }
-                tensor_data[src_idx]
-            })
-            .collect();
+                    tensor_data[src_idx]
+                })
+                .collect()
+        } else {
+            (0..output_size)
+                .map(|out_idx| {
+                    let mut remaining = out_idx;
+                    let mut src_idx = 0;
+                    for d in 0..ndims {
+                        let coord = remaining / output_strides[d];
+                        remaining %= output_strides[d];
+                        if d == dim {
+                            let index_val = checked_index(indices_data[coord], select_dim_size);
+                            src_idx += index_val * tensor_strides[d];
+                        } else {
+                            src_idx += coord * tensor_strides[d];
+                        }
+                    }
+                    tensor_data[src_idx]
+                })
+                .collect()
+        };
 
         #[cfg(not(feature = "rayon"))]
         #[allow(clippy::needless_range_loop)]
@@ -855,7 +942,7 @@ pub fn select_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E>
 }
 
 fn select_update<E, F>(
-    tensor: FlexTensor,
+    mut tensor: FlexTensor,
     dim: usize,
     indices: FlexTensor,
     value: FlexTensor,
@@ -866,7 +953,6 @@ where
     E: Element + Pod + Default + Copy + Send + Sync,
     F: Fn(&mut E, E) + Copy,
 {
-    let tensor = tensor.to_contiguous();
     let indices = indices.to_contiguous();
     let value = value.to_contiguous();
 
@@ -886,7 +972,6 @@ where
         "{operation}: indices must be 1D"
     );
 
-    let tensor_data: &[E] = tensor.storage();
     let indices_data = read_indices(&indices);
     let value_data: &[E] = value.storage();
     let num_indices = indices_data.len();
@@ -908,7 +993,53 @@ where
         }
     }
 
-    let mut result: Vec<E> = tensor_data.to_vec();
+    let in_place = tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout());
+
+    if in_place {
+        let t_offset = tensor.layout().start_offset();
+        let numel = tensor_shape.num_elements();
+        let target_slice = &mut tensor.storage_mut::<E>()[t_offset..t_offset + numel];
+
+        if ndims == 2 {
+            select_update_2d(
+                target_slice,
+                &indices_data,
+                value_data,
+                tensor_shape[0],
+                tensor_shape[1],
+                num_indices,
+                dim,
+                update,
+            );
+        } else {
+            let tensor_strides: Vec<usize> = compute_strides(&tensor_shape);
+            let value_strides: Vec<usize> = compute_strides(value_shape);
+            let select_dim_size = tensor_shape[dim];
+
+            for (val_idx, &val) in value_data.iter().enumerate() {
+                let mut remaining = val_idx;
+                let mut dst_idx = 0;
+                for d in 0..ndims {
+                    let coord = remaining / value_strides[d];
+                    remaining %= value_strides[d];
+                    if d == dim {
+                        let index_val = checked_index(indices_data[coord], select_dim_size);
+                        dst_idx += index_val * tensor_strides[d];
+                    } else {
+                        dst_idx += coord * tensor_strides[d];
+                    }
+                }
+                update(&mut target_slice[dst_idx], val);
+            }
+        }
+        return tensor;
+    }
+
+    let mut result: Vec<E> = if let Some((start, end)) = tensor.layout().contiguous_offsets() {
+        tensor.storage::<E>()[start..end].to_vec()
+    } else {
+        tensor.to_contiguous().storage::<E>().to_vec()
+    };
 
     // Use optimized 2D implementation
     if ndims == 2 {

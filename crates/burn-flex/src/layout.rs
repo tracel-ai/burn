@@ -101,16 +101,26 @@ impl Layout {
 
     /// Check if this layout is contiguous (row-major, positive strides).
     pub fn is_contiguous(&self) -> bool {
-        if self.shape.num_dims() == 0 {
+        if self.shape.num_dims() == 0 || self.num_elements() == 0 {
             return true;
+        }
+
+        if self.strides.iter().any(|&s| s <= 0) {
+            return false;
         }
 
         let mut expected_stride = 1isize;
         for i in (0..self.shape.num_dims()).rev() {
+            if self.shape[i] == 1 {
+                continue;
+            }
             if self.strides[i] != expected_stride {
                 return false;
             }
-            expected_stride *= self.shape[i] as isize;
+            match expected_stride.checked_mul(self.shape[i] as isize) {
+                Some(next) => expected_stride = next,
+                None => return false,
+            }
         }
         true
     }
@@ -226,7 +236,6 @@ impl Layout {
         let mut new_dims = self.shape.to_vec();
         let mut new_strides = self.strides.clone();
         let mut new_offset = self.start_offset as isize;
-        let mut needs_copy = false;
 
         for (dim, slice) in slices.iter().enumerate() {
             if dim >= ndims {
@@ -255,27 +264,24 @@ impl Layout {
             let step = slice.step;
             let abs_step = step.unsigned_abs();
 
+            let len = if end > start {
+                (end - start).div_ceil(abs_step)
+            } else {
+                0
+            };
+            new_dims[dim] = len;
+            new_strides[dim] = stride * step;
+
             if step > 0 {
                 // Positive step: forward iteration
-                let len = if end > start {
-                    (end - start).div_ceil(abs_step)
-                } else {
-                    0
-                };
-                new_dims[dim] = len;
-                new_strides[dim] = stride * step;
-                new_offset += stride * start as isize;
+                if len > 0 {
+                    new_offset += stride * start as isize;
+                }
             } else {
-                // Negative step: select range then iterate in reverse
-                // Requires copy to reorder elements
-                needs_copy = true;
-                let len = if end > start {
-                    (end - start).div_ceil(abs_step)
-                } else {
-                    0
-                };
-                new_dims[dim] = len;
-                new_strides[dim] = stride; // Will be handled during copy
+                // Negative step: select range then iterate in reverse via negative stride
+                if len > 0 {
+                    new_offset += (end as isize - 1) * stride;
+                }
             }
         }
 
@@ -287,15 +293,16 @@ impl Layout {
                 strides: new_strides,
                 start_offset: new_offset as usize,
             },
-            needs_copy,
+            false,
         )
     }
 
-    /// Reshape to a new shape. Only works if contiguous with zero offset.
+    /// Reshape to a new shape. Only works if contiguous.
     ///
-    /// Returns None if not contiguous or has non-zero offset (would require data copy).
+    /// Preserves start_offset for zero-copy view of contiguous slices.
+    /// Returns None if not contiguous (would require data copy).
     pub fn reshape(&self, new_shape: Shape) -> Option<Self> {
-        if !self.is_contiguous() || self.start_offset != 0 {
+        if !self.is_contiguous() {
             return None;
         }
         debug_assert_eq!(
@@ -303,7 +310,9 @@ impl Layout {
             new_shape.num_elements(),
             "reshape must preserve total elements"
         );
-        Some(Self::contiguous(new_shape))
+        let mut layout = Self::contiguous(new_shape);
+        layout.start_offset = self.start_offset;
+        Some(layout)
     }
 
     /// Compute linear index from multi-dimensional indices.

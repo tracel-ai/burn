@@ -60,17 +60,7 @@ impl ZipNest {
     /// from index 0 — every collapsed stride equals the product of the
     /// sizes below it, and the start offset is 0.
     ///
-    /// That is exactly the condition for the lhs buffer to double as the
-    /// *destination* of an in-place op: run `k` of [`Self::for_each_run`]
-    /// then reports an `lhs_base` equal to the output position it is
-    /// producing, so each of the `numel` slots is written exactly once.
-    /// Note this is weaker than [`Layout::is_contiguous`], which rejects
-    /// a size-1 dim carrying a stride of 0 (what `expand`/`swap_dims`
-    /// leave behind); the collapse squeezes those dims away first.
-    pub fn lhs_is_dense_from_zero(&self) -> bool {
-        if self.lhs_offset != 0 {
-            return false;
-        }
+    pub fn lhs_is_dense(&self) -> bool {
         let mut expected = 1isize;
         for d in (0..self.ndim).rev() {
             if self.lhs_strides[d] != expected {
@@ -82,6 +72,10 @@ impl ZipNest {
             }
         }
         true
+    }
+
+    pub fn lhs_is_dense_from_zero(&self) -> bool {
+        self.lhs_offset == 0 && self.lhs_is_dense()
     }
 
     /// Call `f(lhs_base, rhs_base)` once per innermost run, in
@@ -98,14 +92,10 @@ impl ZipNest {
         loop {
             f(lhs_base as usize, rhs_base as usize);
             // Odometer over the outer dims, innermost-first. Each step
-            // adds the dim's stride; a wrap subtracts the whole dim's
-            // span (`shape * stride`, since the stride was added
-            // `shape` times by then).
+            // resets inner counters and adds the single delta to the
+            // bases, so base addition is O(1) amortized per run.
             let mut d = outer;
-            loop {
-                if d == 0 {
-                    return;
-                }
+            while d > 0 {
                 d -= 1;
                 idx[d] += 1;
                 lhs_base += self.lhs_strides[d];
@@ -114,31 +104,22 @@ impl ZipNest {
                     break;
                 }
                 idx[d] = 0;
-                lhs_base -= self.shape[d] as isize * self.lhs_strides[d];
-                rhs_base -= self.shape[d] as isize * self.rhs_strides[d];
+                lhs_base -= (self.shape[d] as isize) * self.lhs_strides[d];
+                rhs_base -= (self.shape[d] as isize) * self.rhs_strides[d];
+            }
+            if d == 0 && idx[0] == 0 {
+                // Every dim rolled over back to 0; iteration is done.
+                break;
             }
         }
     }
 }
 
 /// Jointly collapse two same-shape layouts into the minimum-rank
-/// equivalent loop nest:
+/// equivalent loop nest.
 ///
-/// 1. Squeeze size-1 dims (their stride never gets stepped past 0).
-/// 2. Merge adjacent dims `(i, i+1)` when
-///    `stride[i] == stride[i+1] * shape[i+1]` holds for *both*
-///    operands, i.e. both walk the merged run linearly. Stride-0
-///    (broadcast) dim pairs merge for free since `0 == 0 * n`.
-///
-/// Canonical example: `[2,S,N]` (strides `[S*N, N, 1]`) zipped with a
-/// broadcast `[1,S,N]` (strides `[0, N, 1]`) collapses to `[2, S*N]`
-/// with strides `[S*N, 1]` / `[0, 1]` — a contiguous SIMD-able inner
-/// run of `S*N` elements repeated twice.
-///
-/// Returns `None` when the layouts can't be handled — rank above
-/// [`ZIP_MAX_RANK`] or a negative stride (from `flip`; the merge rule
-/// assumes non-negative strides) — so callers fall back to their
-/// generic strided path.
+/// Returns `None` if `ndims > ZIP_MAX_RANK` or if any stride is negative
+/// (flipped axes can't merge adjacent dims by scalar multiplication).
 pub(crate) fn collapse_for_zip(lhs: &Layout, rhs: &Layout) -> Option<ZipNest> {
     let shape = lhs.shape();
     let ndims = lhs.num_dims();
@@ -150,9 +131,9 @@ pub(crate) fn collapse_for_zip(lhs: &Layout, rhs: &Layout) -> Option<ZipNest> {
     if ndims > ZIP_MAX_RANK {
         return None;
     }
-    let lhs_strides = lhs.strides();
-    let rhs_strides = rhs.strides();
-    if lhs_strides.iter().chain(rhs_strides).any(|&s| s < 0) {
+    let l_strides = lhs.strides();
+    let r_strides = rhs.strides();
+    if l_strides.iter().chain(r_strides).any(|&s| s < 0) {
         return None;
     }
 
@@ -165,18 +146,17 @@ pub(crate) fn collapse_for_zip(lhs: &Layout, rhs: &Layout) -> Option<ZipNest> {
         rhs_offset: rhs.start_offset(),
     };
 
-    // Single forward sweep, like `collapse_for_copy`: squeeze size-1
-    // dims and merge whenever the current dim's `stride * size` equals
-    // the previous output dim's stride for both operands. `checked_mul`
-    // keeps a pathological overflowing layout from wrapping into an
-    // incorrect merge decision.
     for d in 0..ndims {
         let size = shape[d];
         if size == 1 {
+            // Size 1 dims don't advance indices; omit them.
             continue;
         }
-        let l_st = lhs_strides[d];
-        let r_st = rhs_strides[d];
+        let l_st = l_strides[d];
+        let r_st = r_strides[d];
+        // Adjacent dims (prev, curr) can merge if stepping through
+        // curr by its total length `size * curr_stride` covers exactly
+        // the step of prev.
         let merge = nest.ndim > 0 && {
             let prev = nest.ndim - 1;
             (size as isize)
@@ -212,16 +192,17 @@ pub(crate) fn collapse_for_zip(lhs: &Layout, rhs: &Layout) -> Option<ZipNest> {
 /// Returns `None` when the layout pair can't be collapsed (negative
 /// strides, rank too high); callers keep their `StridedIter` fallback
 /// for that case.
-pub(crate) fn zip_map<E, R, F>(
-    lhs: &[E],
+pub(crate) fn zip_map<L, R, Out, F>(
+    lhs: &[L],
     lhs_layout: &Layout,
-    rhs: &[E],
+    rhs: &[R],
     rhs_layout: &Layout,
     op: F,
-) -> Option<Vec<R>>
+) -> Option<Vec<Out>>
 where
-    E: Copy,
-    F: Fn(E, E) -> R,
+    L: Copy,
+    R: Copy,
+    F: Fn(L, R) -> Out,
 {
     let numel = lhs_layout.num_elements();
     if numel == 0 {
@@ -229,7 +210,7 @@ where
     }
     let nest = collapse_for_zip(lhs_layout, rhs_layout)?;
 
-    let mut out: Vec<R> = Vec::with_capacity(numel);
+    let mut out: Vec<Out> = Vec::with_capacity(numel);
     if nest.ndim == 0 {
         // All dims were size 1: a single element.
         out.push(op(lhs[nest.lhs_offset], rhs[nest.rhs_offset]));
@@ -267,7 +248,7 @@ where
 /// Apply `op` over a collapsed nest *in place*, writing the result back
 /// into the lhs buffer instead of allocating an output.
 ///
-/// The caller must have checked [`ZipNest::lhs_is_dense_from_zero`] (so
+/// The caller must have checked [`ZipNest::lhs_is_dense`] (so
 /// `dst` is written exactly once per element) and that the tensor owning
 /// `dst` is uniquely referenced (so no other view observes the mutation,
 /// and `dst` cannot alias `src`).
@@ -279,18 +260,19 @@ where
 /// Like [`zip_map`], the inner loop is specialized on the collapsed
 /// innermost src stride — contiguous, broadcast-scalar, or general
 /// strided — and monomorphized per call site so LLVM autovectorizes it.
-pub(crate) fn zip_apply_inplace<E, F>(nest: &ZipNest, dst: &mut [E], src: &[E], op: F)
+pub(crate) fn zip_apply_inplace<D, S, F>(nest: &ZipNest, dst: &mut [D], src: &[S], op: F)
 where
-    E: Copy,
-    F: Fn(E, E) -> E,
+    D: Copy,
+    S: Copy,
+    F: Fn(D, S) -> D,
 {
     debug_assert!(
-        nest.lhs_is_dense_from_zero(),
-        "zip_apply_inplace: destination must be dense from index 0"
+        nest.lhs_is_dense(),
+        "zip_apply_inplace: destination must be dense"
     );
     if nest.ndim == 0 {
         // All dims were size 1: a single element.
-        dst[0] = op(dst[0], src[nest.rhs_offset]);
+        dst[nest.lhs_offset] = op(dst[nest.lhs_offset], src[nest.rhs_offset]);
         return;
     }
     if nest.shape[..nest.ndim].contains(&0) {
@@ -315,6 +297,270 @@ where
         _ => nest.for_each_run(|lb, rb| {
             for (i, d) in dst[lb..lb + len].iter_mut().enumerate() {
                 *d = op(*d, src[rb + i * r_st as usize]);
+            }
+        }),
+    }
+}
+
+// ============================================================================
+// 3-way zip support (for mask_where and ternary operations)
+// ============================================================================
+
+/// A tuple of three layouts collapsed into a joint loop nest.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Zip3Nest {
+    pub ndim: usize,
+    pub shape: [usize; ZIP_MAX_RANK],
+    pub a_strides: [isize; ZIP_MAX_RANK],
+    pub b_strides: [isize; ZIP_MAX_RANK],
+    pub c_strides: [isize; ZIP_MAX_RANK],
+    pub a_offset: usize,
+    pub b_offset: usize,
+    pub c_offset: usize,
+}
+
+impl Zip3Nest {
+    #[inline]
+    pub fn inner(&self) -> (usize, isize, isize, isize) {
+        let d = self.ndim - 1;
+        (
+            self.shape[d],
+            self.a_strides[d],
+            self.b_strides[d],
+            self.c_strides[d],
+        )
+    }
+
+    pub fn a_is_dense(&self) -> bool {
+        Self::is_dense(&self.a_strides[..self.ndim], &self.shape[..self.ndim])
+    }
+
+    #[allow(dead_code)]
+    pub fn b_is_dense(&self) -> bool {
+        Self::is_dense(&self.b_strides[..self.ndim], &self.shape[..self.ndim])
+    }
+
+    #[allow(dead_code)]
+    pub fn c_is_dense(&self) -> bool {
+        Self::is_dense(&self.c_strides[..self.ndim], &self.shape[..self.ndim])
+    }
+
+    fn is_dense(strides: &[isize], shape: &[usize]) -> bool {
+        let mut expected = 1isize;
+        for d in (0..shape.len()).rev() {
+            if strides[d] != expected {
+                return false;
+            }
+            match expected.checked_mul(shape[d] as isize) {
+                Some(next) => expected = next,
+                None => return false,
+            }
+        }
+        true
+    }
+
+    pub fn for_each_run(&self, mut f: impl FnMut(usize, usize, usize)) {
+        debug_assert!(self.ndim >= 1);
+        let outer = self.ndim - 1;
+        let mut idx = [0usize; ZIP_MAX_RANK];
+        let mut a_base = self.a_offset as isize;
+        let mut b_base = self.b_offset as isize;
+        let mut c_base = self.c_offset as isize;
+        loop {
+            f(a_base as usize, b_base as usize, c_base as usize);
+            let mut d = outer;
+            loop {
+                if d == 0 {
+                    return;
+                }
+                d -= 1;
+                idx[d] += 1;
+                a_base += self.a_strides[d];
+                b_base += self.b_strides[d];
+                c_base += self.c_strides[d];
+                if idx[d] < self.shape[d] {
+                    break;
+                }
+                idx[d] = 0;
+                a_base -= self.shape[d] as isize * self.a_strides[d];
+                b_base -= self.shape[d] as isize * self.b_strides[d];
+                c_base -= self.shape[d] as isize * self.c_strides[d];
+            }
+        }
+    }
+}
+
+/// Jointly collapse three same-shape layouts into the minimum-rank
+/// equivalent loop nest. Supports heterogeneous element types.
+pub(crate) fn collapse_for_zip3(a: &Layout, b: &Layout, c: &Layout) -> Option<Zip3Nest> {
+    let shape = a.shape();
+    let ndims = a.num_dims();
+    debug_assert_eq!(
+        &shape[..],
+        &b.shape()[..],
+        "collapse_for_zip3: operands must be broadcast to the same shape"
+    );
+    debug_assert_eq!(
+        &shape[..],
+        &c.shape()[..],
+        "collapse_for_zip3: operands must be broadcast to the same shape"
+    );
+    if ndims > ZIP_MAX_RANK {
+        return None;
+    }
+    let a_strides = a.strides();
+    let b_strides = b.strides();
+    let c_strides = c.strides();
+    if a_strides
+        .iter()
+        .chain(b_strides)
+        .chain(c_strides)
+        .any(|&s| s < 0)
+    {
+        return None;
+    }
+
+    let mut nest = Zip3Nest {
+        ndim: 0,
+        shape: [0; ZIP_MAX_RANK],
+        a_strides: [0; ZIP_MAX_RANK],
+        b_strides: [0; ZIP_MAX_RANK],
+        c_strides: [0; ZIP_MAX_RANK],
+        a_offset: a.start_offset(),
+        b_offset: b.start_offset(),
+        c_offset: c.start_offset(),
+    };
+
+    for d in 0..ndims {
+        let size = shape[d];
+        if size == 1 {
+            continue;
+        }
+        let a_st = a_strides[d];
+        let b_st = b_strides[d];
+        let c_st = c_strides[d];
+        let merge = nest.ndim > 0 && {
+            let prev = nest.ndim - 1;
+            (size as isize)
+                .checked_mul(a_st)
+                .is_some_and(|run| nest.a_strides[prev] == run)
+                && (size as isize)
+                    .checked_mul(b_st)
+                    .is_some_and(|run| nest.b_strides[prev] == run)
+                && (size as isize)
+                    .checked_mul(c_st)
+                    .is_some_and(|run| nest.c_strides[prev] == run)
+        };
+        if merge {
+            nest.shape[nest.ndim - 1] *= size;
+            nest.a_strides[nest.ndim - 1] = a_st;
+            nest.b_strides[nest.ndim - 1] = b_st;
+            nest.c_strides[nest.ndim - 1] = c_st;
+        } else {
+            nest.shape[nest.ndim] = size;
+            nest.a_strides[nest.ndim] = a_st;
+            nest.b_strides[nest.ndim] = b_st;
+            nest.c_strides[nest.ndim] = c_st;
+            nest.ndim += 1;
+        }
+    }
+
+    Some(nest)
+}
+
+/// Apply a 3-way mapping operation over strided layouts into a new Vec.
+pub(crate) fn zip3_map<A, B, C, R, F>(
+    a: &[A],
+    a_layout: &Layout,
+    b: &[B],
+    b_layout: &Layout,
+    c: &[C],
+    c_layout: &Layout,
+    op: F,
+) -> Option<Vec<R>>
+where
+    A: Copy,
+    B: Copy,
+    C: Copy,
+    F: Fn(A, B, C) -> R,
+{
+    let numel = a_layout.num_elements();
+    if numel == 0 {
+        return Some(Vec::new());
+    }
+    let nest = collapse_for_zip3(a_layout, b_layout, c_layout)?;
+
+    let mut out: Vec<R> = Vec::with_capacity(numel);
+    if nest.ndim == 0 {
+        out.push(op(a[nest.a_offset], b[nest.b_offset], c[nest.c_offset]));
+        return Some(out);
+    }
+
+    let (len, a_st, b_st, c_st) = nest.inner();
+    match (a_st, b_st, c_st) {
+        (1, 1, 1) => nest.for_each_run(|ab, bb, cb| {
+            let a_slice = &a[ab..ab + len];
+            let b_slice = &b[bb..bb + len];
+            let c_slice = &c[cb..cb + len];
+            for i in 0..len {
+                out.push(op(a_slice[i], b_slice[i], c_slice[i]));
+            }
+        }),
+        _ => nest.for_each_run(|ab, bb, cb| {
+            for i in 0..len {
+                let av = a[ab + i * a_st as usize];
+                let bv = b[bb + i * b_st as usize];
+                let cv = c[cb + i * c_st as usize];
+                out.push(op(av, bv, cv));
+            }
+        }),
+    }
+    debug_assert_eq!(out.len(), numel);
+    Some(out)
+}
+
+/// Apply a 3-way operation in place into `dst`, reading from `b` and `c`.
+/// `dst` is indexed directly at `db`, which includes `a_offset`.
+pub(crate) fn zip3_apply_inplace<D, B, C, F>(
+    nest: &Zip3Nest,
+    dst: &mut [D],
+    b: &[B],
+    c: &[C],
+    op: F,
+) where
+    D: Copy,
+    B: Copy,
+    C: Copy,
+    F: Fn(D, B, C) -> D,
+{
+    debug_assert!(
+        nest.a_is_dense(),
+        "zip3_apply_inplace: destination must be dense"
+    );
+    if nest.ndim == 0 {
+        dst[nest.a_offset] = op(dst[nest.a_offset], b[nest.b_offset], c[nest.c_offset]);
+        return;
+    }
+    if nest.shape[..nest.ndim].contains(&0) {
+        return;
+    }
+
+    let (len, d_st, b_st, c_st) = nest.inner();
+    match (d_st, b_st, c_st) {
+        (1, 1, 1) => nest.for_each_run(|db, bb, cb| {
+            let b_slice = &b[bb..bb + len];
+            let c_slice = &c[cb..cb + len];
+            let d_slice = &mut dst[db..db + len];
+            for i in 0..len {
+                d_slice[i] = op(d_slice[i], b_slice[i], c_slice[i]);
+            }
+        }),
+        _ => nest.for_each_run(|db, bb, cb| {
+            for i in 0..len {
+                let d_idx = db + i * d_st as usize;
+                let b_idx = bb + i * b_st as usize;
+                let c_idx = cb + i * c_st as usize;
+                dst[d_idx] = op(dst[d_idx], b[b_idx], c[c_idx]);
             }
         }),
     }
@@ -592,7 +838,69 @@ mod tests {
     fn test_zip_map_empty() {
         let l = Layout::contiguous(Shape::from(vec![0, 3]));
         let r = Layout::contiguous(Shape::from(vec![0, 3]));
-        let got = zip_map::<f32, f32, _>(&[], &l, &[], &r, |a, b| a + b).unwrap();
+        let got = zip_map::<f32, f32, f32, _>(&[], &l, &[], &r, |a, b| a + b).unwrap();
         assert!(got.is_empty());
+    }
+
+    #[test]
+    fn test_zip3_map_broadcasting() {
+        // Broadcast shapes [2, 1], [1, 3], and [2, 3] to [2, 3]
+        let a_layout = broadcast_layout(&[2, 1], &[2, 3]);
+        let b_layout = broadcast_layout(&[1, 3], &[2, 3]);
+        let c_layout = Layout::contiguous(Shape::from(vec![2, 3]));
+
+        let a_data = vec![1.0f32, 2.0];
+        let b_data = vec![10.0f32, 20.0, 30.0];
+        let c_data = vec![100.0f32, 200.0, 300.0, 400.0, 500.0, 600.0];
+
+        let got: Vec<f32> = zip3_map(
+            &a_data,
+            &a_layout,
+            &b_data,
+            &b_layout,
+            &c_data,
+            &c_layout,
+            |a, b, c| a + b + c,
+        )
+        .unwrap();
+
+        let expected = vec![
+            1.0 + 10.0 + 100.0,
+            1.0 + 20.0 + 200.0,
+            1.0 + 30.0 + 300.0,
+            2.0 + 10.0 + 400.0,
+            2.0 + 20.0 + 500.0,
+            2.0 + 30.0 + 600.0,
+        ];
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn test_zip3_apply_inplace_broadcasting() {
+        // Inplace destination [2, 3] mutated with broadcast sources [2, 1] and [1, 3]
+        let mut dst_data = vec![100.0f32, 200.0, 300.0, 400.0, 500.0, 600.0];
+        let dst_layout = Layout::contiguous(Shape::from(vec![2, 3]));
+        let s1_layout = broadcast_layout(&[2, 1], &[2, 3]);
+        let s2_layout = broadcast_layout(&[1, 3], &[2, 3]);
+
+        let s1_data = vec![1.0f32, 2.0];
+        let s2_data = vec![10.0f32, 20.0, 30.0];
+
+        let nest = collapse_for_zip3(&dst_layout, &s1_layout, &s2_layout).unwrap();
+        assert!(nest.a_is_dense());
+
+        zip3_apply_inplace(&nest, &mut dst_data, &s1_data, &s2_data, |d, s1, s2| {
+            d + s1 + s2
+        });
+
+        let expected = vec![
+            100.0 + 1.0 + 10.0,
+            200.0 + 1.0 + 20.0,
+            300.0 + 1.0 + 30.0,
+            400.0 + 2.0 + 10.0,
+            500.0 + 2.0 + 20.0,
+            600.0 + 2.0 + 30.0,
+        ];
+        assert_eq!(dst_data, expected);
     }
 }
