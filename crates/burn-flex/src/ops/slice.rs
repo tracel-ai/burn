@@ -233,7 +233,19 @@ fn slice_write_impl<E: Element + bytemuck::Pod>(
     slices: &[Slice],
     source: WriteSource<'_, E>,
 ) -> FlexTensor {
-    let mut tensor = tensor.into_contiguous();
+    // A uniquely-owned contiguous prefix view needs no copy: every write
+    // below is computed from `dst_layout`, whose canonical strides and zero
+    // start offset keep it inside the logical prefix even when the buffer is
+    // longer. `into_contiguous` additionally demands a right-sized buffer
+    // (#4855) for callers that read `storage()` by length; this one doesn't.
+    let mut tensor = if tensor.is_unique()
+        && tensor.layout().is_contiguous()
+        && tensor.layout().start_offset() == 0
+    {
+        tensor
+    } else {
+        tensor.into_contiguous()
+    };
     let dst_layout = tensor.layout().clone();
     let ndims = dst_layout.num_dims();
 
@@ -730,5 +742,112 @@ mod tests {
         );
         assert_eq!(result.storage::<f32>()[..2], [1.0, 2.0]);
         assert_eq!(alias.storage::<f32>(), [0.0f32; 8]);
+    }
+
+    /// A uniquely-owned *prefix view* (`narrow` with the parent dropped) is
+    /// contiguous with offset 0, so every write `slice_write_impl` computes
+    /// from `dst_layout` lands inside the logical prefix. Writing it in place
+    /// is safe even though the buffer is longer than the tensor.
+    #[test]
+    fn test_slice_assign_unique_prefix_view_writes_in_place() {
+        let store = FlexTensor::from_data(TensorData::new(
+            (0..40).map(|i| i as f32).collect::<Vec<_>>(),
+            [8, 5],
+        ));
+        let view = store.narrow(0, 0, 5);
+        drop(store);
+        assert!(view.is_unique());
+        assert_eq!(view.storage::<f32>().len(), 40, "buffer outlives the view");
+        let buffer_before = view.bytes().as_ptr() as usize;
+
+        let value = FlexTensor::from_data(TensorData::new(vec![9.0f32; 5], [1, 5]));
+        let result = slice_assign(view, &[Slice::new(0, Some(1), 1)], value);
+
+        assert_eq!(
+            result.bytes().as_ptr() as usize,
+            buffer_before,
+            "slice_assign copied a uniquely-owned prefix view instead of writing in place"
+        );
+        let storage = result.storage::<f32>();
+        assert_eq!(storage[..5], [9.0; 5]);
+        // Everything after the assigned row is untouched, both inside the
+        // logical prefix and past its end.
+        assert_eq!(
+            storage[5..],
+            (5..40).map(|i| i as f32).collect::<Vec<_>>()[..]
+        );
+    }
+
+    /// A *shared* prefix view must still be compacted rather than written
+    /// through. Skipping the copy here would hand the whole-buffer copy to
+    /// `Arc::make_mut`, which duplicates the parent's full buffer instead of
+    /// just the view, and leaves the result oversized for every later write.
+    #[test]
+    fn test_slice_assign_shared_prefix_view_compacts() {
+        let store = FlexTensor::from_data(TensorData::new(
+            (0..40).map(|i| i as f32).collect::<Vec<_>>(),
+            [8, 5],
+        ));
+        let view = store.narrow(0, 0, 5);
+        assert!(!view.is_unique());
+
+        let value = FlexTensor::from_data(TensorData::new(vec![9.0f32; 5], [1, 5]));
+        let result = slice_assign(view, &[Slice::new(0, Some(1), 1)], value);
+
+        assert_eq!(
+            result.storage::<f32>().len(),
+            25,
+            "shared prefix view should be compacted to its logical size, not copied whole"
+        );
+        assert_eq!(result.storage::<f32>()[..5], [9.0; 5]);
+        assert_eq!(
+            store.storage::<f32>()[0],
+            0.0,
+            "COW did not protect the parent"
+        );
+    }
+
+    /// The other two conjuncts of that fast path are load-bearing, and no
+    /// existing test pins them: the 1-D and 2-D branches below compute
+    /// destination indices from canonical strides with no `start_offset`
+    /// term, so a unique destination that is merely offset, or merely
+    /// non-canonical, still has to go through `into_contiguous` first.
+    #[test]
+    fn test_slice_assign_unique_non_prefix_destinations_are_normalized() {
+        let base = || {
+            FlexTensor::from_data(TensorData::new(
+                (0..40).map(|i| i as f32).collect::<Vec<_>>(),
+                [8, 5],
+            ))
+        };
+
+        // Canonical strides, but start_offset 5.
+        let store = base();
+        let offset_view = store.narrow(0, 1, 5);
+        drop(store);
+        assert!(offset_view.is_unique() && offset_view.is_contiguous());
+        assert_eq!(offset_view.layout().start_offset(), 5);
+
+        let value = FlexTensor::from_data(TensorData::new(vec![9.0f32; 5], [1, 5]));
+        let result = slice_assign(offset_view, &[Slice::new(0, Some(1), 1)], value);
+        assert_eq!(
+            result.storage::<f32>()[..10],
+            [9.0, 9.0, 9.0, 9.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0]
+        );
+
+        // start_offset 0, but non-canonical strides.
+        let transposed = base().transpose(0, 1);
+        assert!(transposed.is_unique() && !transposed.is_contiguous());
+        assert_eq!(transposed.layout().start_offset(), 0);
+
+        let value = FlexTensor::from_data(TensorData::new(vec![9.0f32; 8], [1, 8]));
+        let result = slice_assign(transposed, &[Slice::new(0, Some(1), 1)], value);
+        assert_eq!(
+            result.storage::<f32>()[..16],
+            [
+                9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 1.0, 6.0, 11.0, 16.0, 21.0, 26.0, 31.0,
+                36.0
+            ]
+        );
     }
 }
