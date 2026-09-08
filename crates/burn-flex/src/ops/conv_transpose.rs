@@ -370,7 +370,9 @@ fn conv_transpose3d_impl<
     };
 
     #[cfg(feature = "rayon")]
-    if total_groups > 1 {
+    if total_groups > 1
+        && (total_groups * out_channels_per_group * out_spatial) >= super::PARALLEL_THRESHOLD
+    {
         use rayon::prelude::*;
         output
             .par_chunks_mut(group_chunk_len)

@@ -337,6 +337,10 @@ impl FlexTensor {
         let offset = self.layout.start_offset() as isize;
         let all_positive = strides.iter().all(|&s| s >= 0);
 
+        if n == 0 {
+            return Self::empty(self.layout.shape().clone(), self.dtype);
+        }
+
         if shape.len() <= 1 {
             // 0-D scalar or 1-D run with a uniform stride (positive or negative).
             let collapsed_numel = if shape.is_empty() { 1 } else { shape[0] };
@@ -809,12 +813,24 @@ fn copy_2d_tiled<E: Copy + Send + Sync>(
                 let actual_tile_rows = dst_chunk.len() / cols;
                 for col_tile in (0..cols).step_by(TILE) {
                     let col_end = (col_tile + TILE).min(cols);
-                    for col in col_tile..col_end {
-                        let col_base = offset + col as isize * col_stride;
+                    if row_stride >= col_stride {
                         for r in 0..actual_tile_rows {
                             let row = row_start + r;
-                            let idx = (col_base + row as isize * row_stride) as usize;
-                            dst_chunk[r * cols + col] = src[idx];
+                            let row_base = offset + row as isize * row_stride;
+                            let dst_offset = r * cols;
+                            for col in col_tile..col_end {
+                                let idx = (row_base + col as isize * col_stride) as usize;
+                                dst_chunk[dst_offset + col] = src[idx];
+                            }
+                        }
+                    } else {
+                        for col in col_tile..col_end {
+                            let col_base = offset + col as isize * col_stride;
+                            for r in 0..actual_tile_rows {
+                                let row = row_start + r;
+                                let idx = (col_base + row as isize * row_stride) as usize;
+                                dst_chunk[r * cols + col] = src[idx];
+                            }
                         }
                     }
                 }
@@ -822,8 +838,29 @@ fn copy_2d_tiled<E: Copy + Send + Sync>(
         return;
     }
 
-    if row_stride <= col_stride {
-        // row-inside-col: the inner loop walks `row_stride` (smaller).
+    if row_stride >= col_stride {
+        // col-inside-row: iterate `r` outside and `col` inside for contiguous reads and writes.
+        for row_tile in (0..rows).step_by(TILE) {
+            let row_end = (row_tile + TILE).min(rows);
+            for col_tile in (0..cols).step_by(TILE) {
+                let col_end = (col_tile + TILE).min(cols);
+                for row in row_tile..row_end {
+                    let row_base =
+                        offset + row as isize * row_stride + col_tile as isize * col_stride;
+                    let dst_base = row * cols + col_tile;
+                    for c in 0..(col_end - col_tile) {
+                        let idx = (row_base + c as isize * col_stride) as usize;
+                        // SAFETY: caller set `dst.len() == rows * cols`
+                        // and each `(row, col)` is visited once.
+                        unsafe {
+                            *dst.get_unchecked_mut(dst_base + c) = src[idx];
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // row-inside-col: iterate `col` outside and `r` inside.
         for col_tile in (0..cols).step_by(TILE) {
             let col_end = (col_tile + TILE).min(cols);
             for row_tile in (0..rows).step_by(TILE) {
@@ -836,26 +873,6 @@ fn copy_2d_tiled<E: Copy + Send + Sync>(
                         // and each `(row, col)` is visited once.
                         unsafe {
                             *dst.get_unchecked_mut(row * cols + col) = src[idx];
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        // col-inside-row: the inner loop walks `col_stride` (smaller).
-        for row_tile in (0..rows).step_by(TILE) {
-            let row_end = (row_tile + TILE).min(rows);
-            for col_tile in (0..cols).step_by(TILE) {
-                let col_end = (col_tile + TILE).min(cols);
-                for row in row_tile..row_end {
-                    let row_base =
-                        offset + row as isize * row_stride + col_tile as isize * col_stride;
-                    let dst_base = row * cols + col_tile;
-                    for c in 0..(col_end - col_tile) {
-                        let idx = (row_base + c as isize * col_stride) as usize;
-                        // SAFETY: same as above.
-                        unsafe {
-                            *dst.get_unchecked_mut(dst_base + c) = src[idx];
                         }
                     }
                 }
@@ -960,6 +977,19 @@ mod tests {
         let contig = empty_view.to_contiguous();
         assert_eq!(contig.shape().to_vec(), vec![0]);
         assert_eq!(contig.layout().start_offset(), 0);
+        assert_eq!(contig.into_data().bytes.len(), 0);
+    }
+
+    #[test]
+    fn test_to_contiguous_zero_sized_negative_stride() {
+        let t = FlexTensor::from_data(TensorData::new(
+            (0..6).map(|i| i as f32).collect::<Vec<_>>(),
+            vec![6],
+        ));
+        let empty_neg = crate::ops::slice::slice(t, &[burn_std::Slice::new(3, Some(3), -1)]);
+        assert_eq!(empty_neg.shape().to_vec(), vec![0]);
+        let contig = empty_neg.to_contiguous();
+        assert_eq!(contig.shape().to_vec(), vec![0]);
         assert_eq!(contig.into_data().bytes.len(), 0);
     }
 
@@ -1093,6 +1123,31 @@ mod tests {
             6.0, 7.0, 8.0, // row 2
             12.0, 13.0, 14.0, // row 4
         ];
+        assert_eq!(values, expected.as_slice());
+    }
+
+    /// Exercise the `row_stride < col_stride` branch of the 2D tiled
+    /// copy (e.g. transposed 2D layout).
+    #[test]
+    fn test_to_contiguous_2d_row_stride_lt_col_stride() {
+        let data: Vec<f32> = (0..18).map(|i| i as f32).collect();
+        let t = FlexTensor::from_data(TensorData::new(data, vec![3, 6]));
+        let transposed = t.transpose(0, 1);
+        assert_eq!(transposed.layout().strides(), &[1, 6]);
+        assert!(!transposed.layout().is_contiguous());
+
+        let contig = transposed.to_contiguous();
+        assert!(contig.is_contiguous());
+        assert_eq!(contig.shape().to_vec(), vec![6, 3]);
+
+        let result_data = contig.into_data();
+        let values = result_data.as_slice::<f32>().unwrap();
+        let mut expected = Vec::with_capacity(18);
+        for c in 0..6 {
+            for r in 0..3 {
+                expected.push((r * 6 + c) as f32);
+            }
+        }
         assert_eq!(values, expected.as_slice());
     }
 
