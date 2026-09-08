@@ -19,12 +19,15 @@ burn-flex is tested for edge-case robustness to ensure safe behavior on embedded
 production. This includes:
 
 - **Integer overflow safety**: `wrapping_abs`, `wrapping_neg`, `wrapping_shl/shr` for signed
-  integers at type boundaries (e.g. `i64::MIN`), matching PyTorch two's complement semantics
+  integers at type boundaries (e.g. `i64::MIN`), matching PyTorch two's complement semantics.
+  Integer ops widen to `i64`, apply the operation, then truncate back, so shifts mask the shift
+  amount to 64 rather than to the operand's own width
 - **Rounding correctness**: Uses `num_traits::Float::round` with a ties-to-even correction,
   correct for the full float range (values beyond integer precision have no fractional bits)
 - **Input validation**: Hard assertions for invalid pooling parameters (zero kernel/stride) and
   zero-sized reduce dimensions, preventing undefined behavior on malformed inputs
-- **Negative index detection**: Debug assertions on gather/scatter index conversions
+- **Negative index detection**: `checked_index` validates gather/scatter indices in release builds
+  too, panicking with the offending index and dimension size
 - **Index dtype correctness**: Index-producing ops (argmax, argmin, argsort, argwhere,
   sort_with_indices) must respect `out_dtype`/`indices_dtype` parameters. Internally use
   `isize` + `INDEX_DTYPE` for platform portability, then cast to the requested dtype via

@@ -24,7 +24,8 @@ is thread-safe by design.
   O(TILE_KV) memory per row. Both support causal masking, additive bias (ALiBi), softcap, custom
   scale, and cross-attention.
 - **Pooling**: Max pool, avg pool, adaptive avg pool. All via unified 3D with backward pass support.
-- **Conv Transpose**: Scatter-based transposed convolutions for upsampling.
+- **Conv Transpose**: Unified 3D implementation with gemm + col2im. Conv transpose 1d/2d delegate to
+  conv_transpose3d. Supports groups, dilation, padding, and output padding.
 - **Portable SIMD**: Uses [macerator](https://crates.io/crates/macerator) for automatic dispatch:
   - aarch64: NEON
   - x86_64: AVX2, AVX512, SSE
@@ -38,8 +39,10 @@ is thread-safe by design.
 - **Parallel Execution**: Optional rayon for large tensors
 - **Quantization**: Full quantize/dequantize support with per-tensor and per-block symmetric
   schemes. All ~40 quantized ops (arithmetic, trig, reductions, sorting, etc.) work out of the box.
-  Layout ops on quantized tensors (permute, flip, expand, slice, select) are zero-copy. Stores
-  scales separately for direct `scale * x_q` dequantization instead of reparsing packed bytes.
+  Layout ops on per-tensor quantized tensors (permute, flip, expand, slice) are zero-copy, and
+  `select` copies the `i8` payload directly; block-quantized tensors dequantize, move, and
+  requantize so the blocks follow the move. Stores scales separately for direct `scale * x_q`
+  dequantization instead of reparsing packed bytes.
 - **Dtype Support**: f32, f64, f16 (native), bf16 (via f32 conversion), i8-i64, u8-u64
 - **Built on Burn**: Leverages Burn's native infrastructure (`Bytes`, `Shape`, `TensorData`,
   `Element` trait) from burn-backend and burn-std
@@ -94,10 +97,10 @@ and fused kernels.
 | Binary ops (i32)  | **1.8-5.3x** | Flex uses i32, NdArray uses i64         |
 | Matmul (square)   | **1.4-3.1x** | gemm at small/large; tied at mid-sizes  |
 | Matmul (batched)  | **1.3-2.2x** | Multi-head attention shapes             |
-| Matmul (int)      | **3.7-6.5x** | gemm vs matrixmultiply for integers     |
+| Matmul (int)      | **3.7-6.5x** | Nested loop with SIMD i32 dot product   |
 | Conv2d (3x3)      | **1.1-3.7x** | Larger kernels and batches benefit most |
 | Conv1d            | **4.3-9.8x** |                                         |
-| Conv transpose    | **9.2-84x**  | Direct scatter vs im2col                |
+| Conv transpose    | **9.2-84x**  | gemm + col2im vs direct scatter         |
 | Attention         | **1.2-3.0x** | Fused softmax, 2-8x lower peak memory   |
 | Pooling           | **1.1-3.1x** |                                         |
 | Interpolation     | **1.1-6.3x** | Nearest 4-6x, bilinear 1.7-2.8x         |
