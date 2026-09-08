@@ -233,7 +233,7 @@ fn slice_write_impl<E: Element + bytemuck::Pod>(
     slices: &[Slice],
     source: WriteSource<'_, E>,
 ) -> FlexTensor {
-    let mut tensor = tensor.to_contiguous();
+    let mut tensor = tensor.into_contiguous();
     let dst_layout = tensor.layout().clone();
     let ndims = dst_layout.num_dims();
 
@@ -686,5 +686,49 @@ mod tests {
             }
         }
         assert_eq!(values, expected);
+    }
+
+    /// Regression for #5575: `slice_assign` into a uniquely-owned
+    /// destination must write in place rather than copy the whole tensor.
+    #[test]
+    fn test_slice_assign_unique_destination_writes_in_place() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![0.0f32; 8], [8]));
+        assert!(tensor.is_unique());
+        // Addresses, not pointers: on the unfixed code the original buffer is
+        // freed by the time we compare.
+        let buffer_before = tensor.bytes().as_ptr() as usize;
+
+        let value = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0], [2]));
+        let result = slice_assign(tensor, &[Slice::new(0, Some(2), 1)], value);
+
+        assert_eq!(
+            result.bytes().as_ptr() as usize,
+            buffer_before,
+            "slice_assign copied a uniquely-owned destination instead of writing in place"
+        );
+        assert_eq!(
+            result.storage::<f32>(),
+            [1.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        );
+    }
+
+    /// The other half of the #5575 contract: a destination that is still
+    /// shared must take the copy-on-write copy and leave the other holder
+    /// untouched.
+    #[test]
+    fn test_slice_assign_shared_destination_copies() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![0.0f32; 8], [8]));
+        let alias = tensor.clone();
+
+        let value = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0], [2]));
+        let result = slice_assign(tensor, &[Slice::new(0, Some(2), 1)], value);
+
+        assert_ne!(
+            result.bytes().as_ptr() as usize,
+            alias.bytes().as_ptr() as usize,
+            "slice_assign wrote through a shared destination"
+        );
+        assert_eq!(result.storage::<f32>()[..2], [1.0, 2.0]);
+        assert_eq!(alias.storage::<f32>(), [0.0f32; 8]);
     }
 }
