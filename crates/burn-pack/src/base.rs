@@ -311,6 +311,40 @@ pub(crate) struct TensorDescriptor {
     pub param_id: Option<u64>,
 }
 
+/// Validate that a tensor's byte range agrees with its declared shape and dtype.
+///
+/// Quantized tensors are exempt because their packed values and inline scales don't follow the
+/// ordinary `num_elements * dtype_size` layout.
+pub(crate) fn validate_tensor_byte_len(
+    name: &str,
+    dtype: DType,
+    shape: &[u64],
+    data_len: u64,
+) -> Result<(), Error> {
+    if matches!(dtype, DType::QFloat(_)) {
+        return Ok(());
+    }
+
+    let num_elements = shape
+        .iter()
+        .try_fold(1u64, |total, &dimension| total.checked_mul(dimension));
+    let expected = num_elements
+        .and_then(|num_elements| num_elements.checked_mul(dtype.size() as u64))
+        .ok_or_else(|| {
+            Error::ValidationError(format!(
+                "tensor '{name}' byte length calculation overflows u64 for shape {shape:?} and dtype {dtype:?}"
+            ))
+        })?;
+
+    if data_len != expected {
+        return Err(Error::ValidationError(format!(
+            "tensor '{name}' declares {data_len} bytes but its shape {shape:?} and dtype {dtype:?} need {expected}"
+        )));
+    }
+
+    Ok(())
+}
+
 /// Error types for Burnpack operations
 #[derive(Debug)]
 pub enum Error {
