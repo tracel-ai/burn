@@ -1,3 +1,4 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::{Activation, ActivationConfig};
@@ -5,7 +6,7 @@ use crate::{GateController, LstmState, OptionalInitialLstmState};
 use alloc::boxed::Box;
 use burn::Tensor;
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::prelude::Device;
 use burn::prelude::s;
 
@@ -277,9 +278,9 @@ impl Lstm {
 
 #[cfg(test)]
 mod test {
-    use crate::{GateController, Linear, LstmConfig};
+    use crate::{GateController, Initializer, Linear, LstmConfig};
     use burn_core::Tensor;
-    use burn_core::module::{Initializer, Param};
+    use burn_core::module::Param;
     use burn_core::prelude::Device;
     use burn_core::tensor::{Distribution, ElementConversion, Shape, TensorData, Tolerance};
     pub type FT = f32;

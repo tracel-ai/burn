@@ -292,15 +292,15 @@ impl ModuleOps<Self> for CubeBackend {
         kernel::pool::adaptive_avg_pool2d_backward(x, grad)
     }
 
-    fn adaptive_avg_pool3d(_x: FloatTensor<Self>, _output_size: [usize; 3]) -> FloatTensor<Self> {
-        todo!("CubeCL backend does not yet support adaptive_avg_pool3d.")
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        kernel::pool::adaptive_avg_pool3d(x, output_size)
     }
 
     fn adaptive_avg_pool3d_backward(
-        _x: FloatTensor<Self>,
-        _grad: FloatTensor<Self>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        todo!("CubeCL backend does not yet support adaptive_avg_pool3d_backward.")
+        kernel::pool::adaptive_avg_pool3d_backward(x, grad)
     }
 
     fn interpolate(

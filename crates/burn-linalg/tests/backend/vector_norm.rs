@@ -1,8 +1,8 @@
 use super::*;
-use burn_tensor::Shape;
-use burn_tensor::TensorData;
-use burn_tensor::Tolerance;
-use burn_tensor::linalg;
+use burn_core::tensor::Shape;
+use burn_core::tensor::TensorData;
+use burn_core::tensor::Tolerance;
+use burn_linalg as linalg;
 
 #[test]
 fn test_max_min_abs() {

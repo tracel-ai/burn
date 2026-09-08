@@ -1,14 +1,12 @@
 #![allow(clippy::manual_range_contains)]
 
-use crate::tensor::Shape;
-
-use crate::config::Config;
-use crate::module::{Param, ParamId};
-use crate::tensor::{Distribution, Tensor};
-
-use crate as burn;
-
-use burn_tensor::{Device, linalg};
+use burn_core as burn;
+use burn_core::{
+    config::Config,
+    module::{Param, ParamId},
+    tensor::{Device, Distribution, Shape, Tensor},
+};
+use burn_linalg as linalg;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
@@ -252,10 +250,10 @@ mod tests {
 
     use super::*;
 
-    use burn_tensor::{ElementConversion, TensorData};
+    use burn_core::tensor::{ElementConversion, TensorData};
     use num_traits::Pow;
 
-    use burn_tensor::Tolerance;
+    use burn_core::tensor::Tolerance;
     type FT = f32;
 
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<2>) {
@@ -278,6 +276,36 @@ mod tests {
                 "Expected mean to be between {expected_mean} += 0.1, but got {actual_mean}"
             );
         }
+    }
+
+    #[test]
+    fn initializer_init_is_lazy() {
+        let param: Param<Tensor<2>> = Initializer::Zeros.init([2, 2], &test_device());
+
+        assert!(!param.is_initialized());
+
+        let _ = param.val();
+
+        assert!(param.is_initialized());
+    }
+
+    #[test]
+    fn initializer_clone_shares_lazy_state() {
+        let param: Param<Tensor<2>> = Initializer::Normal {
+            mean: 0.0,
+            std: 1.0,
+        }
+        .init([2, 2], &test_device());
+        let cloned = param.clone();
+
+        assert!(!param.is_initialized());
+        assert!(!cloned.is_initialized());
+
+        let cloned_data = cloned.to_data();
+
+        assert!(param.is_initialized());
+        assert!(cloned.is_initialized());
+        assert_eq!(cloned_data, param.to_data());
     }
 
     #[test]

@@ -29,13 +29,42 @@ pub type DimOrder = Shape;
 /// not dense.
 ///
 /// Dense means the strides are exactly a permutation of contiguous strides: no
-/// gaps, no overlap, no broadcasting. A tensor that is not dense cannot be
-/// described by a dimension order, and a block cannot adopt its layout.
+/// gaps, no overlap, no broadcasting. Use [nested_dim_order] when only an
+/// iteration order is needed and gaps in storage are acceptable.
 ///
 /// Dimensions of size one are ignored while checking density — their stride is
 /// arbitrary and carries no traffic — but they keep a position in the returned
 /// order so it stays a permutation of `0..rank`.
 pub fn dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
+    dim_order_inner(shape, strides, Padding::Rejected)
+}
+
+/// The dimension order of a tensor whose dimensions nest without overlapping,
+/// or `None` if they do not.
+///
+/// Weaker than [dim_order], which additionally requires consecutive elements
+/// without gaps. A dimension may sit at a larger stride than the extents inside it
+/// need, which is what a pitched or tile-aligned allocation produces: 48
+/// channels held innermost on a 64-element tile have stride 64 where a dense
+/// tensor would have 48.
+///
+/// Iterating in this order can improve locality, but reads must still use the
+/// tensor's actual strides. Gaps can affect memory transactions and vectorization;
+/// accepting an order does not guarantee dense-access performance. This also
+/// accepts sliced views whose dimensions satisfy the same nesting condition.
+/// Anything reinterpreting a buffer as a flat run of elements must keep asking
+/// [dim_order].
+pub fn nested_dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
+    dim_order_inner(shape, strides, Padding::Allowed)
+}
+
+#[derive(Clone, Copy)]
+enum Padding {
+    Allowed,
+    Rejected,
+}
+
+fn dim_order_inner(shape: &[usize], strides: &[usize], padding: Padding) -> Option<DimOrder> {
     let rank = shape.len();
 
     if rank != strides.len() {
@@ -54,10 +83,16 @@ pub fn dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
         if shape[axis] == 1 {
             continue;
         }
-        if strides[axis] != expected {
-            return None;
+        match padding {
+            // A gap is what makes the tensor padded rather than dense; an
+            // overlap is not a layout at all.
+            Padding::Allowed if strides[axis] < expected => return None,
+            Padding::Rejected if strides[axis] != expected => return None,
+            _ => {}
         }
-        expected *= shape[axis];
+        // Where the stride is exactly `expected` this is `expected *= shape[axis]`,
+        // so the dense walk is the padded one with the gaps taken out.
+        expected = strides[axis] * shape[axis];
     }
 
     Some(Shape::from(order))
@@ -263,5 +298,72 @@ mod tests {
     fn order_is_a_permutation() {
         assert!(is_contiguous_order(&[0, 1, 2, 3]));
         assert!(!is_contiguous_order(&[0, 2, 3, 1]));
+    }
+
+    #[test]
+    fn a_dense_tensor_nests_in_the_order_it_is_dense_in() {
+        let shape = [2, 48, 16, 16];
+
+        for strides in [
+            [48 * 16 * 16, 16 * 16, 16, 1],
+            [16 * 16 * 48, 1, 16 * 48, 48],
+        ] {
+            let dense = dim_order(&shape, &strides);
+            assert!(dense.is_some());
+            assert_eq!(nested_dim_order(&shape, &strides), dense);
+        }
+    }
+
+    #[test]
+    fn padding_under_the_innermost_dimension_keeps_the_nhwc_order() {
+        let shape = [2, 48, 16, 16];
+        let strides = [16 * 16 * 64, 1, 16 * 64, 64];
+
+        assert_eq!(dim_order(&shape, &strides), None);
+        assert_eq!(
+            nested_dim_order(&shape, &strides),
+            Some(Shape::from(vec![0, 2, 3, 1]))
+        );
+    }
+
+    #[test]
+    fn padding_above_the_innermost_dimension_is_nesting_too() {
+        let shape = [4, 8];
+        let strides = [16, 1];
+
+        assert_eq!(dim_order(&shape, &strides), None);
+        assert_eq!(
+            nested_dim_order(&shape, &strides),
+            Some(Shape::from(vec![0, 1]))
+        );
+    }
+
+    #[test]
+    fn overlapping_dimensions_are_not_an_order_under_either() {
+        let shape = [4, 8];
+        let strides = [4, 1];
+
+        assert_eq!(dim_order(&shape, &strides), None);
+        assert_eq!(nested_dim_order(&shape, &strides), None);
+    }
+
+    #[test]
+    fn a_broadcast_dimension_still_cannot_vote() {
+        let shape = [2, 48, 16, 16];
+        let strides = [0, 1, 0, 0];
+
+        assert_eq!(nested_dim_order(&shape, &strides), None);
+    }
+
+    #[test]
+    fn size_one_dimensions_neither_pad_nor_constrain_nesting() {
+        let shape = [1, 48, 1, 1];
+        let strides = [48, 1, 48, 48];
+
+        assert_eq!(
+            nested_dim_order(&shape, &strides),
+            dim_order(&shape, &strides)
+        );
+        assert!(nested_dim_order(&shape, &strides).is_some());
     }
 }

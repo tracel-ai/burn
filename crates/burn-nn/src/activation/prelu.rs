@@ -1,5 +1,6 @@
+use crate::Initializer;
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay, Param};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, Param};
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn_core as burn;

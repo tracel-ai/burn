@@ -19,11 +19,15 @@ pub use activation::{
     tanh::*, thresholded_relu::*,
 };
 
+mod initializer;
 mod padding;
 
+pub use initializer::*;
 pub use padding::*;
 
-// For backward compat, `burn::nn::Initializer`
-pub use burn_core::module::Initializer;
-
 extern crate alloc;
+
+#[cfg(test)]
+fn test_device() -> burn_core::tensor::Device {
+    burn_core::tensor::Device::flex()
+}

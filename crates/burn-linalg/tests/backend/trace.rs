@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::linalg::trace;
+use burn_linalg::trace;
 
 #[test]
 fn test_trace_2d_square() {

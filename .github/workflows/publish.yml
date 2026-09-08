@@ -28,11 +28,23 @@ jobs:
       - publish-burn-fusion
       - publish-burn-cubecl
       - publish-burn-core
-      - publish-burn-ir
       - publish-burn-store
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
     with:
       crate: burn-vision
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn-linalg:
+    needs:
+      - publish-burn-core
+      - publish-burn-cubecl
+      - publish-burn-fusion
+      - publish-burn-router
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
+    with:
+      crate: burn-linalg
       dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
@@ -319,6 +331,7 @@ jobs:
   publish-burn-nn:
     needs:
       - publish-burn-core
+      - publish-burn-linalg
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
     with:
       crate: burn-nn
@@ -385,6 +398,7 @@ jobs:
       - publish-burn-dispatch
       - publish-burn-flex
       - publish-burn-vision
+      - publish-burn-linalg
       - publish-burn-store
       - publish-burn-rl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11

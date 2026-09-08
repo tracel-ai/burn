@@ -1,5 +1,6 @@
 use super::*;
-use burn_tensor::{Distribution, Tolerance, linalg::det, s};
+use burn_core::tensor::{Distribution, Tolerance, s};
+use burn_linalg::det;
 
 // ---------------------------------------------------------------------
 // Small Matrices (single batch)
