@@ -187,6 +187,7 @@ impl CubeTensor {
             handle: self.handle.binding(),
             strides: self.meta.strides,
             shape: self.meta.shape,
+            tiling: self.meta.tiling,
         }
     }
 

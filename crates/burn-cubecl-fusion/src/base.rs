@@ -9,6 +9,7 @@ use cubecl::{
     client::Client,
     ir::AddressType,
     prelude::{TensorArg, TensorBinding},
+    zspace::Tiling,
 };
 
 /// Defines a fallback operation when fusion isn't possible.
@@ -70,6 +71,7 @@ impl CubeFusionHandle {
             handle: self.handle.binding(),
             strides: self.strides.clone(),
             shape,
+            tiling: Tiling::UNTILED,
         }
     }
 
