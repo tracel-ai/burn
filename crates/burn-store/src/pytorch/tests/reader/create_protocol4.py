@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Create ZIP checkpoints that exercise container details torch.save leaves to the caller.
+Create ZIP checkpoints without torch installed: a protocol 4 pickle and a big-endian marker.
 
-torch is not required: a stub `torch` module provides the two names the pickle refers to
-(`torch.FloatStorage` and `torch._utils._rebuild_tensor_v2`), and the archive is written the
-way `torch.save` writes it (every entry under a directory named after the file).
+A stub `torch` module provides the two names the pickle refers to (`torch.FloatStorage` and
+`torch._utils._rebuild_tensor_v2`), and the archive uses the same layout as `torch.save`
+(every entry under a directory named after the file), without the alignment padding and
+the `.format_version` and `.storage_alignment` entries recent versions add.
 
   protocol4.pt   pickled with protocol 4 (FRAME, SHORT_BINUNICODE, MEMOIZE, STACK_GLOBAL)
   big_endian.pt  a `byteorder` entry of "big", which the reader must refuse

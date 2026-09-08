@@ -73,17 +73,19 @@ def row_major_stride(shape):
     return stride
 
 
-def create_tar_pytorch_file(filename, tensors, dtypes):
+def create_tar_pytorch_file(filename, tensors, dtypes, views=()):
     """
     Args:
         filename: Output path
         tensors: name -> (values, shape)
         dtypes: name -> storage class name
+        views: (name, root name, element offset, element count, shape) tuples; each adds a
+            tensor over a storage view of the root tensor's storage
     """
     storages = io.BytesIO()
     tensor_table = io.BytesIO()
     pickle.dump(len(tensors), storages, protocol=2)
-    pickle.dump(len(tensors), tensor_table, protocol=2)
+    pickle.dump(len(tensors) + len(views), tensor_table, protocol=2)
 
     state_dict = OrderedDict()
     for index, (name, (values, shape)) in enumerate(tensors.items()):
@@ -105,7 +107,23 @@ def create_tar_pytorch_file(filename, tensors, dtypes):
 
         state_dict[name] = _PersistentTensor(tensor_key)
 
-    pickle.dump([], storages, protocol=2)  # no storage views
+    names = list(tensors)
+    view_entries = []
+    for index, (name, root_name, offset, numel, shape) in enumerate(views):
+        root_index = names.index(root_name)
+        view_key = 3000 + index
+        tensor_key = 4000 + index
+        _, tensor_type = STORAGE_FORMATS[dtypes[root_name]]
+        view_entries.append((view_key, 1000 + root_index, offset, numel))
+        tensor_table.write(pickle_tuple_with_torch_class([tensor_key, view_key], tensor_type))
+        tensor_table.write(struct.pack("<i", len(shape)))
+        tensor_table.write(b"\x00" * 4)
+        tensor_table.write(struct.pack(f"<{len(shape)}q", *shape))
+        tensor_table.write(struct.pack(f"<{len(shape)}q", *row_major_stride(shape)))
+        tensor_table.write(struct.pack("<q", 0))
+        state_dict[name] = _PersistentTensor(tensor_key)
+
+    pickle.dump(view_entries, storages, protocol=2)
 
     class Pickler(pickle.Pickler):
         def persistent_id(self, obj):
@@ -183,6 +201,12 @@ def main():
             "double_tensor": "DoubleStorage",
             "int_tensor": "LongStorage",
         },
+    )
+    create_tar_pytorch_file(
+        "test_data/tar_storage_view.tar",
+        {"root": ([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0], [8])},
+        {"root": "FloatStorage"},
+        views=[("window", "root", 2, 4, [2, 2])],
     )
     create_tar_pytorch_file(
         "test_data/tar_2d_tensor.tar",

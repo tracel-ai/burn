@@ -1,8 +1,9 @@
 //! Where tensor bytes come from once a pickle has been parsed.
 //!
 //! Every PyTorch container keeps tensor metadata (a pickle) apart from the storages holding
-//! the raw little-endian bytes. A [`StorageSource`] maps a storage key from that pickle to
-//! its bytes on demand, so parsing a file costs nothing per tensor until its data is read.
+//! the raw bytes (little-endian in every file this reader accepts). A [`StorageSource`] maps
+//! a storage key from that pickle to its bytes on demand: the ZIP and legacy sources read
+//! the file at that point, the TAR source slices an entry already in memory.
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
@@ -68,8 +69,8 @@ fn lock_ignoring_poison<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 ///
 /// A length read from an untrusted file could be anything, so at most `capacity_bound`
 /// bytes are reserved ahead of the read (the caller's idea of the largest plausible size,
-/// such as the file length); beyond that the buffer grows with the bytes that actually
-/// arrive, and a short read is an error rather than a huge allocation.
+/// such as the file length); beyond that the buffer grows only with bytes that actually
+/// arrive, and a short read is an error.
 pub(crate) fn read_exact_len<R: Read>(
     reader: &mut R,
     len: u64,
@@ -90,14 +91,15 @@ pub(crate) fn read_exact_len<R: Read>(
 /// The modern ZIP container (PyTorch 1.6+).
 ///
 /// `torch.save` writes every entry under a root directory named after the file
-/// (`model/data.pkl`, `model/data/0`, `model/version`, ...). Older files use `archive/`,
-/// and some tools write the entries at the root. The directory holding `data.pkl` is the
-/// root for every other entry.
+/// (`model/data.pkl`, `model/data/0`, `model/version`, ...). Files saved through a file
+/// object or an in-memory buffer use `archive/`, and some tools write the entries at the
+/// root. The directory holding `data.pkl` is the root for every other entry.
 pub(crate) struct ZipSource {
     archive: Mutex<ZipArchive<BufReader<File>>>,
     /// Root directory including its trailing slash, or empty at the archive root.
     root: String,
-    /// Size of the archive file, an upper bound on any entry's real size.
+    /// Size of the archive file; caps the up-front allocation for an entry (a stored entry
+    /// cannot be larger, a deflated one grows as it is read).
     file_len: usize,
 }
 
@@ -186,9 +188,9 @@ impl ZipSource {
 /// The TAR container written by PyTorch before 0.1.10.
 ///
 /// The `storages` entry is a count pickle followed, per storage, by a `(key, location,
-/// storage type)` pickle, an `i64` element count and the raw bytes; the reader keeps the
-/// whole entry in memory and slices it. Its layout is parsed by the reader, which also has
-/// the pickle parser the metadata needs.
+/// storage type)` pickle, an `i64` element count and the raw bytes, then a list of storage
+/// views. The whole entry is kept in memory and sliced. `reader::parse_tar_storages` parses
+/// the layout, since that module has the pickle parser the metadata needs.
 pub(crate) struct TarSource {
     blob: Vec<u8>,
     /// Storage key to `(offset, byte length)` within `blob`.
@@ -206,8 +208,9 @@ impl TarSource {
             .layout
             .get(key)
             .ok_or_else(|| invalid_data(format!("storage '{key}' not found in TAR archive")))?;
-        self.blob
-            .get(offset..offset + len)
+        offset
+            .checked_add(len)
+            .and_then(|end| self.blob.get(offset..end))
             .map(<[u8]>::to_vec)
             .ok_or_else(|| invalid_data(format!("storage '{key}' lies outside the TAR data")))
     }
@@ -217,7 +220,7 @@ impl TarSource {
 ///
 /// After the metadata pickles the file holds every storage back to back, in the order of a
 /// key list that follows the main pickle. Each storage is an `i64` element count followed
-/// by its bytes. Nothing records where one storage ends, so the sizes declared by the
+/// by its bytes. The count prefix gives elements, not bytes, so the sizes declared by the
 /// persistent ids in the main pickle are collected first and the layout is derived from
 /// them once the key list is known.
 pub(crate) struct LegacySource {
@@ -225,25 +228,31 @@ pub(crate) struct LegacySource {
     state: Mutex<LegacyState>,
 }
 
-#[derive(Default)]
-struct LegacyState {
-    /// Storage key to `(byte length, element size)` as declared by the pickle.
-    declared: HashMap<String, (usize, usize)>,
-    /// Storage key to `(file offset of the element count, byte length, element size)`.
-    layout: Option<HashMap<String, (u64, usize, usize)>>,
+enum LegacyState {
+    /// Collecting declarations while the main pickle is parsed:
+    /// storage key to `(byte length, element size)`.
+    Declaring(HashMap<String, (usize, usize)>),
+    /// Layout fixed by the key list:
+    /// storage key to `(file offset of the element count, byte length, element size)`.
+    Finished(HashMap<String, (u64, usize, usize)>),
 }
 
 impl LegacySource {
     pub fn new(path: &Path) -> Self {
         Self {
             path: path.to_path_buf(),
-            state: Mutex::new(LegacyState::default()),
+            state: Mutex::new(LegacyState::Declaring(HashMap::new())),
         }
     }
 
     fn declare(&self, key: &str, byte_len: usize, element_size: usize) -> io::Result<()> {
         let mut state = lock_ignoring_poison(&self.state);
-        match state.declared.get(key) {
+        let LegacyState::Declaring(declared) = &mut *state else {
+            return Err(invalid_data(format!(
+                "storage '{key}' declared after the legacy layout was finalized"
+            )));
+        };
+        match declared.get(key) {
             Some(&(prior_len, prior_size))
                 if (prior_len, prior_size) != (byte_len, element_size) =>
             {
@@ -253,9 +262,7 @@ impl LegacySource {
             }
             Some(_) => Ok(()),
             None => {
-                state
-                    .declared
-                    .insert(key.to_string(), (byte_len, element_size));
+                declared.insert(key.to_string(), (byte_len, element_size));
                 Ok(())
             }
         }
@@ -264,11 +271,16 @@ impl LegacySource {
     /// Fix the storage layout from the ordered key list and the data section bounds.
     pub fn finish(&self, keys: &[String], data_start: u64, file_len: u64) -> io::Result<()> {
         let mut state = lock_ignoring_poison(&self.state);
+        let LegacyState::Declaring(declared) = &*state else {
+            return Err(invalid_data(
+                "legacy storage layout finalized twice".to_string(),
+            ));
+        };
         let mut layout = HashMap::with_capacity(keys.len());
         let mut offset = data_start;
 
         for key in keys {
-            let &(byte_len, element_size) = state.declared.get(key).ok_or_else(|| {
+            let &(byte_len, element_size) = declared.get(key).ok_or_else(|| {
                 invalid_data(format!(
                     "storage '{key}' is listed in the legacy key list but never referenced by the pickle"
                 ))
@@ -286,16 +298,18 @@ impl LegacySource {
             offset = end;
         }
 
-        state.layout = Some(layout);
+        *state = LegacyState::Finished(layout);
         Ok(())
     }
 
     fn read_storage(&self, key: &str) -> io::Result<Vec<u8>> {
         let (offset, byte_len, element_size) = {
             let state = lock_ignoring_poison(&self.state);
-            let layout = state.layout.as_ref().ok_or_else(|| {
-                invalid_data("legacy storage layout was never finalized".to_string())
-            })?;
+            let LegacyState::Finished(layout) = &*state else {
+                return Err(invalid_data(
+                    "legacy storage layout was never finalized".to_string(),
+                ));
+            };
             *layout
                 .get(key)
                 .ok_or_else(|| invalid_data(format!("storage '{key}' not found in legacy file")))?

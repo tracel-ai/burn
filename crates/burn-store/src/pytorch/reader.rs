@@ -5,7 +5,7 @@
 //! # Supported Formats
 //!
 //! ## 1. Modern ZIP Format (PyTorch 1.6+)
-//! Files are ZIP archives holding, under a root directory named after the file:
+//! Files are ZIP archives holding, under a root directory (usually named after the file):
 //! - `data.pkl`: Pickled tensor metadata
 //! - `data/`: One binary file per tensor storage
 //! - `version`, `byteorder`, and other small text entries
@@ -14,7 +14,8 @@
 //! TAR archives containing:
 //! - `sys_info`: System info pickle (endianness, type sizes)
 //! - `storages`: Count pickle, then per storage a metadata pickle, element count and bytes
-//! - `tensors`: Count pickle, then per tensor a metadata pickle and binary shape/stride
+//! - `tensors`: Count pickle, then per tensor a metadata pickle and binary shape, stride
+//!   and storage offset
 //! - `pickle`: The saved object, referencing tensors by persistent id
 //!
 //! ## 3. Legacy Pickle Format (PyTorch 0.1.10 - 1.5)
@@ -23,7 +24,7 @@
 //! - Protocol version pickle (e.g., 1001)
 //! - System info pickle (endianness, type sizes)
 //! - Model data pickle (state_dict or full model)
-//! - Storage key list, then the raw bytes of every storage
+//! - Storage key list, then each storage as an `i64` element count followed by its bytes
 //!
 //! ## 4. Simple Pickle Format
 //! Direct pickle file with a dictionary at the root, commonly used for
@@ -31,10 +32,10 @@
 //!
 //! # Compatibility
 //!
-//! The reader detects the file format automatically. Files from PyTorch 0.1.10 through
-//! current versions are supported, though full model saves (vs state_dict) may have
-//! limitations as they contain Python code references. Only little-endian files are
-//! supported.
+//! The reader detects the file format automatically. Files from the earliest PyTorch
+//! releases (TAR) through current versions are supported. Full model saves (as opposed to
+//! a state_dict) are refused, as are checkpoints holding sparse, quantized or nested
+//! tensors, since those cannot be represented. Only little-endian files are supported.
 
 use crate::nested::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
 use alloc::string::{String, ToString};
@@ -57,6 +58,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 /// Error type for PyTorch file operations
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum PytorchError {
     /// IO error
     Io(std::io::Error),
@@ -126,19 +128,20 @@ type Result<T> = std::result::Result<T, PytorchError>;
 /// that can be useful for debugging or compatibility checking.
 #[derive(Debug, Clone)]
 pub struct PytorchMetadata {
-    /// Format version (e.g., "1.0" for modern ZIP format)
+    /// Contents of the `.format_version` entry (e.g. `"1"`), if the archive has one
     pub format_version: Option<String>,
     /// File format type (ZIP, TAR, Legacy, or Pickle)
     pub format_type: FileFormat,
-    /// Byte order (endianness) - currently only LittleEndian is supported
+    /// Byte order. Always `LittleEndian`: big-endian files are rejected at load.
     pub byte_order: ByteOrder,
     /// Whether the file has storage alignment information
     pub has_storage_alignment: bool,
-    /// Serialization version recorded by PyTorch (if available)
+    /// Contents of the `version` entry (e.g. `"3"`): the serialized-file format version,
+    /// not the PyTorch release that wrote the file
     pub pytorch_version: Option<String>,
     /// Number of tensors in the file
     pub tensor_count: usize,
-    /// Total size of tensor data in bytes (if available)
+    /// Approximate size of the storage section in bytes (if available)
     pub total_data_size: Option<usize>,
 }
 
@@ -190,7 +193,7 @@ pub enum ByteOrder {
 ///
 /// This is the main interface for reading PyTorch checkpoint files (.pt/.pth).
 /// It supports multiple PyTorch formats including modern ZIP-based format (1.6+),
-/// legacy format (0.1.10-1.5), and simple pickle files.
+/// legacy format (0.1.10-1.5), the early TAR format, and simple pickle files.
 ///
 /// # Example
 /// ```rust,no_run
@@ -478,7 +481,13 @@ fn load_legacy(path: &Path) -> Result<Loaded> {
             PytorchError::InvalidFormat(format!("Failed to read {what} from legacy format: {e}"))
         })
     };
-    let _protocol_version = read_header(&mut reader, "protocol version")?;
+    // PyTorch refuses anything but 1001 here.
+    let protocol_version = read_header(&mut reader, "protocol version")?;
+    if !matches!(protocol_version, Object::Int(1001)) {
+        return Err(PytorchError::InvalidFormat(format!(
+            "Unsupported legacy protocol version {protocol_version:?}, expected 1001"
+        )));
+    }
     let sys_info = read_header(&mut reader, "system info")?;
     check_little_endian(&sys_info)?;
 
@@ -575,13 +584,16 @@ fn parse_tar_storages(blob: Vec<u8>) -> Result<(TarSource, TarStorageInfo)> {
     let mut cursor = Cursor::new(blob.as_slice());
     let count = read_tar_count(&mut cursor, "storage")?;
 
-    let mut layout: HashMap<String, (usize, usize)> = HashMap::with_capacity(count);
-    let mut info = TarStorageInfo::with_capacity(count);
+    // Every storage costs at least a pickle and a count, so the count bounds the blob.
+    let plausible = count.min(blob.len() / 8);
+    let mut layout: HashMap<String, (usize, usize)> = HashMap::with_capacity(plausible);
+    let mut info = TarStorageInfo::with_capacity(plausible);
 
     for _ in 0..count {
         let meta = read_pickle(&mut cursor, &PersistentIds::Unavailable)?;
         let [key, _location, storage_type] = tar_fields(&meta, "storage metadata")?;
-        // TAR keys are `str(cdata)` in some files and ints in others; both name the same object.
+        // The tables key storages by int `_cdata`; the main pickle's persistent ids are
+        // `str(_cdata)`. Both are normalized to strings.
         let key = key_string(key, "TAR storage key")?;
         let dtype = match storage_type {
             Object::Class { name, .. } => storage_type_to_dtype(name.as_str())?,
@@ -612,8 +624,11 @@ fn parse_tar_storages(blob: Vec<u8>) -> Result<(TarSource, TarStorageInfo)> {
     }
 
     // Views of root storages: (view key, root key, element offset, element count).
-    if (cursor.position() as usize) < blob.len() {
-        let views = read_pickle(&mut cursor, &PersistentIds::Unavailable)?;
+    // PyTorch reads this list unconditionally, so its absence means a truncated entry.
+    {
+        let views = read_pickle(&mut cursor, &PersistentIds::Unavailable).map_err(|e| {
+            PytorchError::InvalidFormat(format!("TAR storage views list missing: {e}"))
+        })?;
         let Object::List(views) = views else {
             return Err(PytorchError::InvalidFormat(format!(
                 "TAR storage views must be a list, got {views:?}"
@@ -658,7 +673,7 @@ fn parse_tar_tensors(
 ) -> Result<HashMap<String, PackTensor>> {
     let mut cursor = Cursor::new(blob);
     let count = read_tar_count(&mut cursor, "tensor")?;
-    let mut tensors = HashMap::with_capacity(count);
+    let mut tensors = HashMap::with_capacity(count.min(blob.len() / 8));
 
     for _ in 0..count {
         let meta = read_pickle(&mut cursor, &PersistentIds::Unavailable)?;
@@ -801,11 +816,9 @@ fn to_pickle_value(obj: Object) -> PickleValue {
                 .map(|(k, v)| (k, to_pickle_value(v)))
                 .collect(),
         ),
-        Object::Mark
-        | Object::Class { .. }
-        | Object::Storage(_)
-        | Object::Opaque
-        | Object::Tensor(_) => PickleValue::None,
+        Object::Class { .. } | Object::Storage(_) | Object::Opaque | Object::Tensor(_) => {
+            PickleValue::None
+        }
     }
 }
 

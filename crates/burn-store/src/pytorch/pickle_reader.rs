@@ -1,7 +1,7 @@
 //! Just enough pickle support to read PyTorch checkpoints.
 //!
 //! This implementation started from the candle project's pickle loader and has since been
-//! reworked around lazy tensor data, the full range of pickle protocols PyTorch emits, and a
+//! reworked around lazy tensor data, every pickle protocol a Python 3 writer emits, and a
 //! single tensor-building path shared by every container format.
 //!
 //! Original source: <https://github.com/huggingface/candle/blob/main/candle-core/src/pickle.rs>
@@ -22,11 +22,13 @@ use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::sync::Arc;
 
-/// Largest length-prefixed pickle string or bytes value reserved ahead of the read.
+/// Cap on the up-front allocation for a length-prefixed string, bytes or long value;
+/// longer values grow as their bytes arrive.
 const STRING_PREALLOC_BOUND: usize = 1 << 16;
 
 /// Error type for pickle operations.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum PickleError {
     Io(io::Error),
     /// A byte that is not a pickle opcode, or an opcode this reader does not implement.
@@ -99,6 +101,7 @@ type Result<T> = std::result::Result<T, PickleError>;
 // https://github.com/python/cpython/blob/main/Lib/pickletools.py
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[non_exhaustive]
 pub enum OpCode {
     // Protocol 0
     Int = b'I',
@@ -254,20 +257,18 @@ pub struct StorageRef {
     /// The container that holds the bytes.
     pub(crate) source: Arc<StorageSource>,
     /// Key of the storage within its container (`"0"`, `"1"`, ...).
-    pub key: String,
+    pub(crate) key: String,
     /// Element type of a typed storage; `None` for `torch.UntypedStorage`.
-    pub dtype: Option<DType>,
+    pub(crate) dtype: Option<DType>,
     /// Size of the storage in bytes as declared by the pickle.
-    pub byte_len: usize,
-    /// Element offset into the root storage when the persistent id describes a view
-    /// (written by very old PyTorch versions).
-    pub view_offset: usize,
+    pub(crate) byte_len: usize,
+    /// Element offset into the root storage when the persistent id describes a view.
+    /// Modern `torch.save` always writes `None` there; only early legacy files carry one.
+    pub(crate) view_offset: usize,
 }
 
 #[derive(Debug, Clone)]
 pub enum Object {
-    /// The `MARK` sentinel; never part of a finished object.
-    Mark,
     None,
     Bool(bool),
     Int(i64),
@@ -282,8 +283,8 @@ pub enum Object {
         name: String,
     },
     Storage(StorageRef),
-    /// A Python object this reader does not interpret: an unknown `REDUCE`, `NEWOBJ` or
-    /// `BUILD`. Nothing downstream looks inside one, so nothing is kept.
+    /// A Python object this reader does not interpret: an unknown `REDUCE`, `NEWOBJ`,
+    /// `NEWOBJ_EX` or `BUILD`. Nothing downstream looks inside one, so nothing is kept.
     Opaque,
     Tensor(PackTensor),
 }
@@ -313,7 +314,6 @@ impl Object {
 
     fn type_name(&self) -> &'static str {
         match self {
-            Object::Mark => "mark",
             Object::None => "None",
             Object::Bool(_) => "bool",
             Object::Int(_) => "int",
@@ -450,10 +450,16 @@ fn resolve_storage_id(pid: &[Object], source: &Arc<StorageSource>) -> Result<Sto
         PickleError::InvalidData(format!("storage '{key}' byte length overflows usize"))
     })?;
 
-    // Very old files may describe a view of a root storage: (view_key, offset, view_size).
+    // Early legacy files may describe a view of a root storage: (view_key, offset, view_size).
+    // Only the offset is used; the extent check below runs against the root storage's size.
     let view_offset = match view.first() {
         None | Some(Object::None) => 0,
         Some(Object::Tuple(view)) if view.len() == 3 => {
+            if dtype.is_none() {
+                return Err(PickleError::InvalidData(format!(
+                    "storage '{key}' is untyped but carries view metadata"
+                )));
+            }
             non_negative(&view[1], "storage view offset")?
         }
         Some(other) => {
@@ -505,8 +511,8 @@ fn resolve_persistent_id(pid: Object, ids: &PersistentIds) -> Result<Object> {
 /// Apply a `REDUCE`: call `callable` with `args`.
 ///
 /// Only the calls PyTorch uses to rebuild tensors and dicts are interpreted. Any other call
-/// is kept as an opaque object so a checkpoint carrying, say, numpy scalars or a device in
-/// its metadata still loads its tensors.
+/// is kept as an opaque object (see [`opaque`] for the one exception) so a checkpoint
+/// carrying, say, numpy scalars or a device in its metadata still loads its tensors.
 fn reduce(callable: Object, args: Object) -> Result<Object> {
     let (module_name, name) = match &callable {
         Object::Class { module_name, name } => (module_name.as_str(), name.as_str()),
@@ -546,9 +552,11 @@ fn reduce(callable: Object, args: Object) -> Result<Object> {
 ///
 /// A call whose arguments hold a storage or tensor (sparse, quantized and nested tensors,
 /// or a tensor subclass) is a tensor this reader cannot represent. That is worth an error
-/// rather than an entry that silently goes missing.
+/// rather than an entry that silently goes missing. The same check guards `BUILD` state,
+/// so a pickled module whose attributes hold tensors (a full model save) is refused rather
+/// than loaded empty.
 fn opaque(callable: &Object, args: &Object) -> Result<Object> {
-    if args.holds_tensor_data() {
+    if callable.holds_tensor_data() || args.holds_tensor_data() {
         let name = match callable {
             Object::Class { module_name, name } => format!("{module_name}.{name}"),
             other => other.type_name().to_string(),
@@ -561,11 +569,22 @@ fn opaque(callable: &Object, args: &Object) -> Result<Object> {
 /// `OrderedDict()` or `OrderedDict([(key, value), ...])`.
 fn ordered_dict(args: Object) -> Result<Object> {
     let items = match args {
-        Object::Tuple(mut fields) if !fields.is_empty() => match fields.swap_remove(0) {
+        Object::Tuple(fields) if fields.is_empty() => Vec::new(),
+        Object::Tuple(mut fields) => match fields.swap_remove(0) {
             Object::List(items) | Object::Tuple(items) => items,
-            _ => Vec::new(),
+            other => {
+                return Err(PickleError::InvalidData(format!(
+                    "OrderedDict argument must be a list of pairs, got {}",
+                    other.type_name()
+                )));
+            }
         },
-        _ => Vec::new(),
+        other => {
+            return Err(PickleError::InvalidData(format!(
+                "OrderedDict arguments must be a tuple, got {}",
+                other.type_name()
+            )));
+        }
     };
 
     let mut dict = HashMap::with_capacity(items.len());
@@ -589,12 +608,13 @@ fn ordered_dict(args: Object) -> Result<Object> {
 
 #[derive(Clone, Copy)]
 enum TensorRebuild {
-    /// `_rebuild_tensor(storage, storage_offset, size, stride)`, PyTorch < 1.6.
+    /// `_rebuild_tensor(storage, storage_offset, size, stride)`, PyTorch before 0.4.
     Legacy,
     /// `_rebuild_tensor_v2(storage, storage_offset, size, stride, requires_grad, hooks[, metadata])`.
     V2,
     /// `_rebuild_tensor_v3(storage, storage_offset, size, stride, requires_grad, hooks, dtype[, metadata])`,
-    /// used for element types without a typed storage class (unsigned ints, float8).
+    /// used for element types without a typed storage class (uint16/32/64, float8 and
+    /// others). Only the unsigned ints have a burn dtype; the rest are unsupported.
     V3,
 }
 
@@ -821,8 +841,8 @@ pub(crate) fn build_tensor(
         )));
     }
     // A view can declare far more logical elements than its storage holds (an `expand` has
-    // stride 0), so the file gives no bound on what a tensor materializes. burn-pack's own
-    // ceiling is the one every other reader lives under.
+    // stride 0), so the file gives no bound on what a tensor materializes. Apply the
+    // burn-pack ceiling that its own reader already enforces.
     if byte_len > MAX_TENSOR_SIZE {
         return Err(PickleError::InvalidData(format!(
             "Tensor with shape {shape:?} would materialize {byte_len} bytes, above the {MAX_TENSOR_SIZE} byte limit"
@@ -864,7 +884,8 @@ pub(crate) fn build_tensor(
 
         to_native_endian(&mut bytes, element_size);
         if matches!(dtype, DType::Bool(_)) {
-            // PyTorch writes 0 or 1, but only those two bit patterns are a valid `bool`.
+            // A well-formed file holds only 0 or 1; any other byte would be an invalid
+            // `bool`, so normalize before reinterpreting.
             for byte in &mut bytes {
                 *byte = u8::from(*byte != 0);
             }
@@ -874,7 +895,7 @@ pub(crate) fn build_tensor(
     };
 
     // The tensor's name is a path through the pickle's dicts, assembled by the caller that
-    // walks them. PyTorch carries no parameter identity, so `param_id` stays empty.
+    // walks them. PyTorch carries no parameter identity, so `param_id` stays `None`.
     Ok(bridge::deferred(
         String::new(),
         dtype,
@@ -892,9 +913,25 @@ pub(crate) fn build_tensor(
 /// rejected as a memo bomb (a `BINGET` of a large object copies it).
 const MAX_MEMO_NODES: usize = 1_000_000;
 
+/// Deepest container nesting accepted.
+///
+/// Objects are walked recursively after parsing (extraction, conversion, drop), so a pickle
+/// nested deeper than the thread's stack would overflow it instead of failing. Python's own
+/// recursion limit is the same order of magnitude.
+const MAX_NESTING_DEPTH: u32 = 1000;
+
+/// A stack or memo slot: the object plus how deeply it nests containers (0 for a scalar).
+#[derive(Clone)]
+struct Entry {
+    object: Object,
+    depth: u32,
+}
+
 struct Unpickler<'a> {
-    stack: Vec<Object>,
-    memo: HashMap<u32, Object>,
+    stack: Vec<Entry>,
+    /// Stack heights at each open `MARK`, innermost last, as in CPython.
+    marks: Vec<usize>,
+    memo: HashMap<u32, Entry>,
     memo_nodes: usize,
     ids: &'a PersistentIds,
 }
@@ -903,53 +940,127 @@ impl<'a> Unpickler<'a> {
     fn new(ids: &'a PersistentIds) -> Self {
         Self {
             stack: Vec::new(),
+            marks: Vec::new(),
             memo: HashMap::new(),
             memo_nodes: 0,
             ids,
         }
     }
 
-    fn push(&mut self, o: Object) {
-        self.stack.push(o)
+    fn push_scalar(&mut self, object: Object) {
+        self.stack.push(Entry { object, depth: 0 });
     }
 
-    fn pop(&mut self) -> Result<Object> {
+    fn push(&mut self, object: Object, depth: u32) -> Result<()> {
+        if depth > MAX_NESTING_DEPTH {
+            return Err(PickleError::InvalidData(format!(
+                "pickle nesting exceeds {MAX_NESTING_DEPTH} levels"
+            )));
+        }
+        self.stack.push(Entry { object, depth });
+        Ok(())
+    }
+
+    /// Whether the innermost `MARK` sits on top of the stack, with no value above it.
+    fn mark_on_top(&self) -> bool {
+        self.marks.last() == Some(&self.stack.len())
+    }
+
+    fn pop(&mut self) -> Result<Entry> {
+        if self.mark_on_top() {
+            return Err(PickleError::InvalidData(
+                "expected a value on the stack, found MARK".to_string(),
+            ));
+        }
         self.stack.pop().ok_or(PickleError::StackUnderflow)
     }
 
-    fn top(&self) -> Result<&Object> {
+    fn pop_object(&mut self) -> Result<Object> {
+        self.pop().map(|entry| entry.object)
+    }
+
+    fn top(&self) -> Result<&Entry> {
+        if self.mark_on_top() {
+            return Err(PickleError::InvalidData(
+                "expected a value on the stack, found MARK".to_string(),
+            ));
+        }
         self.stack.last().ok_or(PickleError::StackUnderflow)
     }
 
-    fn top_mut(&mut self) -> Result<&mut Object> {
+    fn top_mut(&mut self) -> Result<&mut Entry> {
+        if self.mark_on_top() {
+            return Err(PickleError::InvalidData(
+                "expected a value on the stack, found MARK".to_string(),
+            ));
+        }
         self.stack.last_mut().ok_or(PickleError::StackUnderflow)
     }
 
-    fn pop_to_mark(&mut self) -> Result<Vec<Object>> {
+    /// Pop everything above the innermost `MARK`, and the mark itself.
+    ///
+    /// Returns the objects with the deepest nesting among them.
+    fn pop_to_mark(&mut self) -> Result<(Vec<Object>, u32)> {
         let mark = self
-            .stack
-            .iter()
-            .rposition(|o| matches!(o, Object::Mark))
+            .marks
+            .pop()
             .ok_or_else(|| PickleError::InvalidData("MARK not found on stack".to_string()))?;
-        let items = self.stack.split_off(mark + 1);
-        self.stack.pop();
-        Ok(items)
+        let entries = self.stack.split_off(mark);
+        let depth = entries.iter().map(|entry| entry.depth).max().unwrap_or(0);
+        Ok((
+            entries.into_iter().map(|entry| entry.object).collect(),
+            depth,
+        ))
     }
 
-    fn memo_get(&mut self, idx: u32) -> Result<Object> {
-        let obj = self.memo.get(&idx).ok_or(PickleError::MemoNotFound(idx))?;
-        self.memo_nodes += obj.node_count();
+    fn memo_get(&mut self, idx: u32) -> Result<Entry> {
+        let entry = self.memo.get(&idx).ok_or(PickleError::MemoNotFound(idx))?;
+        self.memo_nodes += entry.object.node_count();
         if self.memo_nodes > MAX_MEMO_NODES {
             return Err(PickleError::InvalidData(format!(
                 "Pickle memo bomb detected: exceeded {MAX_MEMO_NODES} nodes"
             )));
         }
-        Ok(obj.clone())
+        Ok(entry.clone())
     }
 
     fn memo_put(&mut self, idx: u32) -> Result<()> {
-        let obj = self.top()?.clone();
-        self.memo.insert(idx, obj);
+        let entry = self.top()?.clone();
+        self.memo.insert(idx, entry);
+        Ok(())
+    }
+
+    /// Extend the list on top of the stack.
+    fn append(&mut self, items: Vec<Object>, items_depth: u32, op: OpCode) -> Result<()> {
+        let top = self.top_mut()?;
+        let Object::List(list) = &mut top.object else {
+            return Err(PickleError::UnexpectedOpCode(op));
+        };
+        list.extend(items);
+        let depth = top.depth.max(items_depth + 1);
+        top.depth = depth;
+        if depth > MAX_NESTING_DEPTH {
+            return Err(PickleError::InvalidData(format!(
+                "pickle nesting exceeds {MAX_NESTING_DEPTH} levels"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Insert key/value pairs into the dict on top of the stack.
+    fn set_items(&mut self, items: Vec<Object>, items_depth: u32, op: OpCode) -> Result<()> {
+        let top = self.top_mut()?;
+        let Object::Dict(dict) = &mut top.object else {
+            return Err(PickleError::UnexpectedOpCode(op));
+        };
+        insert_pairs(dict, items)?;
+        let depth = top.depth.max(items_depth + 1);
+        top.depth = depth;
+        if depth > MAX_NESTING_DEPTH {
+            return Err(PickleError::InvalidData(format!(
+                "pickle nesting exceeds {MAX_NESTING_DEPTH} levels"
+            )));
+        }
         Ok(())
     }
 
@@ -971,9 +1082,9 @@ impl<'a> Unpickler<'a> {
                 OpCode::Stop => break,
 
                 // Scalars
-                OpCode::None => self.push(Object::None),
-                OpCode::NewTrue => self.push(Object::Bool(true)),
-                OpCode::NewFalse => self.push(Object::Bool(false)),
+                OpCode::None => self.push_scalar(Object::None),
+                OpCode::NewTrue => self.push_scalar(Object::Bool(true)),
+                OpCode::NewFalse => self.push_scalar(Object::Bool(false)),
                 OpCode::Int => {
                     let text = read_line(r)?;
                     // Protocol 0 spells booleans as INT 00 / INT 01.
@@ -982,179 +1093,173 @@ impl<'a> Unpickler<'a> {
                         "01" => Object::Bool(true),
                         _ => Object::Int(parse_int(&text)?),
                     };
-                    self.push(value);
+                    self.push_scalar(value);
                 }
                 OpCode::Long => {
                     let text = read_line(r)?;
                     let text = text.strip_suffix('L').unwrap_or(&text);
-                    self.push(Object::Int(parse_int(text)?));
+                    self.push_scalar(Object::Int(parse_int(text)?));
                 }
                 OpCode::Float => {
                     let text = read_line(r)?;
                     let value = text.parse::<f64>().map_err(|e| {
                         PickleError::InvalidData(format!("Invalid FLOAT value '{text}': {e}"))
                     })?;
-                    self.push(Object::Float(value));
+                    self.push_scalar(Object::Float(value));
                 }
                 OpCode::Unicode => {
                     // Protocol 0 raw-unicode-escape text; escapes are rare and left as is.
                     let text = read_line(r)?;
-                    self.push(Object::String(text));
+                    self.push_scalar(Object::String(text));
                 }
                 OpCode::BinInt => {
                     let v = r.read_i32::<LittleEndian>()?;
-                    self.push(Object::Int(v as i64));
+                    self.push_scalar(Object::Int(v as i64));
                 }
                 OpCode::BinInt1 => {
                     let v = r.read_u8()?;
-                    self.push(Object::Int(v as i64));
+                    self.push_scalar(Object::Int(v as i64));
                 }
                 OpCode::BinInt2 => {
                     let v = r.read_u16::<LittleEndian>()?;
-                    self.push(Object::Int(v as i64));
+                    self.push_scalar(Object::Int(v as i64));
                 }
                 OpCode::BinFloat => {
                     let v = r.read_f64::<BigEndian>()?;
-                    self.push(Object::Float(v));
+                    self.push_scalar(Object::Float(v));
                 }
                 OpCode::Long1 => {
                     let len = r.read_u8()? as u64;
                     let bytes = read_exact_len(r, len, STRING_PREALLOC_BOUND)?;
-                    self.push(Object::Int(int_from_le_bytes(&bytes)?));
+                    self.push_scalar(Object::Int(int_from_le_bytes(&bytes)?));
                 }
                 OpCode::Long4 => {
                     let len = r.read_u32::<LittleEndian>()? as u64;
                     let bytes = read_exact_len(r, len, STRING_PREALLOC_BOUND)?;
-                    self.push(Object::Int(int_from_le_bytes(&bytes)?));
+                    self.push_scalar(Object::Int(int_from_le_bytes(&bytes)?));
                 }
 
                 // Strings and bytes
                 OpCode::ShortBinUnicode => {
                     let len = r.read_u8()? as u64;
-                    self.push(read_string(r, len)?);
+                    self.push_scalar(read_string(r, len)?);
                 }
                 OpCode::BinUnicode => {
                     let len = r.read_u32::<LittleEndian>()? as u64;
-                    self.push(read_string(r, len)?);
+                    self.push_scalar(read_string(r, len)?);
                 }
                 OpCode::ShortBinString => {
                     let len = r.read_u8()? as u64;
-                    self.push(read_py2_string(r, len)?);
+                    self.push_scalar(read_py2_string(r, len)?);
                 }
                 OpCode::BinString => {
                     let len = r.read_u32::<LittleEndian>()? as u64;
-                    self.push(read_py2_string(r, len)?);
+                    self.push_scalar(read_py2_string(r, len)?);
                 }
                 OpCode::BinUnicode8 => {
                     let len = r.read_u64::<LittleEndian>()?;
-                    self.push(read_string(r, len)?);
+                    self.push_scalar(read_string(r, len)?);
                 }
                 OpCode::ShortBinBytes => {
                     let len = r.read_u8()? as u64;
-                    self.push(Object::Bytes(read_bytes(r, len)?));
+                    self.push_scalar(Object::Bytes(read_bytes(r, len)?));
                 }
                 OpCode::BinBytes => {
                     let len = r.read_u32::<LittleEndian>()? as u64;
-                    self.push(Object::Bytes(read_bytes(r, len)?));
+                    self.push_scalar(Object::Bytes(read_bytes(r, len)?));
                 }
                 OpCode::BinBytes8 | OpCode::ByteArray8 => {
                     let len = r.read_u64::<LittleEndian>()?;
-                    self.push(Object::Bytes(read_bytes(r, len)?));
+                    self.push_scalar(Object::Bytes(read_bytes(r, len)?));
                 }
 
                 // Containers
-                OpCode::Mark => self.push(Object::Mark),
-                OpCode::EmptyTuple => self.push(Object::Tuple(Vec::new())),
-                OpCode::EmptyList | OpCode::EmptySet => self.push(Object::List(Vec::new())),
-                OpCode::EmptyDict => self.push(Object::Dict(HashMap::new())),
+                OpCode::Mark => self.marks.push(self.stack.len()),
+                OpCode::EmptyTuple => self.push_scalar(Object::Tuple(Vec::new())),
+                OpCode::EmptyList | OpCode::EmptySet => self.push_scalar(Object::List(Vec::new())),
+                OpCode::EmptyDict => self.push_scalar(Object::Dict(HashMap::new())),
                 OpCode::Tuple => {
-                    let items = self.pop_to_mark()?;
-                    self.push(Object::Tuple(items));
+                    let (items, depth) = self.pop_to_mark()?;
+                    self.push(Object::Tuple(items), depth + 1)?;
                 }
                 OpCode::Tuple1 => {
                     let a = self.pop()?;
-                    self.push(Object::Tuple(vec![a]));
+                    self.push(Object::Tuple(vec![a.object]), a.depth + 1)?;
                 }
                 OpCode::Tuple2 => {
                     let b = self.pop()?;
                     let a = self.pop()?;
-                    self.push(Object::Tuple(vec![a, b]));
+                    let depth = a.depth.max(b.depth) + 1;
+                    self.push(Object::Tuple(vec![a.object, b.object]), depth)?;
                 }
                 OpCode::Tuple3 => {
                     let c = self.pop()?;
                     let b = self.pop()?;
                     let a = self.pop()?;
-                    self.push(Object::Tuple(vec![a, b, c]));
+                    let depth = a.depth.max(b.depth).max(c.depth) + 1;
+                    self.push(Object::Tuple(vec![a.object, b.object, c.object]), depth)?;
                 }
                 OpCode::List | OpCode::FrozenSet => {
-                    let items = self.pop_to_mark()?;
-                    self.push(Object::List(items));
+                    let (items, depth) = self.pop_to_mark()?;
+                    self.push(Object::List(items), depth + 1)?;
                 }
                 OpCode::Append => {
                     let value = self.pop()?;
-                    match self.top_mut()? {
-                        Object::List(list) => list.push(value),
-                        _ => return Err(PickleError::UnexpectedOpCode(op)),
-                    }
+                    self.append(vec![value.object], value.depth, op)?;
                 }
                 OpCode::Appends | OpCode::AddItems => {
-                    let items = self.pop_to_mark()?;
-                    match self.top_mut()? {
-                        Object::List(list) => list.extend(items),
-                        _ => return Err(PickleError::UnexpectedOpCode(op)),
-                    }
+                    let (items, depth) = self.pop_to_mark()?;
+                    self.append(items, depth, op)?;
                 }
                 OpCode::Dict => {
-                    let items = self.pop_to_mark()?;
+                    let (items, depth) = self.pop_to_mark()?;
                     let mut dict = HashMap::with_capacity(items.len() / 2);
                     insert_pairs(&mut dict, items)?;
-                    self.push(Object::Dict(dict));
+                    self.push(Object::Dict(dict), depth + 1)?;
                 }
                 OpCode::SetItem => {
                     let value = self.pop()?;
                     let key = self.pop()?;
-                    match self.top_mut()? {
-                        Object::Dict(dict) => {
-                            dict.insert(dict_key(key)?, value);
-                        }
-                        _ => return Err(PickleError::UnexpectedOpCode(op)),
-                    }
+                    let depth = key.depth.max(value.depth);
+                    self.set_items(vec![key.object, value.object], depth, op)?;
                 }
                 OpCode::SetItems => {
-                    let items = self.pop_to_mark()?;
-                    match self.top_mut()? {
-                        Object::Dict(dict) => insert_pairs(dict, items)?,
-                        _ => return Err(PickleError::UnexpectedOpCode(op)),
-                    }
+                    let (items, depth) = self.pop_to_mark()?;
+                    self.set_items(items, depth, op)?;
                 }
 
                 // Stack manipulation
                 OpCode::Pop => {
-                    self.pop()?;
+                    // As in CPython, POP discards a bare MARK when that is what is on top.
+                    if self.mark_on_top() {
+                        self.marks.pop();
+                    } else {
+                        self.pop()?;
+                    }
                 }
                 OpCode::PopMark => {
                     self.pop_to_mark()?;
                 }
                 OpCode::Dup => {
                     let top = self.top()?.clone();
-                    self.push(top);
+                    self.stack.push(top);
                 }
 
                 // Memo
                 OpCode::Get => {
                     let idx = parse_index(&read_line(r)?)?;
-                    let obj = self.memo_get(idx)?;
-                    self.push(obj);
+                    let entry = self.memo_get(idx)?;
+                    self.stack.push(entry);
                 }
                 OpCode::BinGet => {
                     let idx = r.read_u8()? as u32;
-                    let obj = self.memo_get(idx)?;
-                    self.push(obj);
+                    let entry = self.memo_get(idx)?;
+                    self.stack.push(entry);
                 }
                 OpCode::LongBinGet => {
                     let idx = r.read_u32::<LittleEndian>()?;
-                    let obj = self.memo_get(idx)?;
-                    self.push(obj);
+                    let entry = self.memo_get(idx)?;
+                    self.stack.push(entry);
                 }
                 OpCode::Put => {
                     let idx = parse_index(&read_line(r)?)?;
@@ -1177,14 +1282,14 @@ impl<'a> Unpickler<'a> {
                 OpCode::Global => {
                     let module_name = read_line(r)?;
                     let name = read_line(r)?;
-                    self.push(Object::Class { module_name, name });
+                    self.push_scalar(Object::Class { module_name, name });
                 }
                 OpCode::StackGlobal => {
-                    let name = self.pop()?;
-                    let module_name = self.pop()?;
+                    let name = self.pop_object()?;
+                    let module_name = self.pop_object()?;
                     match (module_name, name) {
                         (Object::String(module_name), Object::String(name)) => {
-                            self.push(Object::Class { module_name, name })
+                            self.push_scalar(Object::Class { module_name, name })
                         }
                         _ => {
                             return Err(PickleError::InvalidData(
@@ -1196,45 +1301,55 @@ impl<'a> Unpickler<'a> {
                 OpCode::PersId => {
                     let pid = Object::String(read_line(r)?);
                     let obj = resolve_persistent_id(pid, self.ids)?;
-                    self.push(obj);
+                    self.push_scalar(obj);
                 }
                 OpCode::BinPersId => {
-                    let pid = self.pop()?;
+                    let pid = self.pop_object()?;
                     let obj = resolve_persistent_id(pid, self.ids)?;
-                    self.push(obj);
+                    self.push_scalar(obj);
                 }
                 OpCode::Reduce => {
                     let args = self.pop()?;
-                    let callable = self.pop()?;
-                    let obj = reduce(callable, args)?;
-                    self.push(obj);
+                    let callable = self.pop_object()?;
+                    // A call's result nests no deeper than its arguments did.
+                    let obj = reduce(callable, args.object)?;
+                    self.push(obj, args.depth)?;
                 }
                 OpCode::NewObj => {
-                    let args = self.pop()?;
-                    let cls = self.pop()?;
+                    let args = self.pop_object()?;
+                    let cls = self.pop_object()?;
                     let obj = opaque(&cls, &args)?;
-                    self.push(obj);
+                    self.push_scalar(obj);
                 }
                 OpCode::NewObjEx => {
-                    let _kwargs = self.pop()?;
-                    let args = self.pop()?;
-                    let cls = self.pop()?;
+                    let kwargs = self.pop_object()?;
+                    let args = self.pop_object()?;
+                    let cls = self.pop_object()?;
+                    opaque(&cls, &kwargs)?;
                     let obj = opaque(&cls, &args)?;
-                    self.push(obj);
+                    self.push_scalar(obj);
                 }
                 OpCode::Build => {
                     let state = self.pop()?;
                     let object = self.pop()?;
-                    match (object, state) {
+                    match (object.object, state.object) {
                         (Object::Dict(mut dict), Object::Dict(update)) => {
                             dict.extend(update);
-                            self.push(Object::Dict(dict));
+                            self.push(Object::Dict(dict), object.depth.max(state.depth))?;
                         }
-                        // A dict subclass with non-dict state: the items are what matter.
-                        (dict @ Object::Dict(_), _) => self.push(dict),
+                        // A dict subclass with non-dict state: the items are what matter,
+                        // but state holding tensor data must not vanish silently.
+                        (dict @ Object::Dict(_), state) => {
+                            if state.holds_tensor_data() {
+                                return Err(PickleError::UnsupportedType(
+                                    "dict with tensor-bearing state".to_string(),
+                                ));
+                            }
+                            self.push(dict, object.depth)?;
+                        }
                         (object, state) => {
                             let obj = opaque(&object, &state)?;
-                            self.push(obj);
+                            self.push_scalar(obj);
                         }
                     }
                 }
@@ -1247,13 +1362,7 @@ impl<'a> Unpickler<'a> {
             }
         }
 
-        let result = self.pop()?;
-        if matches!(result, Object::Mark) {
-            return Err(PickleError::InvalidData(
-                "pickle ended with an unmatched MARK".to_string(),
-            ));
-        }
-        Ok(result)
+        self.pop_object()
     }
 }
 
@@ -1282,8 +1391,8 @@ fn read_string<R: BufRead>(r: &mut R, len: u64) -> Result<Object> {
     Ok(Object::String(s))
 }
 
-/// A Python 2 `str` is bytes that usually hold text, but numpy pickles binary data in them
-/// under protocol 2. Text is kept as a string and anything else as bytes.
+/// A Python 2 `str` is bytes that usually hold text, but Python 2 pickles of numpy arrays
+/// put raw array data in them. Text is kept as a string and anything else as bytes.
 fn read_py2_string<R: BufRead>(r: &mut R, len: u64) -> Result<Object> {
     Ok(match String::from_utf8(read_bytes(r, len)?) {
         Ok(text) => Object::String(text),
@@ -1305,7 +1414,11 @@ fn parse_index(text: &str) -> Result<u32> {
 fn int_from_le_bytes(bytes: &[u8]) -> Result<i64> {
     let negative = bytes.last().is_some_and(|b| b & 0x80 != 0);
     let fill = if negative { 0xff } else { 0x00 };
-    if bytes.len() > 8 && bytes[8..].iter().any(|&b| b != fill) {
+    // Beyond 8 bytes, every extra byte must be sign fill, and the sign bit of byte 7 must
+    // agree with it: otherwise the value lies just outside the i64 range.
+    let fits = bytes.len() <= 8
+        || (bytes[8..].iter().all(|&b| b == fill) && (bytes[7] & 0x80 != 0) == negative);
+    if !fits {
         return Err(PickleError::InvalidData(format!(
             "integer of {} bytes does not fit in 64 bits",
             bytes.len()
@@ -1512,7 +1625,7 @@ mod tests {
 
     #[test]
     fn truncated_string_length_does_not_allocate() {
-        // BINUNICODE claiming 4 GiB followed by two bytes.
+        // BINUNICODE claiming nearly 4 GiB followed by two bytes.
         let bytes: &[u8] = &[0x80, 0x02, b'X', 0xff, 0xff, 0xff, 0xff, b'h', b'i', b'.'];
         assert!(matches!(plain(bytes).unwrap_err(), PickleError::Io(_)));
     }
@@ -1767,6 +1880,153 @@ mod tests {
         let data = bridge::into_data(tensor).unwrap();
         // The storage holds f32 0.0 and 1.0; read as u32 bit patterns.
         assert_eq!(data.as_slice::<u32>().unwrap(), &[0, 1.0f32.to_bits()]);
+    }
+
+    #[test]
+    fn rebuild_from_type_v2_dispatches_inner_call() {
+        // _rebuild_from_type_v2(func, new_type, args, state) for a tensor subclass.
+        let source = fixture_source();
+        let callable = Object::Class {
+            module_name: "torch._tensor".to_string(),
+            name: "_rebuild_from_type_v2".to_string(),
+        };
+        let args = Object::Tuple(vec![
+            Object::Class {
+                module_name: "torch._utils".to_string(),
+                name: "_rebuild_tensor".to_string(),
+            },
+            Object::Class {
+                module_name: "torch".to_string(),
+                name: "Tensor".to_string(),
+            },
+            rebuild_args("FloatStorage", "0", 32, 5, &[2, 3], &[3, 1], &source),
+            Object::Dict(HashMap::new()),
+        ]);
+        let Object::Tensor(tensor) = reduce(callable, args).unwrap() else {
+            panic!("expected tensor");
+        };
+        let data = bridge::into_data(tensor).unwrap();
+        assert_eq!(
+            data.as_slice::<f32>().unwrap(),
+            &[5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+        );
+    }
+
+    #[test]
+    fn bool_bytes_are_normalized() {
+        // Read the f32 storage as bools: 0.0 is eight zero bytes, 1.0 is 00 00 80 3f.
+        let source = fixture_source();
+        let pid = storage_pid("BoolStorage", "0", 128);
+        let Object::Tuple(pid) = pid else {
+            unreachable!()
+        };
+        let storage = resolve_storage_id(&pid, &source).unwrap();
+        let tensor =
+            build_tensor(storage, DType::Bool(BoolStore::Native), 0, vec![8], vec![1]).unwrap();
+        let data = bridge::into_data(tensor).unwrap();
+        assert_eq!(
+            data.as_slice::<bool>().unwrap(),
+            &[false, false, false, false, false, false, true, true]
+        );
+    }
+
+    #[test]
+    fn untyped_storage_with_view_metadata_is_rejected() {
+        let source = fixture_source();
+        let pid = [
+            Object::String("storage".to_string()),
+            Object::Class {
+                module_name: "torch".to_string(),
+                name: "UntypedStorage".to_string(),
+            },
+            Object::String("0".to_string()),
+            Object::String("cpu".to_string()),
+            Object::Int(128),
+            Object::Tuple(vec![
+                Object::String("7".to_string()),
+                Object::Int(4),
+                Object::Int(10),
+            ]),
+        ];
+        assert!(matches!(
+            resolve_storage_id(&pid, &source),
+            Err(PickleError::InvalidData(msg)) if msg.contains("untyped but carries view metadata")
+        ));
+    }
+
+    #[test]
+    fn long_at_i64_boundary_is_rejected() {
+        // 2^63 and -2^63-1 need 9 bytes whose sign fill disagrees with byte 7.
+        assert!(int_from_le_bytes(&[0, 0, 0, 0, 0, 0, 0, 0x80, 0]).is_err());
+        assert!(
+            int_from_le_bytes(&[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f, 0xff]).is_err()
+        );
+        assert_eq!(
+            int_from_le_bytes(&[0, 0, 0, 0, 0, 0, 0, 0x80, 0xff]).unwrap(),
+            i64::MIN
+        );
+    }
+
+    #[test]
+    fn deep_nesting_is_rejected() {
+        // EMPTY_LIST then TUPLE1 repeated wraps the list ever deeper.
+        let mut bytes = vec![0x80, 0x02, b']'];
+        bytes.extend(std::iter::repeat_n(0x85, 1500));
+        bytes.push(b'.');
+        assert!(matches!(
+            plain(&bytes).unwrap_err(),
+            PickleError::InvalidData(msg) if msg.contains("nesting exceeds")
+        ));
+
+        // Just under the limit still parses.
+        let mut bytes = vec![0x80, 0x02, b']'];
+        bytes.extend(std::iter::repeat_n(0x85, 900));
+        bytes.push(b'.');
+        assert!(plain(&bytes).is_ok());
+    }
+
+    #[test]
+    fn mark_never_becomes_a_value() {
+        // MARK TUPLE1: nothing above the mark to wrap.
+        assert!(matches!(
+            plain(b"\x80\x02(\x85.").unwrap_err(),
+            PickleError::InvalidData(msg) if msg.contains("found MARK")
+        ));
+        // MARK BINPUT 0: memoizing a mark.
+        assert!(plain(b"\x80\x02(q\x00.").is_err());
+        // A bare MARK on top at STOP.
+        assert!(plain(b"\x80\x02K\x01(.").is_err());
+        // POP discards a bare mark, as in CPython.
+        assert!(matches!(
+            plain(b"\x80\x02K\x01(0.").unwrap(),
+            Object::Int(1)
+        ));
+    }
+
+    #[test]
+    fn build_on_a_tensor_is_an_error() {
+        let source = fixture_source();
+        let tensor = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            32,
+            0,
+            &[2],
+            &[1],
+            &source,
+        ))
+        .unwrap();
+        let err = opaque(&Object::Tensor(tensor), &Object::Dict(HashMap::new())).unwrap_err();
+        assert!(matches!(err, PickleError::UnsupportedType(_)));
+    }
+
+    #[test]
+    fn ordered_dict_rejects_non_list_argument() {
+        let args = Object::Tuple(vec![Object::Int(3)]);
+        assert!(matches!(
+            ordered_dict(args),
+            Err(PickleError::InvalidData(msg)) if msg.contains("list of pairs")
+        ));
     }
 
     #[test]

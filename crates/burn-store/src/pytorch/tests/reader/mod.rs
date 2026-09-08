@@ -1303,8 +1303,8 @@ fn test_tar_metadata() {
 
 #[test]
 fn test_protocol_4_checkpoint() {
-    // torch.save(..., pickle_protocol=4) emits FRAME, MEMOIZE, STACK_GLOBAL and
-    // SHORT_BINUNICODE, none of which appear in protocol 2 files.
+    // A protocol 4 pickle (what torch.save(..., pickle_protocol=4) emits) uses FRAME,
+    // MEMOIZE, STACK_GLOBAL and SHORT_BINUNICODE, none of which appear in protocol 2 files.
     let path = test_data_path("protocol4.pt");
     let reader = PytorchReader::new(&path).expect("Failed to load protocol4.pt");
     assert_eq!(reader.len(), 2);
@@ -1403,6 +1403,148 @@ fn test_tensor_read_errors_are_not_zeros() {
     let err = crate::bridge::to_data(tensor).expect_err("short storage must not load");
     assert!(
         err.to_string().contains("only 2 are available"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_tar_storage_view() {
+    let path = test_data_path("tar_storage_view.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_storage_view.tar");
+
+    let root = reader.get("root").expect("root not found");
+    let data = crate::bridge::to_data(root).unwrap();
+    assert_eq!(
+        data.as_slice::<f32>().unwrap(),
+        &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+    );
+
+    // A view over elements 2..6 of the root storage.
+    let window = reader.get("window").expect("window not found");
+    assert_eq!(window.shape, shape![2, 2]);
+    let data = crate::bridge::to_data(window).unwrap();
+    assert_eq!(data.as_slice::<f32>().unwrap(), &[2.0, 3.0, 4.0, 5.0]);
+}
+
+#[test]
+fn test_tar_absurd_storage_count_is_an_error() {
+    // A `storages` entry whose count pickle claims 2^40 storages and nothing else.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("count.tar");
+    let mut builder = tar::Builder::new(std::fs::File::create(&path).unwrap());
+    for (name, data) in [
+        (
+            "storages",
+            b"\x80\x02\x8a\x06\x00\x00\x00\x00\x00\x01.".as_slice(),
+        ),
+        ("tensors", b"\x80\x02K\x00.".as_slice()),
+        ("pickle", b"\x80\x02}.".as_slice()),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(data.len() as u64);
+        header.set_cksum();
+        builder.append_data(&mut header, name, data).unwrap();
+    }
+    builder.finish().unwrap();
+
+    let err = PytorchReader::new(&path).expect_err("absurd count must be rejected");
+    assert!(
+        err.to_string().contains("Pickle"),
+        "unexpected error: {err}"
+    );
+}
+
+/// Rewrite a ZIP checkpoint with every entry moved under `new_root`.
+fn rezip_with_root(original: &std::path::Path, target: &std::path::Path, new_root: &str) {
+    let mut source = zip::ZipArchive::new(std::fs::File::open(original).unwrap()).unwrap();
+    let mut writer = zip::ZipWriter::new(std::fs::File::create(target).unwrap());
+    for i in 0..source.len() {
+        let mut entry = source.by_index(i).unwrap();
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
+        let name = entry
+            .name()
+            .split_once('/')
+            .map_or(entry.name(), |(_, rest)| rest);
+        writer
+            .start_file(
+                format!("{new_root}{name}"),
+                zip::write::SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Stored),
+            )
+            .unwrap();
+        std::io::Write::write_all(&mut writer, &bytes).unwrap();
+    }
+    writer.finish().unwrap();
+}
+
+#[test]
+fn test_zip_archive_and_root_level_layouts() {
+    // torch.save to a file object writes under `archive/`; some tools write at the root.
+    let original = test_data_path("float32.pt");
+    let dir = tempfile::tempdir().unwrap();
+    for root in ["archive/", ""] {
+        let path = dir.path().join(format!("layout_{}.pt", root.len()));
+        rezip_with_root(&original, &path, root);
+
+        let reader = PytorchReader::new(&path).unwrap_or_else(|e| panic!("root {root:?}: {e}"));
+        let tensor = reader.get("tensor").expect("tensor not found");
+        let data = crate::bridge::to_data(tensor).unwrap();
+        assert_eq!(data.as_slice::<f32>().unwrap(), &[1.0, 2.5, -3.7, 0.0]);
+        assert_eq!(reader.metadata().pytorch_version.as_deref(), Some("3"));
+        assert_eq!(reader.metadata().total_data_size, Some(16));
+    }
+}
+
+#[test]
+fn test_legacy_storage_count_mismatch_is_an_error() {
+    let mut bytes = std::fs::read(test_data_path("legacy_with_offsets.pt")).unwrap();
+    // The data section is the last 104 bytes; the first storage's i64 element count
+    // (tensor1, 10 elements) is its first byte.
+    let count_pos = bytes.len() - 104;
+    assert_eq!(bytes[count_pos], 10);
+    bytes[count_pos] = 11;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("miscounted.pt");
+    std::fs::write(&path, &bytes).unwrap();
+
+    let reader = PytorchReader::new(&path).expect("metadata still parses");
+    let err = crate::bridge::to_data(reader.get("tensor1").unwrap())
+        .expect_err("mismatched element count must be rejected");
+    assert!(
+        err.to_string()
+            .contains("holds 11 elements but the pickle declares 10"),
+        "unexpected error: {err}"
+    );
+    // Other storages are unaffected.
+    let data = crate::bridge::to_data(reader.get("tensor2").unwrap()).unwrap();
+    data.assert_approx_eq::<f32>(
+        &TensorData::new(vec![2.0_f32, 2.1, 2.2, 2.3, 2.4], vec![5]),
+        Tolerance::default(),
+    );
+}
+
+#[test]
+fn test_legacy_big_endian_file_is_refused() {
+    let mut bytes = std::fs::read(test_data_path("simple_legacy.pt")).unwrap();
+    // sys_info pickles `little_endian` as BINUNICODE 'little_endian' followed by NEWTRUE.
+    let marker = b"little_endian";
+    let pos = bytes
+        .windows(marker.len())
+        .position(|w| w == marker)
+        .expect("sys_info holds little_endian");
+    let flag = pos + marker.len();
+    // The key may be memoized (BINPUT idx) before the value.
+    let flag = if bytes[flag] == b'q' { flag + 2 } else { flag };
+    assert_eq!(bytes[flag], 0x88, "expected NEWTRUE");
+    bytes[flag] = 0x89;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("big_endian_legacy.pt");
+    std::fs::write(&path, &bytes).unwrap();
+
+    let err = PytorchReader::new(&path).expect_err("big-endian legacy files are refused");
+    assert!(
+        err.to_string().contains("Big-endian"),
         "unexpected error: {err}"
     );
 }
