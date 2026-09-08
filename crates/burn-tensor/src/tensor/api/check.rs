@@ -477,7 +477,12 @@ impl TensorCheck {
         check = check.binary_ops_device("Matmul", &lhs.device(), &rhs.device());
 
         if D < 2 {
-            return check;
+            return check.register(
+                "Matmul",
+                TensorError::new(format!(
+                    "Matmul requires tensors with at least 2 dimensions, but got {D} dimension(s)."
+                )),
+            );
         }
 
         let shape_lhs = lhs.shape();
