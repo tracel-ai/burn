@@ -20,8 +20,10 @@ production. This includes:
 
 - **Integer overflow safety**: `wrapping_abs`, `wrapping_neg`, `wrapping_shl/shr` for signed
   integers at type boundaries (e.g. `i64::MIN`), matching PyTorch two's complement semantics.
-  Integer ops widen to `i64`, apply the operation, then truncate back, so shifts mask the shift
-  amount to 64 rather than to the operand's own width
+  The shift ops go through `int_binary_op`/`int_scalar_op`, which widen to `i64`, apply the
+  operation, then truncate back, so they mask the shift amount to 64 rather than to the operand's
+  own width. `u64` arithmetic, division and remainder take a dedicated `u64` path instead
+  (`ops/int.rs`), since values above `i64::MAX` cannot round-trip through `i64`
 - **Rounding correctness**: Uses `num_traits::Float::round` with a ties-to-even correction,
   correct for the full float range (values beyond integer precision have no fractional bits)
 - **Input validation**: Hard assertions for invalid pooling parameters (zero kernel/stride) and

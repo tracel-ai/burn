@@ -93,7 +93,7 @@ and fused kernels.
 
 | Category          | Speedup      | Highlights                              |
 | ----------------- | ------------ | --------------------------------------- |
-| Binary ops (f32)  | **~1x**      | Both use macerator SIMD for f32         |
+| Binary ops (f32)  | **~1-1.4x**  | SIMD parity; COW avoids output alloc    |
 | Binary ops (i32)  | **1.8-5.3x** | Flex uses i32, NdArray uses i64         |
 | Matmul (square)   | **1.4-3.1x** | gemm at small/large; tied at mid-sizes  |
 | Matmul (batched)  | **1.3-2.2x** | Multi-head attention shapes             |

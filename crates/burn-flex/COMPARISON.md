@@ -131,9 +131,10 @@ The fundamental difference is scale storage. Flex stores scales separately so de
 simple `scale * x_q` multiply. NdArray stores everything in `QuantizedBytes` which must be parsed on
 every access, making it the bottleneck for all quantized operations.
 
-The zero-copy and skip-dequantization paths above apply to per-tensor schemes. Block-quantized
-tensors dequantize, move, and requantize so the blocks follow the move. `select` always
-materializes; for per-tensor schemes it copies the `i8` payload directly instead of dequantizing.
+The zero-copy layout paths and `q_gather` apply to per-tensor schemes; block-quantized tensors
+dequantize, move, and requantize so the blocks follow the move. `q_select` always materializes, but
+for per-tensor schemes it copies the `i8` payload directly instead of dequantizing. `q_argmax` and
+`q_argmin` reduce over the `i8` payload for every scheme, so they never dequantize.
 
 ---
 
@@ -212,7 +213,7 @@ All operations listed below are implemented by both backends unless marked other
 | max_pool2d_with_indices_backward | Yes       | Yes          |                                                                                        |
 | adaptive_avg_pool2d              | Yes       | Yes          |                                                                                        |
 | adaptive_avg_pool2d_backward     | Yes       | Yes          |                                                                                        |
-| interpolate                      | Yes       | Yes          | Flex: nearest, bilinear, bicubic, Lanczos3; NdArray adds nearest-exact                 |
+| interpolate                      | Yes       | Yes          | Both: nearest, bilinear, bicubic, Lanczos3. Neither implements nearest-exact           |
 | attention (SDPA)                 | Yes       | Yes          | Flex: auto-selects naive or flash by score matrix size; NdArray: matmul + softmax      |
 | rfft                             | Yes       | No           | Flex: Cooley-Tukey with complex packing, radix-4, SIMD, compile-time twiddles. no_std. |
 | irfft                            | Yes       | No           | Flex: Inverse packing trick, SIMD via conjugate-forward-conjugate. no_std.             |
@@ -230,13 +231,15 @@ operations. Flex optimizes by:
 
 - Storing scales separately for O(1) dequantization access
 - Zero-copy layout ops on per-tensor quantized tensors (permute, flip, expand, slice)
-- Skipping dequantization for ordering ops (argmax, argmin, gather with tensor-level quant)
+- Skipping dequantization for argmax/argmin (any scheme) and gather (per-tensor schemes)
 
 ### Activation Operations (ActivationOps)
 
 NdArray overrides `relu` and takes the default trait implementations for the rest. Flex overrides
-every `ActivationOps` method except `log_softmax` and `softmin` with a single-pass kernel, replacing
-the multi-op decompositions the defaults build (`src/ops/activation.rs`).
+every `ActivationOps` method except `log_softmax` and `softmin` with a fused kernel, replacing the
+multi-op decompositions the defaults build (`src/ops/activation.rs`). Fused does not always mean
+single-pass: `softmax` is a three-pass row kernel (max, exp+sum, normalize) that keeps each row
+cache-hot instead of materializing five intermediate tensors.
 
 ### Transaction Operations
 
@@ -494,7 +497,7 @@ Genuine algorithmic and library improvements:
 
 | Category         | Flex vs NdArray      | Why                                       |
 | ---------------- | -------------------- | ----------------------------------------- |
-| Binary ops (f32) | ~1x                  | Both use macerator SIMD for f32           |
+| Binary ops (f32) | **~1-1.4x faster**   | SIMD parity; COW avoids output allocation |
 | Binary ops (i64) | **1.5-6.4x faster**  | Same COW benefits                         |
 | Matmul (square)  | **1.1-3.4x faster**  | gemm > matrixmultiply                     |
 | Matmul (batched) | **1.8-3.2x faster**  | Better batch parallelism                  |
