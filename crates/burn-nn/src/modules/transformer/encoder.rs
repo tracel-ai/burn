@@ -1,3 +1,4 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use alloc::vec::Vec;
@@ -10,7 +11,7 @@ use crate::{
     cache::TensorCache,
 };
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Bool, Device, Tensor};
 
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer using the [init function](TransformerEncoderConfig::init).

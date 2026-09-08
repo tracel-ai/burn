@@ -24,7 +24,6 @@ std = ["aligned-vec/std", "burn-core/std", "burn-store?/std"]
 tracing = [
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
-    "burn-ir/tracing",
     "burn-core/tracing",
     "cubecl/tracing",
 ]
@@ -51,7 +50,6 @@ loss = ["std", "burn-store/pytorch", "burn-core/network", "dirs"]
 [dependencies]
 burn-cubecl = { workspace = true, optional = true, features = ["default"]}
 burn-fusion = { workspace = true, optional = true, features = ["default"]}
-burn-ir = { workspace = true, features = ["default"]}
 burn-core = { workspace = true, features = [
     "extension",
 ] }
@@ -74,4 +72,3 @@ macerator = { workspace = true }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
 serde = { workspace = true }
-

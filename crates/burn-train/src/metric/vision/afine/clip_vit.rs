@@ -16,9 +16,10 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Initializer, Module, Param};
+use burn::module::{Module, Param};
 use burn::tensor::Device;
 use burn::tensor::Tensor;
+use burn_nn::Initializer;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig};
 
