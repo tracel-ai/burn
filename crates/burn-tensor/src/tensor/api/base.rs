@@ -1608,6 +1608,10 @@ where
     /// Supported transfers between compute backends preserve the graph connection; backward
     /// transfers gradients to the original source device.
     ///
+    /// Transfers between different compute backends currently read values into host memory as
+    /// [`TensorData`] and upload them to the destination backend. This also applies to gradients
+    /// transferred during backward and can incur synchronization and data-copy overhead.
+    ///
     /// # Panics
     ///
     /// Panics when the backend doesn't support the requested transfer, including transfers to a
