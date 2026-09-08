@@ -1,8 +1,8 @@
 mod base;
 pub use base::*;
 
-mod lift;
-pub use lift::*;
+mod parameter_context;
+pub(crate) use parameter_context::*;
 
 /// Adaptor module for optimizers.
 pub mod module_optimizer;

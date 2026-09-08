@@ -1,7 +1,7 @@
 use burn_core as burn;
 use burn_core::module::ParamGroup;
 
-use super::{Optimizer, from_inner_with_strategy};
+use super::{Optimizer, ParameterContext};
 use crate::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 use crate::{
     DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, RecordTensor, StateSink,
@@ -420,10 +420,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
         let grad = self.grads.remove(id);
 
         let tensor = if let Some((grad, device)) = grad {
-            let is_require_grad = tensor.is_require_grad();
-            let checkpointing = tensor.gradient_checkpointing_strategy();
-            #[cfg(feature = "std")]
-            let is_distributed = tensor.is_distributed();
+            let context = ParameterContext::capture(&tensor);
 
             let entry = self.states.remove_entry(&id);
             let key = entry.as_ref().map(|(k, _)| *k);
@@ -486,16 +483,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 );
             }
 
-            let mut tensor = from_inner_with_strategy(Tensor::from_bridge(tensor), checkpointing);
-            if is_require_grad {
-                tensor = tensor.require_grad();
-            }
-            #[cfg(feature = "std")]
-            if is_distributed {
-                tensor = tensor.set_distributed(id)
-            }
-
-            tensor
+            context.restore(Tensor::from_bridge(tensor), id)
         } else {
             tensor
         };
