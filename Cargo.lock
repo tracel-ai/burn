@@ -1285,7 +1285,6 @@ dependencies = [
  "burn-core",
  "burn-nn",
  "burn-pack",
- "burn-tensor",
  "byteorder",
  "bytes",
  "ciborium",
