@@ -29,8 +29,8 @@ pub type DimOrder = Shape;
 /// not dense.
 ///
 /// Dense means the strides are exactly a permutation of contiguous strides: no
-/// gaps, no overlap, no broadcasting. A tensor that is not dense cannot be
-/// described by a dimension order, and a block cannot adopt its layout.
+/// gaps, no overlap, no broadcasting. Use [nested_dim_order] when only an
+/// iteration order is needed and gaps in storage are acceptable.
 ///
 /// Dimensions of size one are ignored while checking density — their stride is
 /// arbitrary and carries no traffic — but they keep a position in the returned
@@ -42,17 +42,18 @@ pub fn dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
 /// The dimension order of a tensor whose dimensions nest without overlapping,
 /// or `None` if they do not.
 ///
-/// Weaker than [dim_order], which additionally requires the tensor to fill its
-/// buffer. A dimension may sit at a larger stride than the extents inside it
+/// Weaker than [dim_order], which additionally requires consecutive elements
+/// without gaps. A dimension may sit at a larger stride than the extents inside it
 /// need, which is what a pitched or tile-aligned allocation produces: 48
 /// channels held innermost on a 64-element tile have stride 64 where a dense
 /// tensor would have 48.
 ///
-/// Such a tensor still has a well defined dimension order, and a kernel may still
-/// *iterate* it in that order — the padding costs nothing there, because the
-/// order alone decides which reads are linear. What the tensor may not be is
-/// treated as a flat run of elements, so anything reinterpreting a buffer must
-/// keep asking [dim_order].
+/// Iterating in this order can improve locality, but reads must still use the
+/// tensor's actual strides. Gaps can affect memory transactions and vectorization;
+/// accepting an order does not guarantee dense-access performance. This also
+/// accepts sliced views whose dimensions satisfy the same nesting condition.
+/// Anything reinterpreting a buffer as a flat run of elements must keep asking
+/// [dim_order].
 pub fn nested_dim_order(shape: &[usize], strides: &[usize]) -> Option<DimOrder> {
     dim_order_inner(shape, strides, Padding::Allowed)
 }
