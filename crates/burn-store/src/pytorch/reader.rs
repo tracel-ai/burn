@@ -456,8 +456,14 @@ fn load_file(path: &Path) -> Result<Loaded> {
 fn load_zip(path: &Path) -> Result<Loaded> {
     let source = ZipSource::open(path)?;
 
-    if source.read_text("byteorder")?.as_deref() == Some("big") {
-        return Err(big_endian_error());
+    match source.read_text("byteorder")?.as_deref() {
+        None | Some("little") => {}
+        Some("big") => return Err(big_endian_error()),
+        Some(other) => {
+            return Err(PytorchError::InvalidFormat(format!(
+                "Unrecognized byteorder entry '{other}', expected 'little' or 'big'"
+            )));
+        }
     }
     let mut metadata = PytorchMetadata::for_format(FileFormat::Zip);
     metadata.format_version = source.read_text(".format_version")?;

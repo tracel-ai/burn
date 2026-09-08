@@ -1454,8 +1454,14 @@ fn test_tar_absurd_storage_count_is_an_error() {
     );
 }
 
-/// Rewrite a ZIP checkpoint with every entry moved under `new_root`.
-fn rezip_with_root(original: &std::path::Path, target: &std::path::Path, new_root: &str) {
+/// Rewrite a ZIP checkpoint with every entry moved under `new_root`, letting `edit`
+/// change each entry's bytes (keyed by the name without its root) on the way.
+fn rezip(
+    original: &std::path::Path,
+    target: &std::path::Path,
+    new_root: &str,
+    edit: impl Fn(&str, &mut Vec<u8>),
+) {
     let mut source = zip::ZipArchive::new(std::fs::File::open(original).unwrap()).unwrap();
     let mut writer = zip::ZipWriter::new(std::fs::File::create(target).unwrap());
     for i in 0..source.len() {
@@ -1466,6 +1472,7 @@ fn rezip_with_root(original: &std::path::Path, target: &std::path::Path, new_roo
             .name()
             .split_once('/')
             .map_or(entry.name(), |(_, rest)| rest);
+        edit(name, &mut bytes);
         writer
             .start_file(
                 format!("{new_root}{name}"),
@@ -1479,13 +1486,54 @@ fn rezip_with_root(original: &std::path::Path, target: &std::path::Path, new_roo
 }
 
 #[test]
+fn test_unrecognized_byteorder_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("middle.pt");
+    rezip(
+        &test_data_path("float32.pt"),
+        &path,
+        "float32/",
+        |name, bytes| {
+            if name == "byteorder" {
+                *bytes = b"middle".to_vec();
+            }
+        },
+    );
+    let err = PytorchReader::new(&path).expect_err("unknown byteorder must be rejected");
+    assert!(
+        err.to_string().contains("Unrecognized byteorder"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_storage_larger_than_tensor_reads_only_what_is_needed() {
+    // A storage entry with 1 KiB of trailing junk still yields the declared tensor.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("padded.pt");
+    rezip(
+        &test_data_path("float32.pt"),
+        &path,
+        "float32/",
+        |name, bytes| {
+            if name == "data/0" {
+                bytes.extend(std::iter::repeat_n(0xffu8, 1024));
+            }
+        },
+    );
+    let reader = PytorchReader::new(&path).unwrap();
+    let data = crate::bridge::to_data(reader.get("tensor").unwrap()).unwrap();
+    assert_eq!(data.as_slice::<f32>().unwrap(), &[1.0, 2.5, -3.7, 0.0]);
+}
+
+#[test]
 fn test_zip_archive_and_root_level_layouts() {
     // torch.save to a file object writes under `archive/`; some tools write at the root.
     let original = test_data_path("float32.pt");
     let dir = tempfile::tempdir().unwrap();
     for root in ["archive/", ""] {
         let path = dir.path().join(format!("layout_{}.pt", root.len()));
-        rezip_with_root(&original, &path, root);
+        rezip(&original, &path, root, |_, _| {});
 
         let reader = PytorchReader::new(&path).unwrap_or_else(|e| panic!("root {root:?}: {e}"));
         let tensor = reader.get("tensor").expect("tensor not found");

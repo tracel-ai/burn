@@ -15,6 +15,10 @@ use std::sync::Mutex;
 use zip::ZipArchive;
 
 use super::reader::PytorchError;
+use burn_pack::MAX_METADATA_SIZE;
+
+/// Largest `version`, `byteorder` or similar text entry accepted.
+const MAX_TEXT_ENTRY_SIZE: u64 = 4096;
 
 /// Storage bytes for one container format.
 pub(crate) enum StorageSource {
@@ -34,12 +38,16 @@ impl fmt::Debug for StorageSource {
 }
 
 impl StorageSource {
-    /// Read every byte of the storage saved under `key`.
-    pub fn read(&self, key: &str) -> io::Result<Vec<u8>> {
+    /// Read the first `max_len` bytes of the storage saved under `key`, or all of it if it
+    /// is shorter.
+    ///
+    /// A caller knows how many bytes its tensor can touch, and a storage claiming more than
+    /// that (a ZIP entry that decompresses far beyond its archive size, say) is not read.
+    pub fn read(&self, key: &str, max_len: usize) -> io::Result<Vec<u8>> {
         match self {
-            Self::Zip(source) => source.read_storage(key),
-            Self::Tar(source) => source.read_storage(key),
-            Self::Legacy(source) => source.read_storage(key),
+            Self::Zip(source) => source.read_storage(key, max_len),
+            Self::Tar(source) => source.read_storage(key, max_len),
+            Self::Legacy(source) => source.read_storage(key, max_len),
         }
     }
 
@@ -145,9 +153,10 @@ impl ZipSource {
         Ok(data_size)
     }
 
-    /// The `data.pkl` bytes.
+    /// The `data.pkl` bytes. Refused beyond burn-pack's metadata ceiling, since a deflated
+    /// entry can claim any decompressed size.
     pub fn pickle(&self) -> io::Result<Vec<u8>> {
-        self.read_entry(&format!("{}data.pkl", self.root))
+        self.read_entry(&format!("{}data.pkl", self.root), MAX_METADATA_SIZE as u64)
     }
 
     /// A small text entry next to `data.pkl` (`version`, `byteorder`, ...), trimmed, if the
@@ -157,7 +166,7 @@ impl ZipSource {
         if !self.has_entry(name) {
             return Ok(None);
         }
-        let bytes = self.read_entry(&full_name)?;
+        let bytes = self.read_entry(&full_name, MAX_TEXT_ENTRY_SIZE)?;
         let text = String::from_utf8(bytes)
             .map_err(|err| invalid_data(format!("ZIP entry '{full_name}': {err}")))?;
         Ok(Some(text.trim().to_string()))
@@ -171,16 +180,30 @@ impl ZipSource {
             .is_some()
     }
 
-    fn read_storage(&self, key: &str) -> io::Result<Vec<u8>> {
-        self.read_entry(&format!("{}data/{key}", self.root))
+    fn read_storage(&self, key: &str, max_len: usize) -> io::Result<Vec<u8>> {
+        let name = format!("{}data/{key}", self.root);
+        let mut archive = lock_ignoring_poison(&self.archive);
+        let mut entry = archive
+            .by_name(&name)
+            .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
+        // Stopping short of the entry's end skips the ZIP CRC check, which only fires at
+        // EOF; the bytes a tensor uses are still validated against its declared extent.
+        let len = entry.size().min(max_len as u64);
+        read_exact_len(&mut entry, len, self.file_len)
     }
 
-    fn read_entry(&self, name: &str) -> io::Result<Vec<u8>> {
+    /// Read a whole entry that must not exceed `max_size` bytes.
+    fn read_entry(&self, name: &str, max_size: u64) -> io::Result<Vec<u8>> {
         let mut archive = lock_ignoring_poison(&self.archive);
         let mut entry = archive
             .by_name(name)
             .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
         let size = entry.size();
+        if size > max_size {
+            return Err(invalid_data(format!(
+                "ZIP entry '{name}' is {size} bytes, above the {max_size} byte limit"
+            )));
+        }
         read_exact_len(&mut entry, size, self.file_len)
     }
 }
@@ -203,13 +226,13 @@ impl TarSource {
         Self { blob, layout }
     }
 
-    fn read_storage(&self, key: &str) -> io::Result<Vec<u8>> {
+    fn read_storage(&self, key: &str, max_len: usize) -> io::Result<Vec<u8>> {
         let &(offset, len) = self
             .layout
             .get(key)
             .ok_or_else(|| invalid_data(format!("storage '{key}' not found in TAR archive")))?;
         offset
-            .checked_add(len)
+            .checked_add(len.min(max_len))
             .and_then(|end| self.blob.get(offset..end))
             .map(<[u8]>::to_vec)
             .ok_or_else(|| invalid_data(format!("storage '{key}' lies outside the TAR data")))
@@ -302,7 +325,7 @@ impl LegacySource {
         Ok(())
     }
 
-    fn read_storage(&self, key: &str) -> io::Result<Vec<u8>> {
+    fn read_storage(&self, key: &str, max_len: usize) -> io::Result<Vec<u8>> {
         let (offset, byte_len, element_size) = {
             let state = lock_ignoring_poison(&self.state);
             let LegacyState::Finished(layout) = &*state else {
@@ -327,6 +350,7 @@ impl LegacySource {
         }
 
         // `finish` checked that the storage lies within the file, so the length is trusted.
-        read_exact_len(&mut file, byte_len as u64, byte_len)
+        let len = byte_len.min(max_len);
+        read_exact_len(&mut file, len as u64, len)
     }
 }

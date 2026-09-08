@@ -302,6 +302,17 @@ impl Object {
         }
     }
 
+    /// Bytes of string and bytes payload in the object tree, which a clone duplicates.
+    fn payload_bytes(&self) -> usize {
+        match self {
+            Object::String(s) => s.len(),
+            Object::Bytes(b) => b.len(),
+            Object::Tuple(v) | Object::List(v) => v.iter().map(|o| o.payload_bytes()).sum(),
+            Object::Dict(m) => m.values().map(|o| o.payload_bytes()).sum(),
+            _ => 0,
+        }
+    }
+
     /// Whether the object carries a storage or tensor anywhere inside it.
     fn holds_tensor_data(&self) -> bool {
         match self {
@@ -533,8 +544,15 @@ fn reduce(callable: Object, args: Object) -> Result<Object> {
             ))),
         },
         // _rebuild_from_type_v2(func, new_type, args, state): the tensor is func(*args).
+        // The subclass itself is not represented: a weight loader wants the data. State
+        // that holds tensors would be dropped, so that case is refused.
         ("torch._tensor", "_rebuild_from_type_v2") => match args {
             Object::Tuple(mut fields) if fields.len() >= 3 => {
+                if fields.get(3).is_some_and(Object::holds_tensor_data) {
+                    return Err(PickleError::UnsupportedType(
+                        "tensor subclass with tensor-bearing state".to_string(),
+                    ));
+                }
                 let inner_args = fields.swap_remove(2);
                 let func = fields.swap_remove(0);
                 reduce(func, inner_args)
@@ -853,7 +871,10 @@ pub(crate) fn build_tensor(
     let provider_shape = shape.clone();
     let provider = move || -> std::result::Result<TensorData, PackError> {
         let shape = &provider_shape;
-        let mut data = source.read(&key).map_err(|err| {
+        // Read only the bytes the view can touch; a storage entry larger than that (or one
+        // that decompresses to more) is not paid for.
+        let needed = extent.saturating_mul(element_size);
+        let mut data = source.read(&key, needed).map_err(|err| {
             PackError::ValidationError(format!(
                 "Failed to read storage '{key}' for tensor with shape {shape:?}: {err}"
             ))
@@ -909,9 +930,13 @@ pub(crate) fn build_tensor(
 // The stack machine
 // ---------------------------------------------------------------------------------------------
 
-/// Total nodes that may be re-materialized through memo lookups before the pickle is
-/// rejected as a memo bomb (a `BINGET` of a large object copies it).
-const MAX_MEMO_NODES: usize = 1_000_000;
+/// Total nodes that may be copied through memo lookups and `DUP` before the pickle is
+/// rejected as a memo bomb (each such opcode deep-copies an object).
+const MAX_COPIED_NODES: usize = 1_000_000;
+
+/// Total string and bytes payload those copies may duplicate. A pickle can memoize one
+/// large value and fetch it many times, so node counts alone do not bound memory.
+const MAX_COPIED_BYTES: usize = 64 << 20;
 
 /// Deepest container nesting accepted.
 ///
@@ -932,7 +957,8 @@ struct Unpickler<'a> {
     /// Stack heights at each open `MARK`, innermost last, as in CPython.
     marks: Vec<usize>,
     memo: HashMap<u32, Entry>,
-    memo_nodes: usize,
+    copied_nodes: usize,
+    copied_bytes: usize,
     ids: &'a PersistentIds,
 }
 
@@ -942,7 +968,8 @@ impl<'a> Unpickler<'a> {
             stack: Vec::new(),
             marks: Vec::new(),
             memo: HashMap::new(),
-            memo_nodes: 0,
+            copied_nodes: 0,
+            copied_bytes: 0,
             ids,
         }
     }
@@ -1013,15 +1040,26 @@ impl<'a> Unpickler<'a> {
         ))
     }
 
-    fn memo_get(&mut self, idx: u32) -> Result<Entry> {
-        let entry = self.memo.get(&idx).ok_or(PickleError::MemoNotFound(idx))?;
-        self.memo_nodes += entry.object.node_count();
-        if self.memo_nodes > MAX_MEMO_NODES {
+    /// Account for a deep copy of `object` against the copy budgets.
+    fn charge_copy(&mut self, object: &Object) -> Result<()> {
+        self.copied_nodes += object.node_count();
+        self.copied_bytes += object.payload_bytes();
+        if self.copied_nodes > MAX_COPIED_NODES || self.copied_bytes > MAX_COPIED_BYTES {
             return Err(PickleError::InvalidData(format!(
-                "Pickle memo bomb detected: exceeded {MAX_MEMO_NODES} nodes"
+                "Pickle memo bomb detected: copies exceeded {MAX_COPIED_NODES} nodes or {MAX_COPIED_BYTES} bytes"
             )));
         }
-        Ok(entry.clone())
+        Ok(())
+    }
+
+    fn memo_get(&mut self, idx: u32) -> Result<Entry> {
+        let entry = self
+            .memo
+            .get(&idx)
+            .ok_or(PickleError::MemoNotFound(idx))?
+            .clone();
+        self.charge_copy(&entry.object)?;
+        Ok(entry)
     }
 
     fn memo_put(&mut self, idx: u32) -> Result<()> {
@@ -1108,8 +1146,7 @@ impl<'a> Unpickler<'a> {
                     self.push_scalar(Object::Float(value));
                 }
                 OpCode::Unicode => {
-                    // Protocol 0 raw-unicode-escape text; escapes are rare and left as is.
-                    let text = read_line(r)?;
+                    let text = read_raw_unicode_escape_line(r)?;
                     self.push_scalar(Object::String(text));
                 }
                 OpCode::BinInt => {
@@ -1242,6 +1279,7 @@ impl<'a> Unpickler<'a> {
                 }
                 OpCode::Dup => {
                     let top = self.top()?.clone();
+                    self.charge_copy(&top.object)?;
                     self.stack.push(top);
                 }
 
@@ -1379,6 +1417,49 @@ fn read_line<R: BufRead>(r: &mut R) -> Result<String> {
         data.pop();
     }
     String::from_utf8(data).map_err(|e| PickleError::InvalidData(format!("Invalid UTF-8: {e}")))
+}
+
+/// Read a protocol 0 `UNICODE` payload: Latin-1 bytes with `\uXXXX` and `\UXXXXXXXX`
+/// escapes for everything else, Python's `raw-unicode-escape` codec.
+fn read_raw_unicode_escape_line<R: BufRead>(r: &mut R) -> Result<String> {
+    let mut data = Vec::with_capacity(32);
+    r.read_until(b'\n', &mut data)?;
+    if data.pop() != Some(b'\n') {
+        return Err(PickleError::Io(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "unterminated text field",
+        )));
+    }
+
+    let mut text = String::with_capacity(data.len());
+    let mut i = 0;
+    while i < data.len() {
+        let byte = data[i];
+        let escape_len = match (byte, data.get(i + 1)) {
+            (b'\\', Some(b'u')) => Some(4),
+            (b'\\', Some(b'U')) => Some(8),
+            _ => None,
+        };
+        match escape_len {
+            Some(digits) => {
+                let hex = data
+                    .get(i + 2..i + 2 + digits)
+                    .and_then(|hex| std::str::from_utf8(hex).ok())
+                    .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+                    .and_then(char::from_u32)
+                    .ok_or_else(|| {
+                        PickleError::InvalidData("Invalid raw-unicode-escape sequence".to_string())
+                    })?;
+                text.push(hex);
+                i += 2 + digits;
+            }
+            None => {
+                text.push(char::from(byte));
+                i += 1;
+            }
+        }
+    }
+    Ok(text)
 }
 
 fn read_bytes<R: BufRead>(r: &mut R, len: u64) -> Result<Vec<u8>> {
@@ -1549,9 +1630,80 @@ mod tests {
         poc.push(b'.');
 
         let err = plain(&poc).unwrap_err();
-        assert!(
-            matches!(err, PickleError::InvalidData(msg) if msg.contains("exceeded 1000000 nodes"))
+        assert!(matches!(err, PickleError::InvalidData(msg) if msg.contains("memo bomb")));
+    }
+
+    #[test]
+    fn memo_copies_of_large_payloads_are_bounded() {
+        // A 2 MiB BINBYTES memoized once and fetched 40 times would copy 80 MiB.
+        let payload = vec![0xabu8; 2 << 20];
+        let mut bytes = vec![0x80, 0x02, b'B'];
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&payload);
+        bytes.extend_from_slice(b"q\x00(");
+        for _ in 0..40 {
+            bytes.extend_from_slice(b"h\x00");
+        }
+        bytes.extend_from_slice(b"t.");
+        assert!(matches!(
+            plain(&bytes).unwrap_err(),
+            PickleError::InvalidData(msg) if msg.contains("memo bomb")
+        ));
+    }
+
+    #[test]
+    fn dup_doubling_is_bounded() {
+        // DUP then TUPLE2 doubles the object tree every two bytes.
+        let mut bytes = vec![0x80, 0x02, b'K', 0x01];
+        for _ in 0..40 {
+            bytes.extend_from_slice(b"2\x86");
+        }
+        bytes.push(b'.');
+        assert!(matches!(
+            plain(&bytes).unwrap_err(),
+            PickleError::InvalidData(msg) if msg.contains("memo bomb")
+        ));
+    }
+
+    #[test]
+    fn unicode_opcode_decodes_raw_unicode_escape() {
+        // pickle.dumps("caf\u00e9 \u6a21", protocol=0): Latin-1 byte plus a \u escape.
+        let bytes = b"Vcaf\xe9 \\u6a21\np0\n.";
+        assert!(matches!(
+            plain(bytes).unwrap(),
+            Object::String(s) if s == "caf\u{e9} \u{6a21}"
+        ));
+        assert!(plain(b"V\\u12.\n.").is_err());
+    }
+
+    #[test]
+    fn rebuild_from_type_v2_rejects_tensor_bearing_state() {
+        let source = fixture_source();
+        let callable = Object::Class {
+            module_name: "torch._tensor".to_string(),
+            name: "_rebuild_from_type_v2".to_string(),
+        };
+        let mut state = HashMap::new();
+        state.insert(
+            "extra".to_string(),
+            rebuild_args("FloatStorage", "0", 32, 0, &[2], &[1], &source),
         );
+        let args = Object::Tuple(vec![
+            Object::Class {
+                module_name: "torch._utils".to_string(),
+                name: "_rebuild_tensor".to_string(),
+            },
+            Object::Class {
+                module_name: "torch".to_string(),
+                name: "Tensor".to_string(),
+            },
+            rebuild_args("FloatStorage", "0", 32, 5, &[2, 3], &[3, 1], &source),
+            Object::Dict(state),
+        ]);
+        assert!(matches!(
+            reduce(callable, args).unwrap_err(),
+            PickleError::UnsupportedType(_)
+        ));
     }
 
     #[test]
