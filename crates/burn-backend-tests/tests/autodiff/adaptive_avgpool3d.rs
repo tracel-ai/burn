@@ -124,6 +124,30 @@ fn test_adaptive_avg_pool3d_backward_divisible_dyn_filter() {
     ));
 }
 
+#[test]
+fn test_adaptive_avg_pool3d_backward_preserves_gradient_layout() {
+    let shape = Shape::new([2, 3, 2, 4, 5]);
+    let device = AutodiffDevice::new();
+    let x = TestTensor::zeros(shape.clone(), &device).require_grad();
+    let output_grad = TestTensor::from_data(
+        TestTensorInt::arange(0..shape.num_elements() as i64, &device)
+            .reshape::<5, _>(shape)
+            .into_data(),
+        &device,
+    );
+    let expected = output_grad.to_data();
+
+    // Keeping the spatial shape unchanged makes adaptive pooling the identity. A distinct
+    // output gradient at every position verifies the NCDHW <-> NDHWC gradient conversions.
+    let output = adaptive_avg_pool3d(x.clone(), [2, 4, 5]);
+    let grads = output.mul(output_grad).sum().backward();
+    let x_grad = x.grad(&grads).unwrap();
+
+    x_grad
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
 struct AdaptiveAvgPool3dTestCase {
     batch_size: usize,
     channels: usize,
