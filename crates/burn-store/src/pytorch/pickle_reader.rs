@@ -1699,7 +1699,180 @@ mod tests {
     }
 
     #[test]
+    fn strided_views_match_reference() {
+        // Expected values computed independently as storage[offset + sum(i_k * stride_k)]
+        // over the fixture storage, whose element k holds the value k. Covers the layouts
+        // real checkpoints produce: channels_last conv weights, transposes, step slices,
+        // overlapping as_strided windows, size-one dims with leftover strides, inner
+        // expands, and empty views at the end of storage.
+        type Case = (
+            &'static str,
+            &'static [usize],
+            &'static [usize],
+            usize,
+            &'static [f32],
+        );
+        let cases: &[Case] = &[
+            (
+                "channels_last",
+                &[2, 3, 2, 2][..],
+                &[12, 1, 6, 3][..],
+                0,
+                &[
+                    0.0, 3.0, 6.0, 9.0, 1.0, 4.0, 7.0, 10.0, 2.0, 5.0, 8.0, 11.0, 12.0, 15.0, 18.0,
+                    21.0, 13.0, 16.0, 19.0, 22.0, 14.0, 17.0, 20.0, 23.0,
+                ][..],
+            ),
+            (
+                "transposed",
+                &[3, 4][..],
+                &[1, 3][..],
+                2,
+                &[
+                    2.0, 5.0, 8.0, 11.0, 3.0, 6.0, 9.0, 12.0, 4.0, 7.0, 10.0, 13.0,
+                ][..],
+            ),
+            (
+                "step_slice",
+                &[5][..],
+                &[2][..],
+                1,
+                &[1.0, 3.0, 5.0, 7.0, 9.0][..],
+            ),
+            (
+                "overlapping_windows",
+                &[4, 3][..],
+                &[1, 1][..],
+                0,
+                &[0.0, 1.0, 2.0, 1.0, 2.0, 3.0, 2.0, 3.0, 4.0, 3.0, 4.0, 5.0][..],
+            ),
+            (
+                "size_one_dim_odd_stride",
+                &[1, 3][..],
+                &[12, 1][..],
+                4,
+                &[4.0, 5.0, 6.0][..],
+            ),
+            (
+                "size_one_inner_dim",
+                &[3, 1][..],
+                &[1, 7][..],
+                0,
+                &[0.0, 1.0, 2.0][..],
+            ),
+            (
+                "expand_inner",
+                &[2, 3, 2][..],
+                &[0, 1, 0][..],
+                3,
+                &[3.0, 3.0, 4.0, 4.0, 5.0, 5.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0][..],
+            ),
+            ("empty_leading", &[0, 3][..], &[3, 1][..], 30, &[][..]),
+            (
+                "empty_trailing_at_end",
+                &[2, 0][..],
+                &[0, 1][..],
+                32,
+                &[][..],
+            ),
+        ];
+        let source = fixture_source();
+        for &(name, shape, stride, offset, expected) in cases {
+            let to_i64 = |v: &[usize]| v.iter().map(|&x| x as i64).collect::<Vec<_>>();
+            let tensor = rebuild(rebuild_args(
+                "FloatStorage",
+                "0",
+                32,
+                offset as i64,
+                &to_i64(shape),
+                &to_i64(stride),
+                &source,
+            ))
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+            let data = bridge::into_data(tensor).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert_eq!(data.as_slice::<f32>().unwrap(), expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn strided_views_for_other_element_sizes() {
+        // The same 128 storage bytes viewed as i16, u8 and f64 through non-contiguous
+        // strides; expected values are the reinterpreted bytes gathered independently.
+        let source = fixture_source();
+
+        let tensor = rebuild(rebuild_args(
+            "ShortStorage",
+            "0",
+            64,
+            1,
+            &[2, 3],
+            &[1, 2],
+            &source,
+        ))
+        .unwrap();
+        let data = bridge::into_data(tensor).unwrap();
+        assert_eq!(
+            data.as_slice::<i16>().unwrap(),
+            &[0, 16256, 16384, 0, 0, 0][..]
+        );
+
+        let tensor = rebuild(rebuild_args(
+            "ByteStorage",
+            "0",
+            128,
+            2,
+            &[2, 4],
+            &[1, 4],
+            &source,
+        ))
+        .unwrap();
+        let data = bridge::into_data(tensor).unwrap();
+        assert_eq!(
+            data.as_slice::<u8>().unwrap(),
+            &[0, 128, 0, 64, 0, 63, 64, 64][..]
+        );
+
+        let tensor = rebuild(rebuild_args(
+            "DoubleStorage",
+            "0",
+            16,
+            0,
+            &[2, 2],
+            &[1, 2],
+            &source,
+        ))
+        .unwrap();
+        let data = bridge::into_data(tensor).unwrap();
+        let bits: Vec<u64> = data
+            .as_slice::<f64>()
+            .unwrap()
+            .iter()
+            .map(|v| v.to_bits())
+            .collect();
+        assert_eq!(
+            bits,
+            vec![
+                4575657221408423936,
+                4656722015783223296,
+                4629700418010611712,
+                4674736414296899584
+            ]
+        );
+    }
+
+    #[test]
+    fn stride_rejects_non_integer_values() {
+        let invalid_stride = Object::Tuple(vec![Object::String("one".to_string())]);
+        assert!(matches!(
+            parse_dims(&invalid_stride, "stride"),
+            Err(PickleError::InvalidData(msg)) if msg == "stride must be an int, got str"
+        ));
+    }
+
+    #[test]
     fn view_beyond_declared_storage_fails_at_parse_time() {
+        // The persistent id's element count is authoritative even when the file holds
+        // more bytes: PyTorch's own `set_` raises for a view past the declared storage.
         let source = fixture_source();
         let err = rebuild(rebuild_args(
             "FloatStorage",
