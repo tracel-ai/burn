@@ -58,9 +58,7 @@ impl FloatTensorOps<Self> for Dispatch {
             device,
             float_to_device,
             |inner, device| {
-                let data =
-                    burn_backend::read_sync(B1::float_into_data(inner)).expect("Should read data");
-                B2::float_from_data(data, device)
+                super::transfer::float_transfer::<B1, B2>(inner, device)
             }
         )
     }

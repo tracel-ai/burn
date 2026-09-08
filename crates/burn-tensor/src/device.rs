@@ -1360,8 +1360,20 @@ mod capture_tests {
     #[test]
     #[should_panic(expected = "Cannot move a tensor to a capture device with autodiff enabled")]
     fn capture_transfer_rejects_autodiff_context() {
+        let tensor = crate::Tensor::<1, crate::Int>::from_ints([1, 2], &Device::flex().autodiff());
+        let capture = Device::capture();
+        let _ = capture.capture_scope(|scope| {
+            let _ = tensor.to_device(&capture);
+            scope.complete([], [])
+        });
+    }
+
+    #[cfg(all(feature = "flex", feature = "autodiff"))]
+    #[test]
+    #[should_panic(expected = "Cannot move a tensor to a capture device with autodiff enabled")]
+    fn capture_float_transfer_rejects_autodiff_context() {
         let tensor =
-            crate::Tensor::<1, crate::Int>::from_ints([1, 2], &Device::flex().autodiff());
+            crate::Tensor::<1>::from_floats([1.0, 2.0], &Device::flex().autodiff()).require_grad();
         let capture = Device::capture();
         let _ = capture.capture_scope(|scope| {
             let _ = tensor.to_device(&capture);

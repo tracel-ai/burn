@@ -1605,14 +1605,13 @@ where
     ///
     /// For tracked floating-point tensors, `to_device` is a recorded operation, including when
     /// the target is the current device. Its output doesn't retain its own gradient by default.
+    /// Supported transfers between compute backends preserve the graph connection; backward
+    /// transfers gradients to the original source device.
     ///
     /// # Panics
     ///
-    /// Panics when the backend doesn't support the requested transfer. Floating-point tensors
-    /// with autodiff currently can't be moved between different backend implementations. Use
-    /// `tensor.without_autodiff().to_device(device)` to transfer their values instead. Gradients
-    /// from computations on the transferred tensor won't flow back to the original tensor, even
-    /// if autodiff is enabled again after the transfer.
+    /// Panics when the backend doesn't support the requested transfer, including transfers to a
+    /// capture device with autodiff enabled.
     #[must_use]
     pub fn to_device(self, device: &Device) -> Self {
         let target_device = device.clone().with_autodiff_context_from(&self.device());
