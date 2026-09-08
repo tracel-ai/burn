@@ -1,5 +1,6 @@
+use super::{diag, lu::compute_lu_decomposition};
+use crate::Tensor;
 use crate::check::TensorCheck;
-use crate::{Tensor, check, linalg};
 use burn_std::{DType, FloatDType};
 #[allow(unused_imports)]
 use num_traits::float::Float;
@@ -43,7 +44,7 @@ use num_traits::float::Float;
 /// # Example
 /// ```rust,ignore
 /// use burn::tensor::Tensor;
-/// use burn::tensor::linalg;
+/// use burn::linalg;
 ///
 /// fn example() {
 ///     let device = Default::default();
@@ -131,7 +132,7 @@ pub fn det<const D: usize, const D1: usize, const D2: usize>(mut tensor: Tensor<
     // Compute determinant for general case
     // det(A) = det(P) * det(L) * det(U)
     // det(A) = det(P) * 1 * det(U)
-    let (lu, pivots) = linalg::compute_lu_decomposition::<D, D1>(tensor.clone());
+    let (lu, pivots) = compute_lu_decomposition::<D, D1>(tensor.clone());
 
     // Compute the determinant of P
     let squeezed_pivots = pivots.squeeze_dim::<D1>(D - 1);
@@ -155,7 +156,7 @@ pub fn det<const D: usize, const D1: usize, const D2: usize>(mut tensor: Tensor<
         .squeeze_dim(D1 - 1);
 
     // Compute the determinant of U
-    let u_diag = linalg::diag::<D, D1, _>(lu);
+    let u_diag = diag::<D, D1, _>(lu);
     let mut u_det = u_diag.clone().prod_dim(D1 - 1).squeeze_dim(D1 - 1);
     let eps = tensor
         .dtype()

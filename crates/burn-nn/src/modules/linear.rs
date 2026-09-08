@@ -1,8 +1,9 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::Param;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::module::linear;
 use burn::tensor::{Device, Tensor, assert_shape};
 

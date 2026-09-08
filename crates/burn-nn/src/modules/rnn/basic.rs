@@ -1,9 +1,10 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use crate::GateController;
 use crate::activation::{Activation, ActivationConfig};
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 

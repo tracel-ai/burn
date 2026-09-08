@@ -9,7 +9,6 @@ mod ordered;
 
 pub(crate) use autodiff::*;
 pub(crate) use base::*;
-pub(crate) use float::svd;
 pub(crate) use math::*;
 pub(crate) use numeric::*;
 pub(crate) use ordered::*;

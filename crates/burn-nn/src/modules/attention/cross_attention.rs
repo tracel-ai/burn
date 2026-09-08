@@ -9,13 +9,13 @@
 
 use crate::cache::TensorCache;
 use crate::modules::{Linear, LinearConfig};
-use crate::{Dropout, DropoutConfig};
+use crate::{Dropout, DropoutConfig, Initializer};
 use burn::tensor::assert_shape;
 use burn_core as burn;
 
 use burn::{
     config::Config,
-    module::{Initializer, Module},
+    module::Module,
     tensor::{
         Bool, Device, Tensor,
         activation::{quiet_softmax, softmax},

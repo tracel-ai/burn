@@ -1,5 +1,6 @@
 use super::*;
-use burn_tensor::{Distribution, Tolerance, linalg::lu};
+use burn_core::tensor::{Distribution, Tolerance};
+use burn_linalg::lu;
 
 #[cfg(not(feature = "cuda"))]
 const REL: f32 = 5e-3;

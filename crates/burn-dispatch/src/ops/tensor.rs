@@ -38,14 +38,6 @@ impl FloatTensorOps<Self> for Dispatch {
         B::float_into_data(tensor).await
     }
 
-    fn float_svd(
-        tensor: FloatTensor<Self>,
-        sweeps: usize,
-        swap: bool,
-    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
-        B::float_svd(tensor, sweeps, swap)
-    }
-
     #[backend_dispatch(skip)]
     fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {
         // `Tensor::to_device` aligns the target's autodiff context with the source tensor before
