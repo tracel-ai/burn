@@ -119,7 +119,7 @@ impl AutodiffClient for GraphMutexClient {
                 .backward::<GraphCleaner, B>(root.node, root.primitive, node_id, mode)
         }; // lock released
 
-        GraphCleaner::cleanup_orphaned_entries();
+        GraphCleaner::cleanup_orphaned_entries(&graph);
 
         grads
     }
@@ -130,36 +130,21 @@ struct GraphCleaner<'a> {
 }
 
 impl<'a> GraphCleaner<'a> {
-    fn cleanup_orphaned_entries() {
-        let graphs = {
-            // Get the available graphs and release the lock
-            match STATE.lock().as_ref() {
-                Some(state) => state.graphs.clone(),
-                None => return,
-            }
-        };
-
+    fn cleanup_orphaned_entries(graph: &Arc<Graph>) {
         let mut should_remove = Vec::new();
-        for graph in graphs.values() {
-            {
-                // Best-effort sweep: a graph whose mutex is contended is in
-                // use — possibly by this very thread, when a `Backward` step
-                // itself runs an inner `backward()` (the outer backward holds
-                // its graph's lock across step execution, and this mutex is
-                // not reentrant). Skip it; a later backward's sweep will
-                // collect its orphans.
-                let Some(mut guard) = graph.state.try_lock() else {
-                    continue;
-                };
-                // Double safety: in case it was marked as no longer useful, but other
-                // nodes are still relevant, we only check which nodes can safely be removed.
-                if !guard.server.maybe_useful() {
-                    guard
-                        .server
-                        .free_unused_roots(|node| should_remove.push(*node));
-                }
-            }
+        // The graph was just used by this backward pass. Other graphs may be
+        // concurrently building a step whose node is not referenced yet.
+        let Some(mut guard) = graph.state.try_lock() else {
+            #[cfg(feature = "tracing")]
+            tracing::trace!("Skipping autodiff orphan cleanup for a contended graph");
+            return;
+        };
+        if !guard.server.maybe_useful() {
+            guard
+                .server
+                .free_unused_roots(|node| should_remove.push(*node));
         }
+        drop(guard);
 
         if !should_remove.is_empty() {
             let mut state = STATE.lock();
