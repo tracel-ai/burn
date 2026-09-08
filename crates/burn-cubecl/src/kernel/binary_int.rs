@@ -7,7 +7,7 @@ use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise,
-    prelude::*,
+    prelude::{polyfills::powi_int, *},
     std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
@@ -26,6 +26,7 @@ pub(crate) struct BitwiseOrOp;
 pub(crate) struct BitwiseXorOp;
 pub(crate) struct BitwiseShrOp;
 pub(crate) struct BitwiseShlOp;
+pub(crate) struct PowiOp;
 
 impl BinaryOpIntFamily for BitwiseAndOp {
     type BinaryOp<C: Int, N: Size> = Self;
@@ -44,6 +45,10 @@ impl BinaryOpIntFamily for BitwiseShrOp {
 }
 
 impl BinaryOpIntFamily for BitwiseShlOp {
+    type BinaryOp<C: Int, N: Size> = Self;
+}
+
+impl BinaryOpIntFamily for PowiOp {
     type BinaryOp<C: Int, N: Size> = Self;
 }
 
@@ -79,6 +84,13 @@ impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShrOp {
 impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs << rhs
+    }
+}
+
+#[cube]
+impl<T: Int, N: Size> BinaryOpInt<T, N> for PowiOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        powi_int(lhs, Vector::<i32, N>::cast_from(rhs))
     }
 }
 

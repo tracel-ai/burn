@@ -750,12 +750,15 @@ impl IntTensorOps<Self> for CubeBackend {
         unfold(tensor, dim, size, step)
     }
 
-    // TODO
-    // fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-    //     todo!()
-    // }
+    fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        launch_binop_int::<kernel::PowiOp>(lhs, rhs)
+    }
 
-    // fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-    //     todo!()
-    // }
+    fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        let dtype = lhs.dtype;
+        launch_scalar_binop_int::<kernel::PowiOp>(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+        )
+    }
 }
