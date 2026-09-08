@@ -138,6 +138,24 @@ fn should_diff_sum_dim() {
 }
 
 #[test]
+fn should_diff_sum_dim_empty_axis() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::empty([3, 0], &device).require_grad();
+
+    let output = tensor.clone().sum_dim(1);
+    output
+        .to_data()
+        .assert_eq(&TensorData::from([[0.0], [0.0], [0.0]]), false);
+
+    let grads = output.sum().backward();
+    let grad = tensor.grad(&grads).unwrap();
+
+    assert_eq!(grad.shape().dims(), [3, 0]);
+    grad.to_data()
+        .assert_eq(&TensorData::new(Vec::<FloatElem>::new(), [3, 0]), false);
+}
+
+#[test]
 fn should_diff_prod() {
     let device = AutodiffDevice::new();
     let tensor =
