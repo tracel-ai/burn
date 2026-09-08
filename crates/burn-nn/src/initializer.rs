@@ -279,6 +279,36 @@ mod tests {
     }
 
     #[test]
+    fn initializer_init_is_lazy() {
+        let param: Param<Tensor<2>> = Initializer::Zeros.init([2, 2], &test_device());
+
+        assert!(!param.is_initialized());
+
+        let _ = param.val();
+
+        assert!(param.is_initialized());
+    }
+
+    #[test]
+    fn initializer_clone_shares_lazy_state() {
+        let param: Param<Tensor<2>> = Initializer::Normal {
+            mean: 0.0,
+            std: 1.0,
+        }
+        .init([2, 2], &test_device());
+        let cloned = param.clone();
+
+        assert!(!param.is_initialized());
+        assert!(!cloned.is_initialized());
+
+        let cloned_data = cloned.to_data();
+
+        assert!(param.is_initialized());
+        assert!(cloned.is_initialized());
+        assert_eq!(cloned_data, param.to_data());
+    }
+
+    #[test]
     fn initializer_uniform_init() {
         let device = test_device();
         device.seed(0);

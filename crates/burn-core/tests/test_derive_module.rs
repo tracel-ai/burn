@@ -1,4 +1,4 @@
-use burn::module::{Module, Param};
+use burn::module::{Module, Param, ParamId};
 use burn::tensor::{Distribution, Int, Tensor};
 use burn_core as burn;
 use burn_tensor::Device;
@@ -14,14 +14,28 @@ struct ModuleTensorConstInt {
     weight_basic: Tensor<2, Int>,
 }
 
+fn lazy_random_param(device: &Device) -> Param<Tensor<2>> {
+    Param::uninitialized(
+        ParamId::new(),
+        |device, require_grad| {
+            let tensor = Tensor::random([20, 20], Distribution::Normal(0.0, 1.0), device);
+
+            if require_grad {
+                tensor.require_grad()
+            } else {
+                tensor
+            }
+        },
+        device.clone(),
+        true,
+        [20, 20].into(),
+    )
+}
+
 impl ModuleBasic {
     fn new(device: &Device) -> Self {
         Self {
-            weight_basic: Param::from_tensor(Tensor::random(
-                [20, 20],
-                Distribution::Normal(0.0, 1.0),
-                device,
-            )),
+            weight_basic: lazy_random_param(device),
         }
     }
 }
@@ -65,11 +79,7 @@ pub struct ModuleComposed {
 
 impl ModuleComposed {
     fn new(device: &Device) -> Self {
-        let weight = Param::from_tensor(Tensor::random(
-            [20, 20],
-            Distribution::Normal(0.0, 1.0),
-            device,
-        ));
+        let weight = lazy_random_param(device);
 
         Self {
             weight,
