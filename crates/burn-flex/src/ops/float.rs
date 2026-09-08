@@ -833,6 +833,29 @@ impl FloatTensorOps<Flex> for Flex {
         fn cast_slice<Src: Element + bytemuck::Pod, Dst: Element + bytemuck::Pod>(
             src: &[Src],
         ) -> Vec<Dst> {
+            use core::any::TypeId;
+            if TypeId::of::<Src>() == TypeId::of::<f64>()
+                && TypeId::of::<Dst>() == TypeId::of::<f16>()
+            {
+                let f64_slice: &[f64] = bytemuck::cast_slice(src);
+                let mut out = vec![Dst::default(); src.len()];
+                let f16_slice: &mut [f16] = bytemuck::cast_slice_mut(&mut out);
+                for (dst, &v) in f16_slice.iter_mut().zip(f64_slice.iter()) {
+                    *dst = f16::from_f64(v);
+                }
+                return out;
+            }
+            if TypeId::of::<Src>() == TypeId::of::<f64>()
+                && TypeId::of::<Dst>() == TypeId::of::<bf16>()
+            {
+                let f64_slice: &[f64] = bytemuck::cast_slice(src);
+                let mut out = vec![Dst::default(); src.len()];
+                let bf16_slice: &mut [bf16] = bytemuck::cast_slice_mut(&mut out);
+                for (dst, &v) in bf16_slice.iter_mut().zip(f64_slice.iter()) {
+                    *dst = bf16::from_f64(v);
+                }
+                return out;
+            }
             src.iter().map(|&v| Dst::from_elem(v)).collect()
         }
 

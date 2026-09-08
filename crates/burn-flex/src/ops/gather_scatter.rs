@@ -13,18 +13,7 @@ use rayon::prelude::*;
 use crate::{FlexTensor, Layout};
 
 #[cfg(feature = "rayon")]
-const PARALLEL_THRESHOLD: usize = 256 * 1024;
-
-/// Check if a layout is contiguous and not broadcasted.
-#[inline]
-fn is_contiguous_non_broadcast(layout: &Layout) -> bool {
-    layout.is_contiguous()
-        && !layout
-            .strides()
-            .iter()
-            .zip(layout.shape().iter())
-            .any(|(&stride, &dim)| dim > 1 && stride == 0)
-}
+use super::PARALLEL_THRESHOLD;
 
 /// Read indices from a tensor as `isize`, the native offset type used by the
 /// gather/scatter/select kernels in this module.
@@ -491,7 +480,7 @@ where
     let indices_strides: Vec<usize> = compute_strides(indices_shape);
     let num_elements = indices_shape.num_elements();
 
-    let in_place = tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout());
+    let in_place = tensor.is_unique() && tensor.layout().is_dense_unique_storage();
 
     if in_place {
         let t_offset = tensor.layout().start_offset();
@@ -993,7 +982,7 @@ where
         }
     }
 
-    let in_place = tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout());
+    let in_place = tensor.is_unique() && tensor.layout().is_dense_unique_storage();
 
     if in_place {
         let t_offset = tensor.layout().start_offset();

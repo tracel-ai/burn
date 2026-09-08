@@ -298,7 +298,6 @@ fn conv_transpose3d_impl<
     let mut output = vec![zero; output_size];
 
     let group_chunk_len = out_channels_per_group * out_spatial;
-    let total_groups = batch_size * groups;
 
     let process_group = |b: usize, g: usize, group_output: &mut [T], columns: &mut [T]| {
         let ic_start = g * in_channels_per_group;
@@ -369,6 +368,8 @@ fn conv_transpose3d_impl<
         }
     };
 
+    #[cfg(feature = "rayon")]
+    let total_groups = batch_size * groups;
     #[cfg(feature = "rayon")]
     if total_groups > 1
         && (total_groups * out_channels_per_group * out_spatial) >= super::PARALLEL_THRESHOLD

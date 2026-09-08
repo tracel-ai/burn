@@ -125,6 +125,16 @@ impl Layout {
         true
     }
 
+    /// Returns true if this layout represents contiguous, non-broadcast storage.
+    pub fn is_dense_unique_storage(&self) -> bool {
+        self.is_contiguous()
+            && !self
+                .strides
+                .iter()
+                .zip(self.shape.iter())
+                .any(|(&stride, &dim)| dim > 1 && stride == 0)
+    }
+
     /// If contiguous, return (start, end) offsets for direct slice access.
     pub fn contiguous_offsets(&self) -> Option<(usize, usize)> {
         if self.is_contiguous() {

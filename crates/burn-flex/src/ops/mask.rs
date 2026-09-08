@@ -6,17 +6,6 @@ use burn_std::{Bytes, bf16, f16};
 
 use crate::{FlexTensor, Layout};
 
-/// Check if a layout is contiguous and not broadcasted.
-#[inline]
-fn is_contiguous_non_broadcast(layout: &Layout) -> bool {
-    layout.is_contiguous()
-        && !layout
-            .strides()
-            .iter()
-            .zip(layout.shape().iter())
-            .any(|(&stride, &dim)| dim > 1 && stride == 0)
-}
-
 /// Allocate a Vec of given length without zeroing.
 /// The caller must write every element before reading.
 #[cfg(feature = "simd")]
@@ -43,7 +32,7 @@ where
     let (mut tensor, mask) = crate::ops::expand::broadcast_binary(tensor, mask);
 
     // In-place fast path: if input tensor storage is unique, contiguous, and non-broadcast
-    if tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()) {
+    if tensor.is_unique() && tensor.layout().is_dense_unique_storage() {
         let t_offset = tensor.layout().start_offset();
         let numel = tensor.layout().num_elements();
         if mask.layout().is_contiguous() {
@@ -113,7 +102,7 @@ pub fn mask_fill_f32(tensor: FlexTensor, mask: FlexTensor, value: f32) -> FlexTe
     #[cfg(feature = "simd")]
     {
         let (tensor, mask) = crate::ops::expand::broadcast_binary(tensor, mask);
-        if tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()) {
+        if tensor.is_unique() && tensor.layout().is_dense_unique_storage() {
             return mask_fill(tensor, mask, value);
         }
         if tensor.layout().is_contiguous() && mask.layout().is_contiguous() {
@@ -147,7 +136,7 @@ pub fn mask_fill_f64(tensor: FlexTensor, mask: FlexTensor, value: f64) -> FlexTe
     #[cfg(feature = "simd")]
     {
         let (tensor, mask) = crate::ops::expand::broadcast_binary(tensor, mask);
-        if tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()) {
+        if tensor.is_unique() && tensor.layout().is_dense_unique_storage() {
             return mask_fill(tensor, mask, value);
         }
         if tensor.layout().is_contiguous() && mask.layout().is_contiguous() {
@@ -191,7 +180,7 @@ pub fn mask_fill_i64(tensor: FlexTensor, mask: FlexTensor, value: i64) -> FlexTe
     #[cfg(feature = "simd")]
     {
         let (tensor, mask) = crate::ops::expand::broadcast_binary(tensor, mask);
-        if tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()) {
+        if tensor.is_unique() && tensor.layout().is_dense_unique_storage() {
             return mask_fill(tensor, mask, value);
         }
         if tensor.layout().is_contiguous() && mask.layout().is_contiguous() {
@@ -227,11 +216,11 @@ pub fn mask_fill_u64(tensor: FlexTensor, mask: FlexTensor, value: u64) -> FlexTe
 
 /// Mask fill for bool tensors (SIMD-accelerated when out-of-place contiguous, in-place when unique).
 pub fn mask_fill_bool(tensor: FlexTensor, mask: FlexTensor, value: bool) -> FlexTensor {
-    let out_dtype = burn_std::BoolDType::from(tensor.dtype());
     #[cfg(feature = "simd")]
     {
+        let out_dtype = burn_std::BoolDType::from(tensor.dtype());
         let (tensor, mask) = crate::ops::expand::broadcast_binary(tensor, mask);
-        if tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()) {
+        if tensor.is_unique() && tensor.layout().is_dense_unique_storage() {
             return mask_fill::<u8>(tensor, mask, value as u8);
         }
         if tensor.layout().is_contiguous() && mask.layout().is_contiguous() {
@@ -270,7 +259,7 @@ where
     let numel = shape.num_elements();
 
     // In-place fast path: if tensor (val_false) is unique, contiguous, and non-broadcast
-    if tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()) {
+    if tensor.is_unique() && tensor.layout().is_dense_unique_storage() {
         let t_offset = tensor.layout().start_offset();
         if mask.layout().is_contiguous() && value.layout().is_contiguous() {
             let m_offset = mask.layout().start_offset();
@@ -320,7 +309,7 @@ where
     }
 
     // In-place fast path: if value (val_true) is unique, contiguous, and non-broadcast
-    if value.is_unique() && is_contiguous_non_broadcast(value.layout()) {
+    if value.is_unique() && value.layout().is_dense_unique_storage() {
         let v_offset = value.layout().start_offset();
         if mask.layout().is_contiguous() && tensor.layout().is_contiguous() {
             let m_offset = mask.layout().start_offset();
@@ -434,8 +423,8 @@ pub fn mask_where_f32(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) -
     #[cfg(feature = "simd")]
     {
         let (tensor, mask, value) = broadcast_three(tensor, mask, value);
-        if (tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()))
-            || (value.is_unique() && is_contiguous_non_broadcast(value.layout()))
+        if (tensor.is_unique() && tensor.layout().is_dense_unique_storage())
+            || (value.is_unique() && value.layout().is_dense_unique_storage())
         {
             return mask_where::<f32>(tensor, mask, value);
         }
@@ -474,8 +463,8 @@ pub fn mask_where_f64(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) -
     #[cfg(feature = "simd")]
     {
         let (tensor, mask, value) = broadcast_three(tensor, mask, value);
-        if (tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()))
-            || (value.is_unique() && is_contiguous_non_broadcast(value.layout()))
+        if (tensor.is_unique() && tensor.layout().is_dense_unique_storage())
+            || (value.is_unique() && value.layout().is_dense_unique_storage())
         {
             return mask_where::<f64>(tensor, mask, value);
         }
@@ -524,8 +513,8 @@ pub fn mask_where_i64(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) -
     #[cfg(feature = "simd")]
     {
         let (tensor, mask, value) = broadcast_three(tensor, mask, value);
-        if (tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()))
-            || (value.is_unique() && is_contiguous_non_broadcast(value.layout()))
+        if (tensor.is_unique() && tensor.layout().is_dense_unique_storage())
+            || (value.is_unique() && value.layout().is_dense_unique_storage())
         {
             return mask_where::<i64>(tensor, mask, value);
         }
@@ -561,12 +550,13 @@ pub fn mask_where_i64(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) -
 
 /// Mask where for bool tensors (SIMD-accelerated when out-of-place contiguous, in-place when unique).
 pub fn mask_where_bool(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) -> FlexTensor {
-    let out_dtype = burn_std::BoolDType::from(tensor.dtype());
     #[cfg(feature = "simd")]
     {
+        let out_dtype = burn_std::BoolDType::from(tensor.dtype());
         let (tensor, mask, value) = broadcast_three(tensor, mask, value);
-        if (tensor.is_unique() && is_contiguous_non_broadcast(tensor.layout()))
-            || (value.is_unique() && is_contiguous_non_broadcast(value.layout()))
+        if tensor.dtype() == value.dtype()
+            && ((tensor.is_unique() && tensor.layout().is_dense_unique_storage())
+                || (value.is_unique() && value.layout().is_dense_unique_storage()))
         {
             return mask_where::<u8>(tensor, mask, value);
         }

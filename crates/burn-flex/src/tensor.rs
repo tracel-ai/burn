@@ -605,24 +605,25 @@ fn copy_batched_2d_tiled<E: Copy + Send + Sync>(
 
     let batch_shape = &shape[..rank - 2];
     let batch_strides = &strides[..rank - 2];
-    let batch_count: usize = batch_shape.iter().product();
-
     #[cfg(feature = "rayon")]
-    if batch_count * slice_len >= crate::ops::PARALLEL_THRESHOLD && batch_count > 1 {
-        use rayon::prelude::*;
-        dst.par_chunks_mut(slice_len)
-            .enumerate()
-            .for_each(|(b, slice_dst)| {
-                let mut remaining = b;
-                let mut batch_offset = offset;
-                for d in (0..batch_shape.len()).rev() {
-                    let coord = remaining % batch_shape[d];
-                    remaining /= batch_shape[d];
-                    batch_offset += coord as isize * batch_strides[d];
-                }
-                copy_2d_tiled(slice_dst, src, batch_offset, rows, cols, r_st, c_st);
-            });
-        return;
+    {
+        let batch_count: usize = batch_shape.iter().product();
+        if batch_count * slice_len >= crate::ops::PARALLEL_THRESHOLD && batch_count > 1 {
+            use rayon::prelude::*;
+            dst.par_chunks_mut(slice_len)
+                .enumerate()
+                .for_each(|(b, slice_dst)| {
+                    let mut remaining = b;
+                    let mut batch_offset = offset;
+                    for d in (0..batch_shape.len()).rev() {
+                        let coord = remaining % batch_shape[d];
+                        remaining /= batch_shape[d];
+                        batch_offset += coord as isize * batch_strides[d];
+                    }
+                    copy_2d_tiled(slice_dst, src, batch_offset, rows, cols, r_st, c_st);
+                });
+            return;
+        }
     }
 
     for (b, slice_dst) in dst.chunks_mut(slice_len).enumerate() {
@@ -646,6 +647,7 @@ fn copy_2d_negative<E: Copy + Send + Sync>(
     row_stride: isize,
     col_stride: isize,
 ) {
+    #[cfg(feature = "rayon")]
     let n = rows * cols;
     if row_stride < 0 && col_stride == 1 {
         #[cfg(feature = "rayon")]
@@ -787,6 +789,7 @@ fn copy_inner_contiguous_run<E: Copy>(
 
 /// Minimum number of elements required to trigger parallel 2D tiled copy.
 /// Avoids thread fork/steal overhead on ~1MB cache-resident tensors.
+#[cfg(any(feature = "rayon", test))]
 pub(crate) const COPY_2D_PARALLEL_THRESHOLD: usize = 1_048_576;
 
 /// Tiled 2D copy from a strided source into a contiguous destination.
@@ -804,10 +807,9 @@ fn copy_2d_tiled<E: Copy + Send + Sync>(
     col_stride: isize,
 ) {
     const TILE: usize = 16;
-    let n = rows * cols;
 
     #[cfg(feature = "rayon")]
-    if n >= COPY_2D_PARALLEL_THRESHOLD {
+    if rows * cols >= COPY_2D_PARALLEL_THRESHOLD {
         use rayon::prelude::*;
         let total_tile_rows = rows.div_ceil(TILE);
         let num_threads = rayon::current_num_threads();

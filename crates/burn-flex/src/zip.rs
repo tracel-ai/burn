@@ -335,16 +335,6 @@ impl Zip3Nest {
         Self::is_dense(&self.a_strides[..self.ndim], &self.shape[..self.ndim])
     }
 
-    #[allow(dead_code)]
-    pub fn b_is_dense(&self) -> bool {
-        Self::is_dense(&self.b_strides[..self.ndim], &self.shape[..self.ndim])
-    }
-
-    #[allow(dead_code)]
-    pub fn c_is_dense(&self) -> bool {
-        Self::is_dense(&self.c_strides[..self.ndim], &self.shape[..self.ndim])
-    }
-
     fn is_dense(strides: &[isize], shape: &[usize]) -> bool {
         let mut expected = 1isize;
         for d in (0..shape.len()).rev() {
