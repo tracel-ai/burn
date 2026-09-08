@@ -111,7 +111,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
     /// method, this simply remove the need for the current type to also keep track of the list of
     /// operations.
     pub fn optimize(&self, operations: &[OperationIr]) -> BlockOptimization<O> {
-        let result = BlocksOptimizer::new(self.blocks.clone()).optimize();
+        let result = BlocksOptimizer::new(self.blocks.clone()).optimize(&self.builders);
 
         let out = match result {
             BlocksOptimizerResult::Full(block_optimization) => block_optimization,
