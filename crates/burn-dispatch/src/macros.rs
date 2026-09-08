@@ -224,8 +224,13 @@ macro_rules! to_device_arms {
                     },
                 )+
             )*
+            #[cfg(all(feature = "autodiff", feature = "capture"))]
+            (_, $crate::DispatchDevice::Autodiff(device))
+            if matches!(&*device.inner, $crate::DispatchDevice::Capture(_)) => {
+                panic!("Cannot move a tensor to a capture device with autodiff enabled; remove autodiff with without_autodiff() before the transfer.")
+            }
             #[cfg(feature = "autodiff")]
-            (_, $crate::DispatchDevice::Autodiff(_)) => unreachable!("Autodiff should not wrap an autodiff device."),
+            (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move this tensor to the requested autodiff device: this transfer is not supported."),
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensorKind::Autodiff(..), _) => panic!("Operation not marked for autodiff."),
             // Capture is intentionally one-way: initialized values can be moved onto a

@@ -72,6 +72,18 @@ fn autodiff_and_tracking_states_follow_graph_transitions() {
 }
 
 #[test]
+fn tracked_state_does_not_report_consumed_tape_availability() {
+    let leaf = Tensor::<1>::from_floats([1.0, 2.0], &Device::flex().autodiff()).require_grad();
+    let output = leaf.mul_scalar(2.0).sum();
+
+    assert!(output.is_tracked());
+    let _ = output.backward();
+
+    // Tracking is a property of the node and remains observable after backward consumes its tape.
+    assert!(output.is_tracked());
+}
+
+#[test]
 fn tensor_autodiff_conversions_are_idempotent() {
     let plain = Tensor::<1>::from_floats([1.0, 2.0], &Device::flex());
 

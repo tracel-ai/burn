@@ -91,12 +91,15 @@ impl<const D: usize> Tensor<D> {
         grad_replace_impl(&self.primitive, grads, grad.primitive)
     }
 
-    /// Returns whether this tensor participates in a recorded autodiff graph.
+    /// Returns whether this tensor's node is marked for autodiff graph participation.
     ///
     /// A tensor can have autodiff enabled without being tracked, such as a constant that doesn't
     /// require gradients. [`is_autodiff`](Tensor::is_autodiff) reports whether autodiff is enabled
     /// for the tensor, while [`is_require_grad`](Tensor::is_require_grad) reports whether its
     /// gradient is retained after backward.
+    ///
+    /// This reports graph participation and doesn't indicate whether the graph tape has already
+    /// been consumed.
     pub fn is_tracked(&self) -> bool {
         is_tracked_impl(&self.primitive)
     }
@@ -230,7 +233,7 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// The strategy is normally derived from the device the tensor was created on (see
     /// [`Device::gradient_checkpointing`](crate::Device::gradient_checkpointing)); this
     /// method overrides it for a single tensor. Enable autodiff first with
-    /// [`autodiff`](Tensor::autodiff) when needed.
+    /// [`autodiff`](Tensor::autodiff) when needed; this method doesn't enable it automatically.
     ///
     /// # Panics
     ///

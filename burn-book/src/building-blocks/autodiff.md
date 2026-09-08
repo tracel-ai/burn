@@ -21,19 +21,27 @@ field on every parameter. Passing that container to `grad` or `grad_remove` make
 between the backward pass and gradient access explicit. `grad_remove` can also enable in-place
 optimizations when a gradient is consumed only once.
 
-Autodiff association, graph participation, and gradient retention are related but independent
+Autodiff association, graph participation, and gradient retention are distinct, but constrained,
 properties:
 
-| Property               | Accessor                                   | Related APIs                                                                             |
-| ---------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| Autodiff association   | `tensor.is_autodiff()`                     | `autodiff()` / `without_autodiff()`                                                      |
-| Graph participation    | `tensor.is_tracked()`                      | `detach()` / operations with tracked inputs                                              |
-| Gradient retention     | `tensor.is_require_grad()`                 | `require_grad()` / `set_require_grad(...)`                                               |
-| Checkpointing strategy | `tensor.gradient_checkpointing_strategy()` | `autodiff().with_gradient_checkpointing_strategy(...)`                                   |
+| Property               | Accessor                                   | Related APIs                                           |
+| ---------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| Autodiff association   | `tensor.is_autodiff()`                     | `autodiff()` / `without_autodiff()`                    |
+| Graph participation    | `tensor.is_tracked()`                      | `detach()` / operations with tracked inputs            |
+| Gradient retention     | `tensor.is_require_grad()`                 | `require_grad()` / `set_require_grad(...)`             |
+| Checkpointing strategy | `tensor.gradient_checkpointing_strategy()` | `autodiff().with_gradient_checkpointing_strategy(...)` |
 
 `require_grad()` only controls whether a tensor's gradient is retained; it does not enable autodiff.
 On a tensor without autodiff, it is a no-op. `detach()` keeps the autodiff association but starts a
 new graph lineage, while `without_autodiff()` removes the association entirely.
+
+For floating-point tensors, retained gradients imply graph participation, and graph participation
+implies an autodiff association:
+
+```text
+is_require_grad() => is_tracked() => is_autodiff()
+gradient_checkpointing_strategy().is_some() == is_autodiff()
+```
 
 | Burn API                                | PyTorch Equivalent           |
 | --------------------------------------- | ---------------------------- |
@@ -73,13 +81,13 @@ autodiff and treats the latter tensor as a constant. The original tensor remains
 
 ```rust, ignore
 fn example_validation(tensor: Tensor<2>) {
-    debug_assert!(tensor.device().is_autodiff());
+    debug_assert!(tensor.is_autodiff());
     let inner_tensor = tensor.without_autodiff();
     let _ = inner_tensor + 5;
 }
 
 fn example_inference(tensor: Tensor<2>) {
-    debug_assert!(!tensor.device().is_autodiff());
+    debug_assert!(!tensor.is_autodiff());
     let _ = tensor + 5;
     ...
 }

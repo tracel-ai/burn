@@ -98,7 +98,8 @@ assert!(!inference_device.is_autodiff());
 
 `autodiff()` and `without_autodiff()` are idempotent. The historical `inner()` method is equivalent
 to `without_autodiff()`. Chain `autodiff().gradient_checkpointing()` to enable autodiff with the
-balanced checkpointing strategy.
+balanced checkpointing strategy. Repeating `autodiff()` doesn't enable higher-order differentiation;
+Burn currently supports first-order autodiff only.
 
 The following methods are also useful when coordinating execution:
 
