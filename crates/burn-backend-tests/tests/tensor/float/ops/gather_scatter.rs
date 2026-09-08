@@ -161,9 +161,6 @@ fn should_scatter_add_2d_dim0() {
         .assert_eq(&TensorData::from([[0.0, 2.0, 6.0], [5.0, 5.0, 3.0]]), false);
 }
 
-/// Far more values than slots, every slot hit hundreds of times: a scatter
-/// that adds in parallel must still count exactly, whatever order the
-/// updates land in.
 #[test]
 fn should_scatter_add_many_values_into_few_slots() {
     let device = Default::default();
