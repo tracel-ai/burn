@@ -785,6 +785,10 @@ fn copy_inner_contiguous_run<E: Copy>(
     }
 }
 
+/// Minimum number of elements required to trigger parallel 2D tiled copy.
+/// Avoids thread fork/steal overhead on ~1MB cache-resident tensors.
+pub(crate) const COPY_2D_PARALLEL_THRESHOLD: usize = 1_048_576;
+
 /// Tiled 2D copy from a strided source into a contiguous destination.
 /// The loop nesting is chosen so the innermost read walks whichever
 /// source stride is smaller, which keeps the hot loop in cache even
@@ -803,33 +807,58 @@ fn copy_2d_tiled<E: Copy + Send + Sync>(
     let n = rows * cols;
 
     #[cfg(feature = "rayon")]
-    if n >= crate::ops::PARALLEL_THRESHOLD {
+    if n >= COPY_2D_PARALLEL_THRESHOLD {
         use rayon::prelude::*;
-        let tile_rows = TILE * cols;
-        dst.par_chunks_mut(tile_rows)
+        let total_tile_rows = rows.div_ceil(TILE);
+        let num_threads = rayon::current_num_threads();
+        let tile_rows_per_task = total_tile_rows.div_ceil(num_threads).max(1);
+        let chunk_len = tile_rows_per_task * TILE * cols;
+
+        dst.par_chunks_mut(chunk_len)
             .enumerate()
-            .for_each(|(tile_idx, dst_chunk)| {
-                let row_start = tile_idx * TILE;
-                let actual_tile_rows = dst_chunk.len() / cols;
-                for col_tile in (0..cols).step_by(TILE) {
-                    let col_end = (col_tile + TILE).min(cols);
-                    if row_stride >= col_stride {
-                        for r in 0..actual_tile_rows {
-                            let row = row_start + r;
-                            let row_base = offset + row as isize * row_stride;
-                            let dst_offset = r * cols;
+            .for_each(|(task_idx, dst_chunk)| {
+                let row_start = task_idx * tile_rows_per_task * TILE;
+                let chunk_rows = dst_chunk.len() / cols;
+                if row_stride <= col_stride {
+                    // row-inside-col: the inner loop walks `row_stride` (smaller).
+                    for col_tile in (0..cols).step_by(TILE) {
+                        let col_end = (col_tile + TILE).min(cols);
+                        for r_tile in (0..chunk_rows).step_by(TILE) {
+                            let r_end = (r_tile + TILE).min(chunk_rows);
                             for col in col_tile..col_end {
-                                let idx = (row_base + col as isize * col_stride) as usize;
-                                dst_chunk[dst_offset + col] = src[idx];
+                                let col_base = offset + col as isize * col_stride;
+                                for r in r_tile..r_end {
+                                    let row = row_start + r;
+                                    let idx = (col_base + row as isize * row_stride) as usize;
+                                    // SAFETY: caller set `dst.len() == rows * cols`
+                                    // and each `(r, col)` is visited once in this chunk.
+                                    unsafe {
+                                        *dst_chunk.get_unchecked_mut(r * cols + col) = src[idx];
+                                    }
+                                }
                             }
                         }
-                    } else {
-                        for col in col_tile..col_end {
-                            let col_base = offset + col as isize * col_stride;
-                            for r in 0..actual_tile_rows {
+                    }
+                } else {
+                    // col-inside-row: the inner loop walks `col_stride` (smaller).
+                    for r_tile in (0..chunk_rows).step_by(TILE) {
+                        let r_end = (r_tile + TILE).min(chunk_rows);
+                        for col_tile in (0..cols).step_by(TILE) {
+                            let col_end = (col_tile + TILE).min(cols);
+                            for r in r_tile..r_end {
                                 let row = row_start + r;
-                                let idx = (col_base + row as isize * row_stride) as usize;
-                                dst_chunk[r * cols + col] = src[idx];
+                                let row_base = offset
+                                    + row as isize * row_stride
+                                    + col_tile as isize * col_stride;
+                                let dst_base = r * cols + col_tile;
+                                for c in 0..(col_end - col_tile) {
+                                    let idx = (row_base + c as isize * col_stride) as usize;
+                                    // SAFETY: caller set `dst.len() == rows * cols`
+                                    // and each `(r, col)` is visited once in this chunk.
+                                    unsafe {
+                                        *dst_chunk.get_unchecked_mut(dst_base + c) = src[idx];
+                                    }
+                                }
                             }
                         }
                     }
@@ -838,8 +867,27 @@ fn copy_2d_tiled<E: Copy + Send + Sync>(
         return;
     }
 
-    if row_stride >= col_stride {
-        // col-inside-row: iterate `r` outside and `col` inside for contiguous reads and writes.
+    if row_stride <= col_stride {
+        // row-inside-col: the inner loop walks `row_stride` (smaller).
+        for col_tile in (0..cols).step_by(TILE) {
+            let col_end = (col_tile + TILE).min(cols);
+            for row_tile in (0..rows).step_by(TILE) {
+                let row_end = (row_tile + TILE).min(rows);
+                for col in col_tile..col_end {
+                    let col_base = offset + col as isize * col_stride;
+                    for row in row_tile..row_end {
+                        let idx = (col_base + row as isize * row_stride) as usize;
+                        // SAFETY: caller set `dst.len() == rows * cols`
+                        // and each `(row, col)` is visited once.
+                        unsafe {
+                            *dst.get_unchecked_mut(row * cols + col) = src[idx];
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // col-inside-row: the inner loop walks `col_stride` (smaller).
         for row_tile in (0..rows).step_by(TILE) {
             let row_end = (row_tile + TILE).min(rows);
             for col_tile in (0..cols).step_by(TILE) {
@@ -854,25 +902,6 @@ fn copy_2d_tiled<E: Copy + Send + Sync>(
                         // and each `(row, col)` is visited once.
                         unsafe {
                             *dst.get_unchecked_mut(dst_base + c) = src[idx];
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        // row-inside-col: iterate `col` outside and `r` inside.
-        for col_tile in (0..cols).step_by(TILE) {
-            let col_end = (col_tile + TILE).min(cols);
-            for row_tile in (0..rows).step_by(TILE) {
-                let row_end = (row_tile + TILE).min(rows);
-                for col in col_tile..col_end {
-                    let col_base = offset + col as isize * col_stride;
-                    for row in row_tile..row_end {
-                        let idx = (col_base + row as isize * row_stride) as usize;
-                        // SAFETY: caller set `dst.len() == rows * cols`
-                        // and each `(row, col)` is visited once.
-                        unsafe {
-                            *dst.get_unchecked_mut(row * cols + col) = src[idx];
                         }
                     }
                 }
@@ -1149,6 +1178,70 @@ mod tests {
             }
         }
         assert_eq!(values, expected.as_slice());
+    }
+
+    /// Parallel 2D tiled copy when `row_stride <= col_stride` (>= 1M elements).
+    #[test]
+    fn test_to_contiguous_2d_parallel_row_stride_le_col_stride() {
+        let rows = 1024;
+        let cols = 1024;
+        let n = rows * cols;
+        assert!(n >= COPY_2D_PARALLEL_THRESHOLD);
+
+        let data: Vec<f32> = (0..n).map(|i| (i % 997) as f32).collect();
+        let t = FlexTensor::from_data(TensorData::new(data.clone(), vec![rows, cols]));
+        let transposed = t.transpose(0, 1);
+        assert_eq!(transposed.layout().strides(), &[1, rows as isize]);
+        assert!(!transposed.layout().is_contiguous());
+
+        let contig = transposed.to_contiguous();
+        assert!(contig.is_contiguous());
+        assert_eq!(contig.shape().to_vec(), vec![cols, rows]);
+
+        let result_data = contig.into_data();
+        let values = result_data.as_slice::<f32>().unwrap();
+        for r in 0..cols {
+            for c in 0..rows {
+                let expected = data[c * cols + r];
+                assert_eq!(values[r * rows + c], expected);
+            }
+        }
+    }
+
+    /// Parallel 2D tiled copy when `row_stride > col_stride` (>= 1M elements).
+    #[test]
+    fn test_to_contiguous_2d_parallel_row_stride_gt_col_stride() {
+        let rows = 1024;
+        let cols = 1024;
+        let n = rows * cols;
+        assert!(n >= COPY_2D_PARALLEL_THRESHOLD);
+
+        // [1024, 2048] tensor sliced to [1024, 1024] => row_stride = 2048, col_stride = 1
+        let full_cols = 2048;
+        let data: Vec<f32> = (0..rows * full_cols).map(|i| (i % 997) as f32).collect();
+        let t = FlexTensor::from_data(TensorData::new(data.clone(), vec![rows, full_cols]));
+        let sliced = crate::ops::slice::slice(
+            t,
+            &[
+                burn_std::Slice::new(0, Some(rows as isize), 1),
+                burn_std::Slice::new(0, Some(cols as isize), 1),
+            ],
+        );
+        assert_eq!(sliced.layout().strides(), &[full_cols as isize, 1]);
+        assert!(!sliced.layout().is_contiguous());
+
+        let contig = sliced.to_contiguous();
+        assert!(contig.is_contiguous());
+        assert_eq!(contig.shape().to_vec(), vec![rows, cols]);
+
+        let result_data = contig.into_data();
+        let values = result_data.as_slice::<f32>().unwrap();
+        for r in 0..rows {
+            for c in 0..cols {
+                let expected = data[r * full_cols + c];
+                assert_eq!(values[r * cols + c], expected);
+            }
+        }
     }
 
     #[test]
