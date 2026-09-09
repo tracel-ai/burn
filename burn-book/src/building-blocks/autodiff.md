@@ -6,6 +6,13 @@ created tensors; each tensor carries its own context and can change it independe
 context with `tensor.is_autodiff()`. Moving a tensor to a device does not apply the destination's
 autodiff defaults.
 
+The user-facing tensor and module types no longer distinguish `B: Backend` from
+`B: AutodiffBackend`; autodiff APIs check their preconditions at runtime. Enabling autodiff permits
+graph recording but does not make every input require gradients. Use `require_grad()` on source
+leaves whose gradients you need, and let ordinary model inputs remain constants when their
+gradients aren't needed. For modules, `train()` enables autodiff and restores configured parameter
+trainability and training flags; see [module training state](./module.md#methods).
+
 ```rust, ignore
 use burn::tensor::{Device, Tensor};
 
@@ -59,6 +66,13 @@ The first result cannot retain its own gradient; retrieve the source's gradient 
 The second can retain its gradient, but is disconnected from the source graph. Distributed
 backward currently requires every distributed parameter to use the same backend as the loss;
 incompatible graphs are rejected before synchronization or gradient computation begins.
+
+When combining tensors that both have autodiff enabled, their checkpointing strategies must match
+or the operation panics. A transferred tensor keeps its source strategy, which may differ from
+that of tensors newly created on the destination. For example, a transferred `Balanced` tensor
+cannot combine with a new autodiff tensor using the destination's `Disabled` strategy. Create the
+other operand on `moved.device()` to inherit the matching context, or explicitly align the
+operands with `with_gradient_checkpointing_strategy(...)`.
 
 For floating-point tensors, retained gradients imply graph participation, and graph participation
 implies an autodiff association:

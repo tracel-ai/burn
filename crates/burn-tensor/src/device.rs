@@ -613,7 +613,7 @@ impl Device {
                 DispatchDevice::autodiff_with_gradient_checkpointing(device.inner(), strategy),
             ),
             _ => panic!(
-                "Device::with_gradient_checkpointing_strategy requires autodiff; call Device::autodiff first"
+                "Gradient checkpointing requires autodiff; use Device::autodiff().gradient_checkpointing()"
             ),
         }
     }
@@ -1488,9 +1488,10 @@ mod autodiff_move_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Device::with_gradient_checkpointing_strategy requires autodiff")]
-    fn checkpointing_strategy_setter_requires_autodiff() {
-        let _ = Device::default()
-            .with_gradient_checkpointing_strategy(GradientCheckpointingStrategy::Balanced);
+    #[should_panic(
+        expected = "Gradient checkpointing requires autodiff; use Device::autodiff().gradient_checkpointing()"
+    )]
+    fn gradient_checkpointing_requires_autodiff() {
+        let _ = Device::default().gradient_checkpointing();
     }
 }

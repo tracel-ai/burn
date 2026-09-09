@@ -252,27 +252,33 @@ Burn, optimizers are essentially just sophisticated module mappers. Visitors, on
 used when you don't intend to modify the module but need to retrieve specific information from it,
 such as the number of parameters or a list of devices in use.
 
-You can implement your own mapper or visitor by implementing these simple traits:
+You can implement your own mapper or visitor using the following tensor hooks. They receive
+`Param` values, which provide access to both the parameter ID and its tensor:
 
 ```rust, ignore
+use burn::{
+    module::Param,
+    tensor::{Bool, Int, Tensor},
+};
+
 /// Module visitor trait.
 pub trait ModuleVisitor {
     /// Visit a float tensor in the module.
-    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<D>);
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>);
     /// Visit an int tensor in the module.
-    fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<D, Int>);
+    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>);
     /// Visit a bool tensor in the module.
-    fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<D, Bool>);
+    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>);
 }
 
 /// Module mapper trait.
 pub trait ModuleMapper {
     /// Map a float tensor in the module.
-    fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<D>) -> Tensor<D>;
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>>;
     /// Map an int tensor in the module.
-    fn map_int<const D: usize>(&mut self, id: ParamId, tensor: Tensor<D, Int>) -> Tensor<D, Int>;
+    fn map_int<const D: usize>(&mut self, param: Param<Tensor<D, Int>>) -> Param<Tensor<D, Int>>;
     /// Map a bool tensor in the module.
-    fn map_bool<const D: usize>(&mut self, id: ParamId, tensor: Tensor<D, Bool>) -> Tensor<D, Bool>;
+    fn map_bool<const D: usize>(&mut self, param: Param<Tensor<D, Bool>>) -> Param<Tensor<D, Bool>>;
 }
 ```
 
@@ -284,6 +290,11 @@ For example, the `ModuleMapper` trait could be implemented to clamp all paramete
 `[min, max]`.
 
 ```rust, ignore
+use burn::{
+    module::{Module, ModuleMapper, Param},
+    tensor::Tensor,
+};
+
 /// Clamp parameters into the range `[min, max]`.
 pub struct Clamp {
     /// Lower-bound of the range.
@@ -294,12 +305,8 @@ pub struct Clamp {
 
 // Clamp all floating-point parameter tensors between `[min, max]`.
 impl ModuleMapper for Clamp {
-    fn map_float<const D: usize>(
-        &mut self,
-        _id: burn::module::ParamId,
-        tensor: burn::prelude::Tensor<D>,
-    ) -> burn::prelude::Tensor<D> {
-        tensor.clamp(self.min, self.max)
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+        param.map(|tensor| tensor.clamp(self.min, self.max))
     }
 }
 
@@ -311,26 +318,20 @@ let mut clamp = Clamp {
 let model = model.map(&mut clamp);
 ```
 
-If you want to use this during training to constrain your model parameters, make sure that the
-parameter tensors are still tracked for autodiff. This can be done with a simple adjustment to the
-implementation.
+To constrain trainable model parameters, keep their tensors as leaves that retain their gradients.
+Detach after clamping to cut the operation's graph connection, then restore the original retention
+setting. `Param::map` also preserves configured trainability for later calls to `train()`.
 
 ```rust, ignore
 impl ModuleMapper for Clamp {
-    fn map_float<const D: usize>(
-        &mut self,
-        _id: burn::module::ParamId,
-        tensor: burn::prelude::Tensor<D>,
-    ) -> burn::prelude::Tensor<D> {
-        let is_require_grad = tensor.is_require_grad();
-
-        let mut tensor = tensor.detach().clamp(self.min, self.max);
-
-        if is_require_grad {
-            tensor = tensor.require_grad();
-        }
-
-        tensor
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+        param.map(|tensor| {
+            let require_grad = tensor.is_require_grad();
+            tensor
+                .clamp(self.min, self.max)
+                .detach()
+                .set_require_grad(require_grad)
+        })
     }
 }
 ```
