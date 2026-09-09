@@ -32,7 +32,8 @@ use cubek::matmul::{
     routine::BlueprintStrategy,
     tiled::{Strategy as TiledStrategy, cpu_gemm::CpuGemmStrategy},
     tune_key::{
-        MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, should_tune_double_buffering,
+        MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, StorageTileKey,
+        should_tune_double_buffering,
     },
 };
 
@@ -582,6 +583,22 @@ pub fn matmul_autotune(
             set = set.with(tunable);
         }
 
+        // A storage-tiled operand is read only by the tiled cmma routine, which stages to its
+        // tiles; every other candidate refuses it. The candidate joins the plan for such a
+        // problem alone, so a plain one tunes as before.
+        let tiled_cmma = TiledStrategy::Cmma(BlueprintStrategy::Inferred(Default::default()));
+        set = set.with(
+            Tunable::new(&tiled_cmma.to_string(), move |(lhs, rhs, out)| {
+                launch_matmul::<_>(&tiled_cmma, lhs, rhs, out).map_err(|err| format!("{err:?}"))
+            })
+            .group(&accelerated, |key| {
+                match (&key.definition.lhs_storage, &key.definition.rhs_storage) {
+                    (StorageTileKey::Plain, StorageTileKey::Plain) => PRIORITY_NEVER,
+                    _ => PRIORITY_MAX,
+                }
+            }),
+        );
+
         set
     });
 
@@ -597,6 +614,8 @@ fn create_key((lhs, rhs, out): &Inputs) -> MatmulAutotuneKey {
         rhs.meta.shape(),
         lhs.meta.strides(),
         rhs.meta.strides(),
+        lhs.meta.tiling,
+        rhs.meta.tiling,
         dtype_to_storage_type(lhs.dtype),
         dtype_to_storage_type(rhs.dtype),
         dtype_to_storage_type(out.dtype),

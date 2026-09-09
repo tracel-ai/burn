@@ -35,6 +35,13 @@ impl<'a> InputPlanner<'a> {
                     let handle = context
                         .handles
                         .get_handle(&tensor_global.id, &tensor_relative.status);
+                    // A fused kernel reads its inputs as rows; a storage-tiled tensor is read
+                    // only by the matmul it was packed for, which falls back before this.
+                    assert!(
+                        !handle.tiling.is_tiled(),
+                        "fusion: a storage-tiled tensor reached a fused kernel; it is read only \
+                         by the matmul it was packed for, so un-tile it for anything else"
+                    );
 
                     let mut new_strides = handle.strides.clone();
 

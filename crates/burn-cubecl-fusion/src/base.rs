@@ -34,6 +34,9 @@ pub struct CubeFusionHandle {
     pub dtype: DType,
     /// The strides of the tensor.
     pub strides: Strides,
+    /// How the tensor is stored: plain rows, or storage tiles. Carried so the boundary
+    /// conversions lose nothing; a fused kernel reads rows and refuses a tiled input.
+    pub tiling: Tiling,
     /// Quantization runtime parameters, if applicable
     pub qparams: Option<QParams>,
 }
@@ -55,6 +58,7 @@ impl Clone for CubeFusionHandle {
             handle: self.handle.clone(),
             device: self.device.clone(),
             strides: self.strides.clone(),
+            tiling: self.tiling,
             dtype: self.dtype,
             qparams: self.qparams.clone(),
         }
@@ -71,7 +75,7 @@ impl CubeFusionHandle {
             handle: self.handle.binding(),
             strides: self.strides.clone(),
             shape,
-            tiling: Tiling::UNTILED,
+            tiling: self.tiling,
         }
     }
 
@@ -115,6 +119,7 @@ impl CubeFusionHandle {
                 ScaleDtype::UE8M0 | ScaleDtype::UE4M3 => unimplemented!("Not yet supported"),
             },
             strides: qparams.scales.metadata.strides().clone(),
+            tiling: Tiling::UNTILED,
             qparams: None,
         })
     }
