@@ -16,6 +16,18 @@ fn test_cosine_similarity_zero_vectors() {
 }
 
 #[test]
+fn test_cosine_similarity_zero_vectors_small_epsilon() {
+    let x1 = TestTensor::<2>::from([[0.0, 0.0]]);
+    let x2 = TestTensor::<2>::from([[0.0, 0.0]]);
+    let expected = TensorData::from([[0.0]]);
+
+    // The epsilon is representable in f32, but its square underflows to zero.
+    linalg::cosine_similarity(x1, x2, 1, Some(1e-30))
+        .into_data()
+        .assert_eq(&expected, false);
+}
+
+#[test]
 fn test_cosine_similarity_epsilon_clamps_each_norm() {
     let x1 = TestTensor::<2>::from([[0.25, 0.0], [0.25, 0.0]]);
     let x2 = TestTensor::<2>::from([[0.25, 0.0], [1.0, 0.0]]);
