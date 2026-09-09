@@ -418,11 +418,28 @@ struct Loaded {
     metadata: PytorchMetadata,
 }
 
-/// The first pickle of a legacy file: `PROTO 2`, `LONG1` of the 10-byte magic number
-/// 0x1950a86a20f9469cfc6c (little-endian), `STOP`.
-const LEGACY_MAGIC: [u8; 15] = [
-    0x80, 0x02, 0x8a, 0x0a, 0x6c, 0xfc, 0x9c, 0x46, 0xf9, 0x20, 0x6a, 0xa8, 0x50, 0x19, 0x2e,
-];
+/// The magic number 0x1950a86a20f9469cfc6c opening a legacy file, as protocols 2 and up
+/// write it: little-endian bytes inside a `LONG1`.
+const LEGACY_MAGIC_BYTES: [u8; 10] = [0x6c, 0xfc, 0x9c, 0x46, 0xf9, 0x20, 0x6a, 0xa8, 0x50, 0x19];
+
+/// The same value in decimal, which protocols 0 and 1 write as `LONG` text.
+const LEGACY_MAGIC_TEXT: &[u8] = b"119547037146038801333356";
+
+/// How far into the file the magic is looked for. `torch.save` picks the protocol, and
+/// each frames the first pickle differently: protocol 4 puts a `PROTO` and a 9-byte `FRAME`
+/// ahead of the value, protocol 0 none at all. Every encoding starts well inside this.
+const LEGACY_MAGIC_SEARCH: usize = 64;
+
+/// Whether a file opens with the legacy magic number in any protocol's encoding.
+fn starts_with_legacy_magic(header: &[u8]) -> bool {
+    let window = &header[..header.len().min(LEGACY_MAGIC_SEARCH)];
+    window
+        .windows(LEGACY_MAGIC_BYTES.len())
+        .any(|bytes| bytes == LEGACY_MAGIC_BYTES)
+        || window
+            .windows(LEGACY_MAGIC_TEXT.len())
+            .any(|bytes| bytes == LEGACY_MAGIC_TEXT)
+}
 
 /// Offset of the `ustar` magic within a TAR header.
 const TAR_MAGIC_OFFSET: usize = 257;
@@ -437,7 +454,7 @@ fn detect_format(path: &Path) -> Result<FileFormat> {
         Ok(FileFormat::Zip)
     } else if header.get(TAR_MAGIC_OFFSET..TAR_MAGIC_OFFSET + 5) == Some(b"ustar") {
         Ok(FileFormat::Tar)
-    } else if header.starts_with(&LEGACY_MAGIC) {
+    } else if starts_with_legacy_magic(&header) {
         Ok(FileFormat::Legacy)
     } else {
         Ok(FileFormat::Pickle)
@@ -480,13 +497,16 @@ fn load_zip(path: &Path) -> Result<Loaded> {
 
 fn load_legacy(path: &Path) -> Result<Loaded> {
     let mut reader = BufReader::new(File::open(path)?);
-    reader.seek(SeekFrom::Start(LEGACY_MAGIC.len() as u64))?;
 
     let read_header = |reader: &mut BufReader<File>, what: &str| {
         read_pickle(reader, &PersistentIds::Unavailable).map_err(|e| {
             PytorchError::InvalidFormat(format!("Failed to read {what} from legacy format: {e}"))
         })
     };
+    // How long the magic pickle is depends on the protocol it was written at, so it is
+    // consumed as a pickle rather than skipped by a fixed offset. Its value is already
+    // known from the format detection.
+    read_header(&mut reader, "magic number")?;
     // PyTorch refuses anything but 1001 here.
     let protocol_version = read_header(&mut reader, "protocol version")?;
     if !matches!(protocol_version, Object::Int(1001)) {
@@ -712,7 +732,9 @@ fn parse_tar_tensors(
             source: source.clone(),
             key: storage_key,
             dtype: Some(dtype),
-            byte_len,
+            // A TAR view is resolved into its own layout entry above, so `byte_len` is
+            // already the view's length and nothing is reachable past it.
+            reachable_bytes: byte_len,
             view_offset: 0,
         };
         let tensor = build_tensor(storage, dtype, storage_offset, shape, stride)?;
@@ -750,13 +772,24 @@ fn tar_fields<'a, const N: usize>(obj: &'a Object, what: &str) -> Result<&'a [Ob
     }
 }
 
+/// Refuse a legacy file that was not written on a little-endian machine.
+///
+/// PyTorch always records a `little_endian` bool here, so a header without a usable one is
+/// malformed rather than a file to guess about: reading big-endian storages as
+/// little-endian would silently transpose every value.
 fn check_little_endian(sys_info: &Object) -> Result<()> {
-    if let Object::Dict(dict) = sys_info
-        && let Some(Object::Bool(false)) = dict.get("little_endian")
-    {
-        return Err(big_endian_error());
+    let Object::Dict(dict) = sys_info else {
+        return Err(PytorchError::InvalidFormat(format!(
+            "Legacy sys_info must be a dict, got {sys_info:?}"
+        )));
+    };
+    match dict.get("little_endian") {
+        Some(Object::Bool(true)) => Ok(()),
+        Some(Object::Bool(false)) => Err(big_endian_error()),
+        other => Err(PytorchError::InvalidFormat(format!(
+            "Legacy sys_info must carry a little_endian bool, got {other:?}"
+        ))),
     }
-    Ok(())
 }
 
 fn big_endian_error() -> PytorchError {

@@ -260,8 +260,9 @@ pub struct StorageRef {
     pub(crate) key: String,
     /// Element type of a typed storage; `None` for `torch.UntypedStorage`.
     pub(crate) dtype: Option<DType>,
-    /// Size of the storage in bytes as declared by the pickle.
-    pub(crate) byte_len: usize,
+    /// Bytes a tensor may reach in this storage: its declared size, or the end of the view
+    /// when the pickle describes one.
+    pub(crate) reachable_bytes: usize,
     /// Element offset into the root storage when the persistent id describes a view.
     /// Modern `torch.save` always writes `None` there; only early legacy files carry one.
     pub(crate) view_offset: usize,
@@ -462,16 +463,27 @@ fn resolve_storage_id(pid: &[Object], source: &Arc<StorageSource>) -> Result<Sto
     })?;
 
     // Early legacy files may describe a view of a root storage: (view_key, offset, view_size).
-    // Only the offset is used; the extent check below runs against the root storage's size.
-    let view_offset = match view.first() {
-        None | Some(Object::None) => 0,
+    // A tensor may reach only as far as the view does, which is where it ends rather than
+    // where the root storage does.
+    let (view_offset, reachable) = match view.first() {
+        None | Some(Object::None) => (0, numel),
         Some(Object::Tuple(view)) if view.len() == 3 => {
             if dtype.is_none() {
                 return Err(PickleError::InvalidData(format!(
                     "storage '{key}' is untyped but carries view metadata"
                 )));
             }
-            non_negative(&view[1], "storage view offset")?
+            let offset = non_negative(&view[1], "storage view offset")?;
+            let size = non_negative(&view[2], "storage view size")?;
+            let end = offset
+                .checked_add(size)
+                .filter(|&end| end <= numel)
+                .ok_or_else(|| {
+                    PickleError::InvalidData(format!(
+                        "storage '{key}' has a view of {size} elements at offset {offset}, past its {numel} elements"
+                    ))
+                })?;
+            (offset, end)
         }
         Some(other) => {
             return Err(PickleError::InvalidData(format!(
@@ -489,7 +501,8 @@ fn resolve_storage_id(pid: &[Object], source: &Arc<StorageSource>) -> Result<Sto
         source: source.clone(),
         key,
         dtype,
-        byte_len,
+        // `reachable` never exceeds `numel`, whose byte length is checked above.
+        reachable_bytes: reachable * element_size,
         view_offset,
     })
 }
@@ -535,9 +548,17 @@ fn reduce(callable: Object, args: Object) -> Result<Object> {
         ("torch._utils", "_rebuild_tensor") => rebuild_tensor(args, TensorRebuild::Legacy),
         ("torch._utils", "_rebuild_tensor_v2") => rebuild_tensor(args, TensorRebuild::V2),
         ("torch._utils", "_rebuild_tensor_v3") => rebuild_tensor(args, TensorRebuild::V3),
-        // _rebuild_parameter(data, requires_grad, backward_hooks[, state])
+        // _rebuild_parameter(data, requires_grad, backward_hooks[, state]): only the data
+        // is kept, so state holding tensors would go missing and is refused instead.
         ("torch._utils", "_rebuild_parameter" | "_rebuild_parameter_with_state") => match args {
-            Object::Tuple(mut fields) if !fields.is_empty() => Ok(fields.swap_remove(0)),
+            Object::Tuple(mut fields) if !fields.is_empty() => {
+                if fields[1..].iter().any(Object::holds_tensor_data) {
+                    return Err(PickleError::UnsupportedType(format!(
+                        "{name} with tensor-bearing state"
+                    )));
+                }
+                Ok(fields.swap_remove(0))
+            }
             other => Err(PickleError::InvalidData(format!(
                 "{name}: expected a non-empty argument tuple, got {}",
                 other.type_name()
@@ -797,12 +818,12 @@ fn is_contiguous_stride(shape: &[usize], stride: &[usize]) -> bool {
 
 /// Gather a strided view into logical row-major byte order.
 ///
-/// The caller has validated that every storage index the view touches lies within `data`.
+/// `data` begins at the tensor's storage offset, and the caller has validated that every
+/// index the view touches lies within it.
 fn gather_strided(
     data: &[u8],
     shape: &[usize],
     stride: &[usize],
-    storage_offset: usize,
     element_size: usize,
     byte_len: usize,
 ) -> Vec<u8> {
@@ -810,7 +831,7 @@ fn gather_strided(
     let num_elements = byte_len / element_size;
     for linear_index in 0..num_elements {
         let mut remaining = linear_index;
-        let mut storage_index = storage_offset;
+        let mut storage_index = 0;
         for (&dim, &step) in shape.iter().zip(stride).rev() {
             storage_index += (remaining % dim) * step;
             remaining /= dim;
@@ -851,7 +872,7 @@ pub(crate) fn build_tensor(
         PickleError::InvalidData("Tensor byte length overflows usize".to_string())
     })?;
 
-    let declared_elements = storage.byte_len / element_size;
+    let declared_elements = storage.reachable_bytes / element_size;
     if extent > declared_elements {
         return Err(PickleError::InvalidData(format!(
             "Tensor with shape {shape:?} and stride {stride:?} at offset {storage_offset} needs {extent} elements, but storage '{}' declares {declared_elements}",
@@ -869,18 +890,20 @@ pub(crate) fn build_tensor(
 
     let StorageRef { source, key, .. } = storage;
     let provider_shape = shape.clone();
+    // Read only the window the view can touch: a storage that reaches further, before the
+    // tensor's offset or past its extent, is not paid for.
+    let window_start = storage_offset.saturating_mul(element_size);
+    let window_len = (extent - storage_offset).saturating_mul(element_size);
     let provider = move || -> std::result::Result<TensorData, PackError> {
         let shape = &provider_shape;
-        // Read only the bytes the view can touch; a storage entry larger than that (or one
-        // that decompresses to more) is not paid for.
-        let needed = extent.saturating_mul(element_size);
-        let mut data = source.read(&key, needed).map_err(|err| {
+        let (mut data, skipped) = source.read(&key, window_start, window_len).map_err(|err| {
             PackError::ValidationError(format!(
                 "Failed to read storage '{key}' for tensor with shape {shape:?}: {err}"
             ))
         })?;
 
-        let available = data.len() / element_size;
+        // `data` starts at the tensor's own offset, so every index below is relative to it.
+        let available = (skipped + data.len()) / element_size;
         if extent > available {
             return Err(PackError::ValidationError(format!(
                 "Tensor with shape {shape:?} requires {extent} elements from storage '{key}', but only {available} are available"
@@ -888,19 +911,10 @@ pub(crate) fn build_tensor(
         }
 
         let mut bytes = if is_contiguous_stride(shape, &stride) {
-            let start = storage_offset * element_size;
-            data.truncate(start + byte_len);
-            data.drain(..start);
+            data.truncate(byte_len);
             data
         } else {
-            gather_strided(
-                &data,
-                shape,
-                &stride,
-                storage_offset,
-                element_size,
-                byte_len,
-            )
+            gather_strided(&data, shape, &stride, element_size, byte_len)
         };
 
         to_native_endian(&mut bytes, element_size);
@@ -1064,6 +1078,7 @@ impl<'a> Unpickler<'a> {
 
     fn memo_put(&mut self, idx: u32) -> Result<()> {
         let entry = self.top()?.clone();
+        self.charge_copy(&entry.object)?;
         self.memo.insert(idx, entry);
         Ok(())
     }

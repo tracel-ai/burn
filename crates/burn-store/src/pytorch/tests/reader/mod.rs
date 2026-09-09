@@ -1598,6 +1598,58 @@ fn test_legacy_storage_count_mismatch_is_an_error() {
 }
 
 #[test]
+fn test_legacy_magic_in_other_pickle_protocols() {
+    // `torch.save` writes the magic at the protocol the caller picked, and each frames it
+    // differently: protocol 4 puts a FRAME in front, protocols 0 and 1 write it as text.
+    // Only the first pickle is re-encoded here, which is the one a fixed offset would miss.
+    let original = std::fs::read(test_data_path("simple_legacy.pt")).unwrap();
+    let rest = &original[15..];
+    let dir = tempfile::tempdir().unwrap();
+    for (name, magic) in [
+        (
+            "protocol4",
+            b"\x80\x04\x95\r\x00\x00\x00\x00\x00\x00\x00\x8a\nl\xfc\x9cF\xf9 j\xa8P\x19."
+                .as_slice(),
+        ),
+        ("protocol0", b"L119547037146038801333356L\n.".as_slice()),
+    ] {
+        let path = dir.path().join(format!("{name}.pt"));
+        let mut bytes = magic.to_vec();
+        bytes.extend_from_slice(rest);
+        std::fs::write(&path, &bytes).unwrap();
+
+        let reader = PytorchReader::new(&path).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(reader.metadata().format_type, FileFormat::Legacy, "{name}");
+        let bias = crate::bridge::to_data(reader.get("bias").expect("bias not found")).unwrap();
+        bias.assert_approx_eq::<f32>(
+            &TensorData::new(vec![1.0_f32, 1.0], vec![2]),
+            Tolerance::default(),
+        );
+    }
+}
+
+#[test]
+fn test_legacy_sys_info_without_little_endian_is_refused() {
+    let mut bytes = std::fs::read(test_data_path("simple_legacy.pt")).unwrap();
+    // Rename the key so the flag is absent, leaving every offset where it was.
+    let marker = b"little_endian";
+    let pos = bytes
+        .windows(marker.len())
+        .position(|w| w == marker)
+        .expect("sys_info holds little_endian");
+    bytes[pos..pos + marker.len()].copy_from_slice(b"little_endiaN");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("no_endianness.pt");
+    std::fs::write(&path, &bytes).unwrap();
+
+    let err = PytorchReader::new(&path).expect_err("a header without the flag must be refused");
+    assert!(
+        err.to_string().contains("little_endian bool"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn test_legacy_big_endian_file_is_refused() {
     let mut bytes = std::fs::read(test_data_path("simple_legacy.pt")).unwrap();
     // sys_info pickles `little_endian` as BINUNICODE 'little_endian' followed by NEWTRUE.

@@ -38,16 +38,21 @@ impl fmt::Debug for StorageSource {
 }
 
 impl StorageSource {
-    /// Read the first `max_len` bytes of the storage saved under `key`, or all of it if it
-    /// is shorter.
+    /// Read at most `max_len` bytes of the storage saved under `key`, starting at `start`.
     ///
-    /// A caller knows how many bytes its tensor can touch, and a storage claiming more than
-    /// that (a ZIP entry that decompresses far beyond its archive size, say) is not read.
-    pub fn read(&self, key: &str, max_len: usize) -> io::Result<Vec<u8>> {
+    /// A caller knows the window its tensor can touch, and the rest of the storage is never
+    /// held: bytes past the window are left unread, and bytes before it are dropped as they
+    /// go by, so a ZIP entry that decompresses far beyond its archive size costs its window
+    /// rather than its size. A storage shorter than the window yields what it has.
+    ///
+    /// Returns the window and the number of bytes that preceded it, which is below `start`
+    /// only when the storage ends inside them. The two together say how far the storage
+    /// reaches, which a short read is diagnosed with.
+    pub fn read(&self, key: &str, start: usize, max_len: usize) -> io::Result<(Vec<u8>, usize)> {
         match self {
-            Self::Zip(source) => source.read_storage(key, max_len),
-            Self::Tar(source) => source.read_storage(key, max_len),
-            Self::Legacy(source) => source.read_storage(key, max_len),
+            Self::Zip(source) => source.read_storage(key, start, max_len),
+            Self::Tar(source) => source.read_storage(key, start, max_len),
+            Self::Legacy(source) => source.read_storage(key, start, max_len),
         }
     }
 
@@ -180,22 +185,33 @@ impl ZipSource {
             .is_some()
     }
 
-    fn read_storage(&self, key: &str, max_len: usize) -> io::Result<Vec<u8>> {
+    fn read_storage(
+        &self,
+        key: &str,
+        start: usize,
+        max_len: usize,
+    ) -> io::Result<(Vec<u8>, usize)> {
         let name = format!("{}data/{key}", self.root);
         let mut archive = lock_ignoring_poison(&self.archive);
         let mut entry = archive
             .by_name(&name)
             .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
+        // A compressed entry yields its bytes only in order, so those before the window are
+        // decompressed and dropped instead of being held.
+        let size = entry.size();
+        let skipped = (start as u64).min(size);
+        io::copy(&mut (&mut entry).take(skipped), &mut io::sink())?;
         // Stopping short of the entry's end skips its CRC check; the bytes a tensor uses
         // are still validated against its declared extent.
-        let size = entry.size();
-        read_zip_entry(
+        let rest = size - skipped;
+        let bytes = read_zip_entry(
             &mut entry,
             &name,
-            size.min(max_len as u64),
-            size,
+            rest.min(max_len as u64),
+            rest,
             self.file_len,
-        )
+        )?;
+        Ok((bytes, skipped as usize))
     }
 
     /// Read a whole entry that must not exceed `max_size` bytes.
@@ -260,15 +276,23 @@ impl TarSource {
         Self { blob, layout }
     }
 
-    fn read_storage(&self, key: &str, max_len: usize) -> io::Result<Vec<u8>> {
+    fn read_storage(
+        &self,
+        key: &str,
+        start: usize,
+        max_len: usize,
+    ) -> io::Result<(Vec<u8>, usize)> {
         let &(offset, len) = self
             .layout
             .get(key)
             .ok_or_else(|| invalid_data(format!("storage '{key}' not found in TAR archive")))?;
+        let start = start.min(len);
+        let window = (len - start).min(max_len);
         offset
-            .checked_add(len.min(max_len))
-            .and_then(|end| self.blob.get(offset..end))
-            .map(<[u8]>::to_vec)
+            .checked_add(start)
+            .and_then(|from| Some(from..from.checked_add(window)?))
+            .and_then(|range| self.blob.get(range))
+            .map(|bytes| (bytes.to_vec(), start))
             .ok_or_else(|| invalid_data(format!("storage '{key}' lies outside the TAR data")))
     }
 }
@@ -359,7 +383,12 @@ impl LegacySource {
         Ok(())
     }
 
-    fn read_storage(&self, key: &str, max_len: usize) -> io::Result<Vec<u8>> {
+    fn read_storage(
+        &self,
+        key: &str,
+        start: usize,
+        max_len: usize,
+    ) -> io::Result<(Vec<u8>, usize)> {
         let (offset, byte_len, element_size) = {
             let state = lock_ignoring_poison(&self.state);
             let LegacyState::Finished(layout) = &*state else {
@@ -384,7 +413,9 @@ impl LegacySource {
         }
 
         // `finish` checked that the storage lies within the file, so the length is trusted.
-        let len = byte_len.min(max_len);
-        read_exact_len(&mut file, len as u64, len)
+        let start = start.min(byte_len);
+        file.seek(SeekFrom::Current(start as i64))?;
+        let len = (byte_len - start).min(max_len);
+        Ok((read_exact_len(&mut file, len as u64, len)?, start))
     }
 }
