@@ -5,7 +5,7 @@ use burn_core as burn;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::linalg::lp_norm;
+use burn_linalg::lp_norm;
 
 use super::Reduction;
 

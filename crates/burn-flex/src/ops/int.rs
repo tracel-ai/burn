@@ -789,7 +789,9 @@ impl IntTensorOps<Flex> for Flex {
         int_scalar_op(tensor, 0, |a, _| !a)
     }
 
-    // Shift amounts masked to type width via wrapping_shl/wrapping_shr.
+    // int_binary_op/int_scalar_op widen to i64 before applying the closure, so
+    // wrapping_shl/wrapping_shr mask the shift amount to 64, not to the operand
+    // dtype's own width. The result is truncated back to the operand dtype.
     fn bitwise_left_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
         int_binary_op(lhs, rhs, |a, b| a.wrapping_shl(b as u32))
     }
@@ -1318,6 +1320,19 @@ mod tests {
         let b = FlexTensor::from_data(TensorData::new(vec![64i64], [1]));
         let _left = Flex::bitwise_left_shift(a.clone(), b.clone());
         let _right = Flex::bitwise_right_shift(a, b);
+    }
+
+    #[test]
+    fn test_int_shift_masks_to_64_not_operand_width() {
+        // int_binary_op widens to i64, so wrapping_shl masks the shift amount
+        // to 64 and the i64 result is truncated back to i32. A native i32
+        // wrapping_shl would mask 33 to 1 and yield 2 instead of 0.
+        let a = FlexTensor::from_data(TensorData::new(vec![1i32], [1]));
+        let b = FlexTensor::from_data(TensorData::new(vec![33i32], [1]));
+        let result = Flex::bitwise_left_shift(a, b);
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![0i32]);
+        assert_eq!(1i32.wrapping_shl(33), 2i32);
     }
 
     #[test]

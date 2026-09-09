@@ -1,4 +1,5 @@
-use crate::{DType, Tensor, check, check::TensorCheck};
+use crate::{DType, LinalgOps, Tensor, check::TensorCheck};
+use burn_core::backend::Dispatch;
 use burn_std::FloatDType;
 
 /// Computes the singular value decomposition of a square or rectangular matrix.
@@ -48,7 +49,7 @@ use burn_std::FloatDType;
 ///
 /// # Performance Note
 /// The computation is dispatched to the backend through
-/// `FloatTensorOps::float_svd`, which backends may override with a native or
+/// [`LinalgOps::svd`], which backends may override with a native or
 /// fused implementation (none ship one yet). The default implementation
 /// runs the reference pipeline on the host over the tensor data
 /// (`into_data` / `from_data`), which is deterministic and
@@ -66,8 +67,8 @@ use burn_std::FloatDType;
 ///
 /// # Example
 /// ```rust,ignore
-/// use burn_tensor::linalg::svd;
-/// use burn_tensor::Tensor;
+/// use burn_linalg::svd;
+/// use burn::Tensor;
 ///
 /// fn example() {
 ///     let device = Default::default();
@@ -146,17 +147,17 @@ pub fn svd<const D: usize, const D1: usize>(
         return (u_t, s_t, vt_t);
     }
 
-    // Dispatch to the backend through the bridge: `FloatTensorOps::float_svd`
+    // Dispatch to the backend extension through the runtime dispatch tensor.
     // may be overridden by a backend with a native or fused SVD; the default
     // implementation runs the reference host pipeline on the pulled data,
     // which keeps this deterministic and backend-independent. The backend
     // returns the factors already sorted, permuted and swapped; its
     // dims follow the orientation (swap -> u is [..., n, n], vt is [..., n, m]).
-    let (u, s, vt) = crate::ops::svd(a.primitive, sweeps, swap);
+    let (u, s, vt) = <Dispatch as LinalgOps>::svd(a.into_dispatch(), sweeps, swap);
     let result = (
-        Tensor::<D>::new(u),
-        Tensor::<D1>::new(s),
-        Tensor::<D>::new(vt),
+        Tensor::<D>::from_dispatch(u),
+        Tensor::<D1>::from_dispatch(s),
+        Tensor::<D>::from_dispatch(vt),
     );
 
     if needs_upcast {

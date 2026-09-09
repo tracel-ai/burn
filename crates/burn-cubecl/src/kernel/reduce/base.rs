@@ -250,6 +250,7 @@ pub fn reduce_dim(
     strategy: KernelReduceStrategy,
     config: ReduceOperationConfig,
 ) -> Result<CubeTensor, cubek::reduce::ReduceError> {
+    let input = crate::kernel::untile(input);
     debug_assert!(
         !matches!(
             config,

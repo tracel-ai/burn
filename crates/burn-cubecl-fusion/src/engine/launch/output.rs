@@ -8,7 +8,7 @@ use crate::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
         launch::{
             HandleInput,
-            layout::{DimOrder, dim_order, is_contiguous_order, strides_for},
+            layout::{DimOrder, dim_order, is_contiguous_order, nested_dim_order, strides_for},
         },
         settings::{FuseSettings, RefLayoutSetting},
         trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
@@ -24,6 +24,7 @@ use burn_std::{
     tensor::{ReshapeAction, contiguous_strides, is_contiguous, is_dense, reshape_action},
 };
 use cubecl::client::Client;
+use cubecl::zspace::Tiling;
 use std::collections::BTreeMap;
 
 /// Create or reuse handles for the outputs.
@@ -404,9 +405,10 @@ impl<'a> OutputPlanner<'a> {
     /// it. That makes the best choice the plurality of the inputs, weighted by
     /// the bytes each one moves.
     ///
-    /// Only inputs of exactly this shape vote. A broadcast parameter is read from
-    /// cache whatever the order is, and a differently shaped input can never be
-    /// `SameAsRef` regardless, so neither has a stake in the outcome.
+    /// Normally only inputs of exactly this shape vote. This heuristic favors
+    /// full-sized inputs over broadcast parameters, which typically benefit from
+    /// cache reuse. A voter need not qualify for `SameAsRef`: padded inputs can
+    /// benefit from the chosen order while still using their own strides.
     ///
     /// A concatenated operand is the exception, and votes despite being shorter
     /// than the output along the axis it is joined on: `concat` computes its
@@ -466,9 +468,13 @@ impl<'a> OutputPlanner<'a> {
                 }
             };
 
-            let Some(order) = dim_order(voter_shape, &input.handle.strides) else {
-                // Not dense: sliced, broadcast, or otherwise not describable as an
-                // order. The block cannot adopt a layout it cannot express.
+            // Padding is tolerated where [dim_order] would reject it: a pitched
+            // allocation can leave gaps between channel rows when the channel
+            // count is not aligned. Nested sliced views can vote too, regardless
+            // of backend. Only the order is voted on; the output is still
+            // allocated dense in the winning order, and a padded
+            // input is read through the strided path as before.
+            let Some(order) = nested_dim_order(voter_shape, &input.handle.strides) else {
                 continue;
             };
 
@@ -727,6 +733,7 @@ impl<'a> OutputPlanner<'a> {
             handle: client.empty(size),
             device: device.clone(),
             strides,
+            tiling: Tiling::UNTILED,
             dtype,
             qparams: None,
         };
@@ -783,11 +790,18 @@ impl<'a> OutputPlanner<'a> {
                 // We modify the metadata instead.
                 remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
+                // The strides are rewritten, which only a plain input allows; a tiled one
+                // never reaches a fused kernel (its inputs refuse it).
+                assert!(
+                    !original_handle.handle.tiling.is_tiled(),
+                    "fusion: a storage-tiled input cannot be restrided in place"
+                );
                 let handle = CubeFusionHandle {
                     client: client.clone(),
                     handle: original_handle.handle.handle.clone(),
                     device: device.clone(),
                     strides,
+                    tiling: Tiling::UNTILED,
                     dtype,
                     qparams: original_handle.handle.qparams.clone(),
                 };
@@ -856,6 +870,7 @@ impl<'a> OutputPlanner<'a> {
             handle: original_handle.handle.handle.clone(),
             device: device.clone(),
             strides,
+            tiling: original_handle.handle.tiling,
             dtype,
             qparams: original_handle.handle.qparams.clone(),
         };
@@ -1105,6 +1120,86 @@ mod tests {
 
         assert!(may_permute_layout(&settings, &[elemwise_op()]));
         assert!(may_permute_layout(&settings, &[]));
+    }
+
+    #[test]
+    fn padded_input_selects_dense_nhwc_output_without_same_as_ref() {
+        use burn_ir::TensorStatus;
+        use burn_std::DType;
+
+        let device = cubecl::test_device();
+        let client = device.client();
+        for channels in [3, 48] {
+            let shape = Shape::from([2, channels, 3, 5]);
+            let pitch = 64;
+            let padded_strides = Strides::new(&[3 * 5 * pitch, 1, 5 * pitch, pitch]);
+            let input = TensorIr {
+                id: TensorId::new(0),
+                shape: shape.clone(),
+                dtype: DType::F32,
+                status: TensorStatus::ReadOnly,
+            };
+            let output = TensorIr {
+                id: TensorId::new(1),
+                status: TensorStatus::NotInit,
+                ..input.clone()
+            };
+            let blocks = vec![FuseBlock {
+                settings: settings(RefLayoutSetting::Any, true),
+                shape_ref: shape.clone(),
+                ops: vec![elemwise_op()],
+                reads: BTreeMap::from([(input.id, vec![elemwise_op()])]),
+                writes: BTreeMap::from([(output.id, vec![elemwise_op()])]),
+            }];
+            let mut resources = FuseResources::default();
+            resources.inputs.insert(FuseType::F32, input.clone());
+            resources.outputs.insert(FuseType::F32, output.clone());
+            let mut plan = LaunchPlan::new(&blocks);
+            plan.handle_inputs
+                .push(HandleInput::Normal(NormalHandleInput {
+                    relative_id: input.id,
+                    global_ir: input,
+                    precision: FuseType::F32,
+                    handle: CubeFusionHandle {
+                        client: client.clone(),
+                        handle: client.empty(2 * 3 * 5 * pitch * 4),
+                        device: device.clone(),
+                        dtype: DType::F32,
+                        strides: padded_strides.clone(),
+                        tiling: Tiling::UNTILED,
+                        qparams: None,
+                    },
+                    vector_size: 1,
+                    broadcated: false,
+                    orig_strides: padded_strides,
+                }));
+            let mut context = Context {
+                tensors: [(output.id, output)].into_iter().collect(),
+                handles: Default::default(),
+                scalars: Default::default(),
+                shapes_relative2global: Default::default(),
+                ranges: Vec::new(),
+            };
+
+            OutputPlanner::new(&resources, &blocks).run(&client, &device, &mut context, &mut plan);
+
+            let HandleOutput::Owned { handle, .. } = &plan.handle_outputs[0] else {
+                panic!("a padded input must not be reused as a dense output");
+            };
+            let expected = Strides::new(&[3 * 5 * channels, 1, 5 * channels, channels]);
+            assert_eq!(handle.strides, expected);
+            assert!(matches!(
+                &plan.blocks[0].reference,
+                ReferenceSelection::Concrete { strides, .. } if strides == &expected
+            ));
+            let FuseOp::Assign(read) = &plan.blocks[0].reads[&TensorId::new(0)][0] else {
+                panic!("expected an input read");
+            };
+            assert!(matches!(
+                read.input,
+                FuseArg::Input(0, _, LayoutInfo::Unknown)
+            ));
+        }
     }
 
     #[test]
