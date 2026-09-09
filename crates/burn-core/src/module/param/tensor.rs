@@ -38,7 +38,12 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
     }
 
     fn set_require_grad(self, require_grad: bool) -> Self {
-        Tensor::set_require_grad(self, require_grad)
+        // Parameters keep their configured training state separately from the effective tensor.
+        if require_grad && !self.is_autodiff() {
+            self
+        } else {
+            Tensor::set_require_grad(self, require_grad)
+        }
     }
 
     fn device(&self) -> Device {
@@ -125,7 +130,8 @@ impl<const D: usize> Param<Tensor<D>> {
     pub fn from_tensor(value: Tensor<D>) -> Self {
         // A plain backend can't activate gradients immediately, so record the setting explicitly
         // for a later transition to training.
-        let mut param = Param::initialized(ParamId::new(), value.require_grad());
+        let mut param =
+            Param::initialized(ParamId::new(), Parameter::set_require_grad(value, true));
         param.is_active = true;
         param
     }
@@ -140,7 +146,8 @@ impl<const D: usize> Param<Tensor<D>> {
         // for a later transition to training.
         device.memory_persistent_allocations(data, |data| {
             let value = Tensor::from_data(data, device);
-            let mut param = Param::initialized(ParamId::new(), value.require_grad());
+            let mut param =
+                Param::initialized(ParamId::new(), Parameter::set_require_grad(value, true));
             param.is_active = true;
             param
         })

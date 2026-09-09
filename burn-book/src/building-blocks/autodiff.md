@@ -1,8 +1,10 @@
 # Autodiff
 
 Burn tensors support automatic differentiation, which is essential for training neural networks.
-Autodiff is selected at runtime by creating an autodiff-enabled device rather than by adding an
-`Autodiff<B>` type parameter to tensors and modules.
+Autodiff is selected at runtime. Devices provide the autodiff and checkpointing defaults for newly
+created tensors; each tensor carries its own context and can change it independently. Inspect that
+context with `tensor.is_autodiff()`. Moving a tensor to a device does not apply the destination's
+autodiff defaults.
 
 ```rust, ignore
 use burn::tensor::{Device, Tensor};
@@ -32,10 +34,13 @@ properties:
 | Checkpointing strategy | `tensor.gradient_checkpointing_strategy()` | `autodiff().with_gradient_checkpointing_strategy(...)` |
 
 `require_grad()` makes an autodiff leaf participate in the graph and retain its gradient; it does
-not enable autodiff. On a tensor without autodiff, it is a no-op. On a tracked non-leaf, it panics:
+not enable autodiff. On a floating-point tensor without autodiff, it panics; call `.autodiff()`
+first. On a tracked non-leaf, it also panics:
 retaining intermediate gradients while preserving their source graph is currently unsupported.
 `set_require_grad(false)` starts a new untracked lineage, cutting any connection to upstream
-tensors; it doesn't merely disable gradient storage.
+tensors; it doesn't merely disable gradient storage. Disabling gradients on a plain tensor is
+harmless. Quantized tensors cannot retain gradients; their `require_grad()` and
+`set_require_grad(...)` calls leave them unchanged.
 
 `detach()` keeps the autodiff association but starts a new graph lineage, preserving a leaf's
 gradient-retention setting. `without_autodiff()` removes the association entirely.
@@ -63,14 +68,18 @@ is_require_grad() => is_tracked() => is_autodiff()
 gradient_checkpointing_strategy().is_some() == is_autodiff()
 ```
 
-| Burn API                                | PyTorch Equivalent           |
-| --------------------------------------- | ---------------------------- |
-| `tensor.detach()`                       | `tensor.detach()`            |
-| `tensor.require_grad()`                 | `tensor.requires_grad_()`    |
-| `tensor.is_require_grad()`              | `tensor.requires_grad`       |
-| `tensor.set_require_grad(require_grad)` | `tensor.requires_grad_(...)` |
-
 ## Difference with PyTorch
+
+Similarly named APIs do not always have the same semantics:
+
+- Burn's `is_require_grad()` reports gradient retention. PyTorch's
+  [`requires_grad`](https://docs.pytorch.org/docs/stable/generated/torch.Tensor.requires_grad.html)
+  also applies to tracked intermediate tensors whose gradients are not retained. Burn's
+  `is_tracked()` is the closer comparison for graph participation.
+- Burn's `detach()` preserves a leaf's gradient-retention setting. PyTorch's
+  [`detach()`](https://docs.pytorch.org/docs/stable/generated/torch.Tensor.detach.html) always returns
+  a tensor that does not require gradients. Use `set_require_grad(false)` in Burn to start a new
+  lineage with gradient retention disabled while keeping the autodiff association.
 
 The way Burn handles gradients is different from PyTorch. First, when calling `backward`, each
 parameter doesn't have its `grad` field updated. Instead, the backward pass returns all the
@@ -82,19 +91,19 @@ your code using a block.
 
 ```python
 # Inference mode
-torch.inference_mode():
+with torch.inference_mode():
    # your code
    ...
 
 # Or no grad
-torch.no_grad():
+with torch.no_grad():
    # your code
    ...
 ```
 
-With Burn, tensors shouldn't be on an autodiff device for inference, and you can call
-`without_autodiff()` to obtain a tensor without autodiff, which is useful for validation. The
-historical `inner()` method is equivalent.
+With Burn, call `without_autodiff()` on a tensor to remove its autodiff association for inference
+or validation. Moving it to a device without autodiff leaves its existing association intact.
+The historical `inner()` method is equivalent to `without_autodiff()`.
 
 When an operation combines a tensor with autodiff and a tensor without it, the operation uses
 autodiff and treats the latter tensor as a constant. The original tensor remains unchanged.

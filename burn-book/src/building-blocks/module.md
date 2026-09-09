@@ -177,11 +177,15 @@ only floating-point tensor parameters. `freeze` additionally disables module-own
 such as those controlling dropout and batch-normalization running statistics. Group variants apply
 the same behavior only to values matched by the parameter group.
 
+Parameter setters preserve configured trainability even on devices without autodiff, applying it
+when `module.train()` enables autodiff. This differs from calling `Tensor::require_grad()` or
+`Tensor::set_require_grad(true)` directly, which requires the tensor to already have autodiff enabled.
+
 | Burn API                                           | PyTorch Equivalent                       |
 | -------------------------------------------------- | ---------------------------------------- |
 | `module.devices()`                                 | N/A                                      |
-| `module.fork(device)`                              | Similar to `module.to(device).detach()`  |
-| `module.to_device(device)`                         | `module.to(device)`                      |
+| `module.fork(device)`                              | N/A                                      |
+| `module.to_device(device)`                         | N/A                                      |
 | `module.set_require_grad(enabled)`                 | `module.requires_grad_(enabled)`         |
 | `module.set_require_grad_group(group, enabled)`    | N/A                                      |
 | `module.no_grad()`                                 | `module.requires_grad_(False)`           |
@@ -201,6 +205,24 @@ the same behavior only to values matched by the parameter group.
 | `module.try_load_file(file_path)`                  | Similar to `torch.load(...)`             |
 | `module.load_file(file_path)`                      | Similar to `torch.load(...)`             |
 | `module.save_file(file_path)`                      | Similar to `torch.save(state_dict, ...)` |
+
+Choose a module transfer according to where its parameters should be optimized. For a module with
+trainable autodiff parameters:
+
+```rust, ignore
+let moved = model.clone().to_device(&destination); // Gradients flow to model's source parameters.
+let independent = model.fork(&destination); // Optimize this module on the destination.
+```
+
+`to_device` records transfers of tracked parameters, even when the compute device is unchanged.
+The destination parameters are intermediates whose own gradients are not retained, so the moved
+module cannot itself be optimized with gradient descent. `fork` starts independent graph lineages
+and preserves the parameters' gradient-retention settings.
+
+Both operations preserve the source tensors' autodiff association and checkpointing strategy;
+the destination's autodiff defaults do not enable training. For a module created without autodiff
+or returned by `valid()`, use `module.train().fork(&destination)` to enable autodiff, restore its
+configured training state, and create independent destination parameters.
 
 The `AutodiffModule` trait provides transitions between autodiff-enabled training modules and
 inner-backend validation modules.

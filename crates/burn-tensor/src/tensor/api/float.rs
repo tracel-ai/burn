@@ -326,14 +326,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Mark the tensor to keep gradients during the backward pass.
     ///
-    /// This function does nothing when autodiff isn't enabled or when the tensor is quantized.
+    /// This function does nothing when the tensor is quantized.
     /// Enabling gradient retention doesn't enable autodiff; use [`autodiff`](Tensor::autodiff)
     /// first when needed.
     ///
     /// # Panics
     ///
-    /// Panics when called on a non-leaf tensor. Use [`detach`](Tensor::detach) first to start a new
-    /// graph lineage.
+    /// For non-quantized tensors, panics if autodiff is disabled or the tensor is a non-leaf.
+    /// Enable autodiff with [`autodiff`](Tensor::autodiff) before requesting gradients.
+    /// Use [`detach`](Tensor::detach) first to start a new graph lineage.
     #[must_use]
     pub fn require_grad(self) -> Self {
         self.set_require_grad(true)
@@ -342,7 +343,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// Returns whether this tensor's gradient is retained after backward.
     ///
     /// This is distinct from [`Tensor::is_autodiff`], which reports whether operations use an
-    /// autodiff context, and `Tensor::is_tracked()`, which reports graph participation when the
+    /// autodiff context, and [`Tensor::is_tracked()`], which reports graph participation when the
     /// `autodiff` feature is enabled.
     pub fn is_require_grad(&self) -> bool {
         is_require_grad_impl(&self.primitive)
@@ -350,13 +351,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Sets whether this tensor's gradient is retained after backward.
     ///
-    /// This function does nothing when autodiff isn't enabled or when the tensor is quantized.
+    /// This function does nothing when the tensor is quantized.
     /// Setting this to `false` on a non-leaf tensor starts a new graph lineage, like
     /// [`detach`](Tensor::detach), while leaving gradient retention disabled.
     ///
     /// # Panics
     ///
-    /// Panics when setting this to `true` on a non-leaf tensor.
+    /// Panics when setting this to `true` without autodiff or on a non-leaf tensor.
+    /// Enable autodiff with [`autodiff`](Tensor::autodiff) first. Setting this to `false`
+    /// on a tensor without autodiff is harmless. Quantized tensors remain unchanged.
     #[must_use]
     pub fn set_require_grad(self, require_grad: bool) -> Self {
         Self::new(set_require_grad_impl(self.primitive, require_grad))
@@ -1170,6 +1173,11 @@ fn set_require_grad_impl(p: BridgeTensor, require_grad: bool) -> BridgeTensor {
     let (kind, tensor) = p.into_parts();
     match kind {
         BridgeKind::Float => {
+            assert!(
+                !require_grad
+                    || tensor.autodiff != burn_dispatch::DispatchAutodiffContext::Disabled,
+                "Tensor::require_grad requires autodiff; call Tensor::autodiff first"
+            );
             BridgeTensor::float(Dispatch::float_set_require_grad(tensor, require_grad))
         }
         BridgeKind::QFloat => {

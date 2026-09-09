@@ -82,10 +82,16 @@ let tensor = tensor.to_device(&gpu);
 let model = model.to_device(&gpu);
 ```
 
+To move a trainable module and optimize its parameters on the destination, use `Module::fork`.
+`Module::to_device` preserves connections to the source parameters instead. See the
+[module transfer semantics](./module.md#methods).
+
 ## Autodiff and Execution
 
-Automatic differentiation is configured on a device. Tensors created on an autodiff device inherit
-that context and can later change it independently. Calling `autodiff` returns such a device:
+Devices provide the autodiff and checkpointing defaults for newly created tensors. Each tensor
+carries its own context and can later change it independently. `Tensor::to_device` preserves the
+source tensor's context, regardless of the destination's defaults. Calling `autodiff` returns a
+device whose newly created tensors have autodiff enabled:
 
 ```rust, ignore
 let device = Device::wgpu(Default::default());
@@ -100,6 +106,10 @@ assert!(!inference_device.is_autodiff());
 to `without_autodiff()`. Chain `autodiff().gradient_checkpointing()` to enable autodiff with the
 balanced checkpointing strategy. Repeating `autodiff()` doesn't enable higher-order differentiation;
 Burn currently supports first-order autodiff only.
+
+Device equality compares compute resources and ignores autodiff and checkpointing settings.
+Use `tensor.is_autodiff()` to inspect a tensor's association; equality with an autodiff device does
+not establish that the tensor has autodiff enabled.
 
 The following methods are also useful when coordinating execution:
 

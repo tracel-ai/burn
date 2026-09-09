@@ -110,3 +110,12 @@ fn round_trip_and_untracked_transferred_constants_support_checkpointing() {
         }
     }
 }
+
+#[test]
+#[should_panic(expected = "Tensor::backward requires a tracked autodiff tensor")]
+fn backward_rejects_an_untracked_transfer() {
+    let constant = Tensor::<1>::ones([2], &Device::flex().autodiff());
+    let moved = constant.to_device(&Device::ndarray());
+    assert!(!moved.is_tracked());
+    let _ = moved.backward();
+}

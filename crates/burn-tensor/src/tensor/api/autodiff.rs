@@ -3,7 +3,7 @@ use crate::{Tensor, kind::Autodiff};
 #[cfg(feature = "autodiff")]
 use crate::ops::{BridgeKind, BridgeTensor};
 #[cfg(feature = "autodiff")]
-use burn_backend::AutodiffBackend;
+use burn_backend::{AutodiffBackend, ops::FloatTensorOps};
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
 #[cfg(feature = "autodiff")]
@@ -61,6 +61,10 @@ impl<const D: usize> Tensor<D> {
     /// graph tape has already been consumed. Distributed backward also panics if a distributed
     /// parameter uses a different backend than the loss.
     pub fn backward(&self) -> Gradients {
+        assert!(
+            self.is_tracked(),
+            "Tensor::backward requires a tracked autodiff tensor; call Tensor::autodiff().require_grad() on the source leaf before computing the output"
+        );
         backward_impl(&self.primitive)
     }
 
@@ -116,7 +120,9 @@ fn grad_impl(p: &BridgeTensor, grads: &Gradients) -> Option<BridgeTensor> {
     // A non-float tensor — a packed base included — records no tape, so there
     // is no gradient to look up.
     let tensor = p.try_as_float()?;
-    if tensor.autodiff == DispatchAutodiffContext::Disabled {
+    if tensor.autodiff == DispatchAutodiffContext::Disabled
+        || !Dispatch::float_is_require_grad(tensor)
+    {
         return None;
     }
     Dispatch::grad(tensor, grads.as_inner()).map(BridgeTensor::float)
@@ -125,7 +131,9 @@ fn grad_impl(p: &BridgeTensor, grads: &Gradients) -> Option<BridgeTensor> {
 #[cfg(feature = "autodiff")]
 fn grad_remove_impl(p: &BridgeTensor, grads: &mut Gradients) -> Option<BridgeTensor> {
     let tensor = p.try_as_float()?;
-    if tensor.autodiff == DispatchAutodiffContext::Disabled {
+    if tensor.autodiff == DispatchAutodiffContext::Disabled
+        || !Dispatch::float_is_require_grad(tensor)
+    {
         return None;
     }
     Dispatch::grad_remove(tensor, grads.as_inner_mut()).map(BridgeTensor::float)

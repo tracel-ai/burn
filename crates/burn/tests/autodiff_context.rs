@@ -155,3 +155,62 @@ fn tensor_checkpointing_strategy_setter_requires_autodiff() {
     let _ = Tensor::<1>::from_floats([1.0, 2.0], &Device::flex())
         .with_gradient_checkpointing_strategy(GradientCheckpointingStrategy::Balanced);
 }
+
+#[test]
+#[should_panic(expected = "Tensor::require_grad requires autodiff")]
+fn requiring_gradients_on_a_plain_tensor_is_rejected() {
+    let _ = Tensor::<1>::ones([2], &Device::flex()).require_grad();
+}
+
+#[test]
+#[should_panic(expected = "Tensor::require_grad requires autodiff")]
+fn enabling_gradient_retention_on_a_plain_tensor_is_rejected() {
+    let _ = Tensor::<1>::ones([2], &Device::flex()).set_require_grad(true);
+}
+
+#[test]
+fn disabling_gradients_on_a_plain_tensor_is_harmless() {
+    let tensor = Tensor::<1>::ones([2], &Device::flex()).set_require_grad(false);
+    assert!(!tensor.is_autodiff());
+    assert!(!tensor.is_require_grad());
+}
+
+#[test]
+fn untracked_alias_cannot_read_or_remove_a_leaf_gradient() {
+    let constant = Tensor::<1>::ones([2], &Device::flex().autodiff());
+    let leaf = constant.clone().require_grad();
+    let mut grads = leaf.clone().mul_scalar(2.0).sum().backward();
+    assert!(!constant.is_tracked());
+    assert!(constant.grad(&grads).is_none());
+    assert!(constant.grad_remove(&mut grads).is_none());
+    leaf.grad_remove(&mut grads)
+        .unwrap()
+        .into_data()
+        .assert_eq(&TensorData::from([2.0f32, 2.0]), true);
+}
+
+#[test]
+#[should_panic(expected = "Tensor::backward requires a tracked autodiff tensor")]
+fn backward_rejects_an_untracked_operation() {
+    let constant = Tensor::<1>::ones([2], &Device::flex().autodiff()).mul_scalar(2.0);
+    assert!(!constant.is_tracked());
+    let _ = constant.backward();
+}
+
+#[test]
+fn quantized_tensors_never_retain_gradients() {
+    use burn::tensor::quantization::QuantScheme;
+    for device in [Device::flex(), Device::flex().autodiff()] {
+        let tensor =
+            Tensor::<1>::from_floats([1.0, 2.0], &device).quantize_dynamic(&QuantScheme::default());
+        let dtype = tensor.dtype();
+        let tensor = tensor
+            .require_grad()
+            .set_require_grad(true)
+            .set_require_grad(false);
+        assert_eq!(tensor.dtype(), dtype);
+        assert_eq!(tensor.is_autodiff(), device.is_autodiff());
+        assert!(!tensor.is_tracked());
+        assert!(!tensor.is_require_grad());
+    }
+}
