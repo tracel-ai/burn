@@ -31,9 +31,29 @@ properties:
 | Gradient retention     | `tensor.is_require_grad()`                 | `require_grad()` / `set_require_grad(...)`             |
 | Checkpointing strategy | `tensor.gradient_checkpointing_strategy()` | `autodiff().with_gradient_checkpointing_strategy(...)` |
 
-`require_grad()` only controls whether a tensor's gradient is retained; it does not enable autodiff.
-On a tensor without autodiff, it is a no-op. `detach()` keeps the autodiff association but starts a
-new graph lineage, while `without_autodiff()` removes the association entirely.
+`require_grad()` makes an autodiff leaf participate in the graph and retain its gradient; it does
+not enable autodiff. On a tensor without autodiff, it is a no-op. On a tracked non-leaf, it panics:
+retaining intermediate gradients while preserving their source graph is currently unsupported.
+`set_require_grad(false)` starts a new untracked lineage, cutting any connection to upstream
+tensors; it doesn't merely disable gradient storage.
+
+`detach()` keeps the autodiff association but starts a new graph lineage, preserving a leaf's
+gradient-retention setting. `without_autodiff()` removes the association entirely.
+
+`to_device()` preserves the source tensor's autodiff association and checkpointing strategy,
+ignoring the destination's autodiff configuration. For tracked inputs, it records a differentiable
+operation even when the device is unchanged. Choose the transfer according to where gradients
+should flow:
+
+```rust, ignore
+let moved = source.clone().to_device(&destination); // Gradients flow back to source.
+let leaf = source.to_device(&destination).detach().require_grad(); // New destination leaf.
+```
+
+The first result cannot retain its own gradient; retrieve the source's gradient after backward.
+The second can retain its gradient, but is disconnected from the source graph. Distributed
+backward currently requires every distributed parameter to use the same backend as the loss;
+incompatible graphs are rejected before synchronization or gradient computation begins.
 
 For floating-point tensors, retained gradients imply graph participation, and graph participation
 implies an autodiff association:

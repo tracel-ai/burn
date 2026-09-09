@@ -52,9 +52,14 @@ where
 impl<Src: Backend, C: CheckpointStrategy> Autodiff<Src, C> {
     /// Transfers a tensor to another backend through the supplied adapter.
     ///
-    /// Tracked inputs remain connected to the graph; the output doesn't retain its own gradient
-    /// by default. Untracked inputs remain untracked. The checkpointing strategy is preserved.
+    /// Tracked inputs remain connected to the graph; their outputs are non-leaf tensors and cannot
+    /// retain their own gradients. Detach the output before requiring its gradient to start a new
+    /// leaf on the destination, severing the source connection. Untracked inputs remain untracked.
+    /// The checkpointing strategy is preserved.
     /// Transfers aren't replayed during gradient checkpointing.
+    ///
+    /// Distributed backward requires every distributed parameter to use the same backend as the
+    /// loss. Incompatible graphs panic before synchronization or gradient computation begins.
     pub fn to_backend<Dst, Adapter>(
         tensor: FloatTensor<Self>,
         device: &Dst::Device,

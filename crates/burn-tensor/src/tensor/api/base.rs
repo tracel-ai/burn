@@ -1604,9 +1604,14 @@ where
     /// [`with_gradient_checkpointing_strategy`](Tensor::with_gradient_checkpointing_strategy).
     ///
     /// For tracked floating-point tensors, `to_device` is a recorded operation, including when
-    /// the target is the current device. Its output doesn't retain its own gradient by default.
+    /// the target is the current device. Its output is a non-leaf tensor and cannot retain its
+    /// own gradient: calling `require_grad()` on it panics. To create a new leaf on the destination,
+    /// use `tensor.to_device(device).detach().require_grad()`, which severs the source connection.
     /// Supported transfers between compute backends preserve the graph connection; backward
     /// transfers gradients to the original source device.
+    /// Distributed backward currently requires every distributed parameter to use the same
+    /// backend as the loss. Incompatible graphs panic before synchronization or gradient
+    /// computation begins.
     ///
     /// Transfers between different compute backends currently read values into host memory as
     /// [`TensorData`] and upload them to the destination backend. This also applies to gradients

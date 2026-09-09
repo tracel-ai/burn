@@ -58,7 +58,8 @@ impl<const D: usize> Tensor<D> {
     /// # Panics
     ///
     /// Panics if autodiff is disabled, the tensor doesn't participate in a recorded graph, or the
-    /// graph tape has already been consumed.
+    /// graph tape has already been consumed. Distributed backward also panics if a distributed
+    /// parameter uses a different backend than the loss.
     pub fn backward(&self) -> Gradients {
         backward_impl(&self.primitive)
     }

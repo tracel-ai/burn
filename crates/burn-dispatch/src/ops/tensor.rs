@@ -49,9 +49,7 @@ impl FloatTensorOps<Self> for Dispatch {
             tensor,
             device,
             float_to_device,
-            |inner, device| {
-                super::transfer::float_transfer::<B1, B2>(inner, device)
-            }
+            |inner, device| { super::transfer::float_transfer::<B1, B2>(inner, device) }
         )
     }
 

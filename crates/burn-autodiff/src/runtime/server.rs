@@ -73,7 +73,14 @@ impl AutodiffServer {
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
         let mut consumed = Vec::new();
-        let tape_result = self.build_tape(node_id, step, builder, &mut consumed);
+        let tape_result = self.build_tape(
+            node_id,
+            step,
+            builder,
+            &mut consumed,
+            #[cfg(feature = "std")]
+            core::any::TypeId::of::<B>(),
+        );
 
         let grads = match mode {
             #[cfg(feature = "std")]
@@ -118,6 +125,7 @@ impl AutodiffServer {
         node_step: StepBoxed,
         mut builder: CheckpointerBuilder,
         consumed: &mut Vec<NodeId>,
+        #[cfg(feature = "std")] root_backend: core::any::TypeId,
     ) -> TapeResult {
         let mut tape = (0..node_step.depth() + 1)
             .map(|_| Vec::with_capacity(1))
@@ -138,8 +146,17 @@ impl AutodiffServer {
             let depth = step.depth();
 
             #[cfg(feature = "std")]
-            step.distributed_params()
-                .and_then(|params| distributed_params.insert(id, params));
+            if let Some(params) = step.distributed_params() {
+                // Synchronization currently interprets every distributed gradient using the loss
+                // backend. Validate parameter ownership before registering sync work or executing
+                // gradients, regardless of which operations connect the parameter to the loss.
+                assert_eq!(
+                    step.distributed_backend(),
+                    Some(root_backend),
+                    "Distributed backward requires all distributed parameters to use the same backend as the loss"
+                );
+                distributed_params.insert(id, params);
+            }
 
             if let Some(steps) = tape.get_mut(depth) {
                 let parents = step
