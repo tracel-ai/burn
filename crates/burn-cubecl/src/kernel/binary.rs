@@ -1,3 +1,4 @@
+use crate::kernel::memory_order::in_memory_order;
 use crate::{
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
@@ -223,126 +224,131 @@ pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
 }
 
 pub(crate) fn launch_binop<O: BinaryOpFamily>(lhs: CubeTensor, rhs: CubeTensor) -> CubeTensor {
-    let vector_size_lhs = max_vector_size(&lhs);
-    let vector_size_rhs = max_vector_size(&rhs);
-    let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
+    let output_shape = broadcast_shape(&[&lhs, &rhs]);
+    in_memory_order([lhs, rhs], output_shape, |[lhs, rhs], shape_out| {
+        let vector_size_lhs = max_vector_size(&lhs);
+        let vector_size_rhs = max_vector_size(&rhs);
+        let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
 
-    let shape_out = broadcast_shape(&[&lhs, &rhs]);
-    let dtype = lhs.dtype;
+        let dtype = lhs.dtype;
 
-    // A zero-sized broadcast output has no elements to compute, and the in-place/kernel paths
-    // below assume a non-empty output. Return the empty output directly.
-    if shape_out.num_elements() == 0 {
-        return empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
-    }
-
-    let client = lhs.client.clone();
-    let num_elems = shape_out.num_elements();
-    let working_units = num_elems / vector_size as usize;
-
-    let cube_dim = CubeDim::new(&lhs.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&lhs.client, working_units, cube_dim);
-
-    unsafe {
-        if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(lhs, rhs),
-                vector_size,
-                lhs.clone().into_linear_view(),
-                rhs.into_linear_view_like(&lhs),
-                lhs.as_linear_view_alias(0),
-                dtype_to_storage_type(dtype),
-            );
-
-            lhs
-        } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(lhs, rhs),
-                vector_size,
-                lhs.into_linear_view_like(&rhs),
-                rhs.clone().into_linear_view(),
-                rhs.as_linear_view_alias(1),
-                dtype_to_storage_type(dtype),
-            );
-
-            rhs
-        } else {
-            let output =
-                empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
-
-            kernel_binop::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(lhs, rhs, output),
-                vector_size,
-                lhs.into_linear_view_like(&output),
-                rhs.into_linear_view_like(&output),
-                output.clone().into_linear_view(),
-                dtype_to_storage_type(dtype),
-            );
-
-            output
+        // A zero-sized broadcast output has no elements to compute, and the in-place/kernel paths
+        // below assume a non-empty output. Return the empty output directly.
+        if shape_out.num_elements() == 0 {
+            return empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
         }
-    }
+
+        let client = lhs.client.clone();
+        let num_elems = shape_out.num_elements();
+        let working_units = num_elems / vector_size as usize;
+
+        let cube_dim = CubeDim::new(&lhs.client, working_units);
+        let cube_count = calculate_cube_count_elemwise(&lhs.client, working_units, cube_dim);
+
+        unsafe {
+            if lhs.can_mut_broadcast(&rhs) {
+                kernel_binop::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(lhs, rhs),
+                    vector_size,
+                    lhs.clone().into_linear_view(),
+                    rhs.into_linear_view_like(&lhs),
+                    lhs.as_linear_view_alias(0),
+                    dtype_to_storage_type(dtype),
+                );
+
+                lhs
+            } else if rhs.can_mut_broadcast(&lhs) {
+                kernel_binop::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(lhs, rhs),
+                    vector_size,
+                    lhs.into_linear_view_like(&rhs),
+                    rhs.clone().into_linear_view(),
+                    rhs.as_linear_view_alias(1),
+                    dtype_to_storage_type(dtype),
+                );
+
+                rhs
+            } else {
+                let output =
+                    empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
+
+                kernel_binop::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(lhs, rhs, output),
+                    vector_size,
+                    lhs.into_linear_view_like(&output),
+                    rhs.into_linear_view_like(&output),
+                    output.clone().into_linear_view(),
+                    dtype_to_storage_type(dtype),
+                );
+
+                output
+            }
+        }
+    })
 }
 
 pub(crate) fn launch_scalar_binop<O: BinaryOpFamily>(
     tensor: CubeTensor,
     scalar: InputScalar,
 ) -> CubeTensor {
-    // Vectorization is only enabled when the last dimension is contiguous.
-    let vector_size = max_vector_size(&tensor);
-    let client = tensor.client.clone();
-    let num_elems = tensor.meta.num_elements();
-    let dtype = tensor.dtype;
+    let output_shape = tensor.shape();
+    in_memory_order([tensor], output_shape, |[tensor], shape_out| {
+        // Vectorization is only enabled when the last dimension is contiguous.
+        let vector_size = max_vector_size(&tensor);
+        let client = tensor.client.clone();
+        let num_elems = tensor.meta.num_elements();
+        let dtype = tensor.dtype;
 
-    let working_units = num_elems / vector_size as usize;
-    let cube_dim = CubeDim::new(&tensor.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+        let working_units = num_elems / vector_size as usize;
+        let cube_dim = CubeDim::new(&tensor.client, working_units);
+        let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
-    unsafe {
-        if tensor.can_mut() && tensor.is_nonoverlapping() {
-            kernel_scalar_binop::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(tensor),
-                vector_size,
-                tensor.clone().into_linear_view(),
-                scalar,
-                tensor.as_linear_view_alias(0),
-                dtype_to_storage_type(dtype),
-            );
+        unsafe {
+            if tensor.can_mut() && tensor.is_nonoverlapping() {
+                kernel_scalar_binop::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(tensor),
+                    vector_size,
+                    tensor.clone().into_linear_view(),
+                    scalar,
+                    tensor.as_linear_view_alias(0),
+                    dtype_to_storage_type(dtype),
+                );
 
-            tensor
-        } else {
-            let output = empty_device_dtype(
-                tensor.client.clone(),
-                tensor.device.clone(),
-                tensor.shape(),
-                dtype,
-            );
+                tensor
+            } else {
+                let output = empty_device_dtype(
+                    tensor.client.clone(),
+                    tensor.device.clone(),
+                    shape_out,
+                    dtype,
+                );
 
-            kernel_scalar_binop::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(tensor, output),
-                vector_size,
-                tensor.into_linear_view(),
-                scalar,
-                output.clone().into_linear_view(),
-                dtype_to_storage_type(dtype),
-            );
+                kernel_scalar_binop::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(tensor, output),
+                    vector_size,
+                    tensor.into_linear_view(),
+                    scalar,
+                    output.clone().into_linear_view(),
+                    dtype_to_storage_type(dtype),
+                );
 
-            output
+                output
+            }
         }
-    }
+    })
 }

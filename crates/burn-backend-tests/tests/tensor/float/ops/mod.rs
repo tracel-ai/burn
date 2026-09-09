@@ -105,6 +105,7 @@ mod negative_dims;
 mod one_hot;
 mod padding;
 mod permute;
+mod permuted_operands;
 mod powf;
 mod powf_scalar;
 mod prod;
