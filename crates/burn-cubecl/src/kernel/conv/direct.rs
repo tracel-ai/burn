@@ -94,18 +94,60 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
         stride_oc,
     };
 
-    kernel_loop(
-        input,
-        weight,
-        &mut sum,
-        in_offs,
-        true,
-        weight_offs,
-        &loop_params,
-        0usize,
-        has_padding,
-        accumulate_lanes,
-    );
+    let vector_size_in = input.vector_size();
+    let block = comptime![usize::min(4, vector_size_out)];
+
+    if accumulate_lanes {
+        #[unroll]
+        for bi in 0..comptime![vector_size_out / block] {
+            let base_v = bi * block;
+            let mut lanes = Array::<Vector<E, NIn>>::new(block);
+
+            kernel_loop(
+                input,
+                weight,
+                &mut sum,
+                &mut lanes,
+                in_offs,
+                true,
+                weight_offs,
+                &loop_params,
+                0usize,
+                has_padding,
+                accumulate_lanes,
+                base_v,
+            );
+
+            #[unroll]
+            for j in 0..block {
+                let mut channel = sum.extract(base_v + j);
+
+                #[unroll]
+                for i in 0..vector_size_in {
+                    channel += lanes[j].extract(i);
+                }
+
+                sum.insert(base_v + j, channel);
+            }
+        }
+    } else {
+        let mut lanes = Array::<Vector<E, NIn>>::new(1usize);
+
+        kernel_loop(
+            input,
+            weight,
+            &mut sum,
+            &mut lanes,
+            in_offs,
+            true,
+            weight_offs,
+            &loop_params,
+            0usize,
+            has_padding,
+            accumulate_lanes,
+            0usize,
+        );
+    }
 
     output.write(ABSOLUTE_POS, sum);
 }
@@ -128,6 +170,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
     input: &Tensor<Vector<E, NIn>>,
     weight: &Tensor<Vector<E, NIn>>,
     sum: &mut Vector<E, NOut>,
+    lanes: &mut Array<Vector<E, NIn>>,
     in_offs: usize,
     in_bounds: bool,
     weight_offs: usize,
@@ -135,6 +178,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
     #[comptime] kernel_dim: usize,
     #[comptime] has_padding: bool,
     #[comptime] accumulate_lanes: bool,
+    #[comptime] base_v: usize,
 ) {
     if comptime![kernel_dim < params.kernel_shape.len()] {
         let out_idx = *params.out_pos.index(kernel_dim);
@@ -157,6 +201,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
                 input,
                 weight,
                 sum,
+                lanes,
                 in_offs,
                 in_bounds,
                 weight_offs,
@@ -164,6 +209,7 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
                 comptime![kernel_dim + 1],
                 has_padding,
                 accumulate_lanes,
+                base_v,
             );
         }
     } else {
@@ -171,12 +217,14 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
             input,
             weight,
             sum,
+            lanes,
             in_offs,
             in_bounds,
             weight_offs,
             params.in_c_per_group,
             params.stride_oc,
             accumulate_lanes,
+            base_v,
         );
     }
 }
@@ -186,23 +234,26 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
     input: &Tensor<Vector<E, NIn>>,
     weight: &Tensor<Vector<E, NIn>>,
     sum: &mut Vector<E, NOut>,
+    lanes: &mut Array<Vector<E, NIn>>,
     in_offs: usize,
     in_bounds: bool,
     weight_offs: usize,
     in_c_per_group: u32,
     stride_oc: usize,
     #[comptime] accumulate_lanes: bool,
+    #[comptime] base_v: usize,
 ) {
     if in_bounds {
         if accumulate_lanes {
             accumulate_in_lanes(
                 input,
                 weight,
-                sum,
+                lanes,
                 in_offs,
                 weight_offs,
                 in_c_per_group,
                 stride_oc,
+                base_v,
             );
         } else {
             accumulate_per_step(
@@ -218,39 +269,31 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
     }
 }
 
-/// One input read per output channel buys a channel loop with no dependency chain.
+/// One input read serves a whole block of output channels, and the block's accumulator outlives
+/// the kernel window, so a channel step costs one input load per block and never a fold.
 #[cube]
-fn accumulate_in_lanes<E: Numeric, NIn: Size, NOut: Size>(
+fn accumulate_in_lanes<E: Numeric, NIn: Size>(
     input: &Tensor<Vector<E, NIn>>,
     weight: &Tensor<Vector<E, NIn>>,
-    sum: &mut Vector<E, NOut>,
+    lanes: &mut Array<Vector<E, NIn>>,
     in_offs: usize,
     weight_offs: usize,
     in_c_per_group: u32,
     stride_oc: usize,
+    #[comptime] base_v: usize,
 ) {
     let vector_size_in = input.vector_size();
-    let vector_size_out = sum.vector_size();
+    let block = lanes.len();
 
-    #[unroll]
-    for v in 0..vector_size_out {
-        let mut lanes = Vector::<E, NIn>::zero();
-        let weight_offs = weight_offs + v * stride_oc;
-
-        for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
-            let val = input[(in_offs + in_c as usize) / vector_size_in];
-
-            lanes += val * weight[(weight_offs + in_c as usize) / vector_size_in];
-        }
-
-        let mut channel = sum.extract(v);
+    for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
+        let val = input[(in_offs + in_c as usize) / vector_size_in];
 
         #[unroll]
-        for i in 0..vector_size_in {
-            channel += lanes.extract(i);
-        }
+        for j in 0..block {
+            let weight_offs = weight_offs + (base_v + j) * stride_oc + in_c as usize;
 
-        sum.insert(v, channel);
+            lanes[j] += val * weight[weight_offs / vector_size_in];
+        }
     }
 }
 
