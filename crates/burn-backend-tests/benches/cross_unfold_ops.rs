@@ -18,9 +18,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Cross and unfold ops Benchmarks");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 // Cross product requires 3 elements along the specified dimension

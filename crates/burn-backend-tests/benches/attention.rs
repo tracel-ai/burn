@@ -20,10 +20,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Attention Benchmarks");
-    println!("Memory allocation tracking enabled");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 /// Create Q, K, V tensors for attention benchmarking.

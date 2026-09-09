@@ -18,9 +18,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Gather/scatter ops Benchmarks");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 fn make_tensor_2d(rows: usize, cols: usize) -> Tensor<2> {

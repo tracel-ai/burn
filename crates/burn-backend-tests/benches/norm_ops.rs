@@ -34,9 +34,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Normalization Benchmarks");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 fn make_tensor_3d(d0: usize, d1: usize, d2: usize) -> Tensor<3> {

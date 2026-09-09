@@ -32,3 +32,7 @@ examples/**/Cargo.lock
 *profiler.json
 # linker maps
 *.map
+# samply profiling files
+*.json.gz
+# benchmarking helper files
+.divan_diff.json

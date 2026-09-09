@@ -150,13 +150,14 @@ cargo bench-flex --bench matmul -- square
 
 ### Comparing backends
 
-Each run targets one backend. To compare (e.g. Flex vs NdArray), run twice and diff the output:
+Each run targets one backend. To compare (e.g. Flex vs NdArray), run twice while piping into divan-diff.py (python uv script):
 
 ```sh
-cargo bench-flex --bench matmul > flex.txt
-cargo bench-ndarray --bench matmul > ndarray.txt
-diff flex.txt ndarray.txt
+cargo bench-flex --bench matmul | ./divan-diff.py
+cargo bench-ndarray --bench matmul | ./divan-diff.py
 ```
+
+This can also be used to compare subsequent runs of the same benchmark after changes have been made.
 
 ### GPU sync
 

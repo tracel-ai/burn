@@ -18,9 +18,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Benchmarks");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 // Tensor sizes for benchmarking

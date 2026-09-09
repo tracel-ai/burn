@@ -20,10 +20,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Slice Operations Benchmarks");
-    println!("Memory allocation tracking enabled");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 fn make_tensor_1d(size: usize) -> Tensor<1> {
