@@ -839,6 +839,26 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the sum of all elements in `tensor` along `dim`.
     fn float_sum_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 
+    /// Sum the tensor along several dimensions at once, keeping each of them
+    /// with length one.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    /// * `dims` - The dimensions along which to sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same rank, and length one along each of `dims`.
+    ///
+    /// The default reduces one dimension at a time, which writes and reads
+    /// back an intermediate per dimension. A backend that can fold the
+    /// dimensions into fewer reductions should override this.
+    fn float_sum_dims(tensor: FloatTensor<B>, dims: &[usize]) -> FloatTensor<B> {
+        dims.iter()
+            .fold(tensor, |tensor, &dim| B::float_sum_dim(tensor, dim))
+    }
+
     /// Product of all elements in a tensor.
     ///
     /// # Arguments

@@ -910,13 +910,30 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
         // which only matches the logical row when the reduce dim itself has
         // stride 1. Transposed views (e.g. shape [3,2] strides [1,3]) would
         // otherwise read contiguous storage and return wrong sums.
-        reduce_last_dim_f32(data, start_offset, outer_size, dim_size, strides, dim, op)
+        let outer_stride: isize = if tensor.is_contiguous() {
+            dim_size as isize
+        } else if dim > 0 {
+            strides[dim - 1]
+        } else {
+            dim_size as isize
+        };
+        if tensor.is_contiguous() {
+            debug_assert_eq!(outer_stride, dim_size as isize);
+        }
+        reduce_last_dim_f32(data, start_offset, outer_size, dim_size, outer_stride, op)
     } else if dim == 0 && inner_contiguous && matches!(op, ReduceOp::Sum) {
         // First-dim reduction with contiguous inner: use cache-friendly accumulation
         reduce_first_dim_f32(data, start_offset, dim_size, inner_size, dim_stride)
     } else if dim > 0 && dim < ndims - 1 && inner_contiguous && matches!(op, ReduceOp::Sum) {
         // Middle-dim reduction (e.g., [B, M, K] reducing dim=1): cache-friendly accumulation
-        let outer_stride = strides[dim - 1];
+        let outer_stride = if tensor.is_contiguous() {
+            (dim_size * inner_size) as isize
+        } else {
+            strides[dim - 1]
+        };
+        if tensor.is_contiguous() {
+            debug_assert_eq!(outer_stride, (dim_size * inner_size) as isize);
+        }
         reduce_middle_dim_f32(
             data,
             start_offset,
@@ -926,9 +943,14 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
             outer_stride,
             dim_stride,
         )
-    } else if dim_stride == 1 && matches!(op, ReduceOp::Sum) && outer_size == 1 {
+    } else if dim_stride == 1
+        && matches!(op, ReduceOp::Sum)
+        && outer_size == 1
+        && (inner_size == 1 || strides[dim + 1] == dim_size as isize)
+    {
         // Reduction dimension is contiguous, no outer batch (e.g., transposed 2D reducing dim=0)
-        // Storage is [inner_size rows of dim_size elements each] - use sum_rows_f32
+        // Rows must also be packed in forward order; reversed or stepped rows
+        // use the stride-aware per-row branch below.
         #[cfg(feature = "simd")]
         {
             let mut result = vec![0.0f32; inner_size];
@@ -953,7 +975,16 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
         }
     } else if dim_stride == 1 && matches!(op, ReduceOp::Sum) {
         // Reduction dimension is contiguous but with outer batches
-        let outer_stride: isize = if dim > 0 { strides[dim - 1] } else { 0 };
+        let outer_stride: isize = if tensor.is_contiguous() {
+            (dim_size * inner_size) as isize
+        } else if dim > 0 {
+            strides[dim - 1]
+        } else {
+            0
+        };
+        if tensor.is_contiguous() {
+            debug_assert_eq!(outer_stride, (dim_size * inner_size) as isize);
+        }
         let inner_stride: isize = if dim + 1 < ndims { strides[dim + 1] } else { 1 };
 
         let mut result = Vec::with_capacity(out_size);
@@ -1115,16 +1146,9 @@ fn reduce_last_dim_f32(
     start_offset: usize,
     outer_size: usize,
     dim_size: usize,
-    strides: &[isize],
-    dim: usize,
+    outer_stride: isize,
     op: ReduceOp,
 ) -> Vec<f32> {
-    let outer_stride: isize = if dim > 0 {
-        strides[dim - 1]
-    } else {
-        dim_size as isize
-    };
-
     // `outer_size > 0` is guaranteed by the out_size == 0 early return in
     // `reduce_dim_f32`.
     let rows = outer_size;
@@ -2709,5 +2733,63 @@ mod tests {
 
         assert_eq!(short_idxs, vec![0], "scalar path");
         assert_eq!(long_idxs, vec![0], "SIMD path");
+    }
+
+    #[test]
+    fn test_sum_dim_swap_dims_size_one() {
+        // Regression test for non-canonical strides on contiguous layout after swap_dims
+        // [3, 4, 1] swapped at (1, 2) becomes [3, 1, 4] with strides [4, 1, 1].
+        let data: Vec<f32> = (1..=12).map(|x| x as f32).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [3, 4, 1]));
+        let swapped = Flex::float_swap_dims(tensor, 1, 2);
+        let result = Flex::float_sum_dim(swapped, 2);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![3, 1, 1]);
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(out, vec![10.0, 26.0, 42.0]);
+    }
+
+    #[test]
+    fn test_sum_mean_dim_strided_transposed_rows() {
+        use burn_std::Slice;
+
+        // Reverse two packed rows, reverse a prefix with extra backing storage,
+        // and skip a row. Each case has contiguous reduction runs but a
+        // different stride between output positions.
+        for (rows, end, step, expected) in [
+            (2, None, -1, vec![15.0f32, 6.0]),
+            (3, Some(2), -1, vec![15.0, 6.0]),
+            (3, None, 2, vec![6.0, 24.0]),
+        ] {
+            let data: Vec<f32> = (1..=rows * 3).map(|v| v as f32).collect();
+            let tensor = FlexTensor::from_data(TensorData::new(data, [rows, 3]));
+            let view = crate::ops::slice::slice(
+                tensor.transpose(0, 1),
+                &[Slice::new(0, None, 1), Slice::new(0, end, step)],
+            );
+            let sum = Flex::float_sum_dim(view.clone(), 0);
+            assert_eq!(sum.layout().shape().to_vec(), vec![1, 2]);
+            assert_eq!(sum.into_data().try_into_vec::<f32>().unwrap(), expected);
+            let mean = Flex::float_mean_dim(view, 0);
+            let expected_mean: Vec<f32> = expected.iter().map(|v| v / 3.0).collect();
+            assert_eq!(
+                mean.into_data().try_into_vec::<f32>().unwrap(),
+                expected_mean
+            );
+        }
+    }
+
+    #[test]
+    fn test_sum_dim_permute_size_one() {
+        // Regression test for non-canonical strides on contiguous layout after permute
+        // [1, 3, 4] permuted with [1, 0, 2] becomes [3, 1, 4] with strides [4, 12, 1].
+        let data: Vec<f32> = (1..=12).map(|x| x as f32).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [1, 3, 4]));
+        let permuted = Flex::float_permute(tensor, &[1, 0, 2]);
+        let result = Flex::float_sum_dim(permuted, 2);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![3, 1, 1]);
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(out, vec![10.0, 26.0, 42.0]);
     }
 }

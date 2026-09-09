@@ -128,7 +128,7 @@ dataset to use should be based on the dataset's size as well as its intended pur
 | Storage            | Description                                                                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `InMemDataset`     | In-memory dataset that uses a vector to store items. Well-suited for smaller datasets.                                                               |
-| `SqliteDataset`    | Dataset that uses [SQLite](https://www.sqlite.org/) to index items that can be saved in a simple SQL database file. Well-suited for larger datasets. |
+| `SqliteDataset`    | Dataset that uses [Turso](https://turso.tech/) to index items that can be saved in a simple SQLite database file. Well-suited for larger datasets.   |
 | `DataframeDataset` | Dataset that uses [Polars](https://www.pola.rs/) dataframe to store and manage data. Well-suited for efficient data manipulation and analysis.       |
 
 ## Sources

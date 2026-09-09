@@ -10,7 +10,7 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["burn/dataset", "burn/sqlite-bundled"]
+default = ["burn/dataset", "burn/sqlite"]
 f16 = []
 flex32 = []
 tch-cpu = ["burn/tch"]

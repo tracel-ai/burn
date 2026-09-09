@@ -10,7 +10,7 @@ use crate::{
     graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use burn_backend::{Backend, TensorMetadata, tensor::FloatTensor};
 use burn_std::Shape;
 use core::marker::PhantomData;
@@ -307,10 +307,11 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
 ///
 /// If broadcasting happened during the forward pass, the gradients will be sum along the
 /// broadcasted dimension.
-pub fn broadcast_shape<B: Backend>(mut grad: FloatTensor<B>, shape: &Shape) -> FloatTensor<B> {
+pub fn broadcast_shape<B: Backend>(grad: FloatTensor<B>, shape: &Shape) -> FloatTensor<B> {
     let shape_grad = grad.shape();
     let ndims = shape_grad.num_dims();
 
+    let mut broadcast_dims = Vec::new();
     for i in 0..ndims {
         if shape_grad[i] != shape[i] {
             if shape[i] != 1 {
@@ -319,9 +320,17 @@ pub fn broadcast_shape<B: Backend>(mut grad: FloatTensor<B>, shape: &Shape) -> F
                     shape, shape_grad, "Expected the shape of the next grad to be 1."
                 );
             }
-            grad = B::float_sum_dim(grad, i);
+            broadcast_dims.push(i);
         }
     }
 
-    grad
+    // One reduction over every broadcast dimension rather than one per
+    // dimension: a parameter broadcast over batch and space would otherwise
+    // pay a launch and an intermediate for each, the first of them nearly the
+    // size of the gradient itself.
+    match broadcast_dims.as_slice() {
+        [] => grad,
+        [dim] => B::float_sum_dim(grad, *dim),
+        dims => B::float_sum_dims(grad, dims),
+    }
 }

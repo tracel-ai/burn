@@ -557,13 +557,31 @@ fn matmul_2d_i32(lhs: &FlexTensor, rhs: &FlexTensor) -> FlexTensor {
 
     let mut output = vec![0i32; m * n];
 
-    // Now both lhs rows and rhs columns (transposed rows) are contiguous
-    for i in 0..m {
+    let run_row = |i: usize, row_out: &mut [i32]| {
         let lhs_row = &lhs_data[i * k..(i + 1) * k];
         for j in 0..n {
             let rhs_col = &rhs_t[j * k..(j + 1) * k];
-            output[i * n + j] = dot_i32(lhs_row, rhs_col);
+            row_out[j] = dot_i32(lhs_row, rhs_col);
         }
+    };
+
+    #[cfg(feature = "rayon")]
+    if m * k * n >= PARALLEL_THRESHOLD && m > 1 && n > 0 {
+        use rayon::prelude::*;
+        output
+            .par_chunks_mut(n)
+            .enumerate()
+            .for_each(|(i, row_out)| run_row(i, row_out));
+    } else {
+        for i in 0..m {
+            let row_start = i * n;
+            run_row(i, &mut output[row_start..row_start + n]);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    for i in 0..m {
+        let row_start = i * n;
+        run_row(i, &mut output[row_start..row_start + n]);
     }
 
     let out_shape = Shape::from(vec![m, n]);
@@ -691,12 +709,17 @@ fn matmul_batched_i32(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
     };
 
     #[cfg(feature = "rayon")]
-    {
+    if batch_size * m * k * n >= BATCH_PARALLEL_THRESHOLD && batch_size > 1 && out_matrix_size > 0 {
         use rayon::prelude::*;
         output
             .par_chunks_mut(out_matrix_size)
             .enumerate()
             .for_each(|(b, out_slice)| run_one(b, out_slice));
+    } else {
+        for b in 0..batch_size {
+            let offset = b * out_matrix_size;
+            run_one(b, &mut output[offset..offset + out_matrix_size]);
+        }
     }
 
     #[cfg(not(feature = "rayon"))]
@@ -745,14 +768,34 @@ fn matmul_2d_i64(lhs: &FlexTensor, rhs: &FlexTensor) -> FlexTensor {
 
     let mut output = vec![0i64; m * n];
 
-    for i in 0..m {
+    let run_row = |i: usize, row_out: &mut [i64]| {
+        let lhs_row = &lhs_data[i * k..(i + 1) * k];
         for j in 0..n {
             let mut sum = 0i64;
             for l in 0..k {
-                sum = sum.wrapping_add(lhs_data[i * k + l].wrapping_mul(rhs_data[l * n + j]));
+                sum = sum.wrapping_add(lhs_row[l].wrapping_mul(rhs_data[l * n + j]));
             }
-            output[i * n + j] = sum;
+            row_out[j] = sum;
         }
+    };
+
+    #[cfg(feature = "rayon")]
+    if m * k * n >= PARALLEL_THRESHOLD && m > 1 && n > 0 {
+        use rayon::prelude::*;
+        output
+            .par_chunks_mut(n)
+            .enumerate()
+            .for_each(|(i, row_out)| run_row(i, row_out));
+    } else {
+        for i in 0..m {
+            let row_start = i * n;
+            run_row(i, &mut output[row_start..row_start + n]);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    for i in 0..m {
+        let row_start = i * n;
+        run_row(i, &mut output[row_start..row_start + n]);
     }
 
     let out_shape = Shape::from(vec![m, n]);
@@ -795,12 +838,11 @@ fn matmul_batched_i64(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
 
     let mut output = vec![0i64; batch_size * out_matrix_size];
 
-    for b in 0..batch_size {
+    let run_one = |b: usize, out_slice: &mut [i64]| {
         let lhs_batch_idx = batch_index_to_offset(b, &broadcast_shape, &lhs_strides);
         let rhs_batch_idx = batch_index_to_offset(b, &broadcast_shape, &rhs_strides);
         let lhs_offset = lhs_batch_idx * lhs_matrix_size;
         let rhs_offset = rhs_batch_idx * rhs_matrix_size;
-        let out_offset = b * out_matrix_size;
 
         for i in 0..m {
             for j in 0..n {
@@ -810,9 +852,28 @@ fn matmul_batched_i64(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
                     let rhs_idx = rhs_offset + l * n + j;
                     sum = sum.wrapping_add(lhs_data[lhs_idx].wrapping_mul(rhs_data[rhs_idx]));
                 }
-                output[out_offset + i * n + j] = sum;
+                out_slice[i * n + j] = sum;
             }
         }
+    };
+
+    #[cfg(feature = "rayon")]
+    if batch_size * m * k * n >= BATCH_PARALLEL_THRESHOLD && batch_size > 1 && out_matrix_size > 0 {
+        use rayon::prelude::*;
+        output
+            .par_chunks_mut(out_matrix_size)
+            .enumerate()
+            .for_each(|(b, out_slice)| run_one(b, out_slice));
+    } else {
+        for b in 0..batch_size {
+            let offset = b * out_matrix_size;
+            run_one(b, &mut output[offset..offset + out_matrix_size]);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    for b in 0..batch_size {
+        let offset = b * out_matrix_size;
+        run_one(b, &mut output[offset..offset + out_matrix_size]);
     }
 
     FlexTensor::new(

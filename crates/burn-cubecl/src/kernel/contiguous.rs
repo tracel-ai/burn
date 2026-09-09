@@ -162,7 +162,10 @@ fn into_contiguous_quantized(tensor: CubeTensor, strategy: MemoryLayoutStrategy)
 /// A tensor packed into storage tiles through cubek, and what burn does with one: the matmul it
 /// was packed for reads it through its binding, every layout rewrite lays it back in rows first,
 /// and a row kernel refuses it.
-#[cfg(test)]
+#[cfg(all(
+    test,
+    any(feature = "wgpu", feature = "cpu", feature = "cuda", feature = "hip")
+))]
 mod storage_tiled {
     use burn_backend::{DType, cubecl::dtype_to_storage_type};
     use burn_std::{Shape, TensorData};

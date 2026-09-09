@@ -110,6 +110,7 @@ mod powf_scalar;
 mod prod;
 mod random;
 mod recip;
+mod reduce_dims;
 mod remainder;
 mod repeat;
 mod repeat_dim;

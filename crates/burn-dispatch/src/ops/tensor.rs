@@ -318,6 +318,10 @@ impl FloatTensorOps<Self> for Dispatch {
         B::float_sum_dim(tensor, dim)
     }
 
+    fn float_sum_dims(tensor: FloatTensor<Self>, dims: &[usize]) -> FloatTensor<Self> {
+        B::float_sum_dims(tensor, dims)
+    }
+
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         B::float_mean_dim(tensor, dim)
     }
