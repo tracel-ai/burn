@@ -1452,6 +1452,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_sum_dims(tensor: FloatTensor<Self>, dims: &[usize]) -> FloatTensor<Self> {
+        match dims {
+            [] => return tensor,
+            [dim] => return Self::float_sum_dim(tensor, *dim),
+            _ => {}
+        }
+
         reduce_ops!(
             @impl SumDimsOps, ReduceDimsOpIr, get_float_tensor, register_float_tensor,
             |input, desc| B::float_sum_dims(input, &desc.axes)

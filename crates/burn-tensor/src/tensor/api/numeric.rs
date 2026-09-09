@@ -1,5 +1,7 @@
 use burn_backend::Scalar;
 
+use alloc::vec::Vec;
+
 use crate::alloc::borrow::ToOwned;
 use crate::check::unwrap_dim_index;
 use crate::kind::Numeric;

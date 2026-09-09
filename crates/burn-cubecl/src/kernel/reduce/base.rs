@@ -212,6 +212,12 @@ pub fn reduce_dims(
     let mut shape = input.meta.shape().clone();
     let reduced: Vec<usize> = (0..rank).filter(|dim| dims.contains(dim)).collect();
 
+    let empty: Vec<usize> = reduced
+        .iter()
+        .copied()
+        .filter(|dim| shape[*dim] == 0)
+        .collect();
+
     // A dimension already of length one is reduced by being left alone, and its
     // stride is arbitrary, so keeping it among the dimensions to fold would let
     // it break a run of dimensions that do fold.
@@ -221,14 +227,21 @@ pub fn reduce_dims(
         .filter(|dim| shape[*dim] > 1)
         .collect();
 
-    match (reduced.first(), left.len()) {
-        (None, _) => return Ok(input),
-        (Some(&dim), 0) => return reduce_dim(input, output_dtype, dim, strategy, config),
-        (_, 1) => return reduce_dim(input, output_dtype, left[0], strategy, config),
-        _ => {}
+    if empty.is_empty() {
+        match (reduced.first(), left.len()) {
+            (None, _) => return Ok(input),
+            (Some(&dim), 0) => return reduce_dim(input, output_dtype, dim, strategy, config),
+            (_, 1) => return reduce_dim(input, output_dtype, left[0], strategy, config),
+            _ => {}
+        }
     }
 
     let mut tensor = input;
+
+    for dim in empty {
+        tensor = reduce_dim(tensor, output_dtype, dim, strategy.clone(), config)?;
+        shape[dim] = 1;
+    }
 
     while !left.is_empty() {
         let run =
@@ -271,6 +284,9 @@ fn largest_run_memory_holds_together(
     let mut run: Vec<usize> = Vec::new();
 
     for dim in memory_order {
+        if shape[dim] == 1 {
+            continue;
+        }
         if !left.contains(&dim) {
             run.clear();
             continue;

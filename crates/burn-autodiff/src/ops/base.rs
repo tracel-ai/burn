@@ -10,7 +10,7 @@ use crate::{
     graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use burn_backend::{Backend, TensorMetadata, tensor::FloatTensor};
 use burn_std::Shape;
 use core::marker::PhantomData;
