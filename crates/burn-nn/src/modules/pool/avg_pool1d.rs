@@ -110,18 +110,45 @@ impl AvgPool1d {
         // See: https://github.com/tracel-ai/burn/issues/4362
         // Handle asymmetric padding by applying explicit pad operation first
         if left != right {
+            let valid = if self.count_include_pad {
+                None
+            } else {
+                let device = input.device();
+                Some(
+                    Tensor::<3>::ones([1, 1, length], (&device, input.dtype()))
+                        .pad((left, right, 0, 0), PadMode::Constant(0.0)),
+                )
+            };
             // Burn's pad takes (left, right, top, bottom) for the last two dimensions
             // For 1D (NCL format), we only pad L (last dim), so top/bottom = 0
             let padded = input.pad((left, right, 0, 0), PadMode::Constant(0.0));
             // Use zero padding for the pool operation since we already padded
-            avg_pool1d(
+            let output = avg_pool1d(
                 padded,
                 self.kernel_size,
                 self.stride,
                 0,
                 self.count_include_pad,
                 self.ceil_mode,
-            )
+            );
+
+            if let Some(valid) = valid {
+                // Materialized padding is indistinguishable from input to the backend. Pooling a
+                // validity mask with the same settings recovers the fraction of real values in
+                // each window, including partial windows created by ceil mode.
+                let valid = avg_pool1d(
+                    valid,
+                    self.kernel_size,
+                    self.stride,
+                    0,
+                    false,
+                    self.ceil_mode,
+                );
+                let empty = valid.clone().equal_elem(0.0);
+                output / valid.mask_fill(empty, 1.0)
+            } else {
+                output
+            }
         } else {
             // Symmetric padding
             avg_pool1d(
@@ -139,6 +166,7 @@ impl AvgPool1d {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use burn::tensor::{Device, TensorData, Tolerance};
     use rstest::rstest;
 
     #[test]
@@ -197,6 +225,92 @@ mod tests {
         // With asymmetric padding (1, 2), input length 4 becomes 4+1+2=7
         // Output length = (7 - 3) / 1 + 1 = 5
         assert_eq!(output.dims(), [1, 2, 5]);
+    }
+
+    #[test]
+    fn asymmetric_padding_mask_broadcasts_without_excluding_input_zeros() {
+        let device = Default::default();
+        let input = Tensor::from_data(
+            [
+                [[0.0f32, 2.0, 4.0], [2.0, 0.0, 6.0]],
+                [[0.0, 0.0, 8.0], [-2.0, 2.0, 0.0]],
+            ],
+            &device,
+        );
+        let pool = AvgPool1dConfig::new(2)
+            .with_stride(2)
+            .with_padding(PaddingConfig1d::Explicit(0, 1))
+            .with_count_include_pad(false)
+            .init();
+
+        let output = pool.forward(input);
+
+        output.to_data().assert_eq(
+            &TensorData::from([[[1.0f32, 4.0], [1.0, 6.0]], [[0.0, 8.0], [0.0, 0.0]]]),
+            true,
+        );
+    }
+
+    #[test]
+    fn same_asymmetric_padding_excludes_pad_from_average() {
+        let device = Default::default();
+        let input = Tensor::from_data([[[1.0f32, 2.0, 3.0, 4.0, 5.0]]], &device);
+        let pool = AvgPool1dConfig::new(2)
+            .with_stride(2)
+            .with_padding(PaddingConfig1d::Same)
+            .with_count_include_pad(false)
+            .init();
+
+        let output = pool.forward(input);
+
+        output
+            .to_data()
+            .assert_eq(&TensorData::from([[[1.5f32, 3.5, 5.0]]]), true);
+    }
+
+    #[test]
+    fn asymmetric_padding_still_counts_pad_when_enabled() {
+        let device = Default::default();
+        let input = Tensor::from_data([[[1.0f32, 2.0, 3.0, 4.0, 5.0]]], &device);
+        let pool = AvgPool1dConfig::new(2)
+            .with_stride(2)
+            .with_padding(PaddingConfig1d::Explicit(0, 1))
+            .with_count_include_pad(true)
+            .init();
+
+        let output = pool.forward(input);
+
+        output
+            .to_data()
+            .assert_eq(&TensorData::from([[[1.5f32, 3.5, 2.5]]]), true);
+    }
+
+    #[test]
+    fn ceil_mode_excludes_asymmetric_pad_and_preserves_gradients() {
+        let device = Device::default().autodiff();
+        let input = Tensor::from_data([[[2.0f32, 4.0, 6.0, 8.0]]], &device).require_grad();
+        let pool = AvgPool1dConfig::new(2)
+            .with_stride(2)
+            .with_padding(PaddingConfig1d::Explicit(1, 0))
+            .with_count_include_pad(false)
+            .with_ceil_mode(true)
+            .init();
+
+        let output = pool.forward(input.clone());
+        output
+            .clone()
+            .to_data()
+            .assert_eq(&TensorData::from([[[2.0f32, 5.0, 8.0]]]), true);
+
+        let gradients = output.sum().backward();
+        input
+            .grad(&gradients)
+            .unwrap()
+            .to_data()
+            .assert_approx_eq::<f32>(
+                &TensorData::from([[[1.0f32, 0.5, 0.5, 1.0]]]),
+                Tolerance::default(),
+            );
     }
 
     #[test]
