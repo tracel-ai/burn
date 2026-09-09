@@ -366,15 +366,7 @@ impl BoolTensorOps<Flex> for Flex {
         indices: IntTensor<Flex>,
         value: BoolTensor<Flex>,
     ) -> BoolTensor<Flex> {
-        let mut result = crate::ops::gather_scatter::select_add::<u8>(tensor, dim, indices, value);
-        // Clamp to 0/1: select_add sums u8 values, but bool OR saturates at 1
-        let storage: &mut [u8] = result.storage_mut();
-        for v in storage.iter_mut() {
-            if *v > 1 {
-                *v = 1;
-            }
-        }
-        result
+        crate::ops::gather_scatter::select_or(tensor, dim, indices, value)
     }
 
     fn bool_transpose(tensor: BoolTensor<Flex>) -> BoolTensor<Flex> {
