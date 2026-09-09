@@ -90,6 +90,59 @@ fn should_select_add_bool_true_or_true_accumulation() {
 }
 
 #[test]
+fn should_select_add_bool_many_duplicate_indices() {
+    let device = Default::default();
+    for count in [256, 512] {
+        let tensor = TestTensorBool::<1>::from_data([false, true, false], &device);
+        let dtype = tensor.dtype();
+        let indices =
+            TestTensorInt::from_data(TensorData::new(vec![0i32; count], [count]), &device);
+        let values =
+            TestTensorBool::<1>::from_data(TensorData::new(vec![true; count], [count]), &device);
+
+        let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
+
+        assert_eq!(output.dtype(), dtype);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([true, true, false]), false);
+    }
+}
+
+#[test]
+fn should_select_add_bool_many_duplicate_rows() {
+    let device = Default::default();
+    let tensor =
+        TestTensorBool::<2>::from_data([[false, true, false], [true, false, true]], &device);
+    let indices = TestTensorInt::from_data([0; 256], &device);
+    let values = TestTensorBool::<2>::from_data([[true, false, false]; 256], &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[true, true, false], [true, false, true]]),
+        false,
+    );
+}
+
+#[test]
+fn should_select_add_bool_many_duplicate_columns_from_transposed_views() {
+    let device = Default::default();
+    let tensor =
+        TestTensorBool::<2>::from_data([[false, true, false], [true, false, true]], &device)
+            .transpose();
+    let indices = TestTensorInt::from_data([0; 256], &device);
+    let values = TestTensorBool::<2>::from_data([[true, false, false]; 256], &device).transpose();
+
+    let output = tensor.select_assign(1, indices, values, IndexingUpdateOp::Add);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[true, true], [true, false], [false, true]]),
+        false,
+    );
+}
+
+#[test]
 fn should_match_default_implementation_behavior() {
     // Verify optimized implementation matches original default logic
     let device = Default::default();
