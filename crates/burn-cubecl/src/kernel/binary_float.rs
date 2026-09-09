@@ -55,12 +55,11 @@ pub(crate) fn launch_binop_float<O: BinaryOpFloatFamily>(
     rhs: CubeTensor,
 ) -> CubeTensor {
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
-    in_memory_order([lhs, rhs], &output_shape, |[lhs, rhs]| {
+    in_memory_order([lhs, rhs], output_shape, |[lhs, rhs], shape_out| {
         let vector_size_lhs = max_vector_size(&lhs);
         let vector_size_rhs = max_vector_size(&rhs);
         let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
 
-        let shape_out = broadcast_shape(&[&lhs, &rhs]);
         let dtype = lhs.dtype;
 
         // A zero-sized broadcast output has no elements to compute, and the in-place/kernel paths

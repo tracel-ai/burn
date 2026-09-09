@@ -225,12 +225,11 @@ pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
 
 pub(crate) fn launch_binop<O: BinaryOpFamily>(lhs: CubeTensor, rhs: CubeTensor) -> CubeTensor {
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
-    in_memory_order([lhs, rhs], &output_shape, |[lhs, rhs]| {
+    in_memory_order([lhs, rhs], output_shape, |[lhs, rhs], shape_out| {
         let vector_size_lhs = max_vector_size(&lhs);
         let vector_size_rhs = max_vector_size(&rhs);
         let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
 
-        let shape_out = broadcast_shape(&[&lhs, &rhs]);
         let dtype = lhs.dtype;
 
         // A zero-sized broadcast output has no elements to compute, and the in-place/kernel paths
@@ -302,7 +301,7 @@ pub(crate) fn launch_scalar_binop<O: BinaryOpFamily>(
     scalar: InputScalar,
 ) -> CubeTensor {
     let output_shape = tensor.shape();
-    in_memory_order([tensor], &output_shape, |[tensor]| {
+    in_memory_order([tensor], output_shape, |[tensor], shape_out| {
         // Vectorization is only enabled when the last dimension is contiguous.
         let vector_size = max_vector_size(&tensor);
         let client = tensor.client.clone();
@@ -332,7 +331,7 @@ pub(crate) fn launch_scalar_binop<O: BinaryOpFamily>(
                 let output = empty_device_dtype(
                     tensor.client.clone(),
                     tensor.device.clone(),
-                    tensor.shape(),
+                    shape_out,
                     dtype,
                 );
 

@@ -49,7 +49,7 @@ where
     O: NumericUnaryOpFamily,
 {
     let output_shape = tensor.shape();
-    in_memory_order([tensor], &output_shape, |[tensor]| {
+    in_memory_order([tensor], output_shape, |[tensor], shape_out| {
         let vector_size = max_vector_size(&tensor);
         let client = tensor.client.clone();
         let num_elems = tensor.meta.num_elements();
@@ -78,7 +78,7 @@ where
                 let output = empty_device_dtype(
                     tensor.client.clone(),
                     tensor.device.clone(),
-                    tensor.shape(),
+                    shape_out,
                     tensor.dtype,
                 );
 

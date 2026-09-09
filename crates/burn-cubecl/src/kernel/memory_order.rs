@@ -10,10 +10,15 @@
 //! An elementwise operation does not care what a dimension means, only that
 //! every operand is walked in step. So the operands are handed to the kernel
 //! permuted into the order the bulk of them occupy memory in. The output is
-//! then allocated dense in that order, an operand already in it is walked
-//! linearly and vectorized, one that disagrees is walked strided exactly as
-//! before, and the result is permuted back to the logical order before it is
-//! handed on. A permute is a change of metadata, so none of this moves data.
+//! allocated dense in that order when a fresh buffer is needed; in-place writes
+//! retain the operand's storage. Matching dense operands can be read linearly,
+//! while vectorization still depends on the strides and all operands. The result
+//! is permuted back to logical order. Permutation changes metadata, not data.
+//! This is a locality heuristic, not a guarantee of faster execution for every
+//! shape or consumer. A fresh result can retain a nonlogical physical layout;
+//! a later reshape that cannot be expressed through strides must materialize
+//! logical value order. The extra copy can outweigh the elementwise speedup.
+//! Choosing the order here cannot account for consumers that have not run yet.
 
 use burn_std::{
     Shape,
@@ -27,21 +32,28 @@ use crate::{ops::permute, tensor::CubeTensor};
 ///
 /// `output_shape` is the shape the kernel will write — the broadcast of the
 /// operands for a binary operation, the operand's own for a unary one. Only
-/// operands of exactly that shape vote on the order: a broadcast operand is
-/// read from cache whatever the order is, so it has no stake, and it permutes
-/// along without changing whether it broadcasts.
+/// operands of exactly that shape vote on the order. This favors full-sized
+/// inputs over broadcast parameters; large broadcast inputs may still incur
+/// significant traffic. Every operand permutes along with the output shape.
 pub(crate) fn in_memory_order<const N: usize>(
     operands: [CubeTensor; N],
-    output_shape: &Shape,
-    launch: impl FnOnce([CubeTensor; N]) -> CubeTensor,
+    output_shape: Shape,
+    launch: impl FnOnce([CubeTensor; N], Shape) -> CubeTensor,
 ) -> CubeTensor {
-    let Some(order) = MemoryOrder::of(&operands, output_shape) else {
-        return launch(operands);
+    let Some(order) = MemoryOrder::of(&operands, &output_shape) else {
+        return launch(operands, output_shape);
     };
 
     let presented = operands.map(|operand| order.present(operand));
 
-    order.restore(launch(presented))
+    let shape = Shape::from(
+        order
+            .axes
+            .iter()
+            .map(|&axis| output_shape[axis])
+            .collect::<Vec<_>>(),
+    );
+    order.restore(launch(presented, shape))
 }
 
 /// The permutation that presents a set of operands in their memory order, and
@@ -67,28 +79,61 @@ impl MemoryOrder {
             return None;
         }
 
-        let mut votes: Vec<(DimOrder, usize)> = Vec::new();
+        Self::from_layouts(
+            operands.iter().map(|operand| {
+                (
+                    operand.meta.shape().as_slice(),
+                    &operand.meta.strides()[..],
+                    operand.dtype.size(),
+                )
+            }),
+            output_shape,
+        )
+    }
 
-        for operand in operands {
-            if operand.meta.shape() != output_shape {
+    fn from_layouts<'a>(
+        layouts: impl Iterator<Item = (&'a [usize], &'a [usize], usize)> + Clone,
+        output_shape: &[usize],
+    ) -> Option<Self> {
+        // The common logical walk needs neither sorting nor allocation. Ignore
+        // singleton strides: expanding [1024] to [1, 1024] gives [0, 1], which
+        // already has the right walk and must keep its vectorizable last axis.
+        if layouts
+            .clone()
+            .all(|(shape, strides, _)| shape != output_shape || nests_logically(shape, strides))
+        {
+            return None;
+        }
+
+        let mut votes: Vec<(DimOrder, usize)> = Vec::new();
+        for (shape, strides, element_size) in layouts {
+            if shape != output_shape {
                 continue;
             }
-            let Some(order) = nested_dim_order(operand.meta.shape(), operand.meta.strides()) else {
+            let Some(mut order) = nested_dim_order(shape, strides) else {
                 continue;
             };
-            let bytes = operand.meta.num_elements() * operand.dtype.size();
-
+            if nests_logically(shape, strides) {
+                order = Shape::from((0..shape.len()).collect::<Vec<_>>());
+            } else {
+                // Singleton placement carries no traffic. Put these axes first
+                // in logical order, so equivalent walks share a vote and a real
+                // innermost axis remains available for vectorization.
+                order.sort_by_key(|&axis| {
+                    (shape[axis] != 1, if shape[axis] == 1 { axis } else { 0 })
+                });
+            }
+            let bytes = shape.iter().product::<usize>() * element_size;
             match votes.iter_mut().find(|(candidate, _)| candidate == &order) {
                 Some((_, total)) => *total += bytes,
                 None => votes.push((order, bytes)),
             }
         }
 
-        let (winner, _) = votes
-            .into_iter()
-            .max_by_key(|(order, bytes)| (*bytes, is_contiguous_order(order)))?;
-
-        if is_contiguous_order(&winner) {
+        let max_bytes = votes.iter().map(|(_, bytes)| *bytes).max()?;
+        let mut winners = votes.into_iter().filter(|(_, bytes)| *bytes == max_bytes);
+        let (winner, _) = winners.next()?;
+        if winners.next().is_some() || is_contiguous_order(&winner) {
             return None;
         }
 
@@ -107,5 +152,159 @@ impl MemoryOrder {
 
     fn restore(&self, tensor: CubeTensor) -> CubeTensor {
         permute(tensor, &self.inverse)
+    }
+}
+
+/// Whether non-singleton dimensions nest in logical order, with padding allowed.
+fn nests_logically(shape: &[usize], strides: &[usize]) -> bool {
+    if shape.len() != strides.len() {
+        return false;
+    }
+    let mut expected = 1;
+    for (&size, &stride) in shape.iter().zip(strides).rev() {
+        if size == 1 {
+            continue;
+        }
+        if stride < expected {
+            return false;
+        }
+        expected = stride * size;
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn singleton_strides_do_not_reorder_a_logical_walk() {
+        for strides in [[0, 1], [1, 1], [1024, 1]] {
+            assert!(
+                MemoryOrder::from_layouts(
+                    [([1, 1024].as_slice(), strides.as_slice(), 4)].into_iter(),
+                    &[1, 1024],
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn singleton_axes_cannot_displace_the_innermost_data_axis() {
+        let shape = [4, 1, 8];
+        for strides in [[1, 0, 4], [1, 1, 4], [1, 32, 4]] {
+            let order = MemoryOrder::from_layouts(
+                [(shape.as_slice(), strides.as_slice(), 4)].into_iter(),
+                &shape,
+            )
+            .unwrap();
+            assert_eq!(order.axes, [1, 2, 0]);
+            let presented_shape = Shape::from(
+                order
+                    .axes
+                    .iter()
+                    .map(|&axis| shape[axis])
+                    .collect::<Vec<_>>(),
+            );
+            let presented_strides = burn_std::Strides::from(
+                order
+                    .axes
+                    .iter()
+                    .map(|&axis| strides[axis])
+                    .collect::<Vec<_>>(),
+            );
+            // A zero singleton stride must not turn the last axis into a
+            // broadcast axis. Other arbitrary strides can still limit alignment.
+            if strides[1] == 0 {
+                assert_eq!(
+                    cubecl::tensor_vector_size_parallel(
+                        [4, 2, 1].into_iter(),
+                        &presented_shape,
+                        &presented_strides,
+                        2,
+                    ),
+                    4
+                );
+            }
+            for axis in 0..shape.len() {
+                assert_eq!(order.axes[order.inverse[axis]], axis);
+            }
+        }
+    }
+
+    #[test]
+    fn conflicting_nonlogical_votes_tie_in_either_operand_order() {
+        let shape = [2, 3, 4];
+        let layouts = [
+            (shape.as_slice(), [12, 1, 3].as_slice(), 4),
+            (shape.as_slice(), [4, 8, 1].as_slice(), 4),
+        ];
+        assert!(MemoryOrder::from_layouts(layouts.into_iter(), &shape).is_none());
+        assert!(MemoryOrder::from_layouts(layouts.into_iter().rev(), &shape).is_none());
+    }
+
+    #[test]
+    fn a_logical_and_nonlogical_vote_tie() {
+        let shape = [2, 3, 4];
+        assert!(
+            MemoryOrder::from_layouts(
+                [
+                    (shape.as_slice(), [12, 1, 3].as_slice(), 4),
+                    (shape.as_slice(), [12, 4, 1].as_slice(), 4),
+                ]
+                .into_iter(),
+                &shape
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn equivalent_singleton_layouts_share_their_vote() {
+        let shape = [4, 1, 8];
+        let order = MemoryOrder::from_layouts(
+            [
+                (shape.as_slice(), [1, 0, 4].as_slice(), 4),
+                (shape.as_slice(), [1, 32, 4].as_slice(), 4),
+                (shape.as_slice(), [8, 8, 1].as_slice(), 4),
+            ]
+            .into_iter(),
+            &shape,
+        )
+        .unwrap();
+        assert_eq!(order.axes, [1, 2, 0]);
+    }
+
+    #[test]
+    fn votes_are_weighted_by_bytes() {
+        let shape = [2, 3, 4];
+        let order = MemoryOrder::from_layouts(
+            [
+                (shape.as_slice(), [12, 1, 3].as_slice(), 4),
+                (shape.as_slice(), [12, 4, 1].as_slice(), 2),
+            ]
+            .into_iter(),
+            &shape,
+        )
+        .unwrap();
+        assert_eq!(order.axes, [0, 2, 1]);
+    }
+
+    #[test]
+    fn padded_layouts_vote_but_broadcast_and_overlapping_layouts_do_not() {
+        let shape = [2, 3, 4];
+        let order = MemoryOrder::from_layouts(
+            [
+                (shape.as_slice(), [32, 1, 8].as_slice(), 4),
+                (shape.as_slice(), [0, 4, 1].as_slice(), 4),
+                (shape.as_slice(), [1, 1, 1].as_slice(), 4),
+                ([1, 3, 4].as_slice(), [12, 4, 1].as_slice(), 8),
+            ]
+            .into_iter(),
+            &shape,
+        )
+        .unwrap();
+        assert_eq!(order.axes, [0, 2, 1]);
     }
 }
