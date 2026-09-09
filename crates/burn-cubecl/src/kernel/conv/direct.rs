@@ -16,6 +16,10 @@ use cubecl::{
 use cubecl::{num_traits::Zero, std::FastDivmod};
 use cubek::convolution::components::ConvSetupError;
 
+/// Wider than this and the accumulators stop fitting in registers: eight of them cost 8x the
+/// stores on AVX2, which outweighs every load the block saves.
+const CHANNEL_BLOCK: usize = 4;
+
 #[derive(CubeLaunch, CubeType, Clone)]
 pub(crate) struct ConvParam {
     pub stride: u32,
@@ -95,7 +99,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
     };
 
     let vector_size_in = input.vector_size();
-    let block = comptime![usize::min(4, vector_size_out)];
+    let block = comptime![usize::min(CHANNEL_BLOCK, vector_size_out)];
 
     if accumulate_lanes {
         #[unroll]
@@ -131,6 +135,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
             }
         }
     } else {
+        // Unread: `accumulate_per_step` sums into `sum`, and the loop still takes an accumulator.
         let mut lanes = Array::<Vector<E, NIn>>::new(1usize);
 
         kernel_loop(
