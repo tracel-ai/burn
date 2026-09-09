@@ -4,7 +4,7 @@
 //! provide: a row is handed to serde as a map from column name to column value. That is what lets
 //! a target struct name a subset of the table's columns, in any order.
 
-use serde::de::value::MapDeserializer;
+use serde::de::value::{MapDeserializer, SeqDeserializer};
 use serde::de::{DeserializeOwned, Deserializer, IntoDeserializer, Visitor};
 use serde::forward_to_deserialize_any;
 use turso::{Row, Value};
@@ -49,7 +49,108 @@ pub fn from_row_with_columns<I: DeserializeOwned>(
         entries.push((column.as_str(), ValueDeserializer(value)));
     }
 
-    I::deserialize(MapDeserializer::new(entries.into_iter()))
+    I::deserialize(RowDeserializer { entries })
+}
+
+/// Deserializes a complete row, either by column name or position depending on the target type.
+struct RowDeserializer<'a> {
+    entries: Vec<(&'a str, ValueDeserializer)>,
+}
+
+impl RowDeserializer<'_> {
+    fn into_first_value(self) -> Result<ValueDeserializer, RowError> {
+        self.entries
+            .into_iter()
+            .next()
+            .map(|(_, value)| value)
+            .ok_or_else(|| RowError::Message("cannot deserialize an empty row".to_string()))
+    }
+}
+
+impl<'de> Deserializer<'de> for RowDeserializer<'_> {
+    type Error = RowError;
+
+    fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, RowError> {
+        self.into_first_value()?.deserialize_any(visitor)
+    }
+
+    fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, RowError> {
+        self.into_first_value()?.deserialize_bool(visitor)
+    }
+
+    fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, RowError> {
+        self.into_first_value()?.deserialize_f32(visitor)
+    }
+
+    fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, RowError> {
+        self.into_first_value()?.deserialize_f64(visitor)
+    }
+
+    fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, RowError> {
+        self.into_first_value()?.deserialize_byte_buf(visitor)
+    }
+
+    fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, RowError> {
+        self.into_first_value()?.deserialize_option(visitor)
+    }
+
+    fn deserialize_unit<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, RowError> {
+        self.into_first_value()?.deserialize_unit(visitor)
+    }
+
+    fn deserialize_unit_struct<V: Visitor<'de>>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, RowError> {
+        self.into_first_value()?
+            .deserialize_unit_struct(name, visitor)
+    }
+
+    fn deserialize_newtype_struct<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, RowError> {
+        visitor.visit_newtype_struct(self.into_first_value()?)
+    }
+
+    fn deserialize_tuple<V: Visitor<'de>>(
+        self,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, RowError> {
+        let values = self.entries.into_iter().map(|(_, value)| value);
+        visitor.visit_seq(SeqDeserializer::new(values))
+    }
+
+    fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, RowError> {
+        visitor.visit_map(MapDeserializer::new(self.entries.into_iter()))
+    }
+
+    fn deserialize_struct<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, RowError> {
+        self.deserialize_map(visitor)
+    }
+
+    fn deserialize_enum<V: Visitor<'de>>(
+        self,
+        name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, RowError> {
+        self.into_first_value()?
+            .deserialize_enum(name, variants, visitor)
+    }
+
+    forward_to_deserialize_any! {
+        i8 i16 i32 i64 u8 u16 u32 u64 char str string bytes
+        seq tuple_struct identifier ignored_any
+    }
 }
 
 /// Deserializes a single column value.
@@ -127,8 +228,39 @@ impl<'de> Deserializer<'de> for ValueDeserializer {
         }
     }
 
+    fn deserialize_unit_struct<V: Visitor<'de>>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, RowError> {
+        match self.0 {
+            Value::Text(value) if value == name => visitor.visit_unit(),
+            _ => self.deserialize_any(visitor),
+        }
+    }
+
+    fn deserialize_newtype_struct<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, RowError> {
+        visitor.visit_newtype_struct(self)
+    }
+
+    fn deserialize_enum<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, RowError> {
+        match self.0 {
+            Value::Text(value) => visitor.visit_enum(value.into_deserializer()),
+            _ => self.deserialize_any(visitor),
+        }
+    }
+
     forward_to_deserialize_any! {
         i8 i16 i32 i64 u8 u16 u32 u64 char str string bytes
-        unit_struct newtype_struct seq tuple tuple_struct map struct enum identifier ignored_any
+        seq tuple tuple_struct map struct identifier ignored_any
     }
 }

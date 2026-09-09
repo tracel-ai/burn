@@ -1038,6 +1038,89 @@ mod tests {
         missing: Option<f64>,
     }
 
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
+    enum Status {
+        Ready,
+        Pending,
+    }
+
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
+    struct UserId(i64);
+
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
+    struct Marker;
+
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
+    struct SerdeShapes {
+        status: Status,
+        user_id: UserId,
+        marker: Marker,
+    }
+
+    /// Keep scalar Serde shapes working both as mapped fields and as the complete row type, as
+    /// they did through `serde_rusqlite`.
+    #[rstest]
+    fn get_maps_columns_onto_serde_shapes(tmp_dir: TempDir) {
+        let db_file = tmp_dir.path().join("serde-shapes.db");
+
+        {
+            let connection = open_database(&db_file, true).unwrap().connect().unwrap();
+            block_on(async {
+                connection
+                    .execute(
+                        "create table train (status TEXT, user_id INTEGER, marker TEXT, \
+                         row_id INTEGER NOT NULL, PRIMARY KEY (row_id))",
+                        (),
+                    )
+                    .await?;
+                connection
+                    .execute("insert into train values ('Ready', 42, 'Marker', 1)", ())
+                    .await?;
+                connection
+                    .execute(
+                        "create table statuses (status TEXT, row_id INTEGER NOT NULL, \
+                         PRIMARY KEY (row_id))",
+                        (),
+                    )
+                    .await?;
+                connection
+                    .execute("insert into statuses values ('Pending', 1)", ())
+                    .await?;
+                connection
+                    .execute(
+                        "create table users (user_id INTEGER, row_id INTEGER NOT NULL, \
+                         PRIMARY KEY (row_id))",
+                        (),
+                    )
+                    .await?;
+                connection
+                    .execute("insert into users values (7, 1)", ())
+                    .await?;
+                connection
+                    .pragma_query("wal_checkpoint(TRUNCATE)", |_| Ok(()))
+                    .await
+            })
+            .unwrap();
+        }
+        fs::remove_file(wal_file(&db_file)).unwrap();
+
+        let dataset = SqliteDataset::<SerdeShapes>::from_db_file(&db_file, "train").unwrap();
+        assert_eq!(
+            dataset.get(0).unwrap(),
+            SerdeShapes {
+                status: Status::Ready,
+                user_id: UserId(42),
+                marker: Marker,
+            }
+        );
+
+        let statuses = SqliteDataset::<Status>::from_db_file(&db_file, "statuses").unwrap();
+        assert_eq!(statuses.get(0).unwrap(), Status::Pending);
+
+        let users = SqliteDataset::<UserId>::from_db_file(&db_file, "users").unwrap();
+        assert_eq!(users.get(0).unwrap(), UserId(7));
+    }
+
     /// Covers the column shapes a HuggingFace import produces, which the row-serialized path never
     /// reaches: renamed fields, floats read from both `REAL` and `INTEGER` storage, and `NULL`
     /// columns read into `Option`.
