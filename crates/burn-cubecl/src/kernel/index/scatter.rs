@@ -78,6 +78,8 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
 /// Only for `Add`, and only on types the device adds atomically. On floats the
 /// order the adds land in is not fixed, so the rounding of a sum can differ
 /// from one run to the next; the serial kernel is deterministic.
+/// CUDA native global-memory atomic addition for f32 (including Flex32)
+/// flushes subnormal inputs and results to sign-preserving zero.
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn scatter_add_atomic_kernel<T: Numeric, I: Int>(
     input: &mut Tensor<Atomic<T>>,
@@ -156,9 +158,12 @@ fn scatter_add_atomic(
 }
 
 fn adds_atomically(tensor: &CubeTensor) -> bool {
-    tensor
-        .client
-        .properties()
+    let properties = tensor.client.properties();
+    // CPU scatter keeps one unit per row, avoiding contended atomic updates.
+    if properties.hardware.num_cpu_cores.is_some() {
+        return false;
+    }
+    properties
         .atomic_type_usage(Type::atomic(dtype_to_elem_type(tensor.dtype)))
         .contains(AtomicUsage::Add)
 }
