@@ -186,10 +186,16 @@ impl ZipSource {
         let mut entry = archive
             .by_name(&name)
             .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
-        // Stopping short of the entry's end skips the ZIP CRC check, which only fires at
-        // EOF; the bytes a tensor uses are still validated against its declared extent.
-        let len = entry.size().min(max_len as u64);
-        read_exact_len(&mut entry, len, self.file_len)
+        // Stopping short of the entry's end skips its CRC check; the bytes a tensor uses
+        // are still validated against its declared extent.
+        let size = entry.size();
+        read_zip_entry(
+            &mut entry,
+            &name,
+            size.min(max_len as u64),
+            size,
+            self.file_len,
+        )
     }
 
     /// Read a whole entry that must not exceed `max_size` bytes.
@@ -204,8 +210,36 @@ impl ZipSource {
                 "ZIP entry '{name}' is {size} bytes, above the {max_size} byte limit"
             )));
         }
-        read_exact_len(&mut entry, size, self.file_len)
+        read_zip_entry(&mut entry, name, size, size, self.file_len)
     }
+}
+
+/// Read the first `len` bytes of a ZIP entry whose header declares `size` bytes.
+///
+/// The `zip` crate checks an entry's CRC only when a read reaches its end, and a bounded
+/// read stops on its own limit instead. When the whole entry is wanted, one read past
+/// `size` reaches that end: a well-formed entry has nothing there and pays only for the
+/// checksum, and bytes beyond the declared size mean the header lied about it.
+fn read_zip_entry<R: Read>(
+    entry: &mut R,
+    name: &str,
+    len: u64,
+    size: u64,
+    capacity_bound: usize,
+) -> io::Result<Vec<u8>> {
+    let bytes = read_exact_len(entry, len, capacity_bound)?;
+    if len == size {
+        let mut probe = [0u8; 1];
+        let trailing = entry
+            .read(&mut probe)
+            .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
+        if trailing != 0 {
+            return Err(invalid_data(format!(
+                "ZIP entry '{name}' holds more than the {size} bytes it declares"
+            )));
+        }
+    }
+    Ok(bytes)
 }
 
 /// The TAR container written by PyTorch before 0.1.10.

@@ -1527,6 +1527,31 @@ fn test_storage_larger_than_tensor_reads_only_what_is_needed() {
 }
 
 #[test]
+fn test_zip_checksum_mismatch_is_an_error() {
+    // A weight edited in place, leaving the entry's CRC behind.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("corrupt.pt");
+    rezip(&test_data_path("float32.pt"), &path, "float32/", |_, _| {});
+
+    let data_start = {
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+        let entry = archive.by_name("float32/data/0").unwrap();
+        entry.data_start().expect("stored entry has a data offset") as usize
+    };
+    let mut bytes = std::fs::read(&path).unwrap();
+    bytes[data_start] ^= 0xff;
+    std::fs::write(&path, &bytes).unwrap();
+
+    let reader = PytorchReader::new(&path).expect("metadata still parses");
+    let err = crate::bridge::to_data(reader.get("tensor").unwrap())
+        .expect_err("a storage that fails its checksum must not load");
+    assert!(
+        err.to_string().contains("Invalid checksum"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn test_zip_archive_and_root_level_layouts() {
     // torch.save to a file object writes under `archive/`; some tools write at the root.
     let original = test_data_path("float32.pt");

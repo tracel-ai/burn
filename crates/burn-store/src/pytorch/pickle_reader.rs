@@ -1136,7 +1136,7 @@ impl<'a> Unpickler<'a> {
                 OpCode::Long => {
                     let text = read_line(r)?;
                     let text = text.strip_suffix('L').unwrap_or(&text);
-                    self.push_scalar(Object::Int(parse_int(text)?));
+                    self.push_scalar(parse_long(text)?);
                 }
                 OpCode::Float => {
                     let text = read_line(r)?;
@@ -1168,12 +1168,12 @@ impl<'a> Unpickler<'a> {
                 OpCode::Long1 => {
                     let len = r.read_u8()? as u64;
                     let bytes = read_exact_len(r, len, STRING_PREALLOC_BOUND)?;
-                    self.push_scalar(Object::Int(int_from_le_bytes(&bytes)?));
+                    self.push_scalar(long_object(&bytes));
                 }
                 OpCode::Long4 => {
                     let len = r.read_u32::<LittleEndian>()? as u64;
                     let bytes = read_exact_len(r, len, STRING_PREALLOC_BOUND)?;
-                    self.push_scalar(Object::Int(int_from_le_bytes(&bytes)?));
+                    self.push_scalar(long_object(&bytes));
                 }
 
                 // Strings and bytes
@@ -1491,24 +1491,52 @@ fn parse_index(text: &str) -> Result<u32> {
         .map_err(|e| PickleError::InvalidData(format!("Invalid memo index '{text}': {e}")))
 }
 
-/// Decode a two's-complement little-endian integer of any length that fits in an `i64`.
-fn int_from_le_bytes(bytes: &[u8]) -> Result<i64> {
+/// A Python long, kept opaque when it does not fit in an `i64`.
+///
+/// Python integers are unbounded and a checkpoint may carry a large one beside its
+/// weights, such as a seed of `2**64`. No int this reader acts on (a shape, an offset, an
+/// element count) can be that large, so an out-of-range value is metadata it never looks
+/// at, and refusing the file over it would refuse an otherwise loadable checkpoint.
+fn long_object(bytes: &[u8]) -> Object {
+    int_from_le_bytes(bytes).map_or(Object::Opaque, Object::Int)
+}
+
+/// Protocol 0 writes a Python long in decimal. Out-of-range values stay opaque, as in
+/// [`long_object`]; anything that is not an integer at all is an error.
+fn parse_long(text: &str) -> Result<Object> {
+    use std::num::IntErrorKind;
+
+    match text.parse::<i64>() {
+        Ok(value) => Ok(Object::Int(value)),
+        Err(e)
+            if matches!(
+                e.kind(),
+                IntErrorKind::PosOverflow | IntErrorKind::NegOverflow
+            ) =>
+        {
+            Ok(Object::Opaque)
+        }
+        Err(e) => Err(PickleError::InvalidData(format!(
+            "Invalid integer '{text}': {e}"
+        ))),
+    }
+}
+
+/// Decode a two's-complement little-endian integer, or `None` if it needs more than 64 bits.
+fn int_from_le_bytes(bytes: &[u8]) -> Option<i64> {
     let negative = bytes.last().is_some_and(|b| b & 0x80 != 0);
     let fill = if negative { 0xff } else { 0x00 };
     // Beyond 8 bytes, every extra byte must be sign fill, and the sign bit of byte 7 must
-    // agree with it: otherwise the value lies just outside the i64 range.
+    // agree with it: otherwise the value lies outside the i64 range.
     let fits = bytes.len() <= 8
         || (bytes[8..].iter().all(|&b| b == fill) && (bytes[7] & 0x80 != 0) == negative);
     if !fits {
-        return Err(PickleError::InvalidData(format!(
-            "integer of {} bytes does not fit in 64 bits",
-            bytes.len()
-        )));
+        return None;
     }
     let mut buf = [fill; 8];
     let len = bytes.len().min(8);
     buf[..len].copy_from_slice(&bytes[..len]);
-    Ok(i64::from_le_bytes(buf))
+    Some(i64::from_le_bytes(buf))
 }
 
 fn dict_key(key: Object) -> Result<String> {
@@ -1771,8 +1799,29 @@ mod tests {
             i64::MAX
         );
         assert!(
-            int_from_le_bytes(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]).is_err()
+            int_from_le_bytes(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]).is_none()
         );
+    }
+
+    #[test]
+    fn oversized_int_beside_weights_stays_opaque() {
+        // {'seed': 2**64, 'n': 7} in protocol 2 (LONG1) and protocol 0 (LONG).
+        for bytes in [
+            b"\x80\x02}q\x00(X\x04\x00\x00\x00seedq\x01\x8a\t\x00\x00\x00\x00\x00\x00\x00\x00\x01X\x01\x00\x00\x00nq\x02K\x07u.".as_slice(),
+            b"(dp0\nVseed\np1\nL18446744073709551616L\nsVn\np2\nI7\ns.".as_slice(),
+        ] {
+            let Object::Dict(dict) = plain(bytes).unwrap_or_else(|e| panic!("{e}")) else {
+                panic!("expected dict");
+            };
+            assert!(matches!(dict["seed"], Object::Opaque));
+            assert!(matches!(dict["n"], Object::Int(7)));
+        }
+    }
+
+    #[test]
+    fn a_long_that_is_not_a_number_is_an_error() {
+        // LONG carrying junk rather than digits.
+        assert!(plain(b"Lnope\n.").is_err());
     }
 
     #[test]
@@ -2280,11 +2329,11 @@ mod tests {
     }
 
     #[test]
-    fn long_at_i64_boundary_is_rejected() {
+    fn long_at_i64_boundary_does_not_fit() {
         // 2^63 and -2^63-1 need 9 bytes whose sign fill disagrees with byte 7.
-        assert!(int_from_le_bytes(&[0, 0, 0, 0, 0, 0, 0, 0x80, 0]).is_err());
+        assert!(int_from_le_bytes(&[0, 0, 0, 0, 0, 0, 0, 0x80, 0]).is_none());
         assert!(
-            int_from_le_bytes(&[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f, 0xff]).is_err()
+            int_from_le_bytes(&[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f, 0xff]).is_none()
         );
         assert_eq!(
             int_from_le_bytes(&[0, 0, 0, 0, 0, 0, 0, 0x80, 0xff]).unwrap(),
