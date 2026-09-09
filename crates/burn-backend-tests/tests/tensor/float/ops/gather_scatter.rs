@@ -162,6 +162,24 @@ fn should_scatter_add_2d_dim0() {
 }
 
 #[test]
+fn should_scatter_add_many_values_into_few_slots() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::zeros([2, 4], &device);
+    let indices: Vec<i32> = (0..2 * 1000)
+        .map(|position| (position % 4) as i32)
+        .collect();
+    let indices = TestTensorInt::<2>::from_data(TensorData::new(indices, [2, 1000]), &device);
+    let values = TestTensor::<2>::ones([2, 1000], &device);
+
+    let output = tensor.scatter(1, indices, values, IndexingUpdateOp::Add);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[250.0, 250.0, 250.0, 250.0], [250.0, 250.0, 250.0, 250.0]]),
+        false,
+    );
+}
+
+#[test]
 fn should_scatter_add_2d_dim1() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], &device);

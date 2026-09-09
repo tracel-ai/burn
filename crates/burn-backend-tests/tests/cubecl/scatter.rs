@@ -3,6 +3,25 @@ use burn_tensor::Distribution;
 use burn_tensor::{Device, IndexingUpdateOp, Tolerance};
 
 #[test]
+fn scatter_add_handles_nan_and_infinity() {
+    let device = Device::default();
+    let tensor = TestTensor::<1>::from_data([f32::NAN, f32::INFINITY, 0.0], &device);
+    let values = TestTensor::<1>::from_data([1.0, f32::NEG_INFINITY, f32::NAN], &device);
+    let indices = TestTensorInt::from_ints([0, 1, 2], &device);
+    let actual = tensor
+        .scatter(0, indices, values, IndexingUpdateOp::Add)
+        .into_data()
+        .convert::<f32>();
+    assert!(
+        actual
+            .as_slice::<f32>()
+            .unwrap()
+            .iter()
+            .all(|value| value.is_nan())
+    );
+}
+
+#[test]
 fn scatter_add_should_match_reference_2d_dim0() {
     scatter_add_matches_reference_same_shape(0, [256, 32]);
 }
