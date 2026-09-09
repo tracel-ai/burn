@@ -284,8 +284,13 @@ impl FlexTensor {
         }
     }
 
-    /// Copy to contiguous layout if needed.
-    pub fn to_contiguous(&self) -> Self {
+    /// Copy to contiguous layout if needed, consuming `self`.
+    ///
+    /// Prefer this over [`Self::to_contiguous`] when you own the tensor and
+    /// will mutate it through [`Self::storage_mut`]: the borrowing form has
+    /// to hand back a second `Arc` handle, which makes the later
+    /// copy-on-write check see a shared buffer.
+    pub(crate) fn into_contiguous(self) -> Self {
         // Fast path requires the logical tensor to cover the whole buffer.
         // A contiguous prefix view (e.g. [8, 5] sliced to [5, 5]) has
         // canonical strides and offset 0 but an oversized buffer, and would
@@ -295,7 +300,7 @@ impl FlexTensor {
             && self.layout.start_offset() == 0
             && self.data.len() == self.layout.num_elements() * dtype_size(self.dtype)
         {
-            return self.clone();
+            return self;
         }
 
         // Copy data to new contiguous buffer
@@ -320,6 +325,11 @@ impl FlexTensor {
             }
             _ => panic!("Unsupported dtype for contiguous copy: {:?}", self.dtype),
         }
+    }
+
+    /// Copy to contiguous layout if needed.
+    pub fn to_contiguous(&self) -> Self {
+        self.clone().into_contiguous()
     }
 
     fn copy_contiguous<E: Element + bytemuck::Pod>(&self) -> Self {
