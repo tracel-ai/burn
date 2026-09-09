@@ -295,6 +295,13 @@ fn conv_transpose3d_impl<
         .iter()
         .try_fold(1usize, |acc, &x| acc.checked_mul(x))
         .expect("conv_transpose: output dimensions would overflow");
+    if output_size == 0 {
+        // Empty spatial output would otherwise reach chunks_mut(0).
+        return FlexTensor::empty(
+            Shape::from(vec![batch_size, out_channels, out_d, out_h, out_w]),
+            dtype,
+        );
+    }
     let mut output = vec![zero; output_size];
 
     let group_chunk_len = out_channels_per_group * out_spatial;
@@ -492,6 +499,19 @@ conv_transpose_gemm_typed!(
 mod tests {
     use super::*;
     use burn_backend::TensorData;
+
+    #[test]
+    fn test_conv_transpose_empty_output_group() {
+        // Padding removes the entire spatial output. The group copier must
+        // return before constructing chunks with a zero length.
+        let x = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0], [1, 1, 2]));
+        let weight = FlexTensor::from_data(TensorData::new(vec![1.0f32], [1, 1, 1]));
+        let options = ConvTransposeOptions::new([1], [1], [0], [1], 1);
+        let result = conv_transpose1d_f32(x, weight, None, &options);
+        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 0]);
+        assert_eq!(result.dtype(), DType::F32);
+        assert!(result.into_data().bytes.is_empty());
+    }
 
     #[test]
     fn test_conv_transpose2d_f64() {

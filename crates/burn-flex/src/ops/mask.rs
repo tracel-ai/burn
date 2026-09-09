@@ -309,7 +309,8 @@ where
     }
 
     // In-place fast path: if value (val_true) is unique, contiguous, and non-broadcast
-    if value.is_unique() && value.layout().is_dense_unique_storage() {
+    // Reusing value must preserve the input dtype, including the bool store.
+    if value.dtype() == dtype && value.is_unique() && value.layout().is_dense_unique_storage() {
         let v_offset = value.layout().start_offset();
         if mask.layout().is_contiguous() && tensor.layout().is_contiguous() {
             let m_offset = mask.layout().start_offset();
@@ -590,6 +591,49 @@ pub fn mask_where_bool(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) 
 mod tests {
     use super::*;
     use burn_backend::TensorData;
+
+    #[test]
+    fn test_mask_where_preserves_bool_store_with_unique_value() {
+        use burn_std::{BoolStore, DType, Shape};
+
+        for (input_store, value_store) in [
+            (BoolStore::Native, BoolStore::U8),
+            (BoolStore::U8, BoolStore::Native),
+        ] {
+            for strided in [false, true] {
+                let shape = Shape::from([2, 3]);
+                let tensor = FlexTensor::new(
+                    Bytes::from_elems(vec![1u8; 6]),
+                    Layout::contiguous(shape.clone()),
+                    DType::Bool(input_store),
+                );
+                let mask = FlexTensor::from_data(TensorData::new(
+                    vec![true, false, true, false, true, false],
+                    shape,
+                ));
+                let (tensor, mask, expected) = if strided {
+                    (
+                        tensor.transpose(0, 1),
+                        mask.transpose(0, 1),
+                        vec![0u8, 1, 1, 0, 0, 1],
+                    )
+                } else {
+                    (tensor, mask, vec![0u8, 1, 0, 1, 0, 1])
+                };
+                // Keep the input shared so only the replacement can be reused.
+                let retained = tensor.clone();
+                let value = FlexTensor::new(
+                    Bytes::from_elems(vec![0u8; 6]),
+                    Layout::contiguous(tensor.layout().shape().clone()),
+                    DType::Bool(value_store),
+                );
+                let result = mask_where_bool(tensor, mask, value);
+                assert_eq!(result.dtype(), DType::Bool(input_store));
+                assert_eq!(&result.into_data().bytes[..], expected.as_slice());
+                assert_eq!(&retained.into_data().bytes[..], &[1u8; 6]);
+            }
+        }
+    }
 
     #[test]
     fn test_mask_fill_inplace_pointer_reuse() {

@@ -943,9 +943,14 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
             outer_stride,
             dim_stride,
         )
-    } else if dim_stride == 1 && matches!(op, ReduceOp::Sum) && outer_size == 1 {
+    } else if dim_stride == 1
+        && matches!(op, ReduceOp::Sum)
+        && outer_size == 1
+        && (inner_size == 1 || strides[dim + 1] == dim_size as isize)
+    {
         // Reduction dimension is contiguous, no outer batch (e.g., transposed 2D reducing dim=0)
-        // Storage is [inner_size rows of dim_size elements each] - use sum_rows_f32
+        // Rows must also be packed in forward order; reversed or stepped rows
+        // use the stride-aware per-row branch below.
         #[cfg(feature = "simd")]
         {
             let mut result = vec![0.0f32; inner_size];
@@ -2742,6 +2747,36 @@ mod tests {
         assert_eq!(result.layout().shape().to_vec(), vec![3, 1, 1]);
         let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out, vec![10.0, 26.0, 42.0]);
+    }
+
+    #[test]
+    fn test_sum_mean_dim_strided_transposed_rows() {
+        use burn_std::Slice;
+
+        // Reverse two packed rows, reverse a prefix with extra backing storage,
+        // and skip a row. Each case has contiguous reduction runs but a
+        // different stride between output positions.
+        for (rows, end, step, expected) in [
+            (2, None, -1, vec![15.0f32, 6.0]),
+            (3, Some(2), -1, vec![15.0, 6.0]),
+            (3, None, 2, vec![6.0, 24.0]),
+        ] {
+            let data: Vec<f32> = (1..=rows * 3).map(|v| v as f32).collect();
+            let tensor = FlexTensor::from_data(TensorData::new(data, [rows, 3]));
+            let view = crate::ops::slice::slice(
+                tensor.transpose(0, 1),
+                &[Slice::new(0, None, 1), Slice::new(0, end, step)],
+            );
+            let sum = Flex::float_sum_dim(view.clone(), 0);
+            assert_eq!(sum.layout().shape().to_vec(), vec![1, 2]);
+            assert_eq!(sum.into_data().try_into_vec::<f32>().unwrap(), expected);
+            let mean = Flex::float_mean_dim(view, 0);
+            let expected_mean: Vec<f32> = expected.iter().map(|v| v / 3.0).collect();
+            assert_eq!(
+                mean.into_data().try_into_vec::<f32>().unwrap(),
+                expected_mean
+            );
+        }
     }
 
     #[test]
