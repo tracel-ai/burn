@@ -1710,11 +1710,11 @@ mod tests {
 
     #[test]
     fn unicode_opcode_decodes_raw_unicode_escape() {
-        // pickle.dumps("caf\u00e9 \u6a21", protocol=0): Latin-1 byte plus a \u escape.
-        let bytes = b"Vcaf\xe9 \\u6a21\np0\n.";
+        // pickle.dumps("\u00e9t\u00e9 \u6a21", protocol=0): Latin-1 bytes plus a \u escape.
+        let bytes = b"V\xe9t\xe9 \\u6a21\np0\n.";
         assert!(matches!(
             plain(bytes).unwrap(),
-            Object::String(s) if s == "caf\u{e9} \u{6a21}"
+            Object::String(s) if s == "\u{e9}t\u{e9} \u{6a21}"
         ));
         assert!(plain(b"V\\u12.\n.").is_err());
     }
