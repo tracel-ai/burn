@@ -183,10 +183,8 @@ fn sigmoid_f64(x: f64) -> f64 {
 // Fused softmax
 // ============================================================================
 //
-// `ActivationOps` does not currently expose a `softmax` hook, so
-// `burn_tensor::activation::softmax` falls back to a 5-op decomposition
-// (`max_dim`/`sub`/`exp`/`sum_dim`/`div`). This module provides a fused
-// alternative users can opt into directly.
+// Backs the `ActivationOps::softmax` hook, replacing the default 5-op
+// decomposition (`max_dim`/`sub`/`exp`/`sum_dim`/`div`).
 
 /// Fused softmax along `dim`.
 ///
@@ -503,11 +501,10 @@ softmax_last_dtype!(
 // Fused layer_norm
 // ============================================================================
 //
-// `burn::nn::LayerNorm::forward` decomposes into ~6 primitive tensor ops
-// with intermediate allocations, and there is no backend trait hook for
-// layer_norm. This module provides a fused alternative users can opt into
-// directly. Two-pass row kernel (sum+sumsq sweep, then normalize+affine
-// sweep), both vectorized via macerator.
+// Backs the `ModuleOps::layer_norm` hook, replacing the default decomposition
+// into ~6 primitive tensor ops with intermediate allocations. Two-pass row
+// kernel (sum+sumsq sweep, then normalize+affine sweep), both vectorized via
+// macerator.
 
 /// Fused layer normalization along the last axis.
 ///
