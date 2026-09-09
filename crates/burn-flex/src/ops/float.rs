@@ -3,7 +3,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, Distribution, ExecutionError, FloatDType, Scalar, TensorData, TensorMetadata,
+    DType, Distribution, Element, ExecutionError, FloatDType, Scalar, TensorData, TensorMetadata,
     ops::{FloatTensorOps, GridSampleOptions, IntTensorOps},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -830,49 +830,82 @@ impl FloatTensorOps<Flex> for Flex {
         let tensor = tensor.to_contiguous();
         let shape = tensor.layout().shape().clone();
 
-        // Convert to f64 intermediate, then to target
-        let f64_values: Vec<f64> = match src_dtype {
-            DType::F32 => {
-                let src: &[f32] = tensor.storage();
-                src.iter().map(|&v| v as f64).collect()
+        fn cast_slice<Src: Element + bytemuck::Pod, Dst: Element + bytemuck::Pod>(
+            src: &[Src],
+        ) -> Vec<Dst> {
+            use core::any::TypeId;
+            if TypeId::of::<Src>() == TypeId::of::<f64>()
+                && TypeId::of::<Dst>() == TypeId::of::<f16>()
+            {
+                let f64_slice: &[f64] = bytemuck::cast_slice(src);
+                let mut out = vec![Dst::default(); src.len()];
+                let f16_slice: &mut [f16] = bytemuck::cast_slice_mut(&mut out);
+                for (dst, &v) in f16_slice.iter_mut().zip(f64_slice.iter()) {
+                    *dst = f16::from_f64(v);
+                }
+                return out;
             }
-            DType::F64 => {
-                let src: &[f64] = tensor.storage();
-                src.to_vec()
+            if TypeId::of::<Src>() == TypeId::of::<f64>()
+                && TypeId::of::<Dst>() == TypeId::of::<bf16>()
+            {
+                let f64_slice: &[f64] = bytemuck::cast_slice(src);
+                let mut out = vec![Dst::default(); src.len()];
+                let bf16_slice: &mut [bf16] = bytemuck::cast_slice_mut(&mut out);
+                for (dst, &v) in bf16_slice.iter_mut().zip(f64_slice.iter()) {
+                    *dst = bf16::from_f64(v);
+                }
+                return out;
             }
-            DType::F16 => {
-                let src: &[f16] = tensor.storage();
-                src.iter().map(|&v| v.to_f32() as f64).collect()
-            }
-            DType::BF16 => {
-                let src: &[bf16] = tensor.storage();
-                src.iter().map(|&v| v.to_f32() as f64).collect()
-            }
-            _ => panic!("float_cast: unsupported source dtype {:?}", src_dtype),
-        };
+            src.iter().map(|&v| Dst::from_elem(v)).collect()
+        }
 
-        // Convert from f64 to target dtype
-        match target_dtype {
-            DType::F32 => {
-                let result: Vec<f32> = f64_values.iter().map(|&v| v as f32).collect();
-                let bytes = Bytes::from_elems(result);
-                FlexTensor::new(bytes, Layout::contiguous(shape), DType::F32)
-            }
-            DType::F64 => {
-                let bytes = Bytes::from_elems(f64_values);
-                FlexTensor::new(bytes, Layout::contiguous(shape), DType::F64)
-            }
-            DType::F16 => {
-                let result: Vec<f16> = f64_values.iter().map(|&v| f16::from_f64(v)).collect();
-                let bytes = Bytes::from_elems(result);
-                FlexTensor::new(bytes, Layout::contiguous(shape), DType::F16)
-            }
-            DType::BF16 => {
-                let result: Vec<bf16> = f64_values.iter().map(|&v| bf16::from_f64(v)).collect();
-                let bytes = Bytes::from_elems(result);
-                FlexTensor::new(bytes, Layout::contiguous(shape), DType::BF16)
-            }
-            _ => panic!("float_cast: unsupported target dtype {:?}", target_dtype),
+        macro_rules! cast_from {
+            ($src_ty:ty) => {{
+                let src: &[$src_ty] = tensor.storage();
+                match target_dtype {
+                    DType::F32 => {
+                        let result = cast_slice::<$src_ty, f32>(src);
+                        FlexTensor::new(
+                            Bytes::from_elems(result),
+                            Layout::contiguous(shape),
+                            DType::F32,
+                        )
+                    }
+                    DType::F64 => {
+                        let result = cast_slice::<$src_ty, f64>(src);
+                        FlexTensor::new(
+                            Bytes::from_elems(result),
+                            Layout::contiguous(shape),
+                            DType::F64,
+                        )
+                    }
+                    DType::F16 => {
+                        let result = cast_slice::<$src_ty, f16>(src);
+                        FlexTensor::new(
+                            Bytes::from_elems(result),
+                            Layout::contiguous(shape),
+                            DType::F16,
+                        )
+                    }
+                    DType::BF16 => {
+                        let result = cast_slice::<$src_ty, bf16>(src);
+                        FlexTensor::new(
+                            Bytes::from_elems(result),
+                            Layout::contiguous(shape),
+                            DType::BF16,
+                        )
+                    }
+                    _ => panic!("float_cast: unsupported target dtype {:?}", target_dtype),
+                }
+            }};
+        }
+
+        match src_dtype {
+            DType::F32 => cast_from!(f32),
+            DType::F64 => cast_from!(f64),
+            DType::F16 => cast_from!(f16),
+            DType::BF16 => cast_from!(bf16),
+            _ => panic!("float_cast: unsupported source dtype {:?}", src_dtype),
         }
     }
 

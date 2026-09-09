@@ -34,16 +34,12 @@ pub fn cosine_similarity<const D: usize>(
             .min_positive
     });
 
-    // Compute dot product: sum(x1 * x2) along the specified dimension
-    let dot_product = (x1.clone() * x2.clone()).sum_dim(dim);
+    let norm_x1 = l2_norm_impl(x1.clone(), &[dim]).clamp_min(eps);
+    let norm_x2 = l2_norm_impl(x2.clone(), &[dim]).clamp_min(eps);
 
-    // Compute L2 norms: ||x1|| and ||x2||
-    let norm_x1 = l2_norm_impl(x1, &[dim]);
-    let norm_x2 = l2_norm_impl(x2, &[dim]);
-
-    // Calculate the denominator (product of the norms) with epsilon to avoid division by zero
-    let denominator = norm_x1.clamp_min(eps) * norm_x2.clamp_min(eps);
-
-    // Return the cosine similarity (dot product divided by the product of norms)
-    dot_product / denominator
+    // Normalize separately: multiplying the clamped norms can underflow to zero,
+    // even when epsilon is positive, producing NaN for two zero vectors.
+    let x1 = x1 / norm_x1;
+    let x2 = x2 / norm_x2;
+    (x1 * x2).sum_dim(dim)
 }

@@ -84,8 +84,8 @@
 //! - Dataset
 //!   - `dataset`: Includes a datasets library
 //!   - `audio`: Enables audio datasets (SpeechCommandsDataset)
-//!   - `sqlite`: Stores datasets in SQLite database
-//!   - `sqlite_bundled`: Use bundled version of SQLite
+//!   - `sqlite`: Stores datasets in an SQLite database, backed by [Turso](https://turso.tech/)
+//!   - `sqlite-bundled`: Deprecated alias for `sqlite`
 //!   - `vision`: Enables vision datasets (MnistDataset)
 //! - Backends
 //!   - `wgpu`: Makes available the WGPU backend
