@@ -1451,6 +1451,39 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn float_sum_dims(tensor: FloatTensor<Self>, dims: &[usize]) -> FloatTensor<Self> {
+        match dims {
+            [] => return tensor,
+            [dim] => return Self::float_sum_dim(tensor, *dim),
+            _ => {}
+        }
+
+        reduce_ops!(
+            @impl SumDimsOps, ReduceDimsOpIr, get_float_tensor, register_float_tensor,
+            |input, desc| B::float_sum_dims(input, &desc.axes)
+        );
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        // One operation for the whole reduction, so the backend underneath can
+        // fold the dimensions; issued one dimension at a time it could not.
+        let desc = ReduceDimsOpIr::create(tensor.into_ir(), dims.to_vec(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::NumericFloat(
+                    desc.out.dtype,
+                    NumericOperationIr::SumDims(desc.clone()),
+                ),
+                SumDimsOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn float_any(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
         reduce_ops!(FloatAnyOps, float => bool, whole, |tensor, dtype| B::float_any(tensor, dtype));
 

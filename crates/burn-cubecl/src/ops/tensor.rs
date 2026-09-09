@@ -506,6 +506,17 @@ impl FloatTensorOps<Self> for CubeBackend {
         .unwrap()
     }
 
+    fn float_sum_dims(tensor: FloatTensor<Self>, dims: &[usize]) -> FloatTensor<Self> {
+        reduce::reduce_dims(
+            tensor,
+            None,
+            dims,
+            Default::default(),
+            ReduceOperationConfig::Sum,
+        )
+        .unwrap()
+    }
+
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,

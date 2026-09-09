@@ -249,6 +249,7 @@ pub fn permute_nhwc_to_nchw_shape(shape: Shape) -> Shape {
 }
 
 pub(crate) fn expand(tensor: CubeTensor, target_shape: Shape) -> CubeTensor {
+    let tensor = crate::kernel::untile(tensor);
     let ndims_in = tensor.meta.shape().num_dims();
     let ndims_out = target_shape.num_dims();
 
@@ -303,7 +304,8 @@ pub(crate) fn expand(tensor: CubeTensor, target_shape: Shape) -> CubeTensor {
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn reshape(mut tensor: CubeTensor, shape: Shape) -> CubeTensor {
+pub fn reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
+    let mut tensor = crate::kernel::untile(tensor);
     let analysis = reshape_action(tensor.meta.shape(), tensor.meta.strides(), &shape);
 
     match analysis {
@@ -333,7 +335,8 @@ pub fn reshape(mut tensor: CubeTensor, shape: Shape) -> CubeTensor {
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn q_reshape(mut tensor: CubeTensor, shape: Shape) -> CubeTensor {
+pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
+    let mut tensor = crate::kernel::untile(tensor);
     let scheme = tensor.scheme();
     let curr_shape = tensor.meta.shape();
 
@@ -529,6 +532,7 @@ pub(crate) fn max_vector_size_many(tensors: &[&CubeTensor], axis: usize) -> Vect
 ///
 /// A tensor view with the shape ``[pre=..., windows, post=..., size]``.
 pub fn unfold(tensor: CubeTensor, dim: usize, size: usize, step: usize) -> CubeTensor {
+    let tensor = crate::kernel::untile(tensor);
     let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
 
     let d_stride = tensor.meta.strides()[dim];

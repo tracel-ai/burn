@@ -829,6 +829,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         tensor, axis
                     ))
                 }
+                NumericOperationIr::SumDims(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_sum_dims(input, &desc.axes);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 NumericOperationIr::Prod(desc) => {
                     unary_float_ops!(handles, desc, B::float_prod)
                 }
@@ -1070,6 +1075,14 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_sum_dim(
                         tensor, axis
                     ))
+                }
+                NumericOperationIr::SumDims(desc) => {
+                    let input = handles.get_int_tensor::<B>(&desc.input);
+                    let output = desc
+                        .axes
+                        .iter()
+                        .fold(input, |tensor, &axis| B::int_sum_dim(tensor, axis));
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::Prod(desc) => {
                     unary_int_ops!(handles, desc, B::int_prod)
