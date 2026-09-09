@@ -1,6 +1,10 @@
 use burn_backend::{Backend, tensor::FloatTensor};
 
 /// Default cross-backend float transfer, also used by the autodiff adapter.
+#[allow(
+    dead_code,
+    reason = "Only used when dispatch generates cross-backend or capture transfer arms"
+)]
 pub(crate) fn float_transfer<Src: Backend, Dst: Backend>(
     tensor: FloatTensor<Src>,
     device: &Dst::Device,
@@ -13,6 +17,10 @@ pub(crate) fn float_transfer<Src: Backend, Dst: Backend>(
 /// Selected by the dispatch matrix for pairs using host-mediated transfers.
 #[cfg(feature = "autodiff")]
 #[derive(Debug)]
+#[allow(
+    dead_code,
+    reason = "Only used when dispatch generates transfers between multiple compute backends"
+)]
 pub(crate) struct HostTransfer;
 
 #[cfg(feature = "autodiff")]
