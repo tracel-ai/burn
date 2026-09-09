@@ -21,6 +21,12 @@ pub trait Step: Send + core::fmt::Debug {
     fn distributed_params(&self) -> Option<DistributedParams> {
         None
     }
+
+    /// Backend owning this step's distributed parameter, when present.
+    #[cfg(feature = "std")]
+    fn distributed_backend(&self) -> Option<core::any::TypeId> {
+        None
+    }
 }
 
 pub type StepBoxed = Box<dyn Step>;

@@ -3,7 +3,7 @@ use crate::{Tensor, kind::Autodiff};
 #[cfg(feature = "autodiff")]
 use crate::ops::{BridgeKind, BridgeTensor};
 #[cfg(feature = "autodiff")]
-use burn_backend::AutodiffBackend;
+use burn_backend::{AutodiffBackend, ops::FloatTensorOps};
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
 #[cfg(feature = "autodiff")]
@@ -58,8 +58,13 @@ impl<const D: usize> Tensor<D> {
     /// # Panics
     ///
     /// Panics if autodiff is disabled, the tensor doesn't participate in a recorded graph, or the
-    /// graph tape has already been consumed.
+    /// graph tape has already been consumed. Distributed backward also panics if a distributed
+    /// parameter uses a different backend than the loss.
     pub fn backward(&self) -> Gradients {
+        assert!(
+            self.is_tracked(),
+            "Tensor::backward requires a tracked autodiff tensor; call Tensor::autodiff().require_grad() on the source leaf before computing the output"
+        );
         backward_impl(&self.primitive)
     }
 
@@ -91,12 +96,15 @@ impl<const D: usize> Tensor<D> {
         grad_replace_impl(&self.primitive, grads, grad.primitive)
     }
 
-    /// Returns whether this tensor participates in a recorded autodiff graph.
+    /// Returns whether this tensor's node is marked for autodiff graph participation.
     ///
     /// A tensor can have autodiff enabled without being tracked, such as a constant that doesn't
     /// require gradients. [`is_autodiff`](Tensor::is_autodiff) reports whether autodiff is enabled
     /// for the tensor, while [`is_require_grad`](Tensor::is_require_grad) reports whether its
     /// gradient is retained after backward.
+    ///
+    /// This reports graph participation and doesn't indicate whether the graph tape has already
+    /// been consumed.
     pub fn is_tracked(&self) -> bool {
         is_tracked_impl(&self.primitive)
     }
@@ -112,7 +120,9 @@ fn grad_impl(p: &BridgeTensor, grads: &Gradients) -> Option<BridgeTensor> {
     // A non-float tensor — a packed base included — records no tape, so there
     // is no gradient to look up.
     let tensor = p.try_as_float()?;
-    if tensor.autodiff == DispatchAutodiffContext::Disabled {
+    if tensor.autodiff == DispatchAutodiffContext::Disabled
+        || !Dispatch::float_is_require_grad(tensor)
+    {
         return None;
     }
     Dispatch::grad(tensor, grads.as_inner()).map(BridgeTensor::float)
@@ -121,7 +131,9 @@ fn grad_impl(p: &BridgeTensor, grads: &Gradients) -> Option<BridgeTensor> {
 #[cfg(feature = "autodiff")]
 fn grad_remove_impl(p: &BridgeTensor, grads: &mut Gradients) -> Option<BridgeTensor> {
     let tensor = p.try_as_float()?;
-    if tensor.autodiff == DispatchAutodiffContext::Disabled {
+    if tensor.autodiff == DispatchAutodiffContext::Disabled
+        || !Dispatch::float_is_require_grad(tensor)
+    {
         return None;
     }
     Dispatch::grad_remove(tensor, grads.as_inner_mut()).map(BridgeTensor::float)
@@ -230,7 +242,7 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// The strategy is normally derived from the device the tensor was created on (see
     /// [`Device::gradient_checkpointing`](crate::Device::gradient_checkpointing)); this
     /// method overrides it for a single tensor. Enable autodiff first with
-    /// [`autodiff`](Tensor::autodiff) when needed.
+    /// [`autodiff`](Tensor::autodiff) when needed; this method doesn't enable it automatically.
     ///
     /// # Panics
     ///

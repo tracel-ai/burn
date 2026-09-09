@@ -40,29 +40,16 @@ impl FloatTensorOps<Self> for Dispatch {
 
     #[backend_dispatch(skip)]
     fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {
-        // Relocating a non-tracked float tensor onto an autodiff device is a plain data move:
-        // place it on the underlying hardware device and leave the tensor non-tracked. The
-        // int/bool `to_device` paths already handle this case; only the float path used to
-        // panic. This is what lets gradient tensors — which are never autodiff-tracked — be
-        // moved onto the autodiff `device_main` during multi-device training.
-        #[cfg(feature = "autodiff")]
-        if let DispatchDevice::Autodiff(device_ad) = device
-            && !matches!(&tensor.kind, crate::DispatchTensorKind::Autodiff(_))
-        {
-            return Self::float_to_device(tensor, &device_ad.inner);
-        }
-
+        // `Tensor::to_device` aligns the target's autodiff context with the source tensor before
+        // reaching this low-level operation. Direct callers must likewise provide compatible
+        // contexts; this layer only routes the transfer between compute resources.
         float_to_device!(
             Float,
             float,
             tensor,
             device,
             float_to_device,
-            |inner, device| {
-                let data =
-                    burn_backend::read_sync(B1::float_into_data(inner)).expect("Should read data");
-                B2::float_from_data(data, device)
-            }
+            |inner, device| { super::transfer::float_transfer::<B1, B2>(inner, device) }
         )
     }
 

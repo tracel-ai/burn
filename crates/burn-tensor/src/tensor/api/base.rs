@@ -1596,21 +1596,35 @@ where
 
     /// Moves the tensor to the target device's compute resource.
     ///
-    /// Autodiff is tensor context as well as device metadata, so the returned tensor isn't
-    /// guaranteed to adopt the target device's autodiff setting. In particular, moving a
-    /// floating-point tensor without autodiff to an autodiff device keeps the tensor outside
-    /// autodiff. Inspect that state with [`is_autodiff`](Tensor::is_autodiff), and change it
-    /// explicitly with [`autodiff`](Tensor::autodiff) or
-    /// [`without_autodiff`](Tensor::without_autodiff).
+    /// This operation preserves the tensor's autodiff association and gradient-checkpointing
+    /// strategy; the target device's autodiff configuration isn't applied. Tensors newly created
+    /// on a device inherit its configuration, while tensors moved to that device retain their
+    /// existing one. Change it explicitly with [`autodiff`](Tensor::autodiff),
+    /// [`without_autodiff`](Tensor::without_autodiff), or
+    /// [`with_gradient_checkpointing_strategy`](Tensor::with_gradient_checkpointing_strategy).
+    ///
+    /// For tracked floating-point tensors, `to_device` is a recorded operation, including when
+    /// the target is the current device. Its output is a non-leaf tensor and cannot retain its
+    /// own gradient: calling `require_grad()` on it panics. To create a new leaf on the destination,
+    /// use `tensor.to_device(device).detach().require_grad()`, which severs the source connection.
+    /// Supported transfers between compute backends preserve the graph connection; backward
+    /// transfers gradients to the original source device.
+    /// Distributed backward currently requires every distributed parameter to use the same
+    /// backend as the loss. Incompatible graphs panic before synchronization or gradient
+    /// computation begins.
+    ///
+    /// Transfers between different compute backends currently read values into host memory as
+    /// [`TensorData`] and upload them to the destination backend. This also applies to gradients
+    /// transferred during backward and can incur synchronization and data-copy overhead.
     ///
     /// # Panics
     ///
-    /// Panics when the backend doesn't support the requested transfer. Autodiff tensors currently
-    /// can't be moved between different backend implementations; remove their autodiff association
-    /// before such a transfer and enable it again afterwards.
+    /// Panics when the backend doesn't support the requested transfer, including transfers to a
+    /// capture device with autodiff enabled.
     #[must_use]
     pub fn to_device(self, device: &Device) -> Self {
-        Self::new(K::to_device(self.primitive, device))
+        let target_device = device.clone().with_autodiff_context_from(&self.device());
+        Self::new(K::to_device(self.primitive, &target_device))
     }
 
     /// Select tensor elements along the given dimension corresponding to the given indices.

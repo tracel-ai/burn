@@ -166,7 +166,7 @@ pub struct Dispatch;
 
 #[cfg(feature = "autodiff")]
 impl Dispatch {
-    /// Returns whether an autodiff tensor participates in a recorded graph.
+    /// Returns whether an autodiff tensor's node is marked for graph participation.
     #[doc(hidden)]
     pub fn is_tracked(tensor: &DispatchTensor) -> bool {
         backend_list!(is_tracked_arms, tensor)

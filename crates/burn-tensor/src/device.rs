@@ -550,6 +550,8 @@ impl Device {
     ///
     /// Calling this method on a device that already has autodiff enabled returns it unchanged,
     /// preserving its gradient-checkpointing strategy. This operation is idempotent.
+    /// Calling it repeatedly doesn't enable higher-order differentiation; only first-order
+    /// autodiff is supported.
     ///
     /// # Example
     ///
@@ -596,15 +598,22 @@ impl Device {
     #[cfg(feature = "autodiff")]
     #[must_use]
     pub fn gradient_checkpointing(self) -> Self {
+        self.with_gradient_checkpointing_strategy(GradientCheckpointingStrategy::Balanced)
+    }
+
+    /// Sets the gradient-checkpointing strategy on this autodiff device.
+    #[cfg(feature = "autodiff")]
+    #[must_use]
+    pub(crate) fn with_gradient_checkpointing_strategy(
+        self,
+        strategy: GradientCheckpointingStrategy,
+    ) -> Self {
         match self.into_dispatch() {
-            DispatchDevice::Autodiff(device) => {
-                Self::new(DispatchDevice::autodiff_with_gradient_checkpointing(
-                    device.inner(),
-                    GradientCheckpointingStrategy::Balanced,
-                ))
-            }
+            DispatchDevice::Autodiff(device) => Self::new(
+                DispatchDevice::autodiff_with_gradient_checkpointing(device.inner(), strategy),
+            ),
             _ => panic!(
-                "Device::gradient_checkpointing requires autodiff; call Device::autodiff first"
+                "Gradient checkpointing requires autodiff; use Device::autodiff().gradient_checkpointing()"
             ),
         }
     }
@@ -626,6 +635,25 @@ impl Device {
         if self.is_autodiff() {
             Self::new(self.into_dispatch().inner())
         } else {
+            self
+        }
+    }
+
+    /// Applies `source`'s autodiff context to this device.
+    pub(crate) fn with_autodiff_context_from(self, source: &Self) -> Self {
+        #[cfg(feature = "autodiff")]
+        {
+            match source.gradient_checkpointing_strategy() {
+                Some(strategy) => self
+                    .autodiff()
+                    .with_gradient_checkpointing_strategy(strategy),
+                None => self.without_autodiff(),
+            }
+        }
+
+        #[cfg(not(feature = "autodiff"))]
+        {
+            let _ = source;
             self
         }
     }
@@ -686,7 +714,10 @@ impl Device {
         Dispatch::seed(self.as_dispatch(), seed)
     }
 
-    /// Returns `true` if autodiff (gradient tracking) is enabled on this device.
+    /// Returns whether this device is associated with autodiff.
+    ///
+    /// This is device context inherited by newly created tensors, not a statement that any tensor
+    /// participates in a graph or retains gradients.
     ///
     /// # Example
     ///
@@ -1325,6 +1356,31 @@ impl core::ops::Deref for Devices {
 mod capture_tests {
     use super::*;
 
+    #[cfg(all(feature = "flex", feature = "autodiff"))]
+    #[test]
+    #[should_panic(expected = "Cannot move a tensor to a capture device with autodiff enabled")]
+    fn capture_transfer_rejects_autodiff_context() {
+        let tensor = crate::Tensor::<1, crate::Int>::from_ints([1, 2], &Device::flex().autodiff());
+        let capture = Device::capture();
+        let _ = capture.capture_scope(|scope| {
+            let _ = tensor.to_device(&capture);
+            scope.complete([], [])
+        });
+    }
+
+    #[cfg(all(feature = "flex", feature = "autodiff"))]
+    #[test]
+    #[should_panic(expected = "Cannot move a tensor to a capture device with autodiff enabled")]
+    fn capture_float_transfer_rejects_autodiff_context() {
+        let tensor =
+            crate::Tensor::<1>::from_floats([1.0, 2.0], &Device::flex().autodiff()).require_grad();
+        let capture = Device::capture();
+        let _ = capture.capture_scope(|scope| {
+            let _ = tensor.to_device(&capture);
+            scope.complete([], [])
+        });
+    }
+
     #[test]
     fn user_facing_capture_device_supports_repeated_scopes() {
         let device = Device::capture();
@@ -1368,11 +1424,10 @@ mod capture_tests {
 
 #[cfg(all(test, feature = "flex", feature = "autodiff"))]
 mod autodiff_move_tests {
-    use crate::{Device, Tensor};
+    use crate::{Bool, Device, GradientCheckpointingStrategy, Int, Tensor, TensorData};
 
-    // A non-tracked float tensor (e.g. a gradient) can be moved onto an autodiff device; it
-    // lands on the underlying hardware and stays non-tracked. Regression test for a panic in
-    // `float_to_device` ("Cannot move between autodiff and non-autodiff instances").
+    // A tensor without autodiff (e.g. a gradient) can be moved onto an autodiff device; it lands
+    // on the underlying hardware and stays outside autodiff.
     #[test]
     fn move_non_autodiff_float_tensor_to_autodiff_device() {
         let device = Device::default();
@@ -1387,5 +1442,56 @@ mod autodiff_move_tests {
             moved.try_into_vec_as::<f32>().unwrap(),
             vec![1.0, 2.0, 3.0, 4.0]
         );
+    }
+
+    #[test]
+    fn move_autodiff_tensor_preserves_association_strategy_and_graph() {
+        let device = Device::default();
+        let ad_device = device.clone().autodiff().gradient_checkpointing();
+
+        let tensor = Tensor::<1>::from_floats([1.0, 2.0], &ad_device).require_grad();
+        let moved = tensor.clone().to_device(&device);
+
+        assert!(moved.is_autodiff());
+        assert!(moved.is_tracked());
+        // The transfer is a differentiable operation, so its result is a derived tensor whose own
+        // gradient isn't retained by default.
+        assert!(!moved.is_require_grad());
+        assert_eq!(
+            moved.gradient_checkpointing_strategy(),
+            Some(GradientCheckpointingStrategy::Balanced)
+        );
+
+        let grads = moved.sum().backward();
+        tensor
+            .grad(&grads)
+            .expect("the transfer should preserve the graph")
+            .into_data()
+            .assert_eq(&TensorData::from([1.0f32, 1.0]), true);
+    }
+
+    #[test]
+    fn move_non_float_tensors_preserves_context() {
+        let device = Device::default();
+        let ad_device = device.clone().autodiff().gradient_checkpointing();
+
+        let plain_int = Tensor::<1, Int>::from_ints([1, 2], &device).to_device(&ad_device);
+        assert!(!plain_int.is_autodiff());
+
+        let autodiff_bool =
+            Tensor::<1, Bool>::from_bool([true, false], &ad_device).to_device(&device);
+        assert!(autodiff_bool.is_autodiff());
+        assert_eq!(
+            autodiff_bool.gradient_checkpointing_strategy(),
+            Some(GradientCheckpointingStrategy::Balanced)
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Gradient checkpointing requires autodiff; use Device::autodiff().gradient_checkpointing()"
+    )]
+    fn gradient_checkpointing_requires_autodiff() {
+        let _ = Device::default().gradient_checkpointing();
     }
 }

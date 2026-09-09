@@ -72,7 +72,55 @@ impl Step for RootStep {
     }
 }
 
+/// Keeps backend identity on distributed roots.
+#[cfg(feature = "std")]
+#[derive(Debug)]
+struct DistributedRootStep {
+    root: RootStep,
+    backend: core::any::TypeId,
+}
+
+#[cfg(feature = "std")]
+impl Step for DistributedRootStep {
+    fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
+        // Root steps have no gradient computation.
+    }
+
+    fn node(&self) -> NodeId {
+        self.root.node()
+    }
+
+    fn parents(&self) -> &[Parent] {
+        self.root.parents()
+    }
+
+    fn depth(&self) -> usize {
+        self.root.depth()
+    }
+
+    fn distributed_params(&self) -> Option<DistributedParams> {
+        self.root.distributed_params()
+    }
+
+    fn distributed_backend(&self) -> Option<core::any::TypeId> {
+        Some(self.backend)
+    }
+}
+
 impl<B: Backend> AutodiffTensor<B> {
+    fn register_root(self) -> Self {
+        let root = RootStep::new(self.node.clone());
+        #[cfg(feature = "std")]
+        if self.node.distributed_params.is_some() {
+            let step = DistributedRootStep {
+                root,
+                backend: core::any::TypeId::of::<B>(),
+            };
+            return self.register_step(step, CheckpointerBuilder::default());
+        }
+        self.register_step(root, CheckpointerBuilder::default())
+    }
+
     /// Create a new leaf tensor.
     pub fn new(primitive: B::FloatTensorPrimitive) -> Self {
         let id = NodeId::new();
@@ -120,9 +168,7 @@ impl<B: Backend> AutodiffTensor<B> {
                     self.node.distributed_params.clone(),
                 )
                 .into();
-                let step = RootStep::new(self.node.clone());
-
-                self.register_step(step, CheckpointerBuilder::default())
+                self.register_root()
             }
         }
     }
@@ -227,9 +273,7 @@ impl<B: Backend> AutodiffTensor<B> {
             Some(DistributedParams { param_id }),
         )
         .into();
-        let step = RootStep::new(self.node.clone());
-
-        self.register_step(step, CheckpointerBuilder::default())
+        self.register_root()
     }
 }
 
