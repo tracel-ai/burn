@@ -196,7 +196,7 @@ impl<B: Backend> AutodiffTensor<B> {
             parent_nodes
                 .iter()
                 .filter_map(|node| node.clone_if_require_grad())
-                .map(|node| Parent::new(node.id))
+                .map(|node| Parent::new(node.id, node.order == 0))
                 .collect(),
             order,
             NodeId::new(),
