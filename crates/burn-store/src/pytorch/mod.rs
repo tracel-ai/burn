@@ -35,14 +35,15 @@
 //! }
 //! ```
 
-pub mod lazy_data;
-pub mod pickle_reader;
+mod pickle_reader;
 pub mod reader;
+mod storage;
 pub mod store;
 
 #[cfg(test)]
 pub mod tests;
 
 // Main public interface
+pub use pickle_reader::{OpCode, PickleError};
 pub use reader::{PytorchError, PytorchReader};
 pub use store::{PytorchStore, PytorchStoreError};
