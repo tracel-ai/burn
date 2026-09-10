@@ -82,16 +82,15 @@ fn sum_f32(tensor: &FlexTensor) -> FlexTensor {
         }
         None => {
             // Non-contiguous: check if we can sum the buffer directly.
-            // For transposed tensors that use all elements (no slicing),
-            // the sum is the same regardless of element order.
+            // For permuted or flipped tensors that visit every storage element
+            // exactly once, the sum is the same regardless of element order.
             let data: &[f32] = tensor.storage();
-            let elem_count = tensor.layout().num_elements();
 
-            if data.len() == elem_count {
-                // Tensor uses entire buffer - sum directly (order doesn't matter for sum)
+            if layout_covers_storage_once(tensor.layout(), data.len()) {
                 sum_f32_contiguous(data)
             } else {
-                // Sliced or partial view - must use strided iteration
+                // Partial, broadcast, overlapping or gapped view - must use
+                // strided iteration.
                 StridedIter::new(tensor.layout()).map(|idx| data[idx]).sum()
             }
         }
@@ -527,8 +526,9 @@ fn float_extremum_contiguous<E: Float, const MAX: bool>(data: &[E]) -> E {
 /// Returns whether the layout visits every storage element exactly once.
 ///
 /// Dense permutations and flips can reduce the raw storage directly because
-/// extrema are independent of traversal order. Partial, broadcast, overlapping,
-/// or gapped views must preserve their logical indexing through `StridedIter`.
+/// sums and extrema are independent of traversal order. Partial, broadcast,
+/// overlapping, or gapped views must preserve their logical indexing through
+/// `StridedIter`.
 fn layout_covers_storage_once(layout: &Layout, storage_len: usize) -> bool {
     if storage_len == 0 || layout.num_elements() != storage_len {
         return false;
