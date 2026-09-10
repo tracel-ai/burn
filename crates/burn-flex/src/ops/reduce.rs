@@ -776,6 +776,10 @@ pub fn argmax(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::I16 => extremum_dim_with_indices::<i16, _>(&tensor, dim, |a, b| a > b).1,
         DType::I32 => extremum_dim_with_indices::<i32, _>(&tensor, dim, |a, b| a > b).1,
         DType::I64 => extremum_dim_with_indices::<i64, _>(&tensor, dim, |a, b| a > b).1,
+        DType::U8 => extremum_dim_with_indices::<u8, _>(&tensor, dim, |a, b| a > b).1,
+        DType::U16 => extremum_dim_with_indices::<u16, _>(&tensor, dim, |a, b| a > b).1,
+        DType::U32 => extremum_dim_with_indices::<u32, _>(&tensor, dim, |a, b| a > b).1,
+        DType::U64 => extremum_dim_with_indices::<u64, _>(&tensor, dim, |a, b| a > b).1,
         _ => panic!("argmax: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -832,6 +836,10 @@ pub fn argmin(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::I16 => extremum_dim_with_indices::<i16, _>(&tensor, dim, |a, b| a < b).1,
         DType::I32 => extremum_dim_with_indices::<i32, _>(&tensor, dim, |a, b| a < b).1,
         DType::I64 => extremum_dim_with_indices::<i64, _>(&tensor, dim, |a, b| a < b).1,
+        DType::U8 => extremum_dim_with_indices::<u8, _>(&tensor, dim, |a, b| a < b).1,
+        DType::U16 => extremum_dim_with_indices::<u16, _>(&tensor, dim, |a, b| a < b).1,
+        DType::U32 => extremum_dim_with_indices::<u32, _>(&tensor, dim, |a, b| a < b).1,
+        DType::U64 => extremum_dim_with_indices::<u64, _>(&tensor, dim, |a, b| a < b).1,
         _ => panic!("argmin: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -2610,6 +2618,61 @@ mod tests {
             .map(|&v| v as i64)
             .collect();
         assert_eq!(values, vec![1]);
+    }
+
+    // Regression tests for https://github.com/tracel-ai/burn/issues/5608:
+    // `int_argmax`/`int_argmin` panicked on unsigned dtypes.
+    fn arg_indices(result: FlexTensor) -> Vec<isize> {
+        assert_eq!(result.layout().shape().to_vec(), vec![1]);
+        bytemuck::cast_slice(&result.into_data().bytes).to_vec()
+    }
+
+    #[test]
+    fn test_argmax_u8() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![1u8, 5, 3], [3]));
+        assert_eq!(arg_indices(Flex::int_argmax(tensor, 0)), vec![1]);
+    }
+
+    #[test]
+    fn test_argmax_u16() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![1u16, 5, 3], [3]));
+        assert_eq!(arg_indices(Flex::int_argmax(tensor, 0)), vec![1]);
+    }
+
+    #[test]
+    fn test_argmax_u32() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![1u32, 5, 3], [3]));
+        assert_eq!(arg_indices(Flex::int_argmax(tensor, 0)), vec![1]);
+    }
+
+    #[test]
+    fn test_argmax_u64() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![1u64, 5, 3], [3]));
+        assert_eq!(arg_indices(Flex::int_argmax(tensor, 0)), vec![1]);
+    }
+
+    #[test]
+    fn test_argmin_u8() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![3u8, 1, 2], [3]));
+        assert_eq!(arg_indices(Flex::int_argmin(tensor, 0)), vec![1]);
+    }
+
+    #[test]
+    fn test_argmin_u16() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![3u16, 1, 2], [3]));
+        assert_eq!(arg_indices(Flex::int_argmin(tensor, 0)), vec![1]);
+    }
+
+    #[test]
+    fn test_argmin_u32() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![3u32, 1, 2], [3]));
+        assert_eq!(arg_indices(Flex::int_argmin(tensor, 0)), vec![1]);
+    }
+
+    #[test]
+    fn test_argmin_u64() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![3u64, 1, 2], [3]));
+        assert_eq!(arg_indices(Flex::int_argmin(tensor, 0)), vec![1]);
     }
 
     #[test]
