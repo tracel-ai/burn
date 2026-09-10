@@ -13,6 +13,7 @@
 //! pitched or tile-aligned allocation leaves under a dimension, which is enough
 //! to decide what order to iterate in.
 
+use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::Shape;
