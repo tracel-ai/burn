@@ -619,6 +619,20 @@ fn test_sum_expanded_over_full_buffer() {
 }
 
 #[test]
+fn test_sum_overlapping_unfold() {
+    // Unfold into [[0, 1, 2], [2, 3, 4]]: six logical elements over a
+    // six-element buffer, but index 2 is repeated and index 5 is unused.
+    // Summing the raw buffer would incorrectly give 15.0.
+    let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+    let unfolded: TestTensor<2> = tensor.unfold(0, 3, 2);
+    let output = unfolded.sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([12.0]), false);
+}
+
+#[test]
 fn test_sum_flipped_both_axes() {
     // Flip both axes, sum along axis 0: column sums appear in reversed
     // order because axis 1 was flipped; row pairing is also swapped so a
