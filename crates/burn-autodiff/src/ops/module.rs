@@ -40,7 +40,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match Embedding
-            .prepare::<C>([weights.node])
+            .prepare::<C>([weights.node()])
             .compute_bound()
             .stateful()
         {
@@ -137,7 +137,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match LinearWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -157,7 +157,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match LinearNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -277,7 +277,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
         match bias {
             Some(bias) => match Conv1DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -298,7 +298,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match Conv1DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -404,7 +404,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match ConvTranspose1DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -430,7 +430,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match ConvTranspose1DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -537,7 +537,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match Conv2DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -558,7 +558,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match Conv2DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -743,11 +743,11 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         match (mask, bias) {
             (Some(mask), Some(bias)) => match DeformConv2DWithMaskWithBias
                 .prepare::<C>([
-                    x.node.clone(),
-                    offset.node.clone(),
-                    weight.node.clone(),
-                    mask.node.clone(),
-                    bias.node.clone(),
+                    x.node(),
+                    offset.node(),
+                    weight.node(),
+                    mask.node(),
+                    bias.node(),
                 ])
                 .compute_bound()
                 .stateful()
@@ -787,12 +787,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             (Some(mask), None) => match DeformConv2DWithMaskNoBias
-                .prepare::<C>([
-                    x.node.clone(),
-                    offset.node.clone(),
-                    weight.node.clone(),
-                    mask.node.clone(),
-                ])
+                .prepare::<C>([x.node(), offset.node(), weight.node(), mask.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -829,12 +824,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             (None, Some(bias)) => match DeformConv2DNoMaskWithBias
-                .prepare::<C>([
-                    x.node.clone(),
-                    offset.node.clone(),
-                    weight.node.clone(),
-                    bias.node.clone(),
-                ])
+                .prepare::<C>([x.node(), offset.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -871,7 +861,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             (None, None) => match DeformConv2DNoMaskNoBias
-                .prepare::<C>([x.node.clone(), offset.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), offset.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1002,7 +992,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match ConvTranspose2DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1029,7 +1019,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match ConvTranspose2DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1137,7 +1127,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match Conv3DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1158,7 +1148,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match Conv3DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1265,7 +1255,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match ConvTranspose3DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1292,7 +1282,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match ConvTranspose3DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1372,7 +1362,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AvgPool1D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1450,7 +1440,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AvgPool2D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1507,7 +1497,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         match MaxPool1D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1557,7 +1547,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         int_dtype: IntDType,
     ) -> MaxPool1dWithIndices<Self> {
         match MaxPool1D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1637,7 +1627,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         match MaxPool2D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1687,7 +1677,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         int_dtype: IntDType,
     ) -> MaxPool2dWithIndices<Self> {
         match MaxPool2D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1773,7 +1763,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AdaptiveAvgPool1D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1812,7 +1802,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AdaptiveAvgPool2D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1858,7 +1848,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AdaptiveAvgPool3D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1909,7 +1899,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match Interpolate
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1998,7 +1988,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match CtcLoss
-            .prepare::<C>([log_probs.node.clone()])
+            .prepare::<C>([log_probs.node()])
             .compute_bound()
             .stateful()
         {
@@ -2068,6 +2058,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         let input_len = signal.shape()[dim];
         let n_fft = n.unwrap_or(input_len);
+        let signal_guard = signal.node();
         let (re, im) = B::rfft(signal.primitive, dim, n);
 
         // In order to perform only a single irfft in the backward pass, we have to temporarily
@@ -2095,11 +2086,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             slices_im.clone(),
         );
 
-        let spectrum = match Rfft
-            .prepare::<C>([signal.node.clone()])
-            .compute_bound()
-            .stateful()
-        {
+        let spectrum = match Rfft.prepare::<C>([signal_guard]).compute_bound().stateful() {
             OpsKind::Tracked(prep) => prep.finish(state, spectrum),
             OpsKind::UnTracked(prep) => prep.finish(spectrum),
         };
@@ -2152,15 +2139,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         let input_len = spectrum_re.shape()[dim];
+        let input_guards = [spectrum_re.node(), spectrum_im.node()];
         let signal = B::irfft(spectrum_re.primitive, spectrum_im.primitive, dim, n);
         let n_fft = n.unwrap_or(signal.shape()[dim]);
         let state = (dim, n, input_len, n_fft);
 
-        match Irfft
-            .prepare::<C>([spectrum_re.node.clone(), spectrum_im.node.clone()])
-            .compute_bound()
-            .stateful()
-        {
+        match Irfft.prepare::<C>(input_guards).compute_bound().stateful() {
             OpsKind::Tracked(prep) => prep.finish(state, signal),
             OpsKind::UnTracked(prep) => prep.finish(signal),
         }

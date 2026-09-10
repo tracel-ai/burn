@@ -495,23 +495,23 @@ impl AutodiffBackend for Dispatch {
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => DispatchTensorKind::Cube(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(any(feature = "flex", default_backend))]
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "ndarray")]
                 DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
@@ -670,11 +670,11 @@ impl AutodiffBackend for Dispatch {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => {
-                    tensor.as_autodiff().node.distributed_params.clone()
+                    Autodiff::<Cube>::distributed_params(tensor.as_autodiff())
                 }
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => {
-                    tensor.as_autodiff().node.distributed_params.clone()
+                    Autodiff::<Remote>::distributed_params(tensor.as_autodiff())
                 }
 
                 DispatchTensorKind::Autodiff(_) => {
@@ -696,11 +696,11 @@ impl AutodiffBackend for Dispatch {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => {
-                    tensor.as_autodiff().node.distributed_params.is_some()
+                    Autodiff::<Cube>::is_distributed(tensor.as_autodiff())
                 }
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => {
-                    tensor.as_autodiff().node.distributed_params.is_some()
+                    Autodiff::<Remote>::is_distributed(tensor.as_autodiff())
                 }
 
                 DispatchTensorKind::Autodiff(_) => {
