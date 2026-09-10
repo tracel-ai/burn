@@ -226,3 +226,42 @@ fn test_scatter_min_grad() {
         .to_data()
         .assert_eq(&TensorData::from([0.0, 1.0]), false);
 }
+
+#[test]
+fn test_scatter_max_grad_values_only() {
+    // Only values require grad; the data mask must not be built.
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<1>::from_data(TensorData::from([4.0, 2.0, 1.0, 5.0]), &device);
+    let values = TestTensor::from_data(TensorData::from([10.0, 3.0]), &device).require_grad();
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([1, 0]), &device);
+    let weights = TestTensor::from_data(TensorData::from([1.0, 2.0, 3.0, 4.0]), &device);
+
+    let result = tensor.scatter(0, indices, values.clone(), IndexingUpdateOp::Max);
+    let grads = result.mul(weights).sum().backward();
+
+    // out[1] = max(2, 10) = 10 -> values win, grad flows to values[0].
+    // out[0] = max(4, 3) = 4 -> data wins, grad skipped for values[1].
+    let grad_values = values.grad(&grads).unwrap();
+    grad_values
+        .to_data()
+        .assert_eq(&TensorData::from([2.0, 0.0]), false);
+}
+
+#[test]
+fn test_scatter_min_grad_values_only() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<1>::from_data(TensorData::from([4.0, 2.0, 1.0, 5.0]), &device);
+    let values = TestTensor::from_data(TensorData::from([10.0, 3.0]), &device).require_grad();
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([1, 0]), &device);
+    let weights = TestTensor::from_data(TensorData::from([1.0, 2.0, 3.0, 4.0]), &device);
+
+    let result = tensor.scatter(0, indices, values.clone(), IndexingUpdateOp::Min);
+    let grads = result.mul(weights).sum().backward();
+
+    // out[1] = min(2, 10) = 2 -> data wins, grad skipped for values[0].
+    // out[0] = min(4, 3) = 3 -> values win, grad flows to values[1].
+    let grad_values = values.grad(&grads).unwrap();
+    grad_values
+        .to_data()
+        .assert_eq(&TensorData::from([0.0, 1.0]), false);
+}

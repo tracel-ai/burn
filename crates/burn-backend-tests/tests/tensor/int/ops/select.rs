@@ -92,6 +92,34 @@ fn should_select_assign_min_2d_dim0_int() {
 }
 
 #[test]
+fn should_select_assign_min_1d_int_repeated_indices() {
+    let device = Default::default();
+    // index 0 receives 100 then 3 (keeps 3); index 1 receives 7 then 50 (keeps 7).
+    let tensor = TestTensorInt::<1>::from_data([10, 20, 30, 40], &device);
+    let values = TestTensorInt::from_data([100, 3, 7, 50], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([0, 0, 1, 1]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Min);
+    let expected = TensorData::from([3, 7, 30, 40]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_max_1d_int_repeated_indices() {
+    let device = Default::default();
+    // index 0 receives 100 then 3 (keeps 100); index 1 receives 7 then 50 (keeps 50).
+    let tensor = TestTensorInt::<1>::from_data([10, 20, 30, 40], &device);
+    let values = TestTensorInt::from_data([100, 3, 7, 50], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([0, 0, 1, 1]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Max);
+    let expected = TensorData::from([100, 50, 30, 40]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 fn should_select_assign_max_2d_dim0_int() {
     let device = Default::default();
     let tensor = TestTensorInt::<2>::from_data([[10, 20], [30, 40], [50, 60]], &device);

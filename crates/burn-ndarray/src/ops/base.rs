@@ -295,69 +295,37 @@ where
 
     pub fn scatter_min<I: NdArrayElement>(
         dim: usize,
-        mut tensor: SharedArray<E>,
-        mut indices: SharedArray<I>,
-        mut value: SharedArray<E>,
+        tensor: SharedArray<E>,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
     ) -> SharedArray<E>
     where
         E: PartialOrd,
     {
-        let ndims = tensor.shape().num_dims();
-        if dim != ndims - 1 {
-            tensor.swap_axes(ndims - 1, dim);
-            indices.swap_axes(ndims - 1, dim);
-            value.swap_axes(ndims - 1, dim);
-        }
-
-        let (shape_tensor, shape_indices, shape_value) =
-            (tensor.shape().into_shape(), indices.shape(), value.shape());
-        let (size_tensor, size_index, size_value) = (
-            shape_tensor[ndims - 1],
-            shape_indices[ndims - 1],
-            shape_value[ndims - 1],
-        );
-        let batch_size = Self::gather_batch_size(&shape_tensor, shape_indices);
-
-        if shape_value != shape_indices {
-            panic!(
-                "Invalid dimension: the shape of the index tensor should be the same as the value \
-                 tensor: Index {:?} value {:?}",
-                shape_indices, shape_value
-            );
-        }
-
-        let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index]));
-        let value = NdArrayOps::reshape(value, Shape::new([batch_size, size_value]));
-        let mut tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor]));
-
-        for b in 0..batch_size {
-            let indices = indices.slice(s!(b, ..));
-
-            for (i, index) in indices.iter().enumerate() {
-                let index = index.elem::<i64>() as usize;
-                let value = value[[b, i]];
-                let out = &mut tensor[[b, index]];
-                if value < *out {
-                    *out = value;
-                }
-            }
-        }
-
-        let mut output = NdArrayOps::reshape(tensor.into_shared().into_dyn(), shape_tensor);
-        if dim != ndims - 1 {
-            output.swap_axes(ndims - 1, dim);
-        }
-        output
+        Self::scatter_extreme(dim, tensor, indices, value, |out, value| value < *out)
     }
 
     pub fn scatter_max<I: NdArrayElement>(
         dim: usize,
-        mut tensor: SharedArray<E>,
-        mut indices: SharedArray<I>,
-        mut value: SharedArray<E>,
+        tensor: SharedArray<E>,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
     ) -> SharedArray<E>
     where
         E: PartialOrd,
+    {
+        Self::scatter_extreme(dim, tensor, indices, value, |out, value| value > *out)
+    }
+
+    fn scatter_extreme<I: NdArrayElement, F>(
+        dim: usize,
+        mut tensor: SharedArray<E>,
+        mut indices: SharedArray<I>,
+        mut value: SharedArray<E>,
+        replace: F,
+    ) -> SharedArray<E>
+    where
+        F: Fn(&E, E) -> bool,
     {
         let ndims = tensor.shape().num_dims();
         if dim != ndims - 1 {
@@ -394,7 +362,7 @@ where
                 let index = index.elem::<i64>() as usize;
                 let value = value[[b, i]];
                 let out = &mut tensor[[b, index]];
-                if value > *out {
+                if replace(out, value) {
                     *out = value;
                 }
             }
@@ -1244,20 +1212,7 @@ where
     where
         E: PartialOrd,
     {
-        let mut output_array = tensor.into_owned();
-
-        for (index_value, index) in indices.into_iter().enumerate() {
-            let mut view = output_array.index_axis_mut(Axis(dim), index.elem::<i64>() as usize);
-            let value = value.index_axis(Axis(dim), index_value);
-
-            view.zip_mut_with(&value, |a, b| {
-                if *b < *a {
-                    *a = *b;
-                }
-            });
-        }
-
-        output_array.into_shared()
+        Self::select_assign_extreme(tensor, dim, indices, value, |a, b| *b < *a)
     }
 
     pub fn select_assign_max<I: NdArrayElement>(
@@ -1269,6 +1224,19 @@ where
     where
         E: PartialOrd,
     {
+        Self::select_assign_extreme(tensor, dim, indices, value, |a, b| *b > *a)
+    }
+
+    fn select_assign_extreme<I: NdArrayElement, F>(
+        tensor: SharedArray<E>,
+        dim: usize,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
+        replace: F,
+    ) -> SharedArray<E>
+    where
+        F: Fn(&mut E, &E) -> bool,
+    {
         let mut output_array = tensor.into_owned();
 
         for (index_value, index) in indices.into_iter().enumerate() {
@@ -1276,7 +1244,7 @@ where
             let value = value.index_axis(Axis(dim), index_value);
 
             view.zip_mut_with(&value, |a, b| {
-                if *b > *a {
+                if replace(a, b) {
                     *a = *b;
                 }
             });

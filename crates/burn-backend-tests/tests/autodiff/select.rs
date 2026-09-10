@@ -311,3 +311,54 @@ fn test_select_assign_min_grad_values_win() {
         .into_data()
         .assert_eq(&TensorData::from([[3.0, 1.0], [6.0, 4.0]]), false);
 }
+
+#[test]
+fn test_select_assign_max_grad_values_only() {
+    // Only values require grad; the full-size data mask must not be built.
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]),
+        &device,
+    );
+    let values = TestTensor::from_data(TensorData::from([[100.0, 100.0], [100.0, 100.0]]), &device)
+        .require_grad();
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([2, 0]), &device);
+    let weights = TestTensor::from_data(
+        TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        &device,
+    );
+
+    let result = tensor.select_assign(1, indices, values.clone(), IndexingUpdateOp::Max);
+    let grads = result.mul(weights).sum().backward();
+
+    // values win at tensor[.., 2] and tensor[.., 0].
+    let grad_values = values.grad(&grads).unwrap();
+    grad_values
+        .into_data()
+        .assert_eq(&TensorData::from([[3.0, 1.0], [6.0, 4.0]]), false);
+}
+
+#[test]
+fn test_select_assign_min_grad_values_only() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]),
+        &device,
+    );
+    let values =
+        TestTensor::from_data(TensorData::from([[1.0, 1.0], [1.0, 1.0]]), &device).require_grad();
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([2, 0]), &device);
+    let weights = TestTensor::from_data(
+        TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        &device,
+    );
+
+    let result = tensor.select_assign(1, indices, values.clone(), IndexingUpdateOp::Min);
+    let grads = result.mul(weights).sum().backward();
+
+    // values win at tensor[.., 2] and tensor[.., 0].
+    let grad_values = values.grad(&grads).unwrap();
+    grad_values
+        .into_data()
+        .assert_eq(&TensorData::from([[3.0, 1.0], [6.0, 4.0]]), false);
+}

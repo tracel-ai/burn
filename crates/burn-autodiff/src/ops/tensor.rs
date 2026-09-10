@@ -1284,7 +1284,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         _checkpointer: &mut Checkpointer,
                     ) {
                         let (dim, data, values, indices, is_max) = ops.state;
-                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
 
                         let device = data.device();
                         let data_shape = data.shape();
@@ -1292,7 +1291,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let settings = get_device_settings::<B>(&device);
                         let bool_dtype = settings.bool_dtype;
 
-                        let data_at_idx = B::float_gather(dim, data, indices_4lhs.clone().unwrap());
+                        let data_at_idx = B::float_gather(dim, data.clone(), indices.clone());
 
                         let (data_won_bool, values_won_bool) = if is_max {
                             (
@@ -1318,22 +1317,24 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let values_won_float =
                             B::bool_into_float(values_won_bool, data_dtype.into());
 
-                        let ones = B::float_ones(data_shape, &device, data_dtype.into());
-                        let data_mask = B::float_scatter(
-                            dim,
-                            ones,
-                            indices_4lhs.unwrap(),
-                            data_won_float,
-                            IndexingUpdateOp::Assign,
-                        );
-
                         binary::<B, _, _>(
                             ops.parents,
                             ops.node,
                             grads,
-                            |grad| B::float_mul(grad, data_mask),
                             |grad| {
-                                let g_idx = B::float_gather(dim, grad, indices_4rhs.unwrap());
+                                let ones =
+                                    B::float_ones(data_shape.clone(), &device, data_dtype.into());
+                                let data_mask = B::float_scatter(
+                                    dim,
+                                    ones,
+                                    indices.clone(),
+                                    data_won_float,
+                                    IndexingUpdateOp::Assign,
+                                );
+                                B::float_mul(grad, data_mask)
+                            },
+                            |grad| {
+                                let g_idx = B::float_gather(dim, grad, indices.clone());
                                 B::float_mul(g_idx, values_won_float)
                             },
                         );
@@ -2118,7 +2119,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let tensor: FloatTensor<B> =
                             checkpointer.retrieve_node_output(tensor_state);
                         let values: FloatTensor<B> = checkpointer.retrieve_node_output(value_state);
-                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
 
                         let device = tensor.device();
                         let tensor_shape = tensor.shape();
@@ -2126,8 +2126,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let settings = get_device_settings::<B>(&device);
                         let bool_dtype = settings.bool_dtype;
 
-                        let data_at_idx =
-                            B::float_select(tensor, dim, indices_4lhs.clone().unwrap());
+                        let data_at_idx = B::float_select(tensor, dim, indices.clone());
 
                         let (data_won_bool, values_won_bool) = if is_max {
                             (
@@ -2153,22 +2152,27 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let values_won_float =
                             B::bool_into_float(values_won_bool, tensor_dtype.into());
 
-                        let ones = B::float_ones(tensor_shape, &device, tensor_dtype.into());
-                        let data_mask = B::float_select_assign(
-                            ones,
-                            dim,
-                            indices_4lhs.unwrap(),
-                            data_won_float,
-                            IndexingUpdateOp::Assign,
-                        );
-
                         binary::<B, _, _>(
                             ops.parents,
                             ops.node,
                             grads,
-                            |grad| B::float_mul(grad, data_mask),
                             |grad| {
-                                let g_idx = B::float_select(grad, dim, indices_4rhs.unwrap());
+                                let ones = B::float_ones(
+                                    tensor_shape.clone(),
+                                    &device,
+                                    tensor_dtype.into(),
+                                );
+                                let data_mask = B::float_select_assign(
+                                    ones,
+                                    dim,
+                                    indices.clone(),
+                                    data_won_float,
+                                    IndexingUpdateOp::Assign,
+                                );
+                                B::float_mul(grad, data_mask)
+                            },
+                            |grad| {
+                                let g_idx = B::float_select(grad, dim, indices.clone());
                                 B::float_mul(g_idx, values_won_float)
                             },
                         );

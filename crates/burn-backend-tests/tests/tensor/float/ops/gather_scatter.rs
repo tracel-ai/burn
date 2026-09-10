@@ -161,6 +161,36 @@ fn should_scatter_max_1d() {
 }
 
 #[test]
+fn should_scatter_min_1d_repeated_indices() {
+    let device = Default::default();
+    // index 1 receives 7 then 50 (keeps 7); index 0 receives 100 then 3 (keeps 3).
+    let tensor = TestTensor::<1>::from_data([10.0, 20.0, 30.0, 40.0], &device);
+    let values = TestTensor::from_data([7.0, 50.0, 100.0, 3.0], &device);
+    let indices = TestTensorInt::from_ints([1, 1, 0, 0], &device);
+
+    let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Min);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([3.0, 7.0, 30.0, 40.0]), false);
+}
+
+#[test]
+fn should_scatter_max_1d_repeated_indices() {
+    let device = Default::default();
+    // index 1 receives 7 then 50 (keeps 50); index 0 receives 100 then 3 (keeps 100).
+    let tensor = TestTensor::<1>::from_data([10.0, 20.0, 30.0, 40.0], &device);
+    let values = TestTensor::from_data([7.0, 50.0, 100.0, 3.0], &device);
+    let indices = TestTensorInt::from_ints([1, 1, 0, 0], &device);
+
+    let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Max);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([100.0, 50.0, 30.0, 40.0]), false);
+}
+
+#[test]
 fn should_scatter_mul_2d_dim0() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], &device);
