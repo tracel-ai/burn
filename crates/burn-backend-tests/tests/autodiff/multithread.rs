@@ -1,5 +1,6 @@
 use super::*;
-use burn_tensor::{TensorData, Tolerance};
+use burn_tensor::{Distribution, TensorData, Tolerance};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[test]
 // TODO: FIXME https://github.com/tracel-ai/burn/issues/4739
@@ -87,4 +88,59 @@ fn should_behave_the_same_with_multithread() {
     grad_2
         .into_data()
         .assert_approx_eq::<FloatElem>(&grad_2_moved.into_data(), Tolerance::default());
+}
+
+#[test]
+fn concurrent_backward_does_not_drop_reused_leaf_gradient() {
+    const ROUNDS: usize = 300;
+    const VICTIM_THREADS: usize = 6;
+    const SWEEPER_THREADS: usize = 6;
+
+    fn leaf(device: &burn_tensor::Device) -> TestTensor<2> {
+        TestTensor::<2>::random([256, 256], Distribution::Normal(0.0, 0.5), device).require_grad()
+    }
+
+    fn round(device: &burn_tensor::Device) -> bool {
+        let a = leaf(device);
+        let b = leaf(device);
+        let _ = a.clone().sum().backward();
+
+        let head = a.clone().tanh();
+        let output = TestTensor::cat(vec![head, b.clone().tanh()], 0);
+        let grads = output.sum().backward();
+
+        a.grad(&grads).is_some() && b.grad(&grads).is_some()
+    }
+
+    fn sweep(stop: &AtomicBool, device: &burn_tensor::Device) {
+        while !stop.load(Ordering::Relaxed) {
+            let _ = leaf(device).tanh().sum().backward();
+        }
+    }
+
+    let device = AutodiffDevice::new();
+    let stop = AtomicBool::new(false);
+    let failures = std::thread::scope(|scope| {
+        for _ in 0..SWEEPER_THREADS {
+            let stop = &stop;
+            let device = device.clone();
+            scope.spawn(move || sweep(stop, &device));
+        }
+
+        let handles = (0..VICTIM_THREADS)
+            .map(|_| {
+                let device = device.clone();
+                scope.spawn(move || (0..ROUNDS).filter(|_| !round(&device)).count())
+            })
+            .collect::<Vec<_>>();
+
+        let failures: usize = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .sum();
+        stop.store(true, Ordering::Relaxed);
+        failures
+    });
+
+    assert_eq!(failures, 0, "{failures} rounds lost a gradient");
 }
