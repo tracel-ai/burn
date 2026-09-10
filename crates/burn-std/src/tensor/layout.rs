@@ -13,7 +13,6 @@
 //! pitched or tile-aligned allocation leaves under a dimension, which is enough
 //! to decide what order to iterate in.
 
-use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::Shape;
@@ -105,6 +104,7 @@ pub fn is_contiguous_order(order: &[usize]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn contiguous_is_the_identity_order() {
