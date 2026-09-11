@@ -931,6 +931,7 @@ name = "burn-autodiff"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn-backend",
+ "burn-flex",
  "burn-std",
  "derive-new",
  "hashbrown 0.16.1",

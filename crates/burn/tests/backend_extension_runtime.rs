@@ -450,19 +450,20 @@ mod autodiff_gradients {
             }
 
             match MulPairBackward
-                .prepare::<C>([p.x.node.clone(), p.y.node.clone()])
+                .prepare::<C>([p.x.node(), p.y.node()])
                 .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => {
-                    let x = p.x.primitive.clone();
-                    let y = p.y.primitive.clone();
+                    let x = p.x.primitive().clone();
+                    let y = p.y.primitive().clone();
                     let output = NdArray::float_mul(x.clone(), y.clone());
                     prep.finish((x, y), output)
                 }
-                OpsKind::UnTracked(prep) => {
-                    prep.finish(NdArray::float_mul(p.x.primitive, p.y.primitive))
-                }
+                OpsKind::UnTracked(prep) => prep.finish(NdArray::float_mul(
+                    p.x.into_primitive(),
+                    p.y.into_primitive(),
+                )),
             }
         }
     }

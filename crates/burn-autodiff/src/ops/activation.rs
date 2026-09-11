@@ -38,7 +38,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Gelu
-            .prepare::<C>([tensor.node.clone()])
+            .prepare::<C>([tensor.node()])
             .memory_bound()
             .retro_forward(RetroGelu::<B>::new(tensor.node.id))
             .parents([&tensor])
@@ -75,7 +75,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Relu
-            .prepare::<C>([tensor.node.clone()])
+            .prepare::<C>([tensor.node()])
             .memory_bound()
             .retro_forward(RetroRelu::<B>::new(tensor.node.id))
             .parents([&tensor])
@@ -113,7 +113,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Sigmoid
-            .prepare::<C>([tensor.node.clone()])
+            .prepare::<C>([tensor.node()])
             .memory_bound()
             .retro_forward(RetroSigmoid::<B>::new(tensor.node.id))
             .parents([&tensor])
@@ -151,7 +151,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match LogSigmoid
-            .prepare::<C>([tensor.node.clone()])
+            .prepare::<C>([tensor.node()])
             .memory_bound()
             .retro_forward(RetroLogSigmoid::<B>::new(tensor.node.id))
             .parents([&tensor])
