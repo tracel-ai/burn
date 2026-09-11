@@ -18,6 +18,10 @@ pub trait Step: Send + core::fmt::Debug {
     /// Returns the [`DistributedParams`] of the node's tensor associated to the step.
     ///
     /// Defaults to `None`; steps that carry distributed parameters override this.
+    #[cfg_attr(
+        not(feature = "std"),
+        allow(dead_code, reason = "distributed backward requires std")
+    )]
     fn distributed_params(&self) -> Option<DistributedParams> {
         None
     }

@@ -112,7 +112,7 @@ impl<B: Backend> BackendTensor<B> {
     /// Returns the inner autodiff tensor primitive.
     pub fn autodiff_inner(self) -> B::FloatTensorPrimitive {
         match self {
-            BackendTensor::Autodiff(tensor) => tensor.primitive,
+            BackendTensor::Autodiff(tensor) => tensor.into_primitive(),
             _ => unreachable!(),
         }
     }

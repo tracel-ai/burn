@@ -2,6 +2,7 @@ use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::{BackwardMode, Gradients},
     graph::{ComputingProperty, Node, NodeId, NodeRef, Parent, Requirement, Step},
+    ops::NodeGuard,
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 #[cfg(feature = "std")]
@@ -12,11 +13,50 @@ use burn_std::sync::Arc;
 
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 
+/// A backend tensor with autodiff ownership.
+///
+/// Use [`Self::node`] to prepare dependent operations and [`Self::primitive`] to
+/// borrow the backend primitive. [`Self::into_parts`] moves both out together.
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: BackendTypes> {
-    pub primitive: B::FloatTensorPrimitive,
-    pub node: NodeRef,
-    pub rc: NodeRefCount,
+    pub(crate) primitive: B::FloatTensorPrimitive,
+    pub(crate) node: NodeRef,
+    pub(crate) rc: NodeRefCount,
+}
+
+impl<B: BackendTypes> AutodiffTensor<B> {
+    /// Returns a guard that keeps this node available while preparing a dependent operation.
+    ///
+    /// Pass it to [`crate::ops::Backward::prepare`] before consuming the primitive.
+    pub fn node(&self) -> NodeGuard {
+        NodeGuard::new(self.node.clone(), self.rc.clone())
+    }
+
+    /// Returns the node identifier without retaining the node.
+    pub fn id(&self) -> NodeId {
+        self.node.id
+    }
+
+    /// Borrows the inner backend's tensor primitive.
+    pub fn primitive(&self) -> &B::FloatTensorPrimitive {
+        &self.primitive
+    }
+
+    /// Consumes the tensor, releasing its autodiff reference.
+    ///
+    /// When recording a dependent operation, obtain a guard with [`Self::node`]
+    /// first, or use [`Self::into_parts`] to keep the input available.
+    pub fn into_primitive(self) -> B::FloatTensorPrimitive {
+        self.primitive
+    }
+
+    /// Moves out the primitive and its node guard without cloning either.
+    ///
+    /// Pass the guard to the operation's preparation so it remains alive through
+    /// child registration. Do not store it in backward or checkpoint state.
+    pub fn into_parts(self) -> (B::FloatTensorPrimitive, NodeGuard) {
+        (self.primitive, NodeGuard::new(self.node, self.rc))
+    }
 }
 
 impl<B: BackendTypes> TensorMetadata for AutodiffTensor<B> {
@@ -174,7 +214,7 @@ impl<B: Backend> AutodiffTensor<B> {
     }
 
     /// Create a tensor from parent infos.
-    pub fn from_parents(
+    pub(crate) fn from_parents(
         primitive: B::FloatTensorPrimitive,
         parent_nodes: &[NodeRef],
         requirement: Requirement,
@@ -218,8 +258,9 @@ impl<B: Backend> AutodiffTensor<B> {
     ///
     /// # Warning
     ///
-    /// This should be called only once per tensor.
-    pub fn register_step<S: Step + 'static>(
+    /// This should be called only once per tensor. Custom operations must keep
+    /// their input `NodeGuard`s alive until this method returns.
+    pub(crate) fn register_step<S: Step + 'static>(
         self,
         step_that_created_the_tensor: S,
         actions: CheckpointerBuilder,
@@ -230,10 +271,6 @@ impl<B: Backend> AutodiffTensor<B> {
             actions,
         );
         self
-    }
-
-    pub fn into_primitive(self) -> B::FloatTensorPrimitive {
-        self.primitive
     }
 
     #[cfg(not(feature = "std"))]
