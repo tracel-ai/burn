@@ -1403,7 +1403,6 @@ where
     let [kernel_d, kernel_h, kernel_w] = kernel_size;
     let [stride_d, stride_h, stride_w] = stride;
     let [pad_d, pad_h, pad_w] = padding;
-    let kernel_volume = kernel_d * kernel_h * kernel_w;
 
     let grad_shape = grad.layout().shape();
     let out_d = grad_shape[2];
@@ -1446,7 +1445,10 @@ where
                         }
 
                         let divisor = if count_include_pad {
-                            kernel_volume
+                            let pd_len = padded_len_avgpool(od, kernel_d, stride_d, pad_d, in_d);
+                            let ph_len = padded_len_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
+                            let pw_len = padded_len_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+                            (pd_len * ph_len * pw_len).max(1)
                         } else {
                             count.max(1)
                         };
@@ -1832,6 +1834,31 @@ mod tests {
         assert_eq!(grad_data[13], 1.0);
         assert_eq!(grad_data[15], 1.0);
         assert_eq!(grad_data[0], 0.0);
+    }
+
+    #[test]
+    fn test_avg_pool3d_backward_ceil_mode_nonuniform_gradient() {
+        for count_include_pad in [true, false] {
+            let x = FlexTensor::from_data(TensorData::new(vec![1.0f32; 27], [1, 1, 3, 3, 3]));
+            let output = avg_pool3d_f32(x.clone(), [3; 3], [3; 3], [1; 3], count_include_pad, true);
+            let grad = FlexTensor::from_data(TensorData::new(
+                vec![216.0f32, 144.0, 144.0, 96.0, 144.0, 96.0, 96.0, 64.0],
+                output.layout().shape().clone(),
+            ));
+            let actual =
+                avg_pool3d_backward_f32(x, grad, [3; 3], [3; 3], [1; 3], count_include_pad);
+            let actual: Vec<f32> = actual.into_data().try_into_vec().unwrap();
+            let expected = if count_include_pad {
+                vec![8.0; 27]
+            } else {
+                vec![
+                    27.0, 27.0, 36.0, 27.0, 27.0, 36.0, 36.0, 36.0, 48.0, 27.0, 27.0, 36.0, 27.0,
+                    27.0, 36.0, 36.0, 36.0, 48.0, 36.0, 36.0, 48.0, 36.0, 36.0, 48.0, 48.0, 48.0,
+                    64.0,
+                ]
+            };
+            assert_eq!(actual, expected);
+        }
     }
 
     #[test]
