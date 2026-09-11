@@ -84,7 +84,10 @@ pub(crate) fn handle_backend_tests(
         test_args.extend(["--features", "std"])
     }
 
-    let linalg_test_args = test_args.clone();
+    let mut linalg_test_args = test_args.clone();
+    if !matches!(context, Context::NoStd) {
+        linalg_test_args.extend(["--features", "autotune"]);
+    }
 
     if matches!(backend, TestBackend::Cuda) {
         // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
