@@ -18,6 +18,7 @@ workspace = true
 default = ["burn-core/default", "flex", "cubecl-backend", "fusion", "std"]
 std = ["burn-core/std", "burn-std/std", "burn-fusion?/std"]
 tracing = ["burn-core/tracing", "burn-fusion?/tracing"]
+autotune = ["burn-core/autotune", "burn-cubecl?/autotune"]
 
 cubecl-backend = ["burn-cubecl"]
 fusion = ["burn-fusion", "burn-core/fusion"]

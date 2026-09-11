@@ -1322,6 +1322,22 @@ pub fn select_add_i64(
 
 // Bool-specific operations
 
+/// Select OR for bool tensors: ORs values into tensor at positions specified by 1D indices.
+pub fn select_or(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    let dtype = tensor.dtype();
+    let result =
+        select_update::<u8, _>(tensor, dim, indices, value, "select_or", |target, value| {
+            *target |= value
+        });
+    // The shared update kernel tags its output as u8; retain the input's bool dtype.
+    FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
+}
+
 pub fn gather_bool(tensor: FlexTensor, dim: usize, indices: FlexTensor) -> FlexTensor {
     gather::<u8>(tensor, dim, indices)
 }
