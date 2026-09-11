@@ -3870,10 +3870,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     });
             }
 
-            fn node(&self) -> NodeId {
-                self.output.id
-            }
-
             fn parents(&self) -> &[Parent] {
                 &self.parents
             }
@@ -3918,15 +3914,12 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         let output =
             AutodiffTensor::from_parents(output, &nodes, requirement, cat_computing_property);
 
-        let mut parents = Vec::new();
+        let parents = output.node.parents.clone();
 
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
-        for node in nodes.iter().flatten() {
-            parents.push(Parent { id: node.id });
-        }
         let ops = CatStep::<B>::new(nodes, dim_sizes, output.node.clone(), dim, parents);
         register_step(guards, output, ops, checkpointer_builder)
     }

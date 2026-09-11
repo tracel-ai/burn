@@ -220,6 +220,7 @@ fn backward_rejects_an_untracked_operation() {
     let _ = constant.backward();
 }
 
+#[cfg(feature = "quantization")]
 #[test]
 #[cfg(feature = "quantization")]
 fn quantized_tensors_never_retain_gradients() {

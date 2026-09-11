@@ -323,10 +323,6 @@ where
         self.backward.backward(self.ops, grads, checkpointer);
     }
 
-    fn node(&self) -> NodeId {
-        self.ops.node.id
-    }
-
     fn parents(&self) -> &[Parent] {
         &self.ops.node.parents
     }
@@ -348,10 +344,6 @@ struct UntrackedOpsStep<const N: usize> {
 impl<const N: usize> Step for UntrackedOpsStep<N> {
     fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         // Nothing to do
-    }
-
-    fn node(&self) -> NodeId {
-        self.ops.node.id
     }
 
     fn parents(&self) -> &[Parent] {

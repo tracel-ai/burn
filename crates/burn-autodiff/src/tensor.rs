@@ -95,10 +95,6 @@ impl Step for RootStep {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeId {
-        self.node.id
-    }
-
     fn parents(&self) -> &[Parent] {
         &self.node.parents
     }
@@ -124,10 +120,6 @@ struct DistributedRootStep {
 impl Step for DistributedRootStep {
     fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         // Root steps have no gradient computation.
-    }
-
-    fn node(&self) -> NodeId {
-        self.root.node()
     }
 
     fn parents(&self) -> &[Parent] {
@@ -236,7 +228,7 @@ impl<B: Backend> AutodiffTensor<B> {
             parent_nodes
                 .iter()
                 .filter_map(|node| node.clone_if_require_grad())
-                .map(|node| Parent::new(node.id))
+                .map(|node| Parent::new(node.id, node.order == 0))
                 .collect(),
             order,
             NodeId::new(),

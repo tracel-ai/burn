@@ -9,7 +9,7 @@ use crate::{
     grads::{BackwardMode, Gradients},
     graph::{
         NodeRef, StepBoxed,
-        traversal::{BreadthFirstSearch, TraversalItem},
+        traversal::{GraphTraversal, TraversalItem},
     },
     tensor::NodeRefCount,
 };
@@ -66,18 +66,21 @@ impl AutodiffServer {
         node_id: NodeId,
         mode: BackwardMode,
     ) -> Gradients {
-        let step = self.steps.remove(&node_id).expect(
-            "Node should have a step registered, did you forget to call \
-             `Tensor::register_grad` on the tensor where you need gradients?",
-        );
-        let builder = self.actions_builder.remove(&node_id).unwrap();
+        // The graph mutex stays locked through validation and consumption. Reject invalid
+        // ancestry before removing even the root so fresh branches survive the rejection.
+        let nodes = GraphTraversal
+            .collect_steps(node_id, &self.steps)
+            .unwrap_or_else(|missing| {
+                panic!(
+                    "Cannot run backward: graph tape has already been consumed at {missing}. \
+                     Burn does not support retain_graph. Combine losses before backward or \
+                     recompute the forward pass. Use detach() only to intentionally sever \
+                     gradients through the previous computation."
+                );
+            });
 
-        let mut consumed = Vec::new();
         let tape_result = self.build_tape(
-            node_id,
-            step,
-            builder,
-            &mut consumed,
+            &nodes,
             #[cfg(feature = "std")]
             core::any::TypeId::of::<B>(),
         );
@@ -93,12 +96,12 @@ impl AutodiffServer {
 
         let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
 
-        self.cleanup::<NC>(&consumed);
+        self.cleanup::<NC>(&nodes);
 
         gradients
     }
 
-    fn cleanup<NC: NodeCleaner>(&mut self, consumed: &Vec<NodeId>) {
+    fn cleanup<NC: NodeCleaner>(&mut self, consumed: &[NodeId]) {
         let mut cleaner = NC::init();
         self.memory_management
             .free_unavailable_nodes(|node_id: &NodeId| {
@@ -121,16 +124,15 @@ impl AutodiffServer {
 
     fn build_tape(
         &mut self,
-        node: NodeId,
-        node_step: StepBoxed,
-        mut builder: CheckpointerBuilder,
-        consumed: &mut Vec<NodeId>,
+        nodes: &[NodeId],
         #[cfg(feature = "std")] root_backend: core::any::TypeId,
     ) -> TapeResult {
-        let mut tape = (0..node_step.depth() + 1)
+        let root_depth = self.steps[&nodes[0]].depth();
+        let mut tape = (0..root_depth + 1)
             .map(|_| Vec::with_capacity(1))
             .collect::<Vec<_>>();
 
+        let mut builder = CheckpointerBuilder::default();
         let mut tree = HashMap::default();
 
         #[cfg(feature = "std")]
@@ -138,10 +140,14 @@ impl AutodiffServer {
         #[cfg(feature = "std")]
         let mut distributed_params = HashMap::default();
 
-        BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
+        // Ancestry and duplicate visits were already handled by collect_steps. Reuse its
+        // order instead of walking the graph again; the same IDs are used for cleanup.
+        for &id in nodes {
+            let step = self
+                .steps
+                .remove(&id)
+                .expect("Validated steps must remain registered until tape construction");
             self.memory_management.consume_node(id);
-            // Clean up consumed node
-            consumed.push(id);
 
             let depth = step.depth();
 
@@ -177,7 +183,7 @@ impl AutodiffServer {
             if let Some(node_builder) = self.actions_builder.remove(&id) {
                 builder.extend(node_builder);
             }
-        });
+        }
 
         let checkpointer = builder.build(NodeTree::new(tree));
         #[cfg(feature = "std")]

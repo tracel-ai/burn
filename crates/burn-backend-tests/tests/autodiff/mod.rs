@@ -44,6 +44,7 @@ mod gather_scatter;
 mod gather_scatter_nd;
 mod gelu;
 mod gradients;
+mod graph_reuse;
 mod hypot;
 mod linear;
 mod log;
