@@ -95,10 +95,6 @@ impl Step for RootStep {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeId {
-        self.node.id
-    }
-
     fn parents(&self) -> &[Parent] {
         &self.node.parents
     }
@@ -124,10 +120,6 @@ struct DistributedRootStep {
 impl Step for DistributedRootStep {
     fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         // Root steps have no gradient computation.
-    }
-
-    fn node(&self) -> NodeId {
-        self.root.node()
     }
 
     fn parents(&self) -> &[Parent] {

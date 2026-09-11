@@ -3870,10 +3870,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     });
             }
 
-            fn node(&self) -> NodeId {
-                self.output.id
-            }
-
             fn parents(&self) -> &[Parent] {
                 &self.parents
             }
