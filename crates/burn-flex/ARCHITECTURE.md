@@ -84,15 +84,21 @@ Measured via `cargo bench -p burn-flex --bench {matmul,attention,conv_ops}` with
 | --------------------------------------- | --------------- | ------------------- | -------- |
 | matmul 1024×1024 f32                    | 7.0x            | 1.7x                | **12.2x** |
 | matmul 512×512 f32                      | 3.8x            | 1.5x                | 5.8x     |
-| attention self b1·h32·s256·d128         | 1.0x            | 2.0x                | 2.0x     |
-| attention self b1·h12·s512·d64          | 1.0x            | 1.6x                | 1.6x     |
+| attention self b1·h32·s256·d128         | TBD (#5612)     | TBD (#5612)                | TBD      |
+| attention self b1·h12·s512·d64          | TBD (#5612)     | TBD (#5612)                | TBD      |
 | conv2d first_layer 4×3×224×224 k7×7 s2  | 9.8x            | 1.2x                | **11.6x** |
 | conv2d large 16×128×64×64 k3×3          | 7.7x            | 1.5x                | 11.1x    |
 | conv2d k7×7                             | 6.5x            | 1.4x                | 9.2x     |
 
 Notes:
-- Attention ops currently see no rayon uplift; the per-head matmul pipeline does not
-  propagate `Parallelism::Rayon` to gemm. AMX still delivers a standalone speedup.
+- Attention now parallelizes over `(batch, head)` slices via
+  `par_chunks_exact_mut(o_head_stride).enumerate().for_each_init(...)`. Flash
+  attention initializes `ScratchBuffers` per job split for efficient scratch reuse
+  across chunks; naive attention reuses a thread-local `Vec<T>` score buffer the
+  same way. GEMMs inside each head stay single-threaded (`Parallelism::None`) to
+  prevent nested Rayon pool contention. Benchmark numbers marked TBD should be
+  re-measured after #5612. AMX still delivers a standalone speedup on top of
+  the outer Rayon parallelism.
 - Small shapes (e.g. `batch8_64x64` matmul, `depthwise_k3_8x32x512` conv1d) can regress
   under rayon due to thread-spawn overhead; a size-based gating in the matmul/conv
   paths would recover those without losing the large-shape wins.
