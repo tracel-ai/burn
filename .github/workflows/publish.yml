@@ -408,12 +408,21 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
+  publish-pytorch-reader:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
+    with:
+      crate: pytorch-reader
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-store:
     needs:
       - publish-burn-core
       - publish-burn-pack
       - publish-burn-tensor
       - publish-burn-nn
+      - publish-pytorch-reader
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
     with:
       crate: burn-store

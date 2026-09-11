@@ -39,11 +39,12 @@ wgpu = ["burn-core/wgpu"]
 
 safetensors = ["dep:safetensors"]
 
-pytorch = ["std", "zip", "serde", "tar", "dep:thiserror", "dep:num-traits"]
+pytorch = ["std", "dep:pytorch-reader"]
 
 [dependencies]
 burn-core = { workspace = true }
 burn-pack = { workspace = true }
+pytorch-reader = { workspace = true, optional = true }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
@@ -52,13 +53,8 @@ ciborium = { workspace = true, optional = true }
 half = { workspace = true }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
-num-traits = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
 textdistance = { workspace = true }
-thiserror = { workspace = true, optional = true }
-zip = { workspace = true, optional = true }
-tar = { workspace = true, optional = true }
 
 # Workaround to force broken minor version to update
 

@@ -1407,15 +1407,11 @@ dependencies = [
  "half",
  "hashbrown 0.16.1",
  "memmap2",
- "num-traits",
+ "pytorch-reader",
  "regex",
  "safetensors 0.7.0",
- "serde",
- "tar",
  "tempfile",
  "textdistance",
- "thiserror 2.0.20",
- "zip 8.6.0",
 ]
 
 [[package]]
@@ -8497,6 +8493,21 @@ name = "pxfm"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
+
+[[package]]
+name = "pytorch-reader"
+version = "0.22.0-pre.3"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "half",
+ "num-traits",
+ "serde",
+ "tar",
+ "tempfile",
+ "thiserror 2.0.20",
+ "zip 8.6.0",
+]
 
 [[package]]
 name = "pytorch-tests"
