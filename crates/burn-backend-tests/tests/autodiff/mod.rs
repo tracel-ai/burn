@@ -19,6 +19,7 @@ mod cat;
 mod ceil;
 mod checkpoint;
 mod complex;
+mod context;
 mod conv1d;
 mod conv2d;
 mod conv3d;
