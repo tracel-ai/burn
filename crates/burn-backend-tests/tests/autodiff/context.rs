@@ -27,7 +27,10 @@ fn gradient_flows_to_enabled_operand_but_not_disabled_constant() {
     x.grad(&grads)
         .expect("the enabled operand should receive a gradient")
         .into_data()
-        .assert_eq(&TensorData::from([4.0f32, 5.0]), true);
+        .assert_eq(
+            &TensorData::from([4.0f32, 5.0]).convert::<FloatElem>(),
+            true,
+        );
 
     // Context merging is operation-local: the concrete operand is neither mutated nor added to
     // the graph, and remains unavailable as a gradient target.
@@ -203,10 +206,10 @@ fn untracked_alias_cannot_read_or_remove_a_leaf_gradient() {
     assert!(!constant.is_tracked());
     assert!(constant.grad(&grads).is_none());
     assert!(constant.grad_remove(&mut grads).is_none());
-    leaf.grad_remove(&mut grads)
-        .unwrap()
-        .into_data()
-        .assert_eq(&TensorData::from([2.0f32, 2.0]), true);
+    leaf.grad_remove(&mut grads).unwrap().into_data().assert_eq(
+        &TensorData::from([2.0f32, 2.0]).convert::<FloatElem>(),
+        true,
+    );
 }
 
 #[test]
