@@ -1,6 +1,52 @@
 use super::*;
 use burn_tensor::module::avg_pool1d;
-use burn_tensor::{Shape, Tolerance};
+use burn_tensor::{Shape, TensorData, Tolerance};
+
+#[test]
+fn test_avg_pool1d_backward_writes_every_channel() {
+    let device = AutodiffDevice::new();
+    let poison =
+        TestTensor::<2>::from_data(TensorData::new(vec![1234.5; 8192], [64, 128]), &device);
+    let _ = (poison.clone() * poison).sum().into_data();
+
+    for channels in [2, 4] {
+        let x = TestTensor::<3>::from_data(
+            TensorData::new(
+                (0..channels * 6)
+                    .map(|index| index as f32 * 0.1 + 0.5)
+                    .collect(),
+                [1, channels, 6],
+            ),
+            &device,
+        )
+        .require_grad();
+        let output = avg_pool1d(x.clone(), 3, 2, 1, true, false);
+        let grads = output.sum().backward();
+        let actual = x.grad(&grads).unwrap();
+        let expected = TestTensor::<3>::from_data(
+            TensorData::new(
+                vec![
+                    1.0 / 3.0,
+                    2.0 / 3.0,
+                    1.0 / 3.0,
+                    2.0 / 3.0,
+                    1.0 / 3.0,
+                    1.0 / 3.0,
+                ]
+                .into_iter()
+                .cycle()
+                .take(channels * 6)
+                .collect(),
+                [1, channels, 6],
+            ),
+            &device,
+        );
+
+        expected
+            .to_data()
+            .assert_approx_eq::<FloatElem>(&actual.into_data(), Tolerance::default());
+    }
+}
 
 #[test]
 fn test_avg_pool1d_simple() {
