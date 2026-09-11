@@ -7,13 +7,13 @@ use crate::{
 use alloc::{vec, vec::Vec};
 
 /// Breadth for search algorithm.
-pub struct BreadthFirstSearch;
+pub struct GraphTraversal;
 
 pub trait TraversalItem {
     fn parents(&self) -> &[Parent];
 }
 
-impl BreadthFirstSearch {
+impl GraphTraversal {
     /// Validate ancestry and collect each available step once, starting with the root.
     ///
     /// A missing leaf step is harmless: gradients terminate there. Every non-leaf must

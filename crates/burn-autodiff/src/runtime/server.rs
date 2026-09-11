@@ -9,7 +9,7 @@ use crate::{
     grads::{BackwardMode, Gradients},
     graph::{
         NodeRef, StepBoxed,
-        traversal::{BreadthFirstSearch, TraversalItem},
+        traversal::{GraphTraversal, TraversalItem},
     },
     tensor::NodeRefCount,
 };
@@ -68,7 +68,7 @@ impl AutodiffServer {
     ) -> Gradients {
         // The graph mutex stays locked through validation and consumption. Reject invalid
         // ancestry before removing even the root so fresh branches survive the rejection.
-        let nodes = BreadthFirstSearch
+        let nodes = GraphTraversal
             .collect_steps(node_id, &self.steps)
             .unwrap_or_else(|missing| {
                 panic!(
