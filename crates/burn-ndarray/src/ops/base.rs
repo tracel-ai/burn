@@ -317,6 +317,9 @@ where
         Self::scatter_extreme(dim, tensor, indices, value, |out, value| value > *out)
     }
 
+    /// Shared traversal for the Min/Max scatter variants. `replace` decides whether
+    /// the incoming value overwrites the destination; its comparison defines the
+    /// NaN handling, matching the `scatter_nd` Min/Max reductions.
     fn scatter_extreme<I: NdArrayElement, F>(
         dim: usize,
         mut tensor: SharedArray<E>,
@@ -345,9 +348,8 @@ where
 
         if shape_value != shape_indices {
             panic!(
-                "Invalid dimension: the shape of the index tensor should be the same as the value \
-                 tensor: Index {:?} value {:?}",
-                shape_indices, shape_value
+                "scatter_min/scatter_max: the indices and value tensors must have the same shape, \
+                 but got indices {shape_indices:?} and value {shape_value:?}"
             );
         }
 
@@ -1227,6 +1229,9 @@ where
         Self::select_assign_extreme(tensor, dim, indices, value, |a, b| *b > *a)
     }
 
+    /// Shared traversal for the Min/Max select_assign variants. `replace` decides
+    /// whether the incoming value overwrites the destination; its comparison defines
+    /// the NaN handling.
     fn select_assign_extreme<I: NdArrayElement, F>(
         tensor: SharedArray<E>,
         dim: usize,
@@ -1237,6 +1242,32 @@ where
     where
         F: Fn(&mut E, &E) -> bool,
     {
+        let ndims = tensor.shape().num_dims();
+        assert!(
+            dim < ndims,
+            "select_assign_min/select_assign_max: dim {dim} is out of bounds for a {ndims}-D tensor"
+        );
+        assert_eq!(
+            indices.shape().num_dims(),
+            1,
+            "select_assign_min/select_assign_max: indices must be 1D, got shape {:?}",
+            indices.shape()
+        );
+        assert_eq!(
+            value.shape().num_dims(),
+            ndims,
+            "select_assign_min/select_assign_max: value rank ({}) must match tensor rank ({ndims})",
+            value.shape().num_dims()
+        );
+        assert_eq!(
+            value.shape()[dim],
+            indices.shape()[0],
+            "select_assign_min/select_assign_max: value dim {dim} ({}) must equal the number of \
+             indices ({})",
+            value.shape()[dim],
+            indices.shape()[0]
+        );
+
         let mut output_array = tensor.into_owned();
 
         for (index_value, index) in indices.into_iter().enumerate() {
