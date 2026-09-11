@@ -1248,6 +1248,8 @@ mod tests {
     fn test_float_remainder_inf_and_tiny() {
         use burn_backend::ops::FloatTensorOps;
 
+        // `((a % b) + b) % b` rounds `-1e-20 + 1.0` to 1.0 then wraps to 0.0,
+        // and `-1.0 % inf` becomes NaN. 5 % -3 keeps the divisor's sign.
         let a = crate::FlexTensor::from_data(TensorData::new(vec![-1e-20f32, -1.0, 5.0], [3]));
         let b =
             crate::FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::INFINITY, -3.0], [3]));

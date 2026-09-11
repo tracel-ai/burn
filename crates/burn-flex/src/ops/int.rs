@@ -1329,7 +1329,8 @@ mod tests {
 
     #[test]
     fn test_int_remainder_overflow() {
-        // (MAX-1)+MAX and MIN % -1 overflow without wrapping
+        // `(a % b) + b` overflows for (MAX-1) % MAX; `i64::MIN % -1` overflows
+        // before the sign fix-up. wrapping_rem/add must not panic.
         let a = FlexTensor::from_data(TensorData::new(vec![i64::MAX - 1, i64::MIN], [2]));
         let b = FlexTensor::from_data(TensorData::new(vec![i64::MAX, -1], [2]));
         let result = Flex::int_remainder(a, b);
