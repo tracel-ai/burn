@@ -99,6 +99,9 @@ pub fn matmul_autotune(
         const PRIORITY_MIN: i8 = 0;
         const PRIORITY_NEVER: i8 = -1;
 
+        /// Stride factor of the 16-byte alignment the async-copy and TMA loaders require.
+        const ASYNC_COPY_STRIDE_FACTOR: u8 = 4;
+
         let accelerated = TuneGroup::<MatmulAutotuneKey>::new("accelerated", |key| {
             if matches!(key.analysis.kind, MatmulKind::General) {
                 match key.analysis.scale_global {
@@ -154,7 +157,9 @@ pub fn matmul_autotune(
                 PRIORITY_HIGH
             };
 
-            if key.definition.lhs_stride_factor >= 4 && key.definition.rhs_stride_factor >= 4 {
+            if key.definition.lhs_stride_factor >= ASYNC_COPY_STRIDE_FACTOR
+                && key.definition.rhs_stride_factor >= ASYNC_COPY_STRIDE_FACTOR
+            {
                 priority_max
             } else {
                 PRIORITY_NEVER
@@ -550,6 +555,17 @@ pub fn matmul_autotune(
                 TileMatmulKind::Mma,
             ),
         ] {
+            // Strategies reading through an async-copy loader need both operands strided on a
+            // 16-byte boundary, which the loader validates against the real strides when the
+            // kernel is set up. The TMA strategies are gated on that threshold through the
+            // `tma` group; the specialized cyclic ones are only in `accelerated`, so without
+            // this an under-aligned problem can select them and fail once autotune has already
+            // committed to the winner.
+            let needs_aligned_strides = matches!(
+                strategy,
+                Strategy::SpecializedCyclicCmma(_) | Strategy::SpecializedCyclicMma(_)
+            );
+
             let mut tunable = Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
                 launch_matmul::<_>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
             });
@@ -561,6 +577,13 @@ pub fn matmul_autotune(
             let accelerated_priority = move |key: &MatmulAutotuneKey, client: &Client| {
                 if !tile_matmul_supported(client, tile_matmul, &key.definition) {
                     return PRIORITY_MIN;
+                }
+
+                if needs_aligned_strides
+                    && (key.definition.lhs_stride_factor < ASYNC_COPY_STRIDE_FACTOR
+                        || key.definition.rhs_stride_factor < ASYNC_COPY_STRIDE_FACTOR)
+                {
+                    return PRIORITY_NEVER;
                 }
 
                 match double_buf {
