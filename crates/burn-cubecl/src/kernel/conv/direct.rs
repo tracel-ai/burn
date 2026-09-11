@@ -1,9 +1,3 @@
-//! The burn side of the direct convolution routine.
-//!
-//! The kernel itself lives in `cubek-convolution`, beside the depthwise routine and the
-//! accelerated ones. What stays here is what a tensor library owns rather than a kernel: making
-//! the operands contiguous along the channel, and allocating the result.
-
 use crate::{
     kernel::into_contiguous_aligned, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
@@ -71,8 +65,6 @@ pub fn conv_direct<const N: usize>(
     let client = input.client.clone();
     let dtype = dtype_to_storage_type(out_dtype);
 
-    // The routine reads the problem off the bindings, so the shapes it sizes its launch from are
-    // the shapes the kernel addresses.
     let tensors = DirectTensors {
         input: input.binding(),
         weight: weight.binding(),
