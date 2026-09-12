@@ -14,8 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use zip::ZipArchive;
 
-use super::reader::PytorchError;
-use burn_pack::MAX_METADATA_SIZE;
+use crate::{MAX_PICKLE_SIZE, PytorchError};
 
 /// Largest `version`, `byteorder` or similar text entry accepted.
 const MAX_TEXT_ENTRY_SIZE: u64 = 4096;
@@ -158,10 +157,10 @@ impl ZipSource {
         Ok(data_size)
     }
 
-    /// The `data.pkl` bytes. Refused beyond burn-pack's metadata ceiling, since a deflated
-    /// entry can claim any decompressed size.
+    /// The `data.pkl` bytes. Refused beyond [`MAX_PICKLE_SIZE`], since a deflated entry can
+    /// claim any decompressed size.
     pub fn pickle(&self) -> io::Result<Vec<u8>> {
-        self.read_entry(&format!("{}data.pkl", self.root), MAX_METADATA_SIZE as u64)
+        self.read_entry(&format!("{}data.pkl", self.root), MAX_PICKLE_SIZE)
     }
 
     /// A small text entry next to `data.pkl` (`version`, `byteorder`, ...), trimmed, if the

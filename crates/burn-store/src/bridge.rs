@@ -8,7 +8,8 @@
 //! This module is the seam where burn-core's [`TensorData`] meets those raw bytes. The lazy
 //! paths are the load-bearing ones: a tensor built by [`from_tensor`] holds the
 //! (reference-counted) device tensor and reads it back only when the bytes are finally drawn,
-//! and [`map_data`] composes a transform onto a byte source without materializing it.
+//! [`map_data`] composes a transform onto a byte source without materializing it, and
+//! `from_pytorch` (with the `pytorch` feature) leaves a checkpoint tensor's bytes unread.
 
 use alloc::format;
 use alloc::string::String;
@@ -192,6 +193,54 @@ pub fn map_data(
     deferred(name, dtype, shape, param_id, move || {
         to_data(&tensor).map(&f)
     })
+}
+
+/// Wrap a PyTorch checkpoint tensor, leaving its bytes unread until they are drawn.
+///
+/// PyTorch carries no parameter identity, so `param_id` stays `None`. Takes the tensor by
+/// value for the same reason [`map_data`] does.
+#[cfg(feature = "pytorch")]
+pub fn from_pytorch(tensor: pytorch_reader::Tensor) -> PackTensor {
+    use std::io::ErrorKind;
+
+    let (name, dtype, shape, read) = tensor.into_parts();
+    let dtype = pytorch_dtype(dtype);
+    let shape = Shape::from(shape);
+    let declared = shape.clone();
+
+    deferred(name, dtype, shape, None, move || {
+        // `Tensor::read` documents the split: these two kinds mean the file disagrees with
+        // itself, any other that the operating system could not read it.
+        let bytes = read().map_err(|err| match err.kind() {
+            ErrorKind::InvalidData | ErrorKind::UnexpectedEof => {
+                PackError::ValidationError(err.to_string())
+            }
+            _ => PackError::IoError(err.to_string()),
+        })?;
+        Ok(TensorData::from_bytes_vec(bytes, declared.clone(), dtype))
+    })
+}
+
+#[cfg(feature = "pytorch")]
+fn pytorch_dtype(dtype: pytorch_reader::DType) -> DType {
+    use burn_core::tensor::BoolStore;
+    use pytorch_reader::DType as Pt;
+
+    match dtype {
+        Pt::F64 => DType::F64,
+        Pt::F32 => DType::F32,
+        Pt::F16 => DType::F16,
+        Pt::BF16 => DType::BF16,
+        Pt::I64 => DType::I64,
+        Pt::I32 => DType::I32,
+        Pt::I16 => DType::I16,
+        Pt::I8 => DType::I8,
+        Pt::U64 => DType::U64,
+        Pt::U32 => DType::U32,
+        Pt::U16 => DType::U16,
+        Pt::U8 => DType::U8,
+        Pt::Bool => DType::Bool(BoolStore::Native),
+    }
 }
 
 #[cfg(all(test, feature = "std"))]
@@ -507,5 +556,65 @@ mod tests {
 
         assert_eq!(cast.byte_len(), 8);
         assert_byte_len_matches(cast);
+    }
+
+    /// A checkpoint tensor crosses over with its identity intact and its bytes reinterpreted
+    /// under the mapped dtype. Bool is the variant with no direct counterpart, and the one
+    /// whose bytes must arrive as valid `bool`s.
+    #[cfg(feature = "pytorch")]
+    #[test]
+    fn from_pytorch_maps_dtype_and_reads_bytes() {
+        use burn_core::tensor::BoolStore;
+
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/pytorch-tests/tests/boolean/boolean.pt"
+        );
+        let mut tensors = pytorch_reader::PytorchReader::new(path)
+            .unwrap()
+            .into_tensors();
+        let tensor = from_pytorch(tensors.remove("buffer").unwrap());
+
+        assert_eq!(tensor.name, "buffer");
+        assert_eq!(tensor.dtype, DType::Bool(BoolStore::Native));
+        assert_eq!(tensor.shape, shape![3]);
+        assert_byte_len_matches(tensor.clone());
+
+        let data = into_data(tensor).unwrap();
+        assert_eq!(data.as_slice::<bool>().unwrap(), &[true, false, true]);
+    }
+
+    /// Every checkpoint dtype maps to the burn dtype of the same name and width. The two
+    /// sides of a swapped arm (`I16` to `U16`, say) would agree with each other everywhere
+    /// downstream, so only a check against the names catches it.
+    #[cfg(feature = "pytorch")]
+    #[test]
+    fn pytorch_dtype_maps_every_variant_by_name() {
+        use pytorch_reader::DType as Pt;
+
+        let all = [
+            Pt::F64,
+            Pt::F32,
+            Pt::F16,
+            Pt::BF16,
+            Pt::I64,
+            Pt::I32,
+            Pt::I16,
+            Pt::I8,
+            Pt::U64,
+            Pt::U32,
+            Pt::U16,
+            Pt::U8,
+            Pt::Bool,
+        ];
+        for pt in all {
+            let mapped = pytorch_dtype(pt);
+            assert_eq!(mapped.size(), pt.size(), "{pt:?}");
+            let expected = match pt {
+                Pt::Bool => "Bool(Native)".to_string(),
+                other => format!("{other:?}"),
+            };
+            assert_eq!(format!("{mapped:?}"), expected);
+        }
     }
 }

@@ -35,15 +35,12 @@
 //! }
 //! ```
 
-mod pickle_reader;
-pub mod reader;
-mod storage;
 pub mod store;
 
 #[cfg(test)]
 pub mod tests;
 
-// Main public interface
-pub use pickle_reader::{OpCode, PickleError};
-pub use reader::{PytorchError, PytorchReader};
+// Kept at their pre-crate paths for compatibility; everything else the reader defines is
+// under `burn_store::pytorch_reader`.
+pub use pytorch_reader::{OpCode, PickleError, PytorchError, PytorchReader};
 pub use store::{PytorchStore, PytorchStoreError};

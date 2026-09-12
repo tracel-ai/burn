@@ -1,0 +1,28 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+categories = ["science", "parser-implementations"]
+description = "Reader for PyTorch checkpoint files (.pt/.pth) that depends on neither PyTorch nor Burn"
+documentation = "https://docs.rs/pytorch-reader"
+edition.workspace = true
+keywords = ["pytorch", "checkpoint", "pickle", "deep-learning", "machine-learning"]
+license.workspace = true
+name = "pytorch-reader"
+readme = "README.md"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/pytorch-reader"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+byteorder = { workspace = true, features = ["std"] }
+num-traits = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["std"] }
+tar = { workspace = true }
+thiserror = { workspace = true, features = ["std"] }
+zip = { workspace = true }
+
+[dev-dependencies]
+bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
+half = { workspace = true, features = ["bytemuck", "std"] }
+tempfile = { workspace = true }
