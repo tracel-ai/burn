@@ -251,6 +251,7 @@ impl ModuleOps<Flex> for Flex {
         bias: Option<FloatTensor<Flex>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Flex> {
+        let (x, options) = pad_asymmetric_conv_input::<Flex, 3>(x, options);
         match x.dtype() {
             DType::F32 => conv::conv3d_f32(x, weight, bias, &options),
             DType::F64 => conv::conv3d_f64(x, weight, bias, &options),
