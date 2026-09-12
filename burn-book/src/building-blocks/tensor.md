@@ -456,6 +456,44 @@ strategies.
 | `tensor.quantize(scheme, qparams)` | N/A                |
 | `tensor.dequantize()`              | N/A                |
 
+## Einstein Summation
+
+Use `einsum!` to express tensor contractions with a literal equation. The macro
+checks the equation and statically determined ranks at compile time, then builds
+a shared contraction plan and generates the corresponding permutations, reshapes,
+reductions, and matrix multiplications. Axis ordering and contraction stages are
+fixed by the equation. Tensor sizes, broadcasting, and empty dimensions select
+any necessary runtime branches; ellipsis widths are bound from input ranks.
+The runtime equation API builds and executes the same plan when called.
+
+```rust,ignore
+use burn::tensor::{Tensor, einsum};
+
+// Queries: [batch, queries, channels]; features: [batch, channels, height, width].
+let masks: Tensor<4> = einsum!("bqc,bchw->bqhw", queries, features);
+
+// Runtime equations accept operands of different ranks through `.into()`.
+let output = Tensor::<1>::einsum(&equation, [matrix.into(), vector.into()]);
+```
+
+Both interfaces support explicit and implicit outputs, repeated-label diagonals,
+ellipsis broadcasting (including reduction of ellipsis dimensions), and any number
+of operands. Implicit output puts ellipsis dimensions first, then labels appearing
+exactly once, sorted `A-Z` followed by `a-z`. Repeated labels within one operand
+require equal axis sizes; matching labels across operands may broadcast size one.
+
+Float and Int operands must share their kind, dtype, and device. Scalar results
+have shape `[1]`; an empty input subscript also accepts a tensor of shape `[1]`.
+Quantized operands are unsupported. Operands are contracted from left to right
+using existing tensor operations, so floating-point contractions support autodiff.
+The implementation does not search for an optimized contraction order.
+
+Run the matrix multiplication, mask prediction, and gradient demo from the repository:
+
+```sh
+cargo run -p burn-tensor --example einsum --features flex,autodiff
+```
+
 ## Activation Functions
 
 | Burn API                                          | PyTorch Equivalent                                  |

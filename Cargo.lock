@@ -1152,6 +1152,7 @@ dependencies = [
 name = "burn-derive"
 version = "0.22.0-pre.3"
 dependencies = [
+ "burn-einsum",
  "derive-new",
  "proc-macro2",
  "quote",
@@ -1173,6 +1174,10 @@ dependencies = [
  "burn-tch",
  "paste",
 ]
+
+[[package]]
+name = "burn-einsum"
+version = "0.22.0-pre.3"
 
 [[package]]
 name = "burn-flex"
@@ -1437,6 +1442,7 @@ dependencies = [
  "burn-backend",
  "burn-derive",
  "burn-dispatch",
+ "burn-einsum",
  "burn-std",
  "colored 3.1.1",
  "derive-new",

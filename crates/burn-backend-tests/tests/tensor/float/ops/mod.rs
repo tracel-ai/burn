@@ -72,6 +72,7 @@ mod cross;
 mod cumulative;
 mod div;
 mod dot;
+mod einsum;
 mod erf;
 mod exp;
 mod expand;
