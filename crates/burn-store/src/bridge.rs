@@ -9,7 +9,7 @@
 //! paths are the load-bearing ones: a tensor built by [`from_tensor`] holds the
 //! (reference-counted) device tensor and reads it back only when the bytes are finally drawn,
 //! [`map_data`] composes a transform onto a byte source without materializing it, and
-//! [`from_pytorch`] leaves a checkpoint tensor's bytes in its file.
+//! `from_pytorch` (with the `pytorch` feature) leaves a checkpoint tensor's bytes unread.
 
 use alloc::format;
 use alloc::string::String;
