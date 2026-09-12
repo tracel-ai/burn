@@ -1,13 +1,17 @@
 #![no_std]
 #![warn(missing_docs)]
 
-//! Shape-independent equation parsing shared by Burn's einsum interfaces.
+//! Shape-independent equation parsing and planning shared by Burn's einsum interfaces.
 //!
 //! Named labels use the range `0..52`: uppercase letters first, followed by
 //! lowercase letters. [`ELLIPSIS`] represents the dimensions matched by `...`.
 //! Tensor ranks and dimension sizes are validated by the executor.
 
 extern crate alloc;
+
+mod plan;
+
+pub use plan::{Axis, ContractionPlan, Diagonal, InputPlan, MatmulPlan, Plan};
 
 use alloc::{vec, vec::Vec};
 use core::fmt;
@@ -31,6 +35,14 @@ impl Equation {
     /// Parse an equation without inspecting tensor shapes.
     pub fn parse(equation: &str) -> Result<Self, ParseError> {
         parse(equation)
+    }
+
+    /// Plan diagonals, alignment, and contractions without inspecting tensor shapes.
+    ///
+    /// The equation must satisfy the invariants checked by [`Self::parse`].
+    /// Ellipsis widths, dimension sizes, and broadcasting remain runtime concerns.
+    pub fn plan(&self) -> Plan {
+        Plan::new(self)
     }
 
     /// Return an operand's logical rank when its subscript has no ellipsis.

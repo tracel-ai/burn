@@ -459,8 +459,12 @@ strategies.
 ## Einstein Summation
 
 Use `einsum!` to express tensor contractions with a literal equation. The macro
-checks the equation and statically determined ranks at compile time. Axis sizes
-and broadcasting are validated at runtime.
+checks the equation and statically determined ranks at compile time, then builds
+a shared contraction plan and generates the corresponding permutations, reshapes,
+reductions, and matrix multiplications. Axis ordering and contraction stages are
+fixed by the equation. Tensor sizes, broadcasting, and empty dimensions select
+any necessary runtime branches; ellipsis widths are bound from input ranks.
+The runtime equation API builds and executes the same plan when called.
 
 ```rust,ignore
 use burn::tensor::{Tensor, einsum};

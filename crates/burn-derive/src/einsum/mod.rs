@@ -1,7 +1,7 @@
-//! Compile literal equations into einsum execution stages. The public macro wrapper in
+//! Compile literal equations into tensor operations. The public macro wrapper in
 //! burn-tensor forwards `$crate`, keeping the expansion independent of dependency renaming.
 
-use burn_einsum::ELLIPSIS;
+use burn_einsum::{Axis, ELLIPSIS};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{
@@ -39,9 +39,8 @@ impl Parse for EinsumInput {
     }
 }
 
-/// Parse and validate the literal now, then emit axis descriptors and a contraction stage for
-/// each remaining operand. Shapes determine the concrete permutations and matmul dimensions
-/// when the generated code runs; the equation never needs to be parsed again at runtime.
+/// Parse and plan the equation during expansion, then emit the planned tensor operations.
+/// Only tensor dimensions and the number of axes represented by an ellipsis remain dynamic.
 pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
     let EinsumInput {
         krate,
@@ -60,11 +59,12 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
             ),
         ));
     }
+    let plan = parsed.plan();
 
     // Bind operands in argument order and evaluate each expression once. Mixed-site names
     // cannot capture identifiers inside an operand expression supplied by the caller.
     let names: Vec<_> = (0..operands.len())
-        .map(|index| Ident::new(&format!("__einsum_operand_{index}"), Span::mixed_site()))
+        .map(|index| local(&format!("operand_{index}")))
         .collect();
     let bindings =
         operands
@@ -73,8 +73,7 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
             .zip(&parsed.inputs)
             .map(|((operand, name), labels)| {
                 let rank_check = if labels.contains(&ELLIPSIS) {
-                    // Ellipsis rank is checked during alignment. This still ensures the argument
-                    // is a Tensor, through the same path as the exact-rank check below.
+                    // Ellipsis rank is checked while preparing the operands.
                     quote! { let _ = #krate::Tensor::dims(&#name); }
                 } else {
                     // Burn represents scalar values with Tensor<1> of shape [1].
@@ -86,29 +85,158 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
                     #rank_check
                 }
             });
-    let input_labels = parsed
+    let prepared = local("prepared");
+    let width = local("ellipsis_width");
+    let output_rank = local("output_rank");
+    let result = local("result");
+    let last_use = local("last_use");
+    let input_ranks = plan.inputs.iter().map(|input| {
+        let named_rank = input.named_rank;
+        let has_ellipsis = input.has_ellipsis;
+        quote! { (#named_rank, #has_ellipsis) }
+    });
+    let output_dimensions = plan.output_dimensions;
+    let total_dimensions = plan.total_dimensions;
+    let ellipsis = match plan.ellipsis {
+        Some(axis) => quote! { ::core::option::Option::Some(#axis) },
+        None => quote! { ::core::option::Option::None },
+    };
+    let alignments = plan
         .inputs
         .iter()
-        .map(|labels| quote! { &[#(#labels),*] });
-    let output_labels = &parsed.output;
+        .zip(&names)
+        .enumerate()
+        .map(|(index, (input, name))| {
+            let local_width = local(&format!("input_width_{index}"));
+            let named_rank = input.named_rank;
+            let width_binding = input.has_ellipsis.then(|| {
+                quote! { let #local_width = #name.shape().len() - #named_rank; }
+            });
+            let diagonals = input.diagonals.iter().map(|diagonal| {
+                let first = axis_expr(&diagonal.first, &local_width);
+                let second = axis_expr(&diagonal.second, &local_width);
+                let permutation = axes_expr(&diagonal.permutation, &local_width, &krate);
+                let restore = axes_expr(&diagonal.restore, &local_width, &krate);
+                quote! { let #name = #name.diagonal(#first, #second, #permutation, #restore); }
+            });
+            let permutation = axes_expr(&input.permutation, &local_width, &krate);
+            let present = &input.axes;
+            let shape = local("aligned_shape");
+            quote! {
+                let #name = #prepared.operands.next().expect("einsum operand count was checked");
+                #width_binding
+                #(#diagonals)*
+                let #name = #name.permute(#permutation);
+                let #name = {
+                    let #shape = #krate::__einsum::alignment_shape(
+                        &#name.shape(), &[#(#present),*], #ellipsis, #width,
+                    );
+                    #name.reshape(#shape)
+                };
+            }
+        });
+    let contractions = plan.contractions.iter().zip(&names[1..]).enumerate().map(
+        |(index, (step, right))| {
+            let left_reduce = reduce(&result, &step.left_reduce, &width, &krate);
+            let right_reduce = reduce(right, &step.right_reduce, &width, &krate);
+            let operation = match &step.matmul {
+                None => quote! { #result.mul(#right) },
+                Some(matmul) => {
+                    let swap = matmul
+                        .swap
+                        .then(|| quote! { let (#result, #right) = (#right, #result); });
+                    let shared = axes_expr(&matmul.shared, &width, &krate);
+                    let left_axes = axes_expr(&matmul.left, &width, &krate);
+                    let right_axes = axes_expr(&matmul.right, &width, &krate);
+                    let contraction = axes_expr(&matmul.contraction, &width, &krate);
+                    let left_permutation = axes_expr(&matmul.left_permutation, &width, &krate);
+                    let right_permutation = axes_expr(&matmul.right_permutation, &width, &krate);
+                    let output_permutation = axes_expr(&matmul.output_permutation, &width, &krate);
+                    let shared_name = local("shared");
+                    let left_name = local("left_axes");
+                    let right_name = local("right_axes");
+                    let contraction_name = local("contraction");
+                    let left_shape = local("left_shape");
+                    let right_shape = local("right_shape");
+                    let shapes = local("matmul_shapes");
+                    quote! {{
+                        #swap
+                        let #shared_name = #shared;
+                        let #left_name = #left_axes;
+                        let #right_name = #right_axes;
+                        let #contraction_name = #contraction;
+                        let #left_shape = #result.shape();
+                        let #right_shape = #right.shape();
+                        if #krate::__einsum::can_matmul(
+                            &#left_shape, &#right_shape, #shared_name,
+                            #left_name, #right_name, #contraction_name,
+                        ) {
+                            let #shapes = #krate::__einsum::matmul_shapes(
+                                &#left_shape, &#right_shape, #shared_name,
+                                #left_name, #right_name, #contraction_name,
+                            );
+                            #result.permute(#left_permutation).reshape(#shapes.left)
+                                .matmul(#right.permute(#right_permutation).reshape(#shapes.right))
+                                .reshape(#shapes.output).permute(#output_permutation)
+                        } else {
+                            #krate::__einsum::broadcast_contract(#result, #right, #contraction_name)
+                        }
+                    }}
+                }
+            };
+            let operation = if step.deferred_reduce.is_empty() {
+                operation
+            } else {
+                let operand_index = index + 1;
+                let deferred = axes_expr(&step.deferred_reduce, &width, &krate);
+                let deferred_name = local("deferred_reduce");
+                let mandatory = step
+                    .matmul
+                    .as_ref()
+                    .map_or(&[][..], |matmul| matmul.contraction.as_slice());
+                let mandatory = axes_expr(mandatory, &width, &krate);
+                quote! {{
+                    let #deferred_name = #deferred;
+                    if #krate::__einsum::can_contract_early(
+                        &#result.shape(), &#right.shape(), #deferred_name,
+                        &#last_use, #operand_index,
+                    ) {
+                        #krate::__einsum::contract_early(
+                            #result, #right, #mandatory, #deferred_name,
+                            &#last_use, #operand_index,
+                        )
+                    } else {
+                        #operation
+                    }
+                }}
+            };
+            quote! {
+                let #result = {
+                    #left_reduce
+                    #right_reduce
+                    #operation
+                };
+            }
+        },
+    );
+    let first = &names[0];
+    let final_reduce = reduce(&result, &plan.final_reduce, &width, &krate);
 
     // When no operand has an ellipsis its expansion is empty, including an ellipsis in the
     // output. Otherwise an output ellipsis needs the contextual Tensor<D> result type.
     let finish = match parsed.output_rank() {
         Some(rank) => {
             let rank = rank.max(1);
-            quote! { .finish::<#rank>() }
+            quote! { #result.finish::<#rank>(#output_rank) }
         }
-        None => quote! { .finish() },
+        None => quote! { #result.finish(#output_rank) },
     };
-    let contractions = (1..operands.len()).map(|_| quote! { .contract_next() });
     let expansion_doc = format!(
-        "Einsum `{}`: bind and check {} operand(s), align their axes from the compiled label \
-         descriptors, perform {} left-to-right pairwise contraction(s), then restore the output \
-         axes. Each pair reduces axes no longer needed by later operands and lowers to \
-         multiplication or batched matrix multiplication according to the runtime dimensions.",
+        "Einsum `{}`: the equation is compiled into diagonal extraction, axis permutations, \
+         reshapes, reductions, and {} left-to-right pairwise contraction(s). Each contraction \
+         emits multiplication or batched matrix multiplication with its planned axis ordering. \
+         Tensor sizes determine reshape dimensions and broadcasting branches at runtime.",
         equation.value(),
-        operands.len(),
         operands.len() - 1,
     );
 
@@ -116,14 +244,58 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
         #[doc = #expansion_doc]
         const _: () = ();
         #(#bindings)*
-        #krate::__einsum::Execution::new(
-            &[#(#input_labels),*],
-            &[#(#output_labels),*],
-            [#(#names.into()),*],
-        )
+        let mut #prepared = #krate::__einsum::prepare(
+            [#(#names.into()),*], &[#(#input_ranks),*],
+            #output_dimensions, #total_dimensions, #ellipsis,
+        );
+        let #width = #prepared.ellipsis_width;
+        let #output_rank = #prepared.output_rank;
+        #(#alignments)*
+        let #last_use = #krate::__einsum::validate_broadcast(&[#(&#names),*]);
+        let #result = #first;
         #(#contractions)*
+        #final_reduce
         #finish
     }})
+}
+
+fn local(name: &str) -> Ident {
+    Ident::new(&format!("__einsum_{name}"), Span::mixed_site())
+}
+
+/// Emit a literal slice for fixed axes; only ellipsis equations need runtime expansion.
+fn axes_expr(axes: &[Axis], width: &Ident, krate: &Path) -> TokenStream {
+    if axes.iter().all(|axis| matches!(axis, Axis::Index(_))) {
+        let indices = axes.iter().map(|axis| match axis {
+            Axis::Index(index) => index,
+            _ => unreachable!(),
+        });
+        quote! { &[#(#indices),*] }
+    } else {
+        let axes = axes.iter().map(|axis| match axis {
+            Axis::Index(index) => quote! { #krate::__einsum::Axis::Index(#index) },
+            Axis::AfterEllipsis(index) => quote! { #krate::__einsum::Axis::AfterEllipsis(#index) },
+            Axis::Ellipsis(start) => quote! { #krate::__einsum::Axis::Ellipsis(#start) },
+        });
+        quote! { &#krate::__einsum::axes(&[#(#axes),*], #width) }
+    }
+}
+
+fn axis_expr(axis: &Axis, width: &Ident) -> TokenStream {
+    match axis {
+        Axis::Index(index) => quote! { #index },
+        Axis::AfterEllipsis(index) => quote! { #index + #width },
+        Axis::Ellipsis(_) => unreachable!("a diagonal always refers to a named axis"),
+    }
+}
+
+fn reduce(name: &Ident, axes: &[Axis], width: &Ident, krate: &Path) -> TokenStream {
+    if axes.is_empty() {
+        TokenStream::new()
+    } else {
+        let axes = axes_expr(axes, width, krate);
+        quote! { let #name = #name.sum_dims(#axes); }
+    }
 }
 
 #[cfg(test)]
@@ -139,15 +311,65 @@ mod tests {
     }
 
     #[test]
-    fn compiles_labels_and_unrolls_left_to_right_stages() {
+    fn compiles_layouts_and_unrolls_left_to_right_operations() {
         let expanded = expanded(quote! { burn, "ij,jk,kl->il", a, b, c, });
-        assert_eq!(expanded.matches("contract_next").count(), 2);
+        assert_eq!(expanded.matches(". matmul (").count(), 2);
         assert_eq!(expanded.matches("[usize ; 2usize]").count(), 3);
         assert!(expanded.contains("finish :: < 2usize >"));
-        assert!(expanded.contains("[34u8 , 35u8]"));
-        assert!(expanded.contains("[34u8 , 37u8]"));
+        assert!(expanded.contains(". permute ("));
+        assert!(expanded.contains(". reshape ("));
+        assert!(!expanded.contains("contract_next"));
+        assert!(!expanded.contains("Execution"));
+        assert!(!expanded.contains("Plan"));
         assert!(!expanded.contains(":: parse"));
         assert!(expanded.contains("batched matrix multiplication"));
+    }
+
+    #[test]
+    fn matrix_product_emits_literal_axes_and_direct_matmul_chain() {
+        let expanded = expanded(quote! { burn, "ij,jk->ik", a, b });
+        assert!(expanded.contains("let __einsum_contraction = & [2usize]"));
+        assert!(expanded.contains("let __einsum_left_axes = & [0usize]"));
+        assert!(expanded.contains("let __einsum_right_axes = & [1usize]"));
+        assert!(expanded.contains(
+            "__einsum_result . permute (& [0usize , 2usize , 1usize]) . reshape (__einsum_matmul_shapes . left)"
+        ));
+        assert!(expanded.contains(
+            ". matmul (__einsum_operand_1 . permute (& [2usize , 1usize , 0usize]) . reshape (__einsum_matmul_shapes . right))"
+        ));
+        assert!(expanded.contains(
+            ". reshape (__einsum_matmul_shapes . output) . permute (& [0usize , 2usize , 1usize])"
+        ));
+        assert!(!expanded.contains(":: axes"));
+        assert!(!expanded.contains("Axis ::"));
+        assert!(!expanded.contains("can_contract_early"));
+    }
+
+    #[test]
+    fn later_broadcast_axes_can_contract_early() {
+        let expanded = expanded(quote! { burn, "ij,jk,j->ik", a, b, weights });
+        assert_eq!(expanded.matches("can_contract_early").count(), 1);
+        assert!(
+            expanded.contains("let __einsum_last_use = burn :: __einsum :: validate_broadcast")
+        );
+        assert!(expanded.contains("let __einsum_deferred_reduce = & [2usize]"));
+        let early = quote! {
+            burn::__einsum::contract_early(
+                __einsum_result, __einsum_operand_1, &[], __einsum_deferred_reduce,
+                &__einsum_last_use, 1usize,
+            )
+        };
+        assert!(expanded.contains(&early.to_string()));
+    }
+
+    #[test]
+    fn diagonal_and_reduction_are_emitted_as_operations() {
+        let expanded = expanded(quote! { burn, "ii->", matrix });
+        assert!(
+            expanded.contains(". diagonal (0usize , 1usize , & [0usize , 1usize] , & [0usize])")
+        );
+        assert!(expanded.contains(". sum_dims (& [0usize])"));
+        assert!(!expanded.contains(". matmul ("));
     }
 
     #[test]
@@ -158,7 +380,7 @@ mod tests {
         assert_eq!(expanded.matches("build_left").count(), 1);
         assert_eq!(expanded.matches("build_right").count(), 1);
         assert!(expanded.contains(":: renamed_burn :: Tensor :: dims"));
-        assert!(expanded.contains(":: renamed_burn :: __einsum :: Execution :: new"));
+        assert!(expanded.contains(":: renamed_burn :: __einsum :: prepare"));
     }
 
     #[test]
@@ -179,8 +401,32 @@ mod tests {
     #[test]
     fn output_ellipsis_uses_contextual_rank() {
         let expanded = expanded(quote! { burn, "...ij,...jk->...ik", a, b });
-        assert!(expanded.contains(". finish ()"));
+        assert!(expanded.contains(". finish (__einsum_output_rank)"));
         assert!(!expanded.contains("[usize ;"));
+    }
+
+    #[test]
+    fn ellipsis_keeps_only_axis_offsets_and_dimensions_dynamic() {
+        let expanded = expanded(quote! { burn, "i...i->...", a });
+        let diagonal = quote! {
+            .diagonal(
+                0usize, 1usize + __einsum_input_width_0,
+                &burn::__einsum::axes(&[
+                    burn::__einsum::Axis::Ellipsis(1usize),
+                    burn::__einsum::Axis::Index(0usize),
+                    burn::__einsum::Axis::AfterEllipsis(1usize)
+                ], __einsum_input_width_0),
+                &burn::__einsum::axes(&[
+                    burn::__einsum::Axis::AfterEllipsis(0usize),
+                    burn::__einsum::Axis::Ellipsis(0usize)
+                ], __einsum_input_width_0)
+            )
+        };
+        assert!(expanded.contains(&diagonal.to_string()));
+        assert!(expanded.contains(":: axes"));
+        assert!(expanded.contains("Axis :: Ellipsis"));
+        assert!(!expanded.contains(":: parse"));
+        assert!(!expanded.contains("Plan"));
     }
 
     #[test]

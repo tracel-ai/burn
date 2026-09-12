@@ -1,14 +1,10 @@
 //! Einstein summation through existing differentiable tensor operations.
 
-use alloc::{collections::VecDeque, vec::Vec};
 use core::marker::PhantomData;
-
-use burn_einsum::Equation;
 
 use crate::{Float, Tensor, kind::Numeric, ops::BridgeTensor};
 
 mod execution;
-use execution::{Layout, align, contract_pair, finalize};
 
 /// An einsum operand whose rank is determined at runtime.
 ///
@@ -54,7 +50,8 @@ impl<const D: usize, K: Numeric> Tensor<D, K> {
     /// Other inputs must have exactly the rank described by their subscripts.
     ///
     /// For a literal equation, [`einsum!`](crate::einsum) also validates the
-    /// equation and statically determined ranks at compile time.
+    /// equation and statically determined ranks, and generates the operation chain
+    /// from the shared contraction plan at compile time.
     ///
     /// # Example
     ///
@@ -75,89 +72,16 @@ impl<const D: usize, K: Numeric> Tensor<D, K> {
     pub fn einsum(equation: &str, operands: impl IntoIterator<Item = EinsumOperand<K>>) -> Self {
         let equation =
             burn_einsum::parse(equation).unwrap_or_else(|error| panic!("einsum: {error}"));
-        let mut execution = Execution::from_equation(equation, operands);
-        execution.check_output_rank::<D>();
-        while execution.operands.len() > 1 {
-            execution = execution.contract_next();
-        }
-        execution.finish()
+        execution::execute(&equation.plan(), operands)
     }
 }
 
 /// Implementation details used by the generated `einsum!` operation chain.
 #[doc(hidden)]
 pub mod __einsum {
-    pub use super::Execution;
-}
-
-/// A partially executed contraction, used by the literal macro expansion.
-#[doc(hidden)]
-pub struct Execution<K: Numeric> {
-    operands: VecDeque<BridgeTensor>,
-    layout: Layout,
-    dimension_counts: Vec<usize>,
-    kind: PhantomData<K>,
-}
-
-impl<K: Numeric> Execution<K> {
-    /// Starts a contraction from the macro's already parsed label arrays.
-    pub fn new(
-        inputs: &[&[u8]],
-        output: &[u8],
-        operands: impl IntoIterator<Item = EinsumOperand<K>>,
-    ) -> Self {
-        Self::from_equation(
-            Equation {
-                inputs: inputs.iter().map(|labels| labels.to_vec()).collect(),
-                output: output.to_vec(),
-            },
-            operands,
-        )
-    }
-
-    fn from_equation(
-        equation: Equation,
-        operands: impl IntoIterator<Item = EinsumOperand<K>>,
-    ) -> Self {
-        let operands: Vec<_> = operands.into_iter().map(|op| op.primitive).collect();
-        let layout = Layout::new::<K>(&equation, &operands);
-        let (operands, dimension_counts) = align::<K>(&equation, &layout, operands);
-        Self {
-            operands,
-            layout,
-            dimension_counts,
-            kind: PhantomData,
-        }
-    }
-
-    /// Contracts the next pair while retaining axes needed by later operands.
-    pub fn contract_next(mut self) -> Self {
-        assert!(
-            self.operands.len() >= 2,
-            "einsum: no remaining operand pair"
-        );
-        let left = self.operands.pop_front().unwrap();
-        let right = self.operands.pop_front().unwrap();
-        let result = contract_pair::<K>(left, right, &self.layout, &mut self.dimension_counts);
-        self.operands.push_front(result);
-        self
-    }
-
-    fn check_output_rank<const D: usize>(&self) {
-        assert_eq!(
-            D,
-            self.layout.output_dimensions.max(1),
-            "einsum: output rank does not match the equation (scalar results have rank 1)"
-        );
-    }
-
-    /// Reduces remaining unary axes and restores the typed output.
-    pub fn finish<const D: usize>(mut self) -> Tensor<D, K> {
-        self.check_output_rank::<D>();
-        assert_eq!(self.operands.len(), 1, "einsum: unfinished contraction");
-        Tensor::new(finalize::<K>(
-            self.operands.pop_front().unwrap(),
-            &self.layout,
-        ))
-    }
+    pub use super::execution::{
+        alignment_shape, axes, broadcast_contract, can_contract_early, can_matmul, contract_early,
+        matmul_shapes, prepare, validate_broadcast,
+    };
+    pub use burn_einsum::Axis;
 }

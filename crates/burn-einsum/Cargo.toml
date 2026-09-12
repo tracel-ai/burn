@@ -1,6 +1,6 @@
 [package]
 name = "burn-einsum"
-description = "Shared equation parsing for Burn's einsum APIs"
+description = "Shared equation parsing and execution planning for Burn's einsum APIs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
