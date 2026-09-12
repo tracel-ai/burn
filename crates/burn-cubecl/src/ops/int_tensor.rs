@@ -137,7 +137,12 @@ impl IntTensorOps<Self> for CubeBackend {
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 kernel::scatter_mul(dim, tensor, indices, value)
             }
-            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                kernel::scatter_min(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                kernel::scatter_max(dim, tensor, indices, value)
+            }
         }
     }
 
@@ -179,8 +184,11 @@ impl IntTensorOps<Self> for CubeBackend {
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 kernel::select_assign_mul(tensor, dim, indices, value)
             }
-            other => {
-                unimplemented!("int_select_assign with {other:?} update is not implemented")
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                kernel::select_assign_min(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                kernel::select_assign_max(tensor, dim, indices, value)
             }
         }
     }

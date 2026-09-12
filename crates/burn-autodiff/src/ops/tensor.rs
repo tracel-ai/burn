@@ -1259,7 +1259,114 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     )),
                 }
             }
-            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+            IndexingUpdateOp::Min | IndexingUpdateOp::Max => {
+                // Unique indices are required for this backward formula; duplicate indices have
+                // undefined behavior (same caveat as float_scatter_nd Min/Max).
+                // Forward (Max): out[.., idx, ..] = max(data[.., idx, ..], values[.., i, ..]).
+                // Backward, with ties contributing to both sides (matches the cummin/cummax
+                // convention):
+                //   data_at_idx  = gather(data, dim, idx)
+                //   data_won     = data_at_idx >= values   (Max) / <= values (Min)
+                //   values_won   = values >= data_at_idx   (Max) / <= data_at_idx (Min)
+                //   data_mask    = scatter(ones_like(data), dim, idx, data_won, Assign)
+                //   grad_data    = grad * data_mask
+                //   grad_values  = gather(grad, dim, idx) * values_won
+                #[derive(Debug)]
+                struct ScatterMinMax;
+
+                impl<B: Backend> Backward<B, 2> for ScatterMinMax {
+                    type State = (usize, FloatTensor<B>, FloatTensor<B>, IntTensor<B>, bool);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, data, values, indices, is_max) = ops.state;
+
+                        let device = data.device();
+                        let data_shape = data.shape();
+                        let data_dtype = data.dtype();
+                        let settings = get_device_settings::<B>(&device);
+                        let bool_dtype = settings.bool_dtype;
+
+                        let data_at_idx = B::float_gather(dim, data.clone(), indices.clone());
+
+                        let (data_won_bool, values_won_bool) = if is_max {
+                            (
+                                B::float_greater_equal(
+                                    data_at_idx.clone(),
+                                    values.clone(),
+                                    bool_dtype,
+                                ),
+                                B::float_greater_equal(values, data_at_idx, bool_dtype),
+                            )
+                        } else {
+                            (
+                                B::float_lower_equal(
+                                    data_at_idx.clone(),
+                                    values.clone(),
+                                    bool_dtype,
+                                ),
+                                B::float_lower_equal(values, data_at_idx, bool_dtype),
+                            )
+                        };
+
+                        let data_won_float = B::bool_into_float(data_won_bool, data_dtype.into());
+                        let values_won_float =
+                            B::bool_into_float(values_won_bool, data_dtype.into());
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                let ones =
+                                    B::float_ones(data_shape.clone(), &device, data_dtype.into());
+                                let data_mask = B::float_scatter(
+                                    dim,
+                                    ones,
+                                    indices.clone(),
+                                    data_won_float,
+                                    IndexingUpdateOp::Assign,
+                                );
+                                B::float_mul(grad, data_mask)
+                            },
+                            |grad| {
+                                let g_idx = B::float_gather(dim, grad, indices.clone());
+                                B::float_mul(g_idx, values_won_float)
+                            },
+                        );
+                    }
+                }
+
+                let is_max = matches!(update, IndexingUpdateOp::Max);
+
+                match ScatterMinMax
+                    .prepare::<C>([tensor.node, value.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            dim,
+                            tensor.primitive.clone(),
+                            value.primitive.clone(),
+                            indices.clone(),
+                            is_max,
+                        ),
+                        B::float_scatter(dim, tensor.primitive, indices, value.primitive, update),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter(
+                        dim,
+                        tensor.primitive,
+                        indices,
+                        value.primitive,
+                        update,
+                    )),
+                }
+            }
         }
     }
 
@@ -1960,8 +2067,155 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     )),
                 }
             }
-            other => {
-                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            IndexingUpdateOp::Min | IndexingUpdateOp::Max => {
+                // Unique indices are required for this backward formula; duplicate indices have
+                // undefined behavior (same caveat as float_scatter_nd Min/Max).
+                // Forward (Max): out[.., idx, ..] = max(tensor[.., idx, ..], values[.., i, ..]).
+                // Backward, with ties contributing to both sides (matches the cummin/cummax
+                // convention):
+                //   data_at_idx  = select(tensor, dim, indices)
+                //   data_won     = data_at_idx >= values   (Max) / <= values (Min)
+                //   values_won   = values >= data_at_idx   (Max) / <= data_at_idx (Min)
+                //   data_mask    = select_assign(ones_like(tensor), dim, idx, data_won, Assign)
+                //   grad_tensor  = grad * data_mask
+                //   grad_values  = select(grad, dim, idx) * values_won
+                #[derive(Debug)]
+                struct IndexSelectDimAssignMinMax;
+
+                #[derive(new, Debug)]
+                struct RetroSelectAssignMinMax<B: Backend> {
+                    tensor_id: NodeId,
+                    dim: usize,
+                    indices: IntTensor<B>,
+                    value_id: NodeId,
+                    update: IndexingUpdateOp,
+                }
+
+                impl<B: Backend> RetroForward for RetroSelectAssignMinMax<B> {
+                    fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
+                        let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
+                        let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
+                        let out = B::float_select_assign(
+                            tensor,
+                            self.dim,
+                            self.indices.clone(),
+                            value,
+                            self.update,
+                        );
+                        states.save(out_node, out)
+                    }
+                }
+
+                impl<B: Backend> Backward<B, 2> for IndexSelectDimAssignMinMax {
+                    type State = (usize, NodeId, NodeId, IntTensor<B>, bool);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        checkpointer: &mut Checkpointer,
+                    ) {
+                        let (dim, tensor_state, value_state, indices, is_max) = ops.state;
+                        let tensor: FloatTensor<B> =
+                            checkpointer.retrieve_node_output(tensor_state);
+                        let values: FloatTensor<B> = checkpointer.retrieve_node_output(value_state);
+
+                        let device = tensor.device();
+                        let tensor_shape = tensor.shape();
+                        let tensor_dtype = tensor.dtype();
+                        let settings = get_device_settings::<B>(&device);
+                        let bool_dtype = settings.bool_dtype;
+
+                        let data_at_idx = B::float_select(tensor, dim, indices.clone());
+
+                        let (data_won_bool, values_won_bool) = if is_max {
+                            (
+                                B::float_greater_equal(
+                                    data_at_idx.clone(),
+                                    values.clone(),
+                                    bool_dtype,
+                                ),
+                                B::float_greater_equal(values, data_at_idx, bool_dtype),
+                            )
+                        } else {
+                            (
+                                B::float_lower_equal(
+                                    data_at_idx.clone(),
+                                    values.clone(),
+                                    bool_dtype,
+                                ),
+                                B::float_lower_equal(values, data_at_idx, bool_dtype),
+                            )
+                        };
+
+                        let data_won_float = B::bool_into_float(data_won_bool, tensor_dtype.into());
+                        let values_won_float =
+                            B::bool_into_float(values_won_bool, tensor_dtype.into());
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                let ones = B::float_ones(
+                                    tensor_shape.clone(),
+                                    &device,
+                                    tensor_dtype.into(),
+                                );
+                                let data_mask = B::float_select_assign(
+                                    ones,
+                                    dim,
+                                    indices.clone(),
+                                    data_won_float,
+                                    IndexingUpdateOp::Assign,
+                                );
+                                B::float_mul(grad, data_mask)
+                            },
+                            |grad| {
+                                let g_idx = B::float_select(grad, dim, indices.clone());
+                                B::float_mul(g_idx, values_won_float)
+                            },
+                        );
+                    }
+                }
+
+                let is_max = matches!(update, IndexingUpdateOp::Max);
+
+                match IndexSelectDimAssignMinMax
+                    .prepare::<C>([tensor.node.clone(), value.node.clone()])
+                    .memory_bound()
+                    .retro_forward(RetroSelectAssignMinMax::<B>::new(
+                        tensor.node.id,
+                        dim,
+                        indices.clone(),
+                        value.node.id,
+                        update,
+                    ))
+                    .parents([&tensor, &value])
+                    .stateful()
+                {
+                    OpsKind::Tracked(mut prep) => {
+                        let tensor_state = prep.checkpoint(&tensor);
+                        let value_state = prep.checkpoint(&value);
+                        prep.finish(
+                            (dim, tensor_state, value_state, indices.clone(), is_max),
+                            B::float_select_assign(
+                                tensor.primitive,
+                                dim,
+                                indices,
+                                value.primitive,
+                                update,
+                            ),
+                        )
+                    }
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_select_assign(
+                        tensor.primitive,
+                        dim,
+                        indices,
+                        value.primitive,
+                        update,
+                    )),
+                }
             }
         }
     }

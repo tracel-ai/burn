@@ -1,6 +1,6 @@
 use crate::{
     kernel::{
-        AddOp, AssignOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
+        AddOp, AssignOp, BinaryMaxOp, BinaryMinOp, BinaryOp, BinaryOpFamily, MulOp, OrOp,
         utils::{address_type, shape_divmod},
     },
     tensor::CubeTensor,
@@ -237,4 +237,22 @@ pub(crate) fn scatter_assign(
     value: CubeTensor,
 ) -> CubeTensor {
     scatter_op::<AssignOp>(dim, tensor, indices, value)
+}
+
+pub(crate) fn scatter_min(
+    dim: usize,
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
+    scatter_op::<BinaryMinOp>(dim, tensor, indices, value)
+}
+
+pub(crate) fn scatter_max(
+    dim: usize,
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    value: CubeTensor,
+) -> CubeTensor {
+    scatter_op::<BinaryMaxOp>(dim, tensor, indices, value)
 }
