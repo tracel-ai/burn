@@ -1655,6 +1655,8 @@ where
     ///   and the backward gradients.
     /// - For `Mul`, duplicate indices are multiplied in an unspecified order and backward
     ///   gradients are undefined.
+    /// - For `Min` and `Max`, duplicate indices are reduced to the minimum/maximum over all
+    ///   contributions, but the backward gradients are undefined.
     ///
     /// For deterministic results and correct gradient calculation across all operations,
     /// `indices` should contain unique entries.
@@ -1899,6 +1901,8 @@ where
     ///   and the backward gradients.
     /// - For `Mul`, duplicate indices are multiplied in an unspecified order and backward
     ///   gradients are undefined.
+    /// - For `Min` and `Max`, duplicate indices are reduced to the minimum/maximum over all
+    ///   contributions, but the backward gradients are undefined.
     ///
     /// For deterministic results and correct gradient calculation across all operations,
     /// `indices` should contain unique entries.
