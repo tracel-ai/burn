@@ -169,8 +169,22 @@ impl FloatTensorOps<Flex> for Flex {
         binary_op(
             lhs,
             rhs,
-            |a, b| ((a % b) + b) % b,
-            |a, b| ((a % b) + b) % b,
+            |a, b| {
+                let r = a % b;
+                if r != 0. && (r < 0.) != (b < 0.) {
+                    r + b
+                } else {
+                    r
+                }
+            },
+            |a, b| {
+                let r = a % b;
+                if r != 0. && (r < 0.) != (b < 0.) {
+                    r + b
+                } else {
+                    r
+                }
+            },
             None,
         )
     }
@@ -181,8 +195,22 @@ impl FloatTensorOps<Flex> for Flex {
         scalar_op(
             lhs,
             rhs_val,
-            |a, b| ((a % b) + b) % b,
-            |a, b| ((a % b) + b) % b,
+            |a, b| {
+                let r = a % b;
+                if r != 0. && (r < 0.) != (b < 0.) {
+                    r + b
+                } else {
+                    r
+                }
+            },
+            |a, b| {
+                let r = a % b;
+                if r != 0. && (r < 0.) != (b < 0.) {
+                    r + b
+                } else {
+                    r
+                }
+            },
         )
     }
 
@@ -1215,6 +1243,22 @@ mod tests {
     use burn_backend::TensorData;
 
     use crate::Flex;
+
+    #[test]
+    fn test_float_remainder_inf_and_tiny() {
+        use burn_backend::ops::FloatTensorOps;
+
+        // `((a % b) + b) % b` rounds `-1e-20 + 1.0` to 1.0 then wraps to 0.0,
+        // and `-1.0 % inf` becomes NaN. 5 % -3 keeps the divisor's sign.
+        let a = crate::FlexTensor::from_data(TensorData::new(vec![-1e-20f32, -1.0, 5.0], [3]));
+        let b =
+            crate::FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::INFINITY, -3.0], [3]));
+        let data: Vec<f32> = Flex::float_remainder(a, b)
+            .into_data()
+            .try_into_vec()
+            .unwrap();
+        assert_eq!(data, vec![1.0, f32::INFINITY, -1.0]);
+    }
 
     #[test]
     fn test_float_into_int_i32() {

@@ -562,7 +562,14 @@ impl IntTensorOps<Flex> for Flex {
             return binary_op_typed(lhs, rhs, |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
-        int_binary_op(lhs, rhs, |a, b| ((a % b) + b) % b)
+        int_binary_op(lhs, rhs, |a, b| {
+            let r = a.wrapping_rem(b);
+            if r != 0 && (r < 0) != (b < 0) {
+                r.wrapping_add(b)
+            } else {
+                r
+            }
+        })
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
@@ -570,7 +577,14 @@ impl IntTensorOps<Flex> for Flex {
             return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| ((a % b) + b) % b)
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| {
+            let r = a.wrapping_rem(b);
+            if r != 0 && (r < 0) != (b < 0) {
+                r.wrapping_add(b)
+            } else {
+                r
+            }
+        })
     }
 
     // Precision limits: i64/u64 > 2^24 for f32/f16/bf16, > 2^53 for f64.
@@ -1311,6 +1325,17 @@ mod tests {
         let result = Flex::int_neg(a);
         let values: Vec<i64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
         assert_eq!(values[0], i64::MIN.wrapping_neg());
+    }
+
+    #[test]
+    fn test_int_remainder_overflow() {
+        // `(a % b) + b` overflows for (MAX-1) % MAX; `i64::MIN % -1` overflows
+        // before the sign fix-up. wrapping_rem/add must not panic.
+        let a = FlexTensor::from_data(TensorData::new(vec![i64::MAX - 1, i64::MIN], [2]));
+        let b = FlexTensor::from_data(TensorData::new(vec![i64::MAX, -1], [2]));
+        let result = Flex::int_remainder(a, b);
+        let values: Vec<i64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        assert_eq!(values, vec![i64::MAX - 1, 0]);
     }
 
     #[test]
