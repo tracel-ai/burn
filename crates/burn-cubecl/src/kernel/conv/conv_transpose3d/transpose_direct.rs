@@ -11,6 +11,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::{Shape, ops::ConvTransposeOptions};
+use cubek::convolution::components::ConvSetupError;
 
 #[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
@@ -153,12 +154,18 @@ fn conv_transpose3d_kernel<E: Numeric>(
     output.write(ABSOLUTE_POS, sum);
 }
 
-pub(crate) fn conv_transpose3d(
+/// Perform a 3D convolution transposition using the direct gather kernel.
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+pub fn conv_transpose3d_direct(
     input: CubeTensor,
     weight: CubeTensor,
     bias: Option<CubeTensor>,
     options: ConvTransposeOptions<3>,
-) -> Result<CubeTensor, LaunchError> {
+) -> Result<CubeTensor, ConvSetupError> {
     let [batch_size, _, in_depth, in_height, in_width] = input.meta.shape().dims();
     let [_, out_channels, kernel_0, kernel_1, kernel_2] = weight.meta.shape().dims();
 

@@ -1,6 +1,9 @@
 use crate::{
     CubeBackend,
-    kernel::{self, conv::ConvTranspose2dStrategy},
+    kernel::{
+        self,
+        conv::{ConvTranspose2dStrategy, ConvTranspose3dStrategy},
+    },
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
@@ -185,7 +188,8 @@ impl ModuleOps<Self> for CubeBackend {
         bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_transpose3d(x, weight, bias, options).expect("Kernel to never fail")
+        kernel::conv::conv_transpose3d(x, weight, bias, options, ConvTranspose3dStrategy::default())
+            .unwrap()
     }
 
     fn avg_pool2d(
