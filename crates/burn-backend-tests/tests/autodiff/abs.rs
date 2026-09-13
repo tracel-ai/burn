@@ -59,12 +59,6 @@ fn should_diff_abs_no_nans() {
 
 #[test]
 fn should_diff_abs_of_nan() {
-    // `abs()`'s backward pass is `grad * sign(input)`. A NaN input must produce
-    // a `0` gradient (`sign(NaN) == 0`, matching PyTorch), not a finite value
-    // derived from the NaN's incidental sign bit: `sign()` on some backends
-    // fell through to `is_positive()` (a sign-*bit* check, not a numeric
-    // comparison) for non-zero-equal input, which isn't NaN-aware and so
-    // silently turned a NaN gradient into a plausible-looking wrong one.
     let data = TensorData::from([f32::NAN]);
 
     let device = AutodiffDevice::new();

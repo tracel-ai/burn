@@ -1235,29 +1235,12 @@ where
     pub(crate) fn sign_op(tensor: SharedArray<E>) -> SharedArray<E>
     where
         // `PartialOrd` in addition to the enclosing impl block's bounds:
-        // needed for the numeric `x > zero` / `x < zero` comparisons below.
-        // Every concrete element type this is actually instantiated with
-        // (f32, f64, i32, ...) already implements it.
+        // needed for the numeric bound comparisons.
         E: Signed + PartialOrd,
     {
         let zero = 0.elem();
         let one = 1.elem::<E>();
 
-        // NOTE: deliberately `x > zero` / `x < zero`, not `x == zero` +
-        // `x.is_positive()`. `is_positive()` on floats (via `num_traits`) is
-        // a raw sign-*bit* check (`is_sign_positive`), not a numeric
-        // comparison — for NaN it silently returns `true` or `false`
-        // depending on the incidental sign bit of whatever NaN happened to
-        // be produced upstream, so `sign(NaN)` came back as `1` or `-1`
-        // instead of `0`. That's not just wrong in isolation: `abs()`'s
-        // gradient is `grad * sign(input)`, so any backward pass through a
-        // NaN silently turned into a plausible-looking finite gradient
-        // instead of propagating the NaN. Numeric comparisons are false for
-        // NaN on both sides here, so it falls through to `zero`, matching
-        // `f32::signum()`'s (and PyTorch's) convention of `sign(NaN) == 0`.
-        // This was the original implementation before #4573 rewrote it to
-        // `is_positive()`, forced by a move into an impl block that (unlike
-        // the one this used to live in) doesn't carry `PartialOrd` itself.
         tensor
             .mapv(|x| {
                 if x > zero {
