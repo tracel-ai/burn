@@ -521,3 +521,32 @@ fn test_max_pool2d_ceil_mode_with_indices_and_padding() {
         .into_data()
         .assert_eq(&expected_indices, false);
 }
+
+// Like PyTorch, a NaN anywhere in the window is the result, and its index is the last NaN of
+// the window. The cube and ndarray backends still skip NaN unless it comes first.
+#[cfg(feature = "flex")]
+#[test]
+fn test_max_pool2d_with_indices_nan_propagation() {
+    let x = TestTensor::<4>::from([[[
+        [1.0, f32::NAN, 3.0, 4.0, f32::NAN, 2.0],
+        [5.0, 6.0, f32::NAN, 8.0, 0.0, f32::NAN],
+    ]]]);
+    let expected_indices = TensorData::from([[[[1i64, 8, 11]]]]);
+
+    for dtype in [
+        burn_tensor::DType::F32,
+        burn_tensor::DType::F64,
+        burn_tensor::DType::F16,
+        burn_tensor::DType::BF16,
+    ] {
+        let (output, indices) =
+            max_pool2d_with_indices(x.clone().cast(dtype), [2, 2], [2, 2], [0, 0], [1, 1], false);
+
+        let output = output.into_data().convert::<f32>();
+        assert!(
+            output.as_slice::<f32>().unwrap().iter().all(|v| v.is_nan()),
+            "{dtype:?}: {output:?}"
+        );
+        indices.into_data().assert_eq(&expected_indices, false);
+    }
+}
