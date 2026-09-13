@@ -21,16 +21,26 @@ use crate::{Flex, FlexTensor, Layout};
 
 impl ActivationOps<Flex> for Flex {
     fn relu(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
-        unary_op(tensor, |x: f32| x.max(0.0), |x: f64| x.max(0.0))
+        // `max` returns the non-NaN operand, which would map NaN to the bound.
+        // Testing `is_nan` first lets NaN propagate, as PyTorch does. `!(x <= 0.0)` is
+        // equivalent and compiles to the same code, but trips
+        // `clippy::neg_cmp_op_on_partial_ord`.
+        unary_op(
+            tensor,
+            |x: f32| if x.is_nan() || x > 0.0 { x } else { 0.0 },
+            |x: f64| if x.is_nan() || x > 0.0 { x } else { 0.0 },
+        )
     }
 
     fn relu_backward(output: FloatTensor<Flex>, grad: FloatTensor<Flex>) -> FloatTensor<Flex> {
-        // grad * (output > 0): zero the gradient where output was zero
+        // Zero the gradient where the output was zero, but keep it for a NaN output:
+        // the trait default masks with `float_lower_equal_elem(output, 0)`, which is
+        // false for NaN.
         binary_op(
             output,
             grad,
-            |out: f32, g| if out > 0.0 { g } else { 0.0 },
-            |out: f64, g| if out > 0.0 { g } else { 0.0 },
+            |out: f32, g| if out.is_nan() || out > 0.0 { g } else { 0.0 },
+            |out: f64, g| if out.is_nan() || out > 0.0 { g } else { 0.0 },
             None,
         )
     }
