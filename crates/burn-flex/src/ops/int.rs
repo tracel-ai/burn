@@ -800,11 +800,22 @@ impl IntTensorOps<Flex> for Flex {
         int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shl(b as u32))
     }
 
+    // u64 values > i64::MAX are negative as i64, so the widened right shift
+    // would be arithmetic and fill with ones. Shift them as u64 instead.
     fn bitwise_right_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
+        if lhs.dtype() == DType::U64 {
+            let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a.wrapping_shr(b as u32));
+        }
         int_binary_op(lhs, rhs, |a, b| a.wrapping_shr(b as u32))
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
+        if lhs.dtype() == DType::U64 {
+            return scalar_op_typed(lhs, rhs.to_i64().unwrap() as u64, |a: u64, b: u64| {
+                a.wrapping_shr(b as u32)
+            });
+        }
         int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shr(b as u32))
     }
 
@@ -1333,6 +1344,34 @@ mod tests {
         let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![0i32]);
         assert_eq!(1i32.wrapping_shl(33), 2i32);
+    }
+
+    #[test]
+    fn test_u64_right_shift_is_logical() {
+        // Values above i64::MAX must not sign-extend through the i64 widening.
+        let values = vec![u64::MAX, 1u64 << 63, 12];
+        let a = FlexTensor::from_data(TensorData::new(values.clone(), [3]));
+        let b = FlexTensor::from_data(TensorData::new(vec![1u64, 63, 2], [3]));
+        let result = Flex::bitwise_right_shift(a.clone(), b);
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![u64::MAX >> 1, 1, 3]);
+
+        let result = Flex::bitwise_right_shift_scalar(a, burn_backend::Scalar::from(1i64));
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, values.iter().map(|v| v >> 1).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_u64_right_shift_broadcast() {
+        let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX, 1u64 << 63], [2, 1]));
+        let b = FlexTensor::from_data(TensorData::new(vec![1u64, 4], [1, 2]));
+        let result = Flex::bitwise_right_shift(a, b);
+        assert_eq!(result.layout().shape().to_vec(), vec![2, 2]);
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(
+            data,
+            vec![u64::MAX >> 1, u64::MAX >> 4, 1u64 << 62, 1u64 << 59]
+        );
     }
 
     #[test]
