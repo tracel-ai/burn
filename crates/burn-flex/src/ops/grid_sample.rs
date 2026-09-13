@@ -150,8 +150,9 @@ where
                     let o_idx = b * o_stride_n + c * o_stride_c + y * o_stride_h + x;
 
                     let val = if matches!(options.mode, InterpolateMode::Nearest) {
-                        let xi = px.round() as i64;
-                        let yi = py.round() as i64;
+                        // Ties round to even, like PyTorch's `nearbyint`.
+                        let xi = libm::roundeven(px) as i64;
+                        let yi = libm::roundeven(py) as i64;
                         read(t_base, xi, yi)
                     } else {
                         // Bilinear
