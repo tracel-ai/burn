@@ -33,12 +33,14 @@ impl ActivationOps<Flex> for Flex {
     }
 
     fn relu_backward(output: FloatTensor<Flex>, grad: FloatTensor<Flex>) -> FloatTensor<Flex> {
-        // grad * (output > 0): zero the gradient where output was zero
+        // Zero the gradient where the output was zero, but keep it for a NaN output:
+        // the trait default masks with `float_lower_equal_elem(output, 0)`, which is
+        // false for NaN.
         binary_op(
             output,
             grad,
-            |out: f32, g| if out > 0.0 { g } else { 0.0 },
-            |out: f64, g| if out > 0.0 { g } else { 0.0 },
+            |out: f32, g| if out.is_nan() || out > 0.0 { g } else { 0.0 },
+            |out: f64, g| if out.is_nan() || out > 0.0 { g } else { 0.0 },
             None,
         )
     }

@@ -25,3 +25,20 @@ fn should_diff_relu() {
         .to_data()
         .assert_eq(&TensorData::from([[15.0, 13.0], [-2.0, 39.0]]), false);
 }
+
+// A NaN output must not have its gradient zeroed: the trait default masks on
+// `output <= 0`, which is false for NaN. See issue #5609.
+#[test]
+fn should_keep_grad_for_nan_relu_output() {
+    let device = AutodiffDevice::new();
+    let tensor =
+        TestTensor::<1>::from_data(TensorData::from([f32::NAN, -1.0, 2.0]), &device).require_grad();
+
+    let grads = activation::relu(tensor.clone()).sum().backward();
+
+    tensor
+        .grad(&grads)
+        .unwrap()
+        .to_data()
+        .assert_eq(&TensorData::from([1.0, 0.0, 1.0]), false);
+}
