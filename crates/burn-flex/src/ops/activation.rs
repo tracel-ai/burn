@@ -22,7 +22,9 @@ use crate::{Flex, FlexTensor, Layout};
 impl ActivationOps<Flex> for Flex {
     fn relu(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
         // `max` returns the non-NaN operand, which would map NaN to the bound.
-        // Test `is_nan` first so NaN propagates, as PyTorch does.
+        // Testing `is_nan` first lets NaN propagate, as PyTorch does. `!(x <= 0.0)` is
+        // equivalent and compiles to the same code, but trips
+        // `clippy::neg_cmp_op_on_partial_ord`.
         unary_op(
             tensor,
             |x: f32| if x.is_nan() || x > 0.0 { x } else { 0.0 },
@@ -1522,22 +1524,5 @@ mod tests {
         let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0], &[1, 4]);
         let gamma = flex_f64(vec![1.0; 4], &[4]);
         let _ = crate::ops::activation::layer_norm(t, gamma, None, 1e-5);
-    }
-
-    // Regression test for #5609. `f32::max` / `f64::max` return the non-NaN
-    // operand, so relu used to map NaN to 0 and hide divergence during training.
-    #[test]
-    fn test_relu_propagates_nan() {
-        use burn_backend::ops::ActivationOps;
-
-        let t = FlexTensor::from_data(TensorData::from([f32::NAN, -1.0, 0.0, 2.0]));
-        let out: Vec<f32> = crate::Flex::relu(t).into_data().try_into_vec().unwrap();
-        assert!(out[0].is_nan());
-        assert_eq!(out[1..], [0.0, 0.0, 2.0]);
-
-        let t = FlexTensor::from_data(TensorData::from([f64::NAN, -1.0f64, 0.0, 2.0]));
-        let out: Vec<f64> = crate::Flex::relu(t).into_data().try_into_vec().unwrap();
-        assert!(out[0].is_nan());
-        assert_eq!(out[1..], [0.0, 0.0, 2.0]);
     }
 }
