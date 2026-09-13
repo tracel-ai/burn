@@ -1297,6 +1297,7 @@ version = "0.22.0-pre.3"
 dependencies = [
  "burn-std",
  "byteorder",
+ "bytes",
  "ciborium",
  "serde",
  "tempfile",
