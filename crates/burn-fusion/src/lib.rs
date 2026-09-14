@@ -23,6 +23,10 @@ mod ops;
 mod server;
 mod tensor;
 
+/// Watching the server register operations and run blocks of them — see
+/// [`observer::FusionObserver`].
+pub mod observer;
+
 /// Test-only introspection into fusion runtime behavior — see
 /// [`inspect::FusionInspector`].
 #[cfg(feature = "test-util")]
