@@ -27,8 +27,7 @@ impl Backend for CubeBackend {
 
         assert_eq!(lhs.dtype, rhs.dtype, "matrix dtypes must match");
         assert_eq!(lhs.dtype, bias.dtype, "bias dtype must match");
-        let shape_out =
-            crate::output_shape(&lhs.meta.shape(), &rhs.meta.shape(), &bias.meta.shape());
+        let shape_out = crate::output_shape(lhs.meta.shape(), rhs.meta.shape(), bias.meta.shape());
 
         // Get the matmul relevant shapes after validating the inputs.
         let ndims = lhs.meta.num_dims();

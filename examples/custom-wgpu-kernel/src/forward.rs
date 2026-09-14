@@ -72,8 +72,7 @@ impl Backend for CubeBackend {
 
         assert_eq!(lhs.dtype, rhs.dtype, "matrix dtypes must match");
         assert_eq!(lhs.dtype, bias.dtype, "bias dtype must match");
-        let shape_out =
-            crate::output_shape(&lhs.meta.shape(), &rhs.meta.shape(), &bias.meta.shape());
+        let shape_out = crate::output_shape(lhs.meta.shape(), rhs.meta.shape(), bias.meta.shape());
         let num_batches: usize = (0..ndims - 2).map(|i| shape_out[i]).product();
 
         // Create a buffer for the output tensor.
