@@ -168,14 +168,11 @@ impl CubeTensor {
 
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(&mut self, client: Client, device: CubeDevice) -> Self {
-        let desc = self.handle.clone().copy_descriptor(
-            self.meta.shape().clone(),
-            self.meta.strides().clone(),
-            self.elem_size(),
-        );
-        let handle = self
-            .client
-            .to_client_tensor(desc, &client, dtype_to_elem_type(self.dtype));
+        // Not `to_client_tensor`: only `to_client` falls back to the host on runtimes without a
+        // peer transport, and wgpu, ROCm and Metal have none.
+        let handle =
+            self.client
+                .to_client(self.handle.clone(), &client, dtype_to_elem_type(self.dtype));
 
         // The copy keeps the physical layout, so the metadata travels whole, tiling included.
         Self {

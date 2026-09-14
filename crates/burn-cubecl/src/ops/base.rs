@@ -550,6 +550,52 @@ pub fn unfold(tensor: CubeTensor, dim: usize, size: usize, step: usize) -> CubeT
     }
 }
 
+// Each needs two devices of one runtime on the machine, so they are ignored by default:
+// `cargo test -p burn-cubecl --features <runtime> -- --ignored`.
+#[cfg(all(test, any(feature = "wgpu", feature = "cuda")))]
+mod same_runtime_tests {
+    use super::*;
+    use burn_std::TensorData;
+
+    fn moves_both_ways(first: CubeDevice, second: CubeDevice) {
+        for (from, to) in [(&first, &second), (&second, &first)] {
+            let data = TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+            let moved = to_device(from_data(data.clone(), from), to);
+            assert_eq!(&moved.device, to);
+
+            into_data_sync(moved).assert_eq(&data, true);
+        }
+    }
+
+    /// wgpu has no peer transport, so a move between two of its adapters must go through the
+    /// host; reaching for send and recv instead leaves the destination never written.
+    #[cfg(feature = "wgpu")]
+    #[test]
+    #[ignore = "needs two discrete wgpu adapters"]
+    fn moves_between_two_wgpu_adapters() {
+        use cubecl::wgpu::{WgpuDevice, WgpuDeviceKind};
+
+        moves_both_ways(
+            CubeDevice::Wgpu(WgpuDevice::new(WgpuDeviceKind::DiscreteGpu(0))),
+            CubeDevice::Wgpu(WgpuDevice::new(WgpuDeviceKind::DiscreteGpu(1))),
+        );
+    }
+
+    /// CUDA moves stay on its peer transport after routing through the host fallback's entry
+    /// point, which sizes the copy from the whole allocation rather than the tensor's shape.
+    #[cfg(feature = "cuda")]
+    #[test]
+    #[ignore = "needs two CUDA devices"]
+    fn moves_between_two_cuda_devices() {
+        use cubecl::cuda::CudaDevice;
+
+        moves_both_ways(
+            CubeDevice::Cuda(CudaDevice { index: 0 }),
+            CubeDevice::Cuda(CudaDevice { index: 1 }),
+        );
+    }
+}
+
 // Two runtimes have to be compiled in for there to be a crossing to test, and both have to be
 // present on the machine — so this is opt-in, not part of a default `cargo test`.
 #[cfg(all(test, feature = "cpu", feature = "wgpu"))]
