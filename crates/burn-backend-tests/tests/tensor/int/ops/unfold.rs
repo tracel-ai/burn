@@ -1,7 +1,7 @@
 use super::*;
+use burn_tensor::Device;
 use burn_tensor::Distribution;
 use burn_tensor::s;
-use burn_tensor::Device;
 
 #[test]
 fn test_unfold_int() {
@@ -118,9 +118,8 @@ pub fn control_no_tail(device: &Device) {
 /// it fails by design. Run it to check a candidate fix.
 #[test]
 fn test_unfold_bug_repro() {
-    let device  = Device::default();
+    let device = Device::default();
     control_odd_step(&device);
     control_no_tail(&device);
     minimal(&device);
 }
-
