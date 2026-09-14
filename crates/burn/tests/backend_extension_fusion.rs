@@ -1,4 +1,4 @@
-#![cfg(all(feature = "cpu", feature = "fusion"))]
+#![cfg(all(feature = "extension", feature = "cpu", feature = "fusion"))]
 use burn::backend::fusion::custom::TensorSpec;
 use burn::backend::{
     Backend, Dispatch, ExtensionType, backend_extension,
@@ -6,7 +6,6 @@ use burn::backend::{
     tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn::tensor::{Bool, Device, Int, Tensor};
-use burn_core as burn;
 use burn_cubecl::CubeBackend;
 
 mod inner {
