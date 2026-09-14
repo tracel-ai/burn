@@ -146,3 +146,38 @@ fn normalize_labels(mut labels: TensorData) -> TensorData {
     }
     labels
 }
+
+/// Cube outputs have a fixed capacity even when execution falls back to CPU.
+#[cfg(feature = "cpu")]
+#[test]
+fn cube_capacity_matches_data_for_small_and_empty_images() {
+    let device = burn_core::tensor::Device::cpu();
+    for (shape, data) in [
+        ([0, 3], vec![]),
+        ([1, 1], vec![true]),
+        ([1, 1], vec![false]),
+        ([2, 3], vec![true, false, true, false, true, false]),
+    ] {
+        for connectivity in [Connectivity::Four, Connectivity::Eight] {
+            for bits in 0..8 {
+                let opts = ConnectedStatsOptions {
+                    bounds_enabled: bits & 1 != 0,
+                    max_label_enabled: bits & 2 != 0,
+                    compact_labels: bits & 4 != 0,
+                };
+                let img =
+                    TestTensorBool::<2>::from_data(TensorData::new(data.clone(), shape), &device);
+                let (labels, stats) = img.connected_components_with_stats(connectivity, opts);
+                assert_eq!(labels.dims(), shape);
+                assert_eq!(labels.into_data().shape, shape.into());
+                let capacity = data.len().max(2);
+                for stat in [stats.area, stats.left, stats.top, stats.right, stats.bottom] {
+                    assert_eq!(stat.dims(), [capacity]);
+                    assert_eq!(stat.clone().into_data().shape, [capacity].into());
+                    assert_eq!((stat + 1).into_data().shape, [capacity].into());
+                }
+                assert_eq!(stats.max_label.into_data().shape, [1].into());
+            }
+        }
+    }
+}

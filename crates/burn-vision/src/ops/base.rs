@@ -97,7 +97,12 @@ pub struct ConnectedStats {
 }
 
 #[derive(ExtensionType)]
-/// Primitive version of [`ConnectedStats`], to be returned by the backend
+#[extension_type(fusion: cfg(feature = "fusion"))]
+/// Primitive version of [`ConnectedStats`], to be returned by the backend.
+///
+/// Cube backends reserve `max(height * width, 2)` entries for each statistics array,
+/// including on CPU fallback, and one entry for `max_label`. Entries beyond the
+/// component count are padding. CPU-only backends retain compact statistics.
 pub struct ConnectedStatsPrimitive<B: Backend> {
     /// Total area of each component
     pub area: IntTensor<B>,
@@ -164,6 +169,7 @@ impl Default for NmsOptions {
 
 /// Vision capable backend, implemented by each backend
 #[backend_extension(
+    Fusion: cfg(feature = "fusion"),
     Flex: cfg(feature = "flex"),
     // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
     // row per runtime; the features still decide whether any of them is compiled in.
@@ -181,6 +187,7 @@ impl Default for NmsOptions {
 pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps {}
 
 #[backend_extension(
+    Fusion: cfg(feature = "fusion"),
     Flex: cfg(feature = "flex"),
     // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
     // row per runtime; the features still decide whether any of them is compiled in.
@@ -201,6 +208,7 @@ pub trait BoolVisionOps: Backend {
     /// connectivity - returns a tensor of the component label of each pixel.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
+    #[fusion(dtype = (*out_dtype).into(), shape = img)]
     fn connected_components(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
@@ -218,6 +226,7 @@ pub trait BoolVisionOps: Backend {
     /// label of each pixel, along with stats collected for each component.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
+    #[fusion(meta = connected_components_metadata)]
     fn connected_components_with_stats(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
@@ -231,6 +240,7 @@ pub trait BoolVisionOps: Backend {
     }
 
     /// Erodes an input tensor with the specified kernel.
+    #[fusion(default)]
     fn bool_erode(
         input: BoolTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -244,6 +254,7 @@ pub trait BoolVisionOps: Backend {
     }
 
     /// Dilates an input tensor with the specified kernel.
+    #[fusion(default)]
     fn bool_dilate(
         input: BoolTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -258,6 +269,7 @@ pub trait BoolVisionOps: Backend {
 }
 
 #[backend_extension(
+    Fusion: cfg(feature = "fusion"),
     Flex: cfg(feature = "flex"),
     // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
     // row per runtime; the features still decide whether any of them is compiled in.
@@ -275,6 +287,7 @@ pub trait BoolVisionOps: Backend {
 /// Vision ops on int tensors
 pub trait IntVisionOps: Backend {
     /// Erodes an input tensor with the specified kernel.
+    #[fusion(default)]
     fn int_erode(
         input: IntTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -288,6 +301,7 @@ pub trait IntVisionOps: Backend {
     }
 
     /// Dilates an input tensor with the specified kernel.
+    #[fusion(default)]
     fn int_dilate(
         input: IntTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -302,6 +316,7 @@ pub trait IntVisionOps: Backend {
 }
 
 #[backend_extension(
+    Fusion: cfg(feature = "fusion"),
     Flex: cfg(feature = "flex"),
     // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
     // row per runtime; the features still decide whether any of them is compiled in.
@@ -319,6 +334,7 @@ pub trait IntVisionOps: Backend {
 /// Vision ops on float tensors
 pub trait FloatVisionOps: Backend {
     /// Erodes an input tensor with the specified kernel.
+    #[fusion(default)]
     fn float_erode(
         input: FloatTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -332,6 +348,7 @@ pub trait FloatVisionOps: Backend {
     }
 
     /// Dilates an input tensor with the specified kernel.
+    #[fusion(default)]
     fn float_dilate(
         input: FloatTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -357,6 +374,7 @@ pub trait FloatVisionOps: Backend {
     ///
     /// # Returns
     /// Indices of kept boxes as \[M\] tensor where M <= N
+    #[fusion(default)]
     fn nms(
         boxes: FloatTensor<Self>,
         scores: FloatTensor<Self>,
@@ -372,4 +390,40 @@ pub trait FloatVisionOps: Backend {
             None => Self::int_zeros([0].into(), device, out_dtype),
         }
     }
+}
+
+/// Cube statistics reserve a slot for every pixel, with at least background and one component.
+#[cfg(any(feature = "cubecl-backend", feature = "fusion"))]
+pub(crate) fn connected_components_capacity(shape: &burn::tensor::Shape) -> usize {
+    shape.num_elements().max(2)
+}
+
+#[cfg(feature = "fusion")]
+fn connected_components_metadata(
+    img: &burn::backend::fusion::custom::TensorSpec,
+    _connectivity: &Connectivity,
+    _opts: &ConnectedStatsOptions,
+    dtype: &IntDType,
+) -> (
+    burn::backend::fusion::custom::TensorSpec,
+    ConnectedStatsPrimitiveMetadata,
+) {
+    use burn::backend::fusion::custom::TensorSpec;
+    let stat = || {
+        TensorSpec::new(
+            [connected_components_capacity(&img.shape)].into(),
+            (*dtype).into(),
+        )
+    };
+    (
+        TensorSpec::new(img.shape.clone(), (*dtype).into()),
+        ConnectedStatsPrimitiveMetadata {
+            area: stat(),
+            left: stat(),
+            top: stat(),
+            right: stat(),
+            bottom: stat(),
+            max_label: TensorSpec::new([1].into(), (*dtype).into()),
+        },
+    )
 }

@@ -102,6 +102,7 @@ autotune-checks = [
     "burn-wgpu?/autotune-checks",
 ]
 fusion = [
+    "dep:burn-fusion",
     "burn-tensor/fusion",
     "burn-cpu?/fusion",
     "burn-cuda?/fusion",
@@ -142,6 +143,7 @@ burn-wgpu = { workspace = true, optional = true }
 burn-backend = { workspace = true, optional = true }
 burn-dispatch = { workspace = true, optional = true }
 burn-backend-extension = { workspace = true, optional = true }
+burn-fusion = { workspace = true, optional = true }
 burn-ir = { workspace = true, optional = true }
 
 derive-new = { workspace = true }

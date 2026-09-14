@@ -1036,6 +1036,7 @@ dependencies = [
  "burn-dataset",
  "burn-derive",
  "burn-dispatch",
+ "burn-fusion",
  "burn-ir",
  "burn-pack",
  "burn-rocm",
@@ -2965,7 +2966,6 @@ version = "0.22.0-pre.3"
 dependencies = [
  "burn",
  "burn-cubecl",
- "burn-fusion",
  "cubecl",
  "serde",
 ]
@@ -3010,7 +3010,6 @@ version = "0.22.0-pre.3"
 dependencies = [
  "burn",
  "burn-cubecl",
- "burn-fusion",
  "bytemuck",
  "cubecl",
  "derive-new",

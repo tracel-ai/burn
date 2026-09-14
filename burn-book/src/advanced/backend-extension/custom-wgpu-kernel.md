@@ -17,8 +17,9 @@ the ugly disambiguation with associated types.
 
 ```rust, ignore
 /// We create our own Backend trait that extends the Burn backend trait.
-#[backend_extension(Autodiff, Cube)]
+#[backend_extension(Autodiff, Cube, Fusion)]
 pub trait Backend: burn::backend::Backend {
+    #[fusion(dtype = lhs, shape = output_shape(lhs, rhs, bias))]
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -227,7 +228,7 @@ impl Backend for CubeBackend
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
         let mut shape_out = vec![0; ndims];
-        for i in shape_out.clone().into_iter().take(ndims - 2) {
+        for i in 0..ndims - 2 {
             shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
             num_batches *= shape_out[i];
         }
@@ -458,3 +459,15 @@ execution, which can potentially greatly enhance the performance of your models.
 
 As we conclude this guide, we hope that you have gained insights into Burn's world of backend
 extensions, and that it will help you to unleash the full potential of your projects.
+
+## Fusion support
+
+Enable Burn's `fusion` feature and add `Fusion` to `#[backend_extension]` to generate
+lazy registration for the WGSL kernel. The annotation `#[fusion(dtype = lhs, shape = output_shape(lhs, rhs, bias))]`
+copies the left operand's dtype and passes borrowed `Shape` values to `output_shape`.
+That function is shared with execution and checks matrix dimensions, batch broadcasting,
+and the requirement that bias match the output shape. Execution also checks matching dtypes.
+
+The generated wrapper treats the kernel as an opaque operation and validates its outputs.
+The existing handwritten autodiff implementation supplies the backward pass. The example's
+`main()` compares forward values and gradients with the reference implementation.

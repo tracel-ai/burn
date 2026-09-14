@@ -2,7 +2,8 @@ use std::{cmp::Ordering, marker::PhantomData};
 
 use alloc::vec::Vec;
 use burn_core::backend::{
-    Backend, TensorMetadata, tensor::{BoolTensor, Device}
+    Backend, TensorMetadata,
+    tensor::{BoolTensor, Device},
 };
 use burn_core::tensor::{
     Element, ElementConversion, ElementLimits, ElementOrdered, IntDType, Shape, TensorData,
@@ -40,13 +41,22 @@ pub fn connected_components_with_stats<B: Backend>(
     _options: ConnectedStatsOptions,
     out_dtype: IntDType,
 ) -> (TensorData, ConnectedStatsPrimitive<B>) {
+    connected_components_with_stats_capacity::<B>(img, connectivity, out_dtype, None)
+}
+
+pub(crate) fn connected_components_with_stats_capacity<B: Backend>(
+    img: BoolTensor<B>,
+    connectivity: Connectivity,
+    out_dtype: IntDType,
+    capacity: Option<usize>,
+) -> (TensorData, ConnectedStatsPrimitive<B>) {
     let device = &img.device();
     let img = read_sync(B::bool_into_data(img)).expect("Should read data.");
     dispatch_bool_dtype!(img.dtype.into(), |BT| {
         dispatch_int_dtype!(out_dtype, |I| {
             let (labels, stats) =
                 run::<BT, I, ConnectedStatsOp<I>>(img, connectivity, ConnectedStatsOp::default);
-            let stats = finalize_stats::<B, I>(device, stats);
+            let stats = finalize_stats::<B, I>(device, stats, capacity);
             (labels, stats)
         })
     })
@@ -218,11 +228,14 @@ impl<I: Element + ElementLimits> StatsOp for ConnectedStatsOp<I> {
 fn finalize_stats<B: Backend, I: Element>(
     device: &Device<B>,
     stats: ConnectedStatsOp<I>,
+    capacity: Option<usize>,
 ) -> ConnectedStatsPrimitive<B> {
     let labels = stats.area.len();
 
-    let into_prim = |data: Vec<I>| {
-        let data = TensorData::new(data, Shape::new([labels]));
+    let into_prim = |mut data: Vec<I>| {
+        let capacity = capacity.unwrap_or(labels);
+        data.resize(capacity, I::from_elem(0));
+        let data = TensorData::new(data, Shape::new([capacity]));
         B::int_from_data(data, device)
     };
 

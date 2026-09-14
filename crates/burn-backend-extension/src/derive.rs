@@ -15,18 +15,18 @@ enum CaseStyle {
 }
 
 /// One derive case: a struct is one case and an enum contributes one case per variant.
-struct DeriveCase {
+pub(crate) struct DeriveCase {
     path: TokenStream,
     style: CaseStyle,
-    fields: Vec<CaseField>,
+    pub(crate) fields: Vec<CaseField>,
 }
 
-struct CaseField {
-    bind: Ident,
+pub(crate) struct CaseField {
+    pub(crate) bind: Ident,
     member: Option<Ident>,
-    ty: Type,
-    is_ext: bool,
-    tensor_kind: Option<TensorKind>,
+    pub(crate) ty: Type,
+    pub(crate) is_ext: bool,
+    pub(crate) tensor_kind: Option<TensorKind>,
 }
 
 fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
@@ -56,7 +56,7 @@ fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
     }
 }
 
-fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {
+pub(crate) fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {
     let name = &input.ident;
     match &input.data {
         Data::Struct(data) => Ok(vec![build_case(quote!(#name), &data.fields)]),
@@ -76,7 +76,7 @@ fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {
 }
 
 /// Destructure a case, binding only the fields selected by `needed`.
-fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool) -> TokenStream {
+pub(crate) fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool) -> TokenStream {
     let path = &case.path;
     match case.style {
         CaseStyle::Unit => quote!(#path),
@@ -106,7 +106,7 @@ fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool) -> TokenS
     }
 }
 
-fn gen_case_ctor(case: &DeriveCase, expressions: &[TokenStream]) -> TokenStream {
+pub(crate) fn gen_case_ctor(case: &DeriveCase, expressions: &[TokenStream]) -> TokenStream {
     let path = &case.path;
     match case.style {
         CaseStyle::Unit => quote!(#path),
@@ -217,6 +217,7 @@ fn gen_autodiff_context_arm(case: &DeriveCase) -> TokenStream {
 
 pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
+    let fusion = crate::fusion::derive(&input)?;
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let cases = collect_cases(&input)?;
@@ -273,6 +274,7 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let autodiff_context_arms = cases.iter().map(gen_autodiff_context_arm);
 
     Ok(quote! {
+        #fusion
         impl #impl_generics burn::backend::ExtensionType<B> for #name #ty_generics #where_clause {
             type Target = #name<burn::backend::Dispatch>;
 

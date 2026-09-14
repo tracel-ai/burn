@@ -1,7 +1,7 @@
 use crate::{FloatTensor, kernel::fused_matmul_add_relu_kernel};
 
 use super::Backend;
-use burn::{backend::cubecl::dtype_to_storage_type, tensor::Shape};
+use burn::backend::cubecl::dtype_to_storage_type;
 use burn_cubecl::{CubeBackend, kernel::into_contiguous, tensor::CubeTensor};
 use cubecl::{CubeCount, CubeDim};
 
@@ -25,21 +25,16 @@ impl Backend for CubeBackend {
         let rhs = into_contiguous(rhs);
         let bias = into_contiguous(bias);
 
-        // Get the matmul relevant shapes.
+        assert_eq!(lhs.dtype, rhs.dtype, "matrix dtypes must match");
+        assert_eq!(lhs.dtype, bias.dtype, "bias dtype must match");
+        let shape_out =
+            crate::output_shape(&lhs.meta.shape(), &rhs.meta.shape(), &bias.meta.shape());
+
+        // Get the matmul relevant shapes after validating the inputs.
         let ndims = lhs.meta.num_dims();
         let num_rows = lhs.meta.shape()[ndims - 2];
         let num_cols = rhs.meta.shape()[ndims - 1];
-
-        // Compute shape of output, while tracking number of batches.
-        let mut num_batches = 1;
-        let mut shape_out = vec![0; ndims];
-        for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.meta.shape()[i], rhs.meta.shape()[i]);
-            num_batches *= shape_out[i];
-        }
-        shape_out[ndims - 2] = num_rows;
-        shape_out[ndims - 1] = num_cols;
-        let shape_out = Shape::from(shape_out);
+        let num_batches: usize = (0..ndims - 2).map(|i| shape_out[i]).product();
 
         // Create a buffer for the output tensor.
         let buffer = lhs.client.empty(shape_out.num_elements() * dtype.size());
@@ -74,15 +69,5 @@ impl Backend for CubeBackend {
 
         // Return the output tensor.
         output
-    }
-}
-
-impl Backend for burn_fusion::Fusion<CubeBackend> {
-    fn fused_matmul_add_relu(
-        _lhs: FloatTensor<Self>,
-        _rhs: FloatTensor<Self>,
-        _bias: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        todo!()
     }
 }
