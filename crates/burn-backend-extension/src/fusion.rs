@@ -8,6 +8,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Expr, FnArg, GenericParam, ItemTrait, Pat, ReturnType, TraitItem, Type};
 
+#[allow(clippy::large_enum_variant)]
 enum FusionBehavior {
     Default,
     Meta(Expr),
@@ -676,6 +677,19 @@ fn derive_layout(input: &syn::DeriveInput, gate: &Option<TokenStream>) -> syn::R
     })
 }
 
+fn reject_borrowed_output(ty: &Type) -> syn::Result<()> {
+    match ty {
+        Type::Reference(_) => Err(unsupported(ty)),
+        Type::Tuple(tuple) => {
+            for ty in &tuple.elems {
+                reject_borrowed_output(ty)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -891,18 +905,5 @@ mod tests {
         let out = derive(&input).unwrap();
         syn::parse2::<syn::File>(out.clone()).unwrap();
         assert!(out.to_string().contains("ExtensionMetadata"));
-    }
-}
-
-fn reject_borrowed_output(ty: &Type) -> syn::Result<()> {
-    match ty {
-        Type::Reference(_) => Err(unsupported(ty)),
-        Type::Tuple(tuple) => {
-            for ty in &tuple.elems {
-                reject_borrowed_output(ty)?;
-            }
-            Ok(())
-        }
-        _ => Ok(()),
     }
 }
