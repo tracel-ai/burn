@@ -22,6 +22,17 @@ const TEST_LABELS: &str = "t10k-labels-idx1-ubyte";
 const WIDTH: usize = 28;
 const HEIGHT: usize = 28;
 
+/// Items each split is documented to contain: 60,000 for train, 10,000 for test. The item
+/// count in an IDX header is attacker controlled, so it is capped with these before it is
+/// allowed to size an allocation.
+const TRAIN_ITEMS: u64 = 60_000;
+const TEST_ITEMS: u64 = 10_000;
+
+/// Ceiling for the item count read out of a file header, per split.
+fn split_item_ceiling(split: &str) -> u64 {
+    if split == "train" { TRAIN_ITEMS } else { TEST_ITEMS }
+}
+
 /// MNIST item.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MnistItem {
@@ -185,7 +196,18 @@ impl MnistDataset {
 
         // The item count comes from the file, so it cannot be trusted to size an allocation:
         // a corrupt or hostile header would otherwise reserve an arbitrary amount of memory
-        // before a single payload byte is read. Bound it by the bytes the file can supply.
+        // before a single payload byte is read.
+        //
+        // The file length is not a bound by itself. A sparse file reports a multi-terabyte
+        // length while occupying a few blocks, so a header declaring `u32::MAX` items passes
+        // a length check and the allocation still goes through. Cap the count at what the
+        // split is documented to hold, then keep the length check as a truncation check.
+        let ceiling = split_item_ceiling(split);
+        assert!(
+            size as u64 <= ceiling,
+            "image file declares {size} items, but the {split} split holds at most {ceiling}"
+        );
+
         let expected_len = (WIDTH * HEIGHT) as u64 * size as u64;
         let available = f.metadata().unwrap().len().saturating_sub(16);
         assert!(
@@ -222,8 +244,14 @@ impl MnistDataset {
             .expect("Should be able to read label file header");
         let size = u32::from_be_bytes(buf);
 
-        // Same reasoning as `read_images`: the count is file-supplied, so bound the buffer by
-        // what the file actually holds after its 8-byte header.
+        // Same reasoning as `read_images`: the count is file-supplied, so cap it at the split
+        // ceiling first, then bound the buffer by what the file holds after its 8-byte header.
+        let ceiling = split_item_ceiling(split);
+        assert!(
+            size as u64 <= ceiling,
+            "label file declares {size} labels, but the {split} split holds at most {ceiling}"
+        );
+
         let available = f.metadata().unwrap().len().saturating_sub(8);
         assert!(
             size as u64 <= available,
@@ -245,8 +273,8 @@ mod tests {
 
     /// Write an IDX image file whose header declares `declared_count` items while only
     /// `payload_bytes` bytes follow the 16-byte header.
-    fn write_train_images(dir: &Path, declared_count: u32, payload_bytes: usize) {
-        let mut f = File::create(dir.join(TRAIN_IMAGES)).unwrap();
+    fn write_images(dir: &Path, name: &str, declared_count: u32, payload_bytes: usize) {
+        let mut f = File::create(dir.join(name)).unwrap();
         f.write_all(&[0, 0, 0x08, 0x03]).unwrap(); // unsigned byte, 3 dimensions
         f.write_all(&declared_count.to_be_bytes()).unwrap();
         f.write_all(&(WIDTH as u32).to_be_bytes()).unwrap();
@@ -254,16 +282,23 @@ mod tests {
         f.write_all(&vec![0u8; payload_bytes]).unwrap();
     }
 
+    /// Write a label file whose header declares `declared_count` labels while only
+    /// `payload_bytes` bytes follow the 8-byte header.
+    fn write_train_labels(dir: &Path, declared_count: u32, payload_bytes: usize) {
+        let mut f = File::create(dir.join(TRAIN_LABELS)).unwrap();
+        f.write_all(&[0, 0, 0x08, 0x01]).unwrap(); // unsigned byte, 1 dimension
+        f.write_all(&declared_count.to_be_bytes()).unwrap();
+        f.write_all(&vec![0u8; payload_bytes]).unwrap();
+    }
+
     /// The item count comes out of the file, so a header claiming more items than the file
     /// could possibly hold has to be rejected before anything is allocated from it.
-    ///
-    /// Before the bound existed, the `u32::MAX` case below asked for ~3.3 TiB; the resulting
-    /// allocation failure aborts the process, which no assertion can observe.
     #[test]
     #[should_panic(expected = "bytes follow the header")]
     fn read_images_rejects_a_count_the_file_cannot_hold() {
         let dir = tempfile::tempdir().unwrap();
-        write_train_images(dir.path(), u32::MAX, 4);
+        // Within the split ceiling, but far more than the 4 payload bytes on disk.
+        write_images(dir.path(), TRAIN_IMAGES, 100, 4);
 
         let _ = MnistDataset::read_images(&dir.path(), "train");
     }
@@ -273,20 +308,50 @@ mod tests {
     #[should_panic(expected = "bytes follow the header")]
     fn read_labels_rejects_a_count_the_file_cannot_hold() {
         let dir = tempfile::tempdir().unwrap();
-        let mut f = File::create(dir.path().join(TRAIN_LABELS)).unwrap();
-        f.write_all(&[0, 0, 0x08, 0x01]).unwrap(); // unsigned byte, 1 dimension
-        f.write_all(&u32::MAX.to_be_bytes()).unwrap();
-        f.write_all(&[0u8; 4]).unwrap();
-        drop(f);
+        write_train_labels(dir.path(), 100, 4);
 
         let _ = MnistDataset::read_labels(&dir.path(), "train");
+    }
+
+    /// The length check alone is not a bound: a sparse file reports a multi-terabyte length
+    /// while occupying a few blocks, so a `u32::MAX` header passes it and the allocation goes
+    /// through. The split ceiling is what rejects the count outright. Before it existed, this
+    /// asked for ~3.3 TiB; the allocation failure aborts the process, which no assertion can
+    /// observe.
+    #[test]
+    #[should_panic(expected = "holds at most")]
+    fn read_images_rejects_a_count_past_the_split_ceiling() {
+        let dir = tempfile::tempdir().unwrap();
+        write_images(dir.path(), TRAIN_IMAGES, u32::MAX, 4);
+
+        let _ = MnistDataset::read_images(&dir.path(), "train");
+    }
+
+    /// Same ceiling for labels.
+    #[test]
+    #[should_panic(expected = "holds at most")]
+    fn read_labels_rejects_a_count_past_the_split_ceiling() {
+        let dir = tempfile::tempdir().unwrap();
+        write_train_labels(dir.path(), u32::MAX, 4);
+
+        let _ = MnistDataset::read_labels(&dir.path(), "train");
+    }
+
+    /// A well-formed test split (10,000 items) must stay under the ceiling.
+    #[test]
+    fn read_images_accepts_the_test_split() {
+        let dir = tempfile::tempdir().unwrap();
+        write_images(dir.path(), TEST_IMAGES, 10_000, WIDTH * HEIGHT * 10_000);
+
+        let images = MnistDataset::read_images(&dir.path(), "test");
+        assert_eq!(images.len(), 10_000);
     }
 
     /// The bound must not reject a well-formed file.
     #[test]
     fn read_images_accepts_a_well_formed_file() {
         let dir = tempfile::tempdir().unwrap();
-        write_train_images(dir.path(), 2, WIDTH * HEIGHT * 2);
+        write_images(dir.path(), TRAIN_IMAGES, 2, WIDTH * HEIGHT * 2);
 
         let images = MnistDataset::read_images(&dir.path(), "train");
         assert_eq!(images.len(), 2);
