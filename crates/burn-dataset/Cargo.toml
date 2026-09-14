@@ -20,7 +20,7 @@ workspace = true
 default = []
 doc = ["default", "sqlite"]
 tracing = [
-    "burn-std/tracing",
+    "burn-std?/tracing",
 ]
 
 audio = ["hound", "sqlite"]
