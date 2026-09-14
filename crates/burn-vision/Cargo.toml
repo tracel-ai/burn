@@ -20,7 +20,7 @@ workspace = true
 
 [features]
 default = ["burn-core/default", "flex", "fusion", "std"]
-std = ["aligned-vec/std", "burn-core/std", "burn-store?/std"]
+std = ["aligned-vec/std", "burn-core/std", "burn-nn?/std", "burn-store?/std"]
 tracing = [
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
@@ -45,7 +45,7 @@ flex = ["burn-core/flex"]
 tch = ["burn-core/tch"]
 
 # TODO: move somewhere else
-loss = ["std", "burn-store/pytorch", "burn-core/network", "dirs"]
+loss = ["std", "dep:burn-nn", "burn-store/pytorch", "burn-std/network", "dirs"]
 
 [dependencies]
 burn-cubecl = { workspace = true, optional = true, features = ["default"]}
@@ -61,6 +61,7 @@ aligned-vec = { version = "0.6", default-features = false }
 bon = { workspace = true }
 
 # For loss functions requiring pretrained models (e.g., Gram Matrix Loss)
+burn-nn = { workspace = true, optional = true }
 burn-store = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
 
@@ -72,3 +73,6 @@ macerator = { workspace = true }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
 serde = { workspace = true }
+
+[dev-dependencies]
+burn-core = { workspace = true, features = ["autodiff"] }

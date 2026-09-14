@@ -1484,6 +1484,7 @@ dependencies = [
  "burn-core",
  "burn-cubecl",
  "burn-fusion",
+ "burn-nn",
  "burn-std",
  "burn-store",
  "bytemuck",
