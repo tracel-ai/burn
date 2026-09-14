@@ -75,15 +75,15 @@ pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
         return tensor;
     }
 
-    if tensor.qparams.is_some() {
-        return to_device_quantized(tensor, device);
-    }
-
     if tensor.device.runtime() != device.runtime() {
         return to_device_across_runtimes(tensor, device);
     }
 
-    let mut tensor = kernel::into_contiguous_aligned(tensor);
+    // A quantized tensor moves as its whole allocation, which needs no contiguous staging.
+    let mut tensor = match tensor.qparams {
+        Some(_) => tensor,
+        None => kernel::into_contiguous_aligned(tensor),
+    };
     let client = device.client();
     tensor.to_client(client, device.clone())
 }
@@ -98,7 +98,17 @@ pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
 /// The copy is of the tensor's whole allocation rather than of its logical elements, so a
 /// non-contiguous tensor arrives with the strides it left with instead of being materialized
 /// contiguous on the way.
+///
+/// A quantized tensor travels instead by the layout `q_into_data` writes and `q_from_data` reads
+/// back, which carries its scales along with its values whatever each runtime's packing.
 fn to_device_across_runtimes(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
+    if tensor.qparams.is_some() {
+        let from = tensor.device.clone();
+        let data = burn_std::future::block_on(CubeBackend::q_into_data(tensor))
+            .unwrap_or_else(|err| transfer_failed(&from, device, err));
+        return CubeBackend::q_from_data(data, device);
+    }
+
     let bytes = tensor
         .client
         .read_one(tensor.handle.clone())
@@ -115,20 +125,6 @@ fn to_device_across_runtimes(tensor: CubeTensor, device: &CubeDevice) -> CubeTen
         dtype: tensor.dtype,
         qparams: tensor.qparams,
     }
-}
-
-/// Move a quantized tensor to any other device, whatever its runtime.
-///
-/// Its values, scales and per-tensor scale are three regions of one allocation, and `handle`
-/// bounds the values region alone, so any copy of the handle (a peer transfer or a host copy)
-/// would leave the scales behind while `qparams` went on naming offsets that no longer hold them.
-/// It travels by the layout built for exactly this, the one `q_into_data` writes and `q_from_data`
-/// reads back.
-fn to_device_quantized(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
-    let from = tensor.device.clone();
-    let data = burn_std::future::block_on(CubeBackend::q_into_data(tensor))
-        .unwrap_or_else(|err| transfer_failed(&from, device, err));
-    CubeBackend::q_from_data(data, device)
 }
 
 fn transfer_failed(from: &CubeDevice, to: &CubeDevice, err: impl core::fmt::Display) -> ! {
@@ -566,7 +562,7 @@ mod same_runtime_tests {
 
     /// wgpu has no peer transport, so a move between two of its adapters must go through the
     /// host; reaching for send and recv instead leaves the destination never written. A quantized
-    /// tensor must keep its scales, which a copy of its handle alone would leave behind.
+    /// tensor must keep its scales, which live past the region its handle bounds.
     #[cfg(feature = "wgpu")]
     #[test]
     #[ignore = "needs two discrete wgpu adapters"]
@@ -581,7 +577,8 @@ mod same_runtime_tests {
 
     /// CUDA moves stay on its peer transport after routing through the host fallback's entry
     /// point, which sizes the copy from the whole allocation rather than the tensor's shape. A
-    /// quantized tensor must keep its scales, which the peer transport alone would not carry.
+    /// quantized tensor must keep its scales on that same transport, which live past the region
+    /// its handle bounds.
     #[cfg(feature = "cuda")]
     #[test]
     #[ignore = "needs two CUDA devices"]

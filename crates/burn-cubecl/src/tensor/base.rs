@@ -4,6 +4,7 @@ use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
+use cubecl::ir::{ElemType, UIntKind};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
 use cubecl::{client::Client, std::tensor::layout::linear::LinearViewLaunch};
@@ -170,9 +171,13 @@ impl CubeTensor {
     pub fn to_client(&mut self, client: Client, device: CubeDevice) -> Self {
         // Not `to_client_tensor`: only `to_client` falls back to the host on runtimes without a
         // peer transport, and wgpu, ROCm and Metal have none.
-        let handle =
-            self.client
-                .to_client(self.handle.clone(), &client, dtype_to_elem_type(self.dtype));
+        let handle = match self.qparams {
+            Some(_) => self.whole_allocation_to_client(&client),
+            None => {
+                self.client
+                    .to_client(self.handle.clone(), &client, dtype_to_elem_type(self.dtype))
+            }
+        };
 
         // The copy keeps the physical layout, so the metadata travels whole, tiling included.
         Self {
@@ -183,6 +188,24 @@ impl CubeTensor {
             dtype: self.dtype,
             qparams: self.qparams.clone(),
         }
+    }
+
+    /// Copy the whole allocation behind the handle, not the region its offsets bound.
+    ///
+    /// A quantized tensor's scales live in the same allocation as its values, past the region
+    /// `handle` bounds, and `qparams` names them by offset into that allocation. Moving all of it
+    /// as bytes keeps every offset valid on the destination.
+    fn whole_allocation_to_client(&mut self, client: &Client) -> Handle {
+        let mut whole = self.handle.clone();
+        whole.offset_start = None;
+        whole.offset_end = None;
+
+        let mut moved = self
+            .client
+            .to_client(whole, client, ElemType::UInt(UIntKind::U8));
+        moved.offset_start = self.handle.offset_start;
+        moved.offset_end = self.handle.offset_end;
+        moved
     }
 
     /// Return the reference to a tensor handle.
