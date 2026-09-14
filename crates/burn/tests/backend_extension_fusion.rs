@@ -42,7 +42,7 @@ mod renamed {
 
 #[test]
 fn nested_metadata_resolves_renamed_imports() {
-    use burn::backend::fusion::custom::Layout;
+    use burn::backend::fusion::custom::FusionValueAdapter;
 
     let spec = TensorSpec::new([3].into(), burn::tensor::DType::I32);
     let metadata = renamed::OutputsMetadata {
@@ -55,7 +55,9 @@ fn nested_metadata_resolves_renamed_imports() {
         },
     };
     let mut specs = Vec::new();
-    <renamed::Outputs<CubeBackend> as Layout<CubeBackend>>::specs(&metadata, &mut specs);
+    <renamed::Outputs<CubeBackend> as FusionValueAdapter<CubeBackend>>::append_output_specs(
+        &metadata, &mut specs,
+    );
     assert_eq!(specs.len(), 2);
     assert_eq!(specs[0].shape, spec.shape);
     assert_eq!(specs[0].dtype, spec.dtype);
@@ -231,11 +233,11 @@ fn aliased_outputs_can_feed_independent_consumers() {
 
 #[test]
 fn rejects_incorrect_dtype_category_before_registration() {
-    use burn::backend::fusion::custom::{Float, Layout};
+    use burn::backend::fusion::custom::{Float, FusionValueAdapter};
     let mut specs = Vec::new();
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            <Float as Layout<CubeBackend>>::specs(
+            <Float as FusionValueAdapter<CubeBackend>>::append_output_specs(
                 &TensorSpec::new([1].into(), burn::tensor::DType::I32),
                 &mut specs,
             );
@@ -272,9 +274,10 @@ impl StructuredOps for CubeBackend {
             return (Packet::Empty, second);
         }
         if wrong == 2 {
-            if let Packet::Float { mode, .. } = &mut second {
-                *mode += 1;
-            }
+            return (first, Packet::Empty);
+        }
+        if let Packet::Nested(_, mode) = &mut second {
+            *mode += 1;
         }
         (first, second)
     }
@@ -298,6 +301,7 @@ fn nested_enum_inputs_round_trip_with_empty_variants_and_scalar_fields() {
     let Packet::Nested(out, mode) = result else {
         panic!("wrong variant")
     };
+    // Execution changes this field, but the lazy result takes its value from metadata.
     assert_eq!(mode, 7);
     Tensor::<1>::from_dispatch(out.float)
         .into_data()
@@ -311,7 +315,7 @@ fn nested_enum_inputs_round_trip_with_empty_variants_and_scalar_fields() {
 }
 
 #[test]
-fn enum_variant_and_scalar_mismatches_fail_before_any_output_is_published() {
+fn enum_variant_mismatches_fail_before_any_output_is_published() {
     // Independent threads isolate streams after each intentional execution error.
     for wrong in [1, 2] {
         std::thread::spawn(move || {

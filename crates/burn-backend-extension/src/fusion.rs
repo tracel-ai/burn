@@ -2,7 +2,7 @@
 //!
 //! Metadata runs on the calling thread before registration; the inner backend call is deferred.
 //! Tuples are traversed here, while tensors and derived extension values delegate to the runtime's
-//! `Layout` trait for metadata flattening, validation, handle publication, and reconstruction.
+//! `FusionValueAdapter` trait for metadata flattening, validation, handle publication, and reconstruction.
 use crate::ir::{OperationOutput, TensorKind, with_backend};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -199,8 +199,8 @@ fn expand_method(
             Type::Reference(r) => r.elem.as_ref(),
             ty => ty,
         };
-        let layout = field_layout(ty, is_ext)?;
-        if let Some(layout) = layout {
+        let adapter = field_adapter(ty, is_ext)?;
+        if let Some(adapter) = adapter {
             if scalar.is_some() {
                 return Err(syn::Error::new_spanned(
                     arg,
@@ -210,17 +210,20 @@ fn expand_method(
             if is_ext && borrowed {
                 return Err(unsupported(arg));
             }
-            let layout = if is_ext {
+            let adapter = if is_ext {
                 with_backend(ty, quote!(B))
             } else {
-                layout
+                adapter
             };
-            let layout = quote!(<#layout as burn::backend::fusion::custom::Layout<B>>);
+            let adapter =
+                quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<B>>);
             let meta = format_ident!("__metadata_{name}");
-            metadata_inputs.push(quote!(let #meta = #layout::metadata(&#name);));
+            metadata_inputs.push(quote!(let #meta = #adapter::to_metadata(&#name);));
             metadata_args.push(quote!(&#meta));
-            visits.push(quote!(#layout::visit_tensors(&#name, &mut __visit);));
-            retrieve.push(quote!(let #name = #layout::read(&#meta, &mut __input_iter, __handles);));
+            visits.push(quote!(#adapter::visit_fused_tensors(&#name, &mut __visit);));
+            retrieve.push(
+                quote!(let #name = #adapter::resolve_inputs(&#meta, &mut __input_iter, __handles);),
+            );
             invoke.push(if borrowed {
                 quote!(&#name)
             } else {
@@ -231,7 +234,7 @@ fn expand_method(
             } else {
                 quote!(#name)
             };
-            inputs.push(quote!(#layout::into_inputs(#value, &mut __inputs);));
+            inputs.push(quote!(#adapter::append_input_ir(#value, &mut __inputs);));
         } else {
             if borrowed
                 || matches!(arg.ty.as_ref(), Type::ImplTrait(_))
@@ -475,7 +478,7 @@ fn walk_output(
             .collect::<syn::Result<Vec<_>>>()?;
         return Ok(quote!((#(#items,)*)));
     }
-    let layout = match out {
+    let adapter = match out {
         OperationOutput::Tensor(kind) => {
             let kind = kind.variant();
             quote!(burn::backend::fusion::custom::#kind)
@@ -483,11 +486,12 @@ fn walk_output(
         OperationOutput::Extension(ty) => with_backend(ty, quote!(B)),
         _ => return Err(unsupported(quote!(output))),
     };
-    let layout = quote!(<#layout as burn::backend::fusion::custom::Layout<B>>);
-    specs.push(quote!(#layout::specs(&#meta, &mut __specs);));
-    validate.push(quote!(#layout::validate(&#value, &#meta, &mut __expected, &__device)?;));
-    publish.push(quote!(#layout::publish(#value, &mut __expected, __handles);));
-    Ok(quote!(#layout::reconstruct(&#meta, &mut __tensors)))
+    let adapter = quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<B>>);
+    specs.push(quote!(#adapter::append_output_specs(&#meta, &mut __specs);));
+    validate
+        .push(quote!(#adapter::validate_outputs(&#value, &#meta, &mut __expected, &__device)?;));
+    publish.push(quote!(#adapter::register_output_handles(#value, &mut __expected, __handles);));
+    Ok(quote!(#adapter::build_fused_output(&#meta, &mut __tensors)))
 }
 
 pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
@@ -514,15 +518,15 @@ pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
         return Ok(quote!());
     }
     let gate = cfg.map(|c| quote!(#[#c]));
-    let result = derive_layout(input, &gate).unwrap_or_else(|e| {
+    let result = derive_adapter(input, &gate).unwrap_or_else(|e| {
         let e = e.into_compile_error();
         quote!(#gate #e)
     });
     Ok(result)
 }
 
-/// Tensor leaves and nested extension values share the same recursive layout.
-fn field_layout(ty: &Type, is_ext: bool) -> syn::Result<Option<TokenStream>> {
+/// Tensor leaves and nested extension values use the same adapter interface.
+fn field_adapter(ty: &Type, is_ext: bool) -> syn::Result<Option<TokenStream>> {
     if let Some(kind) = TensorKind::from_type(ty) {
         if matches!(ty, Type::Reference(_)) {
             return Err(unsupported(ty));
@@ -537,7 +541,10 @@ fn field_layout(ty: &Type, is_ext: bool) -> syn::Result<Option<TokenStream>> {
 }
 
 /// Mirror structs and enum variants in metadata; reuse the dispatch derive's field order.
-fn derive_layout(input: &syn::DeriveInput, gate: &Option<TokenStream>) -> syn::Result<TokenStream> {
+fn derive_adapter(
+    input: &syn::DeriveInput,
+    gate: &Option<TokenStream>,
+) -> syn::Result<TokenStream> {
     use crate::derive::{collect_cases, gen_case_ctor, gen_case_pattern};
     if input.generics.params.len() != 1 {
         return Err(unsupported(input));
@@ -569,7 +576,7 @@ fn derive_layout(input: &syn::DeriveInput, gate: &Option<TokenStream>) -> syn::R
             .attrs
             .iter()
             .any(|a| a.path().is_ident("extension_type"));
-        if field_layout(&field.ty, is_ext)?.is_some() {
+        if field_adapter(&field.ty, is_ext)?.is_some() {
             field.ty = if TensorKind::from_type(&field.ty).is_some() {
                 syn::parse_quote!(burn::backend::fusion::custom::TensorSpec)
             } else {
@@ -602,6 +609,9 @@ fn derive_layout(input: &syn::DeriveInput, gate: &Option<TokenStream>) -> syn::R
             case.fields[i].tensor_kind.is_some() || case.fields[i].is_ext
         });
         let meta_pattern = gen_case_pattern(meta_case, |_| true);
+        let meta_tensor_pattern = gen_case_pattern(meta_case, |i| {
+            case.fields[i].tensor_kind.is_some() || case.fields[i].is_ext
+        });
         let mut descriptions = Vec::new();
         let mut visits = Vec::new();
         let mut inputs = Vec::new();
@@ -613,25 +623,23 @@ fn derive_layout(input: &syn::DeriveInput, gate: &Option<TokenStream>) -> syn::R
         for (field, meta_field) in case.fields.iter().zip(&meta_case.fields) {
             let value = &field.bind;
             let meta = &meta_field.bind;
-            if let Some(layout) = field_layout(&field.ty, field.is_ext)? {
-                let layout = quote!(<#layout as burn::backend::fusion::custom::Layout<#b>>);
-                descriptions.push(quote!(#layout::metadata(#value)));
-                visits.push(quote!(#layout::visit_tensors(#value, visit);));
-                inputs.push(quote!(#layout::into_inputs(#value, inputs);));
-                reads.push(quote!(#layout::read(#meta, inputs, handles)));
-                spec_fields.push(quote!(#layout::specs(#meta, out);));
-                checks.push(quote!(#layout::validate(#value, #meta, specs, device)?;));
-                publications.push(quote!(#layout::publish(#value, specs, handles);));
-                reconstructions.push(quote!(#layout::reconstruct(#meta, tensors)));
+            if let Some(adapter) = field_adapter(&field.ty, field.is_ext)? {
+                let adapter =
+                    quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<#b>>);
+                descriptions.push(quote!(#adapter::to_metadata(#value)));
+                visits.push(quote!(#adapter::visit_fused_tensors(#value, visit);));
+                inputs.push(quote!(#adapter::append_input_ir(#value, inputs);));
+                reads.push(quote!(#adapter::resolve_inputs(#meta, inputs, handles)));
+                spec_fields.push(quote!(#adapter::append_output_specs(#meta, out);));
+                checks.push(quote!(#adapter::validate_outputs(#value, #meta, specs, device)?;));
+                publications
+                    .push(quote!(#adapter::register_output_handles(#value, specs, handles);));
+                reconstructions.push(quote!(#adapter::build_fused_output(#meta, tensors)));
             } else {
                 descriptions.push(quote!(#value.clone()));
                 reads.push(quote!(#meta.clone()));
+                // Ordinary output fields come from metadata; execution only supplies tensors.
                 reconstructions.push(quote!(#meta.clone()));
-                checks.push(quote! {
-                    if #value != #meta {
-                        return Err(burn::backend::fusion::ExecutionError::generic("Fusion custom output field differs from its metadata"));
-                    }
-                });
             }
         }
         let description = gen_case_ctor(meta_case, &descriptions);
@@ -642,7 +650,7 @@ fn derive_layout(input: &syn::DeriveInput, gate: &Option<TokenStream>) -> syn::R
         flatten.push(quote!(#tensor_pattern => { #(#inputs)* }));
         read.push(quote!(#meta_pattern => #restored));
         specs.push(quote!(#meta_pattern => { #(#spec_fields)* }));
-        validate.push(quote!((#value_pattern, #meta_pattern) => { #(#checks)* Ok(()) }));
+        validate.push(quote!((#tensor_pattern, #meta_tensor_pattern) => { #(#checks)* Ok(()) }));
         publish.push(quote!(#tensor_pattern => { #(#publications)* }));
         reconstruct.push(quote!(#meta_pattern => #reconstructed));
     }
@@ -661,18 +669,20 @@ fn derive_layout(input: &syn::DeriveInput, gate: &Option<TokenStream>) -> syn::R
             type Metadata = #metadata;
         }
         #gate
-        impl<#b: burn::backend::fusion::FusionBackend + #bounds> burn::backend::fusion::custom::Layout<#b> for #name<#b> #where_clause {
+        impl<#b: burn::backend::fusion::FusionBackend + #bounds> burn::backend::fusion::custom::FusionValueAdapter<#b> for #name<#b> #where_clause {
             type Metadata = #metadata;
-            type Base = Self;
-            type Target = #name<burn::backend::fusion::Fusion<#b>>;
-            fn metadata(value: &Self::Target) -> Self::Metadata { match value { #(#describe,)* } }
-            fn visit_tensors(value: &Self::Target, visit: &mut impl FnMut(&burn::backend::fusion::FusionTensor<#b::FusionRuntime>)) { match value { #(#visit,)* } }
-            fn into_inputs(value: Self::Target, inputs: &mut Vec<burn::backend::fusion::custom::TensorIr>) { match value { #(#flatten,)* } }
-            fn read(meta: &Self::Metadata, inputs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, handles: &mut burn::backend::fusion::custom::HandleContainer<<#b::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>) -> Self::Base { match meta { #(#read,)* } }
-            fn specs(meta: &Self::Metadata, out: &mut Vec<burn::backend::fusion::custom::TensorSpec>) { match meta { #(#specs,)* } }
-            fn validate(value: &Self, meta: &Self::Metadata, specs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, device: &#b::Device) -> Result<(), burn::backend::fusion::ExecutionError> { match (value, meta) { #(#validate,)* #mismatch } }
-            fn publish(value: Self, specs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, handles: &mut burn::backend::fusion::custom::HandleContainer<<#b::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>) { match value { #(#publish,)* } }
-            fn reconstruct(meta: &Self::Metadata, tensors: &mut std::vec::IntoIter<burn::backend::fusion::FusionTensor<#b::FusionRuntime>>) -> Self::Target { match meta { #(#reconstruct,)* } }
+            type Inner = Self;
+            type Fused = #name<burn::backend::fusion::Fusion<#b>>;
+            fn to_metadata(value: &Self::Fused) -> Self::Metadata { match value { #(#describe,)* } }
+            fn visit_fused_tensors(value: &Self::Fused, visit: &mut impl FnMut(&burn::backend::fusion::FusionTensor<#b::FusionRuntime>)) { match value { #(#visit,)* } }
+            fn append_input_ir(value: Self::Fused, inputs: &mut Vec<burn::backend::fusion::custom::TensorIr>) { match value { #(#flatten,)* } }
+            fn resolve_inputs(meta: &Self::Metadata, inputs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, handles: &mut burn::backend::fusion::custom::HandleContainer<<#b::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>) -> Self::Inner { match meta { #(#read,)* } }
+            fn append_output_specs(meta: &Self::Metadata, out: &mut Vec<burn::backend::fusion::custom::TensorSpec>) { match meta { #(#specs,)* } }
+            fn validate_outputs(value: &Self, meta: &Self::Metadata, specs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, device: &#b::Device) -> Result<(), burn::backend::fusion::ExecutionError> {
+                match (value, meta) { #(#validate,)* #mismatch }
+            }
+            fn register_output_handles(value: Self, specs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, handles: &mut burn::backend::fusion::custom::HandleContainer<<#b::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>) { match value { #(#publish,)* } }
+            fn build_fused_output(meta: &Self::Metadata, tensors: &mut std::vec::IntoIter<burn::backend::fusion::FusionTensor<#b::FusionRuntime>>) -> Self::Fused { match meta { #(#reconstruct,)* } }
         }
     })
 }
@@ -706,9 +716,9 @@ mod tests {
         });
         assert!(out.contains("with_scalars (stringify ! (op)"));
         assert!(out.contains("TensorSpec"));
-        assert!(out.contains(":: read"));
-        assert!(out.contains("validate"));
-        assert!(out.contains("into_inputs"));
+        assert!(out.contains(":: resolve_inputs"));
+        assert!(out.contains("validate_outputs"));
+        assert!(out.contains("append_input_ir"));
         syn::parse_str::<syn::ItemImpl>(&out).unwrap();
     }
     #[test]

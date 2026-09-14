@@ -47,7 +47,9 @@ Opt into `#[derive(ExtensionType)] #[extension_type(fusion)]` (or `fusion: cfg(.
 inputs and outputs. The generated `NameMetadata` mirrors fields and variants, replacing tensors
 with specs. Mark nested fields and method arguments with `#[extension_type]`. Nested metadata
 resolves through the field type, including imported or renamed types. Ordinary fields are cloned
-and require `Clone + Debug + PartialEq`; captured metadata must also be `Send + Sync + 'static`.
+and require `Clone + Debug`; captured metadata must also be `Send + Sync + 'static`.
+Ordinary output fields are taken from metadata. Their values returned by the inner backend are
+discarded without comparison; the metadata callback must supply the intended public values.
 A callback such as `meta = |cache| cache.clone()` preserves a cache's variant and tensor layout.
 
 The operation ID defaults to the method name; use `id = "custom_matmul"` to override it.
@@ -73,8 +75,9 @@ inside an owned extension value. Primitive inputs may be immutably borrowed. Ord
 must be owned and `Clone + Send + Sync + 'static`. Output metadata, including enum variants and
 ordinary fields, must be known before execution. Use an existing default body for other signatures,
 or omit `Fusion` from `#[backend_extension]` and implement the trait for `Fusion<B>` manually.
-Wrong dtype categories are rejected before registration; outputs that disagree with metadata
-fail at execution before any handles are published. Wrappers do not read tensor data or drain queues.
+Wrong dtype categories are rejected before registration; tensor shape, dtype, device, and enum
+variant mismatches fail at execution before any handles are published. Wrappers do not read tensor
+data or drain queues.
 
 Fusion generation does not generate gradients or merge custom kernels with neighboring kernels.
 Handwritten autodiff implementations continue to compose with the generated wrapper.

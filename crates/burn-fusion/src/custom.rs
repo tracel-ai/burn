@@ -41,104 +41,108 @@ pub trait ExtensionMetadata {
 ///
 /// All methods traverse tensor leaves in the same order: tuple position and field declaration
 /// order, recursively. Registration flattens metadata into output IR and reconstructs lazy tensors.
-/// Deferred execution validates every output before publishing any handles, so a mismatch fails
-/// the entire operation rather than exposing a partially valid result.
+/// Deferred execution validates tensor metadata and output variants before publishing any handles,
+/// so a mismatch fails the entire operation rather than exposing a partially valid result.
+/// Ordinary output fields are reconstructed from metadata; the inner backend's values are ignored.
 #[doc(hidden)]
-pub trait Layout<B: FusionBackend> {
+pub trait FusionValueAdapter<B: FusionBackend> {
     /// Shapes and dtypes supplied by the metadata callback.
     type Metadata: Clone;
-    /// Output value produced by the inner backend `B`.
-    type Base;
-    /// Corresponding output value containing `Fusion<B>` tensor primitives.
-    type Target;
+    /// Value containing tensor primitives of the inner backend `B`.
+    type Inner;
+    /// Corresponding value containing `Fusion<B>` tensor primitives.
+    type Fused;
     /// Describe inputs without retaining tensor handles.
-    fn metadata(value: &Self::Target) -> Self::Metadata;
+    fn to_metadata(value: &Self::Fused) -> Self::Metadata;
     /// Visit input tensors to select a client and check their devices.
-    fn visit_tensors(value: &Self::Target, visit: &mut impl FnMut(&FusionTensor<B::FusionRuntime>));
+    fn visit_fused_tensors(
+        value: &Self::Fused,
+        visit: &mut impl FnMut(&FusionTensor<B::FusionRuntime>),
+    );
     /// Consume inputs in declaration order, retaining Fusion's ownership information.
-    fn into_inputs(value: Self::Target, inputs: &mut Vec<TensorIr>);
+    fn append_input_ir(value: Self::Fused, inputs: &mut Vec<TensorIr>);
     /// Resolve input handles, restoring the variant and ordinary fields from metadata.
-    fn read(
+    fn resolve_inputs(
         meta: &Self::Metadata,
         inputs: &mut core::slice::Iter<'_, TensorIr>,
         handles: &mut HandleContainer<<B::FusionRuntime as FusionRuntime>::FusionHandle>,
-    ) -> Self::Base;
+    ) -> Self::Inner;
     /// Append output specs, rejecting dtypes outside each tensor's category before registration.
-    fn specs(meta: &Self::Metadata, out: &mut Vec<TensorSpec>);
+    fn append_output_specs(meta: &Self::Metadata, out: &mut Vec<TensorSpec>);
     /// Consume the expected IR entries and check actual shapes, dtypes, and devices.
-    fn validate(
-        value: &Self::Base,
+    fn validate_outputs(
+        value: &Self::Inner,
         meta: &Self::Metadata,
         specs: &mut core::slice::Iter<'_, TensorIr>,
         device: &B::Device,
     ) -> Result<(), ExecutionError>;
-    /// Publish validated handles, consuming the same IR entries from a fresh iterator.
-    fn publish(
-        value: Self::Base,
+    /// Register validated output handles, consuming the same IR entries from a fresh iterator.
+    fn register_output_handles(
+        value: Self::Inner,
         specs: &mut core::slice::Iter<'_, TensorIr>,
         handles: &mut HandleContainer<<B::FusionRuntime as FusionRuntime>::FusionHandle>,
     );
     /// Reassemble the output value from the lazy tensors returned by registration.
-    fn reconstruct(
+    fn build_fused_output(
         meta: &Self::Metadata,
         tensors: &mut std::vec::IntoIter<FusionTensor<B::FusionRuntime>>,
-    ) -> Self::Target;
+    ) -> Self::Fused;
 }
 
-macro_rules! tensor_layout {
+macro_rules! tensor_adapter {
     ($name:ident, $primitive:ident, $register:ident, $get:ident, $check:expr) => {
         #[doc(hidden)]
         pub struct $name;
-        impl<B: FusionBackend> Layout<B> for $name {
+        impl<B: FusionBackend> FusionValueAdapter<B> for $name {
             type Metadata = TensorSpec;
-            type Base = B::$primitive;
-            type Target = FusionTensor<B::FusionRuntime>;
-            fn metadata(value: &Self::Target) -> TensorSpec { TensorSpec::new(value.shape.clone(), value.dtype) }
-            fn visit_tensors(value: &Self::Target, visit: &mut impl FnMut(&FusionTensor<B::FusionRuntime>)) { visit(value); }
-            fn into_inputs(value: Self::Target, inputs: &mut Vec<TensorIr>) { inputs.push(value.into_ir()); }
-            fn read(_: &TensorSpec, inputs: &mut core::slice::Iter<'_, TensorIr>, handles: &mut HandleContainer<<B::FusionRuntime as FusionRuntime>::FusionHandle>) -> Self::Base {
+            type Inner = B::$primitive;
+            type Fused = FusionTensor<B::FusionRuntime>;
+            fn to_metadata(value: &Self::Fused) -> TensorSpec { TensorSpec::new(value.shape.clone(), value.dtype) }
+            fn visit_fused_tensors(value: &Self::Fused, visit: &mut impl FnMut(&FusionTensor<B::FusionRuntime>)) { visit(value); }
+            fn append_input_ir(value: Self::Fused, inputs: &mut Vec<TensorIr>) { inputs.push(value.into_ir()); }
+            fn resolve_inputs(_: &TensorSpec, inputs: &mut core::slice::Iter<'_, TensorIr>, handles: &mut HandleContainer<<B::FusionRuntime as FusionRuntime>::FusionHandle>) -> Self::Inner {
                 handles.$get::<B>(inputs.next().expect("input layout"))
             }
-            fn specs(meta: &TensorSpec, out: &mut Vec<TensorSpec>) {
+            fn append_output_specs(meta: &TensorSpec, out: &mut Vec<TensorSpec>) {
                 assert!(($check)(meta.dtype), "Fusion output metadata has the wrong dtype category for {}", stringify!($name));
                 out.push(meta.clone());
             }
-            fn validate(value: &Self::Base, _: &TensorSpec, specs: &mut core::slice::Iter<'_, TensorIr>, device: &B::Device) -> Result<(), ExecutionError> {
+            fn validate_outputs(value: &Self::Inner, _: &TensorSpec, specs: &mut core::slice::Iter<'_, TensorIr>, device: &B::Device) -> Result<(), ExecutionError> {
                 let expected = specs.next().expect("output layout");
                 if value.shape() != expected.shape || value.dtype() != expected.dtype || value.device().to_id() != device.to_id() {
                     return Err(ExecutionError::generic(format!("Fusion custom output metadata mismatch: expected {:?} {:?} on {:?}, got {:?} {:?} on {:?}", expected.shape, expected.dtype, device.to_id(), value.shape(), value.dtype(), value.device().to_id())));
                 }
                 Ok(())
             }
-            fn publish(value: Self::Base, specs: &mut core::slice::Iter<'_, TensorIr>, handles: &mut HandleContainer<<B::FusionRuntime as FusionRuntime>::FusionHandle>) {
+            fn register_output_handles(value: Self::Inner, specs: &mut core::slice::Iter<'_, TensorIr>, handles: &mut HandleContainer<<B::FusionRuntime as FusionRuntime>::FusionHandle>) {
                 handles.$register::<B>(&specs.next().expect("output layout").id, value);
             }
-            fn reconstruct(_: &TensorSpec, tensors: &mut std::vec::IntoIter<FusionTensor<B::FusionRuntime>>) -> Self::Target { tensors.next().expect("output layout") }
+            fn build_fused_output(_: &TensorSpec, tensors: &mut std::vec::IntoIter<FusionTensor<B::FusionRuntime>>) -> Self::Fused { tensors.next().expect("output layout") }
         }
     }
 }
-tensor_layout!(
+tensor_adapter!(
     Float,
     FloatTensorPrimitive,
     register_float_tensor,
     get_float_tensor,
     |d: DType| d.is_float()
 );
-tensor_layout!(
+tensor_adapter!(
     Int,
     IntTensorPrimitive,
     register_int_tensor,
     get_int_tensor,
     |d: DType| d.is_int() || d.is_uint()
 );
-tensor_layout!(
+tensor_adapter!(
     Bool,
     BoolTensorPrimitive,
     register_bool_tensor,
     get_bool_tensor,
     |d: DType| d.is_bool()
 );
-tensor_layout!(
+tensor_adapter!(
     Quantized,
     QuantizedTensorPrimitive,
     register_quantized_tensor,

@@ -137,8 +137,9 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// - Output metadata computable without tensor readback.
 ///
 /// Wrong dtype categories are rejected before registration; actual output shape, dtype, or device
-/// mismatches become execution errors, as do output variants or ordinary fields differing from
-/// their metadata. Custom kernels are opaque unless a custom optimizer recognizes their IR.
+/// mismatches become execution errors, as do output variants differing from their metadata.
+/// Ordinary output fields come from metadata; the inner backend's values are discarded without
+/// comparison. Custom kernels are opaque unless a custom optimizer recognizes their IR.
 ///
 /// For other signatures, use an existing default body or omit `Fusion` from `#[backend_extension]`
 /// and implement the trait for `Fusion<B>` manually.
@@ -154,9 +155,11 @@ pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Opt into `#[extension_type(fusion)]` (optionally `fusion: cfg(...)`) to support Fusion inputs
 /// and outputs and generate a backend-independent `NameMetadata` companion. It mirrors the struct's
 /// fields or enum's variants, replacing tensors with `TensorSpec` and nested extension values with
-/// their metadata. Ordinary fields are cloned and must implement `Clone + Debug + PartialEq`;
+/// their metadata. Ordinary fields are cloned and must implement `Clone + Debug`;
 /// captured metadata must also be `Send + Sync + 'static`.
 ///
+/// Ordinary output fields are taken from metadata. Their values returned by the inner backend are
+/// discarded without comparison; the metadata callback must supply the intended public values.
 /// Output variants and ordinary fields must be determined from metadata before execution.
 /// Empty variants are supported, but each operation still needs an input tensor for its device.
 ///
