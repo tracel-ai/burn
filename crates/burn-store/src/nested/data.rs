@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use burn_tensor::Bytes;
+use burn_core::tensor::Bytes;
 use core::fmt;
 use num_traits::cast::ToPrimitive;
 

@@ -84,7 +84,10 @@ pub(crate) fn handle_backend_tests(
         test_args.extend(["--features", "std"])
     }
 
-    let linalg_test_args = test_args.clone();
+    let mut linalg_test_args = test_args.clone();
+    if !matches!(context, Context::NoStd) {
+        linalg_test_args.extend(["--features", "autotune"]);
+    }
 
     if matches!(backend, TestBackend::Cuda) {
         // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
@@ -123,6 +126,21 @@ pub(crate) fn handle_backend_tests(
         None,
         "backend tests",
     )?;
+
+    if matches!(backend, TestBackend::Flex) {
+        // The dedicated transfer target requires two backends. Keep it separate
+        // from the main suite, where ndarray disables some Flex-specific tests.
+        let mut transfer_args = test_args.clone();
+        transfer_args.extend(["--features", "ndarray", "--test", "autodiff_transfer"]);
+        build_helpers::custom_crates_tests(
+            vec!["burn-backend-tests"],
+            handle_test_args(&transfer_args, args.release),
+            None,
+            None,
+            "autodiff backend transfer tests",
+        )?;
+    }
+
     build_helpers::custom_crates_tests(
         vec!["burn-linalg"],
         handle_test_args(&linalg_test_args, args.release),
@@ -163,6 +181,79 @@ fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Compile compatible Metal suites together instead of rebuilding their shared GPU stack
+/// for every package. Keep defaults out of the non-fusion group: the WGPU, core, and
+/// vision defaults enable fusion transitively.
+fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
+    set_burn_device("metal");
+
+    let packages = ["burn-backend-tests", "burn-linalg"];
+    let features = [
+        "burn-backend-tests/metal",
+        "burn-backend-tests/std",
+        "burn-linalg/metal",
+        "burn-linalg/std",
+        "burn-linalg/autotune",
+    ];
+
+    let mut fusion_packages = packages.to_vec();
+    fusion_packages.extend(["burn-wgpu", "burn-core", "burn-vision"]);
+    let mut fusion_features = features.to_vec();
+    fusion_features.extend([
+        "burn-backend-tests/fusion",
+        "burn-linalg/fusion",
+        // Preserve the default-feature coverage of the former standalone crate tests.
+        // Qualify every feature so adding a package cannot enable its namesake feature.
+        "burn-wgpu/default",
+        "burn-wgpu/metal",
+        "burn-core/default",
+        "burn-core/metal",
+        "burn-vision/default",
+        "burn-vision/metal",
+    ]);
+    run_test_group(
+        &fusion_packages,
+        &fusion_features,
+        release,
+        "Metal with fusion",
+    )?;
+    run_test_group(&packages, &features, release, "Metal without fusion")?;
+
+    // Keep Accelerate separate so it cannot change the ndarray reference backend used
+    // by the Metal tests. It also doesn't need to compile the GPU dependencies.
+    build_helpers::custom_crates_tests(
+        vec!["burn-ndarray"],
+        handle_test_args(&["--features", "blas-accelerate"], release),
+        None,
+        None,
+        "std blas-accelerate",
+    )
+}
+
+fn run_test_group(
+    packages: &[&str],
+    features: &[&str],
+    release: bool,
+    description: &str,
+) -> anyhow::Result<()> {
+    let features = features.join(",");
+    let mut args = vec!["test", "--color", "always", "--no-default-features"];
+    for package in packages {
+        args.extend(["-p", package]);
+    }
+    args.extend(["--features", &features]);
+    if release {
+        args.push("--release");
+    }
+
+    // custom_crates_tests loops over packages and invokes Cargo once per package.
+    // One invocation is required here for Cargo to unify their dependency features.
+    group!("Tests: {}", description);
+    let result = run_process("cargo", &args, None, None, description);
+    endgroup!();
+    result
 }
 
 const EXCLUDE_CRATES: &[&str] = &[
@@ -298,23 +389,7 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GithubMacRunner => {
-                    handle_backend_tests(
-                        args.clone().try_into().unwrap(),
-                        TestBackend::Metal,
-                        context.clone(),
-                    )?;
-
-                    args.target = Target::AllPackages;
-                    args.only.push("burn-wgpu".to_string());
-                    args.features
-                        .get_or_insert_with(Vec::new)
-                        .push("metal".to_string());
-
-                    base_commands::test::handle_command(
-                        args.clone().try_into().unwrap(),
-                        env,
-                        context,
-                    )?;
+                    handle_macos_tests(args.release)?;
                 }
                 CiTestType::GcpCudaRunner => {
                     handle_backend_tests(
@@ -445,34 +520,8 @@ pub(crate) fn handle_command(
                         "std vision",
                     )?;
                 }
-                CiTestType::GcpCudaRunner => (),
+                CiTestType::GcpCudaRunner | CiTestType::GithubMacRunner => (),
                 CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
-                CiTestType::GithubMacRunner => {
-                    // burn-ndarray
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-ndarray"],
-                        handle_test_args(&["--features", "blas-accelerate"], args.release),
-                        None,
-                        None,
-                        "std blas-accelerate",
-                    )?;
-
-                    set_burn_device("metal");
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-core"],
-                        handle_test_args(&["--features", "metal"], args.release),
-                        None,
-                        None,
-                        "std metal",
-                    )?;
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-vision"],
-                        handle_test_args(&["--features", "metal"], args.release),
-                        None,
-                        None,
-                        "std metal",
-                    )?;
-                }
             }
             Ok(())
         }

@@ -40,6 +40,9 @@ tracing = { workspace = true, optional = true, features = ["default"] }
 [target.'cfg(not(target_has_atomic = "64"))'.dependencies]
 portable-atomic = { workspace = true }
 
+[dev-dependencies]
+burn-flex = { workspace = true }
+
 [package.metadata.docs.rs]
 features = ["default"]
 rustdoc-args = ["--cfg", "docsrs"]

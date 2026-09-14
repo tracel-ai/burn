@@ -104,6 +104,10 @@ syn = { workspace = true }
 ctor = "0.10.1"
 divan = "0.1"
 
+[[test]]
+name = "autodiff_transfer"
+required-features = ["flex", "ndarray"]
+
 [[bench]]
 name = "attention"
 harness = false

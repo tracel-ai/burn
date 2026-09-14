@@ -1,8 +1,15 @@
 //! Gradients and tensor context across compute-backend transfers.
-#![cfg(all(feature = "autodiff", feature = "flex", feature = "ndarray"))]
+//!
+//! This integration test uses two fixed CPU backends and covers both transfer
+//! directions and checkpointing strategies. Unlike the shared autodiff suite, it
+//! does not select a single backend through `BURN_DEVICE`.
+//!
+//! Run with `cargo test -p burn-backend-tests --features flex,ndarray --test autodiff_transfer`.
+//! The Flex pass in `xtask test` and the default `cargo run-checks` invocation
+//! also run this target, separately from the single-backend suites.
 #![allow(deprecated)]
 
-use burn::tensor::{Device, GradientCheckpointingStrategy, Tensor, TensorData};
+use burn_tensor::{Device, GradientCheckpointingStrategy, Tensor, TensorData};
 
 fn devices() -> [(Device, Device); 2] {
     [

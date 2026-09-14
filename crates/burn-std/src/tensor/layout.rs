@@ -104,6 +104,7 @@ pub fn is_contiguous_order(order: &[usize]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn contiguous_is_the_identity_order() {
