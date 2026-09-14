@@ -224,7 +224,66 @@ impl IntTensorOps<Flex> for Flex {
                     dt => panic!("int_scatter: unsupported dtype {:?}", dt),
                 }
             }
-            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_min::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_min::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_min::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_min::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_min::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_min::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_min::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_min::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_max::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_max::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_max::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_max::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_max::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_max::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_max::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_max::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
+            }
         }
     }
 
@@ -409,8 +468,73 @@ impl IntTensorOps<Flex> for Flex {
                     dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
                 }
             }
-            other => {
-                unimplemented!("int_select_assign with {other:?} update is not implemented")
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_min::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_min::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_min::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_min::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_min::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_min::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_min::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_min::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_max::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_max::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_max::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_max::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_max::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_max::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_max::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_max::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
             }
         }
     }
