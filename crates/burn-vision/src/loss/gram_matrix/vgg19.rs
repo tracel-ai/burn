@@ -1,13 +1,13 @@
 use burn_core as burn;
 
-use crate::PaddingConfig2d;
-use crate::conv::{Conv2d, Conv2dConfig};
 use burn::module::Module;
 use burn::tensor::{
     Device, Tensor,
     activation::relu,
     module::{avg_pool2d, max_pool2d},
 };
+use burn_nn::PaddingConfig2d;
+use burn_nn::conv::{Conv2d, Conv2dConfig};
 
 /// VGG19 feature extractor for the Gram Matrix Loss.
 ///
@@ -97,11 +97,8 @@ impl Vgg19 {
     ///
     /// # Returns
     ///
-    /// A tuple containing:
-    /// - `features`: A `Vec` of 5 tensors, each representing the flattened feature map
-    ///    from one of the target layers. Shape of each tensor: `[batch_size, channels, height * width]`.
-    /// - `normalization_factors`: A `Vec` of 5 `f32` values, representing the normalization
-    ///    factor `4 * N^2 * M^2` for each layer, used to scale the Gram matrix loss.
+    /// Five flattened feature maps, one from each target layer. Each tensor has
+    /// shape `[batch_size, channels, height * width]`.
     pub fn forward(&self, x: Tensor<4>) -> Vec<Tensor<3>> {
         let pool_2d = |x| {
             if self.use_avg_pool {
