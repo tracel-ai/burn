@@ -1344,7 +1344,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let is_max = matches!(update, IndexingUpdateOp::Max);
 
                 match ScatterMinMax
-                    .prepare::<C>([tensor.node, value.node])
+                    .prepare::<C>([tensor.node(), value.node()])
                     .compute_bound()
                     .stateful()
                 {
@@ -2182,7 +2182,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let is_max = matches!(update, IndexingUpdateOp::Max);
 
                 match IndexSelectDimAssignMinMax
-                    .prepare::<C>([tensor.node.clone(), value.node.clone()])
+                    .prepare::<C>([tensor.node(), value.node()])
                     .memory_bound()
                     .retro_forward(RetroSelectAssignMinMax::<B>::new(
                         tensor.node.id,
