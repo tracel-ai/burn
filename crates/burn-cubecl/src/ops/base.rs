@@ -75,6 +75,10 @@ pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
         return tensor;
     }
 
+    if tensor.qparams.is_some() {
+        return to_device_quantized(tensor, device);
+    }
+
     if tensor.device.runtime() != device.runtime() {
         return to_device_across_runtimes(tensor, device);
     }
@@ -94,19 +98,7 @@ pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
 /// The copy is of the tensor's whole allocation rather than of its logical elements, so a
 /// non-contiguous tensor arrives with the strides it left with instead of being materialized
 /// contiguous on the way.
-///
-/// A quantized tensor is the exception. Its values, scales and per-tensor scale are three regions
-/// of one allocation, and `handle` bounds the values region alone — copying it would leave the
-/// scales behind while `qparams` went on naming offsets that no longer hold them. Those travel by
-/// the layout built for exactly this, the one `q_into_data` writes and `q_from_data` reads back.
 fn to_device_across_runtimes(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
-    if tensor.qparams.is_some() {
-        let from = tensor.device.clone();
-        let data = burn_std::future::block_on(CubeBackend::q_into_data(tensor))
-            .unwrap_or_else(|err| transfer_failed(&from, device, err));
-        return CubeBackend::q_from_data(data, device);
-    }
-
     let bytes = tensor
         .client
         .read_one(tensor.handle.clone())
@@ -123,6 +115,20 @@ fn to_device_across_runtimes(tensor: CubeTensor, device: &CubeDevice) -> CubeTen
         dtype: tensor.dtype,
         qparams: tensor.qparams,
     }
+}
+
+/// Move a quantized tensor to any other device, whatever its runtime.
+///
+/// Its values, scales and per-tensor scale are three regions of one allocation, and `handle`
+/// bounds the values region alone, so any copy of the handle (a peer transfer or a host copy)
+/// would leave the scales behind while `qparams` went on naming offsets that no longer hold them.
+/// It travels by the layout built for exactly this, the one `q_into_data` writes and `q_from_data`
+/// reads back.
+fn to_device_quantized(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
+    let from = tensor.device.clone();
+    let data = burn_std::future::block_on(CubeBackend::q_into_data(tensor))
+        .unwrap_or_else(|err| transfer_failed(&from, device, err));
+    CubeBackend::q_from_data(data, device)
 }
 
 fn transfer_failed(from: &CubeDevice, to: &CubeDevice, err: impl core::fmt::Display) -> ! {
@@ -555,10 +561,41 @@ pub fn unfold(tensor: CubeTensor, dim: usize, size: usize, step: usize) -> CubeT
 #[cfg(all(test, any(feature = "wgpu", feature = "cuda")))]
 mod same_runtime_tests {
     use super::*;
-    use burn_std::TensorData;
+    use burn_backend::{Tolerance, quantization::QuantScheme};
+    use burn_std::{FloatDType, TensorData};
 
-    fn moves_both_ways(first: CubeDevice, second: CubeDevice) {
-        for (from, to) in [(&first, &second), (&second, &first)] {
+    /// wgpu has no peer transport, so a move between two of its adapters must go through the
+    /// host; reaching for send and recv instead leaves the destination never written. A quantized
+    /// tensor must keep its scales, which a copy of its handle alone would leave behind.
+    #[cfg(feature = "wgpu")]
+    #[test]
+    #[ignore = "needs two discrete wgpu adapters"]
+    fn moves_between_two_wgpu_adapters() {
+        use cubecl::wgpu::{WgpuDevice, WgpuDeviceKind};
+
+        let first = CubeDevice::Wgpu(WgpuDevice::new(WgpuDeviceKind::DiscreteGpu(0)));
+        let second = CubeDevice::Wgpu(WgpuDevice::new(WgpuDeviceKind::DiscreteGpu(1)));
+        moves_both_ways(&first, &second);
+        moves_quantized_both_ways(&first, &second);
+    }
+
+    /// CUDA moves stay on its peer transport after routing through the host fallback's entry
+    /// point, which sizes the copy from the whole allocation rather than the tensor's shape. A
+    /// quantized tensor must keep its scales, which the peer transport alone would not carry.
+    #[cfg(feature = "cuda")]
+    #[test]
+    #[ignore = "needs two CUDA devices"]
+    fn moves_between_two_cuda_devices() {
+        use cubecl::cuda::CudaDevice;
+
+        let first = CubeDevice::Cuda(CudaDevice { index: 0 });
+        let second = CubeDevice::Cuda(CudaDevice { index: 1 });
+        moves_both_ways(&first, &second);
+        moves_quantized_both_ways(&first, &second);
+    }
+
+    fn moves_both_ways(first: &CubeDevice, second: &CubeDevice) {
+        for (from, to) in [(first, second), (second, first)] {
             let data = TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]]);
             let moved = to_device(from_data(data.clone(), from), to);
             assert_eq!(&moved.device, to);
@@ -567,32 +604,21 @@ mod same_runtime_tests {
         }
     }
 
-    /// wgpu has no peer transport, so a move between two of its adapters must go through the
-    /// host; reaching for send and recv instead leaves the destination never written.
-    #[cfg(feature = "wgpu")]
-    #[test]
-    #[ignore = "needs two discrete wgpu adapters"]
-    fn moves_between_two_wgpu_adapters() {
-        use cubecl::wgpu::{WgpuDevice, WgpuDeviceKind};
+    fn moves_quantized_both_ways(first: &CubeDevice, second: &CubeDevice) {
+        for (from, to) in [(first, second), (second, first)] {
+            // The default scheme packs values four to a word, so the last dim is a multiple of 4.
+            let data = TensorData::from([[0.1f32, -0.4, 0.9, 0.25], [-1.0, 0.5, 0.75, -0.3]]);
+            let quantized =
+                CubeBackend::quantize_dynamic(from_data(data, from), &QuantScheme::default());
+            let expected =
+                into_data_sync(CubeBackend::dequantize(quantized.clone(), FloatDType::F32));
 
-        moves_both_ways(
-            CubeDevice::Wgpu(WgpuDevice::new(WgpuDeviceKind::DiscreteGpu(0))),
-            CubeDevice::Wgpu(WgpuDevice::new(WgpuDeviceKind::DiscreteGpu(1))),
-        );
-    }
+            let moved = to_device(quantized, to);
+            assert_eq!(&moved.device, to);
 
-    /// CUDA moves stay on its peer transport after routing through the host fallback's entry
-    /// point, which sizes the copy from the whole allocation rather than the tensor's shape.
-    #[cfg(feature = "cuda")]
-    #[test]
-    #[ignore = "needs two CUDA devices"]
-    fn moves_between_two_cuda_devices() {
-        use cubecl::cuda::CudaDevice;
-
-        moves_both_ways(
-            CubeDevice::Cuda(CudaDevice { index: 0 }),
-            CubeDevice::Cuda(CudaDevice { index: 1 }),
-        );
+            into_data_sync(CubeBackend::dequantize(moved, FloatDType::F32))
+                .assert_approx_eq::<f32>(&expected, Tolerance::default());
+        }
     }
 }
 
