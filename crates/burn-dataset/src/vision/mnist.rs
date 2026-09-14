@@ -30,7 +30,11 @@ const TEST_ITEMS: u64 = 10_000;
 
 /// Ceiling for the item count read out of a file header, per split.
 fn split_item_ceiling(split: &str) -> u64 {
-    if split == "train" { TRAIN_ITEMS } else { TEST_ITEMS }
+    if split == "train" {
+        TRAIN_ITEMS
+    } else {
+        TEST_ITEMS
+    }
 }
 
 /// MNIST item.
