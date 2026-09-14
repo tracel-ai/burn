@@ -79,6 +79,33 @@ pub struct MaxPool2dBackward<B: Backend> {
     pub x_grad: FloatTensor<B>,
 }
 
+/// Results from [batch_norm_train](ModuleOps::batch_norm_train).
+#[derive(new)]
+pub struct BatchNormTrain<B: Backend> {
+    /// The normalized input.
+    pub output: FloatTensor<B>,
+
+    /// The batch mean per channel, `[channels]`.
+    pub mean: FloatTensor<B>,
+
+    /// The biased batch variance per channel, `[channels]`.
+    pub variance: FloatTensor<B>,
+}
+
+/// Gradient computed during the backward pass for each tensor used by
+/// [batch_norm_train](ModuleOps::batch_norm_train).
+#[derive(new)]
+pub struct BatchNormTrainBackward<B: Backend> {
+    /// Gradient of the input.
+    pub x_grad: FloatTensor<B>,
+
+    /// Gradient of `gamma`, `[channels]`.
+    pub gamma_grad: FloatTensor<B>,
+
+    /// Gradient of `beta`, `[channels]`.
+    pub beta_grad: FloatTensor<B>,
+}
+
 /// Results from [max_pool2d](ModuleOps::max_pool2d_with_indices).
 #[derive(new)]
 pub struct MaxPool2dWithIndices<B: Backend> {
@@ -126,6 +153,99 @@ pub trait ModuleOps<B: Backend> {
         let std = B::float_sqrt(B::float_add_scalar(variance, Scalar::Float(epsilon)));
         let normalized = B::float_div(B::float_sub(x, mean), std);
         B::float_add(B::float_mul(normalized, gamma), beta)
+    }
+
+    /// Applies batch normalization with the statistics of the batch itself,
+    /// and returns them.
+    ///
+    /// The input has shape `[batch, channels, ...]`; `gamma` and `beta` have
+    /// shape `[channels]`, as do the returned mean and biased variance — what
+    /// a training path feeds its running statistics.
+    ///
+    /// An autodiff backend differentiates this as one operation, through
+    /// [batch_norm_train_backward](ModuleOps::batch_norm_train_backward),
+    /// rather than through the reductions and broadcasts that computing the
+    /// statistics out of tensor operations would record.
+    fn batch_norm_train(
+        x: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        beta: FloatTensor<B>,
+        epsilon: f64,
+    ) -> BatchNormTrain<B> {
+        let shape = x.shape();
+        let channels = shape[1];
+        let count = (shape.num_elements() / channels) as f64;
+        let reduced = every_dim_but_the_channels(shape.num_dims());
+
+        let mean = B::float_div_scalar(B::float_sum_dims(x.clone(), &reduced), count.into());
+        let centered = B::float_sub(x.clone(), mean.clone());
+        let variance = B::float_div_scalar(
+            B::float_sum_dims(B::float_mul(centered.clone(), centered), &reduced),
+            count.into(),
+        );
+        let mean = B::float_reshape(mean, Shape::new([channels]));
+        let variance = B::float_reshape(variance, Shape::new([channels]));
+        let output = B::batch_norm(x, gamma, beta, mean.clone(), variance.clone(), epsilon);
+
+        BatchNormTrain::new(output, mean, variance)
+    }
+
+    /// Gradients of [batch_norm_train](ModuleOps::batch_norm_train) with
+    /// respect to its input, `gamma` and `beta`, given the gradient of its
+    /// output. `mean` and `variance` are the statistics it returned.
+    fn batch_norm_train_backward(
+        x: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        mean: FloatTensor<B>,
+        variance: FloatTensor<B>,
+        epsilon: f64,
+        output_grad: FloatTensor<B>,
+    ) -> BatchNormTrainBackward<B> {
+        let shape = x.shape();
+        let rank = shape.num_dims();
+        let channels = shape[1];
+        let count = (shape.num_elements() / channels) as f64;
+        let reduced = every_dim_but_the_channels(rank);
+        let mut per_channel = alloc::vec![1; rank];
+        per_channel[1] = channels;
+        let per_channel = Shape::from(per_channel);
+
+        let inv_std = B::float_reshape(
+            B::float_recip(B::float_sqrt(B::float_add_scalar(
+                variance,
+                Scalar::Float(epsilon),
+            ))),
+            per_channel.clone(),
+        );
+        let normalized = B::float_mul(
+            B::float_sub(x, B::float_reshape(mean, per_channel.clone())),
+            inv_std.clone(),
+        );
+
+        let beta_grad = B::float_sum_dims(output_grad.clone(), &reduced);
+        let gamma_grad = B::float_sum_dims(
+            B::float_mul(output_grad.clone(), normalized.clone()),
+            &reduced,
+        );
+
+        // The batch statistics depend on every element of the input, which is
+        // what the two centred terms account for.
+        let centred_grad = B::float_sub(
+            output_grad,
+            B::float_div_scalar(beta_grad.clone(), count.into()),
+        );
+        let projected = B::float_mul(
+            normalized,
+            B::float_div_scalar(gamma_grad.clone(), count.into()),
+        );
+        let scale = B::float_mul(B::float_reshape(gamma, per_channel), inv_std);
+        let x_grad = B::float_mul(scale, B::float_sub(centred_grad, projected));
+
+        BatchNormTrainBackward::new(
+            x_grad,
+            B::float_reshape(gamma_grad, Shape::new([channels])),
+            B::float_reshape(beta_grad, Shape::new([channels])),
+        )
     }
 
     /// Embedding operation.
@@ -979,4 +1099,10 @@ pub trait ModuleOps<B: Backend> {
         dim: usize,
         n: Option<usize>,
     ) -> FloatTensor<B>;
+}
+
+/// The dimensions a per-channel statistic reduces over: every one but the
+/// channel dimension, which is dimension 1.
+fn every_dim_but_the_channels(rank: usize) -> alloc::vec::Vec<usize> {
+    (0..rank).filter(|dim| *dim != 1).collect()
 }
