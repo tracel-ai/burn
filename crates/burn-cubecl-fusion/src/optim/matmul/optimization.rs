@@ -175,6 +175,20 @@ impl MatmulOptimization {
             fallback,
         };
 
+        // A storage-tiled operand is read through its binding by the eager matmul, which stages
+        // to its tiles; the fused kernel assembles its own arguments and would read it as rows.
+        let op = &self.info.matmul.op;
+        let stored = [op.lhs.id, op.rhs.id].iter().any(|id| {
+            context
+                .handles
+                .get_handle_ref(id)
+                .is_some_and(|handle| handle.tiling.is_tiled())
+        });
+        if stored {
+            arg.execute_fallback(context);
+            return;
+        }
+
         #[cfg(feature = "autotune")]
         fused_matmul_autotune(arg, context);
 

@@ -1,12 +1,13 @@
 use crate::{ops::numeric::empty_device_dtype, tensor::CubeTensor};
-use burn_backend::{DType, calculate_matmul_output};
+use burn_backend::{DType, TensorMetadata, calculate_matmul_output};
 
-/// Creates an empty output tensor with matmul output shape
+/// Creates an empty output tensor with matmul output shape. The logical shapes: a storage-tiled
+/// operand's physical dims are its tiles.
 pub fn init_matmul_output(lhs: &CubeTensor, rhs: &CubeTensor, dtype: DType) -> CubeTensor {
     empty_device_dtype(
         lhs.client.clone(),
         lhs.device.clone(),
-        calculate_matmul_output(lhs.meta.shape(), rhs.meta.shape()).unwrap(),
+        calculate_matmul_output(&lhs.shape(), &rhs.shape()).unwrap(),
         dtype,
     )
 }

@@ -15,6 +15,7 @@ use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
 pub fn slice(tensor: CubeTensor, indices: &[Range<usize>]) -> CubeTensor {
+    let tensor = crate::kernel::untile(tensor);
     let mut dims = tensor.shape();
     let mut offset_start = 0u64;
     let mut offset_end = 0u64;

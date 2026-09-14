@@ -1221,21 +1221,38 @@ where
     let grad_data: &[T] = grad.storage();
     let indices_data: &[I] = indices.storage();
 
-    // Accumulate gradients back to input positions
-    let mut output = vec![zero; batch_size * channels * spatial_in];
+    let bc_total = batch_size * channels;
+    let mut output = vec![zero; bc_total * spatial_in];
 
-    for b in 0..batch_size {
-        for c in 0..channels {
-            let grad_offset = b * channels * spatial_out + c * spatial_out;
-            let out_offset = b * channels * spatial_in + c * spatial_in;
-
+    if spatial_in > 0 && bc_total > 0 {
+        let run_plane = |bc: usize, out_slice: &mut [T]| {
+            let grad_offset = bc * spatial_out;
             for i in 0..spatial_out {
                 let idx = indices_data[grad_offset + i].elem::<i64>();
                 if idx >= 0 {
-                    let input_idx = out_offset + idx as usize;
-                    output[input_idx] = T::add(output[input_idx], grad_data[grad_offset + i]);
+                    let input_idx = idx as usize;
+                    out_slice[input_idx] = T::add(out_slice[input_idx], grad_data[grad_offset + i]);
                 }
             }
+        };
+
+        #[cfg(feature = "rayon")]
+        if output.len() >= crate::ops::PARALLEL_THRESHOLD && bc_total > 1 {
+            use rayon::prelude::*;
+            output
+                .par_chunks_mut(spatial_in)
+                .enumerate()
+                .for_each(|(bc, out_slice)| run_plane(bc, out_slice));
+        } else {
+            for bc in 0..bc_total {
+                let out_offset = bc * spatial_in;
+                run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
+            }
+        }
+        #[cfg(not(feature = "rayon"))]
+        for bc in 0..bc_total {
+            let out_offset = bc * spatial_in;
+            run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
         }
     }
 
@@ -1368,7 +1385,7 @@ fn avg_pool3d_backward_impl<T>(
     count_include_pad: bool,
     dtype: DType,
     zero: T,
-    div_fn: impl Fn(T, usize) -> T,
+    div_fn: impl Fn(T, usize) -> T + Send + Sync,
 ) -> FlexTensor
 where
     T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
@@ -1396,13 +1413,12 @@ where
 
     let grad_data: &[T] = grad.storage();
 
-    // Distribute gradient equally across window
-    let mut output = vec![zero; batch_size * channels * spatial_in];
+    let bc_total = batch_size * channels;
+    let mut output = vec![zero; bc_total * spatial_in];
 
-    for b in 0..batch_size {
-        for c in 0..channels {
-            let grad_offset = b * channels * spatial_out + c * spatial_out;
-            let out_offset = b * channels * spatial_in + c * spatial_in;
+    if spatial_in > 0 && bc_total > 0 {
+        let run_plane = |bc: usize, out_slice: &mut [T]| {
+            let grad_offset = bc * spatial_out;
 
             for od in 0..out_d {
                 for oh in 0..out_h {
@@ -1458,14 +1474,34 @@ where
                                     }
                                     let iw = iw as usize;
 
-                                    let input_idx = out_offset + id * in_h * in_w + ih * in_w + iw;
-                                    output[input_idx] = T::add(output[input_idx], distributed);
+                                    let input_idx = id * in_h * in_w + ih * in_w + iw;
+                                    out_slice[input_idx] =
+                                        T::add(out_slice[input_idx], distributed);
                                 }
                             }
                         }
                     }
                 }
             }
+        };
+
+        #[cfg(feature = "rayon")]
+        if output.len() >= crate::ops::PARALLEL_THRESHOLD && bc_total > 1 {
+            use rayon::prelude::*;
+            output
+                .par_chunks_mut(spatial_in)
+                .enumerate()
+                .for_each(|(bc, out_slice)| run_plane(bc, out_slice));
+        } else {
+            for bc in 0..bc_total {
+                let out_offset = bc * spatial_in;
+                run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
+            }
+        }
+        #[cfg(not(feature = "rayon"))]
+        for bc in 0..bc_total {
+            let out_offset = bc * spatial_in;
+            run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
         }
     }
 
@@ -1537,7 +1573,7 @@ fn adaptive_avg_pool3d_backward_impl<T>(
     grad: FlexTensor,
     dtype: DType,
     zero: T,
-    div_fn: impl Fn(T, usize) -> T,
+    div_fn: impl Fn(T, usize) -> T + Send + Sync,
 ) -> FlexTensor
 where
     T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
@@ -1560,12 +1596,12 @@ where
 
     let grad_data: &[T] = grad.storage();
 
-    let mut output = vec![zero; batch_size * channels * spatial_in];
+    let bc_total = batch_size * channels;
+    let mut output = vec![zero; bc_total * spatial_in];
 
-    for b in 0..batch_size {
-        for c in 0..channels {
-            let grad_offset = b * channels * spatial_out + c * spatial_out;
-            let out_offset = b * channels * spatial_in + c * spatial_in;
+    if spatial_in > 0 && bc_total > 0 {
+        let run_plane = |bc: usize, out_slice: &mut [T]| {
+            let grad_offset = bc * spatial_out;
 
             for od in 0..out_d {
                 let d_start = (od * in_d) / out_d;
@@ -1588,14 +1624,34 @@ where
                         for id in d_start..d_end {
                             for ih in h_start..h_end {
                                 for iw in w_start..w_end {
-                                    let input_idx = out_offset + id * in_h * in_w + ih * in_w + iw;
-                                    output[input_idx] = T::add(output[input_idx], distributed);
+                                    let input_idx = id * in_h * in_w + ih * in_w + iw;
+                                    out_slice[input_idx] =
+                                        T::add(out_slice[input_idx], distributed);
                                 }
                             }
                         }
                     }
                 }
             }
+        };
+
+        #[cfg(feature = "rayon")]
+        if output.len() >= crate::ops::PARALLEL_THRESHOLD && bc_total > 1 {
+            use rayon::prelude::*;
+            output
+                .par_chunks_mut(spatial_in)
+                .enumerate()
+                .for_each(|(bc, out_slice)| run_plane(bc, out_slice));
+        } else {
+            for bc in 0..bc_total {
+                let out_offset = bc * spatial_in;
+                run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
+            }
+        }
+        #[cfg(not(feature = "rayon"))]
+        for bc in 0..bc_total {
+            let out_offset = bc * spatial_in;
+            run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
         }
     }
 

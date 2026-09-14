@@ -64,9 +64,11 @@ mod fusion {
     use burn_core::tensor::Shape;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,
-        stream::{Operation, StreamId},
+        custom::{
+            CustomOpIr, HandleContainer, Operation, OperationIr, OperationOutput, StreamId,
+            TensorIr,
+        },
     };
-    use burn_ir::{CustomOpIr, HandleContainer, OperationIr, OperationOutput, TensorIr};
 
     impl<B: FusionBackend + BoolVisionOps> BoolVisionOps for Fusion<B> {
         fn connected_components(

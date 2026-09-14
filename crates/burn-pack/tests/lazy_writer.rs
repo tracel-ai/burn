@@ -180,7 +180,8 @@ fn a_quantized_byte_len_is_not_shape_checked_at_plan_time() {
     entry.values.truncate(2);
     entry.declared_len = 8;
 
-    Writer::new(vec![entry.build()]).into_bytes().unwrap();
+    let bytes = Writer::new(vec![entry.build()]).into_bytes().unwrap();
+    Reader::from_bytes(bytes).unwrap();
 }
 
 /// A `byte_len` consistent with the shape but a provider that produces something else slips

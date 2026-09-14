@@ -1,7 +1,7 @@
 use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 
 use crate::{
-    NumOperations,
+    NumOperations, OperationFuser,
     search::{
         Block, BlockOptimization,
         graph::Dag,
@@ -60,7 +60,12 @@ impl<O: NumOperations> BlocksOptimizer<O> {
     ///    pass. Trailing unresolved positions, on the other hand, are the
     ///    natural tail of a drained block and are left in the queue for the
     ///    processor to handle in the next round.
-    pub fn optimize(mut self) -> BlocksOptimizerResult<O> {
+    ///
+    /// `fresh_builders` are the builders as a new search starts them; see [Block::optimize].
+    pub fn optimize(
+        mut self,
+        fresh_builders: &[Box<dyn OperationFuser<O>>],
+    ) -> BlocksOptimizerResult<O> {
         self = self.merging_pass();
 
         let num_ops = self.num_ops;
@@ -83,7 +88,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         let mut resolved = vec![false; num_ops];
 
         for block in blocks {
-            let mut block_opt = block.optimize();
+            let mut block_opt = block.optimize(fresh_builders);
             for pos in block_opt.ordering.iter() {
                 resolved[*pos] = true;
             }

@@ -14,6 +14,16 @@ fn should_support_powi_broadcast() {
 }
 
 #[test]
+fn should_support_powi_scalar() {
+    let tensor = TestTensorInt::<1>::from([-2, 3, 4]);
+
+    let output = tensor.powi_scalar(3);
+    let expected = TensorData::from([-8, 27, 64]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 #[should_panic(expected = "The provided tensors have incompatible shapes.")]
 fn should_panic_powi_incompatible_shapes() {
     // Same rank, but [2, 2] vs [2, 3]: dimension 1 cannot broadcast.

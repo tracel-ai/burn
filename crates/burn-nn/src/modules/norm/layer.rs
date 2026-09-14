@@ -1,16 +1,16 @@
-use burn::tensor::assert_shape;
+use crate::Initializer;
 use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::Content;
 use burn::module::DisplaySettings;
-use burn::module::Initializer;
 use burn::module::Module;
 use burn::module::ModuleDisplay;
 use burn::module::Param;
 use burn::tensor::Device;
 use burn::tensor::FloatDType;
 use burn::tensor::Tensor;
+use burn::tensor::assert_shape;
 use burn::tensor::module::layer_norm;
 
 use super::accumulation_dtype;

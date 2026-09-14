@@ -935,7 +935,7 @@ fn interpolate_bilinear_backward_impl<T>(
     align_corners: bool,
 ) -> FlexTensor
 where
-    T: Float + burn_backend::Element + bytemuck::Pod,
+    T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
     let grad = grad.to_contiguous();
     let grad_data = grad.storage::<T>();
@@ -959,42 +959,56 @@ where
 
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
+    let bc = batch * channels;
 
-    for b in 0..batch {
-        for c in 0..channels {
-            let in_base = b * channels * in_hw + c * in_hw;
-            let out_base = b * channels * out_hw + c * out_hw;
+    let run_plane = |bc_idx: usize, grad_plane: &mut [T]| {
+        let out_base = bc_idx * out_hw;
 
-            for oh in 0..out_height {
-                let y_in = map_coord(oh, y_ratio, align_corners);
-                let y_low = (y_in.floor().max(0.0)) as usize;
-                let y_high = (y_low + 1).min(in_height - 1);
-                let y_weight = T::from((y_in - y_low as f64).max(0.0)).unwrap();
+        for oh in 0..out_height {
+            let y_in = map_coord(oh, y_ratio, align_corners);
+            let y_low = (y_in.floor().max(0.0)) as usize;
+            let y_high = (y_low + 1).min(in_height - 1);
+            let y_weight = T::from((y_in - y_low as f64).max(0.0)).unwrap();
 
-                for ow in 0..out_width {
-                    let x_in = map_coord(ow, x_ratio, align_corners);
-                    let x_low = (x_in.floor().max(0.0)) as usize;
-                    let x_high = (x_low + 1).min(in_width - 1);
-                    let x_weight = T::from((x_in - x_low as f64).max(0.0)).unwrap();
+            for ow in 0..out_width {
+                let x_in = map_coord(ow, x_ratio, align_corners);
+                let x_low = (x_in.floor().max(0.0)) as usize;
+                let x_high = (x_low + 1).min(in_width - 1);
+                let x_weight = T::from((x_in - x_low as f64).max(0.0)).unwrap();
 
-                    let grad_val = grad_data[out_base + oh * out_width + ow];
-                    let one = T::one();
+                let grad_val = grad_data[out_base + oh * out_width + ow];
+                let one = T::one();
 
-                    input_grad[in_base + y_low * in_width + x_low] = input_grad
-                        [in_base + y_low * in_width + x_low]
-                        + grad_val * (one - x_weight) * (one - y_weight);
-                    input_grad[in_base + y_low * in_width + x_high] = input_grad
-                        [in_base + y_low * in_width + x_high]
-                        + grad_val * x_weight * (one - y_weight);
-                    input_grad[in_base + y_high * in_width + x_low] = input_grad
-                        [in_base + y_high * in_width + x_low]
-                        + grad_val * (one - x_weight) * y_weight;
-                    input_grad[in_base + y_high * in_width + x_high] = input_grad
-                        [in_base + y_high * in_width + x_high]
-                        + grad_val * x_weight * y_weight;
-                }
+                grad_plane[y_low * in_width + x_low] = grad_plane[y_low * in_width + x_low]
+                    + grad_val * (one - x_weight) * (one - y_weight);
+                grad_plane[y_low * in_width + x_high] =
+                    grad_plane[y_low * in_width + x_high] + grad_val * x_weight * (one - y_weight);
+                grad_plane[y_high * in_width + x_low] =
+                    grad_plane[y_high * in_width + x_low] + grad_val * (one - x_weight) * y_weight;
+                grad_plane[y_high * in_width + x_high] =
+                    grad_plane[y_high * in_width + x_high] + grad_val * x_weight * y_weight;
             }
         }
+    };
+
+    #[cfg(feature = "rayon")]
+    if bc * out_hw >= super::PARALLEL_THRESHOLD && bc > 1 && in_hw > 0 {
+        use rayon::prelude::*;
+
+        input_grad
+            .par_chunks_mut(in_hw)
+            .enumerate()
+            .for_each(|(bc_idx, grad_plane)| run_plane(bc_idx, grad_plane));
+    } else {
+        for bc_idx in 0..bc {
+            let in_start = bc_idx * in_hw;
+            run_plane(bc_idx, &mut input_grad[in_start..in_start + in_hw]);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    for bc_idx in 0..bc {
+        let in_start = bc_idx * in_hw;
+        run_plane(bc_idx, &mut input_grad[in_start..in_start + in_hw]);
     }
 
     FlexTensor::new(
@@ -1012,7 +1026,7 @@ fn interpolate_bicubic_backward_impl<T>(
     align_corners: bool,
 ) -> FlexTensor
 where
-    T: Float + burn_backend::Element + bytemuck::Pod,
+    T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
     let grad = grad.to_contiguous();
     let grad_data = grad.storage::<T>();
@@ -1037,46 +1051,63 @@ where
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
     let a = -0.75_f64;
+    let bc = batch * channels;
 
-    for b in 0..batch {
-        for c in 0..channels {
-            let in_base = b * channels * in_hw + c * in_hw;
-            let out_base = b * channels * out_hw + c * out_hw;
+    let run_plane = |bc_idx: usize, grad_plane: &mut [T]| {
+        let out_base = bc_idx * out_hw;
 
-            for oh in 0..out_height {
-                let y_in = map_coord(oh, y_ratio, align_corners);
-                let y0 = y_in.floor() as isize;
+        for oh in 0..out_height {
+            let y_in = map_coord(oh, y_ratio, align_corners);
+            let y0 = y_in.floor() as isize;
 
-                for ow in 0..out_width {
-                    let x_in = map_coord(ow, x_ratio, align_corners);
-                    let x0 = x_in.floor() as isize;
+            for ow in 0..out_width {
+                let x_in = map_coord(ow, x_ratio, align_corners);
+                let x0 = x_in.floor() as isize;
 
-                    let grad_val = <T as num_traits::ToPrimitive>::to_f64(
-                        &grad_data[out_base + oh * out_width + ow],
-                    )
-                    .unwrap_or(0.0);
+                let grad_val = <T as num_traits::ToPrimitive>::to_f64(
+                    &grad_data[out_base + oh * out_width + ow],
+                )
+                .unwrap_or(0.0);
 
-                    for dy in -1..=2_isize {
-                        let y = y0 + dy;
-                        let y_idx = y.clamp(0, in_height as isize - 1) as usize;
-                        let ty = (y_in - y0 as f64) - dy as f64;
-                        let wy = cubic_weight(ty, a);
+                for dy in -1..=2_isize {
+                    let y = y0 + dy;
+                    let y_idx = y.clamp(0, in_height as isize - 1) as usize;
+                    let ty = (y_in - y0 as f64) - dy as f64;
+                    let wy = cubic_weight(ty, a);
 
-                        for dx in -1..=2_isize {
-                            let x = x0 + dx;
-                            let x_idx = x.clamp(0, in_width as isize - 1) as usize;
-                            let tx = (x_in - x0 as f64) - dx as f64;
-                            let wx = cubic_weight(tx, a);
+                    for dx in -1..=2_isize {
+                        let x = x0 + dx;
+                        let x_idx = x.clamp(0, in_width as isize - 1) as usize;
+                        let tx = (x_in - x0 as f64) - dx as f64;
+                        let wx = cubic_weight(tx, a);
 
-                            let weight = wx * wy * grad_val;
-                            input_grad[in_base + y_idx * in_width + x_idx] = input_grad
-                                [in_base + y_idx * in_width + x_idx]
-                                + T::from(weight).unwrap();
-                        }
+                        let weight = wx * wy * grad_val;
+                        grad_plane[y_idx * in_width + x_idx] =
+                            grad_plane[y_idx * in_width + x_idx] + T::from(weight).unwrap();
                     }
                 }
             }
         }
+    };
+
+    #[cfg(feature = "rayon")]
+    if bc * out_hw >= super::PARALLEL_THRESHOLD && bc > 1 && in_hw > 0 {
+        use rayon::prelude::*;
+
+        input_grad
+            .par_chunks_mut(in_hw)
+            .enumerate()
+            .for_each(|(bc_idx, grad_plane)| run_plane(bc_idx, grad_plane));
+    } else {
+        for bc_idx in 0..bc {
+            let in_start = bc_idx * in_hw;
+            run_plane(bc_idx, &mut input_grad[in_start..in_start + in_hw]);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    for bc_idx in 0..bc {
+        let in_start = bc_idx * in_hw;
+        run_plane(bc_idx, &mut input_grad[in_start..in_start + in_hw]);
     }
 
     FlexTensor::new(

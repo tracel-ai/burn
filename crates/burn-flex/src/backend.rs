@@ -17,12 +17,13 @@ pub type FlexRng = StdRng;
 /// Uses Mutex for thread-safe RNG state management.
 pub(crate) static SEED: Mutex<Option<FlexRng>> = Mutex::new(None);
 
-/// Fallback RNG when `SEED` is empty (consumed or never set).
+/// Fallback RNG when `SEED` is empty (never set).
 ///
 /// The seeding flow is: `Backend::seed()` stores a `FlexRng` in `SEED`. Random
-/// ops (`float_random`, `int_random`) call `SEED.lock().take()`, consuming it for
-/// that op and falling back to this function for subsequent calls. This function
-/// delegates to burn_std's own entropy source.
+/// ops (`float_random`, `int_random`) `take()` it, draw from it, and store the
+/// advanced state back, so every draw after a `seed()` call is deterministic.
+/// This function seeds from burn_std's entropy source and is only reached when
+/// `seed()` has never been called.
 pub(crate) fn get_seeded_rng() -> FlexRng {
     burn_std::rand::get_seeded_rng()
 }

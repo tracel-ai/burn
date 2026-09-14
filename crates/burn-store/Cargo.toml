@@ -39,12 +39,11 @@ wgpu = ["burn-core/wgpu"]
 
 safetensors = ["dep:safetensors"]
 
-pytorch = ["std", "zip", "serde", "tar", "dep:thiserror", "dep:num-traits", "dep:burn-tensor"]
+pytorch = ["std", "zip", "serde", "tar", "dep:thiserror", "dep:num-traits"]
 
 [dependencies]
 burn-core = { workspace = true }
 burn-pack = { workspace = true }
-burn-tensor = { workspace = true, optional = true }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }

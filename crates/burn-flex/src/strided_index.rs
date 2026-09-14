@@ -2,6 +2,8 @@ use crate::layout::Layout;
 use alloc::vec;
 use alloc::vec::Vec;
 
+const STACK_RANK: usize = 8;
+
 /// Iterator that yields linear indices for strided tensor access.
 ///
 /// Handles non-contiguous tensors (including those with negative strides from flip)
@@ -9,7 +11,8 @@ use alloc::vec::Vec;
 pub struct StridedIter<'a> {
     /// Current storage index (signed to handle negative strides)
     storage_index: isize,
-    multi_index: Vec<usize>,
+    multi_index: [usize; STACK_RANK],
+    multi_index_heap: Vec<usize>,
     // Shape and strides are hoisted out of the layout at construction:
     // `Shape` accessors live in an external crate and don't inline, so
     // going through the layout on every `next()` dominates the
@@ -23,9 +26,15 @@ impl<'a> StridedIter<'a> {
     /// Create a new strided iterator for the given layout.
     pub fn new(layout: &'a Layout) -> Self {
         let ndims = layout.num_dims();
+        let (multi_index, multi_index_heap) = if ndims <= STACK_RANK {
+            ([0usize; STACK_RANK], Vec::new())
+        } else {
+            ([0usize; STACK_RANK], vec![0; ndims])
+        };
         Self {
             storage_index: layout.start_offset() as isize,
-            multi_index: vec![0; ndims],
+            multi_index,
+            multi_index_heap,
             shape: &layout.shape()[..],
             strides: layout.strides(),
             remaining: layout.num_elements(),
@@ -48,16 +57,29 @@ impl Iterator for StridedIter<'_> {
         let idx = self.storage_index as usize;
         self.remaining -= 1;
 
-        // Advance multi-index (last dimension first, like odometer)
-        for d in (0..self.shape.len()).rev() {
-            self.multi_index[d] += 1;
-            if self.multi_index[d] < self.shape[d] {
-                self.storage_index += self.strides[d];
-                break;
+        let n = self.shape.len();
+        if n <= STACK_RANK {
+            // Advance multi-index (last dimension first, like odometer)
+            for d in (0..n).rev() {
+                self.multi_index[d] += 1;
+                if self.multi_index[d] < self.shape[d] {
+                    self.storage_index += self.strides[d];
+                    break;
+                }
+                // Wrap around this dimension
+                self.multi_index[d] = 0;
+                self.storage_index -= (self.shape[d] as isize - 1) * self.strides[d];
             }
-            // Wrap around this dimension
-            self.multi_index[d] = 0;
-            self.storage_index -= (self.shape[d] as isize - 1) * self.strides[d];
+        } else {
+            for d in (0..n).rev() {
+                self.multi_index_heap[d] += 1;
+                if self.multi_index_heap[d] < self.shape[d] {
+                    self.storage_index += self.strides[d];
+                    break;
+                }
+                self.multi_index_heap[d] = 0;
+                self.storage_index -= (self.shape[d] as isize - 1) * self.strides[d];
+            }
         }
 
         Some(idx)

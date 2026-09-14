@@ -8,21 +8,68 @@ use crate::{
     },
     grads::Gradients,
     graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
-    tensor::AutodiffTensor,
+    tensor::{AutodiffTensor, NodeRefCount},
 };
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use burn_backend::{Backend, TensorMetadata, tensor::FloatTensor};
 use burn_std::Shape;
 use core::marker::PhantomData;
 
 use burn_backend::distributed::DistributedParams;
 
+/// Keeps an input node available while a dependent operation is being prepared.
+///
+/// Obtain this guard with [`AutodiffTensor::node`] before consuming the input,
+/// or move both the primitive and guard out with [`AutodiffTensor::into_parts`].
+/// Custom operations must retain it until their child step has been registered.
+/// Do not store guards in backward steps or checkpoint state: those internal
+/// references would prevent abandoned graphs from being reclaimed.
+#[derive(Debug)]
+#[must_use = "pass the guard to operation preparation to retain its input through registration"]
+pub struct NodeGuard {
+    node: NodeRef,
+    _reference: NodeRefCount,
+}
+
+impl NodeGuard {
+    pub(crate) fn new(node: NodeRef, reference: NodeRefCount) -> Self {
+        Self {
+            node,
+            _reference: reference,
+        }
+    }
+
+    /// Returns the input's node identifier.
+    pub fn id(&self) -> NodeId {
+        self.node.id
+    }
+
+    pub(crate) fn node_ref(&self) -> &NodeRef {
+        &self.node
+    }
+}
+
+/// Registers a child step before releasing its input guards.
+///
+/// Accepts both fixed-size arrays and vectors without allocating or cloning guards.
+pub(crate) fn register_step<B: Backend, S: Step + 'static>(
+    input_guards: impl IntoIterator<Item = NodeGuard>,
+    output: AutodiffTensor<B>,
+    step: S,
+    checkpointer_builder: CheckpointerBuilder,
+) -> AutodiffTensor<B> {
+    let output = output.register_step(step, checkpointer_builder);
+    // Registration publishes the dependency before its input references are released.
+    drop(input_guards);
+    output
+}
+
 /// Operation in preparation.
 ///
 /// Each mode has its own set of functions to minimize cloning for unused backward states.
 #[derive(new)]
 pub struct OpsPrep<Backward, B, S, C, const N: usize, Mode = Init> {
-    nodes: [NodeRef; N],
+    nodes: [NodeGuard; N],
     requirement: Requirement,
     backward: Backward,
     compute_property: ComputingProperty,
@@ -176,16 +223,24 @@ where
     pub fn finish(self, output: FloatTensor<B>) -> AutodiffTensor<B> {
         let output = AutodiffTensor::from_parents(
             output,
-            &self.nodes,
+            &self.nodes.each_ref().map(|guard| guard.node.clone()),
             self.requirement,
             self.compute_property,
         );
-        let parents = self.nodes.map(|node| node.clone_if_require_grad());
+        let parents = self
+            .nodes
+            .each_ref()
+            .map(|guard| guard.node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), ());
 
         // We register the ops in the graph even if untracked, otherwise memory bound operations
         // that have an untracked parent would not be able to retrieve it
-        output.register_step(UntrackedOpsStep::new(ops), self.checkpointer_builder)
+        register_step(
+            self.nodes,
+            output,
+            UntrackedOpsStep::new(ops),
+            self.checkpointer_builder,
+        )
     }
 }
 
@@ -199,14 +254,22 @@ where
     pub fn finish(self, state: S, output: FloatTensor<B>) -> AutodiffTensor<B> {
         let output = AutodiffTensor::from_parents(
             output,
-            &self.nodes,
+            &self.nodes.each_ref().map(|guard| guard.node.clone()),
             self.requirement,
             self.compute_property,
         );
-        let parents = self.nodes.map(|node| node.clone_if_require_grad());
+        let parents = self
+            .nodes
+            .each_ref()
+            .map(|guard| guard.node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), state);
 
-        output.register_step(OpsStep::new(ops, self.backward), self.checkpointer_builder)
+        register_step(
+            self.nodes,
+            output,
+            OpsStep::new(ops, self.backward),
+            self.checkpointer_builder,
+        )
     }
 
     /// Checkpoints the tensor
@@ -260,10 +323,6 @@ where
         self.backward.backward(self.ops, grads, checkpointer);
     }
 
-    fn node(&self) -> NodeId {
-        self.ops.node.id
-    }
-
     fn parents(&self) -> &[Parent] {
         &self.ops.node.parents
     }
@@ -287,10 +346,6 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeId {
-        self.ops.node.id
-    }
-
     fn parents(&self) -> &[Parent] {
         &self.ops.node.parents
     }
@@ -307,10 +362,11 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
 ///
 /// If broadcasting happened during the forward pass, the gradients will be sum along the
 /// broadcasted dimension.
-pub fn broadcast_shape<B: Backend>(mut grad: FloatTensor<B>, shape: &Shape) -> FloatTensor<B> {
+pub fn broadcast_shape<B: Backend>(grad: FloatTensor<B>, shape: &Shape) -> FloatTensor<B> {
     let shape_grad = grad.shape();
     let ndims = shape_grad.num_dims();
 
+    let mut broadcast_dims = Vec::new();
     for i in 0..ndims {
         if shape_grad[i] != shape[i] {
             if shape[i] != 1 {
@@ -319,9 +375,17 @@ pub fn broadcast_shape<B: Backend>(mut grad: FloatTensor<B>, shape: &Shape) -> F
                     shape, shape_grad, "Expected the shape of the next grad to be 1."
                 );
             }
-            grad = B::float_sum_dim(grad, i);
+            broadcast_dims.push(i);
         }
     }
 
-    grad
+    // One reduction over every broadcast dimension rather than one per
+    // dimension: a parameter broadcast over batch and space would otherwise
+    // pay a launch and an intermediate for each, the first of them nearly the
+    // size of the gradient itself.
+    match broadcast_dims.as_slice() {
+        [] => grad,
+        [dim] => B::float_sum_dim(grad, *dim),
+        dims => B::float_sum_dims(grad, dims),
+    }
 }

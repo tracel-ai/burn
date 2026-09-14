@@ -240,6 +240,9 @@ pub trait Parameter: ParameterValue {
     fn is_require_grad(&self) -> bool;
 
     /// Set the gradient requirement.
+    ///
+    /// Float tensors without autodiff remain unchanged. [`Param::set_require_grad`] stores
+    /// the configured training state so it can be applied when entering training mode.
     fn set_require_grad(self, require_grad: bool) -> Self;
 
     /// Fetch the device.
@@ -273,9 +276,13 @@ impl<P: ParameterValue> Uninitialized<P> {
     /// Runs the initialization function.
     ///
     /// This is called by [Param::val] when accessing an uninitialized parameter for the first time.
-    /// The function is given the stored device and gradient requirement, and returns the initialized parameter.
+    /// The function receives the stored device and effective gradient requirement. On a plain
+    /// device the requirement is false; the configured training state is preserved for `train()`.
     fn initialize(self) -> P {
-        (self.init)(&self.device, self.is_require_grad)
+        (self.init)(
+            &self.device,
+            self.is_require_grad && self.device.is_autodiff(),
+        )
     }
 }
 
@@ -374,6 +381,10 @@ impl<T: ParameterValue> Param<T> {
 
 impl<T: Parameter> Param<T> {
     /// Create a new parameter that is not already initialized.
+    ///
+    /// The initializer receives the device and effective gradient requirement, which is false
+    /// on devices without autodiff. The requested `is_require_grad` setting is preserved for
+    /// [`Module::train`](crate::module::Module::train).
     pub fn uninitialized<F>(
         id: ParamId,
         init: F,

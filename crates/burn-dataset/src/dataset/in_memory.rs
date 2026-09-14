@@ -101,16 +101,20 @@ where
 mod tests {
 
     use super::*;
-    use crate::{SqliteDataset, test_data};
+    #[cfg(feature = "sqlite")]
+    use crate::SqliteDataset;
+    use crate::test_data;
 
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
 
+    #[cfg(feature = "sqlite")]
     const DB_FILE: &str = "tests/data/sqlite-dataset.db";
     const JSON_FILE: &str = "tests/data/dataset.json";
     const CSV_FILE: &str = "tests/data/dataset.csv";
     const CSV_FMT_FILE: &str = "tests/data/dataset-fmt.csv";
 
+    #[cfg(feature = "sqlite")]
     type SqlDs = SqliteDataset<Sample>;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -130,11 +134,13 @@ mod tests {
         column_float: f64,
     }
 
+    #[cfg(feature = "sqlite")]
     #[fixture]
     fn train_dataset() -> SqlDs {
         SqliteDataset::from_db_file(DB_FILE, "train").unwrap()
     }
 
+    #[cfg(feature = "sqlite")]
     #[rstest]
     pub fn from_dataset(train_dataset: SqlDs) {
         let dataset = InMemDataset::from_dataset(&train_dataset);
@@ -144,6 +150,7 @@ mod tests {
         assert_eq!(dataset.get(record_index).unwrap().column_str, "HI1");
     }
 
+    #[cfg(feature = "sqlite")]
     #[rstest]
     #[should_panic(expected = "Index out of bounds")]
     pub fn from_dataset_out_of_bounds(train_dataset: SqlDs) {

@@ -1174,6 +1174,11 @@ impl RelativeOps for NumericOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            NumericOperationIr::SumDims(desc) => NumericOperationIr::SumDims(ReduceDimsOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axes: desc.axes.clone(),
+            }),
             NumericOperationIr::SumDim(desc) => {
                 NumericOperationIr::SumDim(ReduceDimOpIr {
                     input: desc.input.to_relative(converter),

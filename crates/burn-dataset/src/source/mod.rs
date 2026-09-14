@@ -1,3 +1,3 @@
 /// Huggingface source
-#[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
+#[cfg(feature = "sqlite")]
 pub mod huggingface;

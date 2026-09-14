@@ -41,3 +41,14 @@ pub(crate) use server::*;
 pub use backend::*;
 pub use ops::NoOp;
 pub use tensor::*;
+
+/// Types used to define and register custom Fusion operations.
+///
+/// Backend extension crates can use this module without depending directly on
+/// `burn-ir` or coordinating its version with `burn-fusion`.
+pub mod custom {
+    pub use crate::stream::{Operation, StreamId};
+    pub use burn_ir::{
+        CustomOpIr, HandleContainer, OperationIr, OperationOutput, ScalarIr, TensorIr,
+    };
+}

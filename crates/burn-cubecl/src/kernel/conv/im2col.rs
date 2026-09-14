@@ -116,6 +116,7 @@ pub fn conv_im2col_1x1<const N: usize>(
 
 /// Reshapes NHWC input to [(N, H, W), C]
 fn reshape_input(input: CubeTensor) -> CubeTensor {
+    let input = crate::kernel::untile(input);
     let rank = input.meta.num_dims();
     let dim_c = rank - 1;
     let dtype = input.dtype;
@@ -223,11 +224,8 @@ fn check_pointwise_strided<const N: usize>(
 /// The view a strided pointwise convolution actually reads: every `stride`-th
 /// position along each spatial dim. Multiplying the spatial strides leaves the
 /// contiguous copy in [`reshape_input`] to gather exactly those rows.
-fn strided_spatial_view(
-    mut input: CubeTensor,
-    out_shape: &[usize],
-    stride: &[usize],
-) -> CubeTensor {
+fn strided_spatial_view(input: CubeTensor, out_shape: &[usize], stride: &[usize]) -> CubeTensor {
+    let mut input = crate::kernel::untile(input);
     let mut shape = input.meta.shape().to_vec();
     let mut strides = input.meta.strides().to_vec();
 
@@ -246,7 +244,8 @@ fn strided_spatial_view(
 /// so a weight the pitched allocator already aligned for TMA is not copied to
 /// say so. One that is not gets a pitched copy here rather than a second kernel
 /// inside the matmul.
-fn reshape_weight(mut weight: CubeTensor) -> CubeTensor {
+fn reshape_weight(weight: CubeTensor) -> CubeTensor {
+    let mut weight = crate::kernel::untile(weight);
     let dim_c = weight.meta.num_dims() - 1;
     let strides = [weight.meta.strides()[0], weight.meta.strides()[dim_c]];
     let shape = [weight.meta.shape()[0], weight.meta.shape()[dim_c]];

@@ -33,10 +33,10 @@ pub struct CubeTensor {
 
 impl From<CubeTensor> for TensorHandle {
     fn from(val: CubeTensor) -> Self {
-        TensorHandle::new(
+        // The metadata whole: rebuilt from shape and strides it would lose the storage tiling.
+        TensorHandle::from_metadata(
             val.handle.clone(),
-            val.meta.shape().clone(),
-            val.meta.strides().clone(),
+            *val.meta.clone(),
             dtype_to_storage_type(val.dtype),
         )
     }
@@ -97,12 +97,18 @@ impl TensorMetadata for CubeTensor {
         self.dtype
     }
 
+    /// The logical shape: a storage-tiled tensor's physical dims split each matrix dim in two,
+    /// and its own metadata folds them back. Identity on a plain tensor.
     fn shape(&self) -> Shape {
-        self.meta.shape().clone()
+        self.meta
+            .logical_shape()
+            .expect("a tensor's tiling describes its own rank")
     }
 
     fn rank(&self) -> usize {
-        self.meta.rank()
+        self.meta
+            .logical_rank()
+            .expect("a tensor's tiling describes its own rank")
     }
 
     fn device(&self) -> Self::Device {
@@ -171,10 +177,11 @@ impl CubeTensor {
             .client
             .to_client_tensor(desc, &client, dtype_to_elem_type(self.dtype));
 
+        // The copy keeps the physical layout, so the metadata travels whole, tiling included.
         Self {
             client,
             handle,
-            meta: Box::new(Metadata::new(self.shape(), self.meta.strides().clone())),
+            meta: self.meta.clone(),
             device,
             dtype: self.dtype,
             qparams: self.qparams.clone(),
@@ -187,6 +194,7 @@ impl CubeTensor {
             handle: self.handle.binding(),
             strides: self.meta.strides,
             shape: self.meta.shape,
+            tiling: self.meta.tiling,
         }
     }
 
@@ -196,8 +204,25 @@ impl CubeTensor {
     }
 
     /// Return the reference to a tensor argument.
+    ///
+    /// # Panics
+    ///
+    /// On a storage-tiled tensor: a kernel argument is read as rows, and only cubek's matmul
+    /// reads storage tiles, through [`binding`](Self::binding). Un-tile it first
+    /// ([`untile`](crate::kernel::untile)).
     pub fn into_tensor_arg(self) -> TensorArg {
+        self.assert_rows("into_tensor_arg");
         self.binding().into_tensor_arg()
+    }
+
+    /// A storage-tiled tensor is read as rows by nothing but cubek's matmul; every other kernel
+    /// refuses it here rather than read its tiles as rows.
+    fn assert_rows(&self, op: &str) {
+        assert!(
+            !self.meta.is_tiled(),
+            "CubeTensor::{op}: a storage-tiled tensor is read only by the matmul it was packed \
+             for; un-tile it (kernel::untile) for anything else"
+        );
     }
 
     /// Return the reference to a buffer argument.
@@ -207,6 +232,7 @@ impl CubeTensor {
 
     /// Returns a reference to the aliased tensor argument.
     pub fn as_tensor_alias(&self, input_pos: usize) -> TensorArg {
+        self.assert_rows("as_tensor_alias");
         TensorArg::Alias {
             input_pos,
             strides: self.meta.strides().clone(),

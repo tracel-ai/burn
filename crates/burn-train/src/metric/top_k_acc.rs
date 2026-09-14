@@ -65,11 +65,12 @@ impl Metric for TopKAccuracyMetric {
             Some(pad_token) => {
                 // we ignore the samples where the target is equal to the pad token
                 let mask = targets.clone().equal_scalar(pad_token as i64);
-                let num_pad = mask.clone().int().sum().into_scalar::<f64>();
+                let num_pad = mask.clone().int().sum().into_scalar::<i64>() as usize;
                 (targets.clone().mask_fill(mask, -1_i64), num_pad)
             }
-            None => (targets.clone(), 0_f64),
+            None => (targets.clone(), 0),
         };
+        let valid_count = batch_size - num_pad;
 
         let accuracy = targets
             .reshape([batch_size, 1])
@@ -78,9 +79,9 @@ impl Metric for TopKAccuracyMetric {
             .int()
             .sum()
             .into_scalar::<f64>()
-            / (batch_size as f64 - num_pad);
+            / valid_count as f64;
 
-        self.state.update(100.0 * accuracy, batch_size);
+        self.state.update(100.0 * accuracy, valid_count);
         self.state
             .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
     }
@@ -167,6 +168,32 @@ mod tests {
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert_eq!(50.0, metric.value().unwrap().current());
+    }
+
+    #[test]
+    fn test_accuracy_epoch_aggregation_excludes_padding() {
+        let device = Default::default();
+        let mut metric = TopKAccuracyMetric::new(1).with_pad_token(2);
+
+        // One valid, correct sample and three padding samples.
+        metric.update(
+            &TopKAccuracyInput::new(
+                Tensor::from_data([[0.9, 0.1], [0.9, 0.1], [0.9, 0.1], [0.9, 0.1]], &device),
+                Tensor::from_data([0, 2, 2, 2], &device),
+            ),
+            &MetricMetadata::fake(),
+        );
+        // Four valid, incorrect samples.
+        metric.update(
+            &TopKAccuracyInput::new(
+                Tensor::from_data([[0.9, 0.1]; 4], &device),
+                Tensor::from_data([1, 1, 1, 1], &device),
+            ),
+            &MetricMetadata::fake(),
+        );
+
+        // One correct prediction out of five valid samples.
+        assert_eq!(20.0, metric.final_value().current());
     }
 
     #[test]

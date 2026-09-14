@@ -110,54 +110,6 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
-    /// Computes the reduced singular value decomposition of a batch of matrices.
-    ///
-    /// For an input of shape `[..., m, n]`, where `m >= n`, returns `(u, s, vt)`
-    /// with non-negative singular values in descending order. When `swap` is
-    /// false, the factors have shapes `[..., m, n]`, `[..., n]`, and
-    /// `[..., n, n]`, respectively, and reconstruct the input as
-    /// `u @ diag(s) @ vt`.
-    ///
-    /// When `swap` is true, the input is the transpose of the original wide
-    /// matrix. The returned factors reconstruct that original matrix and have
-    /// shapes `[..., n, n]`, `[..., n]`, and `[..., n, m]`, respectively.
-    ///
-    /// The returned tensors must use the same dtype and device as the input.
-    /// The default implementation synchronously transfers the input to the
-    /// host, computes the decomposition there, and transfers the factors back
-    /// to the input device. Backends may override it with a native implementation.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor of shape `[..., m, n]`, with `m >= n`.
-    /// * `sweeps` - Maximum number of QR sweeps per singular value.
-    /// * `swap` - Whether `tensor` is the transpose of the matrix being decomposed.
-    ///
-    /// # Panics
-    ///
-    /// The default implementation panics if the input cannot be read
-    /// synchronously or if the QR iteration does not converge within the
-    /// requested sweep budget.
-    fn float_svd(
-        tensor: FloatTensor<B>,
-        sweeps: usize,
-        swap: bool,
-    ) -> (FloatTensor<B>, FloatTensor<B>, FloatTensor<B>) {
-        let device = tensor.device();
-        let msg = "SVD fallback failed to synchronously read tensor data";
-        let data = try_read_sync(Self::float_into_data(tensor))
-            .expect(msg)
-            .expect(msg);
-        let (u, s, vt) = super::svd::svd_host_data(data, sweeps, swap)
-            .unwrap_or_else(|err| panic!("SVD fallback failed: {err}"));
-
-        (
-            Self::float_from_data(u, &device),
-            Self::float_from_data(s, &device),
-            Self::float_from_data(vt, &device),
-        )
-    }
-
     /// Moves the tensor to the given device.
     ///
     /// # Arguments
@@ -886,6 +838,26 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the sum of all elements in `tensor` along `dim`.
     fn float_sum_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Sum the tensor along several dimensions at once, keeping each of them
+    /// with length one.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    /// * `dims` - The dimensions along which to sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same rank, and length one along each of `dims`.
+    ///
+    /// The default reduces one dimension at a time, which writes and reads
+    /// back an intermediate per dimension. A backend that can fold the
+    /// dimensions into fewer reductions should override this.
+    fn float_sum_dims(tensor: FloatTensor<B>, dims: &[usize]) -> FloatTensor<B> {
+        dims.iter()
+            .fold(tensor, |tensor, &dim| B::float_sum_dim(tensor, dim))
+    }
 
     /// Product of all elements in a tensor.
     ///

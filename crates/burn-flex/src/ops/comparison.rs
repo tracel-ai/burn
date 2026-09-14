@@ -81,15 +81,6 @@ where
         return make_bool_tensor(result, shape, out_dtype);
     }
 
-    // Optimized broadcast path for outer-product style broadcasting
-    // Pattern: [N, 1] vs [1, M] -> [N, M] where one has stride 0 in inner dim
-    if lhs.layout().num_dims() == 2
-        && let Some(simd_op) = simd_hint
-        && let Some((result, shape)) = try_broadcast_cmp_f32(&lhs, rhs, simd_op)
-    {
-        return make_bool_tensor(result, shape, out_dtype);
-    }
-
     // Collapsed loop-nest path for any rank: jointly collapse the two
     // layouts and run the SIMD compare kernels per contiguous or
     // broadcast-scalar inner run (e.g. `[2,S,N] > [1,S,N]` becomes two
@@ -166,112 +157,6 @@ fn try_zip_cmp_f32(lhs: &FlexTensor, rhs: &FlexTensor, op: simd::CmpOp) -> Optio
     }
     debug_assert_eq!(pos, numel);
     Some(out)
-}
-
-/// Try optimized outer-product style broadcast comparison.
-/// Returns Some((result, shape)) if the pattern matches.
-#[cfg(feature = "simd")]
-fn try_broadcast_cmp_f32(
-    lhs: &FlexTensor,
-    rhs: &FlexTensor,
-    op: simd::CmpOp,
-) -> Option<(Vec<u8>, Shape)> {
-    let lhs_strides = lhs.layout().strides();
-    let rhs_strides = rhs.layout().strides();
-    let shape = lhs.layout().shape().clone();
-    let [rows, cols] = shape[..] else {
-        return None;
-    };
-
-    // Pattern 1: lhs has stride 0 in dim 1 (column broadcast), rhs contiguous
-    // lhs[i,j] = lhs_data[i*stride], rhs[i,j] = rhs_data[i*cols + j]
-    if lhs_strides[1] == 0 && rhs_strides == [cols as isize, 1] {
-        let lhs_storage: &[f32] = lhs.storage();
-        let rhs_storage: &[f32] = rhs.storage();
-        let l_offset = lhs.layout().start_offset() as isize;
-        let l_stride = lhs_strides[0];
-        let r_offset = rhs.layout().start_offset();
-
-        let mut result = vec![0u8; rows * cols];
-        for row in 0..rows {
-            let a_val = lhs_storage[(l_offset + row as isize * l_stride) as usize];
-            let r_row_start = r_offset + row * cols;
-            let r_slice = &rhs_storage[r_row_start..r_row_start + cols];
-            let out_start = row * cols;
-            simd::cmp_scalar_f32(
-                r_slice,
-                a_val,
-                &mut result[out_start..out_start + cols],
-                swap_cmp_op(op),
-            );
-        }
-        return Some((result, shape));
-    }
-
-    // Pattern 2: rhs has stride 0 in dim 0 (row broadcast), lhs contiguous
-    // lhs[i,j] = lhs_data[i*cols + j], rhs[i,j] = rhs_data[j*stride]
-    if rhs_strides[0] == 0 && lhs_strides == [cols as isize, 1] {
-        let lhs_storage: &[f32] = lhs.storage();
-        let rhs_storage: &[f32] = rhs.storage();
-        let l_offset = lhs.layout().start_offset();
-        let r_offset = rhs.layout().start_offset() as isize;
-        let r_stride = rhs_strides[1];
-
-        // Build the broadcast rhs values once
-        let rhs_row: Vec<f32> = (0..cols)
-            .map(|j| rhs_storage[(r_offset + j as isize * r_stride) as usize])
-            .collect();
-
-        let mut result = vec![0u8; rows * cols];
-        for row in 0..rows {
-            let l_row_start = l_offset + row * cols;
-            let l_slice = &lhs_storage[l_row_start..l_row_start + cols];
-            let out_start = row * cols;
-            // Compare row with broadcast values
-            for (j, (&lv, &rv)) in l_slice.iter().zip(rhs_row.iter()).enumerate() {
-                result[out_start + j] = match op {
-                    simd::CmpOp::Gt => (lv > rv) as u8,
-                    simd::CmpOp::Ge => (lv >= rv) as u8,
-                    simd::CmpOp::Lt => (lv < rv) as u8,
-                    simd::CmpOp::Le => (lv <= rv) as u8,
-                    simd::CmpOp::Eq => (lv == rv) as u8,
-                    simd::CmpOp::Ne => (lv != rv) as u8,
-                };
-            }
-        }
-        return Some((result, shape));
-    }
-
-    // Pattern 3: Outer product - lhs stride 0 in dim 1, rhs stride 0 in dim 0
-    // This is the [N,1] vs [1,M] case
-    if lhs_strides[1] == 0 && rhs_strides[0] == 0 {
-        let lhs_storage: &[f32] = lhs.storage();
-        let rhs_storage: &[f32] = rhs.storage();
-        let l_offset = lhs.layout().start_offset() as isize;
-        let l_stride = lhs_strides[0];
-        let r_offset = rhs.layout().start_offset() as isize;
-        let r_stride = rhs_strides[1];
-
-        // Build the broadcast rhs row once
-        let rhs_row: Vec<f32> = (0..cols)
-            .map(|j| rhs_storage[(r_offset + j as isize * r_stride) as usize])
-            .collect();
-
-        let mut result = vec![0u8; rows * cols];
-        for row in 0..rows {
-            let a_val = lhs_storage[(l_offset + row as isize * l_stride) as usize];
-            let out_start = row * cols;
-            simd::cmp_scalar_f32(
-                &rhs_row,
-                a_val,
-                &mut result[out_start..out_start + cols],
-                swap_cmp_op(op),
-            );
-        }
-        return Some((result, shape));
-    }
-
-    None
 }
 
 /// Swap comparison operation for reversed operand order.

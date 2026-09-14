@@ -29,6 +29,9 @@ pub struct Block<O> {
     /// reason about the original dependency graph through the recursive merging.
     constituents: SubGraph,
     ordering: Vec<usize>,
+    /// For each builder, the index into `operations` of the operation on which it reported
+    /// [Closed](FuserStatus::Closed); `None` while it is still open.
+    closed_at: Vec<Option<usize>>,
     /// The start position in the relative execution stream.
     pub start_pos: usize,
     /// The end position in the relative execution stream.
@@ -139,6 +142,7 @@ impl<O: NumOperations> Block<O> {
             freed: HashSet::new(),
             constituents: SubGraph::empty(),
             ordering: Vec::new(),
+            closed_at: vec![None; builders.len()],
             start_pos: usize::MAX,
             end_pos: usize::MIN,
         }
@@ -150,7 +154,13 @@ impl<O: NumOperations> Block<O> {
     }
 
     /// Optimize the block.
-    pub fn optimize(mut self) -> BlockOptimization<O> {
+    ///
+    /// `fresh_builders` are the builders as a new search starts them: they tell, after an
+    /// unfusable head, which operations no builder would even start on.
+    pub fn optimize(
+        mut self,
+        fresh_builders: &[Box<dyn OperationFuser<O>>],
+    ) -> BlockOptimization<O> {
         match find_best_optimization_index(&mut self.builders) {
             BestOptimization::Found { index, score } => {
                 let opt = self.builders[index].finish();
@@ -167,12 +177,63 @@ impl<O: NumOperations> Block<O> {
                 BlockOptimization::new(strategy, self.ordering)
             }
             BestOptimization::NotFound => {
+                // Nothing fuses from the head of this block. Every builder saw the operations
+                // past the point where the last of them closed only as continuations of that
+                // head; none has tried them from a clean start. Settle the head unfused, along
+                // with whatever follows it that no builder would start on, and leave the rest
+                // to the next search — as a hole or as the next segment — where a fresh
+                // builder gets to fuse it.
+                let settled = self.operations_settled_once_every_builder_closed();
+                let settled =
+                    self.operations_settled_while_no_builder_would_start(settled, fresh_builders);
+                if settled < self.operations.len() {
+                    self.ordering.drain(settled..);
+                }
+
                 let strategy = ExecutionStrategy::Operations {
                     ordering: Arc::new(self.ordering.clone()),
                 };
                 BlockOptimization::new(strategy, self.ordering)
             }
         }
+    }
+
+    /// Extends `settled` over the operations a fresh builder would neither keep open nor
+    /// be ready on, stopping at the first one some builder wants: that is where the next
+    /// search should begin, and everything before it would only make one-op segments.
+    fn operations_settled_while_no_builder_would_start(
+        &self,
+        mut settled: usize,
+        fresh_builders: &[Box<dyn OperationFuser<O>>],
+    ) -> usize {
+        while let Some(operation) = self.operations.get(settled) {
+            let wanted = fresh_builders.iter().any(|builder| {
+                let mut probe = builder.clone_dyn();
+                probe.fuse(operation);
+                matches!(probe.status(), FuserStatus::Open) || probe.properties().ready
+            });
+            if wanted {
+                break;
+            }
+            settled += 1;
+        }
+        settled
+    }
+
+    /// How many operations, from the head, it takes to close every builder. The operation
+    /// that closed the last builder is settled with the head: every builder was still waiting
+    /// on it, and a block that closes on its second operation keeps executing as one segment,
+    /// as it always has. A builder still open at the end counts the whole block: there is no
+    /// point after which it stopped wanting more.
+    fn operations_settled_once_every_builder_closed(&self) -> usize {
+        self.closed_at
+            .iter()
+            .map(|closed_at| match closed_at {
+                Some(index) => index + 1,
+                None => self.operations.len(),
+            })
+            .max()
+            .unwrap_or(self.operations.len())
     }
 
     /// Returns if the block contains any of the provided [tensors](TensorIr).
@@ -309,8 +370,12 @@ impl<O: NumOperations> Block<O> {
             self.end_pos = pos + 1;
         }
 
-        for builder in self.builders.iter_mut() {
+        let index = self.operations.len() - 1;
+        for (builder, closed_at) in self.builders.iter_mut().zip(self.closed_at.iter_mut()) {
             builder.fuse(operation);
+            if closed_at.is_none() && matches!(builder.status(), FuserStatus::Closed) {
+                *closed_at = Some(index);
+            }
         }
 
         for node in operation.nodes() {
@@ -487,6 +552,7 @@ impl<O> Clone for Block<O> {
             freed: self.freed.clone(),
             constituents: self.constituents.clone(),
             ordering: self.ordering.clone(),
+            closed_at: self.closed_at.clone(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
         }

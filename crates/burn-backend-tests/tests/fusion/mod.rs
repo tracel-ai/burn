@@ -10,6 +10,8 @@ mod fusion_shape;
 mod inplace;
 mod int_bitwise;
 mod nhwc_relayout;
+#[cfg(feature = "cube")]
+mod padded_layout;
 mod reduce_broadcasted;
 mod reduce_logical;
 

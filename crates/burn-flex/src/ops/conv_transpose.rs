@@ -192,6 +192,36 @@ bf16_via_f32!(
 /// GEMM for conv_transpose: writes `c = a^T @ b` where a is [k,m] and b is [k,n].
 type ConvTransposeGemmFn<T> = fn(&mut [T], &[T], &[T], usize, usize, usize);
 
+/// Compute the half-open range `[in_start, in_end)` of input spatial positions `i`
+/// for which the corresponding output index `i * stride + k * dilation - pad`
+/// lies inside `[0, out_size)`.
+#[inline]
+fn valid_in_range(
+    k: usize,
+    dilation: usize,
+    pad: usize,
+    stride: usize,
+    in_size: usize,
+    out_size: usize,
+) -> (usize, usize) {
+    debug_assert!(stride >= 1, "stride must be >= 1");
+    let offset = k * dilation;
+    let in_start = if offset >= pad {
+        0
+    } else {
+        (pad - offset).div_ceil(stride)
+    };
+    let threshold = out_size + pad;
+    let in_end = if offset >= threshold {
+        0
+    } else {
+        (threshold - offset).div_ceil(stride)
+    };
+    let in_end = in_end.min(in_size);
+    let in_start = in_start.min(in_end);
+    (in_start, in_end)
+}
+
 /// 3D transposed convolution via GEMM + col2im.
 #[allow(clippy::too_many_arguments)]
 fn conv_transpose3d_impl<
@@ -265,85 +295,117 @@ fn conv_transpose3d_impl<
         .iter()
         .try_fold(1usize, |acc, &x| acc.checked_mul(x))
         .expect("conv_transpose: output dimensions would overflow");
+    if output_size == 0 {
+        // Empty spatial output would otherwise reach chunks_mut(0).
+        return FlexTensor::empty(
+            Shape::from(vec![batch_size, out_channels, out_d, out_h, out_w]),
+            dtype,
+        );
+    }
     let mut output = vec![zero; output_size];
 
-    // Reuse columns buffer across (batch, group) iterations; GEMM overwrites it fully.
-    let mut columns = vec![zero; columns_len];
+    let group_chunk_len = out_channels_per_group * out_spatial;
 
-    for b in 0..batch_size {
-        for g in 0..groups {
-            let ic_start = g * in_channels_per_group;
-            let oc_start = g * out_channels_per_group;
+    let process_group = |b: usize, g: usize, group_output: &mut [T], columns: &mut [T]| {
+        let ic_start = g * in_channels_per_group;
+        let x_offset = b * in_channels * in_spatial + ic_start * in_spatial;
+        let w_offset = ic_start * out_channels_per_group * k_spatial;
 
-            let x_offset = b * in_channels * in_spatial + ic_start * in_spatial;
-            let w_offset = ic_start * out_channels_per_group * k_spatial;
+        let x_group = &x_data[x_offset..x_offset + in_channels_per_group * in_spatial];
+        let w_group = &w_data[w_offset..w_offset + in_channels_per_group * col_ch];
 
-            let x_group = &x_data[x_offset..x_offset + in_channels_per_group * in_spatial];
-            let w_group = &w_data[w_offset..w_offset + in_channels_per_group * col_ch];
+        gemm_fn(
+            columns,
+            w_group,
+            x_group,
+            col_ch,
+            in_channels_per_group,
+            in_spatial,
+        );
 
-            gemm_fn(
-                &mut columns,
-                w_group,
-                x_group,
-                col_ch,
-                in_channels_per_group,
-                in_spatial,
-            );
+        // col2im: scatter columns into output for this (batch, group)
+        for oc in 0..out_channels_per_group {
+            let out_ch_base = oc * out_spatial;
+            let oc_col_base = oc * k_spatial;
 
-            // col2im: scatter columns into output for this (batch, group)
-            let out_base = b * out_channels * out_spatial;
-            for oc in 0..out_channels_per_group {
-                let out_ch_base = out_base + (oc_start + oc) * out_spatial;
-                let oc_col_base = oc * k_spatial;
+            for kd in 0..kernel_d {
+                let (id_start, id_end) =
+                    valid_in_range(kd, dilation_d, pad_d, stride_d, in_d, out_d);
+                if id_start >= id_end {
+                    continue;
+                }
+                for kh in 0..kernel_h {
+                    let (ih_start, ih_end) =
+                        valid_in_range(kh, dilation_h, pad_h, stride_h, in_h, out_h);
+                    if ih_start >= ih_end {
+                        continue;
+                    }
+                    for kw in 0..kernel_w {
+                        let (iw_start, iw_end) =
+                            valid_in_range(kw, dilation_w, pad_w, stride_w, in_w, out_w);
+                        if iw_start >= iw_end {
+                            continue;
+                        }
 
-                for kd in 0..kernel_d {
-                    for kh in 0..kernel_h {
-                        for kw in 0..kernel_w {
-                            let k_idx = kd * kernel_h * kernel_w + kh * kernel_w + kw;
-                            let col_base = (oc_col_base + k_idx) * in_spatial;
+                        let k_idx = kd * kernel_h * kernel_w + kh * kernel_w + kw;
+                        let col_base = (oc_col_base + k_idx) * in_spatial;
 
-                            for id in 0..in_d {
-                                let od_raw = id * stride_d + kd * dilation_d;
-                                if od_raw < pad_d {
-                                    continue;
-                                }
-                                let od = od_raw - pad_d;
-                                if od >= out_d {
-                                    continue;
-                                }
+                        for id in id_start..id_end {
+                            let od = id * stride_d + kd * dilation_d - pad_d;
+                            let in_d_base = id * in_h * in_w;
+                            let out_d_base = od * out_h * out_w;
 
-                                for ih in 0..in_h {
-                                    let oh_raw = ih * stride_h + kh * dilation_h;
-                                    if oh_raw < pad_h {
-                                        continue;
-                                    }
-                                    let oh = oh_raw - pad_h;
-                                    if oh >= out_h {
-                                        continue;
-                                    }
+                            for ih in ih_start..ih_end {
+                                let oh = ih * stride_h + kh * dilation_h - pad_h;
+                                let in_h_base = in_d_base + ih * in_w;
+                                let out_h_base = out_d_base + oh * out_w;
 
-                                    for iw in 0..in_w {
-                                        let ow_raw = iw * stride_w + kw * dilation_w;
-                                        if ow_raw < pad_w {
-                                            continue;
-                                        }
-                                        let ow = ow_raw - pad_w;
-                                        if ow >= out_w {
-                                            continue;
-                                        }
-
-                                        let s = id * in_h * in_w + ih * in_w + iw;
-                                        let val = columns[col_base + s];
-                                        let out_idx =
-                                            out_ch_base + od * out_h * out_w + oh * out_w + ow;
-                                        output[out_idx] = T::add(output[out_idx], val);
-                                    }
+                                for iw in iw_start..iw_end {
+                                    let ow = iw * stride_w + kw * dilation_w - pad_w;
+                                    let s = in_h_base + iw;
+                                    let val = columns[col_base + s];
+                                    let out_idx = out_ch_base + out_h_base + ow;
+                                    group_output[out_idx] = T::add(group_output[out_idx], val);
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    };
+
+    #[cfg(feature = "rayon")]
+    let total_groups = batch_size * groups;
+    #[cfg(feature = "rayon")]
+    if total_groups > 1
+        && (total_groups * out_channels_per_group * out_spatial) >= super::PARALLEL_THRESHOLD
+    {
+        use rayon::prelude::*;
+        output
+            .par_chunks_mut(group_chunk_len)
+            .enumerate()
+            .for_each(|(bg, group_output)| {
+                let b = bg / groups;
+                let g = bg % groups;
+                let mut columns = vec![zero; columns_len];
+                process_group(b, g, group_output, &mut columns);
+            });
+    } else {
+        let mut columns = vec![zero; columns_len];
+        for (bg, group_output) in output.chunks_mut(group_chunk_len).enumerate() {
+            let b = bg / groups;
+            let g = bg % groups;
+            process_group(b, g, group_output, &mut columns);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    {
+        let mut columns = vec![zero; columns_len];
+        for (bg, group_output) in output.chunks_mut(group_chunk_len).enumerate() {
+            let b = bg / groups;
+            let g = bg % groups;
+            process_group(b, g, group_output, &mut columns);
         }
     }
 
@@ -437,6 +499,19 @@ conv_transpose_gemm_typed!(
 mod tests {
     use super::*;
     use burn_backend::TensorData;
+
+    #[test]
+    fn test_conv_transpose_empty_output_group() {
+        // Padding removes the entire spatial output. The group copier must
+        // return before constructing chunks with a zero length.
+        let x = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0], [1, 1, 2]));
+        let weight = FlexTensor::from_data(TensorData::new(vec![1.0f32], [1, 1, 1]));
+        let options = ConvTransposeOptions::new([1], [1], [0], [1], 1);
+        let result = conv_transpose1d_f32(x, weight, None, &options);
+        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 0]);
+        assert_eq!(result.dtype(), DType::F32);
+        assert!(result.into_data().bytes.is_empty());
+    }
 
     #[test]
     fn test_conv_transpose2d_f64() {

@@ -224,8 +224,13 @@ macro_rules! to_device_arms {
                     },
                 )+
             )*
+            #[cfg(all(feature = "autodiff", feature = "capture"))]
+            (_, $crate::DispatchDevice::Autodiff(device))
+            if matches!(&*device.inner, $crate::DispatchDevice::Capture(_)) => {
+                panic!("Cannot move a tensor to a capture device with autodiff enabled; remove autodiff with without_autodiff() before the transfer.")
+            }
             #[cfg(feature = "autodiff")]
-            (_, $crate::DispatchDevice::Autodiff(_)) => unreachable!("Autodiff should not wrap an autodiff device."),
+            (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move this tensor to the requested autodiff device: this transfer is not supported."),
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensorKind::Autodiff(..), _) => panic!("Operation not marked for autodiff."),
             // Capture is intentionally one-way: initialized values can be moved onto a
@@ -272,7 +277,7 @@ macro_rules! float_to_device_arms {
                 float_to_device_arms!(
                     @autodiff
                     *kind, &**device, ckp, $to_device;
-                    $([$B1, $src_cfg]);*
+                    $([$B1, $src_cfg] => [ $([$B2, $dst_cfg]),+ ]);*
                 )
 
             }
@@ -349,7 +354,7 @@ macro_rules! float_to_device_arms {
     (
         @autodiff
         $tensor:expr, $device:expr, $ckp:expr, $to_device:ident;
-        $( [$B1:ident, $src_cfg:meta] );*
+        $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
     ) => {{
         match ($tensor, $device) {
             // --- Same backend to_device ---
@@ -367,8 +372,31 @@ macro_rules! float_to_device_arms {
                     }
                 }
             )*
-            // TODO: should be possible
-            (_, _) => unimplemented!("Autodiff tensor cannot be moved between backends.")
+            $(
+                $(
+                    #[cfg(all($src_cfg, $dst_cfg))]
+                    ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::$B2(d)) => {
+                        let output = with_autodiff_backend!($B1, $ckp, |B| {
+                            B::to_backend::<
+                                $crate::backends::$B2,
+                                $crate::ops::transfer::HostTransfer,
+                            >(tensor.autodiff(), d)
+                        });
+                        $crate::DispatchTensor {
+                            kind: $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new(
+                                $crate::DispatchTensorKind::$B2($crate::BackendTensor::Autodiff(output))
+                            )),
+                            autodiff: $crate::DispatchAutodiffContext::Enabled($ckp),
+                        }
+                    }
+                )+
+            )*
+            #[cfg(feature = "capture")]
+            (_, $crate::DispatchDevice::Capture(_)) => {
+                panic!("Cannot move a tensor to a capture device with autodiff enabled; remove autodiff with without_autodiff() before the transfer.")
+            }
+            #[allow(unreachable_patterns)]
+            (_, _) => panic!("Cannot move this autodiff tensor between the requested backends.")
         }
     }};
 }

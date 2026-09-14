@@ -136,7 +136,11 @@ fn into_tensor(handle: CubeFusionHandle, shape: Shape) -> CubeTensor {
         client: handle.client.clone(),
         handle: handle.handle.clone(),
         device: handle.device.clone(),
-        meta: Box::new(Metadata::new(shape, handle.strides.clone())),
+        meta: Box::new(
+            Metadata::new(shape, handle.strides.clone())
+                .with_tiling(handle.tiling)
+                .expect("a fusion handle's tiling describes its own rank"),
+        ),
         dtype: handle.dtype,
         qparams: handle.qparams.clone(),
     }
@@ -149,6 +153,7 @@ impl From<CubeTensor> for CubeFusionHandle {
             handle: value.handle.clone(),
             device: value.device.clone(),
             strides: value.meta.strides.clone(),
+            tiling: value.meta.tiling,
             dtype: value.dtype,
             qparams: value.qparams.clone(),
         }

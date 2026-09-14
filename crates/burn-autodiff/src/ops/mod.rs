@@ -8,9 +8,11 @@ mod module;
 mod qtensor;
 mod tensor;
 mod transaction;
+mod transfer;
 
 pub(crate) mod maxmin;
 pub(crate) mod sort;
 
 pub use backward::*;
 pub use base::*;
+pub use transfer::DifferentiableTransfer;

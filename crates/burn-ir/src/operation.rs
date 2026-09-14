@@ -598,6 +598,8 @@ pub enum NumericOperationIr {
     /// Float => [sum dim](burn_backend::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](burn_backend::ops::IntTensorOps::int_sum_dim).
     SumDim(ReduceDimOpIr),
+    /// Operation corresponding to summing several dimensions at once.
+    SumDims(ReduceDimsOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [prod](burn_backend::ops::FloatTensorOps::float_prod).
@@ -1066,6 +1068,35 @@ pub struct ReduceDimOpIr {
     pub out: TensorIr,
     pub axis: usize,
     pub accumulator_len: usize,
+}
+
+/// A reduction over several dimensions at once, each kept with length one.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
+#[allow(missing_docs)]
+pub struct ReduceDimsOpIr {
+    pub input: TensorIr,
+    pub out: TensorIr,
+    pub axes: Vec<usize>,
+}
+
+#[allow(missing_docs)]
+impl ReduceDimsOpIr {
+    pub fn create<F>(input: TensorIr, axes: Vec<usize>, mut new_id: F) -> Self
+    where
+        F: FnMut() -> crate::TensorId,
+    {
+        let mut shape = input.shape.clone();
+        for axis in &axes {
+            shape[*axis] = 1;
+        }
+        let dtype = input.dtype;
+
+        Self {
+            out: TensorIr::uninit(new_id(), shape, dtype),
+            input,
+            axes,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -2689,6 +2720,7 @@ impl NumericOperationIr {
             NumericOperationIr::Mean(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::Sum(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::SumDim(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::SumDims(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::Prod(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::ProdDim(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::Max(repr) => Box::new([&repr.input].into_iter()),
@@ -2749,6 +2781,7 @@ impl NumericOperationIr {
             NumericOperationIr::Mean(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Sum(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::SumDim(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::SumDims(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Prod(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::ProdDim(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Max(repr) => Box::new([&repr.out].into_iter()),
@@ -2881,6 +2914,9 @@ impl NumericOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::SumDim(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::SumDims(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::Prod(repr) => {
@@ -3100,6 +3136,10 @@ impl NumericOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
             }
             NumericOperationIr::SumDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::SumDims(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
                 v.visit_tensor_mut(&mut repr.out);
             }

@@ -209,8 +209,8 @@ fn within_block_order_is_not_reordered() {
     // Builder wants [a2, a1] — only reachable if we reorder within the block.
     let res = run(&ops, vec![vec![a2.clone(), a1.clone()]]);
 
-    assert_eq!(res.ordering, vec![0, 1]);
-    assert_eq!(res.strategy, operations(vec![0, 1]));
+    assert_eq!(res.ordering, vec![0]);
+    assert_eq!(res.strategy, operations(vec![0]));
 }
 
 // ---------------------------------------------------------------------------
@@ -316,6 +316,71 @@ fn all_closed_without_ready_bails_out() {
     let res = opt.optimize(&ops);
     assert_eq!(res.ordering, vec![0, 1]);
     assert_eq!(res.strategy, operations(vec![0, 1]));
+}
+
+/// A dependent chain whose head matches no pattern used to run unfused as a
+/// whole, tail included. Only the head is settled; the tail goes back to the
+/// search, where its own pattern fuses it. (`within_block_order_is_not_reordered`
+/// above is the two-op case: the head runs unfused and the second op is left
+/// to the next search, since a fresh builder would start on it.)
+#[test]
+fn unfusable_head_leaves_the_tail_to_the_next_search() {
+    let head = add(100, 101, 102);
+    let t1 = add(102, 103, 104);
+    let t2 = add(104, 105, 106);
+    let ops = vec![head.clone(), t1.clone(), t2.clone()];
+    let patterns = vec![vec![t1.clone(), t2.clone()]];
+
+    let res = run(&ops, patterns.clone());
+    assert_eq!(res.ordering, vec![0]);
+    assert_eq!(res.strategy, operations(vec![0]));
+
+    let tail = vec![t1, t2];
+    let res = run(&tail, patterns);
+    assert_eq!(res.ordering, vec![0, 1]);
+    assert_eq!(res.strategy, optimization(0, 2, vec![0, 1], 2));
+}
+
+/// The op that closed the last builder is settled with the head, even when a
+/// fresh builder would start on it: every builder was waiting on that op, and
+/// the block keeps executing as one segment up to it. The `[t1, t2]` fusion is
+/// therefore not found here; the search only resumes after `t1`.
+#[test]
+fn op_that_closed_the_last_builder_is_settled_with_the_head() {
+    let head = add(100, 101, 102);
+    let t1 = add(102, 103, 104);
+    let t2 = add(104, 105, 106);
+    let never = add(300, 301, 302);
+    let ops = vec![head.clone(), t1.clone(), t2.clone()];
+
+    let res = run(&ops, vec![vec![head, never], vec![t1, t2]]);
+
+    assert_eq!(res.ordering, vec![0, 1, 2]);
+    assert_eq!(res.strategy, operations(vec![0, 1, 2]));
+}
+
+/// The same chain followed by an independent fusable block. The chain's tail
+/// is then interior — a hole — and the hole pass fuses it in the same plan.
+#[test]
+fn unfusable_head_tail_is_fused_as_a_hole() {
+    let head = add(100, 101, 102);
+    let t1 = add(102, 103, 104);
+    let t2 = add(104, 105, 106);
+    let x1 = add(200, 201, 202);
+    let x2 = add(202, 203, 204);
+    let ops = vec![head.clone(), t1.clone(), t2.clone(), x1.clone(), x2.clone()];
+
+    let res = run(&ops, vec![vec![t1, t2], vec![x1, x2]]);
+
+    assert_eq!(res.ordering, vec![0, 1, 2, 3, 4]);
+    assert_eq!(
+        res.strategy,
+        composed(vec![
+            operations(vec![0]),
+            optimization(0, 2, vec![1, 2], 2),
+            optimization(1, 2, vec![3, 4], 2),
+        ]),
+    );
 }
 
 /// A single pattern that spans two independent blocks, but the last op of

@@ -36,7 +36,7 @@ pub mod network {
 
 mod dataset;
 pub use dataset::*;
-#[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
+#[cfg(feature = "sqlite")]
 pub use source::huggingface::downloader::*;
 
 #[cfg(test)]

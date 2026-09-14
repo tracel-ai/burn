@@ -8,30 +8,12 @@ use crate::{
 };
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
-    TensorData, TensorMetadata,
+    TensorData,
     ops::{FloatTensorOps, GridSampleOptions, PadMode},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
-
-fn register_float_tensor<B: FusionBackend>(
-    tensor: FloatTensor<B>,
-    client: &GlobalFusionClient<B::FusionRuntime>,
-) -> FloatTensor<Fusion<B>> {
-    let dtype = tensor.dtype();
-    let shape = tensor.shape();
-    let handle = B::float_tensor_handle(tensor);
-    let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
-
-    client
-        .register(
-            StreamId::current(),
-            OperationIr::Init(desc),
-            NoOp::<B>::new(),
-        )
-        .output()
-}
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_pad(
@@ -254,33 +236,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         tensor.into_data::<B>().await
-    }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(
-            from = ?tensor.client.device(),
-            shape = ?tensor.shape,
-            dtype = ?tensor.dtype
-        )
-    ))]
-    fn float_svd(
-        tensor: FloatTensor<Self>,
-        sweeps: usize,
-        swap: bool,
-    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
-        // Resolve through the fusion server into the inner backend's
-        // primitive and let the backend run its SVD (fused kernel or host
-        // pipeline); fusion has no IR op for SVD.
-        let client = tensor.client.clone();
-        let resolved = client.resolve_tensor_float::<B>(tensor);
-        let (u, s, vt) = B::float_svd(resolved, sweeps, swap);
-        (
-            register_float_tensor::<B>(u, &client),
-            register_float_tensor::<B>(s, &client),
-            register_float_tensor::<B>(vt, &client),
-        )
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(
@@ -1492,6 +1447,39 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::SumDim(desc.clone())),
                 SumDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_sum_dims(tensor: FloatTensor<Self>, dims: &[usize]) -> FloatTensor<Self> {
+        match dims {
+            [] => return tensor,
+            [dim] => return Self::float_sum_dim(tensor, *dim),
+            _ => {}
+        }
+
+        reduce_ops!(
+            @impl SumDimsOps, ReduceDimsOpIr, get_float_tensor, register_float_tensor,
+            |input, desc| B::float_sum_dims(input, &desc.axes)
+        );
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        // One operation for the whole reduction, so the backend underneath can
+        // fold the dimensions; issued one dimension at a time it could not.
+        let desc = ReduceDimsOpIr::create(tensor.into_ir(), dims.to_vec(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::NumericFloat(
+                    desc.out.dtype,
+                    NumericOperationIr::SumDims(desc.clone()),
+                ),
+                SumDimsOps::<B>::new(desc),
             )
             .output()
     }

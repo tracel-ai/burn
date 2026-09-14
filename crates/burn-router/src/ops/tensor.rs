@@ -14,9 +14,9 @@ use burn_ir::{
     FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, GridSample2dOpIr,
     InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr,
     OperationOutput, PadOpIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr,
-    ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr,
-    SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr,
-    TopKWithIndicesOpIr, UnaryOpIr, UnfoldOpIr,
+    ReduceDimsOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr,
+    SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr,
+    SortWithIndicesOpIr, SwapDimsOpIr, TopKWithIndicesOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
@@ -725,6 +725,20 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .register(OperationIr::NumericFloat(
                 desc.out.dtype,
                 NumericOperationIr::SumDim(desc),
+            ))
+            .output()
+    }
+
+    fn float_sum_dims(tensor: FloatTensor<Self>, dims: &[usize]) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = ReduceDimsOpIr::create(tensor.into_ir(), dims.to_vec(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::SumDims(desc),
             ))
             .output()
     }

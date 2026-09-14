@@ -10,6 +10,7 @@ mod contiguous;
 mod cross;
 mod index;
 mod mask;
+mod memory_order;
 mod unary_float;
 mod unary_int;
 mod unary_numeric;

@@ -1,4 +1,4 @@
-use super::{Ops, OpsPrep};
+use super::{NodeGuard, Ops, OpsPrep};
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder, strategy::CheckpointStrategy},
     grads::Gradients,
@@ -30,12 +30,15 @@ where
         checkpointer: &mut Checkpointer,
     );
 
-    /// Prepare the backward ops.
+    /// Prepare the backward ops, retaining input references through registration.
+    ///
+    /// Obtain guards from the input tensors before consuming their primitives.
     fn prepare<C: CheckpointStrategy>(
         self,
-        nodes: [NodeRef; N],
+        nodes: [NodeGuard; N],
     ) -> OpsPrep<Self, B, Self::State, C, N> {
-        let requirement = Requirement::from_nodes(&nodes);
+        let requirement =
+            Requirement::from_nodes(&nodes.each_ref().map(|guard| guard.node_ref().clone()));
         OpsPrep::new(
             nodes,
             requirement,

@@ -1,5 +1,7 @@
 use burn_backend::Scalar;
 
+use alloc::vec::Vec;
+
 use crate::alloc::borrow::ToOwned;
 use crate::check::unwrap_dim_index;
 use crate::kind::Numeric;
@@ -426,7 +428,11 @@ where
     /// // [[27]]
     /// ```
     pub fn sum_dims<I: AsIndex>(self, dims: &[I]) -> Self {
-        dims.iter().fold(self, |tensor, &dim| tensor.sum_dim(dim))
+        let dims: Vec<usize> = dims
+            .iter()
+            .map(|&dim| unwrap_dim_index(dim.try_dim_index(D), "Sum Dims"))
+            .collect();
+        Self::new(K::sum_dims(self.primitive, &dims))
     }
 
     /// Aggregate and squeeze along the given dimensions.

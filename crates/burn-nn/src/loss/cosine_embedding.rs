@@ -1,6 +1,6 @@
 use alloc::format;
 
-use burn::tensor::linalg::cosine_similarity;
+use burn_linalg::cosine_similarity;
 
 use burn_core as burn;
 

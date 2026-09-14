@@ -3,140 +3,16 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
-use burn_std::{Bytes, Shape, Slice, bf16, f16};
+use burn_std::{Slice, bf16, f16};
 
-use crate::{FlexTensor, Layout};
+use crate::FlexTensor;
 
 /// Slice a tensor according to the given slice parameters.
 ///
-/// For positive steps, this is zero-copy (metadata only).
-/// For negative steps, data is copied to handle the reversal.
+/// Zero-copy (metadata only). Negative steps are handled via negative strides in the layout.
 pub fn slice(tensor: FlexTensor, slices: &[Slice]) -> FlexTensor {
-    let (new_layout, needs_copy) = tensor.layout().slice(slices);
-
-    if !needs_copy {
-        // Zero-copy: share data with new layout
-        FlexTensor::from_arc(tensor.data_arc(), new_layout, tensor.dtype())
-    } else {
-        // Needs copy due to negative steps
-        slice_with_copy(&tensor, slices)
-    }
-}
-
-/// Slice with data copy (handles negative steps).
-fn slice_with_copy(tensor: &FlexTensor, slices: &[Slice]) -> FlexTensor {
-    match tensor.dtype() {
-        DType::F32 => slice_copy_impl::<f32>(tensor, slices),
-        DType::F64 => slice_copy_impl::<f64>(tensor, slices),
-        DType::F16 => slice_copy_impl::<f16>(tensor, slices),
-        DType::BF16 => slice_copy_impl::<bf16>(tensor, slices),
-        DType::I32 => slice_copy_impl::<i32>(tensor, slices),
-        DType::I64 => slice_copy_impl::<i64>(tensor, slices),
-        DType::I16 => slice_copy_impl::<i16>(tensor, slices),
-        DType::I8 => slice_copy_impl::<i8>(tensor, slices),
-        DType::U32 => slice_copy_impl::<u32>(tensor, slices),
-        DType::U64 => slice_copy_impl::<u64>(tensor, slices),
-        DType::U16 => slice_copy_impl::<u16>(tensor, slices),
-        DType::U8 => slice_copy_impl::<u8>(tensor, slices),
-        DType::Bool(_) => slice_copy_impl::<u8>(tensor, slices),
-        _ => panic!("slice: unsupported dtype {:?}", tensor.dtype()),
-    }
-}
-
-/// Generic slice implementation with copy.
-fn slice_copy_impl<E: Element + bytemuck::Pod + Default>(
-    tensor: &FlexTensor,
-    slices: &[Slice],
-) -> FlexTensor {
-    let src = tensor.storage::<E>();
-    let src_layout = tensor.layout();
-    let ndims = src_layout.num_dims();
-
-    // Calculate output shape and collect normalized slice info
-    let mut out_shape = Vec::with_capacity(ndims);
-    let mut slice_info: Vec<(usize, usize, isize)> = Vec::with_capacity(ndims); // (start, len, step)
-
-    for dim in 0..ndims {
-        let dim_size = src_layout.shape()[dim] as isize;
-
-        let slice = if dim < slices.len() {
-            &slices[dim]
-        } else {
-            // Default: full range
-            &Slice::new(0, None, 1)
-        };
-
-        let (start, len, step) = compute_slice_info(slice, dim_size);
-        out_shape.push(len);
-        slice_info.push((start, len, step));
-    }
-
-    let out_layout = Layout::contiguous(Shape::from(out_shape.clone()));
-    let num_elements = out_layout.num_elements();
-
-    if num_elements == 0 {
-        let bytes = Bytes::from_elems::<E>(Vec::new());
-        return FlexTensor::new(bytes, out_layout, tensor.dtype());
-    }
-
-    // Allocate output
-    let mut out_data: Vec<E> = Vec::with_capacity(num_elements);
-
-    // Use recursive iteration for arbitrary dimensions
-    let mut indices = vec![0usize; ndims];
-    copy_slice_recursive(src, src_layout, &slice_info, &mut out_data, &mut indices, 0);
-
-    let bytes = Bytes::from_elems(out_data);
-    FlexTensor::new(bytes, out_layout, tensor.dtype())
-}
-
-/// Recursively copy sliced elements.
-fn copy_slice_recursive<E: Copy>(
-    src: &[E],
-    src_layout: &Layout,
-    slice_info: &[(usize, usize, isize)],
-    out: &mut Vec<E>,
-    indices: &mut [usize],
-    dim: usize,
-) {
-    let ndims = src_layout.num_dims();
-
-    if dim == ndims {
-        // Base case: copy single element
-        let src_idx = compute_src_index(src_layout, slice_info, indices);
-        out.push(src[src_idx]);
-        return;
-    }
-
-    let (_, len, _) = slice_info[dim];
-
-    for i in 0..len {
-        indices[dim] = i;
-        copy_slice_recursive(src, src_layout, slice_info, out, indices, dim + 1);
-    }
-}
-
-/// Compute source index from output indices and slice info.
-fn compute_src_index(
-    layout: &Layout,
-    slice_info: &[(usize, usize, isize)],
-    out_indices: &[usize],
-) -> usize {
-    let mut idx = layout.start_offset() as isize;
-    for (dim, &out_i) in out_indices.iter().enumerate() {
-        let (start, _, step) = slice_info[dim];
-        let src_i = if step > 0 {
-            start + out_i * step as usize
-        } else {
-            // Negative step: start from high index, go down
-            let result = start as isize - (out_i as isize) * (-step);
-            debug_assert!(result >= 0, "slice: negative source index at dim {dim}");
-            result as usize
-        };
-        idx += src_i as isize * layout.strides()[dim];
-    }
-    debug_assert!(idx >= 0, "slice: negative final index");
-    idx as usize
+    let (new_layout, _needs_copy) = tensor.layout().slice(slices);
+    FlexTensor::from_arc(tensor.data_arc(), new_layout, tensor.dtype())
 }
 
 /// Normalize a potentially negative index to a positive one.
@@ -233,7 +109,19 @@ fn slice_write_impl<E: Element + bytemuck::Pod>(
     slices: &[Slice],
     source: WriteSource<'_, E>,
 ) -> FlexTensor {
-    let mut tensor = tensor.to_contiguous();
+    // A uniquely-owned contiguous prefix view needs no copy: every write
+    // below is computed from `dst_layout`, whose canonical strides and zero
+    // start offset keep it inside the logical prefix even when the buffer is
+    // longer. `into_contiguous` additionally demands a right-sized buffer
+    // (#4855) for callers that read `storage()` by length; this one doesn't.
+    let mut tensor = if tensor.is_unique()
+        && tensor.layout().is_contiguous()
+        && tensor.layout().start_offset() == 0
+    {
+        tensor
+    } else {
+        tensor.into_contiguous()
+    };
     let dst_layout = tensor.layout().clone();
     let ndims = dst_layout.num_dims();
 
@@ -405,6 +293,7 @@ fn compute_slice_info(slice: &Slice, dim_size: isize) -> (usize, usize, isize) {
 mod tests {
     use super::*;
     use burn_backend::TensorData;
+    use burn_std::Shape;
 
     #[test]
     fn test_slice_basic() {
@@ -469,6 +358,38 @@ mod tests {
         let result_data = result.into_data();
         let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
         assert_eq!(values, vec![4.0, 3.0, 2.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn test_slice_negative_step_empty_range_underflow_guard() {
+        let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0];
+        let tensor = FlexTensor::from_data(TensorData::new(data, [5]));
+
+        // 0..0 with step -1 must not panic with usize underflow
+        let slices1 = vec![Slice::new(0, Some(0), -1)];
+        let res1 = slice(tensor.clone(), &slices1);
+        assert_eq!(res1.layout().shape().to_vec(), vec![0]);
+
+        // 2..2 with step -2 must not panic with usize underflow
+        let slices2 = vec![Slice::new(2, Some(2), -2)];
+        let res2 = slice(tensor, &slices2);
+        assert_eq!(res2.layout().shape().to_vec(), vec![0]);
+    }
+
+    #[test]
+    fn test_slice_negative_stride_view() {
+        let data: Vec<f32> = vec![10.0, 20.0, 30.0, 40.0, 50.0];
+        let tensor = FlexTensor::from_data(TensorData::new(data, [5]));
+
+        // Step -2: picks indices 4, 2, 0 -> [50.0, 30.0, 10.0]
+        let slices = vec![Slice::new(0, Some(5), -2)];
+        let res = slice(tensor, &slices);
+        assert_eq!(res.layout().shape().to_vec(), vec![3]);
+        assert_eq!(res.layout().strides(), &[-2]);
+        assert_eq!(res.layout().start_offset(), 4);
+
+        let values: Vec<f32> = res.into_data().try_into_vec().unwrap();
+        assert_eq!(values, vec![50.0, 30.0, 10.0]);
     }
 
     #[test]
@@ -686,5 +607,156 @@ mod tests {
             }
         }
         assert_eq!(values, expected);
+    }
+
+    /// Regression for #5575: `slice_assign` into a uniquely-owned
+    /// destination must write in place rather than copy the whole tensor.
+    #[test]
+    fn test_slice_assign_unique_destination_writes_in_place() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![0.0f32; 8], [8]));
+        assert!(tensor.is_unique());
+        // Addresses, not pointers: on the unfixed code the original buffer is
+        // freed by the time we compare.
+        let buffer_before = tensor.bytes().as_ptr() as usize;
+
+        let value = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0], [2]));
+        let result = slice_assign(tensor, &[Slice::new(0, Some(2), 1)], value);
+
+        assert_eq!(
+            result.bytes().as_ptr() as usize,
+            buffer_before,
+            "slice_assign copied a uniquely-owned destination instead of writing in place"
+        );
+        assert_eq!(
+            result.storage::<f32>(),
+            [1.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        );
+    }
+
+    /// The other half of the #5575 contract: a destination that is still
+    /// shared must take the copy-on-write copy and leave the other holder
+    /// untouched.
+    #[test]
+    fn test_slice_assign_shared_destination_copies() {
+        let tensor = FlexTensor::from_data(TensorData::new(vec![0.0f32; 8], [8]));
+        let alias = tensor.clone();
+
+        let value = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0], [2]));
+        let result = slice_assign(tensor, &[Slice::new(0, Some(2), 1)], value);
+
+        assert_ne!(
+            result.bytes().as_ptr() as usize,
+            alias.bytes().as_ptr() as usize,
+            "slice_assign wrote through a shared destination"
+        );
+        assert_eq!(result.storage::<f32>()[..2], [1.0, 2.0]);
+        assert_eq!(alias.storage::<f32>(), [0.0f32; 8]);
+    }
+
+    /// A uniquely-owned *prefix view* (`narrow` with the parent dropped) is
+    /// contiguous with offset 0, so every write `slice_write_impl` computes
+    /// from `dst_layout` lands inside the logical prefix. Writing it in place
+    /// is safe even though the buffer is longer than the tensor.
+    #[test]
+    fn test_slice_assign_unique_prefix_view_writes_in_place() {
+        let store = FlexTensor::from_data(TensorData::new(
+            (0..40).map(|i| i as f32).collect::<Vec<_>>(),
+            [8, 5],
+        ));
+        let view = store.narrow(0, 0, 5);
+        drop(store);
+        assert!(view.is_unique());
+        assert_eq!(view.storage::<f32>().len(), 40, "buffer outlives the view");
+        let buffer_before = view.bytes().as_ptr() as usize;
+
+        let value = FlexTensor::from_data(TensorData::new(vec![9.0f32; 5], [1, 5]));
+        let result = slice_assign(view, &[Slice::new(0, Some(1), 1)], value);
+
+        assert_eq!(
+            result.bytes().as_ptr() as usize,
+            buffer_before,
+            "slice_assign copied a uniquely-owned prefix view instead of writing in place"
+        );
+        let storage = result.storage::<f32>();
+        assert_eq!(storage[..5], [9.0; 5]);
+        // Everything after the assigned row is untouched, both inside the
+        // logical prefix and past its end.
+        assert_eq!(
+            storage[5..],
+            (5..40).map(|i| i as f32).collect::<Vec<_>>()[..]
+        );
+    }
+
+    /// A *shared* prefix view must still be compacted rather than written
+    /// through. Skipping the copy here would hand the whole-buffer copy to
+    /// `Arc::make_mut`, which duplicates the parent's full buffer instead of
+    /// just the view, and leaves the result oversized for every later write.
+    #[test]
+    fn test_slice_assign_shared_prefix_view_compacts() {
+        let store = FlexTensor::from_data(TensorData::new(
+            (0..40).map(|i| i as f32).collect::<Vec<_>>(),
+            [8, 5],
+        ));
+        let view = store.narrow(0, 0, 5);
+        assert!(!view.is_unique());
+
+        let value = FlexTensor::from_data(TensorData::new(vec![9.0f32; 5], [1, 5]));
+        let result = slice_assign(view, &[Slice::new(0, Some(1), 1)], value);
+
+        assert_eq!(
+            result.storage::<f32>().len(),
+            25,
+            "shared prefix view should be compacted to its logical size, not copied whole"
+        );
+        assert_eq!(result.storage::<f32>()[..5], [9.0; 5]);
+        assert_eq!(
+            store.storage::<f32>()[0],
+            0.0,
+            "COW did not protect the parent"
+        );
+    }
+
+    /// The other two conjuncts of that fast path are load-bearing, and no
+    /// existing test pins them: the 1-D and 2-D branches below compute
+    /// destination indices from canonical strides with no `start_offset`
+    /// term, so a unique destination that is merely offset, or merely
+    /// non-canonical, still has to go through `into_contiguous` first.
+    #[test]
+    fn test_slice_assign_unique_non_prefix_destinations_are_normalized() {
+        let base = || {
+            FlexTensor::from_data(TensorData::new(
+                (0..40).map(|i| i as f32).collect::<Vec<_>>(),
+                [8, 5],
+            ))
+        };
+
+        // Canonical strides, but start_offset 5.
+        let store = base();
+        let offset_view = store.narrow(0, 1, 5);
+        drop(store);
+        assert!(offset_view.is_unique() && offset_view.is_contiguous());
+        assert_eq!(offset_view.layout().start_offset(), 5);
+
+        let value = FlexTensor::from_data(TensorData::new(vec![9.0f32; 5], [1, 5]));
+        let result = slice_assign(offset_view, &[Slice::new(0, Some(1), 1)], value);
+        assert_eq!(
+            result.storage::<f32>()[..10],
+            [9.0, 9.0, 9.0, 9.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0]
+        );
+
+        // start_offset 0, but non-canonical strides.
+        let transposed = base().transpose(0, 1);
+        assert!(transposed.is_unique() && !transposed.is_contiguous());
+        assert_eq!(transposed.layout().start_offset(), 0);
+
+        let value = FlexTensor::from_data(TensorData::new(vec![9.0f32; 8], [1, 8]));
+        let result = slice_assign(transposed, &[Slice::new(0, Some(1), 1)], value);
+        assert_eq!(
+            result.storage::<f32>()[..16],
+            [
+                9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 1.0, 6.0, 11.0, 16.0, 21.0, 26.0, 31.0,
+                36.0
+            ]
+        );
     }
 }

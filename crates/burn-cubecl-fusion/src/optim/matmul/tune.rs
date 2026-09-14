@@ -311,6 +311,8 @@ pub(crate) fn create_key(input: &TuneInput<MatmulOptimizationTuneArg>) -> FusedM
         .expect("rhs handle")
         .strides
         .clone();
+    let lhs_tiling = handles.get_handle_ref(&lhs.id).expect("lhs handle").tiling;
+    let rhs_tiling = handles.get_handle_ref(&rhs.id).expect("rhs handle").tiling;
 
     let key = MatmulAutotuneKey::generate(
         &opt.info.client,
@@ -318,6 +320,8 @@ pub(crate) fn create_key(input: &TuneInput<MatmulOptimizationTuneArg>) -> FusedM
         &rhs.shape,
         &lhs_strides,
         &rhs_strides,
+        lhs_tiling,
+        rhs_tiling,
         dtype_to_storage_type(lhs.dtype),
         dtype_to_storage_type(rhs.dtype),
         dtype_to_storage_type(out.dtype),

@@ -183,10 +183,8 @@ fn sigmoid_f64(x: f64) -> f64 {
 // Fused softmax
 // ============================================================================
 //
-// `ActivationOps` does not currently expose a `softmax` hook, so
-// `burn_tensor::activation::softmax` falls back to a 5-op decomposition
-// (`max_dim`/`sub`/`exp`/`sum_dim`/`div`). This module provides a fused
-// alternative users can opt into directly.
+// Backs the `ActivationOps::softmax` hook, replacing the default 5-op
+// decomposition (`max_dim`/`sub`/`exp`/`sum_dim`/`div`).
 
 /// Fused softmax along `dim`.
 ///
@@ -413,14 +411,23 @@ macro_rules! softmax_last_dtype {
             #[cfg(feature = "rayon")]
             {
                 use rayon::prelude::*;
+                const ROWS_PER_TASK: usize = 64;
+                let chunk_elems = ROWS_PER_TASK * last;
                 output
-                    .par_chunks_mut(last)
-                    .zip(input.par_chunks(last))
-                    .for_each(|(o, i)| $row_fn(i, o));
+                    .par_chunks_mut(chunk_elems)
+                    .zip(input.par_chunks(chunk_elems))
+                    .for_each(|(o_chunk, i_chunk)| {
+                        for (i, o) in i_chunk
+                            .chunks_exact(last)
+                            .zip(o_chunk.chunks_exact_mut(last))
+                        {
+                            $row_fn(i, o);
+                        }
+                    });
             }
             #[cfg(not(feature = "rayon"))]
             {
-                for (i, o) in input.chunks(last).zip(output.chunks_mut(last)) {
+                for (i, o) in input.chunks_exact(last).zip(output.chunks_exact_mut(last)) {
                     $row_fn(i, o);
                 }
             }
@@ -503,11 +510,10 @@ softmax_last_dtype!(
 // Fused layer_norm
 // ============================================================================
 //
-// `burn::nn::LayerNorm::forward` decomposes into ~6 primitive tensor ops
-// with intermediate allocations, and there is no backend trait hook for
-// layer_norm. This module provides a fused alternative users can opt into
-// directly. Two-pass row kernel (sum+sumsq sweep, then normalize+affine
-// sweep), both vectorized via macerator.
+// Backs the `ModuleOps::layer_norm` hook, replacing the default decomposition
+// into ~6 primitive tensor ops with intermediate allocations. Two-pass row
+// kernel (sum+sumsq sweep, then normalize+affine sweep), both vectorized via
+// macerator.
 
 /// Fused layer normalization along the last axis.
 ///
@@ -1258,6 +1264,56 @@ mod tests {
         let fused = crate::ops::activation::softmax(flex_half(data, &[2, 4]), 1);
         fused.into_data().assert_approx_eq::<bf16>(
             &TensorData::new(expected, vec![2, 4]),
+            Tolerance::absolute(5e-2),
+        );
+    }
+
+    #[test]
+    fn test_softmax_multi_chunk_f64() {
+        // 150 rows > 64 triggers the multi-chunk rayon path for f64
+        let n_rows = 150;
+        let d_cols = 8;
+        let data: Vec<f64> = (0..n_rows * d_cols)
+            .map(|i| ((i % 11) as f64) * 0.1 - 0.5)
+            .collect();
+        let expected = softmax_last_ref(&data, d_cols);
+        let fused = crate::ops::activation::softmax(flex_f64(data, &[n_rows, d_cols]), 1);
+        fused.into_data().assert_approx_eq::<f64>(
+            &TensorData::new(expected, vec![n_rows, d_cols]),
+            Tolerance::absolute(1e-10),
+        );
+    }
+
+    #[test]
+    fn test_softmax_multi_chunk_f16() {
+        // 150 rows > 64 triggers the multi-chunk rayon path for f16
+        let n_rows = 150;
+        let d_cols = 8;
+        let source: Vec<f32> = (0..n_rows * d_cols)
+            .map(|i| ((i % 11) as f32) * 0.1 - 0.5)
+            .collect();
+        let data: Vec<f16> = source.iter().map(|&x| f16::from_f32(x)).collect();
+        let expected = softmax_last_ref(&data, d_cols);
+        let fused = crate::ops::activation::softmax(flex_half(data, &[n_rows, d_cols]), 1);
+        fused.into_data().assert_approx_eq::<f16>(
+            &TensorData::new(expected, vec![n_rows, d_cols]),
+            Tolerance::absolute(1e-2),
+        );
+    }
+
+    #[test]
+    fn test_softmax_multi_chunk_bf16() {
+        // 150 rows > 64 triggers the multi-chunk rayon path for bf16
+        let n_rows = 150;
+        let d_cols = 8;
+        let source: Vec<f32> = (0..n_rows * d_cols)
+            .map(|i| ((i % 11) as f32) * 0.1 - 0.5)
+            .collect();
+        let data: Vec<bf16> = source.iter().map(|&x| bf16::from_f32(x)).collect();
+        let expected = softmax_last_ref(&data, d_cols);
+        let fused = crate::ops::activation::softmax(flex_half(data, &[n_rows, d_cols]), 1);
+        fused.into_data().assert_approx_eq::<bf16>(
+            &TensorData::new(expected, vec![n_rows, d_cols]),
             Tolerance::absolute(5e-2),
         );
     }

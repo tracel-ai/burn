@@ -84,6 +84,11 @@ pub(crate) fn handle_backend_tests(
         test_args.extend(["--features", "std"])
     }
 
+    let mut linalg_test_args = test_args.clone();
+    if !matches!(context, Context::NoStd) {
+        linalg_test_args.extend(["--features", "autotune"]);
+    }
+
     if matches!(backend, TestBackend::Cuda) {
         // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
         // provides. Kept behind its own feature so plain `--features cuda` still works without it.
@@ -102,16 +107,46 @@ pub(crate) fn handle_backend_tests(
             None,
             "fusion backend tests",
         )?;
-        // base_commands::test::handle_command(fusion_args, env.clone(), context.clone())?;
+
+        let mut linalg_fusion_args = linalg_test_args.clone();
+        linalg_fusion_args.extend(["--features", "fusion"]);
+        build_helpers::custom_crates_tests(
+            vec!["burn-linalg"],
+            handle_test_args(&linalg_fusion_args, args.release),
+            None,
+            None,
+            "linalg fusion backend tests",
+        )?;
     }
 
-    // base_commands::test::handle_command(args, env, context)
     build_helpers::custom_crates_tests(
         vec!["burn-backend-tests"],
         handle_test_args(&test_args, args.release),
         None,
         None,
         "backend tests",
+    )?;
+
+    if matches!(backend, TestBackend::Flex) {
+        // The dedicated transfer target requires two backends. Keep it separate
+        // from the main suite, where ndarray disables some Flex-specific tests.
+        let mut transfer_args = test_args.clone();
+        transfer_args.extend(["--features", "ndarray", "--test", "autodiff_transfer"]);
+        build_helpers::custom_crates_tests(
+            vec!["burn-backend-tests"],
+            handle_test_args(&transfer_args, args.release),
+            None,
+            None,
+            "autodiff backend transfer tests",
+        )?;
+    }
+
+    build_helpers::custom_crates_tests(
+        vec!["burn-linalg"],
+        handle_test_args(&linalg_test_args, args.release),
+        None,
+        None,
+        "linalg backend tests",
     )
 }
 
@@ -372,7 +407,13 @@ pub(crate) fn handle_command(
                     // Capture is intentionally opt-in, so workspace-default tests don't compile
                     // the dispatch, tensor, core, or facade integration tests that exercise it.
                     build_helpers::custom_crates_tests(
-                        vec!["burn-dispatch", "burn-tensor", "burn-core", "burn"],
+                        vec![
+                            "burn-dispatch",
+                            "burn-tensor",
+                            "burn-core",
+                            "burn-linalg",
+                            "burn",
+                        ],
                         handle_test_args(&["--features", "capture"], args.release),
                         None,
                         None,
