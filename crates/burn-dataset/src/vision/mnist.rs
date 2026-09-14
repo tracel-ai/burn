@@ -183,7 +183,18 @@ impl MnistDataset {
             .expect("Should be able to read image file header");
         let size = u32::from_be_bytes(buf);
 
-        let mut buf_images: Vec<u8> = vec![0u8; WIDTH * HEIGHT * (size as usize)];
+        // The item count comes from the file, so it cannot be trusted to size an allocation:
+        // a corrupt or hostile header would otherwise reserve an arbitrary amount of memory
+        // before a single payload byte is read. Bound it by the bytes the file can supply.
+        let expected_len = (WIDTH * HEIGHT) as u64 * size as u64;
+        let available = f.metadata().unwrap().len().saturating_sub(16);
+        assert!(
+            expected_len <= available,
+            "image file declares {size} items ({expected_len} bytes), but only {available} bytes \
+             follow the header"
+        );
+
+        let mut buf_images: Vec<u8> = vec![0u8; expected_len as usize];
         let _ = f.seek(SeekFrom::Start(16)).unwrap();
         f.read_exact(&mut buf_images)
             .expect("Should be able to read image file header");
@@ -211,11 +222,74 @@ impl MnistDataset {
             .expect("Should be able to read label file header");
         let size = u32::from_be_bytes(buf);
 
+        // Same reasoning as `read_images`: the count is file-supplied, so bound the buffer by
+        // what the file actually holds after its 8-byte header.
+        let available = f.metadata().unwrap().len().saturating_sub(8);
+        assert!(
+            size as u64 <= available,
+            "label file declares {size} labels, but only {available} bytes follow the header"
+        );
+
         let mut buf_labels: Vec<u8> = vec![0u8; size as usize];
         let _ = f.seek(SeekFrom::Start(8)).unwrap();
         f.read_exact(&mut buf_labels)
             .expect("Should be able to read labels from file");
 
         buf_labels
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    /// Write an IDX image file whose header declares `declared_count` items while only
+    /// `payload_bytes` bytes follow the 16-byte header.
+    fn write_train_images(dir: &Path, declared_count: u32, payload_bytes: usize) {
+        let mut f = File::create(dir.join(TRAIN_IMAGES)).unwrap();
+        f.write_all(&[0, 0, 0x08, 0x03]).unwrap(); // unsigned byte, 3 dimensions
+        f.write_all(&declared_count.to_be_bytes()).unwrap();
+        f.write_all(&(WIDTH as u32).to_be_bytes()).unwrap();
+        f.write_all(&(HEIGHT as u32).to_be_bytes()).unwrap();
+        f.write_all(&vec![0u8; payload_bytes]).unwrap();
+    }
+
+    /// The item count comes out of the file, so a header claiming more items than the file
+    /// could possibly hold has to be rejected before anything is allocated from it.
+    ///
+    /// Before the bound existed, the `u32::MAX` case below asked for ~3.3 TiB; the resulting
+    /// allocation failure aborts the process, which no assertion can observe.
+    #[test]
+    #[should_panic(expected = "bytes follow the header")]
+    fn read_images_rejects_a_count_the_file_cannot_hold() {
+        let dir = tempfile::tempdir().unwrap();
+        write_train_images(dir.path(), u32::MAX, 4);
+
+        let _ = MnistDataset::read_images(&dir.path(), "train");
+    }
+
+    /// Same shape for labels: the count is file-supplied and the header is only 8 bytes.
+    #[test]
+    #[should_panic(expected = "bytes follow the header")]
+    fn read_labels_rejects_a_count_the_file_cannot_hold() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut f = File::create(dir.path().join(TRAIN_LABELS)).unwrap();
+        f.write_all(&[0, 0, 0x08, 0x01]).unwrap(); // unsigned byte, 1 dimension
+        f.write_all(&u32::MAX.to_be_bytes()).unwrap();
+        f.write_all(&[0u8; 4]).unwrap();
+        drop(f);
+
+        let _ = MnistDataset::read_labels(&dir.path(), "train");
+    }
+
+    /// The bound must not reject a well-formed file.
+    #[test]
+    fn read_images_accepts_a_well_formed_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_train_images(dir.path(), 2, WIDTH * HEIGHT * 2);
+
+        let images = MnistDataset::read_images(&dir.path(), "train");
+        assert_eq!(images.len(), 2);
+        assert_eq!(images[0].len(), WIDTH * HEIGHT);
     }
 }
