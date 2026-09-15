@@ -1,7 +1,9 @@
 use super::{RemoteChannel, RemoteClient, service};
 use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
-use burn_backend::{DeviceId, DeviceOps, ExecutionError, StreamId, TensorData};
+use burn_backend::{
+    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileToken, StreamId, TensorData,
+};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 use burn_std::DeviceSettings;
@@ -76,6 +78,23 @@ impl RouterClient for RemoteClient {
         self.handle
             .submit_blocking(|s| s.sync(stream_id))
             .expect("Service call failed")
+    }
+
+    fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.profile_start(stream_id))
+            .expect("Service call failed")
+    }
+
+    fn profile_end(&self, token: ProfileToken) -> Result<ProfileDuration, ExecutionError> {
+        // Blocking only on the issue, so the close keeps its place among the
+        // tasks around it; the measurement is awaited through the duration.
+        let stream_id = StreamId::current();
+        Ok(self
+            .handle
+            .submit_blocking(move |s| s.profile_end(stream_id, token))
+            .expect("Service call failed"))
     }
 
     fn seed(&self, seed: u64) {

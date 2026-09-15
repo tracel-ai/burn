@@ -247,3 +247,26 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
+
+# TODO(profile): local cubecl with `Client::profile_start`/`profile_end`; replace with a rev bump once merged.
+[patch."https://github.com/tracel-ai/cubecl"]
+cubecl = { path = "../cubecl/crates/cubecl" }
+cubecl-common = { path = "../cubecl/crates/cubecl-common" }
+cubecl-core = { path = "../cubecl/crates/cubecl-core" }
+cubecl-cpp = { path = "../cubecl/crates/cubecl-cpp" }
+cubecl-cpu = { path = "../cubecl/crates/cubecl-cpu" }
+cubecl-cuda = { path = "../cubecl/crates/cubecl-cuda" }
+cubecl-environment = { path = "../cubecl/crates/cubecl-environment" }
+cubecl-hip = { path = "../cubecl/crates/cubecl-hip" }
+cubecl-ir = { path = "../cubecl/crates/cubecl-ir" }
+cubecl-llvm = { path = "../cubecl/crates/cubecl-llvm" }
+cubecl-macros = { path = "../cubecl/crates/cubecl-macros" }
+cubecl-macros-internal = { path = "../cubecl/crates/cubecl-macros-internal" }
+cubecl-metal = { path = "../cubecl/crates/cubecl-metal" }
+cubecl-opt = { path = "../cubecl/crates/cubecl-opt" }
+cubecl-runtime = { path = "../cubecl/crates/cubecl-runtime" }
+cubecl-server = { path = "../cubecl/crates/cubecl-server" }
+cubecl-spirv = { path = "../cubecl/crates/cubecl-spirv" }
+cubecl-std = { path = "../cubecl/crates/cubecl-std" }
+cubecl-wgpu = { path = "../cubecl/crates/cubecl-wgpu" }
+cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace" }

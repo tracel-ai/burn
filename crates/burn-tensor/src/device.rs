@@ -8,7 +8,8 @@ pub use burn_backend::cubecl::{
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
+    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileTicks, SlicedPool, SlicedPoolReport, TimingMethod,
 };
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
@@ -702,6 +703,61 @@ impl Device {
     /// operation as it is registered, have nothing buffered and treat this as a no-op.
     pub fn flush(&self) {
         Dispatch::flush(self.as_dispatch())
+    }
+
+    /// Measure how long this device spends on the work `func` puts on it, in
+    /// device time.
+    ///
+    /// The measurement is a [`ProfileDuration`]: a future the device answers
+    /// once it has run both ends of the window, so nothing here waits on the
+    /// device, and windows nest — an inner `profile` costs the outer one
+    /// nothing. Collect them and [`resolve`](ProfileDuration::resolve) once
+    /// the run is over.
+    ///
+    /// The window spans the stream from the call to `func`'s return. Work the
+    /// stream still owed from before falls in; work a backend queues past the
+    /// end falls out — the fusion backend holds a closure's last operations
+    /// back to batch them, so a window over lazy work alone can read as
+    /// empty. Ending the closure with a read, or
+    /// [`profile_with`](Self::profile_with) and
+    /// [`ProfileOptions::flush`], closes the window over all of it. A window
+    /// that nothing ran in reads as no time.
+    ///
+    /// A backend with no device clock (ndarray, LibTorch, a remote device
+    /// whose server has none) measures wall-clock time between two syncs
+    /// instead: that one waits, and an inner window's syncs are charged to
+    /// the outer.
+    ///
+    /// `name` labels the window for a tracing profiler, where the backend's
+    /// window carries one; under fusion it does not.
+    ///
+    /// ```rust,ignore
+    /// let (output, duration) = device.profile("forward", || model.forward(input))?;
+    /// // Later, once the run is over:
+    /// let ticks = duration.resolve().await.expect("the window carried work");
+    /// println!("forward: {:?}", ticks.duration());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the device refuses to open or close
+    /// the window.
+    pub fn profile<O: Send + 'static>(
+        &self,
+        name: &str,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        self.profile_with(name, ProfileOptions::default(), func)
+    }
+
+    /// [`profile`](Self::profile) with [`ProfileOptions`].
+    pub fn profile_with<O: Send + 'static>(
+        &self,
+        name: &str,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        Dispatch::profile(self.as_dispatch(), name, options, func)
     }
 
     /// Seeds the random number generator for this device.

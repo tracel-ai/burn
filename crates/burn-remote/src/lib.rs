@@ -178,6 +178,43 @@ mod tests {
         rt.shutdown_background();
     }
 
+    /// A profiling window over the wire. The server here hosts a backend with
+    /// no device clock, so the window it is asked to open is answered with
+    /// none and the client measures between two syncs instead — the path a
+    /// remote device that opens no windows has to keep working on, with or
+    /// without fusion in front of the router.
+    #[test]
+    pub fn test_profile_over_websocket() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3180)
+                .start_async(),
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = Device::remote_websocket("ws://localhost:3180", 0);
+        let (sum, duration) = device
+            .profile("sum", || {
+                Tensor::<1>::ones([1024], &device)
+                    .sum()
+                    .into_scalar::<f32>()
+            })
+            .expect("a window the server cannot open is measured between syncs");
+
+        assert_eq!(sum, 1024.0);
+        let ticks = burn_std::future::block_on(duration.resolve())
+            .expect("a system-time window always carries a measurement");
+        assert!(ticks.duration() > std::time::Duration::ZERO);
+
+        rt.shutdown_background();
+    }
+
     /// End-to-end backend extension over the wire: the client ships a custom op as
     /// `OperationIr::Custom`, and the server executes it through a handler registered on the
     /// builder. Mirrors how a backend extension hosts its ops — the user hand-writes the client

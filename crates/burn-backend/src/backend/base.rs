@@ -14,6 +14,7 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::{InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport};
+use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
 /// The mapping of types used by Backend and traits.
 pub trait BackendTypes: Clone + Send + Sync + core::fmt::Debug + 'static {
@@ -60,6 +61,33 @@ fn graph_unsupported() -> ExecutionError {
         reason: alloc::string::String::from("graph capture is not supported by this backend"),
         backtrace: BackTrace::capture(),
     }
+}
+
+fn profile_unsupported() -> ExecutionError {
+    ExecutionError::Generic {
+        reason: alloc::string::String::from(
+            "profiling windows are not supported by this backend; use `profile`",
+        ),
+        backtrace: BackTrace::capture(),
+    }
+}
+
+/// A closure-bracketed window over a backend's split
+/// [`profile_start`](Backend::profile_start) / [`profile_end`](Backend::profile_end),
+/// falling back to [`profile_system_time`] when the backend opens none.
+///
+/// What a forwarding backend measures with, when what it forwards to may or
+/// may not have a device clock.
+pub fn profile_with_tokens<B: Backend, O: Send + 'static>(
+    device: &B::Device,
+    func: impl FnOnce() -> O + Send,
+) -> Result<(O, ProfileDuration), ExecutionError> {
+    let Some(token) = B::profile_start(device)? else {
+        return profile_system_time::<B, O>(device, func);
+    };
+    let out = func();
+    let duration = B::profile_end(device, token)?;
+    Ok((out, duration))
 }
 
 /// This trait defines all types and functions needed for a backend to be used with burn.
@@ -225,6 +253,67 @@ pub trait Backend:
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    /// Measure how long the device spends on the work `func` puts on the
+    /// calling stream, in device time.
+    ///
+    /// The window opens where the stream is when the call is made and closes
+    /// where the stream is when `func` returns: work the stream still owed
+    /// from before falls in, and work a backend queues past the end (a
+    /// batching backend's last operations, unless `options` flush) falls out.
+    /// Nothing is waited on — the [`ProfileDuration`] resolves later, when
+    /// the device has stamped both ends — so windows nest without the inner
+    /// ones being charged to the outer. Work on other streams is not kept
+    /// out, and not counted. A window that nothing ran in reads as no time.
+    ///
+    /// `name` labels the window for a tracing profiler, on a backend whose
+    /// window carries one.
+    ///
+    /// The default is [`profile_system_time`]: wall-clock time between two
+    /// syncs, for a backend with no device clock to read. That one does wait,
+    /// and an inner window's syncs are charged to the outer.
+    ///
+    /// # Errors
+    ///
+    /// The device refused to open or close the window, or work inside it
+    /// failed and took the measurement with it. `func` has run by then; its
+    /// output is lost with the error, as it would be on the read that the
+    /// failure surfaces on without a window.
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        name: &str,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        let _ = (name, options);
+        profile_system_time::<Self, O>(device, func)
+    }
+
+    /// Open a [profiling window](Self::profile) at the calling stream's
+    /// current position, to be closed with
+    /// [`profile_end`](Self::profile_end) from the same stream.
+    ///
+    /// For a caller that cannot bracket the work in a closure: a backend that
+    /// forwards operations to be executed on another thread opens and closes
+    /// the window from that thread, in order with the operations.
+    ///
+    /// `None` from a backend that opens no windows and measures only with
+    /// [`profile`](Self::profile) — the default — so the caller can bracket
+    /// with [`profile_system_time`] instead.
+    fn profile_start(_device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        Ok(None)
+    }
+
+    /// Close the window `token` at the calling stream's current position.
+    ///
+    /// Errors on a backend whose [`profile_start`](Self::profile_start) hands
+    /// out no token.
+    fn profile_end(
+        _device: &Self::Device,
+        _token: ProfileToken,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        Err(profile_unsupported())
     }
 
     /// Prepare `device` for an upcoming graph capture: route allocations into a

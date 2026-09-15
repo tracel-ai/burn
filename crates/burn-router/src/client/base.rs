@@ -2,7 +2,7 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, TensorData,
+    DType, ProfileDuration, ProfileToken, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -58,6 +58,20 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn seed(&self, seed: u64);
     /// Returns the supported data type usage set
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
+    /// Open a profiling window on the interpreter, where the calling stream
+    /// stands — see [`Backend::profile_start`](burn_backend::Backend::profile_start).
+    ///
+    /// `None`, the default, from an interpreter that opens no windows.
+    fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
+        Ok(None)
+    }
+    /// Close the window `token` where the calling stream stands.
+    fn profile_end(&self, token: ProfileToken) -> Result<ProfileDuration, ExecutionError> {
+        let _ = token;
+        Err(ExecutionError::with_context(
+            "profiling windows are not supported by this interpreter",
+        ))
+    }
 
     /// Register a reusable group of operations (in relative form) under `graph_id` *and* run its
     /// first invocation with `bindings`, so it can later be replayed by id with

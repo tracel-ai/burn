@@ -2,10 +2,14 @@ use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError,
-    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
-    TensorData,
+    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPool, SlicedPoolReport, TensorData,
 };
-use burn_std::{BoolStore, DType, quantization::quantizable};
+use burn_std::{
+    BoolStore, DType,
+    profile::{Instant, ProfileTicks},
+    quantization::quantizable,
+};
 use cubecl::device::DeviceId;
 use cubecl::{
     MemoryConfiguration, MemoryPoolKind,
@@ -14,6 +18,7 @@ use cubecl::{
     config::size::MemorySize,
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
+    server::{ProfileError, ProfilingToken},
 };
 
 #[cfg(not(feature = "fusion"))]
@@ -40,6 +45,26 @@ fn graph_err(err: impl core::fmt::Display) -> ExecutionError {
     ExecutionError::WithContext {
         reason: format!("{err}"),
     }
+}
+
+/// Turn a cubecl profiling error into a backend [`ExecutionError`].
+fn profile_err(err: ProfileError) -> ExecutionError {
+    ExecutionError::WithContext {
+        reason: format!("{err}"),
+    }
+}
+
+/// The measurement of a window nothing ran in.
+///
+/// A runtime that stamps the stream (CUDA, HIP) answers such a window with two
+/// stamps and nothing between them; one that stamps kernels (wgpu) has nothing
+/// to answer with and refuses it as [`ProfileError::NotMeasured`]. The refusal
+/// is right for a tuning sweep, where an absence must not read as the fastest
+/// candidate, but a caller measuring a scope asked how long the device spent
+/// on it, and the answer is none — the same answer the other runtimes give.
+fn empty_window() -> ProfileDuration {
+    let now = Instant::now();
+    ProfileDuration::new_device_time(async move { ProfileTicks::from_start_end(now, now) })
 }
 
 /// A captured launch sequence, tagged with the device it was captured on.
@@ -94,6 +119,58 @@ impl Backend for CubeBackend {
         futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
             reason: format!("{err}"),
         })
+    }
+
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        name: &str,
+        _options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        // Nothing is queued past the window here: every launch reaches the
+        // stream as it is made, so there is nothing for the flush option to
+        // force out.
+        let client = device.client();
+
+        // The output travels through a slot the profiled closure fills,
+        // because the runtime can refuse the window after the closure ran —
+        // an empty one, on a runtime that stamps kernels rather than the
+        // stream — and the output is still owed.
+        let mut slot = None;
+        let profiled = client.profile(
+            || {
+                slot = Some(func());
+            },
+            name,
+        );
+        let out =
+            slot.ok_or_else(|| ExecutionError::with_context("the profiled closure never ran"));
+
+        match profiled {
+            Ok(((), duration)) => Ok((out?, duration)),
+            Err(ProfileError::NotMeasured { .. }) => Ok((out?, empty_window())),
+            Err(err) => Err(profile_err(err)),
+        }
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        let client = device.client();
+        client
+            .profile_start()
+            .map(|token| Some(ProfileToken { id: token.id }))
+            .map_err(profile_err)
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        let client = device.client();
+        match client.profile_end(ProfilingToken { id: token.id }) {
+            Ok(duration) => Ok(duration),
+            Err(ProfileError::NotMeasured { .. }) => Ok(empty_window()),
+            Err(err) => Err(profile_err(err)),
+        }
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

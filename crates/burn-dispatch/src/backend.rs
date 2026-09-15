@@ -13,7 +13,8 @@ use alloc::vec;
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError,
-    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport,
+    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -196,6 +197,26 @@ impl Backend for Dispatch {
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::sync(device))
+    }
+
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        name: &str,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        dispatch_device!(device, |device| B::profile(device, name, options, func))
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::profile_start(device))
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        dispatch_device!(device, |device| B::profile_end(device, token))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
