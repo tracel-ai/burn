@@ -72,6 +72,8 @@ parking_lot = { version = "0.12.5", default-features = false }
 paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.54.0", features = ["lazy", "strings"] }
+# Dataset adapters only need the DataFrame types, not the query or file-format engines.
+polars-core = { version = "0.54.0", default-features = false }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.106"
 quote = "1.0.45"
