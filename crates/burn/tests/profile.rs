@@ -35,10 +35,14 @@ mod cube {
 
     /// Exclusive use of the device, kept even if another test panicked while
     /// holding it — the poison says nothing about the device itself.
-    fn device() -> (MutexGuard<'static, ()>, Device) {
-        let guard = ONE_AT_A_TIME
+    pub(super) fn one_at_a_time() -> MutexGuard<'static, ()> {
+        ONE_AT_A_TIME
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn device() -> (MutexGuard<'static, ()>, Device) {
+        let guard = one_at_a_time();
 
         #[cfg(feature = "cuda")]
         let device = Device::cuda(burn::tensor::DeviceIndex::Default);
@@ -221,6 +225,18 @@ mod cube {
 fn default_device_profiles_in_system_time() {
     use burn::prelude::{Device, Tensor};
     use burn::tensor::TimingMethod;
+
+    // The default device is the cube tests' device under their features, and
+    // this test's first-time compile would land in whichever window they had
+    // open; so it takes its turn with them.
+    #[cfg(any(
+        feature = "cpu",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "vulkan",
+        feature = "wgpu"
+    ))]
+    let _guard = cube::one_at_a_time();
 
     let device = Device::default();
     let (sum, duration) = device

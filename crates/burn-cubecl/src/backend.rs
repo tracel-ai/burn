@@ -153,11 +153,11 @@ impl Backend for CubeBackend {
         }
     }
 
-    fn profile_start(device: &Self::Device) -> Result<ProfileToken, ExecutionError> {
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
         let client = device.client();
         client
             .profile_start()
-            .map(|token| ProfileToken { id: token.id })
+            .map(|token| Some(ProfileToken { id: token.id }))
             .map_err(profile_err)
     }
 

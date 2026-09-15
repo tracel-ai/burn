@@ -5,11 +5,11 @@ use crate::shared::{
 };
 use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
-    DTypeUsageSet, ExecutionError, TensorData,
+    DTypeUsageSet, ExecutionError, ProfileDuration, ProfileTicks, ProfileToken, TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_std::{DType, DeviceSettings, id::StreamId};
+use burn_std::{DType, DeviceSettings, id::StreamId, profile::Instant};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
 #[cfg(not(target_family = "wasm"))]
 use burn_std::backtrace::BackTrace;
@@ -514,6 +514,64 @@ impl RemoteService {
             self.flush();
             Ok(())
         }
+    }
+
+    /// Open a profiling window on the server where `stream_id` stands.
+    ///
+    /// Blocks on the token, which the closing call needs; a browser thread
+    /// cannot, and reports that the server opens no windows for it.
+    pub fn profile_start(
+        &mut self,
+        stream_id: StreamId,
+    ) -> Result<Option<ProfileToken>, ExecutionError> {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rx = self.submit_request(|id| Task::ProfileStart(id, stream_id));
+            match self.executor.block_on(rx) {
+                Ok(TaskResponseContent::ProfileStart(res)) => res,
+                Ok(other) => panic!("Invalid response for ProfileStart: {other:?}"),
+                Err(_) => Err(ExecutionError::Generic {
+                    reason: "Remote response channel closed before the profile window opened"
+                        .into(),
+                    backtrace: BackTrace::capture(),
+                }),
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = stream_id;
+            Ok(None)
+        }
+    }
+
+    /// Close the window `token` where `stream_id` stands. Issued now, so it
+    /// keeps its place among the tasks around it; the measurement is awaited
+    /// through the returned duration.
+    pub fn profile_end(&mut self, stream_id: StreamId, token: ProfileToken) -> ProfileDuration {
+        let rx = self.submit_request(|id| Task::ProfileEnd(id, stream_id, token));
+
+        ProfileDuration::new_device_time_maybe(async move {
+            let duration = match rx.await {
+                Ok(TaskResponseContent::ProfileEnd(res)) => res,
+                Ok(other) => panic!("Invalid response for ProfileEnd: {other:?}"),
+                Err(_) => Err(ExecutionError::with_context(
+                    "Remote response channel closed before the profile window closed",
+                )),
+            };
+            match duration {
+                Ok(Some(duration)) => {
+                    // The server's clock is not this one: only the length of
+                    // the window travels, placed here where it was learned.
+                    let start = Instant::now();
+                    Some(ProfileTicks::from_start_end(start, start + duration))
+                }
+                Ok(None) => None,
+                Err(err) => {
+                    log::error!("A remote profile window resolved no measurement: {err}");
+                    None
+                }
+            }
+        })
     }
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {

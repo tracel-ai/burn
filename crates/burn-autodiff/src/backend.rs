@@ -69,7 +69,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::profile(device, name, options, func)
     }
 
-    fn profile_start(device: &Self::Device) -> Result<ProfileToken, ExecutionError> {
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
         B::profile_start(device)
     }
 

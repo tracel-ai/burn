@@ -720,9 +720,16 @@ impl Device {
     /// back to batch them, so a window over lazy work alone can read as
     /// empty. Ending the closure with a read, or
     /// [`profile_with`](Self::profile_with) and
-    /// [`ProfileOptions::flush`], closes the window over all of it.
+    /// [`ProfileOptions::flush`], closes the window over all of it. A window
+    /// that nothing ran in reads as no time.
     ///
-    /// `name` labels the window for a tracing profiler.
+    /// A backend with no device clock (ndarray, LibTorch, a remote device
+    /// whose server has none) measures wall-clock time between two syncs
+    /// instead: that one waits, and an inner window's syncs are charged to
+    /// the outer.
+    ///
+    /// `name` labels the window for a tracing profiler, where the backend's
+    /// window carries one; under fusion it does not.
     ///
     /// ```rust,ignore
     /// let (output, duration) = device.profile("forward", || model.forward(input))?;

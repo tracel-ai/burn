@@ -208,7 +208,7 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::profile(device, name, options, func))
     }
 
-    fn profile_start(device: &Self::Device) -> Result<ProfileToken, ExecutionError> {
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
         dispatch_device!(device, |device| B::profile_start(device))
     }
 
