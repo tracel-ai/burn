@@ -809,3 +809,24 @@ impl ModuleOps<Flex> for Flex {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::TensorData;
+
+    #[test]
+    fn test_conv3d_asymmetric_end_padding() {
+        let x = FlexTensor::from_data(TensorData::new(
+            vec![1.0f32, 2.0, 3.0, 4.0],
+            vec![1, 1, 1, 1, 4],
+        ));
+        let w = FlexTensor::from_data(TensorData::new(vec![1.0f32, 1.0], vec![1, 1, 1, 1, 2]));
+        let opts =
+            ConvOptions::<3>::new_with_padding([1, 1, 1], [(0, 0), (0, 0), (0, 1)], [1, 1, 1], 1);
+        let out = Flex::conv3d(x, w, None, opts);
+        assert_eq!(out.shape().to_vec(), vec![1, 1, 1, 1, 4]);
+        let values: Vec<f32> = out.into_data().try_into_vec().unwrap();
+        assert_eq!(values, vec![3.0, 5.0, 7.0, 4.0]);
+    }
+}
