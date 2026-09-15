@@ -63,6 +63,23 @@ macro_rules! bench_attention {
         mod $mod_name {
             use super::*;
 
+            // Short decoding contexts expose scheduling overhead that the
+            // larger self-attention benchmarks do not capture.
+            #[divan::bench(args = [1, 64, 128, 256, 512])]
+            fn decode_b1_h8_d64(bencher: Bencher, seq_kv: usize) {
+                let (q, k, v) = make_qkv(1, 8, 1, seq_kv, 64);
+                bencher.bench_synced(|| {
+                    attention(
+                        q.clone(),
+                        k.clone(),
+                        v.clone(),
+                        None,
+                        None,
+                        Default::default(),
+                    )
+                });
+            }
+
             #[divan::bench_group(name = "self_attention")]
             mod self_attention {
                 use super::*;

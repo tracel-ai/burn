@@ -39,6 +39,11 @@ const TILE_KV: usize = 64;
 /// 256K elements = 1 MB for f32, fits comfortably in L2.
 const NAIVE_SCORE_BUDGET: usize = 256 * 1024;
 
+/// Minimum total multiply-accumulates across both GEMMs for outer parallelism.
+/// Smaller workloads cannot amortize Rayon scheduling and scratch allocation.
+#[cfg(feature = "rayon")]
+const PARALLEL_THRESHOLD: usize = 256 * 1024;
+
 /// Auto-selecting attention: picks the fastest strategy based on sequence length.
 ///
 /// Uses naive attention when the score matrix (seq_q * seq_kv) fits within
@@ -255,9 +260,6 @@ where
         assert!(softcap > 0.0, "softcap must be positive, got {softcap}");
     }
 
-    // Fast-path: check shapes before to_contiguous so we never materialise
-    // K/V buffers when the output is empty. Also prevents par_chunks_exact_mut(0)
-
     let query = query.to_contiguous();
     let key = key.to_contiguous();
     let value = value.to_contiguous();
@@ -356,68 +358,51 @@ where
         val_dim,
     };
 
-    // Parallelize over (batch × head) slices. GEMMs inside each head stay
-    // single-threaded (Parallelism::None) to prevent nested Rayon pool
-    // contention. Thread-local ScratchBuffers are created once per Rayon
-    // worker thread via for_each_init, keeping allocation cost O(num_threads).
+    let run_head = |scratch: &mut ScratchBuffers<T>, (head_idx, o_chunk): (usize, &mut [T])| {
+        let b = head_idx / heads;
+        let h = head_idx % heads;
+        // Map query head `h` to its shared K/V head (GQA/MQA).
+        let kv_h = h / q_per_kv;
+        let q_off = b * q_batch_stride + h * q_head_stride;
+        let k_off = b * k_batch_stride + kv_h * k_head_stride;
+        let v_off = b * v_batch_stride + kv_h * v_head_stride;
+        let mask_off = b * mask_batch_step + h * mask_head_step;
+        let bias_off = b * bias_batch_step + h * bias_head_step;
+
+        flash_attention_head(
+            &q_data[q_off..q_off + q_head_stride],
+            &k_data[k_off..k_off + k_head_stride],
+            &v_data[v_off..v_off + v_head_stride],
+            o_chunk,
+            mask_data.map(|m| &m[mask_off..mask_off + mask_tile_len]),
+            bias_data.map(|bd| &bd[bias_off..bias_off + mask_tile_len]),
+            &params,
+            scratch,
+        );
+    };
+    let run_serial = |output: &mut [T]| {
+        let mut scratch = ScratchBuffers::new(seq_q);
+        for head in output.chunks_exact_mut(o_head_stride).enumerate() {
+            run_head(&mut scratch, head);
+        }
+    };
+
+    // Reuse scratch within each Rayon job. GEMMs stay single-threaded to
+    // avoid nested parallelism; small workloads reuse one serial buffer.
     #[cfg(feature = "rayon")]
     {
-        use rayon::prelude::*;
-        output
-            .par_chunks_exact_mut(o_head_stride)
-            .enumerate()
-            .for_each_init(
-                || ScratchBuffers::new(seq_q),
-                |scratch, (head_idx, o_chunk)| {
-                    let b = head_idx / heads;
-                    let h = head_idx % heads;
-                    // Map query head `h` to its shared K/V head (GQA/MQA).
-                    let kv_h = h / q_per_kv;
-                    let q_off = b * q_batch_stride + h * q_head_stride;
-                    let k_off = b * k_batch_stride + kv_h * k_head_stride;
-                    let v_off = b * v_batch_stride + kv_h * v_head_stride;
-                    let mask_off = b * mask_batch_step + h * mask_head_step;
-                    let bias_off = b * bias_batch_step + h * bias_head_step;
-
-                    flash_attention_head(
-                        &q_data[q_off..q_off + q_head_stride],
-                        &k_data[k_off..k_off + k_head_stride],
-                        &v_data[v_off..v_off + v_head_stride],
-                        o_chunk,
-                        mask_data.map(|m| &m[mask_off..mask_off + mask_tile_len]),
-                        bias_data.map(|bd| &bd[bias_off..bias_off + mask_tile_len]),
-                        &params,
-                        scratch,
-                    );
-                },
-            );
-    }
-    #[cfg(not(feature = "rayon"))]
-    {
-        let mut scratch = ScratchBuffers::new(seq_q);
-        for (head_idx, o_chunk) in output.chunks_exact_mut(o_head_stride).enumerate() {
-            let b = head_idx / heads;
-            let h = head_idx % heads;
-            // Map query head `h` to its shared K/V head (GQA/MQA).
-            let kv_h = h / q_per_kv;
-            let q_off = b * q_batch_stride + h * q_head_stride;
-            let k_off = b * k_batch_stride + kv_h * k_head_stride;
-            let v_off = b * v_batch_stride + kv_h * v_head_stride;
-            let mask_off = b * mask_batch_step + h * mask_head_step;
-            let bias_off = b * bias_batch_step + h * bias_head_step;
-
-            flash_attention_head(
-                &q_data[q_off..q_off + q_head_stride],
-                &k_data[k_off..k_off + k_head_stride],
-                &v_data[v_off..v_off + v_head_stride],
-                o_chunk,
-                mask_data.map(|m| &m[mask_off..mask_off + mask_tile_len]),
-                bias_data.map(|bd| &bd[bias_off..bias_off + mask_tile_len]),
-                &params,
-                &mut scratch,
-            );
+        if params.should_parallelize(batch * heads) {
+            use rayon::prelude::*;
+            output
+                .par_chunks_exact_mut(o_head_stride)
+                .enumerate()
+                .for_each_init(|| ScratchBuffers::new(seq_q), run_head);
+        } else {
+            run_serial(&mut output);
         }
     }
+    #[cfg(not(feature = "rayon"))]
+    run_serial(&mut output);
 
     let shape = burn_std::Shape::from(vec![batch, heads, seq_q, val_dim]);
     FlexTensor::new(
@@ -493,7 +478,7 @@ macro_rules! impl_flash_gemm {
 impl_flash_gemm!(f32);
 impl_flash_gemm!(f64);
 
-/// Scratch buffers reused across (batch, head) pairs to avoid per-head allocation.
+/// Scratch buffers reused across heads within a Rayon job or the serial loop.
 struct ScratchBuffers<T> {
     row_max: Vec<T>,
     row_sum: Vec<T>,
@@ -503,8 +488,8 @@ struct ScratchBuffers<T> {
 impl<T: Float + Copy> ScratchBuffers<T> {
     /// Allocate a fresh set of scratch buffers sized for `seq_q` query rows.
     ///
-    /// Called once per Rayon worker thread by `for_each_init`, so allocation
-    /// overhead is O(num_threads) rather than O(batch × heads).
+    /// Parallel execution allocates per Rayon job, which may happen more than
+    /// once per worker. Serial execution allocates once for the whole operation.
     fn new(seq_q: usize) -> Self {
         Self {
             row_max: vec![T::neg_infinity(); seq_q],
@@ -525,7 +510,17 @@ struct AttentionParams<T> {
     val_dim: usize,
 }
 
-#[allow(clippy::too_many_arguments)]
+#[cfg(feature = "rayon")]
+impl<T> AttentionParams<T> {
+    fn should_parallelize(&self, num_heads: usize) -> bool {
+        let work = num_heads
+            .saturating_mul(self.seq_q)
+            .saturating_mul(self.seq_kv)
+            .saturating_mul(self.head_dim.saturating_add(self.val_dim));
+        num_heads > 1 && work >= PARALLEL_THRESHOLD
+    }
+}
+
 /// Process a single (batch, head) pair with flash attention.
 ///
 /// Uses gemm for the two block matmuls per tile:
@@ -534,6 +529,7 @@ struct AttentionParams<T> {
 ///
 /// The online softmax (scale, mask, bias, exp, correction) is applied
 /// row-by-row between the two gemm calls.
+#[allow(clippy::too_many_arguments)]
 fn flash_attention_head<T: FlashGemm>(
     q: &[T],
     k: &[T],
@@ -757,9 +753,6 @@ where
         assert!(softcap > 0.0, "softcap must be positive, got {softcap}");
     }
 
-    // Fast-path: check shapes before to_contiguous so we never materialise
-    // K/V buffers when the output is empty. Also prevents par_chunks_exact_mut(0)
-
     let query = query.to_contiguous();
     let key = key.to_contiguous();
     let value = value.to_contiguous();
@@ -860,72 +853,53 @@ where
         val_dim,
     };
 
-    // Parallelize over (batch × head) slices. Thread-local score buffers are
-    // reused across each worker's assigned heads via for_each_init, avoiding
-    // per-head allocation overhead. GEMMs stay single-threaded
-    // (Parallelism::None) to prevent nested Rayon pool contention.
+    let run_head = |scores: &mut Vec<T>, (head_idx, o_chunk): (usize, &mut [T])| {
+        let b = head_idx / heads;
+        let h = head_idx % heads;
+        // Map query head `h` to its shared K/V head (GQA/MQA).
+        let kv_h = h / q_per_kv;
+        let q_off = b * q_batch_stride + h * q_head_stride;
+        let k_off = b * k_batch_stride + kv_h * k_head_stride;
+        let v_off = b * v_batch_stride + kv_h * v_head_stride;
+        let mask_off = b * mask_batch_step + h * mask_head_step;
+        let bias_off = b * bias_batch_step + h * bias_head_step;
+
+        naive_attention_head(
+            &q_data[q_off..q_off + q_head_stride],
+            &k_data[k_off..k_off + k_head_stride],
+            &v_data[v_off..v_off + v_head_stride],
+            o_chunk,
+            scores,
+            &params,
+            (
+                mask_data.map(|m| &m[mask_off..mask_off + mask_tile_len]),
+                bias_data.map(|bd| &bd[bias_off..bias_off + mask_tile_len]),
+            ),
+        );
+    };
+    let run_serial = |output: &mut [T]| {
+        let mut scores = vec![T::zero(); seq_q * seq_kv];
+        for head in output.chunks_exact_mut(o_head_stride).enumerate() {
+            run_head(&mut scores, head);
+        }
+    };
+
+    // Reuse scratch within each Rayon job. GEMMs stay single-threaded to
+    // avoid nested parallelism; small workloads reuse one serial buffer.
     #[cfg(feature = "rayon")]
     {
-        use rayon::prelude::*;
-        output
-            .par_chunks_exact_mut(o_head_stride)
-            .enumerate()
-            .for_each_init(
-                || vec![T::zero(); seq_q * seq_kv],
-                |scores, (head_idx, o_chunk)| {
-                    let b = head_idx / heads;
-                    let h = head_idx % heads;
-                    // Map query head `h` to its shared K/V head (GQA/MQA).
-                    let kv_h = h / q_per_kv;
-                    let q_off = b * q_batch_stride + h * q_head_stride;
-                    let k_off = b * k_batch_stride + kv_h * k_head_stride;
-                    let v_off = b * v_batch_stride + kv_h * v_head_stride;
-                    let mask_off = b * mask_batch_step + h * mask_head_step;
-                    let bias_off = b * bias_batch_step + h * bias_head_step;
-
-                    naive_attention_head(
-                        &q_data[q_off..q_off + q_head_stride],
-                        &k_data[k_off..k_off + k_head_stride],
-                        &v_data[v_off..v_off + v_head_stride],
-                        o_chunk,
-                        scores,
-                        &params,
-                        (
-                            mask_data.map(|m| &m[mask_off..mask_off + mask_tile_len]),
-                            bias_data.map(|bd| &bd[bias_off..bias_off + mask_tile_len]),
-                        ),
-                    );
-                },
-            );
-    }
-    #[cfg(not(feature = "rayon"))]
-    {
-        let mut scores = vec![T::zero(); seq_q * seq_kv];
-        for (head_idx, o_chunk) in output.chunks_exact_mut(o_head_stride).enumerate() {
-            let b = head_idx / heads;
-            let h = head_idx % heads;
-            // Map query head `h` to its shared K/V head (GQA/MQA).
-            let kv_h = h / q_per_kv;
-            let q_off = b * q_batch_stride + h * q_head_stride;
-            let k_off = b * k_batch_stride + kv_h * k_head_stride;
-            let v_off = b * v_batch_stride + kv_h * v_head_stride;
-            let mask_off = b * mask_batch_step + h * mask_head_step;
-            let bias_off = b * bias_batch_step + h * bias_head_step;
-
-            naive_attention_head(
-                &q_data[q_off..q_off + q_head_stride],
-                &k_data[k_off..k_off + k_head_stride],
-                &v_data[v_off..v_off + v_head_stride],
-                o_chunk,
-                &mut scores,
-                &params,
-                (
-                    mask_data.map(|m| &m[mask_off..mask_off + mask_tile_len]),
-                    bias_data.map(|bd| &bd[bias_off..bias_off + mask_tile_len]),
-                ),
-            );
+        if params.should_parallelize(batch * heads) {
+            use rayon::prelude::*;
+            output
+                .par_chunks_exact_mut(o_head_stride)
+                .enumerate()
+                .for_each_init(|| vec![T::zero(); seq_q * seq_kv], run_head);
+        } else {
+            run_serial(&mut output);
         }
     }
+    #[cfg(not(feature = "rayon"))]
+    run_serial(&mut output);
 
     let shape = burn_std::Shape::from(vec![batch, heads, seq_q, val_dim]);
     FlexTensor::new(
@@ -1718,64 +1692,86 @@ mod tests {
         }
     }
 
-    /// Verify parallel multi-head output matches the naive sequential baseline.
-    ///
-    /// Uses batch=2, heads=8, seq_q=64, seq_kv=64, head_dim=32 to exercise
-    /// the rayon `par_chunks_exact_mut` path across 16 (batch × head) slices.
-    /// Compares flash and naive outputs for close numerical agreement,
-    /// confirming the parallel loop produces correct results.
+    /// Compare multihead dispatch against independently evaluated single heads.
+    /// Small shapes exercise the serial fallback; larger shapes exercise Rayon
+    /// with a partial final KV tile. Each head has distinct Q/K/V, mask and bias.
     #[test]
     fn test_attention_parallel_multihead_parity() {
         let batch = 2;
         let heads = 8;
-        let seq_q = 64;
-        let seq_kv = 64;
         let head_dim = 32;
+        let val_dim = 24;
 
-        let make = |shape: &[usize]| -> FlexTensor {
-            let len: usize = shape.iter().product();
-            let data: Vec<f32> = (0..len)
-                .map(|i| ((i.wrapping_mul(37) % 997) as f32 / 997.0) - 0.5)
-                .collect();
-            flex_f32(data, shape)
-        };
+        for (seq_q, seq_kv) in [(1, 64), (64, 67)] {
+            for kv_heads in [heads, 2, 1] {
+                let make = |len: usize, seed: usize| -> Vec<f32> {
+                    (0..len)
+                        .map(|i| ((i.wrapping_mul(37) + seed) % 997) as f32 / 997.0 - 0.5)
+                        .collect()
+                };
+                let q = make(batch * heads * seq_q * head_dim, 1);
+                let k = make(batch * kv_heads * seq_kv * head_dim, 19);
+                let v = make(batch * kv_heads * seq_kv * val_dim, 71);
+                let bias = make(batch * heads * seq_q * seq_kv, 53);
+                let mask: Vec<u8> = (0..bias.len()).map(|i| (i % 7 == 0) as u8).collect();
+                let options = AttentionModuleOptions {
+                    is_causal: true,
+                    softcap: Some(2.0),
+                    ..Default::default()
+                };
 
-        let q = make(&[batch, heads, seq_q, head_dim]);
-        let k = make(&[batch, heads, seq_kv, head_dim]);
-        let v = make(&[batch, heads, seq_kv, head_dim]);
+                // Expand grouped K/V using the independent reference helper,
+                // then evaluate each head as its own batch=1, heads=1 operation.
+                let k_full =
+                    repeat_kv_heads(&k, batch, kv_heads, seq_kv, head_dim, heads / kv_heads);
+                let v_full =
+                    repeat_kv_heads(&v, batch, kv_heads, seq_kv, val_dim, heads / kv_heads);
+                let mut expected = Vec::new();
+                for ((((q, k), v), mask), bias) in q
+                    .chunks_exact(seq_q * head_dim)
+                    .zip(k_full.chunks_exact(seq_kv * head_dim))
+                    .zip(v_full.chunks_exact(seq_kv * val_dim))
+                    .zip(mask.chunks_exact(seq_q * seq_kv))
+                    .zip(bias.chunks_exact(seq_q * seq_kv))
+                {
+                    let out = super::attention_naive(
+                        flex_f32(q.to_vec(), &[1, 1, seq_q, head_dim]),
+                        flex_f32(k.to_vec(), &[1, 1, seq_kv, head_dim]),
+                        flex_f32(v.to_vec(), &[1, 1, seq_kv, val_dim]),
+                        Some(flex_bool(mask.to_vec(), &[1, 1, seq_q, seq_kv])),
+                        Some(flex_f32(bias.to_vec(), &[1, 1, seq_q, seq_kv])),
+                        options,
+                    );
+                    expected.extend_from_slice(out.storage::<f32>());
+                }
 
-        let flash_out = super::attention_flash(
-            q.clone(),
-            k.clone(),
-            v.clone(),
-            None,
-            None,
-            Default::default(),
-        );
-        let naive_out = super::attention_naive(q, k, v, None, None, Default::default());
-
-        let flash_data: &[f32] = flash_out.storage();
-        let naive_data: &[f32] = naive_out.storage();
-
-        assert_eq!(
-            flash_data.len(),
-            naive_data.len(),
-            "parallel parity: length mismatch"
-        );
-        for (i, (&f, &n)) in flash_data.iter().zip(naive_data).enumerate() {
-            let diff = (f - n).abs();
-            let tol = 1e-4 * f.abs().max(n.abs()).max(1.0);
-            assert!(
-                diff < tol,
-                "parallel parity at element {i}: flash={f} naive={n} diff={diff}"
-            );
+                for run in [super::attention_flash, super::attention_naive] {
+                    let out = run(
+                        flex_f32(q.clone(), &[batch, heads, seq_q, head_dim]),
+                        flex_f32(k.clone(), &[batch, kv_heads, seq_kv, head_dim]),
+                        flex_f32(v.clone(), &[batch, kv_heads, seq_kv, val_dim]),
+                        Some(flex_bool(mask.clone(), &[batch, heads, seq_q, seq_kv])),
+                        Some(flex_f32(bias.clone(), &[batch, heads, seq_q, seq_kv])),
+                        options,
+                    );
+                    assert_eq!(
+                        out.layout().shape(),
+                        &Shape::new([batch, heads, seq_q, val_dim])
+                    );
+                    assert_attention_outputs_close(
+                        out.storage(),
+                        &expected,
+                        "multihead vs independent heads",
+                    );
+                }
+            }
         }
     }
 
     /// Ensure zero-size dimensions do not panic.
     ///
     /// Exercises the early-return guard that prevents `par_chunks_exact_mut(0)`
-    /// panics and avoids zero-allocation issues on empty workloads.
+    /// panics and skips scratch allocation on empty workloads.
     #[test]
     fn test_attention_empty_sequence() {
         let head_dim = 8;
