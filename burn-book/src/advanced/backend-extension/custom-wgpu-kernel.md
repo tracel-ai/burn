@@ -31,6 +31,38 @@ pub trait Backend: burn::backend::Backend {
 pub trait AutodiffBackend: Backend + burn::backend::AutodiffBackend {}
 ```
 
+Define the metadata helper in `lib.rs`, alongside the trait. The forward implementation
+calls the same helper to validate shapes before launching the kernel.
+
+```rust, ignore
+use burn::tensor::Shape;
+
+fn output_shape(lhs: &Shape, rhs: &Shape, bias: &Shape) -> Shape {
+    let rank = lhs.num_dims();
+    assert!(rank >= 2, "matmul needs at least two dimensions");
+    assert_eq!(rank, rhs.num_dims(), "matrix ranks must match");
+    assert_eq!(
+        lhs[rank - 1],
+        rhs[rank - 2],
+        "contraction dimensions must match"
+    );
+    let mut shape = lhs.clone();
+    for i in 0..rank - 2 {
+        assert!(
+            lhs[i] == rhs[i] || lhs[i] == 1 || rhs[i] == 1,
+            "batch dimensions must broadcast"
+        );
+        shape[i] = if lhs[i] == 1 { rhs[i] } else { lhs[i] };
+    }
+    shape[rank - 1] = rhs[rank - 1];
+    assert_eq!(
+        &shape, bias,
+        "kernel requires bias to match the output shape"
+    );
+    shape
+}
+```
+
 In our project, we can use these traits instead of the
 `burn::backend::{Backend, AutodiffBackend}` traits provided by Burn. Burn's user APIs
 typically make use of the `Tensor` struct rather than dealing directly with primitive tensor types.
@@ -196,12 +228,11 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
 }
 ```
 
-Subsequently, we'll go into implementing our custom backend trait for the WGPU backend. Note that we
-won't go into supporting the `fusion` feature flag in this tutorial, so we implement the trait for
-the raw `WgpuBackend` type.
+The forward implementation targets `CubeBackend` on the WGPU runtime. The generated
+`Fusion<B>` implementation defers execution to this method.
 
 ```rust, ignore
-/// Implement our custom backend trait for the existing backend `WgpuBackend`.
+/// Implement our custom backend trait for `CubeBackend` on the WGPU runtime.
 impl Backend for CubeBackend
 {
     fn fused_matmul_add_relu(
@@ -220,21 +251,15 @@ impl Backend for CubeBackend
         let rhs = into_contiguous(rhs);
         let bias = into_contiguous(bias);
 
-        // Get the matmul relevant shapes.
-        let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape[ndims - 2];
-        let num_cols = rhs.shape[ndims - 1];
+        assert_eq!(lhs.dtype, rhs.dtype, "matrix dtypes must match");
+        assert_eq!(lhs.dtype, bias.dtype, "bias dtype must match");
+        let shape_out = crate::output_shape(lhs.meta.shape(), rhs.meta.shape(), bias.meta.shape());
 
-        // Compute shape of output, while tracking number of batches.
-        let mut num_batches = 1;
-        let mut shape_out = vec![0; ndims];
-        for i in 0..ndims - 2 {
-            shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
-            num_batches *= shape_out[i];
-        }
-        shape_out[ndims - 2] = num_rows;
-        shape_out[ndims - 1] = num_cols;
-        let shape_out = Shape::from(shape_out);
+        // Get the matmul relevant shapes after validating the inputs.
+        let ndims = lhs.meta.num_dims();
+        let num_rows = lhs.meta.shape()[ndims - 2];
+        let num_cols = rhs.meta.shape()[ndims - 1];
+        let num_batches: usize = (0..ndims - 2).map(|i| shape_out[i]).product();
 
         // Create a buffer for the output tensor.
         let buffer = lhs

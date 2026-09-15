@@ -30,6 +30,23 @@ pub trait Backend: burn::backend::Backend {
 }
 ```
 
+Define the metadata helper in `lib.rs`, alongside the trait. The forward implementation
+calls the same helper to validate shapes before launching the kernel.
+
+```rust, ignore
+use burn::tensor::Shape;
+
+fn output_shape(lhs: &Shape, rhs: &Shape, bias: &Shape) -> Shape {
+    assert!(lhs.num_dims() >= 2, "matmul needs at least two dimensions");
+    let shape = burn::backend::calculate_matmul_output(lhs, rhs).expect("compatible matmul shapes");
+    assert_eq!(
+        &shape, bias,
+        "kernel requires bias to match the output shape"
+    );
+    shape
+}
+```
+
 In our project, we can use these traits instead of the
 `burn::backend::{Backend, AutodiffBackend}` traits provided by Burn. Burn's user APIs
 typically make use of the `Tensor` struct rather than dealing directly with primitive tensor types.
@@ -185,21 +202,15 @@ impl Backend for CubeBackend
         let rhs = into_contiguous(rhs);
         let bias = into_contiguous(bias);
 
-        // Get the matmul relevant shapes.
-        let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape[ndims - 2];
-        let num_cols = rhs.shape[ndims - 1];
+        assert_eq!(lhs.dtype, rhs.dtype, "matrix dtypes must match");
+        assert_eq!(lhs.dtype, bias.dtype, "bias dtype must match");
+        let shape_out = crate::output_shape(lhs.meta.shape(), rhs.meta.shape(), bias.meta.shape());
 
-        // Compute shape of output, while tracking number of batches.
-        let mut num_batches = 1;
-        let mut shape_out = vec![0; ndims];
-        for i in 0..ndims - 2 {
-            shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
-            num_batches *= shape_out[i];
-        }
-        shape_out[ndims - 2] = num_rows;
-        shape_out[ndims - 1] = num_cols;
-        let shape_out = Shape::from(shape_out);
+        // Get the matmul relevant shapes after validating the inputs.
+        let ndims = lhs.meta.num_dims();
+        let num_rows = lhs.meta.shape()[ndims - 2];
+        let num_cols = rhs.meta.shape()[ndims - 1];
+        let num_batches: usize = (0..ndims - 2).map(|i| shape_out[i]).product();
 
         // Create a buffer for the output tensor.
         let buffer = lhs
