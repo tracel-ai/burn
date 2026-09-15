@@ -169,13 +169,20 @@ impl CubeTensor {
 
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(&mut self, client: Client, device: CubeDevice) -> Self {
-        // Not `to_client_tensor`: only `to_client` falls back to the host on runtimes without a
-        // peer transport, and wgpu, ROCm and Metal have none.
-        let handle = match self.qparams {
-            Some(_) => self.whole_allocation_to_client(&client),
+        // Not `to_client_tensor`: only `to_client` falls back to the host when the runtime has no
+        // peer transport.
+        let (handle, qparams) = match self.qparams.clone() {
+            Some(qparams) => {
+                let (handle, qparams) = self.whole_allocation_to_client(&client, qparams);
+                (handle, Some(qparams))
+            }
             None => {
-                self.client
-                    .to_client(self.handle.clone(), &client, dtype_to_elem_type(self.dtype))
+                let handle = self.client.to_client(
+                    self.handle.clone(),
+                    &client,
+                    dtype_to_elem_type(self.dtype),
+                );
+                (handle, None)
             }
         };
 
@@ -186,7 +193,7 @@ impl CubeTensor {
             meta: self.meta.clone(),
             device,
             dtype: self.dtype,
-            qparams: self.qparams.clone(),
+            qparams,
         }
     }
 
@@ -194,8 +201,14 @@ impl CubeTensor {
     ///
     /// A quantized tensor's scales live in the same allocation as its values, past the region
     /// `handle` bounds, and `qparams` names them by offset into that allocation. Moving all of it
-    /// as bytes keeps every offset valid on the destination.
-    fn whole_allocation_to_client(&mut self, client: &Client) -> Handle {
+    /// as bytes keeps every start offset valid on the destination. End offsets count back from the
+    /// end of the allocation, which the destination may round up to its own alignment, so each one
+    /// grows by what the allocation did.
+    fn whole_allocation_to_client(
+        &mut self,
+        client: &Client,
+        mut qparams: QParams,
+    ) -> (Handle, QParams) {
         let mut whole = self.handle.clone();
         whole.offset_start = None;
         whole.offset_end = None;
@@ -203,9 +216,14 @@ impl CubeTensor {
         let mut moved = self
             .client
             .to_client(whole, client, ElemType::UInt(UIntKind::U8));
+        let grown = moved.size() - self.handle.size();
+
         moved.offset_start = self.handle.offset_start;
-        moved.offset_end = self.handle.offset_end;
-        moved
+        moved.offset_end = Some(self.handle.offset_end.unwrap_or(0) + grown);
+        for param in core::iter::once(&mut qparams.scales).chain(qparams.global.as_mut()) {
+            param.offset_end += grown as usize;
+        }
+        (moved, qparams)
     }
 
     /// Return the reference to a tensor handle.

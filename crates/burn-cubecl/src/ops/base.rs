@@ -553,11 +553,14 @@ pub fn unfold(tensor: CubeTensor, dim: usize, size: usize, step: usize) -> CubeT
 }
 
 // Each needs two devices of one runtime on the machine, so they are ignored by default:
-// `cargo test -p burn-cubecl --features <runtime> -- --ignored`.
+// `cargo test -p burn-cubecl --features <runtime> same_runtime_tests -- --ignored`.
 #[cfg(all(test, any(feature = "wgpu", feature = "cuda")))]
 mod same_runtime_tests {
     use super::*;
-    use burn_backend::{Tolerance, quantization::QuantScheme};
+    use burn_backend::{
+        Tolerance,
+        quantization::{QuantScheme, QuantValue, ScaleDtype},
+    };
     use burn_std::{FloatDType, TensorData};
 
     /// wgpu has no peer transport, so a move between two of its adapters must go through the
@@ -575,10 +578,9 @@ mod same_runtime_tests {
         moves_quantized_both_ways(&first, &second);
     }
 
-    /// CUDA moves stay on its peer transport after routing through the host fallback's entry
-    /// point, which sizes the copy from the whole allocation rather than the tensor's shape. A
-    /// quantized tensor must keep its scales on that same transport, which live past the region
-    /// its handle bounds.
+    /// Float data and a quantized tensor's scales survive a move between two CUDA devices. The
+    /// scales live past the region the handle bounds, so a copy sized from the tensor's shape
+    /// would leave them behind.
     #[cfg(feature = "cuda")]
     #[test]
     #[ignore = "needs two CUDA devices"]
@@ -602,20 +604,52 @@ mod same_runtime_tests {
     }
 
     fn moves_quantized_both_ways(first: &CubeDevice, second: &CubeDevice) {
-        for (from, to) in [(first, second), (second, first)] {
-            // The default scheme packs values four to a word, so the last dim is a multiple of 4.
-            let data = TensorData::from([[0.1f32, -0.4, 0.9, 0.25], [-1.0, 0.5, 0.75, -0.3]]);
-            let quantized =
-                CubeBackend::quantize_dynamic(from_data(data, from), &QuantScheme::default());
-            let expected =
-                into_data_sync(CubeBackend::dequantize(quantized.clone(), FloatDType::F32));
+        let per_tensor = QuantScheme::default();
+        let two_level = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .per_block([4], ScaleDtype::F16)
+            .per_tensor(ScaleDtype::F32);
 
-            let moved = to_device(quantized, to);
-            assert_eq!(&moved.device, to);
-
-            into_data_sync(CubeBackend::dequantize(moved, FloatDType::F32))
-                .assert_approx_eq::<f32>(&expected, Tolerance::default());
+        // Values pack four to a word, so each last dim is a multiple of 4. Each shape's regions
+        // come to an odd multiple of 32 bytes, which a device aligning to 64 rounds up, moving
+        // every end offset.
+        for (scheme, shape) in [(per_tensor, [3, 12]), (two_level, [2, 12])] {
+            for (from, to) in [(first, second), (second, first)] {
+                moves_quantized(quantize(&scheme, shape, from), to);
+            }
         }
+
+        for (from, to) in [(first, second), (second, first)] {
+            let permuted = permute(quantize(&per_tensor, [3, 12], from), &[1, 0]);
+            moves_quantized(permuted, to);
+        }
+    }
+
+    fn quantize(scheme: &QuantScheme, shape: [usize; 2], device: &CubeDevice) -> CubeTensor {
+        let len = shape.iter().product::<usize>();
+        let values = (0..len)
+            .map(|i| i as f32 / len as f32 - 0.5)
+            .collect::<Vec<_>>();
+        CubeBackend::quantize_dynamic(from_data(TensorData::new(values, shape), device), scheme)
+    }
+
+    fn moves_quantized(quantized: CubeTensor, to: &CubeDevice) {
+        let regions = |tensor: &CubeTensor| {
+            (
+                tensor.handle.size_in_used(),
+                tensor.scales().map(|scales| scales.handle.size_in_used()),
+                tensor.global().map(|global| global.handle.size_in_used()),
+            )
+        };
+        let expected = into_data_sync(CubeBackend::dequantize(quantized.clone(), FloatDType::F32));
+        let source_regions = regions(&quantized);
+
+        let moved = to_device(quantized, to);
+        assert_eq!(&moved.device, to);
+        assert_eq!(regions(&moved), source_regions);
+
+        into_data_sync(CubeBackend::dequantize(moved, FloatDType::F32))
+            .assert_approx_eq::<f32>(&expected, Tolerance::default());
     }
 }
 
