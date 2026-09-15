@@ -13,6 +13,17 @@ use crate::Layout;
 use crate::ops::binary::{binary_op_typed, int_binary_op, int_scalar_op, scalar_op_typed};
 use crate::{Flex, FlexTensor, ops::matmul};
 
+/// Python/PyTorch-style remainder: result has same sign as divisor.
+#[inline]
+fn remainder_int(a: i64, b: i64) -> i64 {
+    let r = a.wrapping_rem(b);
+    if r != 0 && (r < 0) != (b < 0) {
+        r.wrapping_add(b)
+    } else {
+        r
+    }
+}
+
 /// Convert a Scalar to (i64, u64) pair for the given dtype.
 /// Only the matching type's conversion is validated; the other gets a dummy 0.
 fn scalar_to_int_pair(dtype: DType, rhs: &Scalar) -> (i64, u64) {
@@ -686,7 +697,7 @@ impl IntTensorOps<Flex> for Flex {
             return binary_op_typed(lhs, rhs, |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
-        int_binary_op(lhs, rhs, |a, b| ((a % b) + b) % b)
+        int_binary_op(lhs, rhs, remainder_int)
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
@@ -694,7 +705,7 @@ impl IntTensorOps<Flex> for Flex {
             return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| ((a % b) + b) % b)
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), remainder_int)
     }
 
     // Precision limits: i64/u64 > 2^24 for f32/f16/bf16, > 2^53 for f64.
@@ -1411,6 +1422,23 @@ mod tests {
 
     use crate::Flex;
     use crate::FlexTensor;
+
+    #[test]
+    fn test_i64_remainder_overflow() {
+        // The shared suite uses i32, which Flex promotes to i64. Keep the
+        // actual i64 limits covered for both tensor and scalar dispatch.
+        for (a, b, expected) in [(i64::MAX - 1, i64::MAX, i64::MAX - 1), (i64::MIN, -1, 0)] {
+            let lhs = FlexTensor::from_data(TensorData::new(vec![a], [1]));
+            let rhs = FlexTensor::from_data(TensorData::new(vec![b], [1]));
+            for result in [
+                Flex::int_remainder(lhs.clone(), rhs),
+                Flex::int_remainder_scalar(lhs, b.into()),
+            ] {
+                let values: Vec<i64> = result.into_data().try_into_vec().unwrap();
+                assert_eq!(values, vec![expected]);
+            }
+        }
+    }
 
     #[test]
     fn test_u64_div_large_values() {
