@@ -47,6 +47,37 @@ pub fn batch_norm<const D: usize>(
     )))
 }
 
+/// Applies batch normalization with the statistics of the batch itself, and
+/// returns the normalized input along with the batch mean and the biased batch
+/// variance, both per channel.
+///
+/// `input` has shape `[batch, channels, ...]`; `gamma` and `beta` have shape
+/// `[channels]`. On an autodiff device this is a single operation with the
+/// closed-form batch-norm gradient.
+pub fn batch_norm_train<const D: usize>(
+    input: Tensor<D>,
+    gamma: Tensor<1>,
+    beta: Tensor<1>,
+    epsilon: f64,
+) -> (Tensor<D>, Tensor<1>, Tensor<1>) {
+    assert!(D >= 2, "batch norm requires an input rank of at least 2");
+    let channels = input.dims()[1];
+    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
+    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
+    let result = Dispatch::batch_norm_train(
+        input.primitive.into_float(),
+        gamma.primitive.into_float(),
+        beta.primitive.into_float(),
+        epsilon,
+    );
+
+    (
+        Tensor::new(BridgeTensor::float(result.output)),
+        Tensor::new(BridgeTensor::float(result.mean)),
+        Tensor::new(BridgeTensor::float(result.variance)),
+    )
+}
+
 /// Computes the [CTC loss](burn_backend::ops::ModuleOps::ctc_loss).
 ///
 /// # Arguments

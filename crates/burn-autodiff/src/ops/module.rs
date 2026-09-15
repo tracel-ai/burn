@@ -18,6 +18,105 @@ use burn_std::{IntDType, Slice};
 use super::OpsKind;
 
 impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B, C> {
+    fn batch_norm_train(
+        x: AutodiffTensor<B>,
+        gamma: AutodiffTensor<B>,
+        beta: AutodiffTensor<B>,
+        epsilon: f64,
+    ) -> BatchNormTrain<Self> {
+        #[derive(Debug)]
+        struct BatchNormTrainOps;
+
+        impl<B: Backend> Backward<B, 3> for BatchNormTrainOps {
+            // The input and gamma are checkpointed; the batch statistics come
+            // along as the forward computed them.
+            type State = (
+                NodeId,
+                NodeId,
+                B::FloatTensorPrimitive,
+                B::FloatTensorPrimitive,
+                f64,
+            );
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_gamma, node_beta] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+                let (x_state, gamma_state, mean, variance, epsilon) = ops.state;
+                let x = checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(x_state);
+                let gamma =
+                    checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(gamma_state);
+
+                let backward =
+                    B::batch_norm_train_backward(x, gamma, mean, variance, epsilon, grad);
+
+                if let Some(node) = node_x {
+                    grads.register::<B>(node.id, backward.x_grad);
+                }
+                if let Some(node) = node_gamma {
+                    grads.register::<B>(node.id, backward.gamma_grad);
+                }
+                if let Some(node) = node_beta {
+                    grads.register::<B>(node.id, backward.beta_grad);
+                }
+            }
+        }
+
+        match BatchNormTrainOps
+            .prepare::<C>([x.node(), gamma.node(), beta.node()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                let gamma_state = prep.checkpoint(&gamma);
+                let result =
+                    B::batch_norm_train(x.primitive, gamma.primitive, beta.primitive, epsilon);
+                let output = prep.finish(
+                    (
+                        x_state,
+                        gamma_state,
+                        result.mean.clone(),
+                        result.variance.clone(),
+                        epsilon,
+                    ),
+                    result.output,
+                );
+
+                BatchNormTrain::new(
+                    output,
+                    AutodiffTensor::new(result.mean),
+                    AutodiffTensor::new(result.variance),
+                )
+            }
+            OpsKind::UnTracked(prep) => {
+                let result =
+                    B::batch_norm_train(x.primitive, gamma.primitive, beta.primitive, epsilon);
+
+                BatchNormTrain::new(
+                    prep.finish(result.output),
+                    AutodiffTensor::new(result.mean),
+                    AutodiffTensor::new(result.variance),
+                )
+            }
+        }
+    }
+
+    fn batch_norm_train_backward(
+        _x: AutodiffTensor<B>,
+        _gamma: AutodiffTensor<B>,
+        _mean: AutodiffTensor<B>,
+        _variance: AutodiffTensor<B>,
+        _epsilon: f64,
+        _output_grad: AutodiffTensor<B>,
+    ) -> BatchNormTrainBackward<Self> {
+        panic!("Can't differentiate batch norm train backward.");
+    }
+
     fn embedding(weights: AutodiffTensor<B>, indices: IntTensor<B>) -> AutodiffTensor<B> {
         #[derive(Debug)]
         struct Embedding;
