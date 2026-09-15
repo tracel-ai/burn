@@ -1131,7 +1131,7 @@ dependencies = [
  "hound",
  "image",
  "planus",
- "polars",
+ "polars-core",
  "r2d2",
  "rand 0.10.2",
  "rayon",

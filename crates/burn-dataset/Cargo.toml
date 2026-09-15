@@ -40,7 +40,7 @@ sqlite = [
 sqlite-bundled = ["sqlite"]
 vision = ["dep:flate2", "dep:globwalk", "dep:image", "network"]
 nlp = ["dep:zip", "dep:encoding_rs"]
-dataframe = ["dep:polars", "dep:planus"]
+dataframe = ["dep:polars-core", "dep:planus"]
 
 [dependencies]
 burn-std = { workspace = true, optional = true, features = [
@@ -59,7 +59,16 @@ hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
 planus = { workspace = true, optional = true }
 encoding_rs = { workspace = true, optional = true }
-polars = { workspace = true, optional = true }
+# Retain every dtype handled by RowDeserializer without compiling Polars' lazy engine.
+polars-core = { workspace = true, optional = true, features = [
+    "rows",
+    "dtype-date",
+    "dtype-time",
+    "dtype-i8",
+    "dtype-i16",
+    "dtype-u8",
+    "dtype-u16",
+] }
 r2d2 = { workspace = true, optional = true }
 rand = { workspace = true, features = ["std", "sys_rng"] }
 zip = { workspace = true, optional = true }
