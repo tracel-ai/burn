@@ -226,6 +226,8 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
     fusion_features.extend([
         "burn-backend-tests/fusion",
         "burn-linalg/fusion",
+        // Extension tests share this Metal/Fusion build and use BURN_DEVICE=metal.
+        "burn-core/extension-tests",
         // Preserve the default-feature coverage of the former standalone crate tests.
         // Qualify every feature so adding a package cannot enable its namesake feature.
         "burn-wgpu/default",

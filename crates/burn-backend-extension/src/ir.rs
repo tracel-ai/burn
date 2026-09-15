@@ -230,7 +230,7 @@ fn type_is(ty: &Type, name: &str) -> bool {
         .is_some_and(|segment| segment.ident == name)
 }
 
-fn type_contains_self(ty: &Type) -> bool {
+pub(crate) fn type_contains_self(ty: &Type) -> bool {
     match ty {
         Type::Path(path) if path.path.is_ident("Self") => true,
         Type::Path(path) => path.path.segments.iter().any(|segment| {

@@ -1,3 +1,6 @@
+#[cfg(feature = "fusion")]
+pub use burn_fusion as fusion;
+
 #[cfg(feature = "ir")]
 pub use burn_ir as ir;
 
