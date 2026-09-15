@@ -50,6 +50,9 @@ pub trait FusionObserver: Send + Sync {
 
     /// The block that last started has finished — run, skipped because an
     /// input carried a failure, or failed itself.
+    ///
+    /// Must not panic: it also runs while a panic out of the block unwinds,
+    /// where a second one aborts the process.
     fn block_ran(&self);
 }
 
@@ -81,7 +84,7 @@ pub struct FusionObservation {
 /// A view over the server's own queue rather than a list, so an observed block
 /// costs no allocation. The order is the block's, which is not registration
 /// order.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct BlockOperations<'a> {
     operations: &'a [OperationIr],
     ordering: &'a [usize],
@@ -103,9 +106,15 @@ impl Drop for FusionObservation {
 }
 
 impl<'a> BlockOperations<'a> {
-    /// The operations of `operations` at the indices in `ordering`, which the
-    /// caller has checked are in range.
-    pub(crate) fn new(operations: &'a [OperationIr], ordering: &'a [usize]) -> Self {
+    /// The block running `operations` at the indices in `ordering`, in that
+    /// order.
+    ///
+    /// # Panics
+    ///
+    /// [`iter`](Self::iter) panics if an index in `ordering` is out of range
+    /// of `operations`. It is not checked here, where it would cost every block
+    /// the server runs, observed or not.
+    pub fn new(operations: &'a [OperationIr], ordering: &'a [usize]) -> Self {
         Self {
             operations,
             ordering,
@@ -113,11 +122,21 @@ impl<'a> BlockOperations<'a> {
     }
 
     /// The block's operations, in the order it runs them.
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = &'a OperationIr> + 'a {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &'a OperationIr> + use<'a> {
         let operations = self.operations;
         self.ordering.iter().map(move |index| &operations[*index])
     }
 }
+
+/// The block's operations, not the queue the view is over.
+impl core::fmt::Debug for BlockOperations<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+
+// Free functions rather than methods on `Observers`: the server calls them with
+// nothing in hand, and the state they read is process-wide.
 
 /// Tell the installed observers that `operation` was registered.
 pub(crate) fn notify_registered(operation: &OperationIr) {
@@ -128,18 +147,16 @@ pub(crate) fn notify_registered(operation: &OperationIr) {
 }
 
 /// Runs `run`, the block covering `block`, between telling the installed
-/// observers it starts and that it ran — the same observers both times.
+/// observers it starts and that it ran — the same observers both times, and
+/// even when `run` unwinds.
 pub(crate) fn observe_block<T>(block: BlockOperations<'_>, run: impl FnOnce() -> T) -> T {
     let snapshot = OBSERVERS.snapshot();
     let observers = snapshot.as_deref().unwrap_or_default();
     for installed in observers {
         installed.observer.block_starts(block);
     }
-    let output = run();
-    for installed in observers {
-        installed.observer.block_ran();
-    }
-    output
+    let _running = RunningBlock { observers };
+    run()
 }
 
 /// Tells one guard's observer apart from the others, whatever they point to.
@@ -151,6 +168,23 @@ struct ObservationId(u64);
 struct InstalledObserver {
     id: ObservationId,
     observer: Arc<dyn FusionObserver>,
+}
+
+/// A block the observers were told started, which ends for them when dropped.
+///
+/// A drop rather than a call after `run`, because a panic can unwind out of a
+/// block and the server goes on to the next: an observer tracking open blocks
+/// would keep this one open and pair the next end with it.
+struct RunningBlock<'a> {
+    observers: &'a [InstalledObserver],
+}
+
+impl Drop for RunningBlock<'_> {
+    fn drop(&mut self) {
+        for installed in self.observers {
+            installed.observer.block_ran();
+        }
+    }
 }
 
 /// Every installed observer, behind the flag an unobserved run reads instead.
@@ -279,6 +313,52 @@ mod tests {
 
         assert_eq!(before.events(), ["[1", "]"]);
         assert!(during.events().is_empty());
+    }
+
+    /// A block that unwinds still ends for the observers told it started.
+    ///
+    /// The server goes on to the next block after a panic out of one, and an
+    /// observer tracking open blocks would pair that block's end with this one.
+    #[test]
+    fn a_block_that_unwinds_still_ends() {
+        let _serial = serial();
+        let recorder = Recorder::new();
+        let queue = [drop_of(1)];
+
+        let _watching = FusionObservation::new(recorder.clone());
+        let unwound = std::panic::catch_unwind(|| {
+            observe_block(BlockOperations::new(&queue, &[0]), || {
+                panic!("the block fails")
+            })
+        });
+
+        assert!(unwound.is_err());
+        assert_eq!(recorder.events(), ["[1", "]"]);
+    }
+
+    /// A block shows its own operations, in its order, and they outlive the
+    /// view they came from.
+    ///
+    /// The view spans the server's whole queue: printing or iterating it must
+    /// not show an observer operations the block does not run, and an observer
+    /// keeping them past the call must not be held to the view's borrow.
+    #[test]
+    fn a_block_shows_only_its_own_operations() {
+        fn operations_of(block: BlockOperations<'_>) -> impl Iterator<Item = &OperationIr> {
+            block.iter()
+        }
+
+        let queue = [drop_of(1), drop_of(2), drop_of(3)];
+        let block = BlockOperations::new(&queue, &[2, 0]);
+
+        assert_eq!(
+            operations_of(block).collect::<Vec<_>>(),
+            [&queue[2], &queue[0]]
+        );
+        assert_eq!(
+            format!("{block:?}"),
+            format!("{:?}", [&queue[2], &queue[0]])
+        );
     }
 
     /// Every installed observer is notified, and a guard removes only its own,
