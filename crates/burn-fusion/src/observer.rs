@@ -10,24 +10,21 @@
 //! that off the kernel launches alone.
 //!
 //! A [`FusionObserver`], installed with a [`FusionObservation`], sees both
-//! halves, on the server's thread: [`registered`] for every operation as it is
-//! registered, before anything it triggers runs, and [`block_starts`] /
-//! [`block_ran`] around every block, with the operations it covers. Every
-//! kernel a block launches is issued on that thread between the two, so an
-//! observer that pairs each operation with its own state at registration can
-//! say, for any launch, which operations it carried out.
+//! halves, on the server's thread: [`registered`](FusionObserver::registered)
+//! for every operation as it is registered, before anything it triggers runs,
+//! and [`block_starts`](FusionObserver::block_starts) /
+//! [`block_ran`](FusionObserver::block_ran) around every block, with the
+//! operations it covers. Every kernel a block launches is issued on that
+//! thread between the two, so an observer that pairs each operation with its
+//! own state at registration can say, for any launch, which operations it
+//! carried out.
 //!
 //! # Cost
 //!
 //! One relaxed atomic load per registration and per block when nothing is
-//! installed, which is every ordinary run. The operations of a block are only
-//! gathered for an installed observer.
-//!
-//! [`FusionObserver`]: crate::observer::FusionObserver
-//! [`FusionObservation`]: crate::observer::FusionObservation
-//! [`registered`]: crate::observer::FusionObserver::registered
-//! [`block_starts`]: crate::observer::FusionObserver::block_starts
-//! [`block_ran`]: crate::observer::FusionObserver::block_ran
+//! installed, which is every ordinary run. An observed block hands over the
+//! operations where the server already holds them, so nothing is gathered for
+//! it.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
@@ -47,12 +44,9 @@ pub trait FusionObserver: Send + Sync {
     /// registration triggers runs.
     fn registered(&self, operation: &OperationIr);
 
-    /// A block is about to run: the operations one fused kernel replaces, or
-    /// the one operation an unfused block runs. Every kernel it launches is
-    /// issued on this thread before [`block_ran`](Self::block_ran).
-    ///
-    /// The order is the block's, which is not registration order.
-    fn block_starts(&self, operations: &[&OperationIr]);
+    /// `block` is about to run. Every kernel it launches is issued on this
+    /// thread before [`block_ran`](Self::block_ran).
+    fn block_starts(&self, block: BlockOperations<'_>);
 
     /// The block that last started has finished — run, skipped because an
     /// input carried a failure, or failed itself.
@@ -73,121 +67,162 @@ pub trait FusionObserver: Send + Sync {
 /// call that recorded it: an operation recorded just before the guard drops
 /// can be processed after, and one recorded before the guard was created can
 /// be processed while it lives. To bracket a region of the program, sync the
-/// devices it runs on (`Backend::sync`) before creating the guard and again
-/// before dropping it.
+/// devices it runs on ([`Backend::sync`](burn_backend::Backend::sync)) before
+/// creating the guard and again before dropping it.
+#[derive(Debug)]
 #[must_use = "an observation stops as soon as it is dropped"]
 pub struct FusionObservation {
-    id: u64,
+    id: ObservationId,
 }
 
 impl FusionObservation {
     /// Installs `observer` until the guard drops.
     pub fn new(observer: Arc<dyn FusionObserver>) -> Self {
-        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        edit_installed(|observers| observers.push(Installed { id, observer }));
-        Self { id }
+        Self {
+            id: OBSERVERS.install(observer),
+        }
     }
 }
 
 impl Drop for FusionObservation {
     fn drop(&mut self) {
-        edit_installed(|observers| observers.retain(|installed| installed.id != self.id));
+        OBSERVERS.remove(self.id);
     }
 }
 
-/// An installed observer, and the id of the guard that removes it.
-#[derive(Clone)]
-struct Installed {
-    id: u64,
-    observer: Arc<dyn FusionObserver>,
+/// The operations one block covers, in the order it runs them: the operations
+/// one fused kernel replaces, or the one operation an unfused block runs.
+///
+/// A view over the server's own queue rather than a list, so an observed block
+/// costs no allocation. The order is the block's, which is not registration
+/// order.
+#[derive(Debug, Clone, Copy)]
+pub struct BlockOperations<'a> {
+    operations: &'a [OperationIr],
+    ordering: &'a [usize],
 }
 
-/// Replaces the installed observers with a `change`d copy.
-///
-/// The copy is changed and swapped in, and the flag set to match it, all under
-/// the write lock, so no install or drop is lost and the flag matches the list
-/// whatever order they race in. The list it replaces drops once the lock is
-/// released: it can hold the last reference to a removed observer, whose
-/// `Drop` must not run under the lock.
-fn edit_installed(change: impl FnOnce(&mut Vec<Installed>)) {
-    let replaced = {
-        // Recovering a lock a panicking `change` poisoned: the slot is only
-        // written once the copy is complete.
-        let mut slot = OBSERVERS
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let mut observers = slot.as_deref().map(<[_]>::to_vec).unwrap_or_default();
-        change(&mut observers);
-        OBSERVING.store(!observers.is_empty(), Ordering::Relaxed);
-        std::mem::replace(
-            &mut *slot,
-            (!observers.is_empty()).then(|| observers.into()),
-        )
-    };
-    drop(replaced);
+impl<'a> BlockOperations<'a> {
+    /// The operations of `operations` at the indices in `ordering`, which the
+    /// caller has checked are in range.
+    pub(crate) fn new(operations: &'a [OperationIr], ordering: &'a [usize]) -> Self {
+        Self {
+            operations,
+            ordering,
+        }
+    }
+
+    /// The block's operations, in the order it runs them.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &'a OperationIr> + 'a {
+        let operations = self.operations;
+        self.ordering.iter().map(move |index| &operations[*index])
+    }
 }
 
 /// Tell the installed observers that `operation` was registered.
 pub(crate) fn notify_registered(operation: &OperationIr) {
-    for installed in installed().iter().flat_map(|list| list.iter()) {
+    let snapshot = OBSERVERS.snapshot();
+    for installed in snapshot.as_deref().unwrap_or_default() {
         installed.observer.registered(operation);
     }
 }
 
-/// Tell the installed observers that a block covering `operations` is about
-/// to run. The operations are gathered only when something is installed.
+/// Runs `run`, the block covering `block`, between telling the installed
+/// observers it starts and that it ran — the same observers both times.
+pub(crate) fn observe_block<T>(block: BlockOperations<'_>, run: impl FnOnce() -> T) -> T {
+    let snapshot = OBSERVERS.snapshot();
+    let observers = snapshot.as_deref().unwrap_or_default();
+    for installed in observers {
+        installed.observer.block_starts(block);
+    }
+    let output = run();
+    for installed in observers {
+        installed.observer.block_ran();
+    }
+    output
+}
+
+/// Tells one guard's observer apart from the others, whatever they point to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ObservationId(u64);
+
+/// An observer, and the guard that removes it.
+#[derive(Clone)]
+struct InstalledObserver {
+    id: ObservationId,
+    observer: Arc<dyn FusionObserver>,
+}
+
+/// Every installed observer, behind the flag an unobserved run reads instead.
 ///
-/// The block's end goes through the returned [`ObservedBlock`], to the same
-/// observers: one installed while the block runs never hears an end without
-/// its start, and one removed while it runs still hears it end.
-pub(crate) fn notify_block_starts<'a>(
-    operations: impl FnOnce() -> Vec<&'a OperationIr>,
-) -> ObservedBlock {
-    let observers = installed();
-    if let Some(list) = &observers {
-        let operations = operations();
-        for installed in list.iter() {
-            installed.observer.block_starts(&operations);
+/// One type because the flag and the list must agree: every edit sets both
+/// under the write lock, so no install or removal is lost and the flag matches
+/// the list whatever order they race in.
+struct Observers {
+    observing: AtomicBool,
+    /// In install order; `None` rather than empty.
+    installed: RwLock<Option<Arc<[InstalledObserver]>>>,
+    next_id: AtomicU64,
+}
+
+impl Observers {
+    const fn new() -> Self {
+        Self {
+            observing: AtomicBool::new(false),
+            installed: RwLock::new(None),
+            next_id: AtomicU64::new(0),
         }
     }
-    ObservedBlock { observers }
-}
 
-/// A block whose start the observers of [`notify_block_starts`] were told of.
-#[must_use = "the observers told a block started must be told it ran"]
-pub(crate) struct ObservedBlock {
-    observers: Option<Arc<[Installed]>>,
-}
+    fn install(&self, observer: Arc<dyn FusionObserver>) -> ObservationId {
+        let id = ObservationId(self.next_id.fetch_add(1, Ordering::Relaxed));
+        self.edit(|observers| observers.push(InstalledObserver { id, observer }));
+        id
+    }
 
-impl ObservedBlock {
-    /// Tell the observers told of the block's start that it has finished.
-    pub(crate) fn ran(self) {
-        for installed in self.observers.iter().flat_map(|list| list.iter()) {
-            installed.observer.block_ran();
+    fn remove(&self, id: ObservationId) {
+        self.edit(|observers| observers.retain(|installed| installed.id != id));
+    }
+
+    /// The installed observers, cloned out so no call into them holds the
+    /// lock — or `None` on the one relaxed load an unobserved run pays.
+    fn snapshot(&self) -> Option<Arc<[InstalledObserver]>> {
+        if !self.observing.load(Ordering::Relaxed) {
+            return None;
         }
+        self.installed
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    /// Replaces the installed observers with a `change`d copy.
+    ///
+    /// The list it replaces drops once the lock is released: it can hold the
+    /// last reference to a removed observer, and every notification on the
+    /// server's thread would wait out that observer's `Drop` under the lock.
+    fn edit(&self, change: impl FnOnce(&mut Vec<InstalledObserver>)) {
+        let replaced = {
+            // Recovering a lock a panicking `change` poisoned: the list is
+            // only replaced once the copy is complete.
+            let mut installed = self
+                .installed
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut observers = installed.as_deref().map(<[_]>::to_vec).unwrap_or_default();
+            change(&mut observers);
+            self.observing
+                .store(!observers.is_empty(), Ordering::Relaxed);
+            std::mem::replace(
+                &mut *installed,
+                (!observers.is_empty()).then(|| observers.into()),
+            )
+        };
+        drop(replaced);
     }
 }
 
-/// The installed observers, cloned out of the slot so no call into them
-/// holds the lock — or `None` on the one relaxed load an unobserved run pays.
-fn installed() -> Option<Arc<[Installed]>> {
-    if !OBSERVING.load(Ordering::Relaxed) {
-        return None;
-    }
-    OBSERVERS
-        .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .clone()
-}
-
-/// Whether anything is watching — the unobserved path's one relaxed load.
-static OBSERVING: AtomicBool = AtomicBool::new(false);
-
-/// The installed observers, in install order; `None` rather than empty.
-static OBSERVERS: RwLock<Option<Arc<[Installed]>>> = RwLock::new(None);
-
-/// The id of the next guard.
-static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+static OBSERVERS: Observers = Observers::new();
 
 #[cfg(test)]
 mod tests {
@@ -197,38 +232,49 @@ mod tests {
     use std::sync::{Mutex, MutexGuard, OnceLock};
     use std::thread::ThreadId;
 
-    /// An installed observer sees registrations and blocks in the order they
-    /// happen, gathered only while it is installed.
+    /// An observer sees registrations and blocks in the order they happen,
+    /// and only while it is installed.
+    ///
+    /// Attribution rests on the order: an observer pairs each block's
+    /// operations with what it recorded at their registration, and one that
+    /// kept hearing after its guard dropped would attribute work outside the
+    /// region it was bracketing.
     #[test]
     fn an_observer_sees_registrations_and_blocks_while_installed() {
         let _serial = serial();
         let recorder = Recorder::new();
-        let (one, two) = (drop_of(1), drop_of(2));
+        let queue = [drop_of(1), drop_of(2)];
         {
             let _watching = FusionObservation::new(recorder.clone());
-            notify_registered(&one);
-            notify_registered(&two);
-            notify_block_starts(|| vec![&two, &one]).ran();
+            notify_registered(&queue[0]);
+            notify_registered(&queue[1]);
+            observe_block(BlockOperations::new(&queue, &[1, 0]), || ());
         }
-        notify_registered(&one);
-        notify_block_starts(|| panic!("no observer, so nothing is gathered")).ran();
+        notify_registered(&queue[0]);
+        observe_block(BlockOperations::new(&queue, &[0]), || ());
 
         assert_eq!(recorder.events(), ["+1", "+2", "[2,1", "]"]);
     }
 
     /// A block's end reaches the observers its start did, whatever is
     /// installed or removed while it runs.
+    ///
+    /// An observer tracking open blocks would otherwise pop a block it never
+    /// saw start, or keep one open forever — and blocks on other streams and
+    /// devices run whenever a guard is created or dropped, however carefully
+    /// the caller syncs its own.
     #[test]
     fn a_block_ends_for_the_observers_it_started_for() {
         let _serial = serial();
         let (before, during) = (Recorder::new(), Recorder::new());
-        let one = drop_of(1);
+        let queue = [drop_of(1)];
 
         let before_guard = FusionObservation::new(before.clone());
-        let block = notify_block_starts(|| vec![&one]);
-        let during_guard = FusionObservation::new(during.clone());
-        drop(before_guard);
-        block.ran();
+        let during_guard = observe_block(BlockOperations::new(&queue, &[0]), || {
+            let during_guard = FusionObservation::new(during.clone());
+            drop(before_guard);
+            during_guard
+        });
         drop(during_guard);
 
         assert_eq!(before.events(), ["[1", "]"]);
@@ -237,6 +283,10 @@ mod tests {
 
     /// Every installed observer is notified, and a guard removes only its own,
     /// even when an older guard drops before a newer one.
+    ///
+    /// Guards are process-wide and can drop on any thread, so nothing orders
+    /// them: restoring what a guard replaced would silence a live observer
+    /// and reinstall a dropped one for good.
     #[test]
     fn guards_remove_only_their_own_observer_whatever_order_they_drop_in() {
         let _serial = serial();
@@ -252,25 +302,29 @@ mod tests {
 
         assert_eq!(first.events(), ["+1"]);
         assert_eq!(second.events(), ["+1", "+2"]);
-        assert!(installed().is_none());
-        assert!(!OBSERVING.load(Ordering::Relaxed));
+        assert!(OBSERVERS.snapshot().is_none());
+        assert!(!OBSERVERS.observing.load(Ordering::Relaxed));
     }
 
-    /// A removed observer holding its last reference in the slot is dropped
-    /// once the lock is released, so its `Drop` can reach the slot.
+    /// A removed observer whose last reference is in the list is dropped once
+    /// the lock is released.
+    ///
+    /// Its `Drop` is the observer's own teardown — writing out what it
+    /// recorded, say — and under the lock, every notification on the server's
+    /// thread would wait it out.
     #[test]
     fn a_removed_observer_drops_outside_the_lock() {
         struct CheckLockOnDrop(Arc<OnceLock<bool>>);
 
         impl FusionObserver for CheckLockOnDrop {
             fn registered(&self, _operation: &OperationIr) {}
-            fn block_starts(&self, _operations: &[&OperationIr]) {}
+            fn block_starts(&self, _block: BlockOperations<'_>) {}
             fn block_ran(&self) {}
         }
 
         impl Drop for CheckLockOnDrop {
             fn drop(&mut self) {
-                self.0.set(OBSERVERS.try_read().is_ok()).unwrap();
+                self.0.set(OBSERVERS.installed.try_read().is_ok()).unwrap();
             }
         }
 
@@ -293,6 +347,9 @@ mod tests {
 
     /// Installs and drops racing from many threads neither lose an observer
     /// nor leave the flag disagreeing with what is installed.
+    ///
+    /// A flag cleared over a live observer silences it with no error, for as
+    /// long as its guard lives.
     #[test]
     fn racing_installs_and_drops_keep_every_observer_installed_while_its_guard_lives() {
         let _serial = serial();
@@ -301,7 +358,9 @@ mod tests {
                 std::thread::spawn(|| {
                     for _ in 0..200 {
                         let guard = FusionObservation::new(Arc::new(Silent));
-                        let list = installed().expect("installed while its guard lives");
+                        let list = OBSERVERS
+                            .snapshot()
+                            .expect("installed while its guard lives");
                         assert!(list.iter().any(|installed| installed.id == guard.id));
                     }
                 })
@@ -311,8 +370,8 @@ mod tests {
             thread.join().unwrap();
         }
 
-        assert!(installed().is_none());
-        assert!(!OBSERVING.load(Ordering::Relaxed));
+        assert!(OBSERVERS.snapshot().is_none());
+        assert!(!OBSERVERS.observing.load(Ordering::Relaxed));
     }
 
     /// Records what reaches it from the thread that made it, and nothing else:
@@ -346,9 +405,9 @@ mod tests {
         fn registered(&self, operation: &OperationIr) {
             self.record(|| format!("+{}", id(operation)));
         }
-        fn block_starts(&self, operations: &[&OperationIr]) {
+        fn block_starts(&self, block: BlockOperations<'_>) {
             self.record(|| {
-                let ids: Vec<String> = operations.iter().map(|op| id(op)).collect();
+                let ids: Vec<String> = block.iter().map(id).collect();
                 format!("[{}", ids.join(","))
             });
         }
@@ -361,7 +420,7 @@ mod tests {
 
     impl FusionObserver for Silent {
         fn registered(&self, _operation: &OperationIr) {}
-        fn block_starts(&self, _operations: &[&OperationIr]) {}
+        fn block_starts(&self, _block: BlockOperations<'_>) {}
         fn block_ran(&self) {}
     }
 
