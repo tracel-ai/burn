@@ -855,6 +855,17 @@ pub(crate) fn empty_mean<E: NdArrayElement>() -> E {
     0.elem::<E>() / 0.elem::<E>()
 }
 
+/// Python/PyTorch-style remainder: result has same sign as divisor.
+#[inline]
+fn remainder_f64(a: f64, b: f64) -> f64 {
+    let r = a % b;
+    if r != 0. && (r < 0.) != (b < 0.) {
+        r + b
+    } else {
+        r
+    }
+}
+
 impl<E> NdArrayMathOps<E>
 where
     E: Copy + NdArrayElement,
@@ -963,25 +974,20 @@ where
     }
 
     pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
+        // Python/PyTorch-style remainder: result has same sign as divisor
         let (lhs, rhs) = broadcast_for_binary_ops(&lhs, &rhs);
 
         Zip::from(&lhs)
             .and(&rhs)
-            .map_collect(|&a, &b| {
-                let a_f = a.to_f64();
-                let b_f = b.to_f64();
-                let r = a_f - b_f * (a_f / b_f).floor();
-                r.elem()
-            })
+            .map_collect(|&a, &b| remainder_f64(a.to_f64(), b.to_f64()).elem())
             .into_shared()
     }
 
-    pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E>
-    where
-        E: core::ops::Rem<Output = E>,
-    {
-        let array = lhs.mapv(|x| ((x % rhs) + rhs) % rhs);
-        array.into_shared()
+    pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E> {
+        // Python/PyTorch-style remainder: result has same sign as divisor
+        let b = rhs.to_f64();
+        lhs.mapv(|x| remainder_f64(x.to_f64(), b).elem())
+            .into_shared()
     }
 
     pub fn recip(tensor: SharedArray<E>) -> SharedArray<E> {

@@ -8,17 +8,24 @@ use burn_backend::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_std::{Bytes, IntDType, Shape, Slice, bf16, f16};
-#[cfg(not(feature = "std"))]
-#[allow(unused_imports)]
-use num_traits::Float;
+use num_traits::{Float, ToPrimitive};
 
 use crate::Layout;
-use num_traits::ToPrimitive;
-
 use crate::ops::binary::{BinaryOp, binary_op, scalar_op};
 use crate::ops::matmul;
 use crate::ops::unary;
 use crate::{Flex, FlexTensor};
+
+/// Python/PyTorch-style remainder: result has same sign as divisor.
+#[inline]
+fn remainder_float<T: Float>(a: T, b: T) -> T {
+    let r = a % b;
+    if r != T::zero() && (r < T::zero()) != (b < T::zero()) {
+        r + b
+    } else {
+        r
+    }
+}
 
 impl FloatTensorOps<Flex> for Flex {
     fn float_from_data(data: TensorData, _device: &Device<Flex>) -> FloatTensor<Flex> {
@@ -166,52 +173,12 @@ impl FloatTensorOps<Flex> for Flex {
 
     fn float_remainder(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
         // Python/PyTorch-style remainder: result has same sign as divisor
-        binary_op(
-            lhs,
-            rhs,
-            |a, b| {
-                let r = a % b;
-                if r != 0. && (r < 0.) != (b < 0.) {
-                    r + b
-                } else {
-                    r
-                }
-            },
-            |a, b| {
-                let r = a % b;
-                if r != 0. && (r < 0.) != (b < 0.) {
-                    r + b
-                } else {
-                    r
-                }
-            },
-            None,
-        )
+        binary_op(lhs, rhs, remainder_float, remainder_float, None)
     }
 
     fn float_remainder_scalar(lhs: FloatTensor<Flex>, rhs: Scalar) -> FloatTensor<Flex> {
-        let rhs_val = rhs.to_f64().unwrap();
         // Python/PyTorch-style remainder: result has same sign as divisor
-        scalar_op(
-            lhs,
-            rhs_val,
-            |a, b| {
-                let r = a % b;
-                if r != 0. && (r < 0.) != (b < 0.) {
-                    r + b
-                } else {
-                    r
-                }
-            },
-            |a, b| {
-                let r = a % b;
-                if r != 0. && (r < 0.) != (b < 0.) {
-                    r + b
-                } else {
-                    r
-                }
-            },
-        )
+        scalar_op(lhs, rhs.to_f64().unwrap(), remainder_float, remainder_float)
     }
 
     fn float_matmul(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
@@ -1243,22 +1210,6 @@ mod tests {
     use burn_backend::TensorData;
 
     use crate::Flex;
-
-    #[test]
-    fn test_float_remainder_inf_and_tiny() {
-        use burn_backend::ops::FloatTensorOps;
-
-        // `((a % b) + b) % b` rounds `-1e-20 + 1.0` to 1.0 then wraps to 0.0,
-        // and `-1.0 % inf` becomes NaN. 5 % -3 keeps the divisor's sign.
-        let a = crate::FlexTensor::from_data(TensorData::new(vec![-1e-20f32, -1.0, 5.0], [3]));
-        let b =
-            crate::FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::INFINITY, -3.0], [3]));
-        let data: Vec<f32> = Flex::float_remainder(a, b)
-            .into_data()
-            .try_into_vec()
-            .unwrap();
-        assert_eq!(data, vec![1.0, f32::INFINITY, -1.0]);
-    }
 
     #[test]
     fn test_float_into_int_i32() {

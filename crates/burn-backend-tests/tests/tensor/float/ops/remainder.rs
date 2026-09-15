@@ -271,3 +271,28 @@ fn should_support_remainder_scalar_op() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
+
+/// `((a % b) + b) % b` rounds `-1e-20 + 1.0` to 1.0 then wraps to 0.0,
+/// and `-1.0 % inf` becomes NaN. 5 % -3 keeps the divisor's sign.
+#[test]
+fn should_support_remainder_inf_and_tiny() {
+    let device = Default::default();
+    let lhs = TestTensor::<1>::from_data(TensorData::from([-1e-20, -1.0, 5.0]), &device);
+    let rhs = TestTensor::<1>::from_data(TensorData::from([1.0, f32::INFINITY, -3.0]), &device);
+
+    lhs.remainder(rhs)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(
+            &TensorData::from([1.0, f32::INFINITY, -1.0]),
+            Tolerance::default(),
+        );
+
+    TestTensor::<1>::from_data(TensorData::from([-1e-20]), &device)
+        .remainder_scalar(1.0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([1.0]), Tolerance::default());
+    TestTensor::<1>::from_data(TensorData::from([-1.0]), &device)
+        .remainder_scalar(f32::INFINITY)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([f32::INFINITY]), Tolerance::default());
+}
