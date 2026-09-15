@@ -1063,13 +1063,16 @@ pub struct PhysicalGpu {
 
 #[cfg(feature = "cubecl")]
 impl PhysicalGpu {
-    /// One PCI address is one card, then one UUID; with neither, the same part by ids and
-    /// name, which two identical cards cannot tell apart.
+    /// One PCI address is one card, then one UUID, then one Windows LUID; with none, the same
+    /// part by ids and name, which two identical cards cannot tell apart.
     fn is_same_card(&self, other: &PhysicalDevice, name: &str) -> bool {
         if let (Some(mine), Some(theirs)) = (self.physical.pci_address, other.pci_address) {
             return mine == theirs;
         }
         if let (Some(mine), Some(theirs)) = (self.physical.uuid, other.uuid) {
+            return mine == theirs;
+        }
+        if let (Some(mine), Some(theirs)) = (self.physical.luid, other.luid) {
             return mine == theirs;
         }
         self.physical.vendor == other.vendor

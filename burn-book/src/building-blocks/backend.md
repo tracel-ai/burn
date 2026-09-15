@@ -173,8 +173,8 @@ for gpu in Device::enumerate_physical() {
 }
 ```
 
-A card is recognized by its PCI address, then by the driver's UUID. Both calls open the devices
-they report on, so enumerate once and keep the answer.
+A card is recognized by its PCI address, then by the driver's UUID, then by its Windows LUID. Both
+calls open the devices they report on, so enumerate once and keep the answer.
 
 ## Execution Stack
 
