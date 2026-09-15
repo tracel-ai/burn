@@ -1,5 +1,6 @@
 //! Scalar inference, aliases, integer limits, and bindings across repeated calls.
-#![cfg(all(feature = "extension", feature = "cpu", feature = "fusion"))]
+#![cfg(feature = "extension-tests")]
+extern crate burn_core as burn;
 
 use burn::backend::fusion::{
     custom::{OperationIr, ScalarIr},
@@ -44,7 +45,7 @@ fn scalars_preserve_types_order_and_values_across_calls() {
     use burn::tensor::{Device, StreamId, Tensor, TensorData};
 
     let inspector = FusionInspector::install(StreamId::current());
-    let device = Device::cpu();
+    let device = Device::default();
     for (offset, count, enabled, epsilon) in [
         (isize::MIN, usize::MAX, true, 0.25),
         (isize::MAX, 0, false, -0.5),

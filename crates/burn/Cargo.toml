@@ -153,7 +153,3 @@ burn-std = { workspace = true }
 # dispatch itself continues through burn-tensor -> burn-dispatch.
 
 cubecl = { workspace = true, optional = true }
-
-[dev-dependencies]
-burn-cubecl = { workspace = true }
-burn-fusion = { workspace = true, features = ["test-util"] }

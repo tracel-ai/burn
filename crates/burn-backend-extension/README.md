@@ -82,3 +82,14 @@ against the backend results.
 
 Fusion generation does not generate gradients or merge custom kernels with neighboring kernels.
 Handwritten autodiff implementations continue to compose with the generated wrapper.
+
+## Integration tests
+
+Fusion extension tests live in `burn-core` and require its opt-in `extension-tests` feature plus a
+CubeCL runtime. CI includes them in the existing Metal/Fusion test group. To run locally on CPU,
+including debug-only validation checks:
+
+```sh
+BURN_DEVICE=cpu cargo test -p burn-core --no-default-features --features std,extension-tests,cpu \
+  --test backend_extension_fusion --test backend_extension_scalars
+```

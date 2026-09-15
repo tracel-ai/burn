@@ -1,8 +1,11 @@
-#![cfg(all(feature = "extension", feature = "cpu", feature = "fusion"))]
+#![cfg(feature = "extension-tests")]
+extern crate burn_core as burn;
 use burn::backend::fusion::custom::TensorSpec;
+#[cfg(debug_assertions)]
+use burn::backend::ops::IntTensorOps;
 use burn::backend::{
     Backend, Dispatch, ExtensionType, backend_extension,
-    ops::{FloatTensorOps, IntTensorOps},
+    ops::FloatTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn::tensor::{Bool, Device, Int, Tensor};
@@ -168,7 +171,7 @@ impl TestOps for CubeBackend {
 
 #[test]
 fn field_expressions_copy_and_compute_shapes() {
-    let device = Device::cpu();
+    let device = Device::default();
     let lhs = Tensor::<1>::from_floats([1., 2.], &device).into_dispatch();
     let rhs = Tensor::<1>::from_floats([3.], &device).into_dispatch();
     let added = Dispatch::add(&lhs, 2.);
@@ -183,10 +186,10 @@ fn field_expressions_copy_and_compute_shapes() {
 }
 #[test]
 fn nested_mixed_borrowed_aliases_streams_and_options() {
-    let device = Device::cpu();
+    let device = Device::default();
     let x = Tensor::<1>::from_floats([1., 2., 3.], &device).into_dispatch();
     let integer = std::thread::spawn(|| {
-        Tensor::<1, Int>::from_ints([4, 5, 6], &Device::cpu()).into_dispatch()
+        Tensor::<1, Int>::from_ints([4, 5, 6], &Device::default()).into_dispatch()
     })
     .join()
     .unwrap();
@@ -211,7 +214,7 @@ fn nested_mixed_borrowed_aliases_streams_and_options() {
 #[test]
 #[cfg(debug_assertions)]
 fn incorrect_dtype_metadata_is_an_execution_error() {
-    let device = Device::cpu();
+    let device = Device::default();
     let x = Tensor::<1>::from_floats([1.], &device).into_dispatch();
     let out = Dispatch::mixed(
         &x,
@@ -229,7 +232,7 @@ fn incorrect_dtype_metadata_is_an_execution_error() {
 
 #[test]
 fn aliased_outputs_can_feed_independent_consumers() {
-    let x = Tensor::<1>::from_floats([1., 2.], &Device::cpu());
+    let x = Tensor::<1>::from_floats([1., 2.], &Device::default());
     let (a, b) = Dispatch::aliases(x.into_dispatch());
     let a = Tensor::<1>::from_dispatch(a) + 1.;
     let b = Tensor::<1>::from_dispatch(b) * 2.;
@@ -294,7 +297,7 @@ impl StructuredOps for CubeBackend {
 
 #[test]
 fn nested_enum_inputs_round_trip_with_empty_variants_and_scalar_fields() {
-    let device = Device::cpu();
+    let device = Device::default();
     let packet = Packet::Nested(
         Outputs {
             float: Tensor::<1>::from_floats([1., 2.], &device).into_dispatch(),
@@ -328,7 +331,7 @@ fn enum_variant_mismatches_fail_before_any_output_is_published() {
     // Independent threads isolate streams after each intentional execution error.
     for wrong in [1, 2] {
         std::thread::spawn(move || {
-            let device = Device::cpu();
+            let device = Device::default();
             let packet = || Packet::Float {
                 tensor: Tensor::<1>::from_floats([1.], &device).into_dispatch(),
                 mode: 3,

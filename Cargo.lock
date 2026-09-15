@@ -915,8 +915,6 @@ name = "burn"
 version = "0.22.0-pre.3"
 dependencies = [
  "burn-core",
- "burn-cubecl",
- "burn-fusion",
  "burn-linalg",
  "burn-nn",
  "burn-optim",
@@ -1035,6 +1033,7 @@ dependencies = [
  "burn-backend",
  "burn-backend-extension",
  "burn-cpu",
+ "burn-cubecl",
  "burn-cuda",
  "burn-dataset",
  "burn-derive",
