@@ -4,7 +4,8 @@ pub use burn_std::{
 
 #[cfg(feature = "cubecl")]
 pub use burn_backend::cubecl::{
-    MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
+    AdapterLuid, DeviceIdentity, MemoryAccess, PciAddress, PciVendor, PhysicalDevice,
+    ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
@@ -989,6 +990,46 @@ impl Device {
         Devices(devices)
     }
 
+    /// Who this device is: the part's name, what its kernels are compiled for and, for a card
+    /// on a bus, the card itself. `None` for a backend that does not report one. Opens the
+    /// device.
+    #[cfg(feature = "cubecl")]
+    pub fn identity(&self) -> Option<DeviceIdentity> {
+        self.as_dispatch().identity()
+    }
+
+    /// Every card this build can reach, once each, with the devices that reach it.
+    ///
+    /// A card visible to two runtimes (an NVIDIA GPU under CUDA and under Vulkan) is one entry
+    /// holding both devices, so a caller placing work on cards never puts two stages on one
+    /// card by another name. Opens every device of every runtime, so call it once and keep
+    /// the answer.
+    #[cfg(feature = "cubecl")]
+    pub fn enumerate_physical() -> Vec<PhysicalGpu> {
+        let mut gpus: Vec<PhysicalGpu> = Vec::new();
+        for device in Dispatch::enumerate_cube_all() {
+            let device = Device::new(device);
+            let Some(identity) = device.identity() else {
+                continue;
+            };
+            let Some(physical) = identity.physical else {
+                continue;
+            };
+            match gpus
+                .iter_mut()
+                .find(|gpu| gpu.is_same_card(&physical, &identity.name))
+            {
+                Some(gpu) => gpu.devices.0.push(device),
+                None => gpus.push(PhysicalGpu {
+                    physical,
+                    name: identity.name,
+                    devices: Devices(vec![device]),
+                }),
+            }
+        }
+        gpus
+    }
+
     /// Measure peak compute and memory throughput for this device.
     ///
     /// Runs cubecl-std's throughput benchmarks for each [`ThroughputKey`],
@@ -1004,6 +1045,39 @@ impl Device {
             .zip(keys.iter().copied())
             .map(|(value, key)| ThroughputStat { key, value })
             .collect()
+    }
+}
+
+/// One card and every device that reaches it, from [`Device::enumerate_physical`].
+#[cfg(feature = "cubecl")]
+#[derive(Debug, Clone)]
+pub struct PhysicalGpu {
+    /// The card: its address, the driver's id for it, its maker, part id and memory, each
+    /// where the runtime reports it.
+    pub physical: PhysicalDevice,
+    /// The part as the first runtime that reached it names it.
+    pub name: String,
+    /// Every device that runs on this card, one per runtime that reaches it.
+    pub devices: Devices,
+}
+
+#[cfg(feature = "cubecl")]
+impl PhysicalGpu {
+    /// One PCI address is one card, then one UUID, then one Windows LUID; with none, the same
+    /// part by ids and name, which two identical cards cannot tell apart.
+    fn is_same_card(&self, other: &PhysicalDevice, name: &str) -> bool {
+        if let (Some(mine), Some(theirs)) = (self.physical.pci_address, other.pci_address) {
+            return mine == theirs;
+        }
+        if let (Some(mine), Some(theirs)) = (self.physical.uuid, other.uuid) {
+            return mine == theirs;
+        }
+        if let (Some(mine), Some(theirs)) = (self.physical.luid, other.luid) {
+            return mine == theirs;
+        }
+        self.physical.vendor == other.vendor
+            && self.physical.device_id == other.device_id
+            && self.name == name
     }
 }
 
@@ -1297,6 +1371,7 @@ impl From<(FloatDType, IntDType)> for DeviceConfig {
 ///
 /// `Devices` dereferences to a slice of [`Device`], so it can be iterated,
 /// indexed, and passed anywhere a `&[Device]` is expected.
+#[derive(Debug, Clone)]
 pub struct Devices(Vec<Device>);
 
 impl Devices {
@@ -1510,5 +1585,46 @@ mod autodiff_move_tests {
     )]
     fn gradient_checkpointing_requires_autodiff() {
         let _ = Device::default().gradient_checkpointing();
+    }
+}
+
+#[cfg(all(test, feature = "cuda", feature = "vulkan"))]
+mod tests {
+    use super::*;
+
+    /// The reason the enumeration exists: a card reached through two runtimes is one card.
+    /// Needs an NVIDIA card visible to both CUDA and Vulkan, so it is ignored by default:
+    /// `cargo test -p burn-tensor --features cuda,vulkan enumerate_physical -- --ignored`.
+    #[test]
+    #[ignore = "needs an NVIDIA card reachable through CUDA and Vulkan"]
+    fn a_card_reached_by_two_runtimes_is_listed_once() {
+        let gpus = Device::enumerate_physical();
+        let nvidia: Vec<_> = gpus
+            .iter()
+            .filter(|gpu| gpu.physical.vendor == Some(PciVendor::Nvidia))
+            .collect();
+        assert!(!nvidia.is_empty(), "no NVIDIA card in {gpus:?}");
+        for gpu in &nvidia {
+            assert!(
+                gpu.physical.pci_address.is_some(),
+                "{} has no PCI address",
+                gpu.name
+            );
+            assert!(gpu.physical.uuid.is_some(), "{} has no UUID", gpu.name);
+            assert!(
+                gpu.devices.len() >= 2,
+                "{} is reached by {:?} only",
+                gpu.name,
+                gpu.devices
+            );
+        }
+        for (i, gpu) in gpus.iter().enumerate() {
+            for other in &gpus[i + 1..] {
+                assert_ne!(
+                    gpu.physical.pci_address, other.physical.pci_address,
+                    "one card listed twice"
+                );
+            }
+        }
     }
 }
