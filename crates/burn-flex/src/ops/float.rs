@@ -638,7 +638,7 @@ impl FloatTensorOps<Flex> for Flex {
     // chain is compiled into a lookup from a `[2 x float]` constant pool at -O2
     // and above, and some backends (notably Xtensa) have no instruction
     // selection pattern for a PC-relative reference to a constant pool, so the
-    // whole crate fails to compile for those targets. One scalar constan
+    // whole crate fails to compile for those targets. One scalar constant
     // leaves the pool with nothing to hold.
     //
     // `copysign(1.0, -0.0)` is `-1.0`, and NaN isn't `== 0.0` on either sign
@@ -1019,7 +1019,7 @@ impl FloatTensorOps<Flex> for Flex {
         if result.dtype() != DType::from(out_dtype) {
             Flex::int_cast(result, out_dtype)
         } else {
-            resul
+            result
         }
     }
 
@@ -1032,7 +1032,7 @@ impl FloatTensorOps<Flex> for Flex {
         if result.dtype() != DType::from(out_dtype) {
             Flex::int_cast(result, out_dtype)
         } else {
-            resul
+            result
         }
     }
 
