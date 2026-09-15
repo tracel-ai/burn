@@ -14,6 +14,8 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::{InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport};
+use super::{ProfileDuration, ProfileOptions, ProfileToken};
+use burn_std::profile::Instant;
 
 /// The mapping of types used by Backend and traits.
 pub trait BackendTypes: Clone + Send + Sync + core::fmt::Debug + 'static {
@@ -58,6 +60,15 @@ pub enum GraphUnsupported {}
 fn graph_unsupported() -> ExecutionError {
     ExecutionError::Generic {
         reason: alloc::string::String::from("graph capture is not supported by this backend"),
+        backtrace: BackTrace::capture(),
+    }
+}
+
+fn profile_unsupported() -> ExecutionError {
+    ExecutionError::Generic {
+        reason: alloc::string::String::from(
+            "profiling windows are not supported by this backend; use `profile`",
+        ),
         backtrace: BackTrace::capture(),
     }
 }
@@ -225,6 +236,56 @@ pub trait Backend:
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    /// Measure how long the device spends on the work `func` puts on the
+    /// calling stream, in device time.
+    ///
+    /// The window opens where the stream is when the call is made and closes
+    /// where the stream is when `func` returns: work the stream still owed
+    /// from before falls in, and work a backend queues past the end (a
+    /// batching backend's last operations, unless `options` flush) falls out.
+    /// Nothing is waited on — the [`ProfileDuration`] resolves later, when
+    /// the device has stamped both ends — so windows nest without the inner
+    /// ones being charged to the outer. Work on other streams is not kept
+    /// out, and not counted.
+    ///
+    /// `name` labels the window for a tracing profiler.
+    ///
+    /// The default measures wall-clock time between two syncs, for a backend
+    /// with no device clock to read.
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        name: &str,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        let _ = (name, options);
+        Self::sync(device)?;
+        let start = Instant::now();
+        let out = func();
+        Self::sync(device)?;
+        Ok((out, ProfileDuration::new_system_time(start, Instant::now())))
+    }
+
+    /// Open a [profiling window](Self::profile) at the calling stream's
+    /// current position, to be closed with
+    /// [`profile_end`](Self::profile_end) from the same stream.
+    ///
+    /// For a caller that cannot bracket the work in a closure: a backend that
+    /// forwards operations to be executed on another thread opens and closes
+    /// the window from that thread, in order with the operations. Errors on
+    /// a backend that measures only with [`profile`](Self::profile).
+    fn profile_start(_device: &Self::Device) -> Result<ProfileToken, ExecutionError> {
+        Err(profile_unsupported())
+    }
+
+    /// Close the window `token` at the calling stream's current position.
+    fn profile_end(
+        _device: &Self::Device,
+        _token: ProfileToken,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        Err(profile_unsupported())
     }
 
     /// Prepare `device` for an upcoming graph capture: route allocations into a

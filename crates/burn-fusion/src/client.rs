@@ -151,6 +151,17 @@ where
         });
     }
 
+    /// Run `func` on the server, in order with the operations registered so
+    /// far but without executing the ones still queued — [`sync`](Self::sync)
+    /// is the one that drains them first.
+    ///
+    /// The server runs a task where the calling stream stands, so this is how
+    /// a caller marks a point in the stream's execution without cutting the
+    /// queue at it.
+    pub fn run<Re: Send>(&self, func: impl FnOnce() -> Re + Send) -> Re {
+        self.server.submit_blocking(move |_server| func()).unwrap()
+    }
+
     /// Register all lazy computation.
     pub fn sync<Re: Send + 'static>(&self, sync_fn: impl FnOnce() -> Re + Send + 'static) -> Re {
         let id = StreamId::current();

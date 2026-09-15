@@ -5,7 +5,8 @@ use crate::{
 };
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, InstallMemoryPoolsError,
-    MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport,
+    MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken,
+    SlicedPoolReport,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -51,6 +52,53 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
         client.sync(move || B::sync(&device))
+    }
+
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        name: &str,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        // The inner backend's closure-bracketed window would open on the
+        // *calling* thread's stream, but fused operations execute on the
+        // fusion server thread and launch on its stream — and only when the
+        // queue decides to. So the window is opened and closed from that
+        // thread instead, as two tasks in order with the registered
+        // operations. Neither touches the queue: what was still queued when
+        // the window opened may run inside it, and what is still queued when
+        // it closes stays out, unless the caller asked for a flush — the
+        // measurement never changes how the queue batches.
+        let _ = name;
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+
+        let opened = device.clone();
+        let token = client.run(move || B::profile_start(&opened))?;
+
+        let out = func();
+
+        let closed = device.clone();
+        let duration = match options.flushes() {
+            true => client.sync(move || B::profile_end(&closed, token)),
+            false => client.run(move || B::profile_end(&closed, token)),
+        }?;
+
+        Ok((out, duration))
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<ProfileToken, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client.run(move || B::profile_start(&device))
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client.run(move || B::profile_end(&device, token))
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {
