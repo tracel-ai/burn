@@ -1,3 +1,4 @@
+use burn_std::profile::Instant;
 pub use burn_std::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
 /// How a [profiled window](crate::Backend::profile) treats the work a backend
@@ -31,8 +32,26 @@ impl ProfileOptions {
 /// [`profile_end`](crate::Backend::profile_end) to close it.
 ///
 /// Windows nest and overlap: a backend keys each on its token.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ProfileToken {
     /// The backend's own identifier for the window.
     pub id: u64,
+}
+
+/// Measure `func` in wall-clock time between two syncs of `device`.
+///
+/// What a backend with no device clock reports: the default of
+/// [`Backend::profile`](crate::Backend::profile), and what a backend that
+/// forwards its windows falls back to when the backend behind it opens none.
+/// The syncs are what make the number mean something, so unlike a device
+/// window this waits, and an inner window's syncs are charged to the outer.
+pub fn profile_system_time<B: crate::Backend, O: Send + 'static>(
+    device: &B::Device,
+    func: impl FnOnce() -> O + Send,
+) -> Result<(O, ProfileDuration), crate::ExecutionError> {
+    B::sync(device)?;
+    let start = Instant::now();
+    let out = func();
+    B::sync(device)?;
+    Ok((out, ProfileDuration::new_system_time(start, Instant::now())))
 }

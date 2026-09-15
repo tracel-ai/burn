@@ -158,8 +158,12 @@ where
     /// The server runs a task where the calling stream stands, so this is how
     /// a caller marks a point in the stream's execution without cutting the
     /// queue at it.
-    pub fn run<Re: Send>(&self, func: impl FnOnce() -> Re + Send) -> Re {
-        self.server.submit_blocking(move |_server| func()).unwrap()
+    ///
+    /// # Errors
+    ///
+    /// The server could not run the task: it panicked, or is gone.
+    pub fn run<Re: Send>(&self, func: impl FnOnce() -> Re + Send) -> Result<Re, CallError> {
+        self.server.submit_blocking(move |_server| func())
     }
 
     /// Register all lazy computation.

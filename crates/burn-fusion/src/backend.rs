@@ -6,16 +6,22 @@ use crate::{
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, InstallMemoryPoolsError,
     MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken,
-    SlicedPoolReport,
+    SlicedPoolReport, profile_system_time,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
+use burn_std::device_handle::CallError;
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 
 /// Get the client for the given device.
 pub fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
     GlobalFusionClient::load(device)
+}
+
+/// The fusion server could not run a task at all: it panicked, or is gone.
+fn server_error(err: CallError) -> ExecutionError {
+    ExecutionError::with_context(format!("the fusion server failed to run a task: {err:?}"))
 }
 
 /// Enable dynamic operation fusion on a backend that implements [fusion backend](crate::FusionBackend).
@@ -69,27 +75,36 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         // the window opened may run inside it, and what is still queued when
         // it closes stays out, unless the caller asked for a flush — the
         // measurement never changes how the queue batches.
+        //
+        // The name goes nowhere: the split window carries none.
         let _ = name;
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
 
-        let opened = device.clone();
-        let token = client.run(move || B::profile_start(&opened))?;
+        // An inner backend with no windows is measured the way it measures
+        // itself: between two syncs, which drain the queue as they go.
+        let Some(token) = Self::profile_start(device)? else {
+            return profile_system_time::<Self, O>(device, func);
+        };
 
         let out = func();
 
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let closed = device.clone();
         let duration = match options.flushes() {
             true => client.sync(move || B::profile_end(&closed, token)),
-            false => client.run(move || B::profile_end(&closed, token)),
+            false => client
+                .run(move || B::profile_end(&closed, token))
+                .map_err(server_error)?,
         }?;
 
         Ok((out, duration))
     }
 
-    fn profile_start(device: &Self::Device) -> Result<ProfileToken, ExecutionError> {
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        client.run(move || B::profile_start(&device))
+        client
+            .run(move || B::profile_start(&device))
+            .map_err(server_error)?
     }
 
     fn profile_end(
@@ -98,7 +113,9 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     ) -> Result<ProfileDuration, ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        client.run(move || B::profile_end(&device, token))
+        client
+            .run(move || B::profile_end(&device, token))
+            .map_err(server_error)?
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {

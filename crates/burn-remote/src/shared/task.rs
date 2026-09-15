@@ -1,9 +1,10 @@
-use burn_backend::{DTypeUsageSet, ExecutionError, TensorData};
+use burn_backend::{DTypeUsageSet, ExecutionError, ProfileToken, TensorData};
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
     id::{IdGenerator, StreamId},
 };
+use core::time::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -15,7 +16,8 @@ pub const PROTOCOL_VERSION: u16 = 1;
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensor`], [`Task::SyncBackend`],
-/// [`Task::DTypeUsage`]) carry a `RequestId`; the server echoes it on its [`TaskResponse`] so
+/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`]) carry a `RequestId`;
+/// the server echoes it on its [`TaskResponse`] so
 /// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
 /// have no id because no result ever comes back. Collective ops (all-reduce, sync-collective)
 /// are plain fire-and-forget [`OperationIr`]s carried by [`Task::RegisterOperation`].
@@ -215,6 +217,11 @@ pub enum Task {
     ReadTensor(RequestId, StreamId, TensorIr),
     SyncBackend(RequestId, StreamId),
     DTypeUsage(RequestId, DType),
+    /// Open a profiling window on the server's backend where `stream_id` stands.
+    ProfileStart(RequestId, StreamId),
+    /// Close the window `token` where `stream_id` stands. The measurement comes
+    /// back once the server's device has answered it, like a read does.
+    ProfileEnd(RequestId, StreamId, ProfileToken),
 }
 
 #[allow(missing_docs)]
@@ -233,4 +240,9 @@ pub enum TaskResponseContent {
     ReadTensor(Result<TensorData, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),
+    /// `None` when the server's backend opens no windows.
+    ProfileStart(Result<Option<ProfileToken>, ExecutionError>),
+    /// The window's duration on the server's clock; `None` when it carried no
+    /// measurement.
+    ProfileEnd(Result<Option<Duration>, ExecutionError>),
 }
