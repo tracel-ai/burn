@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 #[cfg(feature = "cubecl")]
 use alloc::vec::Vec;
 #[cfg(feature = "cubecl")]
-use burn_backend::cubecl::{ThroughputError, ThroughputKey, ThroughputValue};
+use burn_backend::cubecl::{DeviceIdentity, ThroughputError, ThroughputKey, ThroughputValue};
 // `cubecl` without a runtime feature gives the throughput *types* but no `Cube` device to
 // measure, so the measurement itself follows `cube_backend` rather than the feature.
 #[cfg(cube_backend)]
@@ -73,6 +73,19 @@ pub enum DispatchDevice {
 
 #[cfg(feature = "cubecl")]
 impl DispatchDevice {
+    /// Who this device is, `None` for a backend that does not report one. An autodiff device
+    /// answers for the device it wraps. Opens the device.
+    pub fn identity(&self) -> Option<DeviceIdentity> {
+        match self {
+            #[cfg(cube_backend)]
+            DispatchDevice::Cube(device) => Some(device.client().properties().identity.clone()),
+            #[cfg(feature = "autodiff")]
+            DispatchDevice::Autodiff(device) => device.inner.identity(),
+            #[allow(unreachable_patterns)]
+            _ => None,
+        }
+    }
+
     /// Measure peak throughput for this device against the given `keys`.
     ///
     /// Only cubecl-backed devices can measure throughput; other backends
