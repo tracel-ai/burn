@@ -1107,6 +1107,19 @@ impl Dispatch {
         }
     }
 
+    /// List every device of every cubecl runtime this build enables; empty when it enables none.
+    #[cfg(feature = "cubecl")]
+    pub fn enumerate_cube_all() -> Vec<DispatchDevice> {
+        #[cfg(cube_backend)]
+        {
+            Self::enumerate(DispatchDeviceId::Cube)
+        }
+        #[cfg(not(cube_backend))]
+        {
+            Vec::new()
+        }
+    }
+
     /// List every device of the cubecl `runtime`.
     ///
     /// The cubecl runtimes share one backend, so [`enumerate`](Self::enumerate) with
