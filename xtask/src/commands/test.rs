@@ -299,7 +299,7 @@ const EXCLUDE_CRATES: &[&str] = &[
 ];
 
 fn enumerate_examples() -> anyhow::Result<Vec<String>> {
-    let metadata = cargo_metadata::MetadataCommand::new().exec()?;
+    let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
 
     let workspace_root = metadata.workspace_root.as_std_path();
     let examples_dir = workspace_root.join("examples");
