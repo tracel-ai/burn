@@ -27,7 +27,7 @@ pub struct Outputs<B: Backend> {
     pub inner: Inner<B>,
 }
 
-// Both imports must work without importing or renaming the companion metadata type.
+// Both imports must work without importing or renaming the generated metadata type.
 mod renamed {
     use super::*;
     use inner::Inner as RenamedInner;
@@ -55,8 +55,14 @@ fn nested_metadata_resolves_renamed_imports() {
         },
     };
     let mut specs = Vec::new();
-    <renamed::Outputs<CubeBackend> as FusionValueAdapter<CubeBackend>>::append_output_specs(
-        &metadata, &mut specs,
+    let mut next_id = 0;
+    <renamed::Outputs<CubeBackend> as FusionValueAdapter<CubeBackend>>::append_output_ir(
+        &metadata,
+        &mut specs,
+        &mut || {
+            next_id += 1;
+            burn::backend::fusion::custom::TensorId::new(next_id)
+        },
     );
     assert_eq!(specs.len(), 2);
     assert_eq!(specs[0].shape, spec.shape);
@@ -203,6 +209,7 @@ fn nested_mixed_borrowed_aliases_streams_and_options() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
 fn incorrect_dtype_metadata_is_an_execution_error() {
     let device = Device::cpu();
     let x = Tensor::<1>::from_floats([1.], &device).into_dispatch();
@@ -232,14 +239,16 @@ fn aliased_outputs_can_feed_independent_consumers() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
 fn rejects_incorrect_dtype_category_before_registration() {
     use burn::backend::fusion::custom::{Float, FusionValueAdapter};
     let mut specs = Vec::new();
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            <Float as FusionValueAdapter<CubeBackend>>::append_output_specs(
+            <Float as FusionValueAdapter<CubeBackend>>::append_output_ir(
                 &TensorSpec::new([1].into(), burn::tensor::DType::I32),
                 &mut specs,
+                &mut || panic!("dtype validation must precede output registration"),
             );
         }))
         .is_err()

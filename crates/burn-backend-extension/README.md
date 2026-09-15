@@ -41,7 +41,7 @@ or a function call. Field expressions cannot be combined with `meta` or `default
 Use `meta` for tuples, structs, and enums, or to compute shape and dtype together. It accepts
 function paths or inline closures receiving borrowed arguments in declaration order. Tensor
 arguments become `burn::backend::fusion::custom::TensorSpec`; extension arguments become their
-companion metadata. Results mirror the output structure.
+generated metadata types. Results mirror the output structure.
 
 Opt into `#[derive(ExtensionType)] #[extension_type(fusion)]` (or `fusion: cfg(...)`) for structured
 inputs and outputs. The generated `NameMetadata` mirrors fields and variants, replacing tensors
@@ -75,9 +75,9 @@ inside an owned extension value. Primitive inputs may be immutably borrowed. Ord
 must be owned and `Clone + Send + Sync + 'static`. Output metadata, including enum variants and
 ordinary fields, must be known before execution. Use an existing default body for other signatures,
 or omit `Fusion` from `#[backend_extension]` and implement the trait for `Fusion<B>` manually.
-Wrong dtype categories are rejected before registration; tensor dtype, device, and enum
-variant mismatches fail at execution before any handles are published. Wrappers do not read tensor
-data or drain queues. Fusion uses the metadata callback's output shapes without checking them
+Debug builds check dtype categories and tensor devices, and validate output dtypes and devices.
+Output enum variants are checked in all builds before any handles are published.
+Generated wrappers do not read tensor data or drain queues. Fusion uses the metadata callback's output shapes without checking them
 against the backend results.
 
 Fusion generation does not generate gradients or merge custom kernels with neighboring kernels.

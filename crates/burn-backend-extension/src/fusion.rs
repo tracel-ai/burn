@@ -183,6 +183,7 @@ fn expand_method(
     let mut invoke = Vec::new();
     let mut inputs = Vec::new();
     let mut metadata_inputs = Vec::new();
+    let mut input_counts = Vec::new();
     let mut visits = Vec::new();
     let mut scalars = Vec::new();
     for (name, arg) in &args {
@@ -218,12 +219,12 @@ fn expand_method(
             let adapter =
                 quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<B>>);
             let meta = format_ident!("__metadata_{name}");
+            let input = format_ident!("__input_{name}");
+            input_counts.push(quote!(#adapter::tensor_count(&#meta)));
             metadata_inputs.push(quote!(let #meta = #adapter::to_metadata(&#name);));
             metadata_args.push(quote!(&#meta));
             visits.push(quote!(#adapter::visit_fused_tensors(&#name, &mut __visit);));
-            retrieve.push(
-                quote!(let #name = #adapter::resolve_inputs(&#meta, &mut __input_iter, __handles);),
-            );
+            retrieve.push(quote!(let #name = #adapter::resolve_inputs(&#input, __handles);));
             invoke.push(if borrowed {
                 quote!(&#name)
             } else {
@@ -234,7 +235,7 @@ fn expand_method(
             } else {
                 quote!(#name)
             };
-            inputs.push(quote!(#adapter::append_input_ir(#value, &mut __inputs);));
+            inputs.push(quote!(let #input = #adapter::append_input_ir(#value, &mut __inputs);));
         } else {
             if borrowed
                 || matches!(arg.ty.as_ref(), Type::ImplTrait(_))
@@ -293,14 +294,15 @@ fn expand_method(
     };
     reject_borrowed_output(ty)?;
     let output = OperationOutput::extension(ty);
-    let mut specs = Vec::new();
+    let mut output_counts = Vec::new();
     let mut validate = Vec::new();
     let mut publish = Vec::new();
-    let reconstruct = walk_output(
+    let (output_state, reconstruct) = walk_output(
         &output,
         quote!(__meta),
         quote!(__output),
-        &mut specs,
+        quote!(__output_state),
+        &mut output_counts,
         &mut validate,
         &mut publish,
     )?;
@@ -318,34 +320,37 @@ fn expand_method(
             use burn::backend::fusion::custom as __fusion;
             fn __capture<T: Clone + Send + Sync + 'static>(_: &T) {}
             let mut __client = None;
+            #[cfg(debug_assertions)]
             let mut __device_id = None;
             let mut __visit = |tensor: &burn::backend::fusion::FusionTensor<B::FusionRuntime>| {
-                let id = burn::backend::Device::to_id(tensor.client.device());
-                assert_eq!(*__device_id.get_or_insert(id), id, "Fusion custom inputs must share a device");
+                #[cfg(debug_assertions)] {
+                    let id = burn::backend::Device::to_id(tensor.client.device());
+                    assert_eq!(*__device_id.get_or_insert(id), id, "Fusion custom inputs must share a device");
+                }
                 __client.get_or_insert_with(|| tensor.client.clone());
             };
             #(#visits)*
             let __client = __client.expect("Fusion custom operation requires at least one input tensor");
+            #[cfg(debug_assertions)]
             let __device = __client.device().clone();
             #(#prepare)*
             #(#metadata_inputs)*
             let __meta = (#expr)(#(#metadata_args),*);
-            let mut __specs = Vec::new();
-            #(#specs)*
-            let __execution_meta = __meta.clone();
-            let __scalars: Vec<__fusion::ScalarIr> = vec![#(#scalars),*];
-            let mut __inputs = Vec::new();
+            let __scalars = vec![#(#scalars),*];
+            let mut __inputs = Vec::with_capacity(0 #(+ #input_counts)*);
             #(#inputs)*
-            let __outputs: Vec<_> = __specs.into_iter().map(|s| __fusion::TensorIr::uninit(__client.create_empty_handle(), s.shape, s.dtype)).collect();
-            let __desc = __fusion::CustomOpIr::with_scalars(#id, &__inputs, &__outputs, __scalars);
+            let mut __outputs = Vec::with_capacity(0 #(+ #output_counts)*);
+            let __output_state = #output_state;
+            let __desc = __fusion::CustomOpIr {
+                id: (#id).into(),
+                inputs: __inputs,
+                outputs: __outputs,
+                scalars: __scalars,
+            };
             let __op = __fusion::OperationFn(move |__handles: &mut __fusion::HandleContainer<<B::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>| {
-                let __meta = &__execution_meta;
-                let mut __input_iter = __inputs.iter();
                 #(#retrieve)*
                 let __output = #call;
-                let mut __expected = __outputs.iter();
                 #(#validate)*
-                let mut __expected = __outputs.iter();
                 #(#publish)*
                 Ok(())
             });
@@ -456,12 +461,13 @@ fn walk_output(
     out: &OperationOutput,
     meta: TokenStream,
     value: TokenStream,
-    specs: &mut Vec<TokenStream>,
+    state: TokenStream,
+    counts: &mut Vec<TokenStream>,
     validate: &mut Vec<TokenStream>,
     publish: &mut Vec<TokenStream>,
-) -> syn::Result<TokenStream> {
+) -> syn::Result<(TokenStream, TokenStream)> {
     if let OperationOutput::Tuple(items) = out {
-        let items = items
+        let (states, reconstructed): (Vec<_>, Vec<_>) = items
             .iter()
             .enumerate()
             .map(|(i, o)| {
@@ -470,13 +476,16 @@ fn walk_output(
                     o,
                     quote!(#meta.#i),
                     quote!(#value.#i),
-                    specs,
+                    quote!(#state.#i),
+                    counts,
                     validate,
                     publish,
                 )
             })
-            .collect::<syn::Result<Vec<_>>>()?;
-        return Ok(quote!((#(#items,)*)));
+            .collect::<syn::Result<Vec<_>>>()?
+            .into_iter()
+            .unzip();
+        return Ok((quote!((#(#states,)*)), quote!((#(#reconstructed,)*))));
     }
     let adapter = match out {
         OperationOutput::Tensor(kind) => {
@@ -487,11 +496,16 @@ fn walk_output(
         _ => return Err(unsupported(quote!(output))),
     };
     let adapter = quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<B>>);
-    specs.push(quote!(#adapter::append_output_specs(&#meta, &mut __specs);));
-    validate
-        .push(quote!(#adapter::validate_outputs(&#value, &#meta, &mut __expected, &__device)?;));
-    publish.push(quote!(#adapter::register_output_handles(#value, &mut __expected, __handles);));
-    Ok(quote!(#adapter::build_fused_output(&#meta, &mut __tensors)))
+    counts.push(quote!(#adapter::tensor_count(&#meta)));
+    validate.push(quote!(#adapter::validate_outputs(&#value, &#state, {
+        #[cfg(debug_assertions)] { Some(&__device) }
+        #[cfg(not(debug_assertions))] { None }
+    })?;));
+    publish.push(quote!(#adapter::register_output_handles(#value, &#state, __handles);));
+    Ok((
+        quote!(#adapter::append_output_ir(&#meta, &mut __outputs, &mut || __client.create_empty_handle())),
+        quote!(#adapter::build_fused_output(&#meta, &mut __tensors)),
+    ))
 }
 
 pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
@@ -540,23 +554,21 @@ fn field_adapter(ty: &Type, is_ext: bool) -> syn::Result<Option<TokenStream>> {
     }
 }
 
-/// Mirror structs and enum variants in metadata; reuse the dispatch derive's field order.
-fn derive_adapter(
+#[derive(Clone, Copy)]
+enum FusionType {
+    Metadata,
+    Input,
+    Output,
+}
+
+/// Preserve the value's structure while replacing tensor leaves with their phase-specific state.
+fn fusion_type_definition(
     input: &syn::DeriveInput,
-    gate: &Option<TokenStream>,
-) -> syn::Result<TokenStream> {
-    use crate::derive::{collect_cases, gen_case_ctor, gen_case_pattern};
-    if input.generics.params.len() != 1 {
-        return Err(unsupported(input));
-    }
-    let Some(GenericParam::Type(backend)) = input.generics.params.first() else {
-        return Err(unsupported(input));
-    };
-    let b = &backend.ident;
-    let name = &input.ident;
-    let metadata = format_ident!("{name}Metadata");
+    name: syn::Ident,
+    kind: FusionType,
+) -> syn::Result<syn::DeriveInput> {
     let mut definition = input.clone();
-    definition.ident = metadata.clone();
+    definition.ident = name;
     definition.generics = Default::default();
     definition.attrs.clear();
     let fields: Vec<_> = match &mut definition.data {
@@ -578,85 +590,143 @@ fn derive_adapter(
             .any(|a| a.path().is_ident("extension_type"));
         if field_adapter(&field.ty, is_ext)?.is_some() {
             field.ty = if TensorKind::from_type(&field.ty).is_some() {
-                syn::parse_quote!(burn::backend::fusion::custom::TensorSpec)
+                match kind {
+                    FusionType::Metadata => {
+                        syn::parse_quote!(burn::backend::fusion::custom::TensorSpec)
+                    }
+                    FusionType::Input => syn::parse_quote!(burn::backend::fusion::custom::TensorIr),
+                    FusionType::Output => {
+                        syn::parse_quote!(burn::backend::fusion::custom::OutputTensor)
+                    }
+                }
             } else {
-                // Resolve through the original type so ordinary imports and aliases work.
                 let ty = with_backend(&field.ty, quote!(burn::backend::Dispatch));
-                syn::parse_quote!(<#ty as burn::backend::fusion::custom::ExtensionMetadata>::Metadata)
+                let associated = match kind {
+                    FusionType::Metadata => quote!(Metadata),
+                    FusionType::Input => quote!(Input),
+                    FusionType::Output => quote!(Output),
+                };
+                syn::parse_quote!(<#ty as burn::backend::fusion::custom::ExtensionMetadata>::#associated)
             };
+        } else if matches!(kind, FusionType::Output) {
+            // Ordinary output fields are reconstructed on the caller, not retained for execution.
+            field.ty = syn::parse_quote!(());
         }
         field.attrs.retain(|a| a.path().is_ident("doc"));
     }
+    Ok(definition)
+}
+
+/// Mirror structs and enum variants in metadata and compact execution state.
+fn derive_adapter(
+    input: &syn::DeriveInput,
+    gate: &Option<TokenStream>,
+) -> syn::Result<TokenStream> {
+    use crate::derive::{collect_cases, gen_case_ctor, gen_case_pattern};
+    if input.generics.params.len() != 1 {
+        return Err(unsupported(input));
+    }
+    let Some(GenericParam::Type(backend)) = input.generics.params.first() else {
+        return Err(unsupported(input));
+    };
+    let b = &backend.ident;
+    let name = &input.ident;
+    let metadata = format_ident!("{name}Metadata");
+    let input_state = format_ident!("{name}FusionInput");
+    let output_state = format_ident!("{name}FusionOutput");
+    let definition = fusion_type_definition(input, metadata.clone(), FusionType::Metadata)?;
+    let input_definition = fusion_type_definition(input, input_state.clone(), FusionType::Input)?;
+    let output_definition =
+        fusion_type_definition(input, output_state.clone(), FusionType::Output)?;
     let cases = collect_cases(input)?;
     let mut meta_cases = collect_cases(&definition)?;
-    // Distinct bindings let validation match actual values and their expected variant together.
-    for case in &mut meta_cases {
+    let mut input_cases = collect_cases(&input_definition)?;
+    let mut output_cases = collect_cases(&output_definition)?;
+    for case in meta_cases
+        .iter_mut()
+        .chain(&mut input_cases)
+        .chain(&mut output_cases)
+    {
         for field in &mut case.fields {
-            field.bind = format_ident!("{}_meta", field.bind);
+            field.bind = format_ident!("{}_state", field.bind);
         }
     }
     let mut describe = Vec::new();
     let mut visit = Vec::new();
+    let mut counts = Vec::new();
     let mut flatten = Vec::new();
     let mut read = Vec::new();
-    let mut specs = Vec::new();
+    let mut outputs = Vec::new();
     let mut validate = Vec::new();
     let mut publish = Vec::new();
     let mut reconstruct = Vec::new();
-    for (case, meta_case) in cases.iter().zip(&meta_cases) {
+    for (((case, meta_case), input_case), output_case) in cases
+        .iter()
+        .zip(&meta_cases)
+        .zip(&input_cases)
+        .zip(&output_cases)
+    {
+        let is_tensor = |i: usize| case.fields[i].tensor_kind.is_some() || case.fields[i].is_ext;
         let value_pattern = gen_case_pattern(case, |_| true);
-        let tensor_pattern = gen_case_pattern(case, |i| {
-            case.fields[i].tensor_kind.is_some() || case.fields[i].is_ext
-        });
+        let tensor_pattern = gen_case_pattern(case, is_tensor);
         let meta_pattern = gen_case_pattern(meta_case, |_| true);
-        let meta_tensor_pattern = gen_case_pattern(meta_case, |i| {
-            case.fields[i].tensor_kind.is_some() || case.fields[i].is_ext
-        });
+        let meta_tensor_pattern = gen_case_pattern(meta_case, is_tensor);
+        let input_pattern = gen_case_pattern(input_case, |_| true);
+        let output_pattern = gen_case_pattern(output_case, is_tensor);
         let mut descriptions = Vec::new();
         let mut visits = Vec::new();
+        let mut tensor_counts = Vec::new();
         let mut inputs = Vec::new();
         let mut reads = Vec::new();
-        let mut spec_fields = Vec::new();
+        let mut output_fields = Vec::new();
         let mut checks = Vec::new();
         let mut publications = Vec::new();
         let mut reconstructions = Vec::new();
         for (field, meta_field) in case.fields.iter().zip(&meta_case.fields) {
             let value = &field.bind;
-            let meta = &meta_field.bind;
+            let state = &meta_field.bind;
             if let Some(adapter) = field_adapter(&field.ty, field.is_ext)? {
                 let adapter =
                     quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<#b>>);
                 descriptions.push(quote!(#adapter::to_metadata(#value)));
                 visits.push(quote!(#adapter::visit_fused_tensors(#value, visit);));
-                inputs.push(quote!(#adapter::append_input_ir(#value, inputs);));
-                reads.push(quote!(#adapter::resolve_inputs(#meta, inputs, handles)));
-                spec_fields.push(quote!(#adapter::append_output_specs(#meta, out);));
-                checks.push(quote!(#adapter::validate_outputs(#value, #meta, specs, device)?;));
+                tensor_counts.push(quote!(#adapter::tensor_count(#state)));
+                inputs.push(quote!(#adapter::append_input_ir(#value, inputs)));
+                reads.push(quote!(#adapter::resolve_inputs(#state, handles)));
+                output_fields.push(quote!(#adapter::append_output_ir(#state, out, create)));
+                checks.push(quote!(#adapter::validate_outputs(#value, #state, device)?;));
                 publications
-                    .push(quote!(#adapter::register_output_handles(#value, specs, handles);));
-                reconstructions.push(quote!(#adapter::build_fused_output(#meta, tensors)));
+                    .push(quote!(#adapter::register_output_handles(#value, #state, handles);));
+                reconstructions.push(quote!(#adapter::build_fused_output(#state, tensors)));
             } else {
                 descriptions.push(quote!(#value.clone()));
-                reads.push(quote!(#meta.clone()));
-                // Ordinary output fields come from metadata; execution only supplies tensors.
-                reconstructions.push(quote!(#meta.clone()));
+                inputs.push(quote!(#value));
+                reads.push(quote!(#state.clone()));
+                output_fields.push(quote!(()));
+                reconstructions.push(quote!(#state.clone()));
             }
         }
         let description = gen_case_ctor(meta_case, &descriptions);
+        let input_state = gen_case_ctor(input_case, &inputs);
+        let output_state = gen_case_ctor(output_case, &output_fields);
         let restored = gen_case_ctor(case, &reads);
         let reconstructed = gen_case_ctor(case, &reconstructions);
         describe.push(quote!(#value_pattern => #description));
         visit.push(quote!(#tensor_pattern => { #(#visits)* }));
-        flatten.push(quote!(#tensor_pattern => { #(#inputs)* }));
-        read.push(quote!(#meta_pattern => #restored));
-        specs.push(quote!(#meta_pattern => { #(#spec_fields)* }));
-        validate.push(quote!((#tensor_pattern, #meta_tensor_pattern) => { #(#checks)* Ok(()) }));
-        publish.push(quote!(#tensor_pattern => { #(#publications)* }));
+        counts.push(quote!(#meta_tensor_pattern => { 0 #(+ #tensor_counts)* }));
+        flatten.push(quote!(#value_pattern => #input_state));
+        read.push(quote!(#input_pattern => #restored));
+        outputs.push(quote!(#meta_tensor_pattern => #output_state));
+        validate.push(quote!((#tensor_pattern, #output_pattern) => { #(#checks)* Ok(()) }));
+        publish.push(quote!((#tensor_pattern, #output_pattern) => { #(#publications)* }));
         reconstruct.push(quote!(#meta_pattern => #reconstructed));
     }
-    let mismatch = matches!(input.data, syn::Data::Enum(_)).then(|| quote! {
+    let is_enum = matches!(input.data, syn::Data::Enum(_));
+    let mismatch = is_enum.then(|| quote! {
         _ => Err(burn::backend::fusion::ExecutionError::generic("Fusion custom output variant differs from its metadata")),
     });
+    let unreachable =
+        is_enum.then(|| quote! { _ => unreachable!("output variants were validated"), });
     let bounds = &backend.bounds;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     Ok(quote! {
@@ -665,23 +735,34 @@ fn derive_adapter(
         #[derive(Clone, Debug)]
         #definition
         #gate
+        #[doc(hidden)]
+        #input_definition
+        #gate
+        #[doc(hidden)]
+        #output_definition
+        #gate
         impl #impl_generics burn::backend::fusion::custom::ExtensionMetadata for #name #ty_generics #where_clause {
             type Metadata = #metadata;
+            type Input = #input_state;
+            type Output = #output_state;
         }
         #gate
         impl<#b: burn::backend::fusion::FusionBackend + #bounds> burn::backend::fusion::custom::FusionValueAdapter<#b> for #name<#b> #where_clause {
             type Metadata = #metadata;
+            type Input = #input_state;
+            type Output = #output_state;
             type Inner = Self;
             type Fused = #name<burn::backend::fusion::Fusion<#b>>;
             fn to_metadata(value: &Self::Fused) -> Self::Metadata { match value { #(#describe,)* } }
             fn visit_fused_tensors(value: &Self::Fused, visit: &mut impl FnMut(&burn::backend::fusion::FusionTensor<#b::FusionRuntime>)) { match value { #(#visit,)* } }
-            fn append_input_ir(value: Self::Fused, inputs: &mut Vec<burn::backend::fusion::custom::TensorIr>) { match value { #(#flatten,)* } }
-            fn resolve_inputs(meta: &Self::Metadata, inputs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, handles: &mut burn::backend::fusion::custom::HandleContainer<<#b::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>) -> Self::Inner { match meta { #(#read,)* } }
-            fn append_output_specs(meta: &Self::Metadata, out: &mut Vec<burn::backend::fusion::custom::TensorSpec>) { match meta { #(#specs,)* } }
-            fn validate_outputs(value: &Self, meta: &Self::Metadata, specs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, device: &#b::Device) -> Result<(), burn::backend::fusion::ExecutionError> {
-                match (value, meta) { #(#validate,)* #mismatch }
+            fn tensor_count(meta: &Self::Metadata) -> usize { match meta { #(#counts,)* } }
+            fn append_input_ir(value: Self::Fused, inputs: &mut Vec<burn::backend::fusion::custom::TensorIr>) -> Self::Input { match value { #(#flatten,)* } }
+            fn resolve_inputs(input: &Self::Input, handles: &mut burn::backend::fusion::custom::HandleContainer<<#b::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>) -> Self::Inner { match input { #(#read,)* } }
+            fn append_output_ir(meta: &Self::Metadata, out: &mut Vec<burn::backend::fusion::custom::TensorIr>, create: &mut impl FnMut() -> burn::backend::fusion::custom::TensorId) -> Self::Output { match meta { #(#outputs,)* } }
+            fn validate_outputs(value: &Self, output: &Self::Output, device: Option<&#b::Device>) -> Result<(), burn::backend::fusion::ExecutionError> {
+                match (value, output) { #(#validate,)* #mismatch }
             }
-            fn register_output_handles(value: Self, specs: &mut core::slice::Iter<'_, burn::backend::fusion::custom::TensorIr>, handles: &mut burn::backend::fusion::custom::HandleContainer<<#b::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>) { match value { #(#publish,)* } }
+            fn register_output_handles(value: Self, output: &Self::Output, handles: &mut burn::backend::fusion::custom::HandleContainer<<#b::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>) { match (value, output) { #(#publish,)* #unreachable } }
             fn build_fused_output(meta: &Self::Metadata, tensors: &mut std::vec::IntoIter<burn::backend::fusion::FusionTensor<#b::FusionRuntime>>) -> Self::Fused { match meta { #(#reconstruct,)* } }
         }
     })
@@ -714,7 +795,7 @@ mod tests {
                 fn op(x: &FloatTensor<Self>, option: usize) -> (FloatTensor<Self>, FloatTensor<Self>);
             }
         });
-        assert!(out.contains("with_scalars (stringify ! (op)"));
+        assert!(out.contains("id : (stringify ! (op))"));
         assert!(out.contains("TensorSpec"));
         assert!(out.contains(":: resolve_inputs"));
         assert!(out.contains("validate_outputs"));
@@ -730,7 +811,7 @@ mod tests {
                     #[extension_type] rhs: Operand<Self>) -> FloatTensor<Self>;
             }
         });
-        assert!(out.contains("with_scalars (\"matmul\""));
+        assert!(out.contains("id : (\"matmul\")"));
         let strategy = out
             .find("Scalar :: from ((strategy . to_code ()) . clone ())")
             .unwrap();

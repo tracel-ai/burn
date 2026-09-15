@@ -107,14 +107,15 @@ With `meta`, functions receive borrowed `TensorSpec { shape, dtype }` values for
 arguments and borrowed ordinary arguments, in declaration order. A function path or
 inline closure can compute metadata immediately, without accessing tensor handles.
 The returned metadata mirrors the output: a `TensorSpec` for each tensor, tuples for
-tuples, and named companion types for structs deriving
+tuples, and generated metadata types for structs deriving
 `#[derive(ExtensionType)] #[extension_type(fusion)]`.
 
 The example shares its output-shape calculation between metadata and execution. That function
 checks matrix ranks, contraction dimensions, batch broadcasting, and the kernel's requirement
 that bias have exactly the output shape. Execution also checks matching dtypes. The generated wrapper
-registers a deferred custom operation and checks actual output shapes, dtypes, and devices
-before publishing handles. Incorrect metadata produces an execution error.
+registers a deferred custom operation. Debug builds check output dtypes and devices;
+output enum variants are checked in all builds before publishing handles. Output shapes
+come from the metadata callback without being checked against the backend results.
 
 Custom kernels remain opaque to the Fusion optimizer: the wrapper does not combine them
 with neighboring kernels or generate gradients. The existing handwritten implementation
