@@ -257,7 +257,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         // Reborrowed: the optimization reads this execution while the scope
         // holds the context it writes through.
         let this = &*self;
-        crate::observer::notify_block_starts(|| {
+        let observed = crate::observer::notify_block_starts(|| {
             ordering.iter().map(|index| &this.ir[*index]).collect()
         });
         let outcome =
@@ -265,7 +265,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
                 optimization.execute(context, this);
                 Ok(())
             });
-        crate::observer::notify_block_ran();
+        observed.ran();
 
         match outcome {
             Outcome::Ran => {}
@@ -311,10 +311,10 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             // if they do, the next one skips on the claim its input now
             // carries. Scoping the whole loop instead would make an unrelated
             // operation's outcome depend on queue order.
-            crate::observer::notify_block_starts(|| vec![ir]);
+            let observed = crate::observer::notify_block_starts(|| vec![ir]);
             let outcome =
                 WriteScope::over(ir, handles).run(OnPanic::Catch, |handles| op.execute(handles));
-            crate::observer::notify_block_ran();
+            observed.ran();
 
             match outcome {
                 Outcome::Ran => {}

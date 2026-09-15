@@ -64,7 +64,10 @@ pub trait FusionObserver: Send + Sync {
 /// Process-wide, like the server it watches: operations reach it from every
 /// device and every thread that records them. Several observations can be
 /// live at once — each observer sees every notification while it is installed,
-/// and each guard removes only its own, whatever order they drop in.
+/// and each guard removes only its own, whatever order they drop in. A block's
+/// start and end reach the same observers: one installed while a block runs
+/// first hears of the next one, and one removed while a block runs still hears
+/// it end, after its guard has dropped.
 ///
 /// The server notifies an observer as it *processes* a call, which lags the
 /// call that recorded it: an operation recorded just before the guard drops
@@ -133,20 +136,35 @@ pub(crate) fn notify_registered(operation: &OperationIr) {
 
 /// Tell the installed observers that a block covering `operations` is about
 /// to run. The operations are gathered only when something is installed.
-pub(crate) fn notify_block_starts<'a>(operations: impl FnOnce() -> Vec<&'a OperationIr>) {
-    if let Some(list) = installed() {
+///
+/// The block's end goes through the returned [`ObservedBlock`], to the same
+/// observers: one installed while the block runs never hears an end without
+/// its start, and one removed while it runs still hears it end.
+pub(crate) fn notify_block_starts<'a>(
+    operations: impl FnOnce() -> Vec<&'a OperationIr>,
+) -> ObservedBlock {
+    let observers = installed();
+    if let Some(list) = &observers {
         let operations = operations();
         for installed in list.iter() {
             installed.observer.block_starts(&operations);
         }
     }
+    ObservedBlock { observers }
 }
 
-/// Tell the installed observers that the block that last started has
-/// finished.
-pub(crate) fn notify_block_ran() {
-    for installed in installed().iter().flat_map(|list| list.iter()) {
-        installed.observer.block_ran();
+/// A block whose start the observers of [`notify_block_starts`] were told of.
+#[must_use = "the observers told a block started must be told it ran"]
+pub(crate) struct ObservedBlock {
+    observers: Option<Arc<[Installed]>>,
+}
+
+impl ObservedBlock {
+    /// Tell the observers told of the block's start that it has finished.
+    pub(crate) fn ran(self) {
+        for installed in self.observers.iter().flat_map(|list| list.iter()) {
+            installed.observer.block_ran();
+        }
     }
 }
 
@@ -265,13 +283,31 @@ mod tests {
             let _watching = FusionObservation::new(recorder.clone());
             notify_registered(&one);
             notify_registered(&two);
-            notify_block_starts(|| vec![&two, &one]);
-            notify_block_ran();
+            notify_block_starts(|| vec![&two, &one]).ran();
         }
         notify_registered(&one);
-        notify_block_starts(|| panic!("no observer, so nothing is gathered"));
+        notify_block_starts(|| panic!("no observer, so nothing is gathered")).ran();
 
         assert_eq!(recorder.events(), ["+1", "+2", "[2,1", "]"]);
+    }
+
+    /// A block's end reaches the observers its start did, whatever is
+    /// installed or removed while it runs.
+    #[test]
+    fn a_block_ends_for_the_observers_it_started_for() {
+        let _serial = serial();
+        let (before, during) = (Recorder::new(), Recorder::new());
+        let one = drop_of(1);
+
+        let before_guard = FusionObservation::new(before.clone());
+        let block = notify_block_starts(|| vec![&one]);
+        let during_guard = FusionObservation::new(during.clone());
+        drop(before_guard);
+        block.ran();
+        drop(during_guard);
+
+        assert_eq!(before.events(), ["[1", "]"]);
+        assert!(during.events().is_empty());
     }
 
     /// Every installed observer is notified, and a guard removes only its own,
