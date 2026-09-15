@@ -25,7 +25,7 @@ pub use cubecl::RuntimeId;
 /// Who a device is, and the card behind it when there is one. Re-exported for the
 /// same reason as [`Device`]: `burn-dispatch` and `burn-tensor` report it without a
 /// cubecl dependency of their own.
-pub use cubecl::ir::{DeviceIdentity, PciAddress, PciVendor, PhysicalDevice};
+pub use cubecl::ir::{AdapterLuid, DeviceIdentity, PciAddress, PciVendor, PhysicalDevice};
 pub use cubecl::std::throughput::measure_peak_throughput;
 
 /// Convert a cubecl [`ElemType`] into the corresponding burn [`DType`].

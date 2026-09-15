@@ -4,8 +4,8 @@ pub use burn_std::{
 
 #[cfg(feature = "cubecl")]
 pub use burn_backend::cubecl::{
-    DeviceIdentity, MemoryAccess, PciAddress, PciVendor, PhysicalDevice, ThroughputError,
-    ThroughputKey, ThroughputMode, ThroughputValue,
+    AdapterLuid, DeviceIdentity, MemoryAccess, PciAddress, PciVendor, PhysicalDevice,
+    ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
