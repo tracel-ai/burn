@@ -33,7 +33,16 @@ impl<K: Numeric> Value<K> {
         second: usize,
         permutation: &[usize],
         restore: &[usize],
+        label: char,
+        operand: usize,
     ) -> Self {
+        let shape = self.primitive.shape();
+        assert_eq!(
+            shape[first], shape[second],
+            "einsum: operand {operand}: repeated subscripts must have equal dimensions; \
+             label '{label}' has sizes {} and {}",
+            shape[first], shape[second],
+        );
         Self::new(diagonal::<K>(
             self.primitive,
             first,
@@ -130,20 +139,22 @@ pub fn prepare<K: Numeric>(
         if has_ellipsis {
             assert!(
                 shape.len() >= named_rank,
-                "einsum: operand {index} has fewer dimensions than subscripts"
+                "einsum: operand {index} with shape {shape:?} has fewer dimensions \
+                 than its {named_rank} named subscripts"
             );
             ellipsis_width = ellipsis_width.max(shape.len() - named_rank);
         } else if named_rank == 0 {
             assert_eq!(
                 &shape[..],
                 &[1],
-                "einsum: scalar operand {index} must have shape [1]"
+                "einsum: scalar operand {index} must have shape [1], got {shape:?}"
             );
         } else {
             assert_eq!(
                 shape.len(),
                 named_rank,
-                "einsum: rank of operand {index} does not match its subscripts"
+                "einsum: rank of operand {index} with shape {shape:?} does not match \
+                 its {named_rank} subscripts"
             );
         }
     }
@@ -231,7 +242,11 @@ pub fn alignment_shape(
 }
 
 /// Check aligned input sizes and record the last non-singleton use of each axis.
-pub fn validate_broadcast<K: Numeric>(operands: &[&Value<K>]) -> Vec<usize> {
+pub fn validate_broadcast<K: Numeric>(
+    operands: &[&Value<K>],
+    labels: &[Option<char>],
+    width: usize,
+) -> Vec<usize> {
     let mut sizes = vec![1; operands[0].primitive.shape().len()];
     let mut last_use = vec![0; sizes.len()];
     for (index, operand) in operands.iter().enumerate() {
@@ -241,10 +256,31 @@ pub fn validate_broadcast<K: Numeric>(operands: &[&Value<K>]) -> Vec<usize> {
             .enumerate()
         {
             if *dimension != 1 {
-                assert!(
-                    *size == 1 || *size == *dimension,
-                    "einsum: operand {index} has incompatible broadcast dimensions"
-                );
+                if *size != 1 && *size != *dimension {
+                    // Resolve diagnostic labels only on failure. The ellipsis occupies
+                    // one planned slot but expands to `width` aligned dimensions.
+                    let ellipsis = labels.iter().position(Option::is_none);
+                    let slot = match ellipsis {
+                        Some(start) if axis >= start + width => axis + 1 - width,
+                        _ => axis,
+                    };
+                    let previous = last_use[axis];
+                    if let Some(start) = ellipsis
+                        && (start..start + width).contains(&axis)
+                    {
+                        let from_right = start + width - axis;
+                        panic!(
+                            "einsum: incompatible broadcast dimensions for ellipsis axis \
+                             {from_right} from the right: operand {previous} has size {size}, \
+                             operand {index} has size {dimension}"
+                        );
+                    }
+                    let label = labels[slot].expect("a broadcast mismatch has a named label");
+                    panic!(
+                        "einsum: incompatible broadcast dimensions for label '{label}': \
+                         operand {previous} has size {size}, operand {index} has size {dimension}"
+                    );
+                }
                 *size = *dimension;
                 last_use[axis] = index;
             }
@@ -368,6 +404,7 @@ fn align<K: Numeric>(
     input: &InputPlan,
     plan: &Plan,
     width: usize,
+    operand_index: usize,
 ) -> Value<K> {
     let local_width = if input.has_ellipsis {
         value.shape().len() - input.named_rank
@@ -380,6 +417,8 @@ fn align<K: Numeric>(
             axis(diagonal.second, local_width),
             &axes(&diagonal.permutation, local_width),
             &axes(&diagonal.restore, local_width),
+            diagonal.label,
+            operand_index,
         );
     }
     let value = value.permute(&axes(&input.permutation, local_width));
@@ -483,9 +522,14 @@ pub(super) fn execute<const D: usize, K: Numeric>(
     let aligned: Vec<_> = prepared
         .operands
         .zip(&plan.inputs)
-        .map(|(value, input)| align(value, input, plan, prepared.ellipsis_width))
+        .enumerate()
+        .map(|(index, (value, input))| align(value, input, plan, prepared.ellipsis_width, index))
         .collect();
-    let last_use = validate_broadcast(&aligned.iter().collect::<Vec<_>>());
+    let last_use = validate_broadcast(
+        &aligned.iter().collect::<Vec<_>>(),
+        &plan.labels,
+        prepared.ellipsis_width,
+    );
     let mut operands = aligned.into_iter();
     let mut result = operands.next().unwrap();
     for (index, (right, contraction)) in operands.zip(&plan.contractions).enumerate() {
@@ -512,10 +556,7 @@ fn diagonal<K: Numeric>(
 ) -> BridgeTensor {
     let shape = tensor.shape();
     let size = shape[first];
-    assert_eq!(
-        size, shape[second],
-        "einsum: repeated subscripts must have equal dimensions"
-    );
+    debug_assert_eq!(size, shape[second]);
     let remaining = &permutation[..permutation.len() - 2];
     let mut flattened: Vec<_> = remaining.iter().map(|&dim| shape[dim]).collect();
     flattened.push(

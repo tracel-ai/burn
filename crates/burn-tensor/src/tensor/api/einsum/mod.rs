@@ -8,7 +8,7 @@ mod execution;
 
 /// An einsum operand whose rank is determined at runtime.
 ///
-/// Convert owned tensors with `.into()`, or borrow them with `(&tensor).into()`.
+/// Allows [`Tensor::einsum`] to accept tensors of different ranks.
 /// All operands must have the same tensor kind, dtype and device.
 #[derive(Clone, Debug)]
 pub struct EinsumOperand<K: Numeric = Float> {
@@ -36,10 +36,9 @@ impl<const D: usize, K: Numeric> Tensor<D, K> {
     ///
     /// Supports explicit (`"ij,jk->ik"`) and implicit (`"ij,jk"`) outputs,
     /// any number of operands, repeated-label diagonals, and broadcasting.
-    /// Labels are case-sensitive ASCII letters. Implicit output puts ellipsis
-    /// dimensions first, followed by labels occurring exactly once, in `A-Z`,
-    /// `a-z` order. Ellipsis dimensions broadcast from the right and may be
-    /// reduced by omitting them from an explicit output.
+    /// See [`einsum!`](crate::einsum) for equation syntax and broadcasting rules.
+    /// The macro also checks literal equations and statically determined ranks
+    /// at compile time.
     ///
     /// Operands are contracted from left to right using multiplication,
     /// reductions, and batched matrix multiplication. No optimized contraction
@@ -48,10 +47,6 @@ impl<const D: usize, K: Numeric> Tensor<D, K> {
     /// Burn represents scalars as rank-one tensors with shape `[1]`: a scalar
     /// result requires `D = 1`, and an empty input subscript accepts shape `[1]`.
     /// Other inputs must have exactly the rank described by their subscripts.
-    ///
-    /// For a literal equation, [`einsum!`](crate::einsum) also validates the
-    /// equation and statically determined ranks, and generates the operation chain
-    /// from the shared contraction plan at compile time.
     ///
     /// # Example
     ///

@@ -2,47 +2,77 @@
 
 /// Computes Einstein summation from a literal equation.
 ///
-/// The equation is parsed, validated, and planned at compile time. Operand counts
-/// and exact ranks are checked statically where the equation determines them.
-/// Axis sizes, broadcasting, and ellipsis widths are checked at runtime.
-/// Each operand expression is evaluated once and moved into the contraction;
-/// pass `&tensor` or `tensor.clone()` to retain an input.
+/// Give each input axis a letter, separate operands with commas, and use `->`
+/// to specify the output axes and their order. Values are multiplied along
+/// matching labels and summed over labels omitted from the output. For example,
+/// `"ij,jk->ik"` multiplies two matrices and sums over their shared `j` axis.
 ///
-/// # Expansion
+/// | Equation | Operation |
+/// | --- | --- |
+/// | `"ij,jk->ik"` | Matrix multiplication |
+/// | `"ij->ji"` | Transpose |
+/// | `"ii->i"` | Extract a diagonal |
+/// | `"ii->"` | Trace (sum of the diagonal) |
+/// | `"i,i->"` | Dot product |
+/// | `"...ij,...jk->...ik"` | Matrix multiplication with broadcast batch dimensions |
 ///
-/// The shared equation plan determines diagonal positions, input permutations,
-/// reduction stages, matrix groupings, and output ordering. The macro generates
-/// the corresponding `permute -> reshape -> matmul -> reshape -> permute` chains
-/// and multiplication/reduction calls directly, in left-to-right operand order.
-/// The generated code performs no equation parsing or shape-independent planning
-/// at runtime.
-///
-/// Tensor sizes supply reshape dimensions at runtime. Singleton broadcasting can
-/// allow earlier contractions or change which axes belong in the matrix groups.
-/// Empty dimensions use a
-/// multiply/reduce branch to preserve backend support and gradient connections.
-/// Ellipsis axes are planned as symbolic blocks whose widths bind to input ranks.
-///
-/// For example, `einsum!("ij,jk->ik", a, b)` checks both inputs have rank two,
-/// aligns them as `[i, k, j]`, and emits a matrix product contracting axis 2 (`j`)
-/// with fixed input/output permutations. Only the sizes of `i`, `j`, and `k`
-/// and any broadcasting or empty-dimension branches depend on the input tensors.
-/// The generated code includes a documentation annotation describing its lowering.
-///
-/// Scalar results use shape `[1]`. With an output ellipsis of unknown width,
-/// supply the output type (for example `let y: Tensor<3> = einsum!(...)`).
 /// For dynamic equation strings, use [`Tensor::einsum`](crate::Tensor::einsum).
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// use burn_tensor::{Tensor, einsum};
 /// let device = Default::default();
 /// let a = Tensor::<2>::from_floats([[1., 2.], [3., 4.]], &device);
 /// let b = Tensor::<2>::from_floats([[5., 6.], [7., 8.]], &device);
-/// let c = einsum!("ij,jk->ik", a, b);
+/// let c = einsum!("ij,jk->ik", &a, b);
 /// assert_eq!(c.into_data().try_to_vec::<f32>().unwrap(), [19., 22., 43., 50.]);
+///
+/// let transposed = einsum!("ij->ji", &a);
+/// assert_eq!(transposed.into_data().try_to_vec::<f32>().unwrap(), [1., 3., 2., 4.]);
+/// let trace = einsum!("ii->", a);
+/// assert_eq!(trace.dims(), [1]);
+/// assert_eq!(trace.into_data().try_to_vec::<f32>().unwrap(), [5.]);
 /// ```
+///
+/// # Broadcasting and equation rules
+///
+/// Matching labels across operands must have equal sizes or a size of one, which
+/// broadcasts to the other size. Repeating a label within one operand extracts
+/// its diagonal: those axis sizes must be equal, even if one is a singleton.
+///
+/// `...` matches zero or more axes. Ellipsis dimensions broadcast from the right,
+/// allowing operands to have different numbers of batch dimensions. To sum over
+/// these dimensions, omit `...` from the explicit output.
+///
+/// ```
+/// use burn_tensor::{Tensor, einsum};
+/// let device = Default::default();
+/// let a = Tensor::<3>::ones([2, 3, 4], &device);
+/// let b = Tensor::<2>::ones([4, 5], &device);
+/// // b is shared across both batches of a.
+/// let c: Tensor<3> = einsum!("...ij,...jk->...ik", a, b);
+/// assert_eq!(c.dims(), [2, 3, 5]);
+/// ```
+///
+/// Each axis label is a single letter from `a-z` or `A-Z`. Uppercase and lowercase
+/// letters are distinct labels. Spaces between tokens are ignored.
+/// With no `->`, the output contains the ellipsis first, followed by labels
+/// occurring exactly once across all inputs, sorted `A-Z`, then `a-z`.
+/// For example, `"ij,jk"` is equivalent to `"ij,jk->ik"`.
+///
+/// # Types and limitations
+///
+/// Float and Int operands must share their kind, dtype, and device. Float
+/// operations support automatic differentiation; quantized operands are unsupported.
+/// Scalar results have shape `[1]`, and an empty input subscript accepts shape `[1]`.
+/// With an output ellipsis of unknown width, supply the output type, as above.
+/// Operands are contracted from left to right; no optimized contraction order is searched.
+///
+/// # Validation
+///
+/// Equations, operand counts, and exact ranks are checked at compile time where
+/// the equation determines them. Axis sizes and ellipsis widths are checked at runtime.
 ///
 /// Unknown output labels are compile errors:
 ///
@@ -82,6 +112,12 @@
 /// let a = Tensor::<1>::zeros([3], &Default::default());
 /// let _ = einsum!("i..->i", a);
 /// ```
+///
+/// # Panics
+///
+/// Panics for incompatible ranks or broadcast dimensions, unequal repeated-label
+/// dimensions, mismatched devices or dtypes, quantized operands, or an incorrect
+/// output rank when the output contains an ellipsis of unknown width.
 #[macro_export]
 macro_rules! einsum {
     ($($tt:tt)*) => {

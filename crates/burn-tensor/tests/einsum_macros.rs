@@ -472,3 +472,107 @@ fn macro_contracts_before_trailing_singleton_weights_when_possible() {
         );
     }
 }
+
+fn assert_shape_error<T>(expected: &str, operation: impl FnOnce() -> T) {
+    let error = std::panic::catch_unwind(std::panic::AssertUnwindSafe(operation))
+        .err()
+        .expect("incompatible shapes should panic");
+    let message = error
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| error.downcast_ref::<&str>().copied())
+        .expect("shape errors should have a text message");
+    assert!(
+        message.contains(expected),
+        "unexpected shape error: {message}"
+    );
+}
+
+#[test]
+fn shape_errors_identify_the_shared_label_and_conflicting_operands() {
+    let device = Default::default();
+    let left = Tensor::<2>::ones([2, 3], &device);
+    let right = Tensor::<2>::ones([4, 5], &device);
+    let expected = "label 'j': operand 0 has size 3, operand 1 has size 4";
+    assert_shape_error(expected, || einsum!("ij,jk->ik", &left, &right));
+    assert_shape_error(expected, || {
+        Tensor::<2>::einsum("ij,jk->ik", [left.into(), right.into()])
+    });
+
+    // The intervening singleton must not hide the operand that established size 3.
+    let left = Tensor::<1>::ones([3], &device);
+    let singleton = Tensor::<1>::ones([1], &device);
+    let right = Tensor::<1>::ones([4], &device);
+    let expected = "label 'i': operand 0 has size 3, operand 2 has size 4";
+    assert_shape_error(expected, || einsum!("i,i,i->i", &left, &singleton, &right));
+    assert_shape_error(expected, || {
+        Tensor::<1>::einsum("i,i,i->i", [left.into(), singleton.into(), right.into()])
+    });
+}
+
+#[test]
+fn shape_errors_resolve_named_labels_after_ellipsis_expansion() {
+    let device = Default::default();
+    let expected = "label 'J': operand 0 has size 3, operand 1 has size 4";
+
+    // An empty ellipsis removes a canonical slot before the conflicting label.
+    let left = Tensor::<2>::ones([2, 3], &device);
+    let right = Tensor::<2>::ones([4, 2], &device);
+    assert_shape_error(expected, || einsum!("...iJ,Ji->i", &left, &right));
+    assert_shape_error(expected, || {
+        Tensor::<1>::einsum("...iJ,Ji->i", [left.into(), right.into()])
+    });
+
+    // A middle ellipsis inserts multiple axes before the conflicting label.
+    let left = Tensor::<4>::ones([2, 1, 1, 3], &device);
+    let right = Tensor::<4>::ones([1, 1, 4, 2], &device);
+    assert_shape_error(expected, || {
+        let output: Tensor<4> = einsum!("i...J,...Ji->i...J", &left, &right);
+        output
+    });
+    assert_shape_error(expected, || {
+        Tensor::<4>::einsum("i...J,...Ji->i...J", [left.into(), right.into()])
+    });
+}
+
+#[test]
+fn shape_errors_identify_ellipsis_dimensions_from_the_right() {
+    let device = Default::default();
+    let left = Tensor::<3>::ones([2, 3, 4], &device);
+    let right = Tensor::<2>::ones([5, 4], &device);
+    let expected = "ellipsis axis 1 from the right: operand 0 has size 3, operand 1 has size 5";
+    assert_shape_error(expected, || {
+        let output: Tensor<3> = einsum!("...i,...i->...i", &left, &right);
+        output
+    });
+    assert_shape_error(expected, || {
+        Tensor::<3>::einsum("...i,...i->...i", [left.into(), right.into()])
+    });
+
+    let left = Tensor::<3>::ones([2, 1, 4], &device);
+    let right = Tensor::<3>::ones([3, 1, 4], &device);
+    let expected = "ellipsis axis 2 from the right: operand 0 has size 2, operand 1 has size 3";
+    assert_shape_error(expected, || {
+        let output: Tensor<3> = einsum!("...i,...i->i...", &left, &right);
+        output
+    });
+    assert_shape_error(expected, || {
+        Tensor::<3>::einsum("...i,...i->i...", [left.into(), right.into()])
+    });
+}
+
+#[test]
+fn shape_errors_identify_repeated_labels_after_an_earlier_diagonal() {
+    let device = Default::default();
+    let scalar = Tensor::<1>::ones([1], &device);
+    let input = Tensor::<4>::ones([2, 2, 2, 3], &device);
+    let expected =
+        "operand 1: repeated subscripts must have equal dimensions; label 'i' has sizes 2 and 3";
+    assert_shape_error(expected, || {
+        let output: Tensor<1> = einsum!(",i...ii->...", &scalar, &input);
+        output
+    });
+    assert_shape_error(expected, || {
+        Tensor::<1>::einsum(",i...ii->...", [scalar.into(), input.into()])
+    });
+}

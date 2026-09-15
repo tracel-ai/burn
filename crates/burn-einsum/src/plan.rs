@@ -2,7 +2,7 @@
 
 use alloc::{vec, vec::Vec};
 
-use crate::{ELLIPSIS, Equation};
+use crate::{ELLIPSIS, Equation, label_to_char};
 
 /// An axis or contiguous ellipsis block in a tensor layout.
 ///
@@ -23,6 +23,8 @@ pub enum Axis {
 /// Extract a repeated label's diagonal, preserving the first axis's position.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagonal {
+    /// The repeated label, retained for shape diagnostics.
+    pub label: char,
     /// The first occurrence in the current operand layout.
     pub first: Axis,
     /// The repeated occurrence removed from the current operand layout.
@@ -102,6 +104,9 @@ pub struct ContractionPlan {
 /// scalar representation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
+    /// Label names in canonical order, retained for shape diagnostics.
+    /// An ellipsis or the dummy scalar slot is represented by `None`.
+    pub labels: Vec<Option<char>>,
     /// Operand diagonal extraction and alignment plans.
     pub inputs: Vec<InputPlan>,
     /// Left-to-right combinations of the accumulator with each subsequent input.
@@ -205,6 +210,10 @@ impl Plan {
             .map(|slot| axis(slot, ellipsis))
             .collect();
         Self {
+            labels: canonical
+                .iter()
+                .map(|&label| (label < ELLIPSIS).then(|| label_to_char(label)))
+                .collect(),
             inputs,
             contractions,
             ellipsis,
@@ -250,6 +259,7 @@ impl InputPlan {
                     })
                     .collect();
                 diagonals.push(Diagonal {
+                    label: label_to_char(labels[source]),
                     first: axis(first, ellipsis),
                     second: axis(source, ellipsis),
                     permutation,

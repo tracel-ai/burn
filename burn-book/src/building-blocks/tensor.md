@@ -458,29 +458,55 @@ strategies.
 
 ## Einstein Summation
 
-Use `einsum!` to express tensor contractions with a literal equation. The macro
-checks the equation and statically determined ranks at compile time, then builds
-a shared contraction plan and generates the corresponding permutations, reshapes,
-reductions, and matrix multiplications. Axis ordering and contraction stages are
-fixed by the equation. Tensor sizes, broadcasting, and empty dimensions select
-any necessary runtime branches; ellipsis widths are bound from input ranks.
-The runtime equation API builds and executes the same plan when called.
+Use `einsum!` to express tensor contractions with an equation. Each letter names
+an input axis; commas separate operands, and `->` lists the output axes in order.
+Values are multiplied along matching labels and summed over labels omitted from
+the output. For example, `"ij,jk->ik"` multiplies two matrices and sums over `j`.
+
+| Equation | Operation |
+| --- | --- |
+| `"ij,jk->ik"` | Matrix multiplication |
+| `"ij->ji"` | Transpose |
+| `"ii->i"` | Extract a diagonal |
+| `"ii->"` | Trace (sum of the diagonal) |
+| `"i,i->"` | Dot product |
+| `"...ij,...jk->...ik"` | Matrix multiplication with broadcast batch dimensions |
 
 ```rust,ignore
 use burn::tensor::{Tensor, einsum};
 
 // Queries: [batch, queries, channels]; features: [batch, channels, height, width].
-let masks: Tensor<4> = einsum!("bqc,bchw->bqhw", queries, features);
+// Sum over channels to produce [batch, queries, height, width].
+let masks = einsum!("bqc,bchw->bqhw", &queries, &features);
 
 // Runtime equations accept operands of different ranks through `.into()`.
-let output = Tensor::<1>::einsum(&equation, [matrix.into(), vector.into()]);
+let equation = "ij,j->i";
+let output = Tensor::<1>::einsum(equation, [matrix.into(), vector.into()]);
 ```
 
-Both interfaces support explicit and implicit outputs, repeated-label diagonals,
-ellipsis broadcasting (including reduction of ellipsis dimensions), and any number
-of operands. Implicit output puts ellipsis dimensions first, then labels appearing
-exactly once, sorted `A-Z` followed by `a-z`. Repeated labels within one operand
-require equal axis sizes; matching labels across operands may broadcast size one.
+The macro checks the equation, operand count, and statically determined ranks at
+compile time. Shapes and broadcasting are checked at runtime.
+
+### Broadcasting and diagonals
+
+Matching labels across operands must have equal sizes or a size of one, which
+broadcasts to the other size. Repeated labels within a single operand extract a
+diagonal and require equal axis sizes; singleton broadcasting does not apply there.
+
+An ellipsis (`...`) matches zero or more axes. Ellipsis dimensions broadcast from
+the right: `"...ij,...jk->...ik"` can multiply shapes `[2, 3, 4]` and `[4, 5]` to
+produce `[2, 3, 5]`. Supply the result type when an output ellipsis has unknown width:
+
+```rust,ignore
+let result: Tensor<3> = einsum!("...ij,...jk->...ik", batches, matrix);
+```
+
+Omitting `...` from an explicit output sums over its dimensions. With no `->`, the
+output contains the ellipsis first, followed by labels occurring exactly once
+across all inputs, sorted `A-Z`, then `a-z`. Each axis label is a single letter from
+`a-z` or `A-Z`. Uppercase and lowercase letters are distinct labels.
+
+### Types and limitations
 
 Float and Int operands must share their kind, dtype, and device. Scalar results
 have shape `[1]`; an empty input subscript also accepts a tensor of shape `[1]`.

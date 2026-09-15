@@ -97,6 +97,10 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
     });
     let output_dimensions = plan.output_dimensions;
     let total_dimensions = plan.total_dimensions;
+    let labels = plan.labels.iter().map(|label| match label {
+        Some(label) => quote! { ::core::option::Option::Some(#label) },
+        None => quote! { ::core::option::Option::None },
+    });
     let ellipsis = match plan.ellipsis {
         Some(axis) => quote! { ::core::option::Option::Some(#axis) },
         None => quote! { ::core::option::Option::None },
@@ -113,11 +117,12 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
                 quote! { let #local_width = #name.shape().len() - #named_rank; }
             });
             let diagonals = input.diagonals.iter().map(|diagonal| {
+                let label = diagonal.label;
                 let first = axis_expr(&diagonal.first, &local_width);
                 let second = axis_expr(&diagonal.second, &local_width);
                 let permutation = axes_expr(&diagonal.permutation, &local_width, &krate);
                 let restore = axes_expr(&diagonal.restore, &local_width, &krate);
-                quote! { let #name = #name.diagonal(#first, #second, #permutation, #restore); }
+                quote! { let #name = #name.diagonal(#first, #second, #permutation, #restore, #label, #index); }
             });
             let permutation = axes_expr(&input.permutation, &local_width, &krate);
             let present = &input.axes;
@@ -251,7 +256,9 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
         let #width = #prepared.ellipsis_width;
         let #output_rank = #prepared.output_rank;
         #(#alignments)*
-        let #last_use = #krate::__einsum::validate_broadcast(&[#(&#names),*]);
+        let #last_use = #krate::__einsum::validate_broadcast(
+            &[#(&#names),*], &[#(#labels),*], #width,
+        );
         let #result = #first;
         #(#contractions)*
         #final_reduce
@@ -365,9 +372,9 @@ mod tests {
     #[test]
     fn diagonal_and_reduction_are_emitted_as_operations() {
         let expanded = expanded(quote! { burn, "ii->", matrix });
-        assert!(
-            expanded.contains(". diagonal (0usize , 1usize , & [0usize , 1usize] , & [0usize])")
-        );
+        assert!(expanded.contains(
+            ". diagonal (0usize , 1usize , & [0usize , 1usize] , & [0usize] , 'i' , 0usize)"
+        ));
         assert!(expanded.contains(". sum_dims (& [0usize])"));
         assert!(!expanded.contains(". matmul ("));
     }
@@ -419,7 +426,8 @@ mod tests {
                 &burn::__einsum::axes(&[
                     burn::__einsum::Axis::AfterEllipsis(0usize),
                     burn::__einsum::Axis::Ellipsis(0usize)
-                ], __einsum_input_width_0)
+                ], __einsum_input_width_0),
+                'i', 0usize
             )
         };
         assert!(expanded.contains(&diagonal.to_string()));
