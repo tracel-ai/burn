@@ -21,9 +21,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("rfft / irfft benchmarks");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 fn make_signal_1d(n: usize) -> Tensor<1> {

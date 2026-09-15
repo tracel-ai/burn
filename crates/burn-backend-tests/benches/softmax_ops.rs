@@ -19,9 +19,7 @@ static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Softmax Benchmarks: fused (via B::softmax) vs decomposed");
-    println!();
-    divan::main();
-    common::report_failures();
+    common::bench_main();
 }
 
 fn make_tensor_3d<E: Element + From<f32>>(d0: usize, d1: usize, d2: usize) -> Tensor<3> {
