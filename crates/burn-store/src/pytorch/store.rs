@@ -2,7 +2,7 @@
 
 use crate::{
     ApplyResult, KeyRemapper, ModuleSnapshot, ModuleStore, PathFilter, PyTorchToBurnAdapter,
-    map_indices_contiguous,
+    bridge, map_indices_contiguous,
 };
 
 use alloc::collections::BTreeMap;
@@ -15,7 +15,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use std::path::PathBuf;
 
-use super::reader::{PytorchError as ReaderError, PytorchReader};
+use pytorch_reader::{PytorchError as ReaderError, PytorchReader};
 
 /// Errors that can occur during PyTorch operations.
 #[derive(Debug)]
@@ -412,9 +412,13 @@ impl PytorchStore {
 
         let reader = self.create_reader()?;
 
-        // The reader already names each tensor by its key, and PyTorch carries no parameter
-        // identity, so nothing has to be patched up here.
-        let mut tensors: Vec<PackTensor> = reader.into_tensors().into_values().collect();
+        // The reader already names each tensor by its key, so nothing has to be patched up
+        // here beyond wrapping each one for the applier.
+        let mut tensors: Vec<PackTensor> = reader
+            .into_tensors()
+            .into_values()
+            .map(bridge::from_pytorch)
+            .collect();
 
         // Apply remapping (but NOT filtering - that's done at apply time)
         tensors = self.apply_remapping(tensors);

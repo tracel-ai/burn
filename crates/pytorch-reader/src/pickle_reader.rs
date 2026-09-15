@@ -11,12 +11,8 @@
 //! built ahead of time), and `REDUCE` calls of `torch._utils._rebuild_tensor*` turn a storage
 //! reference into a tensor whose bytes are read only when asked for.
 
-use super::storage::{StorageSource, read_exact_len};
-use crate::bridge;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
-use burn_core::tensor::{BoolStore, DType, TensorData};
-use burn_pack::{Error as PackError, MAX_TENSOR_SIZE, Tensor as PackTensor};
+use crate::storage::{StorageSource, read_exact_len};
+use crate::{DType, MAX_TENSOR_SIZE, Tensor};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
 use std::io::{self, BufRead};
@@ -287,7 +283,7 @@ pub enum Object {
     /// A Python object this reader does not interpret: an unknown `REDUCE`, `NEWOBJ`,
     /// `NEWOBJ_EX` or `BUILD`. Nothing downstream looks inside one, so nothing is kept.
     Opaque,
-    Tensor(PackTensor),
+    Tensor(Tensor),
 }
 
 impl Object {
@@ -350,7 +346,7 @@ pub(crate) enum PersistentIds {
     /// `('storage', type, key, location, numel[, view])` tuples, backed by a source.
     Storages(Arc<StorageSource>),
     /// Ids naming tensors built ahead of time (the TAR container).
-    Tensors(HashMap<String, PackTensor>),
+    Tensors(HashMap<String, Tensor>),
 }
 
 /// Parse one pickle from `r`, leaving it positioned just after the `STOP` opcode.
@@ -374,7 +370,7 @@ pub(crate) fn storage_type_to_dtype(storage_type: &str) -> Result<DType> {
         "ShortStorage" => Ok(DType::I16),
         "CharStorage" => Ok(DType::I8),
         "ByteStorage" => Ok(DType::U8),
-        "BoolStorage" => Ok(DType::Bool(BoolStore::Native)),
+        "BoolStorage" => Ok(DType::Bool),
         _ => Err(PickleError::UnsupportedType(format!(
             "torch.{storage_type}"
         ))),
@@ -396,7 +392,7 @@ fn torch_dtype_to_dtype(name: &str) -> Result<DType> {
         "uint16" => Ok(DType::U16),
         "uint32" => Ok(DType::U32),
         "uint64" => Ok(DType::U64),
-        "bool" => Ok(DType::Bool(BoolStore::Native)),
+        "bool" => Ok(DType::Bool),
         _ => Err(PickleError::UnsupportedType(format!("torch.{name}"))),
     }
 }
@@ -653,7 +649,7 @@ enum TensorRebuild {
     V2,
     /// `_rebuild_tensor_v3(storage, storage_offset, size, stride, requires_grad, hooks, dtype[, metadata])`,
     /// used for element types without a typed storage class (uint16/32/64, float8 and
-    /// others). Only the unsigned ints have a burn dtype; the rest are unsupported.
+    /// others). Only the unsigned ints have a [`DType`]; the rest are unsupported.
     V3,
 }
 
@@ -861,7 +857,7 @@ pub(crate) fn build_tensor(
     storage_offset: usize,
     shape: Vec<usize>,
     stride: Vec<usize>,
-) -> Result<PackTensor> {
+) -> Result<Tensor> {
     let element_size = dtype.size();
     let storage_offset = storage_offset
         .checked_add(storage.view_offset)
@@ -879,9 +875,7 @@ pub(crate) fn build_tensor(
             storage.key
         )));
     }
-    // A view can declare far more logical elements than its storage holds (an `expand` has
-    // stride 0), so the file gives no bound on what a tensor materializes. Apply the
-    // burn-pack ceiling that its own reader already enforces.
+    // See `MAX_TENSOR_SIZE`: the file itself bounds nothing here.
     if byte_len > MAX_TENSOR_SIZE {
         return Err(PickleError::InvalidData(format!(
             "Tensor with shape {shape:?} would materialize {byte_len} bytes, above the {MAX_TENSOR_SIZE} byte limit"
@@ -894,20 +888,33 @@ pub(crate) fn build_tensor(
     // tensor's offset or past its extent, is not paid for.
     let window_start = storage_offset.saturating_mul(element_size);
     let window_len = (extent - storage_offset).saturating_mul(element_size);
-    let provider = move || -> std::result::Result<TensorData, PackError> {
+    let provider = move || -> io::Result<Vec<u8>> {
         let shape = &provider_shape;
         let (mut data, skipped) = source.read(&key, window_start, window_len).map_err(|err| {
-            PackError::ValidationError(format!(
-                "Failed to read storage '{key}' for tensor with shape {shape:?}: {err}"
-            ))
+            // A source reports a missing, corrupt or unreadable storage with whatever kind
+            // it or its container library chose, so they are folded into one. Only an error
+            // that came from the operating system keeps its kind: that is how a caller tells
+            // a file that disagrees with itself from one it cannot read.
+            let kind = match err.kind() {
+                kind if err.raw_os_error().is_some() => kind,
+                io::ErrorKind::UnexpectedEof => io::ErrorKind::UnexpectedEof,
+                _ => io::ErrorKind::InvalidData,
+            };
+            io::Error::new(
+                kind,
+                format!("Failed to read storage '{key}' for tensor with shape {shape:?}: {err}"),
+            )
         })?;
 
         // `data` starts at the tensor's own offset, so every index below is relative to it.
         let available = (skipped + data.len()) / element_size;
         if extent > available {
-            return Err(PackError::ValidationError(format!(
-                "Tensor with shape {shape:?} requires {extent} elements from storage '{key}', but only {available} are available"
-            )));
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                format!(
+                    "Tensor with shape {shape:?} requires {extent} elements from storage '{key}', but only {available} are available"
+                ),
+            ));
         }
 
         let mut bytes = if is_contiguous_stride(shape, &stride) {
@@ -918,26 +925,20 @@ pub(crate) fn build_tensor(
         };
 
         to_native_endian(&mut bytes, element_size);
-        if matches!(dtype, DType::Bool(_)) {
+        if dtype == DType::Bool {
             // A well-formed file holds only 0 or 1; any other byte would be an invalid
-            // `bool`, so normalize before reinterpreting.
+            // `bool`, so normalize so a consumer can reinterpret them as such.
             for byte in &mut bytes {
                 *byte = u8::from(*byte != 0);
             }
         }
 
-        Ok(TensorData::from_bytes_vec(bytes, shape.clone(), dtype))
+        Ok(bytes)
     };
 
-    // The tensor's name is a path through the pickle's dicts, assembled by the caller that
-    // walks them. PyTorch carries no parameter identity, so `param_id` stays `None`.
-    Ok(bridge::deferred(
-        String::new(),
-        dtype,
-        shape.into(),
-        None,
-        provider,
-    ))
+    // The tensor's name is its path through the pickle's dicts, which `extract_tensors`
+    // assigns once the whole pickle has been walked.
+    Ok(Tensor::new(String::new(), dtype, shape, provider))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1583,8 +1584,8 @@ fn insert_pairs(dict: &mut HashMap<String, Object>, items: Vec<Object>) -> Resul
 /// Only dicts are descended into: a state_dict is one, and a tensor reached any other way is
 /// ignored. A tensor is built without a name, its path being assembled only here, so this is
 /// also where each one gets its final identity.
-pub(crate) fn extract_tensors(dict: HashMap<String, Object>) -> HashMap<String, PackTensor> {
-    fn walk(obj: Object, path: &mut Vec<String>, tensors: &mut HashMap<String, PackTensor>) {
+pub(crate) fn extract_tensors(dict: HashMap<String, Object>) -> HashMap<String, Tensor> {
+    fn walk(obj: Object, path: &mut Vec<String>, tensors: &mut HashMap<String, Tensor>) {
         match obj {
             Object::Dict(dict) => {
                 for (key, value) in dict {
@@ -1608,12 +1609,13 @@ pub(crate) fn extract_tensors(dict: HashMap<String, Object>) -> HashMap<String, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::{read_as, test_data_path};
     use std::io::Cursor;
 
     fn fixture_source() -> Arc<StorageSource> {
-        let path = crate::pytorch::tests::reader::test_data_path("non_contiguous.pt");
+        let path = test_data_path("non_contiguous.pt");
         Arc::new(StorageSource::Zip(
-            super::super::storage::ZipSource::open(&path).unwrap(),
+            crate::storage::ZipSource::open(&path).unwrap(),
         ))
     }
 
@@ -1651,7 +1653,7 @@ mod tests {
         ])
     }
 
-    fn rebuild(args: Object) -> Result<PackTensor> {
+    fn rebuild(args: Object) -> Result<Tensor> {
         match rebuild_tensor(args, TensorRebuild::Legacy)? {
             Object::Tensor(tensor) => Ok(tensor),
             other => panic!("expected tensor, got {other:?}"),
@@ -2005,8 +2007,9 @@ mod tests {
                 &source,
             ))
             .unwrap_or_else(|e| panic!("{name}: {e}"));
-            let data = bridge::into_data(tensor).unwrap_or_else(|e| panic!("{name}: {e}"));
-            assert_eq!(data.as_slice::<f32>().unwrap(), expected, "{name}");
+            let bytes = tensor.read().unwrap_or_else(|e| panic!("{name}: {e}"));
+            let data: Vec<f32> = bytemuck::pod_collect_to_vec(&bytes);
+            assert_eq!(data, expected, "{name}");
         }
     }
 
@@ -2026,11 +2029,7 @@ mod tests {
             &source,
         ))
         .unwrap();
-        let data = bridge::into_data(tensor).unwrap();
-        assert_eq!(
-            data.as_slice::<i16>().unwrap(),
-            &[0, 16256, 16384, 0, 0, 0][..]
-        );
+        assert_eq!(read_as::<i16>(&tensor), [0, 16256, 16384, 0, 0, 0]);
 
         let tensor = rebuild(rebuild_args(
             "ByteStorage",
@@ -2042,11 +2041,7 @@ mod tests {
             &source,
         ))
         .unwrap();
-        let data = bridge::into_data(tensor).unwrap();
-        assert_eq!(
-            data.as_slice::<u8>().unwrap(),
-            &[0, 128, 0, 64, 0, 63, 64, 64][..]
-        );
+        assert_eq!(read_as::<u8>(&tensor), [0, 128, 0, 64, 0, 63, 64, 64]);
 
         let tensor = rebuild(rebuild_args(
             "DoubleStorage",
@@ -2058,10 +2053,7 @@ mod tests {
             &source,
         ))
         .unwrap();
-        let data = bridge::into_data(tensor).unwrap();
-        let bits: Vec<u64> = data
-            .as_slice::<f64>()
-            .unwrap()
+        let bits: Vec<u64> = read_as::<f64>(&tensor)
             .iter()
             .map(|v| v.to_bits())
             .collect();
@@ -2119,11 +2111,13 @@ mod tests {
             &source,
         ))
         .unwrap();
-        let err = bridge::into_data(tensor).unwrap_err();
-        assert!(matches!(
-            err,
-            PackError::ValidationError(msg) if msg.contains("requires 46 elements from storage '0', but only 32 are available")
-        ));
+        let err = tensor.read().unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+        assert!(
+            err.to_string()
+                .contains("requires 46 elements from storage '0', but only 32 are available"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -2158,11 +2152,7 @@ mod tests {
             &source,
         ))
         .unwrap();
-        let data = bridge::into_data(tensor).unwrap();
-        assert_eq!(
-            data.as_slice::<f32>().unwrap(),
-            &[1.0, 2.0, 3.0, 1.0, 2.0, 3.0]
-        );
+        assert_eq!(read_as::<f32>(&tensor), [1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
     }
 
     #[test]
@@ -2178,11 +2168,7 @@ mod tests {
             &source,
         ))
         .unwrap();
-        let data = bridge::into_data(tensor).unwrap();
-        assert_eq!(
-            data.as_slice::<f32>().unwrap(),
-            &[5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
-        );
+        assert_eq!(read_as::<f32>(&tensor), [5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
     }
 
     #[test]
@@ -2198,10 +2184,9 @@ mod tests {
             &source,
         ))
         .unwrap();
-        let data = bridge::into_data(tensor).unwrap();
         assert_eq!(
-            data.as_slice::<f32>().unwrap(),
-            &[
+            read_as::<f32>(&tensor),
+            [
                 5.0, 9.0, 13.0, 6.0, 10.0, 14.0, 7.0, 11.0, 15.0, 8.0, 12.0, 16.0, 17.0, 21.0,
                 25.0, 18.0, 22.0, 26.0, 19.0, 23.0, 27.0, 20.0, 24.0, 28.0,
             ]
@@ -2212,8 +2197,7 @@ mod tests {
     fn legacy_rebuild_tensor_loads_scalar_at_offset() {
         let source = fixture_source();
         let tensor = rebuild(rebuild_args("FloatStorage", "0", 32, 5, &[], &[], &source)).unwrap();
-        let data = bridge::into_data(tensor).unwrap();
-        assert_eq!(data.as_slice::<f32>().unwrap(), &[5.0]);
+        assert_eq!(read_as::<f32>(&tensor), [5.0]);
     }
 
     #[test]
@@ -2231,8 +2215,7 @@ mod tests {
         let storage = resolve_storage_id(&pid, &source).unwrap();
         assert_eq!(storage.view_offset, 4);
         let tensor = build_tensor(storage, DType::F32, 1, vec![3], vec![1]).unwrap();
-        let data = bridge::into_data(tensor).unwrap();
-        assert_eq!(data.as_slice::<f32>().unwrap(), &[5.0, 6.0, 7.0]);
+        assert_eq!(read_as::<f32>(&tensor), [5.0, 6.0, 7.0]);
     }
 
     #[test]
@@ -2265,10 +2248,9 @@ mod tests {
         let Object::Tensor(tensor) = rebuild_tensor(args, TensorRebuild::V3).unwrap() else {
             panic!("expected tensor");
         };
-        assert_eq!(tensor.dtype, DType::U32);
-        let data = bridge::into_data(tensor).unwrap();
+        assert_eq!(tensor.dtype(), DType::U32);
         // The storage holds f32 0.0 and 1.0; read as u32 bit patterns.
-        assert_eq!(data.as_slice::<u32>().unwrap(), &[0, 1.0f32.to_bits()]);
+        assert_eq!(read_as::<u32>(&tensor), [0, 1.0f32.to_bits()]);
     }
 
     #[test]
@@ -2294,11 +2276,7 @@ mod tests {
         let Object::Tensor(tensor) = reduce(callable, args).unwrap() else {
             panic!("expected tensor");
         };
-        let data = bridge::into_data(tensor).unwrap();
-        assert_eq!(
-            data.as_slice::<f32>().unwrap(),
-            &[5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
-        );
+        assert_eq!(read_as::<f32>(&tensor), [5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
     }
 
     #[test]
@@ -2310,13 +2288,8 @@ mod tests {
             unreachable!()
         };
         let storage = resolve_storage_id(&pid, &source).unwrap();
-        let tensor =
-            build_tensor(storage, DType::Bool(BoolStore::Native), 0, vec![8], vec![1]).unwrap();
-        let data = bridge::into_data(tensor).unwrap();
-        assert_eq!(
-            data.as_slice::<bool>().unwrap(),
-            &[false, false, false, false, false, false, true, true]
-        );
+        let tensor = build_tensor(storage, DType::Bool, 0, vec![8], vec![1]).unwrap();
+        assert_eq!(tensor.read().unwrap(), [0, 0, 0, 0, 0, 0, 1, 1]);
     }
 
     #[test]
@@ -2431,11 +2404,12 @@ mod tests {
             &source,
         ))
         .unwrap();
-        let err = bridge::into_data(tensor).unwrap_err();
-        assert!(matches!(
-            err,
-            PackError::ValidationError(msg)
-                if msg.contains("Failed to read storage 'missing' for tensor with shape [2, 3]")
-        ));
+        let err = tensor.read().unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(
+            err.to_string()
+                .contains("Failed to read storage 'missing' for tensor with shape [2, 3]"),
+            "{err}"
+        );
     }
 }

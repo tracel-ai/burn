@@ -3,7 +3,7 @@
 # dependencies = ["torch", "numpy"]
 # ///
 """
-Generate test PyTorch .pt files for testing the burn-store PyTorch reader.
+Generate test PyTorch .pt files for testing the pytorch-reader crate.
 Run with: uv run test_files.py
 """
 
