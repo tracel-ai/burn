@@ -63,7 +63,6 @@ mod nearest_interpolate;
 mod neg;
 mod nonzero;
 mod permute;
-mod perf_repro;
 mod pow;
 #[cfg(feature = "quantization")]
 mod quantization;
