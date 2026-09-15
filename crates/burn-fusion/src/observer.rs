@@ -75,6 +75,18 @@ pub struct FusionObservation {
     id: ObservationId,
 }
 
+/// The operations one block covers, in the order it runs them: the operations
+/// one fused kernel replaces, or the one operation an unfused block runs.
+///
+/// A view over the server's own queue rather than a list, so an observed block
+/// costs no allocation. The order is the block's, which is not registration
+/// order.
+#[derive(Debug, Clone, Copy)]
+pub struct BlockOperations<'a> {
+    operations: &'a [OperationIr],
+    ordering: &'a [usize],
+}
+
 impl FusionObservation {
     /// Installs `observer` until the guard drops.
     pub fn new(observer: Arc<dyn FusionObserver>) -> Self {
@@ -88,18 +100,6 @@ impl Drop for FusionObservation {
     fn drop(&mut self) {
         OBSERVERS.remove(self.id);
     }
-}
-
-/// The operations one block covers, in the order it runs them: the operations
-/// one fused kernel replaces, or the one operation an unfused block runs.
-///
-/// A view over the server's own queue rather than a list, so an observed block
-/// costs no allocation. The order is the block's, which is not registration
-/// order.
-#[derive(Debug, Clone, Copy)]
-pub struct BlockOperations<'a> {
-    operations: &'a [OperationIr],
-    ordering: &'a [usize],
 }
 
 impl<'a> BlockOperations<'a> {
