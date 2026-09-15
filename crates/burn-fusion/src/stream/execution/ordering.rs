@@ -4,6 +4,7 @@ use burn_ir::{HandleContainer, OperationIr, TensorError};
 
 use super::{OnPanic, Outcome, Panic, WriteScope, claim_block};
 
+use crate::observer::{BlockOperations, observe_block};
 use crate::{FusionRuntime, NumOperations, Optimization, UnfusedOp, stream::Context};
 
 /// What a finished [`OrderedExecution`] hands back to the queue.
@@ -257,15 +258,13 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         // Reborrowed: the optimization reads this execution while the scope
         // holds the context it writes through.
         let this = &*self;
-        let observed = crate::observer::notify_block_starts(|| {
-            ordering.iter().map(|index| &this.ir[*index]).collect()
-        });
-        let outcome =
+        let block = BlockOperations::new(&this.ir, &ordering);
+        let outcome = observe_block(block, || {
             WriteScope::over_block(&this.ir, &ordering, context).run(OnPanic::Catch, |context| {
                 optimization.execute(context, this);
                 Ok(())
-            });
-        observed.ran();
+            })
+        });
 
         match outcome {
             Outcome::Ran => {}
@@ -311,10 +310,10 @@ impl<R: FusionRuntime> OrderedExecution<R> {
             // if they do, the next one skips on the claim its input now
             // carries. Scoping the whole loop instead would make an unrelated
             // operation's outcome depend on queue order.
-            let observed = crate::observer::notify_block_starts(|| vec![ir]);
-            let outcome =
-                WriteScope::over(ir, handles).run(OnPanic::Catch, |handles| op.execute(handles));
-            observed.ran();
+            let block = BlockOperations::new(&self.ir, std::slice::from_ref(id));
+            let outcome = observe_block(block, || {
+                WriteScope::over(ir, handles).run(OnPanic::Catch, |handles| op.execute(handles))
+            });
 
             match outcome {
                 Outcome::Ran => {}
