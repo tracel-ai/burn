@@ -20,15 +20,13 @@ use core::fmt;
 pub const ELLIPSIS: u8 = 52;
 
 /// A parsed einsum equation, independent of operand shapes.
+///
+/// Created by [`Self::parse`] or [`parse`]. Labels are exposed read-only so the
+/// equation retains the invariants required for planning.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Equation {
-    /// Labels for each operand, including repeated labels and ellipses.
-    pub inputs: Vec<Vec<u8>>,
-    /// Output labels in their requested order.
-    ///
-    /// Implicit output starts with [`ELLIPSIS`], followed by the named labels
-    /// occurring exactly once in all inputs, in alphabetical order.
-    pub output: Vec<u8>,
+    inputs: Vec<Vec<u8>>,
+    output: Vec<u8>,
 }
 
 impl Equation {
@@ -37,9 +35,21 @@ impl Equation {
         parse(equation)
     }
 
+    /// Labels for each operand, including repeated labels and ellipses.
+    pub fn inputs(&self) -> &[Vec<u8>] {
+        &self.inputs
+    }
+
+    /// Output labels in their requested order.
+    ///
+    /// Implicit output starts with [`ELLIPSIS`], followed by the named labels
+    /// occurring exactly once in all inputs, in alphabetical order.
+    pub fn output(&self) -> &[u8] {
+        &self.output
+    }
+
     /// Plan diagonals, alignment, and contractions without inspecting tensor shapes.
     ///
-    /// The equation must satisfy the invariants checked by [`Self::parse`].
     /// Ellipsis widths, dimension sizes, and broadcasting remain runtime concerns.
     pub fn plan(&self) -> Plan {
         Plan::new(self)
@@ -256,8 +266,8 @@ mod tests {
     #[test]
     fn explicit_output_preserves_order_and_input_diagonals() {
         let equation = parse("ii,jk->ki").unwrap();
-        assert_eq!(equation.inputs, vec![named("ii"), named("jk")]);
-        assert_eq!(equation.output, named("ki"));
+        assert_eq!(equation.inputs(), &[named("ii"), named("jk")]);
+        assert_eq!(equation.output(), named("ki"));
     }
 
     #[test]
@@ -265,21 +275,21 @@ mod tests {
         let equation = parse("ziiA,bj,j").unwrap();
         let mut output = vec![ELLIPSIS];
         output.extend(named("Abz"));
-        assert_eq!(equation.output, output);
+        assert_eq!(equation.output(), output);
         assert_eq!(equation.output_rank(), Some(3));
     }
 
     #[test]
     fn scalars_and_empty_subscripts_are_valid() {
         let scalar = parse("").unwrap();
-        assert_eq!(scalar.inputs, vec![vec![]]);
-        assert_eq!(scalar.output, vec![ELLIPSIS]);
+        assert_eq!(scalar.inputs(), &[vec![]]);
+        assert_eq!(scalar.output(), &[ELLIPSIS]);
         assert_eq!(scalar.input_rank(0), Some(0));
         assert_eq!(scalar.output_rank(), Some(0));
         let product = parse(",i,->").unwrap();
-        assert_eq!(product.inputs, vec![vec![], named("i"), vec![]]);
-        assert!(product.output.is_empty());
-        assert_eq!(parse("->").unwrap().inputs, vec![vec![]]);
+        assert_eq!(product.inputs(), &[vec![], named("i"), vec![]]);
+        assert!(product.output().is_empty());
+        assert_eq!(parse("->").unwrap().inputs(), &[vec![]]);
     }
 
     #[test]
@@ -290,8 +300,8 @@ mod tests {
     #[test]
     fn ellipses_can_be_retained_reordered_or_reduced() {
         let retained = parse("...ij,jk->i...k").unwrap();
-        assert_eq!(retained.inputs[0], vec![ELLIPSIS, 34, 35]);
-        assert_eq!(retained.output, vec![34, ELLIPSIS, 36]);
+        assert_eq!(retained.inputs()[0], vec![ELLIPSIS, 34, 35]);
+        assert_eq!(retained.output(), &[34, ELLIPSIS, 36]);
         assert_eq!(retained.input_rank(0), None);
         assert_eq!(retained.input_rank(1), Some(2));
         assert_eq!(retained.input_rank(2), None);

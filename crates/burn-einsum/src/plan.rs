@@ -124,11 +124,11 @@ pub struct Plan {
 impl Plan {
     pub(crate) fn new(equation: &Equation) -> Self {
         let has_ellipsis = equation
-            .inputs
+            .inputs()
             .iter()
             .any(|input| input.contains(&ELLIPSIS));
         let mut canonical: Vec<_> = equation
-            .output
+            .output()
             .iter()
             .copied()
             .filter(|&label| label != ELLIPSIS || has_ellipsis)
@@ -139,7 +139,7 @@ impl Plan {
         }
         let ellipsis = canonical.iter().position(|&label| label == ELLIPSIS);
         let mut present = [false; ELLIPSIS as usize];
-        for input in &equation.inputs {
+        for input in equation.inputs() {
             for &label in input {
                 if label != ELLIPSIS {
                     present[label as usize] = true;
@@ -157,7 +157,7 @@ impl Plan {
         }
         let total_dimensions = canonical.len();
         let inputs: Vec<_> = equation
-            .inputs
+            .inputs()
             .iter()
             .map(|input| InputPlan::new(input, &canonical))
             .collect();

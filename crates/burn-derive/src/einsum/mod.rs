@@ -49,12 +49,12 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
     } = input;
     let parsed = burn_einsum::parse(&equation.value())
         .map_err(|error| syn::Error::new(equation.span(), error.to_string()))?;
-    if parsed.inputs.len() != operands.len() {
+    if parsed.inputs().len() != operands.len() {
         return Err(syn::Error::new(
             equation.span(),
             format!(
                 "einsum equation describes {} operand(s), but {} were supplied",
-                parsed.inputs.len(),
+                parsed.inputs().len(),
                 operands.len()
             ),
         ));
@@ -70,7 +70,7 @@ pub(crate) fn expand(input: EinsumInput) -> syn::Result<TokenStream> {
         operands
             .iter()
             .zip(&names)
-            .zip(&parsed.inputs)
+            .zip(parsed.inputs())
             .map(|((operand, name), labels)| {
                 let rank_check = if labels.contains(&ELLIPSIS) {
                     // Ellipsis rank is checked while preparing the operands.
