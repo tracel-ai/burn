@@ -197,81 +197,6 @@ mod tests {
     use std::sync::{Mutex, MutexGuard, OnceLock};
     use std::thread::ThreadId;
 
-    /// Records what reaches it from the thread that made it, and nothing else:
-    /// other tests in this binary register operations on their own threads
-    /// while it is installed.
-    struct Recorder {
-        thread: ThreadId,
-        events: Mutex<Vec<String>>,
-    }
-
-    impl Recorder {
-        fn new() -> Arc<Self> {
-            Arc::new(Self {
-                thread: std::thread::current().id(),
-                events: Mutex::default(),
-            })
-        }
-
-        fn record(&self, event: impl FnOnce() -> String) {
-            if std::thread::current().id() == self.thread {
-                self.events.lock().unwrap().push(event());
-            }
-        }
-
-        fn events(&self) -> Vec<String> {
-            self.events.lock().unwrap().clone()
-        }
-    }
-
-    impl FusionObserver for Recorder {
-        fn registered(&self, operation: &OperationIr) {
-            self.record(|| format!("+{}", id(operation)));
-        }
-        fn block_starts(&self, operations: &[&OperationIr]) {
-            self.record(|| {
-                let ids: Vec<String> = operations.iter().map(|op| id(op)).collect();
-                format!("[{}", ids.join(","))
-            });
-        }
-        fn block_ran(&self) {
-            self.record(|| "]".to_string());
-        }
-    }
-
-    struct Silent;
-
-    impl FusionObserver for Silent {
-        fn registered(&self, _operation: &OperationIr) {}
-        fn block_starts(&self, _operations: &[&OperationIr]) {}
-        fn block_ran(&self) {}
-    }
-
-    /// Serializes the tests that install observers: what is installed is
-    /// process-wide, and each checks it.
-    fn serial() -> MutexGuard<'static, ()> {
-        static SERIAL: Mutex<()> = Mutex::new(());
-        SERIAL
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
-
-    fn id(operation: &OperationIr) -> String {
-        match operation {
-            OperationIr::Drop(tensor) => tensor.id.value().to_string(),
-            _ => "?".to_string(),
-        }
-    }
-
-    fn drop_of(value: u64) -> OperationIr {
-        OperationIr::Drop(TensorIr {
-            id: TensorId::new(value),
-            shape: Shape::new([1]),
-            status: TensorStatus::ReadWrite,
-            dtype: DType::F32,
-        })
-    }
-
     /// An installed observer sees registrations and blocks in the order they
     /// happen, gathered only while it is installed.
     #[test]
@@ -388,5 +313,80 @@ mod tests {
 
         assert!(installed().is_none());
         assert!(!OBSERVING.load(Ordering::Relaxed));
+    }
+
+    /// Records what reaches it from the thread that made it, and nothing else:
+    /// other tests in this binary register operations on their own threads
+    /// while it is installed.
+    struct Recorder {
+        thread: ThreadId,
+        events: Mutex<Vec<String>>,
+    }
+
+    impl Recorder {
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                thread: std::thread::current().id(),
+                events: Mutex::default(),
+            })
+        }
+
+        fn record(&self, event: impl FnOnce() -> String) {
+            if std::thread::current().id() == self.thread {
+                self.events.lock().unwrap().push(event());
+            }
+        }
+
+        fn events(&self) -> Vec<String> {
+            self.events.lock().unwrap().clone()
+        }
+    }
+
+    impl FusionObserver for Recorder {
+        fn registered(&self, operation: &OperationIr) {
+            self.record(|| format!("+{}", id(operation)));
+        }
+        fn block_starts(&self, operations: &[&OperationIr]) {
+            self.record(|| {
+                let ids: Vec<String> = operations.iter().map(|op| id(op)).collect();
+                format!("[{}", ids.join(","))
+            });
+        }
+        fn block_ran(&self) {
+            self.record(|| "]".to_string());
+        }
+    }
+
+    struct Silent;
+
+    impl FusionObserver for Silent {
+        fn registered(&self, _operation: &OperationIr) {}
+        fn block_starts(&self, _operations: &[&OperationIr]) {}
+        fn block_ran(&self) {}
+    }
+
+    /// Serializes the tests that install observers: what is installed is
+    /// process-wide, and each checks it.
+    fn serial() -> MutexGuard<'static, ()> {
+        static SERIAL: Mutex<()> = Mutex::new(());
+        SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn id(operation: &OperationIr) -> String {
+        match operation {
+            OperationIr::Drop(tensor) => tensor.id.value().to_string(),
+            _ => "?".to_string(),
+        }
+    }
+
+    fn drop_of(value: u64) -> OperationIr {
+        OperationIr::Drop(TensorIr {
+            id: TensorId::new(value),
+            shape: Shape::new([1]),
+            status: TensorStatus::ReadWrite,
+            dtype: DType::F32,
+        })
     }
 }
