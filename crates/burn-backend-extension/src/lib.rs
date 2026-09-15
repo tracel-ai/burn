@@ -136,8 +136,9 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// - Owned ordinary arguments implementing `Clone + Send + Sync + 'static`.
 /// - Output metadata computable without tensor readback.
 ///
-/// Wrong dtype categories are rejected before registration; actual output shape, dtype, or device
+/// Wrong dtype categories are rejected before registration; actual output dtype or device
 /// mismatches become execution errors, as do output variants differing from their metadata.
+/// Fusion uses the metadata callback's output shapes without checking them against the backend results.
 /// Ordinary output fields come from metadata; the inner backend's values are discarded without
 /// comparison. Custom kernels are opaque unless a custom optimizer recognizes their IR.
 ///

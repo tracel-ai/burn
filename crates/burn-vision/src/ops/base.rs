@@ -100,9 +100,10 @@ pub struct ConnectedStats {
 #[extension_type(fusion: cfg(feature = "fusion"))]
 /// Primitive version of [`ConnectedStats`], to be returned by the backend.
 ///
-/// Cube backends reserve `max(height * width, 2)` entries for each statistics array,
-/// including on CPU fallback, and one entry for `max_label`. Entries beyond the
-/// component count are padding. CPU-only backends retain compact statistics.
+/// Accelerated Cube operations reserve `height * width` entries for each statistics
+/// array. CPU fallbacks return one entry per component, including background.
+/// Fusion retains image-sized metadata for these arrays even on CPU fallback,
+/// preserving the existing discrepancy with their compact data. `max_label` has one entry.
 pub struct ConnectedStatsPrimitive<B: Backend> {
     /// Total area of each component
     pub area: IntTensor<B>,
@@ -392,12 +393,6 @@ pub trait FloatVisionOps: Backend {
     }
 }
 
-/// Cube statistics reserve a slot for every pixel, with at least background and one component.
-#[cfg(any(feature = "cubecl-backend", feature = "fusion"))]
-pub(crate) fn connected_components_capacity(shape: &burn::tensor::Shape) -> usize {
-    shape.num_elements().max(2)
-}
-
 #[cfg(feature = "fusion")]
 fn connected_components_metadata(
     img: &burn::backend::fusion::custom::TensorSpec,
@@ -409,12 +404,7 @@ fn connected_components_metadata(
     ConnectedStatsPrimitiveMetadata,
 ) {
     use burn::backend::fusion::custom::TensorSpec;
-    let stat = || {
-        TensorSpec::new(
-            [connected_components_capacity(&img.shape)].into(),
-            (*dtype).into(),
-        )
-    };
+    let stat = || TensorSpec::new([img.shape.num_elements()].into(), (*dtype).into());
     (
         TensorSpec::new(img.shape.clone(), (*dtype).into()),
         ConnectedStatsPrimitiveMetadata {

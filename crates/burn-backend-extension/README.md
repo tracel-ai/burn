@@ -75,9 +75,10 @@ inside an owned extension value. Primitive inputs may be immutably borrowed. Ord
 must be owned and `Clone + Send + Sync + 'static`. Output metadata, including enum variants and
 ordinary fields, must be known before execution. Use an existing default body for other signatures,
 or omit `Fusion` from `#[backend_extension]` and implement the trait for `Fusion<B>` manually.
-Wrong dtype categories are rejected before registration; tensor shape, dtype, device, and enum
+Wrong dtype categories are rejected before registration; tensor dtype, device, and enum
 variant mismatches fail at execution before any handles are published. Wrappers do not read tensor
-data or drain queues.
+data or drain queues. Fusion uses the metadata callback's output shapes without checking them
+against the backend results.
 
 Fusion generation does not generate gradients or merge custom kernels with neighboring kernels.
 Handwritten autodiff implementations continue to compose with the generated wrapper.

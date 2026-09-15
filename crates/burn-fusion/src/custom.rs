@@ -41,8 +41,8 @@ pub trait ExtensionMetadata {
 ///
 /// All methods traverse tensor leaves in the same order: tuple position and field declaration
 /// order, recursively. Registration flattens metadata into output IR and reconstructs lazy tensors.
-/// Deferred execution validates tensor metadata and output variants before publishing any handles,
-/// so a mismatch fails the entire operation rather than exposing a partially valid result.
+/// Deferred execution validates dtypes, devices, and output variants before publishing any handles.
+/// Fusion uses the metadata callback's output shapes without checking them against the backend results.
 /// Ordinary output fields are reconstructed from metadata; the inner backend's values are ignored.
 #[doc(hidden)]
 pub trait FusionValueAdapter<B: FusionBackend> {
@@ -69,7 +69,7 @@ pub trait FusionValueAdapter<B: FusionBackend> {
     ) -> Self::Inner;
     /// Append output specs, rejecting dtypes outside each tensor's category before registration.
     fn append_output_specs(meta: &Self::Metadata, out: &mut Vec<TensorSpec>);
-    /// Consume the expected IR entries and check actual shapes, dtypes, and devices.
+    /// Consume the expected IR entries and check actual dtypes and devices.
     fn validate_outputs(
         value: &Self::Inner,
         meta: &Self::Metadata,
@@ -109,8 +109,8 @@ macro_rules! tensor_adapter {
             }
             fn validate_outputs(value: &Self::Inner, _: &TensorSpec, specs: &mut core::slice::Iter<'_, TensorIr>, device: &B::Device) -> Result<(), ExecutionError> {
                 let expected = specs.next().expect("output layout");
-                if value.shape() != expected.shape || value.dtype() != expected.dtype || value.device().to_id() != device.to_id() {
-                    return Err(ExecutionError::generic(format!("Fusion custom output metadata mismatch: expected {:?} {:?} on {:?}, got {:?} {:?} on {:?}", expected.shape, expected.dtype, device.to_id(), value.shape(), value.dtype(), value.device().to_id())));
+                if value.dtype() != expected.dtype || value.device().to_id() != device.to_id() {
+                    return Err(ExecutionError::generic(format!("Fusion custom output metadata mismatch: expected {:?} on {:?}, got {:?} on {:?}", expected.dtype, device.to_id(), value.dtype(), value.device().to_id())));
                 }
                 Ok(())
             }

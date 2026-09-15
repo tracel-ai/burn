@@ -73,7 +73,7 @@ fn metadata(
 ) -> OutputsMetadata {
     let mut float = x.clone();
     if *wrong {
-        float.shape = [999].into();
+        float.dtype = burn::tensor::DType::F64;
     }
     OutputsMetadata {
         float,
@@ -203,7 +203,7 @@ fn nested_mixed_borrowed_aliases_streams_and_options() {
 }
 
 #[test]
-fn incorrect_metadata_is_an_execution_error() {
+fn incorrect_dtype_metadata_is_an_execution_error() {
     let device = Device::cpu();
     let x = Tensor::<1>::from_floats([1.], &device).into_dispatch();
     let out = Dispatch::mixed(

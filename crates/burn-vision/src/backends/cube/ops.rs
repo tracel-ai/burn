@@ -45,28 +45,27 @@ impl BoolVisionOps for CubeBackend {
         out_dtype: IntDType,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         let device = &img.device();
-        let capacity = crate::ops::connected_components_capacity(&img.shape());
         if img.shape().num_elements() == 0 {
             let zeros = |shape| Self::int_zeros(shape, device, out_dtype);
             return (
                 zeros(img.shape()),
                 ConnectedStatsPrimitive {
-                    area: zeros([capacity].into()),
-                    left: zeros([capacity].into()),
-                    top: zeros([capacity].into()),
-                    right: zeros([capacity].into()),
-                    bottom: zeros([capacity].into()),
+                    area: zeros([1].into()),
+                    left: zeros([1].into()),
+                    top: zeros([1].into()),
+                    right: zeros([1].into()),
+                    bottom: zeros([1].into()),
                     max_label: zeros([1].into()),
                 },
             );
         }
         hardware_accelerated(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
             |_| {
-                let (labels, stats) = cpu::connected_components_with_stats_capacity::<Self>(
+                let (labels, stats) = cpu::connected_components_with_stats::<Self>(
                     img,
                     connectivity,
+                    opts,
                     out_dtype,
-                    Some(capacity),
                 );
                 (Self::int_from_data(labels, device), stats)
             },
