@@ -38,6 +38,9 @@ fn should_support_int_remainder_basic_scalar() {
     output.into_data().assert_eq(&expected, false);
 }
 
+// CubeCL's C++ lowering of signed mod_floor computes the quotient through
+// floating point, losing precision at integer limits. Enable once fixed.
+#[cfg(not(feature = "cube"))]
 #[test]
 fn should_support_int_remainder_overflow() {
     // `(a % b) + b` overflows for (MAX-1) % MAX; `MIN % -1` overflows

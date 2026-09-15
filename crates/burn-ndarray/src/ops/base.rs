@@ -857,9 +857,14 @@ pub(crate) fn empty_mean<E: NdArrayElement>() -> E {
 
 /// Python/PyTorch-style remainder: result has same sign as divisor.
 #[inline]
-fn remainder_f64(a: f64, b: f64) -> f64 {
+fn remainder<E: NdArrayElement + PartialOrd>(a: E, b: E) -> E {
+    let zero = 0.elem::<E>();
+    // Any signed integer modulo -1 is zero, including MIN % -1.
+    if E::dtype().is_int() && b == zero - 1.elem::<E>() {
+        return zero;
+    }
     let r = a % b;
-    if r != 0. && (r < 0.) != (b < 0.) {
+    if r != zero && (r < zero) != (b < zero) {
         r + b
     } else {
         r
@@ -973,21 +978,25 @@ where
         array.into_shared()
     }
 
-    pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
+    pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E>
+    where
+        E: PartialOrd,
+    {
         // Python/PyTorch-style remainder: result has same sign as divisor
         let (lhs, rhs) = broadcast_for_binary_ops(&lhs, &rhs);
 
         Zip::from(&lhs)
             .and(&rhs)
-            .map_collect(|&a, &b| remainder_f64(a.to_f64(), b.to_f64()).elem())
+            .map_collect(|&a, &b| remainder(a, b))
             .into_shared()
     }
 
-    pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E> {
+    pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E>
+    where
+        E: PartialOrd,
+    {
         // Python/PyTorch-style remainder: result has same sign as divisor
-        let b = rhs.to_f64();
-        lhs.mapv(|x| remainder_f64(x.to_f64(), b).elem())
-            .into_shared()
+        lhs.mapv(|x| remainder(x, rhs)).into_shared()
     }
 
     pub fn recip(tensor: SharedArray<E>) -> SharedArray<E> {
@@ -1840,6 +1849,30 @@ mod tests {
     use crate::NdArrayTensor;
 
     use super::*;
+
+    #[test]
+    fn remainder_preserves_i64_precision_and_handles_overflow() {
+        for (a, b, expected) in [
+            ((1i64 << 53) + 1, 2, 1),
+            (i64::MAX - 1, i64::MAX, i64::MAX - 1),
+            (i64::MIN, -1, 0),
+            (1, i64::MIN, i64::MIN + 1),
+            (-5, 3, 1),
+        ] {
+            let lhs = ndarray::array![a].into_dyn().into_shared();
+            let rhs = ndarray::array![b].into_dyn().into_shared();
+            assert_eq!(NdArrayMathOps::remainder(lhs.clone(), rhs)[[0]], expected);
+            assert_eq!(NdArrayMathOps::remainder_scalar(lhs, b)[[0]], expected);
+        }
+    }
+
+    #[test]
+    fn remainder_preserves_u64_precision() {
+        let lhs = ndarray::array![u64::MAX].into_dyn().into_shared();
+        let rhs = ndarray::array![2u64].into_dyn().into_shared();
+        assert_eq!(NdArrayMathOps::remainder(lhs.clone(), rhs)[[0]], 1);
+        assert_eq!(NdArrayMathOps::remainder_scalar(lhs, 2)[[0]], 1);
+    }
 
     #[test]
     fn should_generate_row_major_layout_for_cat() {

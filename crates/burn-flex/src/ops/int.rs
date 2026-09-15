@@ -1289,6 +1289,23 @@ mod tests {
     use crate::FlexTensor;
 
     #[test]
+    fn test_i64_remainder_overflow() {
+        // The shared suite uses i32, which Flex promotes to i64. Keep the
+        // actual i64 limits covered for both tensor and scalar dispatch.
+        for (a, b, expected) in [(i64::MAX - 1, i64::MAX, i64::MAX - 1), (i64::MIN, -1, 0)] {
+            let lhs = FlexTensor::from_data(TensorData::new(vec![a], [1]));
+            let rhs = FlexTensor::from_data(TensorData::new(vec![b], [1]));
+            for result in [
+                Flex::int_remainder(lhs.clone(), rhs),
+                Flex::int_remainder_scalar(lhs, b.into()),
+            ] {
+                let values: Vec<i64> = result.into_data().try_into_vec().unwrap();
+                assert_eq!(values, vec![expected]);
+            }
+        }
+    }
+
+    #[test]
     fn test_u64_div_large_values() {
         let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX], [1]));
         let b = FlexTensor::from_data(TensorData::new(vec![2u64], [1]));
