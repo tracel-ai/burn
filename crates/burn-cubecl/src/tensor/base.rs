@@ -218,8 +218,9 @@ impl CubeTensor {
 
         moved.offset_start = self.handle.offset_start;
         moved.offset_end = Some(self.handle.offset_end.unwrap_or(0) + grown);
-        for param in core::iter::once(&mut qparams.scales).chain(qparams.global.as_mut()) {
-            param.offset_end += grown as usize;
+        qparams.scales.offset_end += grown as usize;
+        if let Some(global) = &mut qparams.global {
+            global.offset_end += grown as usize;
         }
         (moved, qparams)
     }
