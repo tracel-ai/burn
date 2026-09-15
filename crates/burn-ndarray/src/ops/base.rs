@@ -1397,20 +1397,21 @@ where
 
     pub(crate) fn sign_op(tensor: SharedArray<E>) -> SharedArray<E>
     where
-        E: Signed,
+        // `PartialOrd` in addition to the enclosing impl block's bounds:
+        // needed for the numeric bound comparisons.
+        E: Signed + PartialOrd,
     {
         let zero = 0.elem();
         let one = 1.elem::<E>();
 
         tensor
             .mapv(|x| {
-                if x == zero {
-                    zero
+                if x > zero {
+                    one
+                } else if x < zero {
+                    -one
                 } else {
-                    match x.is_positive() {
-                        true => one,
-                        false => -one,
-                    }
+                    zero
                 }
             })
             .into_shared()
