@@ -12,6 +12,7 @@ mod all_reduce;
 mod avgpool1d;
 mod avgpool2d;
 mod backward;
+mod batch_norm;
 mod bridge;
 mod broadcast;
 mod cast;
