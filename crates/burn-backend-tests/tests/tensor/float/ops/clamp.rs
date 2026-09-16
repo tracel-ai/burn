@@ -103,6 +103,30 @@ fn clamp_max_nan_propagation() {
     assert_eq!(values[1..], [-1.0, 1.0]);
 }
 
+// A NaN bound makes every element NaN, not just one: x > NaN and x < NaN are both false, so
+// each element falls through to the bound. Flex only, ndarray returns the input unchanged.
+#[cfg(feature = "flex")]
+#[test]
+fn clamp_min_nan_bound_propagation() {
+    let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0]);
+
+    let output = tensor.clamp_min(f32::NAN).into_data().convert::<f32>();
+    let values = output.as_slice::<f32>().unwrap();
+
+    assert!(values.iter().all(|v| v.is_nan()), "{values:?}");
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn clamp_max_nan_bound_propagation() {
+    let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0]);
+
+    let output = tensor.clamp_max(f32::NAN).into_data().convert::<f32>();
+    let values = output.as_slice::<f32>().unwrap();
+
+    assert!(values.iter().all(|v| v.is_nan()), "{values:?}");
+}
+
 // Two-sided clamp still maps NaN to a bound on the cube backends (verified failing on
 // CUDA), so this stays on the CPU backends until that is fixed separately.
 #[cfg(any(feature = "flex", feature = "ndarray"))]
