@@ -23,7 +23,6 @@ fn sequence_len(value: &NestedValue) -> Option<usize> {
         NestedValue::U8s(v) => Some(v.len()),
         NestedValue::U16s(v) => Some(v.len()),
         NestedValue::F32s(v) => Some(v.len()),
-        NestedValue::Bytes(v) => Some(v.len()),
         _ => None,
     }
 }
@@ -106,10 +105,6 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
                 NestedValue::F32s(v),
                 default_for_missing_fields,
             )?),
-            Some(NestedValue::Bytes(bytes)) => match bytes.try_into_vec::<u8>() {
-                Ok(bytes) => visitor.visit_byte_buf(bytes),
-                Err(bytes) => visitor.visit_bytes(&bytes),
-            },
             // A placeholder has no concrete type, and `None` means nothing was
             // available: neither can be turned into an untyped value.
             Some(NestedValue::Default(_)) | None => Err(custom_err(
@@ -326,7 +321,6 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         V: Visitor<'de>,
     {
         match self.value {
-            Some(NestedValue::Bytes(bytes)) => visitor.visit_bytes(&bytes),
             Some(NestedValue::U8s(bytes)) => visitor.visit_bytes(&bytes),
             Some(other) => Err(custom_err(format!("expected bytes but got {other:?}"))),
             None => Err(custom_err("expected bytes, found nothing")),

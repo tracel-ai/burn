@@ -1,5 +1,5 @@
 //! Regression tests for the previously-panicking and previously-lenient paths
-//! in `burn_store::nested::de`.
+//! in `pytorch_reader::nested::de`.
 //!
 //! These used to abort the process via `unimplemented!()`:
 //! * `u32` / `i8` struct fields
@@ -13,14 +13,12 @@
 //!
 //! Run with:
 //! ```sh
-//! cargo test -p burn-store --test nested_de_robustness
+//! cargo test -p pytorch-reader --test nested_de_robustness
 //! ```
 
-#![cfg(feature = "pytorch")]
-
-use burn_store::nested::adapter::DefaultAdapter;
-use burn_store::nested::data::NestedValue;
-use burn_store::nested::de::Deserializer;
+use pytorch_reader::nested::adapter::DefaultAdapter;
+use pytorch_reader::nested::data::NestedValue;
+use pytorch_reader::nested::de::Deserializer;
 use serde::Deserialize;
 use std::collections::HashMap;
 

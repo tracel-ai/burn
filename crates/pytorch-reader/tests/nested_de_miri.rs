@@ -1,5 +1,5 @@
 //! Regression test for the former unsound visitor cloning in
-//! `burn_store::nested::de`.
+//! `pytorch_reader::nested::de`.
 //!
 //! The former `Deserializer::deserialize_enum` implementation cloned the
 //! caller-supplied visitor with a raw `ptr::copy_nonoverlapping` bitwise copy and
@@ -8,14 +8,12 @@
 //! should complete successfully under Miri:
 //!
 //! ```sh
-//! cargo +nightly miri test -p burn-store --test nested_de_miri
+//! cargo +nightly miri test -p pytorch-reader --test nested_de_miri
 //! ```
 
-#![cfg(feature = "pytorch")]
-
-use burn_store::nested::adapter::DefaultAdapter;
-use burn_store::nested::data::NestedValue;
-use burn_store::nested::de::Deserializer;
+use pytorch_reader::nested::adapter::DefaultAdapter;
+use pytorch_reader::nested::data::NestedValue;
+use pytorch_reader::nested::de::Deserializer;
 use serde::Deserialize;
 use serde::de::{EnumAccess, IgnoredAny, Visitor};
 use std::collections::HashMap;
