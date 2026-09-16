@@ -79,7 +79,11 @@ pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
         return to_device_across_runtimes(tensor, device);
     }
 
-    let mut tensor = kernel::into_contiguous_aligned(tensor);
+    // A quantized tensor moves as its whole allocation, which needs no contiguous staging.
+    let mut tensor = match tensor.qparams {
+        Some(_) => tensor,
+        None => kernel::into_contiguous_aligned(tensor),
+    };
     let client = device.client();
     tensor.to_client(client, device.clone())
 }
@@ -95,10 +99,8 @@ pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
 /// non-contiguous tensor arrives with the strides it left with instead of being materialized
 /// contiguous on the way.
 ///
-/// A quantized tensor is the exception. Its values, scales and per-tensor scale are three regions
-/// of one allocation, and `handle` bounds the values region alone — copying it would leave the
-/// scales behind while `qparams` went on naming offsets that no longer hold them. Those travel by
-/// the layout built for exactly this, the one `q_into_data` writes and `q_from_data` reads back.
+/// A quantized tensor travels instead by the layout `q_into_data` writes and `q_from_data` reads
+/// back, which carries its scales along with its values whatever each runtime's packing.
 fn to_device_across_runtimes(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
     if tensor.qparams.is_some() {
         let from = tensor.device.clone();
@@ -547,6 +549,107 @@ pub fn unfold(tensor: CubeTensor, dim: usize, size: usize, step: usize) -> CubeT
         device: tensor.device.clone(),
         dtype: tensor.dtype,
         qparams: tensor.qparams.clone(),
+    }
+}
+
+// Each needs two devices of one runtime on the machine, so they are ignored by default:
+// `cargo test -p burn-cubecl --features <runtime> same_runtime_tests -- --ignored`.
+#[cfg(all(test, any(feature = "wgpu", feature = "cuda")))]
+mod same_runtime_tests {
+    use super::*;
+    use burn_backend::{
+        Tolerance,
+        quantization::{QuantScheme, QuantValue, ScaleDtype},
+    };
+    use burn_std::{FloatDType, TensorData};
+
+    /// wgpu has no peer transport, so a move between two of its adapters must go through the
+    /// host; reaching for send and recv instead leaves the destination never written. A quantized
+    /// tensor must keep its scales, which live past the region its handle bounds.
+    #[cfg(feature = "wgpu")]
+    #[test]
+    #[ignore = "needs two discrete wgpu adapters"]
+    fn moves_between_two_wgpu_adapters() {
+        use cubecl::wgpu::{WgpuDevice, WgpuDeviceKind};
+
+        let first = CubeDevice::Wgpu(WgpuDevice::new(WgpuDeviceKind::DiscreteGpu(0)));
+        let second = CubeDevice::Wgpu(WgpuDevice::new(WgpuDeviceKind::DiscreteGpu(1)));
+        moves_both_ways(&first, &second);
+        moves_quantized_both_ways(&first, &second);
+    }
+
+    /// Float data and a quantized tensor's scales survive a move between two CUDA devices. The
+    /// scales live past the region the handle bounds, so a copy sized from the tensor's shape
+    /// would leave them behind.
+    #[cfg(feature = "cuda")]
+    #[test]
+    #[ignore = "needs two CUDA devices"]
+    fn moves_between_two_cuda_devices() {
+        use cubecl::cuda::CudaDevice;
+
+        let first = CubeDevice::Cuda(CudaDevice { index: 0 });
+        let second = CubeDevice::Cuda(CudaDevice { index: 1 });
+        moves_both_ways(&first, &second);
+        moves_quantized_both_ways(&first, &second);
+    }
+
+    fn moves_both_ways(first: &CubeDevice, second: &CubeDevice) {
+        for (from, to) in [(first, second), (second, first)] {
+            let data = TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+            let moved = to_device(from_data(data.clone(), from), to);
+            assert_eq!(&moved.device, to);
+
+            into_data_sync(moved).assert_eq(&data, true);
+        }
+    }
+
+    fn moves_quantized_both_ways(first: &CubeDevice, second: &CubeDevice) {
+        let per_tensor = QuantScheme::default();
+        let two_level = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .per_block([4], ScaleDtype::F16)
+            .per_tensor(ScaleDtype::F32);
+
+        // Values pack four to a word, so each last dim is a multiple of 4. Each shape's regions
+        // come to an odd multiple of 32 bytes, which a device aligning to 64 rounds up, moving
+        // every end offset.
+        for (scheme, shape) in [(per_tensor, [3, 12]), (two_level, [2, 12])] {
+            for (from, to) in [(first, second), (second, first)] {
+                moves_quantized(quantize(&scheme, shape, from), to);
+            }
+        }
+
+        for (from, to) in [(first, second), (second, first)] {
+            let permuted = permute(quantize(&per_tensor, [3, 12], from), &[1, 0]);
+            moves_quantized(permuted, to);
+        }
+    }
+
+    fn quantize(scheme: &QuantScheme, shape: [usize; 2], device: &CubeDevice) -> CubeTensor {
+        let len = shape.iter().product::<usize>();
+        let values = (0..len)
+            .map(|i| i as f32 / len as f32 - 0.5)
+            .collect::<Vec<_>>();
+        CubeBackend::quantize_dynamic(from_data(TensorData::new(values, shape), device), scheme)
+    }
+
+    fn moves_quantized(quantized: CubeTensor, to: &CubeDevice) {
+        let regions = |tensor: &CubeTensor| {
+            (
+                tensor.handle.size_in_used(),
+                tensor.scales().map(|scales| scales.handle.size_in_used()),
+                tensor.global().map(|global| global.handle.size_in_used()),
+            )
+        };
+        let expected = into_data_sync(CubeBackend::dequantize(quantized.clone(), FloatDType::F32));
+        let source_regions = regions(&quantized);
+
+        let moved = to_device(quantized, to);
+        assert_eq!(&moved.device, to);
+        assert_eq!(regions(&moved), source_regions);
+
+        into_data_sync(CubeBackend::dequantize(moved, FloatDType::F32))
+            .assert_approx_eq::<f32>(&expected, Tolerance::default());
     }
 }
 
