@@ -127,6 +127,23 @@ fn clamp_max_nan_bound_propagation() {
     assert!(values.iter().all(|v| v.is_nan()), "{values:?}");
 }
 
+// Two-sided clamp used to panic here, since `f32::clamp` rejects a NaN bound.
+#[cfg(feature = "flex")]
+#[test]
+fn clamp_nan_bound_propagation() {
+    for (min, max) in [(f32::NAN, 1.0), (0.0, f32::NAN), (f32::NAN, f32::NAN)] {
+        let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0]);
+
+        let output = tensor.clamp(min, max).into_data().convert::<f32>();
+        let values = output.as_slice::<f32>().unwrap();
+
+        assert!(
+            values.iter().all(|v| v.is_nan()),
+            "{min} {max} -> {values:?}"
+        );
+    }
+}
+
 // Two-sided clamp still maps NaN to a bound on the cube backends (verified failing on
 // CUDA), so this stays on the CPU backends until that is fixed separately.
 #[cfg(any(feature = "flex", feature = "ndarray"))]
