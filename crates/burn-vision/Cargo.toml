@@ -19,12 +19,20 @@ workspace = true
 
 
 [features]
-default = ["burn-core/default", "flex", "fusion", "std"]
+default = [
+    "burn-core/default",
+    "burn-cubecl?/default",
+    "burn-fusion?/default",
+    "flex",
+    "fusion",
+    "std",
+]
 std = [
     "aligned-vec/std",
     "burn-core/std",
-    "burn-nn?/std",
     "burn-cubecl?/std",
+    "burn-fusion?/std",
+    "burn-nn?/std",
     "burn-store?/std",
 ]
 tracing = [
@@ -54,9 +62,11 @@ tch = ["burn-core/tch"]
 loss = ["std", "dep:burn-nn", "burn-store/pytorch", "burn-std/network", "dirs"]
 
 [dependencies]
-burn-cubecl = { workspace = true, optional = true, features = ["autotune"] }
-burn-fusion = { workspace = true, optional = true, features = ["default"] }
-burn-core = { workspace = true, features = ["extension"] }
+burn-cubecl = { workspace = true, optional = true }
+burn-fusion = { workspace = true, optional = true }
+burn-core = { workspace = true, features = [
+    "extension",
+] }
 burn-std = { workspace = true }
 
 # TODO: requires burn-backend. The `extension` feature should expose this from `burn-core`.
