@@ -156,6 +156,13 @@ let mut store = PytorchStore::from_file("checkpoint.pt")
 model.load_from(&mut store)?;
 ```
 
+#### Reading Checkpoints Without Burn
+
+The parser behind `PytorchStore` is its own crate,
+[`pytorch-reader`](https://crates.io/crates/pytorch-reader), with no dependency on Burn. Use it
+directly for tools that only need to list or convert a checkpoint's tensors. It is re-exported
+as `burn_store::pytorch_reader`.
+
 ### Loading from SafeTensors
 
 For SafeTensors files exported from PyTorch, use the adapter for proper weight transformation:

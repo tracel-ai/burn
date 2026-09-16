@@ -10,7 +10,9 @@
 //! cargo bench --bench resnet18_loading
 //! ```
 
+use burn_core::tensor::TensorData;
 use burn_store::pytorch::PytorchReader;
+use burn_store::pytorch_reader::Tensor;
 use divan::{AllocProfiler, Bencher};
 use std::path::PathBuf;
 
@@ -52,6 +54,11 @@ fn main() {
 
     // Run divan benchmarks
     divan::main();
+}
+
+/// Read a tensor's bytes out of the checkpoint, through the same path the store takes.
+fn materialize(tensor: &Tensor) -> Result<TensorData, burn_store::burn_pack::Error> {
+    burn_store::bridge::into_data(burn_store::bridge::from_pytorch(tensor.clone()))
 }
 
 /// Get the path to ResNet18 model file
@@ -102,8 +109,7 @@ fn load_resnet18_materialize_all(bencher: Bencher) {
         for key in &keys {
             let tensor = reader.get(key).expect("Failed to get tensor");
             // Materialize the tensor data
-            let _data =
-                burn_store::bridge::to_data(tensor).expect("Failed to materialize tensor data");
+            let _data = materialize(tensor).expect("Failed to materialize tensor data");
             total_bytes += tensor.byte_len();
         }
 
@@ -124,8 +130,7 @@ fn load_resnet18_materialize_sequential(bencher: Bencher) {
         // This simulates processing tensors sequentially without keeping all in memory
         for key in &keys {
             let tensor = reader.get(key).expect("Failed to get tensor");
-            let data =
-                burn_store::bridge::to_data(tensor).expect("Failed to materialize tensor data");
+            let data = materialize(tensor).expect("Failed to materialize tensor data");
 
             // Do minimal work with the data to prevent optimization
             let sum = match data.dtype {
@@ -172,7 +177,7 @@ fn load_resnet18_largest_tensor(bencher: Bencher) {
         let tensor = reader
             .get(&largest_key)
             .expect("Failed to get largest tensor");
-        let _data = burn_store::bridge::to_data(tensor).expect("Failed to materialize tensor data");
+        let _data = materialize(tensor).expect("Failed to materialize tensor data");
 
         assert!(largest_size > 9_000_000); // Should be ~9MB for layer4.0.conv2.weight
     });
@@ -202,8 +207,7 @@ fn load_resnet18_memory_profile(bencher: Bencher) {
                 }
 
                 // Materialize the tensor
-                let data =
-                    burn_store::bridge::to_data(tensor).expect("Failed to materialize tensor data");
+                let data = materialize(tensor).expect("Failed to materialize tensor data");
                 total_data += tensor_size;
 
                 // Drop data immediately to test lazy loading memory efficiency
