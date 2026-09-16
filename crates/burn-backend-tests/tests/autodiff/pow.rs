@@ -100,8 +100,7 @@ fn should_diff_powf_scalar_zero_exponent_nonfinite() {
 fn should_diff_powf_scalar_zero_exponent_nonfinite_incoming_grad() {
     let device = AutodiffDevice::new();
     let tensor_1 = TestTensor::<1>::from_data([2.0, -3.0, 0.0], &device).require_grad();
-    let factor =
-        TestTensor::<1>::from_data([f32::NAN, f32::INFINITY, f32::NEG_INFINITY], &device);
+    let factor = TestTensor::<1>::from_data([f32::NAN, f32::INFINITY, f32::NEG_INFINITY], &device);
 
     // The multiply makes `factor` the incoming gradient of the zero-exponent op.
     let tensor_2 = tensor_1.clone().powf_scalar(0.0).mul(factor);
