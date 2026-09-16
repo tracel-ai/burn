@@ -4,12 +4,13 @@ mod kernel;
 
 use burn::{
     backend::{Dispatch, backend_extension, tensor::FloatTensor},
-    tensor::{Tensor, activation},
+    tensor::{Shape, Tensor, activation},
 };
 
 /// We create our own Backend trait that extends the Burn backend trait.
-#[backend_extension(Autodiff, Cube)]
+#[backend_extension(Autodiff, Cube, Fusion)]
 pub trait Backend: burn::backend::Backend {
+    #[fusion(dtype = lhs, shape = output_shape(lhs, rhs, bias))]
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -33,4 +34,14 @@ pub fn matmul_add_relu_reference(lhs: Tensor<3>, rhs: Tensor<3>, bias: Tensor<3>
     let x = lhs.matmul(rhs) + bias;
 
     activation::relu(x)
+}
+
+fn output_shape(lhs: &Shape, rhs: &Shape, bias: &Shape) -> Shape {
+    assert!(lhs.num_dims() >= 2, "matmul needs at least two dimensions");
+    let shape = burn::backend::calculate_matmul_output(lhs, rhs).expect("compatible matmul shapes");
+    assert_eq!(
+        &shape, bias,
+        "kernel requires bias to match the output shape"
+    );
+    shape
 }

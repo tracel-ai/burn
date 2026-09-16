@@ -473,6 +473,9 @@ pub fn hardware_accelerated(
     connectivity: Connectivity,
     int_dtype: DType,
 ) -> Result<(CubeTensor, ConnectedStatsPrimitive<CubeBackend>), String> {
+    if img.meta.shape().num_elements() <= 1 {
+        return Err("Small images use the CPU fallback".into());
+    }
     let client = img.client.clone();
     let device = img.device.clone();
     let dtypes = [

@@ -19,13 +19,31 @@ the ugly disambiguation with associated types.
 
 ```rust, ignore
 /// We create our own Backend trait that extends the Burn backend trait.
-#[backend_extension(Autodiff, Cube)]
+#[backend_extension(Autodiff, Cube, Fusion)]
 pub trait Backend: burn::backend::Backend {
+    #[fusion(dtype = lhs, shape = output_shape(lhs, rhs, bias))]
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
         bias: FloatTensor<Self>,
     ) -> FloatTensor<Self>;
+}
+```
+
+Define the metadata helper in `lib.rs`, alongside the trait. The forward implementation
+calls the same helper to validate shapes before launching the kernel.
+
+```rust, ignore
+use burn::tensor::Shape;
+
+fn output_shape(lhs: &Shape, rhs: &Shape, bias: &Shape) -> Shape {
+    assert!(lhs.num_dims() >= 2, "matmul needs at least two dimensions");
+    let shape = burn::backend::calculate_matmul_output(lhs, rhs).expect("compatible matmul shapes");
+    assert_eq!(
+        &shape, bias,
+        "kernel requires bias to match the output shape"
+    );
+    shape
 }
 ```
 
@@ -69,6 +87,27 @@ validate our new implementation. While not mandatory, having a reference impleme
 valuable, especially in projects where creating a reference implementation solely using basic tensor
 operations is feasible.
 
+## Lazy Fusion registration
+
+Enable Burn's `fusion` feature and list `Fusion` on `#[backend_extension]` as shown above.
+The annotation copies `lhs`'s dtype and passes borrowed `Shape` values to `output_shape`.
+Fusion uses that metadata to register a lazy output, then calls the forward implementation
+when the operation executes.
+
+Sharing `output_shape` with execution keeps both paths consistent: it checks matrix dimensions,
+batch broadcasting, and the requirement that bias match the output shape. The wrapper does not
+compare output shapes with backend results, so the metadata calculation must be correct.
+
+The custom kernel remains opaque to the Fusion optimizer. The wrapper does not combine it with
+neighboring kernels or generate gradients; the handwritten `Autodiff<B, C>` implementation below
+supplies the backward pass.
+
+For structured outputs, use `#[fusion(meta = callable)]`. The callback must describe the same
+result as direct backend execution, including the actual values of any non-tensor fields:
+Fusion returns those values immediately and discards the backend's later values without comparison.
+Use `#[fusion(default)]` to inherit an existing trait body, or omit `Fusion` from
+`#[backend_extension]` to write the Fusion implementation yourself.
+
 ## Forward Kernel
 
 Now, let's proceed to write the fused kernel using the `cubecl` compiler frontend. To keep things
@@ -95,7 +134,7 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
 
     let n_rows = output.shape(output.rank() - 2);
     let n_cols = output.shape(output.rank() - 1);
-    let dim_k = rhs.shape(rhs.rank() - 1);
+    let dim_k = rhs.shape(rhs.rank() - 2);
 
     if row >= n_rows || col >= n_cols {
         return;
@@ -151,21 +190,15 @@ impl Backend for CubeBackend
         let rhs = into_contiguous(rhs);
         let bias = into_contiguous(bias);
 
-        // Get the matmul relevant shapes.
-        let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape[ndims - 2];
-        let num_cols = rhs.shape[ndims - 1];
+        assert_eq!(lhs.dtype, rhs.dtype, "matrix dtypes must match");
+        assert_eq!(lhs.dtype, bias.dtype, "bias dtype must match");
+        let shape_out = crate::output_shape(lhs.meta.shape(), rhs.meta.shape(), bias.meta.shape());
 
-        // Compute shape of output, while tracking number of batches.
-        let mut num_batches = 1;
-        let mut shape_out = vec![0; ndims];
-        for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
-            num_batches *= shape_out[i];
-        }
-        shape_out[ndims - 2] = num_rows;
-        shape_out[ndims - 1] = num_cols;
-        let shape_out = Shape::from(shape_out);
+        // Get the matmul relevant shapes after validating the inputs.
+        let ndims = lhs.meta.num_dims();
+        let num_rows = lhs.meta.shape()[ndims - 2];
+        let num_cols = rhs.meta.shape()[ndims - 1];
+        let num_batches: usize = (0..ndims - 2).map(|i| shape_out[i]).product();
 
         // Create a buffer for the output tensor.
         let buffer = lhs
