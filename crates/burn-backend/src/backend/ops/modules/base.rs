@@ -79,6 +79,33 @@ pub struct MaxPool2dBackward<B: Backend> {
     pub x_grad: FloatTensor<B>,
 }
 
+/// Results from [batch_norm_train](ModuleOps::batch_norm_train).
+#[derive(new)]
+pub struct BatchNormTrain<B: Backend> {
+    /// The normalized input.
+    pub output: FloatTensor<B>,
+
+    /// The batch mean per channel, `[channels]`.
+    pub mean: FloatTensor<B>,
+
+    /// The biased batch variance per channel, `[channels]`.
+    pub variance: FloatTensor<B>,
+}
+
+/// Gradient computed during the backward pass for each tensor used by
+/// [batch_norm_train](ModuleOps::batch_norm_train).
+#[derive(new)]
+pub struct BatchNormTrainBackward<B: Backend> {
+    /// Gradient of the input.
+    pub x_grad: FloatTensor<B>,
+
+    /// Gradient of `gamma`, `[channels]`.
+    pub gamma_grad: FloatTensor<B>,
+
+    /// Gradient of `beta`, `[channels]`.
+    pub beta_grad: FloatTensor<B>,
+}
+
 /// Results from [max_pool2d](ModuleOps::max_pool2d_with_indices).
 #[derive(new)]
 pub struct MaxPool2dWithIndices<B: Backend> {
@@ -126,6 +153,112 @@ pub trait ModuleOps<B: Backend> {
         let std = B::float_sqrt(B::float_add_scalar(variance, Scalar::Float(epsilon)));
         let normalized = B::float_div(B::float_sub(x, mean), std);
         B::float_add(B::float_mul(normalized, gamma), beta)
+    }
+
+    /// Applies batch normalization with the statistics of the batch itself,
+    /// and returns them.
+    ///
+    /// The input has shape `[batch, channels, ...]`; `gamma` and `beta` have
+    /// shape `[channels]`, as do the returned mean and biased variance — what
+    /// a training path feeds its running statistics.
+    ///
+    /// An autodiff backend differentiates this as one operation, through
+    /// [batch_norm_train_backward](ModuleOps::batch_norm_train_backward),
+    /// rather than through the reductions and broadcasts that computing the
+    /// statistics out of tensor operations would record.
+    fn batch_norm_train(
+        x: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        beta: FloatTensor<B>,
+        epsilon: f64,
+    ) -> BatchNormTrain<B> {
+        let shape = x.shape();
+        let channels = shape[1];
+        let samples_per_channel = shape.num_elements() / channels;
+        let flattened = Shape::new([channels, samples_per_channel]);
+        let mut per_channel = alloc::vec![1; shape.num_dims()];
+        per_channel[1] = channels;
+
+        // Use mean directly to avoid overflowing intermediate sums in f16.
+        let mean = B::float_mean_dim(
+            B::float_reshape(B::float_swap_dims(x.clone(), 0, 1), flattened.clone()),
+            1,
+        );
+        let mean = B::float_reshape(mean, Shape::from(per_channel));
+        let centered = B::float_sub(x.clone(), mean.clone());
+        let variance = B::float_mean_dim(
+            B::float_reshape(
+                B::float_swap_dims(B::float_mul(centered.clone(), centered), 0, 1),
+                flattened,
+            ),
+            1,
+        );
+        let mean = B::float_reshape(mean, Shape::new([channels]));
+        let variance = B::float_reshape(variance, Shape::new([channels]));
+        let output = B::batch_norm(x, gamma, beta, mean.clone(), variance.clone(), epsilon);
+
+        BatchNormTrain::new(output, mean, variance)
+    }
+
+    /// Gradients of [batch_norm_train](ModuleOps::batch_norm_train) with
+    /// respect to its input, `gamma` and `beta`, given the gradient of its
+    /// output. `mean` and `variance` are the statistics it returned.
+    fn batch_norm_train_backward(
+        x: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        mean: FloatTensor<B>,
+        variance: FloatTensor<B>,
+        epsilon: f64,
+        output_grad: FloatTensor<B>,
+    ) -> BatchNormTrainBackward<B> {
+        let shape = x.shape();
+        let rank = shape.num_dims();
+        let channels = shape[1];
+        let flattened = Shape::new([channels, shape.num_elements() / channels]);
+        let mut per_channel = alloc::vec![1; rank];
+        per_channel[1] = channels;
+        let per_channel = Shape::from(per_channel);
+
+        let inv_std = B::float_reshape(
+            B::float_recip(B::float_sqrt(B::float_add_scalar(
+                variance,
+                Scalar::Float(epsilon),
+            ))),
+            per_channel.clone(),
+        );
+        let normalized = B::float_mul(
+            B::float_sub(x, B::float_reshape(mean, per_channel.clone())),
+            inv_std.clone(),
+        );
+
+        let output_grad_flat = B::float_reshape(
+            B::float_swap_dims(output_grad.clone(), 0, 1),
+            flattened.clone(),
+        );
+        let normalized_grad_flat = B::float_reshape(
+            B::float_swap_dims(B::float_mul(output_grad.clone(), normalized.clone()), 0, 1),
+            flattened,
+        );
+        let beta_grad = B::float_sum_dim(output_grad_flat.clone(), 1);
+        let gamma_grad = B::float_sum_dim(normalized_grad_flat.clone(), 1);
+
+        // Compute means independently: parameter-gradient sums can overflow in f16.
+        let mean_grad =
+            B::float_reshape(B::float_mean_dim(output_grad_flat, 1), per_channel.clone());
+        let mean_normalized_grad = B::float_reshape(
+            B::float_mean_dim(normalized_grad_flat, 1),
+            per_channel.clone(),
+        );
+        let centred_grad = B::float_sub(output_grad, mean_grad);
+        let projected = B::float_mul(normalized, mean_normalized_grad);
+        let scale = B::float_mul(B::float_reshape(gamma, per_channel), inv_std);
+        let x_grad = B::float_mul(scale, B::float_sub(centred_grad, projected));
+
+        BatchNormTrainBackward::new(
+            x_grad,
+            B::float_reshape(gamma_grad, Shape::new([channels])),
+            B::float_reshape(beta_grad, Shape::new([channels])),
+        )
     }
 
     /// Embedding operation.

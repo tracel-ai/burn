@@ -265,6 +265,42 @@ impl TchOps {
         TchTensor::from_existing(tensor, storage)
     }
 
+    pub fn scatter_min(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.internal_scatter_reduce(
+            dim as i64,
+            &indices.tensor,
+            &value.tensor,
+            "amin",
+            true,
+        );
+
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    pub fn scatter_max(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.internal_scatter_reduce(
+            dim as i64,
+            &indices.tensor,
+            &value.tensor,
+            "amax",
+            true,
+        );
+
+        TchTensor::from_existing(tensor, storage)
+    }
+
     /// Flatten K-dimensional index tuples into 1D linear offsets, suitable for
     /// use with PyTorch's scatter/gather along dim 0 of a flattened tensor.
     ///
@@ -396,6 +432,34 @@ impl TchOps {
                 tensor.index_reduce_(dim as i64, &indices.tensor, &value.tensor, "prod", true)
             },
             |tensor| tensor.index_reduce(dim as i64, &indices.tensor, &value.tensor, "prod", true),
+        )
+    }
+
+    pub fn select_assign_min(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        tensor.clone().unary_ops(
+            |mut tensor| {
+                tensor.index_reduce_(dim as i64, &indices.tensor, &value.tensor, "amin", true)
+            },
+            |tensor| tensor.index_reduce(dim as i64, &indices.tensor, &value.tensor, "amin", true),
+        )
+    }
+
+    pub fn select_assign_max(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        tensor.clone().unary_ops(
+            |mut tensor| {
+                tensor.index_reduce_(dim as i64, &indices.tensor, &value.tensor, "amax", true)
+            },
+            |tensor| tensor.index_reduce(dim as i64, &indices.tensor, &value.tensor, "amax", true),
         )
     }
 

@@ -429,6 +429,54 @@ pub fn scatter_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E
     )
 }
 
+/// Scatter minimum: keeps the smaller of the tensor and value at each position.
+///
+/// Comparisons follow IEEE semantics: an incoming NaN never replaces the current
+/// value, matching the `scatter_nd` Min reduction in this module.
+pub fn scatter_min<E: Element + Pod + Default + Copy + core::cmp::PartialOrd + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    scatter_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "scatter_min",
+        |target, value| {
+            if value < *target {
+                *target = value;
+            }
+        },
+    )
+}
+
+/// Scatter maximum: keeps the larger of the tensor and value at each position.
+///
+/// Comparisons follow IEEE semantics: an incoming NaN never replaces the current
+/// value, matching the `scatter_nd` Max reduction in this module.
+pub fn scatter_max<E: Element + Pod + Default + Copy + core::cmp::PartialOrd + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    scatter_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "scatter_max",
+        |target, value| {
+            if value > *target {
+                *target = value;
+            }
+        },
+    )
+}
+
 fn scatter_update<E, F>(
     mut tensor: FlexTensor,
     dim: usize,
@@ -930,6 +978,54 @@ pub fn select_mul<E: Element + Pod + Default + Copy + core::ops::Mul<Output = E>
     )
 }
 
+/// Select minimum: keeps the smaller of the tensor and value at each position.
+///
+/// Comparisons follow IEEE semantics: an incoming NaN never replaces the current
+/// value.
+pub fn select_min<E: Element + Pod + Default + Copy + core::cmp::PartialOrd + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    select_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_min",
+        |target, value| {
+            if value < *target {
+                *target = value;
+            }
+        },
+    )
+}
+
+/// Select maximum: keeps the larger of the tensor and value at each position.
+///
+/// Comparisons follow IEEE semantics: an incoming NaN never replaces the current
+/// value.
+pub fn select_max<E: Element + Pod + Default + Copy + core::cmp::PartialOrd + Send + Sync>(
+    tensor: FlexTensor,
+    dim: usize,
+    indices: FlexTensor,
+    value: FlexTensor,
+) -> FlexTensor {
+    select_update::<E, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_max",
+        |target, value| {
+            if value > *target {
+                *target = value;
+            }
+        },
+    )
+}
+
 fn select_update<E, F>(
     mut tensor: FlexTensor,
     dim: usize,
@@ -1152,7 +1248,7 @@ pub fn scatter_nd<
     for n in 0..num_indices {
         let mut base_offset = 0usize;
         for j in 0..k {
-            let idx_val = idx_data[n * k + j] as usize;
+            let idx_val = checked_index(idx_data[n * k + j], data_shape[j]);
             base_offset += idx_val * strides[j];
         }
 
@@ -1227,7 +1323,7 @@ pub fn gather_nd<E: Element + Pod + Default + Copy>(
     for n in 0..num_indices {
         let mut base_offset = 0usize;
         for j in 0..k {
-            let idx_val = idx_data[n * k + j] as usize;
+            let idx_val = checked_index(idx_data[n * k + j], data_shape[j]);
             base_offset += idx_val * strides[j];
         }
         let out_offset = n * slice_size;
@@ -1451,6 +1547,7 @@ pub fn scatter_or(
 mod tests {
     use super::*;
     use burn_backend::TensorData;
+    use burn_backend::tensor::IndexingUpdateOp;
 
     #[test]
     fn test_gather_with_i32_indices() {
@@ -1502,5 +1599,27 @@ mod tests {
                 "mismatch at output row {i} (src row {row_idx})"
             );
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "index 5 out of bounds for dimension of size 3")]
+    fn test_gather_nd_checks_each_coordinate_bound() {
+        let data = FlexTensor::from_data(TensorData::new(
+            (0..6).map(|i| i as f32).collect::<Vec<_>>(),
+            [2, 3],
+        ));
+        let indices = FlexTensor::from_data(TensorData::new(vec![0i64, 5], [1, 2]));
+
+        let _ = gather_nd::<f32>(data, indices);
+    }
+
+    #[test]
+    #[should_panic(expected = "index -1 out of bounds for dimension of size 3")]
+    fn test_scatter_nd_checks_negative_coordinate() {
+        let data = FlexTensor::from_data(TensorData::new(vec![0.0f32; 6], [2, 3]));
+        let indices = FlexTensor::from_data(TensorData::new(vec![0i64, -1], [1, 2]));
+        let values = FlexTensor::from_data(TensorData::new(vec![9.0f32], [1]));
+
+        let _ = scatter_nd::<f32>(data, indices, values, IndexingUpdateOp::Assign);
     }
 }

@@ -37,6 +37,7 @@ fn validate_backend(ident: &Ident) -> syn::Result<()> {
 struct Backends {
     concrete: Vec<Backend>,
     autodiff: (bool, Option<Meta>),
+    fusion: (bool, Option<Meta>),
 }
 
 // Helper to parse backend idents w/ optional cfg
@@ -68,8 +69,13 @@ impl Parse for Backends {
 
         let mut concrete = vec![];
         let mut autodiff = (false, None);
+        let mut fusion = (false, None);
 
         for arg in args {
+            if arg.id == "Fusion" {
+                fusion = (true, arg.cfg);
+                continue;
+            }
             if arg.id == "Autodiff" {
                 autodiff = (true, arg.cfg);
                 continue;
@@ -82,7 +88,11 @@ impl Parse for Backends {
             });
         }
 
-        Ok(Backends { concrete, autodiff })
+        Ok(Backends {
+            concrete,
+            autodiff,
+            fusion,
+        })
     }
 }
 
@@ -224,7 +234,7 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
             })
             .collect();
         let mut signature = f.sig.clone();
-        strip_extension_type_attributes(&mut signature);
+        strip_argument_attributes(&mut signature);
 
         ops.push(ExtensionOperation {
             operation: Operation {
@@ -238,7 +248,12 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                     generic_args,
                 },
             },
-            attrs: f.attrs.clone(),
+            attrs: f
+                .attrs
+                .iter()
+                .filter(|a| !a.path().is_ident("fusion"))
+                .cloned()
+                .collect(),
             signature,
             returns_future,
         });
@@ -251,24 +266,33 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
     })
 }
 
-fn strip_extension_type_attributes(signature: &mut Signature) {
+fn strip_argument_attributes(signature: &mut Signature) {
     for argument in &mut signature.inputs {
         if let FnArg::Typed(argument) = argument {
-            argument
-                .attrs
-                .retain(|attribute| !attribute.path().is_ident("extension_type"));
+            argument.attrs.retain(|attribute| {
+                !attribute.path().is_ident("extension_type") && !attribute.path().is_ident("fusion")
+            });
         }
     }
 }
 
 fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
+    let fusion = if ir.backends.fusion.0 {
+        let cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
+        let implementation =
+            crate::fusion::expand(&original_trait).unwrap_or_else(syn::Error::into_compile_error);
+        quote!(#cfg #implementation)
+    } else {
+        quote!()
+    };
 
-    // `#[extension_type]` is a helper attribute understood only by this macro. Strip it from the
+    // Argument attributes `#[extension_type]` and `#[fusion(...)]` are macro helpers. Strip them from the
     // argument list before re-emitting the trait, otherwise rustc rejects it as an unknown attribute.
     for item in &mut original_trait.items {
         if let TraitItem::Fn(f) = item {
-            strip_extension_type_attributes(&mut f.sig);
+            strip_argument_attributes(&mut f.sig);
+            f.attrs.retain(|a| !a.path().is_ident("fusion"));
         }
     }
 
@@ -277,6 +301,7 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
 
     quote! {
         #original_trait
+        #fusion
 
         impl #trait_name for burn::backend::Dispatch {
             #( #dispatch_methods )*

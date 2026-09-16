@@ -88,7 +88,8 @@ jobs:
         run: cargo xtask check format
       # --------------------------------------------------------------------------------
       - name: Lint
-        run: cargo xtask check lint
+        # Cover opt-in backend instrumentation; regular tests exercise tracing-disabled builds.
+        run: cargo xtask check --features burn/tracing lint
       # --------------------------------------------------------------------------------
       - name: Typos
         uses: tracel-ai/github-actions/check-typos@v11
@@ -134,7 +135,6 @@ jobs:
         include:
           - rust: stable
             toolchain: stable
-            coverage: --enable-coverage
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
@@ -147,11 +147,11 @@ jobs:
           rust-toolchain: ${{ matrix.toolchain }}
           # Keep caches isolated per shard to prevent race conditions or bloated sizes
           cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-linux
-          # Disable cache on linux-std (stable) runner which currently always runs out of disk space with tests + coverage
-          enable-cache: ${{ matrix.rust != 'stable' }}
+          # Coverage builds can exhaust disk space; examples only run cargo check.
+          enable-cache: ${{ matrix.rust != 'stable' || matrix.ci_type == 'examples' }}
       # # --------------------------------------------------------------------------------
       - name: Install grcov
-        if: matrix.rust == 'stable'
+        if: matrix.rust == 'stable' && matrix.ci_type != 'examples'
         shell: bash
         run: |
           curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
@@ -159,7 +159,7 @@ jobs:
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask ${{ matrix.coverage }} test ${{ env.TEST_RELEASE_FLAG }} --ci ${{ matrix.ci_type }}
+        run: cargo xtask ${{ matrix.rust == 'stable' && matrix.ci_type != 'examples' && '--enable-coverage' || '' }} test ${{ env.TEST_RELEASE_FLAG }} --ci ${{ matrix.ci_type }}
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         if: matrix.rust == 'stable' && matrix.ci_type != 'examples'

@@ -2,10 +2,10 @@ use burn_core as burn;
 
 use super::vgg19::Vgg19;
 use super::weights::load_vgg19_weights;
-use crate::loss::Reduction;
 use burn::config::Config;
 use burn::module::Module;
 use burn::tensor::{Device, Tensor};
+use burn_nn::loss::Reduction;
 
 /// Configuration for the [Gram Matrix Loss](GramMatrixLoss) module.
 ///
@@ -15,19 +15,19 @@ use burn::tensor::{Device, Tensor};
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// use burn_nn::loss::pretrained::gram_matrix::GramMatrixLossConfig;
+/// ```no_run
+/// use burn_vision::loss::GramMatrixLossConfig;
 ///
 /// // Create Gram Matrix Loss with equal weights for all 5 layers
 /// let device = Default::default();
 /// let gram_loss = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0])
 ///     .with_use_avg_pool(true)
-///     .init::<B>(&device);
+///     .init(&device);
 /// ```
 ///
 /// # Reference
 /// [Image Style Transfer Using Convolutional Neural Networks](https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/Gatys_Image_Style_Transfer_CVPR_2016_paper.pdf)
-#[cfg_attr(docsrs, doc(cfg(feature = "pretrained")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "loss")))]
 #[derive(Config, Debug)]
 pub struct GramMatrixLossConfig {
     /// The weights of the layer contributing to the total loss.
@@ -53,15 +53,15 @@ impl GramMatrixLossConfig {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// use burn_nn::loss::pretrained::gram_matrix::GramMatrixLossConfig;
+    /// ```no_run
+    /// use burn_vision::loss::GramMatrixLossConfig;
     ///
     /// // Create Gram Matrix Loss with equal weights for all 5 layers
     /// let device = Default::default();
     /// let gram_loss = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0])
-    ///     .init::<B>(&device);
+    ///     .init(&device);
     /// ```
-    pub fn init(&self, device: &Device) -> GramMatrixLoss<B> {
+    pub fn init(&self, device: &Device) -> GramMatrixLoss {
         self.assertions();
 
         let vgg19 = Vgg19::new(self.use_avg_pool, device);
@@ -98,28 +98,28 @@ impl GramMatrixLossConfig {
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// use burn_nn::loss::pretrained::gram_matrix::GramMatrixLossConfig;
+/// ```no_run
+/// use burn_vision::loss::GramMatrixLossConfig;
 ///
 /// // Initialize the loss function via its config
 /// let device = Default::default();
 /// // Uses max pool by default
-/// let loss_fn = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init::<B>(&device);
+/// let loss_fn = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init(&device);
 /// ```
 ///
 /// # Reference
 /// [Image Style Transfer Using Convolutional Neural Networks](https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/Gatys_Image_Style_Transfer_CVPR_2016_paper.pdf)
-#[cfg_attr(docsrs, doc(cfg(feature = "pretrained")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "loss")))]
 #[derive(Module, Debug)]
 pub struct GramMatrixLoss {
     /// The weights of the layer contributing to the total loss.
     /// Should have a length of 5 since Gram Matrix Loss uses 5 layers.
     pub layer_weights: Vec<f32>,
     /// Pretrained VGG19 feature extractor
-    pub feat_extractor: Vgg19<B>,
+    pub feat_extractor: Vgg19,
 }
 
-impl GramMatrixLoss<B> {
+impl GramMatrixLoss {
     /// Computes the Gram Matrix Loss with reduction.
     ///
     /// # Arguments
@@ -147,17 +147,18 @@ impl GramMatrixLoss<B> {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// use burn_nn::loss::pretrained::gram_matrix::GramMatrixLossConfig;
-    /// use burn::loss::Reduction;
+    /// ```no_run
+    /// use burn_vision::loss::GramMatrixLossConfig;
+    /// use burn_nn::loss::Reduction;
     ///
     /// let device = Default::default();
-    /// let loss_fn = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init::<B>(&device);
+    /// let loss_fn = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init(&device);
     ///
-    /// let predictions = /* [N, 3, H, W] */;
-    /// let targets = /* [N, 3, H, W] */;
+    /// use burn_core::tensor::Tensor;
+    /// let predictions = Tensor::<4>::zeros([1, 3, 32, 32], &device);
+    /// let targets = Tensor::<4>::ones([1, 3, 32, 32], &device);
     ///
-    /// # Returns a tensor with shape [1] containing a single loss value
+    /// // Returns a tensor with shape [1] containing a single loss value
     /// let loss = loss_fn.forward(predictions, targets, Reduction::Mean);
     /// ```
     pub fn forward(
@@ -198,14 +199,15 @@ impl GramMatrixLoss<B> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// use burn_nn::loss::pretrained::gram_matrix::GramMatrixLossConfig;
+    /// ```no_run
+    /// use burn_vision::loss::GramMatrixLossConfig;
     ///
     /// let device = Default::default();
-    /// let loss_fn = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init::<B>(&device);
+    /// let loss_fn = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init(&device);
     ///
-    /// let predictions = /* [N, 3, H, W] */;
-    /// let targets = /* [N, 3, H, W] */;
+    /// use burn_core::tensor::Tensor;
+    /// let predictions = Tensor::<4>::zeros([1, 3, 32, 32], &device);
+    /// let targets = Tensor::<4>::ones([1, 3, 32, 32], &device);
     ///
     /// // Returns a tensor of shape [N] containing the loss for each sample
     /// let unreduced_loss = loss_fn.forward_no_reduction(predictions, targets);

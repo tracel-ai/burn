@@ -1,0 +1,14 @@
+[package]
+name = "burn-einsum"
+description = "Shared equation parsing and execution planning for Burn's einsum APIs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-einsum"
+readme = "README.md"
+categories = ["science", "no-std"]
+
+[lints]
+workspace = true
+
+[dependencies]

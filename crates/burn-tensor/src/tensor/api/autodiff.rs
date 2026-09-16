@@ -51,14 +51,25 @@ impl Gradients {
 impl<const D: usize> Tensor<D> {
     /// Computes gradients by backpropagating from this tensor.
     ///
-    /// The tensor must participate in an autodiff graph. Backward consumes the shared graph tape,
-    /// even though this method borrows the tensor, so calling it again through this tensor or one
-    /// of its clones may panic.
+    /// The tensor must participate in an autodiff graph. Backward consumes the recorded steps
+    /// reachable from this tensor, even though this method borrows it. Clones share those steps;
+    /// cloning a tensor does not preserve its backward tape.
+    ///
+    /// Burn does not support retaining the graph for another backward (`retain_graph`). Combine
+    /// losses that share intermediates into one loss before calling backward, or recompute the
+    /// forward pass for each backward. Fresh forwards and existing branches can reuse parameter
+    /// leaves, including leaves used by an earlier backward, as long as they do not depend on
+    /// consumed intermediates. Gradient checkpointing does not change this contract.
+    ///
+    /// To intentionally stop gradients through earlier operations, use [`detach`](Tensor::detach).
+    /// This starts a new lineage; it does not restore the earlier graph.
     ///
     /// # Panics
     ///
-    /// Panics if autodiff is disabled, the tensor doesn't participate in a recorded graph, or the
-    /// graph tape has already been consumed. Distributed backward also panics if a distributed
+    /// Panics if autodiff is disabled, the tensor doesn't participate in a recorded graph, backward
+    /// has already consumed this tensor's step, or any required intermediate step has been
+    /// consumed. Consumed ancestry is rejected before any additional steps are consumed, leaving
+    /// fresh branches available for backward. Distributed backward also panics if a distributed
     /// parameter uses a different backend than the loss.
     pub fn backward(&self) -> Gradients {
         assert!(

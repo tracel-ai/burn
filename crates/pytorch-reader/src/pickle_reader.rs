@@ -1579,11 +1579,14 @@ fn insert_pairs(dict: &mut HashMap<String, Object>, items: Vec<Object>) -> Resul
 // Tensor extraction
 // ---------------------------------------------------------------------------------------------
 
-/// Walk a parsed dict, collecting each tensor found under a nested dict path.
+/// Walk a parsed object tree, collecting each tensor found under a nested dict/list/tuple path.
 ///
-/// Only dicts are descended into: a state_dict is one, and a tensor reached any other way is
-/// ignored. A tensor is built without a name, its path being assembled only here, so this is
-/// also where each one gets its final identity.
+/// Dicts are descended by key; lists and tuples are descended by index, so a tensor at
+/// `{"weights": [w1, w2]}` is named `weights.0` and `weights.1`. This is burn's `Vec<Module>`
+/// parameter naming and matches how `nn.ModuleList` entries appear in a PyTorch state_dict,
+/// so such files load into the natural burn module without remapping. A tensor is built
+/// without a name, its path being assembled only here, so this is also where each one gets
+/// its final identity.
 pub(crate) fn extract_tensors(dict: HashMap<String, Object>) -> HashMap<String, Tensor> {
     fn walk(obj: Object, path: &mut Vec<String>, tensors: &mut HashMap<String, Tensor>) {
         match obj {
@@ -1591,6 +1594,13 @@ pub(crate) fn extract_tensors(dict: HashMap<String, Object>) -> HashMap<String, 
                 for (key, value) in dict {
                     path.push(key);
                     walk(value, path, tensors);
+                    path.pop();
+                }
+            }
+            Object::List(items) | Object::Tuple(items) => {
+                for (index, item) in items.into_iter().enumerate() {
+                    path.push(index.to_string());
+                    walk(item, path, tensors);
                     path.pop();
                 }
             }
@@ -2411,5 +2421,58 @@ mod tests {
                 .contains("Failed to read storage 'missing' for tensor with shape [2, 3]"),
             "{err}"
         );
+    }
+
+    #[test]
+    fn tensors_inside_lists_and_tuples_get_indexed_names() {
+        // Regression test for https://github.com/tracel-ai/burn/issues/5595:
+        // torch.save({"weights": [w1, w2]}) must expose both tensors instead of dropping them.
+        let source = fixture_source();
+        let w1 = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            4,
+            0,
+            &[2, 2],
+            &[2, 1],
+            &source,
+        ))
+        .unwrap();
+        let w2 = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            9,
+            0,
+            &[3, 3],
+            &[3, 1],
+            &source,
+        ))
+        .unwrap();
+        let b = rebuild(rebuild_args("FloatStorage", "0", 4, 0, &[4], &[1], &source)).unwrap();
+
+        let mut nested = HashMap::new();
+        nested.insert("w".to_string(), Object::Tensor(w2));
+
+        let mut dict = HashMap::new();
+        // Non-tensor list entries are still ignored, exactly as before.
+        dict.insert(
+            "weights".to_string(),
+            Object::List(vec![
+                Object::Tensor(w1),
+                Object::Int(7),
+                Object::Dict(nested),
+            ]),
+        );
+        dict.insert("bias".to_string(), Object::Tuple(vec![Object::Tensor(b)]));
+
+        let mut tensors = extract_tensors(dict);
+        assert_eq!(tensors.len(), 3);
+        assert!(tensors.contains_key("weights.0"));
+        assert!(tensors.contains_key("weights.2.w"));
+        assert!(tensors.contains_key("bias.0"));
+
+        // The indexed names match burn's Vec<Module> naming; the tensor data is intact.
+        let tensor = tensors.remove("weights.0").unwrap();
+        assert_eq!(read_as::<f32>(&tensor), [0.0, 1.0, 2.0, 3.0]);
     }
 }
