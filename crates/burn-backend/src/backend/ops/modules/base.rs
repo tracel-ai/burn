@@ -174,14 +174,24 @@ pub trait ModuleOps<B: Backend> {
     ) -> BatchNormTrain<B> {
         let shape = x.shape();
         let channels = shape[1];
-        let count = (shape.num_elements() / channels) as f64;
-        let reduced = every_dim_but_the_channels(shape.num_dims());
+        let samples_per_channel = shape.num_elements() / channels;
+        let flattened = Shape::new([channels, samples_per_channel]);
+        let mut per_channel = alloc::vec![1; shape.num_dims()];
+        per_channel[1] = channels;
 
-        let mean = B::float_div_scalar(B::float_sum_dims(x.clone(), &reduced), count.into());
+        // Use mean directly to avoid overflowing intermediate sums in f16.
+        let mean = B::float_mean_dim(
+            B::float_reshape(B::float_swap_dims(x.clone(), 0, 1), flattened.clone()),
+            1,
+        );
+        let mean = B::float_reshape(mean, Shape::from(per_channel));
         let centered = B::float_sub(x.clone(), mean.clone());
-        let variance = B::float_div_scalar(
-            B::float_sum_dims(B::float_mul(centered.clone(), centered), &reduced),
-            count.into(),
+        let variance = B::float_mean_dim(
+            B::float_reshape(
+                B::float_swap_dims(B::float_mul(centered.clone(), centered), 0, 1),
+                flattened,
+            ),
+            1,
         );
         let mean = B::float_reshape(mean, Shape::new([channels]));
         let variance = B::float_reshape(variance, Shape::new([channels]));
@@ -204,8 +214,7 @@ pub trait ModuleOps<B: Backend> {
         let shape = x.shape();
         let rank = shape.num_dims();
         let channels = shape[1];
-        let count = (shape.num_elements() / channels) as f64;
-        let reduced = every_dim_but_the_channels(rank);
+        let flattened = Shape::new([channels, shape.num_elements() / channels]);
         let mut per_channel = alloc::vec![1; rank];
         per_channel[1] = channels;
         let per_channel = Shape::from(per_channel);
@@ -222,22 +231,26 @@ pub trait ModuleOps<B: Backend> {
             inv_std.clone(),
         );
 
-        let beta_grad = B::float_sum_dims(output_grad.clone(), &reduced);
-        let gamma_grad = B::float_sum_dims(
-            B::float_mul(output_grad.clone(), normalized.clone()),
-            &reduced,
+        let output_grad_flat = B::float_reshape(
+            B::float_swap_dims(output_grad.clone(), 0, 1),
+            flattened.clone(),
         );
+        let normalized_grad_flat = B::float_reshape(
+            B::float_swap_dims(B::float_mul(output_grad.clone(), normalized.clone()), 0, 1),
+            flattened,
+        );
+        let beta_grad = B::float_sum_dim(output_grad_flat.clone(), 1);
+        let gamma_grad = B::float_sum_dim(normalized_grad_flat.clone(), 1);
 
-        // The batch statistics depend on every element of the input, which is
-        // what the two centred terms account for.
-        let centred_grad = B::float_sub(
-            output_grad,
-            B::float_div_scalar(beta_grad.clone(), count.into()),
+        // Compute means independently: parameter-gradient sums can overflow in f16.
+        let mean_grad =
+            B::float_reshape(B::float_mean_dim(output_grad_flat, 1), per_channel.clone());
+        let mean_normalized_grad = B::float_reshape(
+            B::float_mean_dim(normalized_grad_flat, 1),
+            per_channel.clone(),
         );
-        let projected = B::float_mul(
-            normalized,
-            B::float_div_scalar(gamma_grad.clone(), count.into()),
-        );
+        let centred_grad = B::float_sub(output_grad, mean_grad);
+        let projected = B::float_mul(normalized, mean_normalized_grad);
         let scale = B::float_mul(B::float_reshape(gamma, per_channel), inv_std);
         let x_grad = B::float_mul(scale, B::float_sub(centred_grad, projected));
 
@@ -1099,10 +1112,4 @@ pub trait ModuleOps<B: Backend> {
         dim: usize,
         n: Option<usize>,
     ) -> FloatTensor<B>;
-}
-
-/// The dimensions a per-channel statistic reduces over: every one but the
-/// channel dimension, which is dimension 1.
-fn every_dim_but_the_channels(rank: usize) -> alloc::vec::Vec<usize> {
-    (0..rank).filter(|dim| *dim != 1).collect()
 }

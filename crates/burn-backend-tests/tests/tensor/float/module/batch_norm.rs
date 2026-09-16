@@ -36,8 +36,7 @@ fn test_batch_norm_train_normalizes_with_the_statistics_it_returns() {
     let beta = TestTensor::<1>::from([0.5, -1.0, 2.0]);
     let tolerance = Tolerance::relative(1e-4).set_half_precision_relative(5e-3);
 
-    let (output, mean, variance) =
-        batch_norm_train(input.clone(), gamma.clone(), beta.clone(), 1e-5);
+    let result = batch_norm_train(input.clone(), gamma.clone(), beta.clone(), 1e-5);
 
     // The statistics of the batch, per channel, computed the long way.
     let expected_mean = input
@@ -63,12 +62,61 @@ fn test_batch_norm_train_normalizes_with_the_statistics_it_returns() {
         1e-5,
     );
 
-    mean.into_data()
+    result
+        .mean
+        .into_data()
         .assert_approx_eq::<FloatElem>(&expected_mean.into_data(), tolerance);
-    variance
+    result
+        .variance
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_variance.into_data(), tolerance);
-    output
+    result
+        .output
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_output.into_data(), tolerance);
+}
+
+#[test]
+fn test_batch_norm_train_large_batch_statistics() {
+    let device = Default::default();
+    // Exercise overflow of f16 sums, both below and above f16's maximum count.
+    for batch in [2, 8] {
+        let shape = [batch, 2, 128, 128];
+        let values: Vec<f32> = (0..batch * 2 * 128 * 128)
+            .map(|i| {
+                if (i / (128 * 128)) % 2 == 0 || i % 2 == 0 {
+                    3.0
+                } else {
+                    -3.0
+                }
+            })
+            .collect();
+        let expected_output: Vec<f32> = (0..values.len())
+            .map(|i| {
+                if (i / (128 * 128)) % 2 == 0 {
+                    0.0
+                } else {
+                    values[i] / 3.0
+                }
+            })
+            .collect();
+        let input = TestTensor::<4>::from_data(TensorData::new(values, shape), &device);
+        let gamma = TestTensor::<1>::ones([2], &device);
+        let beta = TestTensor::<1>::zeros([2], &device);
+        let result = batch_norm_train(input, gamma, beta, 1e-5);
+        let tolerance = Tolerance::absolute(1e-3);
+
+        result
+            .mean
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([3.0, 0.0]), tolerance);
+        result
+            .variance
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([0.0, 9.0]), tolerance);
+        result
+            .output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::new(expected_output, shape), tolerance);
+    }
 }

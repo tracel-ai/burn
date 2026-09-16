@@ -132,7 +132,7 @@ impl BatchNorm {
     fn forward_train<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let device = input.device();
 
-        let (output, mean, var) = burn::tensor::module::batch_norm_train(
+        let result = burn::tensor::module::batch_norm_train(
             input,
             self.gamma.val(),
             self.beta.val(),
@@ -144,15 +144,15 @@ impl BatchNorm {
 
         let running_mean = running_mean
             .mul_scalar(1.0 - self.momentum)
-            .add(mean.detach().mul_scalar(self.momentum));
+            .add(result.mean.detach().mul_scalar(self.momentum));
         let running_var = running_var
             .mul_scalar(1.0 - self.momentum)
-            .add(var.detach().mul_scalar(self.momentum));
+            .add(result.variance.detach().mul_scalar(self.momentum));
 
         self.running_mean.update(running_mean.detach());
         self.running_var.update(running_var.detach());
 
-        output
+        result.output
     }
 }
 
