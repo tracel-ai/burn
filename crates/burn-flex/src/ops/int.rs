@@ -13,6 +13,17 @@ use crate::Layout;
 use crate::ops::binary::{binary_op_typed, int_binary_op, int_scalar_op, scalar_op_typed};
 use crate::{Flex, FlexTensor, ops::matmul};
 
+/// Python/PyTorch-style remainder: result has same sign as divisor.
+#[inline]
+fn remainder_int(a: i64, b: i64) -> i64 {
+    let r = a.wrapping_rem(b);
+    if r != 0 && (r < 0) != (b < 0) {
+        r.wrapping_add(b)
+    } else {
+        r
+    }
+}
+
 /// Convert a Scalar to (i64, u64) pair for the given dtype.
 /// Only the matching type's conversion is validated; the other gets a dummy 0.
 fn scalar_to_int_pair(dtype: DType, rhs: &Scalar) -> (i64, u64) {
@@ -224,7 +235,66 @@ impl IntTensorOps<Flex> for Flex {
                     dt => panic!("int_scatter: unsupported dtype {:?}", dt),
                 }
             }
-            other => unimplemented!("int_scatter with {other:?} update is not implemented"),
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_min::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_min::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_min::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_min::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_min::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_min::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_min::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_min::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_max::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_max::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_max::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_max::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_max::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_max::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_max::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_max::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
+            }
         }
     }
 
@@ -409,8 +479,73 @@ impl IntTensorOps<Flex> for Flex {
                     dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
                 }
             }
-            other => {
-                unimplemented!("int_select_assign with {other:?} update is not implemented")
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_min::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_min::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_min::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_min::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_min::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_min::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_min::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_min::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_max::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_max::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_max::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_max::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_max::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_max::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_max::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_max::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
             }
         }
     }
@@ -562,7 +697,7 @@ impl IntTensorOps<Flex> for Flex {
             return binary_op_typed(lhs, rhs, |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
-        int_binary_op(lhs, rhs, |a, b| ((a % b) + b) % b)
+        int_binary_op(lhs, rhs, remainder_int)
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
@@ -570,7 +705,7 @@ impl IntTensorOps<Flex> for Flex {
             return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| ((a % b) + b) % b)
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), remainder_int)
     }
 
     // Precision limits: i64/u64 > 2^24 for f32/f16/bf16, > 2^53 for f64.
@@ -800,11 +935,22 @@ impl IntTensorOps<Flex> for Flex {
         int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shl(b as u32))
     }
 
+    // u64 values > i64::MAX are negative as i64, so the widened right shift
+    // would be arithmetic and fill with ones. Shift them as u64 instead.
     fn bitwise_right_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
+        if lhs.dtype() == DType::U64 {
+            let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a.wrapping_shr(b as u32));
+        }
         int_binary_op(lhs, rhs, |a, b| a.wrapping_shr(b as u32))
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
+        if lhs.dtype() == DType::U64 {
+            return scalar_op_typed(lhs, rhs.to_i64().unwrap() as u64, |a: u64, b: u64| {
+                a.wrapping_shr(b as u32)
+            });
+        }
         int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shr(b as u32))
     }
 
@@ -1278,6 +1424,23 @@ mod tests {
     use crate::FlexTensor;
 
     #[test]
+    fn test_i64_remainder_overflow() {
+        // The shared suite uses i32, which Flex promotes to i64. Keep the
+        // actual i64 limits covered for both tensor and scalar dispatch.
+        for (a, b, expected) in [(i64::MAX - 1, i64::MAX, i64::MAX - 1), (i64::MIN, -1, 0)] {
+            let lhs = FlexTensor::from_data(TensorData::new(vec![a], [1]));
+            let rhs = FlexTensor::from_data(TensorData::new(vec![b], [1]));
+            for result in [
+                Flex::int_remainder(lhs.clone(), rhs),
+                Flex::int_remainder_scalar(lhs, b.into()),
+            ] {
+                let values: Vec<i64> = result.into_data().try_into_vec().unwrap();
+                assert_eq!(values, vec![expected]);
+            }
+        }
+    }
+
+    #[test]
     fn test_u64_div_large_values() {
         let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX], [1]));
         let b = FlexTensor::from_data(TensorData::new(vec![2u64], [1]));
@@ -1333,6 +1496,34 @@ mod tests {
         let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![0i32]);
         assert_eq!(1i32.wrapping_shl(33), 2i32);
+    }
+
+    #[test]
+    fn test_u64_right_shift_is_logical() {
+        // Values above i64::MAX must not sign-extend through the i64 widening.
+        let values = vec![u64::MAX, 1u64 << 63, 12];
+        let a = FlexTensor::from_data(TensorData::new(values.clone(), [3]));
+        let b = FlexTensor::from_data(TensorData::new(vec![1u64, 63, 2], [3]));
+        let result = Flex::bitwise_right_shift(a.clone(), b);
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![u64::MAX >> 1, 1, 3]);
+
+        let result = Flex::bitwise_right_shift_scalar(a, burn_backend::Scalar::from(1i64));
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, values.iter().map(|v| v >> 1).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_u64_right_shift_broadcast() {
+        let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX, 1u64 << 63], [2, 1]));
+        let b = FlexTensor::from_data(TensorData::new(vec![1u64, 4], [1, 2]));
+        let result = Flex::bitwise_right_shift(a, b);
+        assert_eq!(result.layout().shape().to_vec(), vec![2, 2]);
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(
+            data,
+            vec![u64::MAX >> 1, u64::MAX >> 4, 1u64 << 62, 1u64 << 59]
+        );
     }
 
     #[test]

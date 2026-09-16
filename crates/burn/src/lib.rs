@@ -107,6 +107,7 @@
 //!   - `openblas-system`: If supported, Openblas installed on the system will be use
 //!   - `autotune`: Enable running benchmarks to select the best kernel in backends that support it.
 //!   - `fusion`: Enable operation fusion in backends that support it.
+//!   - `tracing`: Enable diagnostic tracing in the selected backends (disabled by default).
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Model Storage
@@ -120,6 +121,17 @@
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!
 //! You can also check the details in sub-crates [`burn-core`](https://docs.rs/burn-core) and [`burn-train`](https://docs.rs/burn-train).
+//!
+//! ### Backend tracing
+//!
+//! Add `"tracing"` to the features of your `burn` dependency to compile backend instrumentation,
+//! including autodiff and fusion spans. When depending directly on `burn-autodiff` or
+//! `burn-fusion`, enable their `tracing` feature instead. These spans are opt-in: configuring a
+//! tracing subscriber alone does not enable them. Configure your subscriber to include the
+//! `trace` level to observe tensor operation spans.
+//!
+//! The feature propagates to enabled backends without selecting an additional backend. Normal
+//! training logs remain available without this feature.
 
 pub use burn_core::*;
 

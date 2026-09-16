@@ -236,7 +236,7 @@ fn lp_norm_impl<const D: usize>(x: Tensor<D>, p: f64, dims: &[usize]) -> Tensor<
         0.0 => l0_norm_impl(x, dims),
         1.0 => l1_norm_impl(x, dims),
         2.0 => l2_norm_impl(x, dims),
-        p if is_even_integer(p) => lp_signed_norm(x, p as u32, dims),
+        p if is_i32_even_integer(p) => lp_signed_norm(x, p as i32, dims),
         f64::INFINITY => max_abs_norm_impl(x, dims),
         f64::NEG_INFINITY => min_abs_norm_impl(x, dims),
         _ => lp_norm_base(x, p, dims),
@@ -431,14 +431,14 @@ pub(super) fn l2_norm_impl<const D: usize>(x: Tensor<D>, dims: &[usize]) -> Tens
     x.square().sum_dims(dims).sqrt()
 }
 
-fn is_even_integer(x: f64) -> bool {
-    x.fract() == 0.0 && (x as i64) % 2 == 0
+fn is_i32_even_integer(x: f64) -> bool {
+    x >= i32::MIN as f64 && x <= i32::MAX as f64 && x.fract() == 0.0 && (x as i32) % 2 == 0
 }
 
 /// Computes ``L(2*n)`` for even integer ``n``.
 ///
 /// This lets us skip the abs.
-fn lp_signed_norm<const D: usize>(x: Tensor<D>, p: u32, dims: &[usize]) -> Tensor<D> {
+fn lp_signed_norm<const D: usize>(x: Tensor<D>, p: i32, dims: &[usize]) -> Tensor<D> {
     x.powi_scalar(p).sum_dims(dims).powf_scalar(1. / (p as f64))
 }
 

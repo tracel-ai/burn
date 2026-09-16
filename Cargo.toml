@@ -72,6 +72,8 @@ parking_lot = { version = "0.12.5", default-features = false }
 paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.54.0", features = ["lazy", "strings"] }
+# Dataset adapters only need the DataFrame types, not the query or file-format engines.
+polars-core = { version = "0.54.0", default-features = false }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.106"
 quote = "1.0.45"
@@ -225,11 +227,11 @@ burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.3", default-
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.3", default-features = false }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "359770be3c9fe69c0b0f4c6f7697062a86bbf4a8" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "359770be3c9fe69c0b0f4c6f7697062a86bbf4a8" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "359770be3c9fe69c0b0f4c6f7697062a86bbf4a8" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "359770be3c9fe69c0b0f4c6f7697062a86bbf4a8" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "7ace55c61fcba35e36f40d4c40caadc4bd7da613" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a796d7e77ebe128f8c2f7fbd80264a62e36442f4" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a796d7e77ebe128f8c2f7fbd80264a62e36442f4" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a796d7e77ebe128f8c2f7fbd80264a62e36442f4" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a796d7e77ebe128f8c2f7fbd80264a62e36442f4" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "83bacfcc889c3b8ed1381990993139e5357f1593" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

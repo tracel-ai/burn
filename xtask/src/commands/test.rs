@@ -119,13 +119,32 @@ pub(crate) fn handle_backend_tests(
         )?;
     }
 
-    build_helpers::custom_crates_tests(
-        vec!["burn-backend-tests"],
-        handle_test_args(&test_args, args.release),
-        None,
-        None,
-        "backend tests",
-    )?;
+    let group_cpu_tests = matches!(backend, TestBackend::Ndarray | TestBackend::Flex)
+        && matches!(context, Context::Std);
+    if group_cpu_tests {
+        // Keep each backend separate, and leave SIMD/threading defaults to the
+        // standalone backend crate tests. Only linalg requests autotuning.
+        run_test_group(
+            &["burn-backend-tests", "burn-linalg"],
+            &[
+                &format!("burn-backend-tests/{backend_name}"),
+                "burn-backend-tests/std",
+                &format!("burn-linalg/{backend_name}"),
+                "burn-linalg/std",
+                "burn-linalg/autotune",
+            ],
+            args.release,
+            &format!("{backend_name} backend and linalg tests"),
+        )?;
+    } else {
+        build_helpers::custom_crates_tests(
+            vec!["burn-backend-tests"],
+            handle_test_args(&test_args, args.release),
+            None,
+            None,
+            "backend tests",
+        )?;
+    }
 
     if matches!(backend, TestBackend::Flex) {
         // The dedicated transfer target requires two backends. Keep it separate
@@ -141,13 +160,16 @@ pub(crate) fn handle_backend_tests(
         )?;
     }
 
-    build_helpers::custom_crates_tests(
-        vec!["burn-linalg"],
-        handle_test_args(&linalg_test_args, args.release),
-        None,
-        None,
-        "linalg backend tests",
-    )
+    if !group_cpu_tests {
+        build_helpers::custom_crates_tests(
+            vec!["burn-linalg"],
+            handle_test_args(&linalg_test_args, args.release),
+            None,
+            None,
+            "linalg backend tests",
+        )?;
+    }
+    Ok(())
 }
 
 fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
@@ -183,6 +205,83 @@ fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Compile compatible Metal suites together instead of rebuilding their shared GPU stack
+/// for every package. Keep defaults out of the non-fusion group: the WGPU, core, and
+/// vision defaults enable fusion transitively.
+fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
+    set_burn_device("metal");
+
+    let packages = ["burn-backend-tests", "burn-linalg"];
+    let features = [
+        "burn-backend-tests/metal",
+        "burn-backend-tests/std",
+        "burn-linalg/metal",
+        "burn-linalg/std",
+        "burn-linalg/autotune",
+    ];
+
+    let mut fusion_packages = packages.to_vec();
+    fusion_packages.extend(["burn-wgpu", "burn-core", "burn-vision"]);
+    let mut fusion_features = features.to_vec();
+    fusion_features.extend([
+        "burn-backend-tests/fusion",
+        "burn-linalg/fusion",
+        // Preserve the default-feature coverage of the former standalone crate tests.
+        // Qualify every feature so adding a package cannot enable its namesake feature.
+        "burn-wgpu/default",
+        "burn-wgpu/metal",
+        "burn-core/default",
+        "burn-core/metal",
+        "burn-vision/default",
+        "burn-vision/metal",
+    ]);
+    run_test_group(
+        &fusion_packages,
+        &fusion_features,
+        release,
+        "Metal with fusion",
+    )?;
+    run_test_group(&packages, &features, release, "Metal without fusion")?;
+
+    // Keep Accelerate separate so it cannot change the ndarray reference backend used
+    // by the Metal tests. It also doesn't need to compile the GPU dependencies.
+    build_helpers::custom_crates_tests(
+        vec!["burn-ndarray"],
+        handle_test_args(&["--features", "blas-accelerate"], release),
+        None,
+        None,
+        "std blas-accelerate",
+    )
+}
+
+fn run_test_group(
+    packages: &[&str],
+    features: &[&str],
+    release: bool,
+    description: &str,
+) -> anyhow::Result<()> {
+    // An empty discovered group must not turn into an implicit workspace test.
+    if packages.is_empty() {
+        return Ok(());
+    }
+    let features = features.join(",");
+    let mut args = vec!["test", "--color", "always", "--no-default-features"];
+    for package in packages {
+        args.extend(["-p", package]);
+    }
+    args.extend(["--features", &features]);
+    if release {
+        args.push("--release");
+    }
+
+    // custom_crates_tests loops over packages and invokes Cargo once per package.
+    // One invocation is required here for Cargo to unify their dependency features.
+    group!("Tests: {}", description);
+    let result = run_process("cargo", &args, None, None, description);
+    endgroup!();
+    result
+}
+
 const EXCLUDE_CRATES: &[&str] = &[
     "burn-cpu",
     "burn-cuda",
@@ -200,7 +299,7 @@ const EXCLUDE_CRATES: &[&str] = &[
 ];
 
 fn enumerate_examples() -> anyhow::Result<Vec<String>> {
-    let metadata = cargo_metadata::MetadataCommand::new().exec()?;
+    let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
 
     let workspace_root = metadata.workspace_root.as_std_path();
     let examples_dir = workspace_root.join("examples");
@@ -214,6 +313,43 @@ fn enumerate_examples() -> anyhow::Result<Vec<String>> {
         })
         .map(|package| package.name.to_string())
         .collect())
+}
+
+/// Discover opt-in feature coverage without maintaining another crate allowlist.
+/// Apply the same platform/package exclusions as the workspace-default suite.
+fn feature_test_group(
+    metadata: &cargo_metadata::Metadata,
+    feature: &str,
+    excluded: &[String],
+) -> (Vec<String>, Vec<String>) {
+    let examples_dir = metadata.workspace_root.join("examples");
+    let mut packages: Vec<_> = metadata
+        .workspace_packages()
+        .into_iter()
+        .filter(|package| {
+            !package.manifest_path.starts_with(&examples_dir)
+                && !excluded.iter().any(|name| name == package.name.as_str())
+                && package.features.contains_key(feature)
+        })
+        .collect();
+    packages.sort_by(|a, b| a.name.cmp(&b.name));
+
+    let mut features = Vec::new();
+    for package in &packages {
+        features.push(format!("{}/{feature}", package.name));
+        // run_test_group disables defaults globally; restore each package's
+        // defaults explicitly when that feature exists.
+        if package.features.contains_key("default") {
+            features.push(format!("{}/default", package.name));
+        }
+    }
+    (
+        packages
+            .iter()
+            .map(|package| package.name.to_string())
+            .collect(),
+        features,
+    )
 }
 
 pub(crate) fn handle_command(
@@ -316,23 +452,7 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GithubMacRunner => {
-                    handle_backend_tests(
-                        args.clone().try_into().unwrap(),
-                        TestBackend::Metal,
-                        context.clone(),
-                    )?;
-
-                    args.target = Target::AllPackages;
-                    args.only.push("burn-wgpu".to_string());
-                    args.features
-                        .get_or_insert_with(Vec::new)
-                        .push("metal".to_string());
-
-                    base_commands::test::handle_command(
-                        args.clone().try_into().unwrap(),
-                        env,
-                        context,
-                    )?;
+                    handle_macos_tests(args.release)?;
                 }
                 CiTestType::GcpCudaRunner => {
                     handle_backend_tests(
@@ -406,27 +526,24 @@ pub(crate) fn handle_command(
                 CiTestType::Crates => {
                     // Capture is intentionally opt-in, so workspace-default tests don't compile
                     // the dispatch, tensor, core, or facade integration tests that exercise it.
-                    build_helpers::custom_crates_tests(
-                        vec![
-                            "burn-dispatch",
-                            "burn-tensor",
-                            "burn-core",
-                            "burn-linalg",
-                            "burn",
-                        ],
-                        handle_test_args(&["--features", "capture"], args.release),
-                        None,
-                        None,
+                    let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
+                    let (packages, features) =
+                        feature_test_group(&metadata, "capture", &args.exclude);
+                    run_test_group(
+                        &packages.iter().map(String::as_str).collect::<Vec<_>>(),
+                        &features.iter().map(String::as_str).collect::<Vec<_>>(),
+                        args.release,
                         "std with graph capture",
                     )?;
 
-                    // burn-dataset
+                    // Keep all-features coverage in this shard to avoid consuming
+                    // another runner from the organization's concurrency limit.
                     build_helpers::custom_crates_tests(
                         vec!["burn-dataset"],
                         handle_test_args(&["--all-features"], args.release),
                         None,
                         None,
-                        "std all features",
+                        "std dataset all features",
                     )?;
 
                     // burn-core
@@ -439,58 +556,23 @@ pub(crate) fn handle_command(
                         "std with features: tch",
                     )?;
 
-                    // burn-nn (pretrained and local tests)
-                    // If the "CI" environment variable is missing, we are running locally.
-                    // if std::env::var("CI").is_err() {
-                    //     nn_features.push_str(",test-local");
-                    // }
-                    // burn-vision
+                    // Both suites use Flex; share their training and model dependencies.
                     set_burn_device("flex");
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-vision"],
-                        handle_test_args(&["--features", "flex", "loss"], args.release),
-                        None,
-                        None,
-                        "std cpu (flex)",
-                    )?;
-
-                    // burn-train vision (LPIPS, DISTS metrics)
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-train"],
-                        handle_test_args(&["--features", "vision"], args.release),
-                        None,
-                        None,
-                        "std vision",
+                    run_test_group(
+                        &["burn-vision", "burn-train"],
+                        &[
+                            "burn-vision/default",
+                            "burn-vision/flex",
+                            "burn-vision/loss",
+                            "burn-train/default",
+                            "burn-train/vision",
+                        ],
+                        args.release,
+                        "std vision and training (flex)",
                     )?;
                 }
-                CiTestType::GcpCudaRunner => (),
+                CiTestType::GcpCudaRunner | CiTestType::GithubMacRunner => (),
                 CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
-                CiTestType::GithubMacRunner => {
-                    // burn-ndarray
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-ndarray"],
-                        handle_test_args(&["--features", "blas-accelerate"], args.release),
-                        None,
-                        None,
-                        "std blas-accelerate",
-                    )?;
-
-                    set_burn_device("metal");
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-core"],
-                        handle_test_args(&["--features", "metal"], args.release),
-                        None,
-                        None,
-                        "std metal",
-                    )?;
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-vision"],
-                        handle_test_args(&["--features", "metal"], args.release),
-                        None,
-                        None,
-                        "std metal",
-                    )?;
-                }
             }
             Ok(())
         }

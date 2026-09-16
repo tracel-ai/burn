@@ -249,7 +249,7 @@ impl From<i64> for DeviceIndex {
 /// enum (e.g. WGPU, which can target a discrete/integrated/virtual GPU, a CPU
 /// adapter, an externally-created wgpu setup, or just "best available").
 ///
-/// The variants mirror `WgpuDevice` from cubecl so the mapping is direct, but
+/// The variants mirror `WgpuDeviceKind` from cubecl so the mapping is direct, but
 /// it is kept as a burn-owned enum so callers don't have to depend on cubecl.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub enum DeviceKind {
@@ -503,12 +503,15 @@ impl Device {
     /// selection heuristics (high-power GPU preferred, or overridden by
     /// `CUBECL_WGPU_DEFAULT_DEVICE`).
     ///
-    /// `Device::vulkan`, `Device::metal` and `Device::webgpu` return the same device: the
-    /// compiler is chosen at runtime from the enabled features, so it is not something the
-    /// constructor can pin.
+    /// The graphics API — and so the shader compiler — is the runtime's to settle, from the
+    /// enabled features and what the machine offers. `Device::vulkan`, `Device::metal` and
+    /// `Device::webgpu` pin one instead: the same adapter on two APIs is two devices.
     #[cfg(feature = "wgpu")]
     pub fn wgpu(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(wgpu_device(
+            device_kind,
+            burn_dispatch::devices::WgpuBackend::Auto,
+        ))
     }
 
     #[cfg(all(feature = "wgpu", target_family = "wasm"))]
@@ -517,29 +520,37 @@ impl Device {
         Self::new(wgpu_init_async(device_kind).await)
     }
 
-    /// Vulkan-backed WGPU device, selected via [`DeviceKind`].
+    /// Vulkan-backed WGPU device, selected via [`DeviceKind`] — and so `SPIR-V`, where the
+    /// build and the adapter allow it.
     ///
-    /// The same device as [`Device::wgpu`]; see it for why the shader compiler is no longer
-    /// pinned by the constructor.
+    /// Pinned to Vulkan: the device comes up there or not at all, rather than quietly on
+    /// whichever API [`Device::wgpu`] would settle on.
     #[cfg(feature = "vulkan")]
     pub fn vulkan(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(wgpu_device(
+            device_kind,
+            burn_dispatch::devices::WgpuBackend::Vulkan,
+        ))
     }
 
-    /// Metal-backed WGPU device, selected via [`DeviceKind`].
-    ///
-    /// The same device as [`Device::wgpu`].
+    /// Metal-backed WGPU device, selected via [`DeviceKind`] — and so MSL, where the build
+    /// allows it. Pinned to Metal, as [`Device::vulkan`] is to Vulkan.
     #[cfg(feature = "metal")]
     pub fn metal(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(wgpu_device(
+            device_kind,
+            burn_dispatch::devices::WgpuBackend::Metal,
+        ))
     }
 
-    /// WebGPU-backed device, selected via [`DeviceKind`].
-    ///
-    /// The same device as [`Device::wgpu`].
+    /// WebGPU-backed device, selected via [`DeviceKind`] — the browser's own. Pinned to
+    /// WebGPU, as [`Device::vulkan`] is to Vulkan.
     #[cfg(feature = "webgpu")]
     pub fn webgpu(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(wgpu_device(
+            device_kind,
+            burn_dispatch::devices::WgpuBackend::WebGpu,
+        ))
     }
 
     /// Enables autodiff on this device.
@@ -1063,21 +1074,27 @@ fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
     }
 }
 
-/// Map our backend-agnostic [`DeviceKind`] onto cubecl's `WgpuDevice` enum.
+/// Map our backend-agnostic [`DeviceKind`] onto cubecl's `WgpuDevice`, on `backend`.
 ///
-/// Shared by [`Device::wgpu`], [`Device::vulkan`], [`Device::metal`], and
-/// [`Device::webgpu`], which differ only in which Cargo feature gates them.
+/// Shared by [`Device::wgpu`], which leaves the graphics API to the runtime, and
+/// [`Device::vulkan`], [`Device::metal`] and [`Device::webgpu`], which each pin theirs.
 #[cfg(feature = "wgpu")]
-fn wgpu_device(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
-    use burn_dispatch::devices::WgpuDevice;
-    match device_kind {
-        DeviceKind::DiscreteGpu(i) => WgpuDevice::DiscreteGpu(i),
-        DeviceKind::IntegratedGpu(i) => WgpuDevice::IntegratedGpu(i),
-        DeviceKind::VirtualGpu(i) => WgpuDevice::VirtualGpu(i),
-        DeviceKind::Cpu => WgpuDevice::Cpu,
-        DeviceKind::DefaultDevice => WgpuDevice::DefaultDevice,
-        DeviceKind::Existing(id) => WgpuDevice::Existing(id),
-    }
+fn wgpu_device(
+    device_kind: DeviceKind,
+    backend: burn_dispatch::devices::WgpuBackend,
+) -> burn_dispatch::devices::WgpuDevice {
+    use burn_dispatch::devices::{WgpuDevice, WgpuDeviceKind};
+
+    let kind = match device_kind {
+        DeviceKind::DiscreteGpu(i) => WgpuDeviceKind::DiscreteGpu(i),
+        DeviceKind::IntegratedGpu(i) => WgpuDeviceKind::IntegratedGpu(i),
+        DeviceKind::VirtualGpu(i) => WgpuDeviceKind::VirtualGpu(i),
+        DeviceKind::Cpu => WgpuDeviceKind::Cpu,
+        DeviceKind::DefaultDevice => WgpuDeviceKind::DefaultDevice,
+        DeviceKind::Existing(id) => WgpuDeviceKind::Existing(id),
+    };
+
+    WgpuDevice::new(kind).on(backend)
 }
 
 #[cfg(all(feature = "wgpu", target_family = "wasm"))]
@@ -1086,7 +1103,7 @@ fn wgpu_device(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
 async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
     use burn_dispatch::devices::{AutoGraphicsApi, init_setup_async};
 
-    let device = wgpu_device(device_kind);
+    let device = wgpu_device(device_kind, burn_dispatch::devices::WgpuBackend::Auto);
     init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
     device
 }
