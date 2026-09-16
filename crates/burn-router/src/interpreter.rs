@@ -7,8 +7,8 @@ use crate::{
 };
 use alloc::boxed::Box;
 use burn_backend::{
-    Backend, DType, DeviceOps, ExecutionError, ProfileDuration, ProfileToken, Shape, TensorData,
-    distributed::DistributedOps, tensor::IndexingUpdateOp,
+    Backend, DType, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
+    Shape, TensorData, distributed::DistributedOps, tensor::IndexingUpdateOp,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2219,7 +2219,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Close the window `token` where the calling stream stands.
-    pub fn profile_end(&self, token: ProfileToken) -> Result<ProfileDuration, ExecutionError> {
-        B::profile_end(&self.device, token)
+    pub fn profile_end(
+        &self,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        B::profile_end(&self.device, token, options)
     }
 }

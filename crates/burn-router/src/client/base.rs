@@ -2,7 +2,7 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, ProfileDuration, ProfileToken, TensorData,
+    DType, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -65,9 +65,14 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
         Ok(None)
     }
-    /// Close the window `token` where the calling stream stands.
-    fn profile_end(&self, token: ProfileToken) -> Result<ProfileDuration, ExecutionError> {
-        let _ = token;
+    /// Close the window `token` where the calling stream stands, flushing the
+    /// interpreter's backend first when `options` ask for it.
+    fn profile_end(
+        &self,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        let _ = (token, options);
         Err(ExecutionError::with_context(
             "profiling windows are not supported by this interpreter",
         ))

@@ -5,7 +5,8 @@ use crate::shared::{
 };
 use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
-    DTypeUsageSet, ExecutionError, ProfileDuration, ProfileTicks, ProfileToken, TensorData,
+    DTypeUsageSet, ExecutionError, ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken,
+    TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
@@ -518,8 +519,10 @@ impl RemoteService {
 
     /// Open a profiling window on the server where `stream_id` stands.
     ///
-    /// Blocks on the token, which the closing call needs; a browser thread
-    /// cannot, and reports that the server opens no windows for it.
+    /// Blocks on the token, which the closing call needs. A browser thread
+    /// cannot block, and cannot fall back either: the wall-clock window a
+    /// caller brackets with two syncs would measure nothing, because a
+    /// browser sync does not wait for the server. So it refuses.
     pub fn profile_start(
         &mut self,
         stream_id: StreamId,
@@ -540,15 +543,24 @@ impl RemoteService {
         #[cfg(target_family = "wasm")]
         {
             let _ = stream_id;
-            Ok(None)
+            Err(ExecutionError::with_context(
+                "a remote device cannot be profiled from a browser thread, which cannot wait on \
+                 the server",
+            ))
         }
     }
 
-    /// Close the window `token` where `stream_id` stands. Issued now, so it
-    /// keeps its place among the tasks around it; the measurement is awaited
+    /// Close the window `token` where `stream_id` stands, the server flushing
+    /// its backend first when `options` ask for it. Issued now, so it keeps
+    /// its place among the tasks around it; the measurement is awaited
     /// through the returned duration.
-    pub fn profile_end(&mut self, stream_id: StreamId, token: ProfileToken) -> ProfileDuration {
-        let rx = self.submit_request(|id| Task::ProfileEnd(id, stream_id, token));
+    pub fn profile_end(
+        &mut self,
+        stream_id: StreamId,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> ProfileDuration {
+        let rx = self.submit_request(|id| Task::ProfileEnd(id, stream_id, token, options));
 
         ProfileDuration::new_device_time_maybe(async move {
             let duration = match rx.await {

@@ -1,4 +1,4 @@
-use burn_backend::{DTypeUsageSet, ExecutionError, ProfileToken, TensorData};
+use burn_backend::{DTypeUsageSet, ExecutionError, ProfileOptions, ProfileToken, TensorData};
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
@@ -11,7 +11,11 @@ use std::fmt::Display;
 use crate::{PeerAddr, PeerId};
 
 /// Current Burn Remote application-protocol version.
-pub const PROTOCOL_VERSION: u16 = 1;
+///
+/// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, so a
+/// mismatched peer is refused at the handshake rather than failing to decode
+/// a batch mid-session. `2`: profiling windows.
+pub const PROTOCOL_VERSION: u16 = 2;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -219,9 +223,10 @@ pub enum Task {
     DTypeUsage(RequestId, DType),
     /// Open a profiling window on the server's backend where `stream_id` stands.
     ProfileStart(RequestId, StreamId),
-    /// Close the window `token` where `stream_id` stands. The measurement comes
-    /// back once the server's device has answered it, like a read does.
-    ProfileEnd(RequestId, StreamId, ProfileToken),
+    /// Close the window `token` where `stream_id` stands, flushing the server's
+    /// backend first when the options ask for it. The measurement comes back
+    /// once the server's device has answered it, like a read does.
+    ProfileEnd(RequestId, StreamId, ProfileToken, ProfileOptions),
 }
 
 #[allow(missing_docs)]

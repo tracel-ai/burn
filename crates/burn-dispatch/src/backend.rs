@@ -215,8 +215,9 @@ impl Backend for Dispatch {
     fn profile_end(
         device: &Self::Device,
         token: ProfileToken,
+        options: ProfileOptions,
     ) -> Result<ProfileDuration, ExecutionError> {
-        dispatch_device!(device, |device| B::profile_end(device, token))
+        dispatch_device!(device, |device| B::profile_end(device, token, options))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

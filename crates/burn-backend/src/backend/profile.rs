@@ -3,7 +3,7 @@ pub use burn_std::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
 /// How a [profiled window](crate::Backend::profile) treats the work a backend
 /// still holds in a queue when the window closes.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProfileOptions {
     flush: bool,
 }

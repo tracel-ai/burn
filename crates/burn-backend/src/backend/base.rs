@@ -77,16 +77,18 @@ fn profile_unsupported() -> ExecutionError {
 /// falling back to [`profile_system_time`] when the backend opens none.
 ///
 /// What a forwarding backend measures with, when what it forwards to may or
-/// may not have a device clock.
+/// may not have a device clock, and what a backend with a device clock
+/// measures with when the closure must not run under a hold of the device.
 pub fn profile_with_tokens<B: Backend, O: Send + 'static>(
     device: &B::Device,
+    options: ProfileOptions,
     func: impl FnOnce() -> O + Send,
 ) -> Result<(O, ProfileDuration), ExecutionError> {
     let Some(token) = B::profile_start(device)? else {
         return profile_system_time::<B, O>(device, func);
     };
     let out = func();
-    let duration = B::profile_end(device, token)?;
+    let duration = B::profile_end(device, token, options)?;
     Ok((out, duration))
 }
 
@@ -307,11 +309,17 @@ pub trait Backend:
 
     /// Close the window `token` at the calling stream's current position.
     ///
+    /// When `options` flush, the work the backend still holds queued for the
+    /// stream executes first, so it falls inside the window. A backend that
+    /// forwards the close passes `options` along, so a queue further down
+    /// the chain — a remote server's fusion, say — is flushed too.
+    ///
     /// Errors on a backend whose [`profile_start`](Self::profile_start) hands
     /// out no token.
     fn profile_end(
         _device: &Self::Device,
         _token: ProfileToken,
+        _options: ProfileOptions,
     ) -> Result<ProfileDuration, ExecutionError> {
         Err(profile_unsupported())
     }

@@ -729,7 +729,7 @@ impl Device {
     /// the outer.
     ///
     /// `name` labels the window for a tracing profiler, where the backend's
-    /// window carries one; under fusion it does not.
+    /// window carries one; the cubecl backends' windows do not.
     ///
     /// ```rust,ignore
     /// let (output, duration) = device.profile("forward", || model.forward(input))?;
@@ -741,7 +741,8 @@ impl Device {
     /// # Errors
     ///
     /// Returns an [`ExecutionError`] when the device refuses to open or close
-    /// the window.
+    /// the window — a remote device does from a browser thread, which cannot
+    /// wait on the server.
     pub fn profile<O: Send + 'static>(
         &self,
         name: &str,

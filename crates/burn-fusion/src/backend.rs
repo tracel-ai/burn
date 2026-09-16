@@ -6,7 +6,7 @@ use crate::{
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, InstallMemoryPoolsError,
     MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken,
-    SlicedPoolReport, profile_system_time,
+    SlicedPoolReport, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -76,27 +76,12 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         // it closes stays out, unless the caller asked for a flush — the
         // measurement never changes how the queue batches.
         //
-        // The name goes nowhere: the split window carries none.
-        let _ = name;
-
         // An inner backend with no windows is measured the way it measures
         // itself: between two syncs, which drain the queue as they go.
-        let Some(token) = Self::profile_start(device)? else {
-            return profile_system_time::<Self, O>(device, func);
-        };
-
-        let out = func();
-
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        let closed = device.clone();
-        let duration = match options.flushes() {
-            true => client.sync(move || B::profile_end(&closed, token)),
-            false => client
-                .run(move || B::profile_end(&closed, token))
-                .map_err(server_error)?,
-        }?;
-
-        Ok((out, duration))
+        //
+        // The name goes nowhere: the split window carries none.
+        let _ = name;
+        profile_with_tokens::<Self, O>(device, options, func)
     }
 
     fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
@@ -110,12 +95,18 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn profile_end(
         device: &Self::Device,
         token: ProfileToken,
+        options: ProfileOptions,
     ) -> Result<ProfileDuration, ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        client
-            .run(move || B::profile_end(&device, token))
-            .map_err(server_error)?
+        // The options go on down: a flush here drains this queue, and the
+        // inner backend's own queue (a remote server's) is its to drain.
+        match options.flushes() {
+            true => client.sync(move || B::profile_end(&device, token, options)),
+            false => client
+                .run(move || B::profile_end(&device, token, options))
+                .map_err(server_error)?,
+        }
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {
