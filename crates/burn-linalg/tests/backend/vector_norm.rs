@@ -202,6 +202,22 @@ fn test_lp_norm() {
 }
 
 #[test]
+fn test_lp_norm_negative_even_orders() {
+    let x = TestTensor::<2>::from([[-1.0, 2.0], [1.0, -2.0], [0.0, 2.0]]);
+    let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
+
+    let expected = TestTensor::<2>::from([[0.8944272], [0.8944272], [0.0]]).into_data();
+    linalg::lp_norm(x.clone(), -2.0, 1)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+
+    let expected = TestTensor::<2>::from([[0.9849581], [0.9849581], [0.0]]).into_data();
+    linalg::lp_norm(x, -4.0, 1)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+}
+
+#[test]
 fn test_l2_norm() {
     let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
     let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
