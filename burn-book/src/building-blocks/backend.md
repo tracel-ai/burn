@@ -173,10 +173,11 @@ for gpu in Device::enumerate_physical() {
 }
 ```
 
-A card is recognized by its PCI address, then by the driver's UUID, then by its Windows LUID. The
-LUID changes when the machine restarts, so anything stored to recognize a card later should use the
-PCI address or the UUID. Both calls open the devices they report on, so enumerate once and keep the
-answer.
+A card is recognized by its PCI address, which every runtime reports on Linux, or by its Windows
+LUID, which every runtime reports on Windows. A device that reports neither is listed as a card of
+its own. The LUID changes when the machine restarts, so anything stored to recognize a card later
+should use the PCI address. Both calls open the devices they report on, so enumerate once and keep
+the answer.
 
 ## Execution Stack
 

@@ -1029,9 +1029,15 @@ impl Device {
             };
             match gpus
                 .iter_mut()
-                .find(|gpu| gpu.is_same_card(&physical, &identity.name))
+                .find(|gpu| gpu.physical.is_same_card(&physical))
             {
-                Some(gpu) => gpu.devices.0.push(device),
+                Some(gpu) => {
+                    let card = &mut gpu.physical;
+                    card.pci_address = card.pci_address.or(physical.pci_address);
+                    card.luid = card.luid.or(physical.luid);
+                    card.vendor = card.vendor.or(physical.vendor);
+                    gpu.devices.0.push(device);
+                }
                 None => gpus.push(PhysicalGpu {
                     physical,
                     name: identity.name,
@@ -1064,33 +1070,13 @@ impl Device {
 #[cfg(feature = "cubecl")]
 #[derive(Debug, Clone)]
 pub struct PhysicalGpu {
-    /// The card: its address, the driver's id for it, its maker, part id and memory, each
-    /// where the runtime reports it.
+    /// The card's PCI address, Windows LUID and vendor, from whichever of its runtimes reported
+    /// each.
     pub physical: PhysicalDevice,
     /// The part as the first runtime that reached it names it.
     pub name: String,
     /// Every device that runs on this card, one per runtime that reaches it.
     pub devices: Devices,
-}
-
-#[cfg(feature = "cubecl")]
-impl PhysicalGpu {
-    /// One PCI address is one card, then one UUID, then one Windows LUID; with none, the same
-    /// part by ids and name, which two identical cards cannot tell apart.
-    fn is_same_card(&self, other: &PhysicalDevice, name: &str) -> bool {
-        if let (Some(mine), Some(theirs)) = (self.physical.pci_address, other.pci_address) {
-            return mine == theirs;
-        }
-        if let (Some(mine), Some(theirs)) = (self.physical.uuid, other.uuid) {
-            return mine == theirs;
-        }
-        if let (Some(mine), Some(theirs)) = (self.physical.luid, other.luid) {
-            return mine == theirs;
-        }
-        self.physical.vendor == other.vendor
-            && self.physical.device_id == other.device_id
-            && self.name == name
-    }
 }
 
 /// A single peak-throughput measurement produced by [`Device::performance_stats`].
@@ -1622,7 +1608,6 @@ mod tests {
                 "{} has no PCI address",
                 gpu.name
             );
-            assert!(gpu.physical.uuid.is_some(), "{} has no UUID", gpu.name);
             assert!(
                 gpu.devices.len() >= 2,
                 "{} is reached by {:?} only",
@@ -1632,9 +1617,9 @@ mod tests {
         }
         for (i, gpu) in gpus.iter().enumerate() {
             for other in &gpus[i + 1..] {
-                assert_ne!(
-                    gpu.physical.pci_address, other.physical.pci_address,
-                    "one card listed twice"
+                assert!(
+                    !gpu.physical.is_same_card(&other.physical),
+                    "one card listed twice: {gpu:?} and {other:?}"
                 );
             }
         }
