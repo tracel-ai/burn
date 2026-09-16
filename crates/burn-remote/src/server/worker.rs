@@ -419,11 +419,11 @@ where
                 self.send_response(request_id, TaskResponseContent::ProfileStart(res))
                     .await
             }
-            Task::ProfileEnd(request_id, stream_id, token) => {
+            Task::ProfileEnd(request_id, stream_id, token, options) => {
                 // Closing the window is sync and in order, like the read
                 // above; the measurement is the device's to answer, so the
                 // wait for it is detached rather than stalling the worker.
-                let duration = stream_id.executes(|| self.runner.profile_end(token));
+                let duration = stream_id.executes(|| self.runner.profile_end(token, options));
                 let sender = self.response_sender.clone();
                 spawn_detached(async move {
                     let res = match duration {

@@ -2,7 +2,8 @@ use super::{RemoteChannel, RemoteClient, service};
 use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
-    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileToken, StreamId, TensorData,
+    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken, StreamId,
+    TensorData,
 };
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
@@ -87,13 +88,17 @@ impl RouterClient for RemoteClient {
             .expect("Service call failed")
     }
 
-    fn profile_end(&self, token: ProfileToken) -> Result<ProfileDuration, ExecutionError> {
+    fn profile_end(
+        &self,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
         // Blocking only on the issue, so the close keeps its place among the
         // tasks around it; the measurement is awaited through the duration.
         let stream_id = StreamId::current();
         Ok(self
             .handle
-            .submit_blocking(move |s| s.profile_end(stream_id, token))
+            .submit_blocking(move |s| s.profile_end(stream_id, token, options))
             .expect("Service call failed"))
     }
 

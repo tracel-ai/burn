@@ -61,10 +61,11 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         options: ProfileOptions,
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
-        // The interpreter is where the window opens, and what it batches is
-        // its own: the name and the flush stop here.
-        let _ = (name, options);
-        profile_with_tokens::<Self, O>(device, func)
+        // The interpreter is where the window opens; the flush travels to it
+        // with the close, for the queue of the backend behind it to drain.
+        // The name stops here: the split window carries none.
+        let _ = name;
+        profile_with_tokens::<Self, O>(device, options, func)
     }
 
     fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
@@ -75,9 +76,10 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn profile_end(
         device: &Self::Device,
         token: ProfileToken,
+        options: ProfileOptions,
     ) -> Result<ProfileDuration, ExecutionError> {
         let client = get_client::<R>(device);
-        client.profile_end(token)
+        client.profile_end(token, options)
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {

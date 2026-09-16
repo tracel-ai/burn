@@ -3,17 +3,18 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError,
     InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions,
-    ProfileToken, SlicedPool, SlicedPoolReport, TensorData,
+    ProfileToken, SlicedPool, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 use burn_std::{
     BoolStore, DType,
+    id::StreamId,
     profile::{Instant, ProfileTicks},
     quantization::quantizable,
 };
 use cubecl::device::DeviceId;
 use cubecl::{
     MemoryConfiguration, MemoryPoolKind,
-    client::Client,
+    client::{Client, ProfileWindow},
     config::memory::{MemoryPoolConfig, MemoryPoolsConfig, MemoryPoolsPreset},
     config::size::MemorySize,
     features::{MmaConfig, TypeUsage},
@@ -124,49 +125,47 @@ impl Backend for CubeBackend {
     fn profile<O: Send + 'static>(
         device: &Self::Device,
         name: &str,
-        _options: ProfileOptions,
+        options: ProfileOptions,
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
-        // Nothing is queued past the window here: every launch reaches the
-        // stream as it is made, so there is nothing for the flush option to
-        // force out.
-        let client = device.client();
-
-        // The output travels through a slot the profiled closure fills,
-        // because the runtime can refuse the window after the closure ran —
-        // an empty one, on a runtime that stamps kernels rather than the
-        // stream — and the output is still owed.
-        let mut slot = None;
-        let profiled = client.profile(
-            || {
-                slot = Some(func());
-            },
-            name,
-        );
-        let out =
-            slot.ok_or_else(|| ExecutionError::with_context("the profiled closure never ran"));
-
-        match profiled {
-            Ok(((), duration)) => Ok((out?, duration)),
-            Err(ProfileError::NotMeasured { .. }) => Ok((out?, empty_window())),
-            Err(err) => Err(profile_err(err)),
-        }
+        // Not cubecl's bracketed `profile`: that one runs the closure on the
+        // device's runner while holding the device, so a closure waiting on
+        // another thread's call to the same device — a data loader building
+        // its batch there, say — would never get it back. The split window
+        // opens and closes on the stream without holding anything between.
+        //
+        // The name goes nowhere: the split window carries none.
+        let _ = name;
+        profile_with_tokens::<Self, O>(device, options, func)
     }
 
     fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
         let client = device.client();
         client
             .profile_start()
-            .map(|token| Some(ProfileToken { id: token.id }))
+            .map(|window| {
+                Some(ProfileToken {
+                    id: window.token.id,
+                })
+            })
             .map_err(profile_err)
     }
 
     fn profile_end(
         device: &Self::Device,
         token: ProfileToken,
+        _options: ProfileOptions,
     ) -> Result<ProfileDuration, ExecutionError> {
+        // Nothing is queued past the window here: every launch reaches the
+        // stream as it is made, so there is nothing for the flush option to
+        // force out.
         let client = device.client();
-        match client.profile_end(ProfilingToken { id: token.id }) {
+        // Closed from the stream it was opened on, as the contract asks.
+        let window = ProfileWindow {
+            stream_id: StreamId::current(),
+            token: ProfilingToken { id: token.id },
+        };
+        match client.profile_end(window) {
             Ok(duration) => Ok(duration),
             Err(ProfileError::NotMeasured { .. }) => Ok(empty_window()),
             Err(err) => Err(profile_err(err)),

@@ -76,8 +76,9 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn profile_end(
         device: &Self::Device,
         token: ProfileToken,
+        options: ProfileOptions,
     ) -> Result<ProfileDuration, ExecutionError> {
-        B::profile_end(device, token)
+        B::profile_end(device, token, options)
     }
 
     fn memory_persistent_allocations<

@@ -206,6 +206,31 @@ mod cube {
         );
     }
 
+    /// Nothing holds the device while the closure runs, so a closure that
+    /// waits on another thread's work on the same device — a data loader
+    /// building its batch there, say — gets it back.
+    #[test]
+    fn closure_may_wait_on_another_thread() {
+        let (_guard, device) = device();
+
+        let (sum, _) = device
+            .profile("joined", || {
+                std::thread::scope(|scope| {
+                    scope
+                        .spawn(|| {
+                            Tensor::<1>::ones([1024], &device)
+                                .sum()
+                                .into_scalar::<f32>()
+                        })
+                        .join()
+                        .unwrap()
+                })
+            })
+            .unwrap();
+
+        assert_eq!(sum, 1024.0);
+    }
+
     /// An empty window is a measurement all the same, whether the runtime
     /// stamps the stream (and reads the host gap between the two stamps) or
     /// the kernels (and has nothing to read) — and the output comes back
