@@ -488,17 +488,11 @@ extensions, and that it will help you to unleash the full potential of your proj
 
 ## Fusion support
 
-Enable Burn's `fusion` feature and add `Fusion` to `#[backend_extension]` to generate
-lazy registration for the WGSL kernel. The annotation `#[fusion(dtype = lhs, shape = output_shape(lhs, rhs, bias))]`
-copies the left operand's dtype and passes borrowed `Shape` values to `output_shape`.
-That function is shared with execution and checks matrix dimensions, batch broadcasting,
-and the requirement that bias match the output shape. Execution also checks matching dtypes.
+Enable Burn's `fusion` feature and add `Fusion` to `#[backend_extension]` as shown above.
+The annotation copies `lhs`'s dtype and calls the shared `output_shape` helper with borrowed shapes,
+so Fusion can register a lazy output before the WGSL kernel executes.
 
-The generated wrapper treats the kernel as an opaque operation. During execution, debug builds
-check output dtypes and devices; output enum variants are checked in all builds before publishing
-any output handles. Output shapes and ordinary field values are never compared with backend results,
-even in debug builds. The metadata callback must describe the same result as direct backend execution.
-See [Lazy Fusion registration](custom-cubecl-kernel.md#lazy-fusion-registration) for structured
-outputs and the contract for non-tensor fields.
-The existing handwritten autodiff implementation supplies the backward pass. The example's
-`main()` compares forward values and gradients with the reference implementation.
+The handwritten autodiff implementation still supplies the backward pass. The example's `main()`
+compares forward values and gradients with the reference implementation.
+See [Lazy Fusion registration](custom-cubecl-kernel.md#lazy-fusion-registration) for how metadata
+and execution fit together, including the contract for non-tensor fields in structured outputs.

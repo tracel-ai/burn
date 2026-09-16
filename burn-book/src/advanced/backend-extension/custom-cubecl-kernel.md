@@ -89,46 +89,24 @@ operations is feasible.
 
 ## Lazy Fusion registration
 
-Enable Burn's `fusion` feature and list `Fusion` on `#[backend_extension]`. Each method
-can describe a single output with `#[fusion(dtype = lhs, shape = output_shape(lhs, rhs, bias))]`,
-provide `#[fusion(meta = callable)]` for more complex outputs, or select `#[fusion(default)]`.
-The default choice inherits an existing trait body. For handwritten Fusion support, omit
-`Fusion` from `#[backend_extension]` and implement the trait for `Fusion<B>` yourself.
+Enable Burn's `fusion` feature and list `Fusion` on `#[backend_extension]` as shown above.
+The annotation copies `lhs`'s dtype and passes borrowed `Shape` values to `output_shape`.
+Fusion uses that metadata to register a lazy output, then calls the forward implementation
+when the operation executes.
 
-In `dtype`, tensor names refer to their dtypes; in `shape`, they refer to borrowed `Shape` values.
-The shape expression returns an owned `Shape`, or a bare operand such as `shape = lhs` copies
-that operand's shape. Ordinary arguments are borrowed in both expressions.
-Both fields accept Rust expressions, including inline blocks such as
-`shape = { let mut shape = lhs.clone(); shape.swap(0, 1); shape }`.
-They expect values; standalone closures are not invoked automatically. Use a block or function
-call for a shape calculation, and `meta` when a callback should describe the complete output.
+Sharing `output_shape` with execution keeps both paths consistent: it checks matrix dimensions,
+batch broadcasting, and the requirement that bias match the output shape. The wrapper does not
+compare output shapes with backend results, so the metadata calculation must be correct.
 
-With `meta`, functions receive borrowed `TensorSpec { shape, dtype }` values for tensor
-arguments and borrowed ordinary arguments, in declaration order. A function path or
-inline closure can compute metadata immediately, without accessing tensor handles.
-The returned metadata mirrors the output: a `TensorSpec` for each tensor, tuples for
-tuples, and generated metadata types for structs deriving
-`#[derive(ExtensionType)] #[extension_type(fusion)]`.
-Tuple elements must be tensors, derived extension values, or tuples of those types;
-`(FloatTensor<Self>, u32)` is unsupported. Put ordinary output fields in a derived struct or enum.
+The custom kernel remains opaque to the Fusion optimizer. The wrapper does not combine it with
+neighboring kernels or generate gradients; the handwritten `Autodiff<B, C>` implementation below
+supplies the backward pass.
 
-The callback also supplies the actual return values of non-tensor fields. Fusion returns them
-without waiting for execution and discards the backend's values for those fields without comparison.
-All output metadata, including ordinary field values and enum variants, must agree with a direct
-backend call. For example, an element count can be computed from `input.shape.num_elements()`,
-but a nonzero-element count depends on tensor contents. Return content-dependent values as tensors,
-or write a Fusion implementation that waits for computation to finish before returning them.
-
-The example shares its output-shape calculation between metadata and execution. That function
-checks matrix ranks, contraction dimensions, batch broadcasting, and the kernel's requirement
-that bias have exactly the output shape. Execution also checks matching dtypes. The generated wrapper
-registers a deferred custom operation. Debug builds check output dtypes and devices;
-output enum variants are checked during execution in all builds before publishing any output handles.
-Output shapes and ordinary field values are never compared with backend results, even in debug builds.
-
-Custom kernels remain opaque to the Fusion optimizer: the wrapper does not combine them
-with neighboring kernels or generate gradients. The existing handwritten implementation
-for `Autodiff<B, C>` still supplies the backward pass and composes with `Fusion<B>`.
+For structured outputs, use `#[fusion(meta = callable)]`. The callback must describe the same
+result as direct backend execution, including the actual values of any non-tensor fields:
+Fusion returns those values immediately and discards the backend's later values without comparison.
+Use `#[fusion(default)]` to inherit an existing trait body, or omit `Fusion` from
+`#[backend_extension]` to write the Fusion implementation yourself.
 
 ## Forward Kernel
 
