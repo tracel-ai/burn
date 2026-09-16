@@ -109,13 +109,22 @@ inline closure can compute metadata immediately, without accessing tensor handle
 The returned metadata mirrors the output: a `TensorSpec` for each tensor, tuples for
 tuples, and generated metadata types for structs deriving
 `#[derive(ExtensionType)] #[extension_type(fusion)]`.
+Tuple elements must be tensors, derived extension values, or tuples of those types;
+`(FloatTensor<Self>, u32)` is unsupported. Put ordinary output fields in a derived struct or enum.
+
+The callback also supplies the actual return values of non-tensor fields. Fusion returns them
+without waiting for execution and discards the backend's values for those fields without comparison.
+All output metadata, including ordinary field values and enum variants, must agree with a direct
+backend call. For example, an element count can be computed from `input.shape.num_elements()`,
+but a nonzero-element count depends on tensor contents. Return content-dependent values as tensors,
+or write a Fusion implementation that waits for computation to finish before returning them.
 
 The example shares its output-shape calculation between metadata and execution. That function
 checks matrix ranks, contraction dimensions, batch broadcasting, and the kernel's requirement
 that bias have exactly the output shape. Execution also checks matching dtypes. The generated wrapper
 registers a deferred custom operation. Debug builds check output dtypes and devices;
-output enum variants are checked in all builds before publishing handles. Output shapes
-come from the metadata callback without being checked against the backend results.
+output enum variants are checked during execution in all builds before publishing any output handles.
+Output shapes and ordinary field values are never compared with backend results, even in debug builds.
 
 Custom kernels remain opaque to the Fusion optimizer: the wrapper does not combine them
 with neighboring kernels or generate gradients. The existing handwritten implementation

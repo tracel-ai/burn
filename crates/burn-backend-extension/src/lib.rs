@@ -113,6 +113,32 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `#[extension_type(fusion)]` for structs and enums. Enum metadata selects the output variant.
 /// For example, `#[fusion(meta = |x| (x.clone(), x.clone()))]` describes two tensors matching `x`,
 /// while `#[fusion(meta = |cache| cache.clone())]` preserves a structured input's layout.
+/// Tuple elements must themselves be tensors, derived extension values, or tuples of those types.
+/// Plain scalar returns and tuples such as `(FloatTensor<Self>, u32)` are unsupported; put ordinary
+/// output fields in a struct or enum deriving [`ExtensionType`] with Fusion enabled.
+///
+/// For struct and enum outputs, the callback supplies the **actual return values** for non-tensor
+/// fields. Fusion returns these values without waiting for execution and discards the backend's
+/// values for those fields without comparison. They must equal what a direct backend call returns.
+/// If metadata supplies `count = 7` but the backend returns `count = 8`, enabling Fusion changes the
+/// result. That is an incorrect extension implementation, and the generated code does not detect it.
+/// Tensor shapes, dtypes, and enum variants must also agree with direct backend execution.
+///
+/// For example, a derived output struct with a tensor and a `count: usize` field can return the
+/// tensor and its element count:
+///
+/// ```rust,ignore
+/// #[fusion(meta = |input| CountedMetadata {
+///     tensor: input.clone(),
+///     count: input.shape.num_elements(),
+/// })]
+/// fn counted(input: FloatTensor<Self>) -> Counted<Self>;
+/// ```
+///
+/// The backend must return the same count.
+/// A count of nonzero elements depends on tensor contents and cannot be computed from `TensorSpec`.
+/// Return content-dependent values as tensors, or write a Fusion implementation that waits for
+/// computation to finish before returning them.
 ///
 /// ## Optimizer integration
 ///
@@ -137,10 +163,10 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// - Output metadata computable without tensor readback.
 ///
 /// Debug builds check dtype categories and tensor devices, and validate output dtypes and devices.
-/// Output enum variants are checked in all builds before any handles are published.
-/// Fusion uses the metadata callback's output shapes without checking them against the backend results.
-/// Ordinary output fields come from metadata; the inner backend's values are discarded without
-/// comparison. Custom kernels are opaque unless a custom optimizer recognizes their IR.
+/// During execution, output enum variants are checked in all builds before any output handles are published.
+/// Output shapes and ordinary field values are never compared with backend results, even in debug builds.
+///
+/// Custom kernels are opaque unless a custom optimizer recognizes their IR.
 ///
 /// For other signatures, use an existing default body or omit `Fusion` from `#[backend_extension]`
 /// and implement the trait for `Fusion<B>` manually.
@@ -159,9 +185,10 @@ pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// their metadata. Ordinary fields are cloned and must implement `Clone + Debug`;
 /// ordinary input fields must also be `Send + Sync + 'static`.
 ///
-/// Ordinary output fields are taken from metadata. Their values returned by the inner backend are
-/// discarded without comparison; the metadata callback must supply the intended public values.
-/// Output variants and ordinary fields must be determined from metadata before execution.
+/// The metadata callback chooses the output variant and supplies the actual return values for
+/// non-tensor fields. Fusion returns those values without waiting for execution and ignores the backend's
+/// later values for those fields. The callback must calculate what a direct backend call would return;
+/// otherwise enabling Fusion changes the result. Generated code does not check these field values.
 /// Empty variants are supported, but each operation still needs an input tensor for its device.
 ///
 /// Tensor fields are mapped automatically. Nested extension values must be marked with

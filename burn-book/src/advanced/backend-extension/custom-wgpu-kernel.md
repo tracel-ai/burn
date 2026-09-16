@@ -494,6 +494,11 @@ copies the left operand's dtype and passes borrowed `Shape` values to `output_sh
 That function is shared with execution and checks matrix dimensions, batch broadcasting,
 and the requirement that bias match the output shape. Execution also checks matching dtypes.
 
-The generated wrapper treats the kernel as an opaque operation and validates its outputs.
+The generated wrapper treats the kernel as an opaque operation. During execution, debug builds
+check output dtypes and devices; output enum variants are checked in all builds before publishing
+any output handles. Output shapes and ordinary field values are never compared with backend results,
+even in debug builds. The metadata callback must describe the same result as direct backend execution.
+See [Lazy Fusion registration](custom-cubecl-kernel.md#lazy-fusion-registration) for structured
+outputs and the contract for non-tensor fields.
 The existing handwritten autodiff implementation supplies the backward pass. The example's
 `main()` compares forward values and gradients with the reference implementation.

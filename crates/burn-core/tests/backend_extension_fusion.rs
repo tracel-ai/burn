@@ -267,8 +267,21 @@ pub enum Packet<B: Backend> {
     Nested(#[extension_type] Outputs<B>, u32),
 }
 
+#[derive(ExtensionType)]
+#[extension_type(fusion)]
+pub struct Counted<B: Backend> {
+    pub tensor: FloatTensor<B>,
+    pub count: usize,
+}
+
 #[backend_extension(Cube, Fusion)]
 pub trait StructuredOps: Backend {
+    #[fusion(meta = |input| CountedMetadata {
+        tensor: input.clone(),
+        count: input.shape.num_elements(),
+    })]
+    fn counted(input: FloatTensor<Self>) -> Counted<Self>;
+
     #[fusion(meta = |first, second, _wrong| (first.clone(), second.clone()))]
     fn relay(
         #[extension_type] first: Packet<Self>,
@@ -277,6 +290,15 @@ pub trait StructuredOps: Backend {
     ) -> (Packet<Self>, Packet<Self>);
 }
 impl StructuredOps for CubeBackend {
+    fn counted(input: FloatTensor<Self>) -> Counted<Self> {
+        use burn::backend::TensorMetadata;
+
+        Counted {
+            count: input.shape().num_elements(),
+            tensor: input,
+        }
+    }
+
     fn relay(
         first: Packet<Self>,
         mut second: Packet<Self>,
@@ -288,10 +310,38 @@ impl StructuredOps for CubeBackend {
         if wrong == 2 {
             return (first, Packet::Empty);
         }
-        if let Packet::Nested(_, mode) = &mut second {
-            *mode += 1;
+        if wrong == 3 {
+            // Deliberately violate the ordinary-output-field contract to exercise the unchecked path.
+            match &mut second {
+                Packet::Float { mode, .. } | Packet::Nested(_, mode) => *mode += 1,
+                Packet::Empty => {}
+            }
         }
         (first, second)
+    }
+}
+
+#[test]
+fn ordinary_output_fields_match_direct_backend_execution() {
+    let device = Device::default();
+    let burn::backend::DispatchDevice::Cube(cube_device) = device.as_dispatch() else {
+        panic!("extension tests require a CubeCL runtime")
+    };
+    // The count depends on shape, including for inputs with the same shape but different contents.
+    for values in [vec![0.0f32, 0.], vec![0., 2.], vec![1., 2., 3.]] {
+        let expected_count = values.len();
+        let data = burn::tensor::TensorData::new(values, [expected_count]);
+        let direct = CubeBackend::counted(CubeBackend::float_from_data(data.clone(), cube_device));
+        let fused = Dispatch::counted(Tensor::<1>::from_data(data, &device).into_dispatch());
+
+        // Ordinary values are available without reading the output tensor.
+        assert_eq!(direct.count, expected_count);
+        assert_eq!(fused.count, direct.count);
+        let direct_data =
+            burn::tensor::read_sync(CubeBackend::float_into_data(direct.tensor)).unwrap();
+        Tensor::<1>::from_dispatch(fused.tensor)
+            .into_data()
+            .assert_eq(&direct_data, false);
     }
 }
 
@@ -313,7 +363,6 @@ fn nested_enum_inputs_round_trip_with_empty_variants_and_scalar_fields() {
     let Packet::Nested(out, mode) = result else {
         panic!("wrong variant")
     };
-    // Execution changes this field, but the lazy result takes its value from metadata.
     assert_eq!(mode, 7);
     Tensor::<1>::from_dispatch(out.float)
         .into_data()
@@ -324,6 +373,44 @@ fn nested_enum_inputs_round_trip_with_empty_variants_and_scalar_fields() {
     Tensor::<1, Bool>::from_dispatch(out.inner.mask)
         .into_data()
         .assert_eq(&burn::tensor::TensorData::from([true, false]), false);
+}
+
+#[test]
+fn ordinary_output_field_contract_violations_are_unchecked() {
+    let device = Device::default();
+    let burn::backend::DispatchDevice::Cube(cube_device) = device.as_dispatch() else {
+        panic!("extension tests require a CubeCL runtime")
+    };
+    let data = burn::tensor::TensorData::from([1., 2.]);
+    let (_, direct) = CubeBackend::relay(
+        Packet::Empty,
+        Packet::Float {
+            tensor: CubeBackend::float_from_data(data.clone(), cube_device),
+            mode: 7,
+        },
+        3,
+    );
+    let (_, fused) = Dispatch::relay(
+        Packet::Empty,
+        Packet::Float {
+            tensor: Tensor::<1>::from_data(data.clone(), &device).into_dispatch(),
+            mode: 7,
+        },
+        3,
+    );
+    let Packet::Float { mode: actual, .. } = direct else {
+        panic!("wrong variant")
+    };
+    let Packet::Float { tensor, mode } = fused else {
+        panic!("wrong variant")
+    };
+    assert_eq!(actual, 8);
+    assert_eq!(mode, 7);
+    // Force execution: the backend returns 8, but no comparison or replacement takes place.
+    Tensor::<1>::from_dispatch(tensor)
+        .into_data()
+        .assert_eq(&data, false);
+    assert_eq!(mode, 7);
 }
 
 #[test]

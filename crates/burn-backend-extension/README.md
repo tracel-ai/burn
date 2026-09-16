@@ -42,14 +42,51 @@ Use `meta` for tuples, structs, and enums, or to compute shape and dtype togethe
 function paths or inline closures receiving borrowed arguments in declaration order. Tensor
 arguments become `burn::backend::fusion::custom::TensorSpec`; extension arguments become their
 generated metadata types. Results mirror the output structure.
+Tuple elements must themselves be tensors, derived extension values, or tuples of those types.
+Plain scalar returns and tuples such as `(FloatTensor<Self>, u32)` are unsupported; put ordinary
+output fields in a struct or enum deriving `ExtensionType` with Fusion enabled.
 
 Opt into `#[derive(ExtensionType)] #[extension_type(fusion)]` (or `fusion: cfg(...)`) for structured
 inputs and outputs. The generated `NameMetadata` mirrors fields and variants, replacing tensors
 with specs. Mark nested fields and method arguments with `#[extension_type]`. Nested metadata
 resolves through the field type, including imported or renamed types. Ordinary fields are cloned
 and require `Clone + Debug`; captured metadata must also be `Send + Sync + 'static`.
-Ordinary output fields are taken from metadata. Their values returned by the inner backend are
-discarded without comparison; the metadata callback must supply the intended public values.
+
+For struct and enum outputs, the metadata callback provides tensor shapes and dtypes, but **actual
+return values** for non-tensor fields. For example, an output with a tensor and a `count: u32` field
+requires the callback to compute `count` itself. Fusion returns that count without waiting for
+execution; it never replaces it with the count returned when the backend eventually executes.
+
+If the callback computes `count = 7` but the backend computes `count = 8`, callers get 7 with Fusion
+and 8 without Fusion. That is an incorrect extension implementation, and the generated code does not
+detect it. The callback must compute the same count as a direct call to the backend.
+Tensor shapes, dtypes, and enum variants must also agree with direct backend execution.
+
+For example, the number of elements is available from the input shape:
+
+```rust,ignore
+#[derive(ExtensionType)]
+#[extension_type(fusion)]
+pub struct Counted<B: Backend> {
+    pub tensor: FloatTensor<B>,
+    pub count: usize,
+}
+
+#[backend_extension(Cube, Fusion)]
+pub trait CountOps: Backend {
+    #[fusion(meta = |input| CountedMetadata {
+        tensor: input.clone(),
+        count: input.shape.num_elements(),
+    })]
+    fn counted(input: FloatTensor<Self>) -> Counted<Self>;
+}
+```
+
+The backend implementation must return the input tensor and the same element count. A count of
+nonzero elements, however, depends on tensor contents and cannot be computed from `TensorSpec`.
+
+If an output value depends on tensor contents, return it as a tensor or write a Fusion implementation
+that waits for the computation to finish before returning the value.
 A callback such as `meta = |cache| cache.clone()` preserves a cache's variant and tensor layout.
 
 The operation ID defaults to the method name; use `id = "custom_matmul"` to override it.
@@ -76,9 +113,9 @@ must be owned and `Clone + Send + Sync + 'static`. Output metadata, including en
 ordinary fields, must be known before execution. Use an existing default body for other signatures,
 or omit `Fusion` from `#[backend_extension]` and implement the trait for `Fusion<B>` manually.
 Debug builds check dtype categories and tensor devices, and validate output dtypes and devices.
-Output enum variants are checked in all builds before any handles are published.
-Generated wrappers do not read tensor data or drain queues. Fusion uses the metadata callback's output shapes without checking them
-against the backend results.
+During execution, output enum variants are checked in all builds before any output handles are published.
+Output shapes and ordinary field values are never compared with backend results, even in debug builds.
+Generated wrappers do not read tensor data or drain queues.
 
 Fusion generation does not generate gradients or merge custom kernels with neighboring kernels.
 Handwritten autodiff implementations continue to compose with the generated wrapper.

@@ -2,8 +2,10 @@
 //!
 //! Metadata callbacks describe outputs with [`TensorSpec`](crate::custom::TensorSpec) before
 //! registration. The generated wrapper assigns tensor IDs and queues an
-//! [`Operation`](crate::stream::Operation) that invokes the inner backend, validates its outputs,
-//! and publishes their handles. Hidden items support macro expansions in downstream crates.
+//! [`Operation`](crate::stream::Operation) that invokes the inner backend and publishes its output
+//! handles. Execution checks output enum variants in all builds and output dtypes and devices in
+//! debug builds. Output shapes and ordinary field values are not checked against backend results.
+//! Hidden items support macro expansions in downstream crates.
 pub use crate::stream::{Operation, StreamId};
 use crate::{ExecutionError, FusionBackend, FusionRuntime, FusionTensor};
 #[cfg(debug_assertions)]
@@ -51,10 +53,12 @@ pub trait ExtensionMetadata {
 /// Deferred execution checks output variants before publishing any handles.
 /// Debug builds additionally check output dtypes and devices.
 /// Fusion uses the metadata callback's output shapes without checking them against the backend results.
-/// Ordinary output fields are reconstructed from metadata; the inner backend's values are ignored.
+/// Metadata contains the actual return values for non-tensor fields. These are returned without
+/// waiting for execution and must equal what a direct backend call would return. The backend's values for
+/// these fields are discarded without comparison.
 #[doc(hidden)]
 pub trait FusionValueAdapter<B: FusionBackend> {
-    /// Shapes and dtypes supplied by the metadata callback.
+    /// Tensor specs, enum variants, and ordinary return values supplied by the metadata callback.
     type Metadata: Clone;
     /// Input descriptors and ordinary fields retained for execution.
     type Input;
