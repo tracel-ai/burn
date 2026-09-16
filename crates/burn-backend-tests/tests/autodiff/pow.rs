@@ -114,6 +114,25 @@ fn should_diff_powf_scalar_zero_exponent_nonfinite_incoming_grad() {
 }
 
 #[test]
+fn should_diff_powf_scalar_zero_exponent_with_untracked_lhs() {
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<1>::from_data([2.0, -3.0, 0.0], &device);
+    let tensor_2 = TestTensor::<1>::from_data([5.0, 6.0, 7.0], &device).require_grad();
+
+    let tensor_3 = tensor_1.powf_scalar(0.0).mul(tensor_2.clone());
+    let grads = tensor_3.clone().sum().backward();
+
+    let grad_2 = tensor_2.grad(&grads).unwrap();
+
+    tensor_3
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([5.0, 6.0, 7.0]), Tolerance::default());
+    grad_2
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([1.0, 1.0, 1.0]), Tolerance::default());
+}
+
+#[test]
 fn should_diff_powf_with_untracked_lhs() {
     let device = AutodiffDevice::new();
     let tensor_1 = TestTensor::<1>::from_data([2.0, 7.0], &device);
