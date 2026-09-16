@@ -16,6 +16,18 @@ fn custom_err<T: core::fmt::Display>(msg: T) -> Error {
     <Error as de::Error>::custom(msg)
 }
 
+/// Length of a `NestedValue` that represents a sequence, if it is one.
+fn sequence_len(value: &NestedValue) -> Option<usize> {
+    match value {
+        NestedValue::Vec(v) => Some(v.len()),
+        NestedValue::U8s(v) => Some(v.len()),
+        NestedValue::U16s(v) => Some(v.len()),
+        NestedValue::F32s(v) => Some(v.len()),
+        NestedValue::Bytes(v) => Some(v.len()),
+        _ => None,
+    }
+}
+
 /// A deserializer for the nested value data structure.
 pub struct Deserializer<A: BurnModuleAdapter> {
     // This string starts with the input data and characters are truncated off
@@ -203,7 +215,9 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("i8", |v| v.clone().as_i16().map(|x| x as i8))?;
+        let val = self.extract_scalar("i8", |v| {
+            v.clone().as_i16().and_then(|x| i8::try_from(x).ok())
+        })?;
         visitor.visit_i8(val)
     }
 
@@ -251,7 +265,9 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        let val = self.extract_scalar("u32", |v| v.clone().as_u64().map(|x| x as u32))?;
+        let val = self.extract_scalar("u32", |v| {
+            v.clone().as_u64().and_then(|x| u32::try_from(x).ok())
+        })?;
         visitor.visit_u32(val)
     }
 
@@ -413,30 +429,56 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         }
     }
 
-    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        // Tuples and fixed-size arrays are represented as sequences.
+        // Tuples and fixed-size arrays are represented as sequences, and the
+        // declared length is enforced so trailing elements are never silently
+        // dropped (nor missing ones silently defaulted).
+        let actual = self.value.as_ref().and_then(sequence_len).ok_or_else(|| {
+            custom_err(format!(
+                "expected a sequence of length {len} but got {:?}",
+                self.value
+            ))
+        })?;
+        if actual != len {
+            return Err(<Error as de::Error>::invalid_length(
+                actual,
+                &format!("tuple of length {len}").as_str(),
+            ));
+        }
         self.deserialize_seq(visitor)
     }
 
     fn deserialize_tuple_struct<V>(
         self,
         _name: &'static str,
-        _len: usize,
+        len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
+        let actual = self.value.as_ref().and_then(sequence_len).ok_or_else(|| {
+            custom_err(format!(
+                "expected a sequence of length {len} but got {:?}",
+                self.value
+            ))
+        })?;
+        if actual != len {
+            return Err(<Error as de::Error>::invalid_length(
+                actual,
+                &format!("tuple struct of length {len}").as_str(),
+            ));
+        }
         self.deserialize_seq(visitor)
     }
 
     fn deserialize_enum<V>(
         self,
         _name: &'static str,
-        variants: &'static [&'static str],
+        _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
@@ -446,26 +488,31 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
             .value
             .ok_or_else(|| custom_err("expected value for enum but got None"))?;
 
-        // The nested encoding carries no separate variant tag: unit variants are
+        // The nested encoding carries no separate variant tag: variants are
         // stored as `NestedValue::Map { "DType": <variant name> }` (see
-        // `ProbeEnumAccess::unit_variant`). Read the variant from there when
-        // present; otherwise fall back to the first declared variant, which
-        // preserves the previous "try each variant in order" behaviour for
-        // newtype variants (a `newtype_variant_seed` always succeeds, so the
-        // first variant used to win anyway).
+        // `ProbeEnumAccess::unit_variant`). Require that tag and reject anything
+        // else rather than guessing a variant, since silently selecting one (for
+        // example the first declared variant) would decode the wrong data.
         //
-        // The previous implementation duplicated the caller's visitor with a
-        // raw `ptr::copy_nonoverlapping` so it could retry variants. `Visitor`
-        // is not `Copy`, so that bitwise copy aliased any heap-owned visitor
-        // state and was undefined behaviour (a double free, confirmed under
-        // Miri). Calling the visitor exactly once with the resolved variant
-        // removes the copy and the unsafe block entirely.
+        // The previous implementation additionally duplicated the caller's
+        // visitor with a raw `ptr::copy_nonoverlapping` so it could retry
+        // variants. `Visitor` is not `Copy`, so that bitwise copy aliased any
+        // heap-owned visitor state and was undefined behaviour (a double free,
+        // confirmed under Miri). The visitor is now consumed exactly once.
         let variant = match &value {
             NestedValue::Map(map) => match map.get("DType") {
                 Some(NestedValue::String(name)) => name.clone(),
-                _ => variants.first().copied().unwrap_or_default().to_owned(),
+                other => {
+                    return Err(custom_err(format!(
+                        "cannot resolve the enum variant: expected a 'DType' string tag, got {other:?}"
+                    )));
+                }
             },
-            _ => variants.first().copied().unwrap_or_default().to_owned(),
+            other => {
+                return Err(custom_err(format!(
+                    "cannot resolve the enum variant: expected a map with a 'DType' tag, got {other:?}"
+                )));
+            }
         };
 
         visitor.visit_enum(ProbeEnumAccess::<A>::new(

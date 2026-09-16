@@ -1,10 +1,11 @@
-//! Regression test for the unsound `clone_unsafely` helper in
+//! Regression test for the former unsound visitor cloning in
 //! `burn_store::nested::de`.
 //!
-//! `Deserializer::deserialize_enum` "clones" the caller-supplied visitor with a
-//! raw `ptr::copy_nonoverlapping` bitwise copy and no `Copy`/`Clone` bound. For a
-//! visitor that owns heap memory this aliases the same allocation across two
-//! owners, causing a double free. Run under Miri to observe the violation:
+//! The former `Deserializer::deserialize_enum` implementation cloned the
+//! caller-supplied visitor with a raw `ptr::copy_nonoverlapping` bitwise copy and
+//! no `Copy`/`Clone` bound. For a visitor that owns heap memory, this aliased the
+//! allocation across two owners and caused a double free. This regression test
+//! should complete successfully under Miri:
 //!
 //! ```sh
 //! cargo +nightly miri test -p burn-store --test nested_de_miri

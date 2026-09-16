@@ -1,5 +1,5 @@
-//! Regression tests for the previously-panicking paths in
-//! `burn_store::nested::de`.
+//! Regression tests for the previously-panicking and previously-lenient paths
+//! in `burn_store::nested::de`.
 //!
 //! These used to abort the process via `unimplemented!()`:
 //! * `u32` / `i8` struct fields
@@ -7,7 +7,9 @@
 //! * tuple structs
 //!
 //! They now deserialize normally; malformed input yields a `serde::de::Error`
-//! instead of panicking.
+//! instead of panicking. The tests below additionally pin the strict behaviour
+//! requested in review: out-of-range integer conversions, tuple length
+//! mismatches, and unresolvable enum variants must all error cleanly.
 //!
 //! Run with:
 //! ```sh
@@ -41,6 +43,12 @@ enum Untagged {
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct TupleHolder(i32, i32);
+
+#[derive(Debug, Deserialize, PartialEq)]
+enum Tagged {
+    A,
+    B,
+}
 
 fn de_map(pairs: Vec<(&str, NestedValue)>) -> Deserializer<DefaultAdapter> {
     let mut map = HashMap::new();
@@ -91,4 +99,51 @@ fn type_mismatch_returns_error_instead_of_panicking() {
     // A string where a `u32` is expected must be a clean error, not a panic.
     let de = de_map(vec![("n", NestedValue::String("not a number".to_string()))]);
     assert!(HasU32::deserialize(de).is_err());
+}
+
+#[test]
+fn out_of_range_i8_returns_error() {
+    // 300 does not fit in `i8`; it must error instead of wrapping.
+    let de = de_map(vec![("n", NestedValue::I32(300))]);
+    assert!(HasI8::deserialize(de).is_err());
+}
+
+#[test]
+fn out_of_range_u32_returns_error() {
+    // `u32::MAX + 1` does not fit in `u32`; it must error instead of wrapping.
+    let de = de_map(vec![("n", NestedValue::U64(u64::from(u32::MAX) + 1))]);
+    assert!(HasU32::deserialize(de).is_err());
+}
+
+#[test]
+fn tuple_length_mismatch_returns_error() {
+    // Three elements for a two-element tuple struct must error, not drop data.
+    let de = Deserializer::<DefaultAdapter>::new(
+        NestedValue::Vec(vec![
+            NestedValue::I32(1),
+            NestedValue::I32(2),
+            NestedValue::I32(3),
+        ]),
+        false,
+    );
+    assert!(TupleHolder::deserialize(de).is_err());
+}
+
+#[test]
+fn enum_with_tag_resolves_variant() {
+    let de = de_map(vec![("DType", NestedValue::String("B".to_string()))]);
+    assert_eq!(Tagged::deserialize(de).unwrap(), Tagged::B);
+}
+
+#[test]
+fn enum_without_tag_is_rejected() {
+    // No `"DType"` tag at all: the variant is ambiguous and must be rejected.
+    let de = de_map(vec![]);
+    assert!(Tagged::deserialize(de).is_err());
+}
+
+#[test]
+fn enum_with_non_map_value_is_rejected() {
+    let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(1), false);
+    assert!(Tagged::deserialize(de).is_err());
 }
