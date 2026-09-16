@@ -3,7 +3,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, Distribution, Element, ExecutionError, FloatDType, Scalar, TensorData,
+    DType, Distribution, Element, ExecutionError, FloatDType, Scalar, TensorData, TensorMetadata,
     ops::{FloatTensorOps, GridSampleOptions, IntTensorOps},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -1151,13 +1151,7 @@ impl FloatTensorOps<Flex> for Flex {
 
     fn float_powi_scalar(lhs: FloatTensor<Flex>, rhs: Scalar) -> FloatTensor<Flex> {
         match rhs.to_i64().unwrap() {
-            0 => {
-                let dtype = lhs.dtype();
-                Self::float_add_scalar(
-                    Self::float_mul_scalar(lhs, Scalar::new(0.0_f32, &dtype)),
-                    Scalar::new(1.0_f32, &dtype),
-                )
-            }
+            0 => Self::float_ones(lhs.shape(), &Default::default(), lhs.dtype().into()),
             1 => lhs,
             2 => Self::float_mul(lhs.clone(), lhs),
             -1 => Self::float_recip(lhs),

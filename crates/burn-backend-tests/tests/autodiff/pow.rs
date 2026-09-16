@@ -77,6 +77,44 @@ fn should_diff_powf_scalar_zero_exponent() {
 }
 
 #[test]
+fn should_diff_powf_scalar_zero_exponent_nonfinite() {
+    let device = AutodiffDevice::new();
+    let tensor_1 =
+        TestTensor::<1>::from_data([f32::INFINITY, f32::NEG_INFINITY, f32::NAN], &device)
+            .require_grad();
+
+    let tensor_2 = tensor_1.clone().powf_scalar(0.0);
+    let grads = tensor_2.clone().sum().backward();
+
+    let grad_1 = tensor_1.grad(&grads).unwrap();
+
+    tensor_2
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([1.0, 1.0, 1.0]), Tolerance::default());
+    grad_1
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([0.0, 0.0, 0.0]), Tolerance::default());
+}
+
+#[test]
+fn should_diff_powf_scalar_zero_exponent_nonfinite_incoming_grad() {
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<1>::from_data([2.0, -3.0, 0.0], &device).require_grad();
+    let factor =
+        TestTensor::<1>::from_data([f32::NAN, f32::INFINITY, f32::NEG_INFINITY], &device);
+
+    // The multiply makes `factor` the incoming gradient of the zero-exponent op.
+    let tensor_2 = tensor_1.clone().powf_scalar(0.0).mul(factor);
+    let grads = tensor_2.sum().backward();
+
+    let grad_1 = tensor_1.grad(&grads).unwrap();
+
+    grad_1
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([0.0, 0.0, 0.0]), Tolerance::default());
+}
+
+#[test]
 fn should_diff_powf_with_untracked_lhs() {
     let device = AutodiffDevice::new();
     let tensor_1 = TestTensor::<1>::from_data([2.0, 7.0], &device);

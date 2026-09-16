@@ -1057,18 +1057,9 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    /// 
-    /// Each arm must derive its result from `lhs` with a tracked op
-    /// (`float_mul`, `float_recip`, `lhs`) rather than an unrelated constructor
     fn float_powi_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B> {
         match rhs.elem::<i64>() {
-            0 => {
-                let dtype = lhs.dtype();
-                B::float_add_scalar(
-                    B::float_mul_scalar(lhs, Scalar::new(0.0_f32, &dtype)),
-                    Scalar::new(1.0_f32, &dtype),
-                )
-            },
+            0 => Self::float_ones(lhs.shape(), &lhs.device(), lhs.dtype().into()),
             1 => lhs,
             2 => B::float_mul(lhs.clone(), lhs),
             -1 => Self::float_recip(lhs),

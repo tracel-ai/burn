@@ -2954,6 +2954,52 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_powi_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        match rhs.elem::<i64>() {
+            0 => {
+                #[derive(Debug)]
+                struct PowiScalarZero;
+
+                impl<B: Backend> Backward<B, 1> for PowiScalarZero {
+                    type State = Shape;
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 1>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                            B::float_zeros(ops.state, &grad.device(), grad.dtype().into())
+                        });
+                    }
+                }
+
+                let shape = lhs.primitive.shape();
+                let device = lhs.primitive.device();
+                let dtype = lhs.primitive.dtype();
+
+                match PowiScalarZero
+                    .prepare::<C>([lhs.node()])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => {
+                        prep.finish(shape.clone(), B::float_ones(shape, &device, dtype.into()))
+                    }
+                    OpsKind::UnTracked(prep) => {
+                        prep.finish(B::float_ones(shape, &device, dtype.into()))
+                    }
+                }
+            }
+            1 => lhs,
+            2 => Self::float_mul(lhs.clone(), lhs),
+            -1 => Self::float_recip(lhs),
+            -2 => Self::float_recip(Self::float_mul(lhs.clone(), lhs)),
+            _ => Self::float_powi_scalar_impl(lhs, rhs),
+        }
+    }
+
     fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: Scalar) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct PowfScalar;
