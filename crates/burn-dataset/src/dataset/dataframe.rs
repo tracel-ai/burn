@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use crate::Dataset;
 
-use polars::frame::row::Row;
-use polars::prelude::*;
+use polars_core::frame::row::Row;
+use polars_core::prelude::*;
 use serde::de::DeserializeSeed;
 use serde::{
     Deserialize,
@@ -260,7 +260,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use polars::prelude::*;
     use serde::Deserialize;
 
     use super::*;
@@ -317,7 +316,7 @@ mod tests {
         let df = create_test_dataframe();
         let dataset = DataframeDataset::<TestData>::new(df).unwrap();
 
-        let expected_items = vec![
+        let expected_items = [
             TestData {
                 int32: 1,
                 bool: true,
@@ -363,6 +362,40 @@ mod tests {
             let item = dataset.get(index).unwrap();
             assert_eq!(&item, expected_item);
         }
+    }
+
+    #[test]
+    fn test_dataframe_dataset_temporal_and_unsigned_columns() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        struct Item {
+            uint8: u8,
+            uint16: u16,
+            date: i32,
+            time: i64,
+        }
+
+        let df = DataFrame::new_infer_height(vec![
+            Column::new("uint8".into(), [u8::MAX]),
+            Column::new("uint16".into(), [u16::MAX]),
+            Column::new("date".into(), [-1i32])
+                .cast(&DataType::Date)
+                .unwrap(),
+            Column::new("time".into(), [1_234_567_890i64])
+                .cast(&DataType::Time)
+                .unwrap(),
+        ])
+        .unwrap();
+
+        let dataset = DataframeDataset::<Item>::new(df).unwrap();
+        assert_eq!(
+            dataset.get(0).unwrap(),
+            Item {
+                uint8: u8::MAX,
+                uint16: u16::MAX,
+                date: -1,
+                time: 1_234_567_890,
+            }
+        );
     }
 
     #[test]

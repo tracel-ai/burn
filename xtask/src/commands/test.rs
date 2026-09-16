@@ -226,6 +226,8 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
     fusion_features.extend([
         "burn-backend-tests/fusion",
         "burn-linalg/fusion",
+        // Extension tests share this Metal/Fusion build and use BURN_DEVICE=metal.
+        "burn-core/extension-tests",
         // Preserve the default-feature coverage of the former standalone crate tests.
         // Qualify every feature so adding a package cannot enable its namesake feature.
         "burn-wgpu/default",
@@ -299,7 +301,7 @@ const EXCLUDE_CRATES: &[&str] = &[
 ];
 
 fn enumerate_examples() -> anyhow::Result<Vec<String>> {
-    let metadata = cargo_metadata::MetadataCommand::new().exec()?;
+    let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
 
     let workspace_root = metadata.workspace_root.as_std_path();
     let examples_dir = workspace_root.join("examples");

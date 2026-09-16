@@ -268,10 +268,6 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         V: Visitor<'de>,
     {
         match self.value {
-            Some(NestedValue::Bytes(bytes)) => match bytes.try_into_vec::<u8>() {
-                Ok(bytes) => visitor.visit_byte_buf(bytes),
-                Err(bytes) => visitor.visit_bytes(&bytes),
-            },
             Some(NestedValue::U8s(bytes)) => visitor.visit_byte_buf(bytes),
             Some(other) => Err(custom_err(format!(
                 "expected byte buffer but got {other:?}"

@@ -233,7 +233,7 @@ fn max_pool3d_with_indices_impl<T>(
     neg_inf: T,
 ) -> (FlexTensor, FlexTensor)
 where
-    T: bytemuck::Pod + Copy + PartialOrd + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + PartialOrd + Send + Sync + Element + num_traits::Float,
 {
     let x = x.to_contiguous();
     let x_shape = x.layout().shape();
@@ -281,8 +281,9 @@ where
                     let x_idx = x_offset + id_base + ih_base + iw;
                     let val = x_data[x_idx];
 
-                    // The only remaining conditional is the max comparison itself.
-                    if max_idx < 0 || val > max_val {
+                    // NaN always wins, so it propagates like in PyTorch, which also
+                    // reports the index of the last NaN in the window.
+                    if max_idx < 0 || val > max_val || val.is_nan() {
                         max_val = val;
                         max_idx = (id_base + ih_base + iw) as i64;
                     }

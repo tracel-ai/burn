@@ -19,8 +19,22 @@ workspace = true
 
 
 [features]
-default = ["burn-core/default", "flex", "fusion", "std"]
-std = ["aligned-vec/std", "burn-core/std", "burn-nn?/std", "burn-store?/std"]
+default = [
+    "burn-core/default",
+    "burn-cubecl?/default",
+    "burn-fusion?/default",
+    "flex",
+    "fusion",
+    "std",
+]
+std = [
+    "aligned-vec/std",
+    "burn-core/std",
+    "burn-cubecl?/std",
+    "burn-fusion?/std",
+    "burn-nn?/std",
+    "burn-store?/std",
+]
 tracing = [
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
@@ -48,8 +62,8 @@ tch = ["burn-core/tch"]
 loss = ["std", "dep:burn-nn", "burn-store/pytorch", "burn-std/network", "dirs"]
 
 [dependencies]
-burn-cubecl = { workspace = true, optional = true, features = ["default"]}
-burn-fusion = { workspace = true, optional = true, features = ["default"]}
+burn-cubecl = { workspace = true, optional = true }
+burn-fusion = { workspace = true, optional = true }
 burn-core = { workspace = true, features = [
     "extension",
 ] }

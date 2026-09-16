@@ -1,8 +1,8 @@
 use burn_backend::{
     IntDType,
     ops::{
-        DeformConv2dBackward, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, ModuleOps,
+        BatchNormTrain, BatchNormTrainBackward, DeformConv2dBackward, MaxPool1dBackward,
+        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -21,6 +21,37 @@ impl ModuleOps<Self> for Dispatch {
         epsilon: f64,
     ) -> FloatTensor<Self> {
         B::batch_norm(x, gamma, beta, mean, variance, epsilon)
+    }
+
+    #[backend_dispatch(skip)]
+    fn batch_norm_train(
+        x: FloatTensor<Self>,
+        gamma: FloatTensor<Self>,
+        beta: FloatTensor<Self>,
+        epsilon: f64,
+    ) -> BatchNormTrain<Self> {
+        let (output, mean, variance) = Self::batch_norm_train_dispatch(x, gamma, beta, epsilon);
+        BatchNormTrain::new(output, mean, variance)
+    }
+
+    #[backend_dispatch(skip)]
+    fn batch_norm_train_backward(
+        x: FloatTensor<Self>,
+        gamma: FloatTensor<Self>,
+        mean: FloatTensor<Self>,
+        variance: FloatTensor<Self>,
+        epsilon: f64,
+        output_grad: FloatTensor<Self>,
+    ) -> BatchNormTrainBackward<Self> {
+        let (x_grad, gamma_grad, beta_grad) = Self::batch_norm_train_backward_dispatch(
+            x,
+            gamma,
+            mean,
+            variance,
+            epsilon,
+            output_grad,
+        );
+        BatchNormTrainBackward::new(x_grad, gamma_grad, beta_grad)
     }
 
     fn conv2d(
@@ -633,6 +664,28 @@ impl Dispatch {
             output.mask_grad,
             output.bias_grad,
         )
+    }
+
+    fn batch_norm_train_dispatch(
+        x: FloatTensor<Self>,
+        gamma: FloatTensor<Self>,
+        beta: FloatTensor<Self>,
+        epsilon: f64,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
+        let result = B::batch_norm_train(x, gamma, beta, epsilon);
+        (result.output, result.mean, result.variance)
+    }
+
+    fn batch_norm_train_backward_dispatch(
+        x: FloatTensor<Self>,
+        gamma: FloatTensor<Self>,
+        mean: FloatTensor<Self>,
+        variance: FloatTensor<Self>,
+        epsilon: f64,
+        output_grad: FloatTensor<Self>,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
+        let result = B::batch_norm_train_backward(x, gamma, mean, variance, epsilon, output_grad);
+        (result.x_grad, result.gamma_grad, result.beta_grad)
     }
 
     fn max_pool2d_with_indices_dispatch(

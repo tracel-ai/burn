@@ -1,47 +1,9 @@
-//! PyTorch file reader implementation.
+//! Format detection and container loading behind [`PytorchReader`].
 //!
-//! This module provides support for reading PyTorch checkpoint files (.pt/.pth).
-//!
-//! # Supported Formats
-//!
-//! ## 1. Modern ZIP Format (PyTorch 1.6+)
-//! Files are ZIP archives holding, under a root directory (usually named after the file):
-//! - `data.pkl`: Pickled tensor metadata
-//! - `data/`: One binary file per tensor storage
-//! - `version`, `byteorder`, and other small text entries
-//!
-//! ## 2. TAR Format (PyTorch before 0.1.10, e.g. early torchvision models)
-//! TAR archives containing:
-//! - `sys_info`: System info pickle (endianness, type sizes)
-//! - `storages`: Count pickle, then per storage a metadata pickle, element count and bytes
-//! - `tensors`: Count pickle, then per tensor a metadata pickle and binary shape, stride
-//!   and storage offset
-//! - `pickle`: The saved object, referencing tensors by persistent id
-//!
-//! ## 3. Legacy Pickle Format (PyTorch 0.1.10 - 1.5)
-//! Sequential pickle streams with the structure:
-//! - Magic number pickle (0x1950a86a20f9469cfc6c)
-//! - Protocol version pickle (e.g., 1001)
-//! - System info pickle (endianness, type sizes)
-//! - Model data pickle (state_dict or full model)
-//! - Storage key list, then each storage as an `i64` element count followed by its bytes
-//!
-//! ## 4. Simple Pickle Format
-//! Direct pickle file with a dictionary at the root, commonly used for
-//! manually saved configuration.
-//!
-//! # Compatibility
-//!
-//! The reader detects the file format automatically. Files from the earliest PyTorch
-//! releases (TAR) through current versions are supported. Full model saves (as opposed to
-//! a state_dict) are refused, as are checkpoints holding sparse, quantized or nested
-//! tensors, since those cannot be represented. Only little-endian files are supported.
+//! The containers and their layouts are described in the crate docs.
 
 use crate::nested::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
-use burn_core::tensor::DType;
-use burn_pack::Tensor as PackTensor;
+use crate::{DType, Tensor};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::fs::File;
@@ -49,11 +11,11 @@ use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::Arc;
 
-use super::pickle_reader::{
+use crate::pickle_reader::{
     Object, PersistentIds, PickleError, StorageRef, build_tensor, extract_tensors, key_string,
     non_negative, read_pickle, storage_type_to_dtype,
 };
-use super::storage::{LegacySource, StorageSource, TarSource, ZipSource};
+use crate::storage::{LegacySource, StorageSource, TarSource, ZipSource};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 /// Error type for PyTorch file operations
@@ -197,7 +159,7 @@ pub enum ByteOrder {
 ///
 /// # Example
 /// ```rust,no_run
-/// # use burn_store::pytorch::PytorchReader;
+/// # use pytorch_reader::PytorchReader;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// // Load a checkpoint file
 /// let reader = PytorchReader::new("model.pt")?;
@@ -207,7 +169,7 @@ pub enum ByteOrder {
 ///
 /// // Access a specific tensor
 /// if let Some(tensor) = reader.get("conv1.weight") {
-///     let data = burn_store::bridge::to_data(tensor)?; // Materializes the tensor
+///     let bytes = tensor.read()?; // Reads the tensor's bytes from the file
 /// }
 ///
 /// // Check file metadata
@@ -218,7 +180,7 @@ pub enum ByteOrder {
 /// ```
 #[derive(Debug)]
 pub struct PytorchReader {
-    tensors: HashMap<String, PackTensor>,
+    tensors: HashMap<String, Tensor>,
     metadata: PytorchMetadata,
 }
 
@@ -245,7 +207,7 @@ impl PytorchReader {
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use burn_store::pytorch::PytorchReader;
+    /// # use pytorch_reader::PytorchReader;
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let reader = PytorchReader::with_top_level_key("checkpoint.pt", "state_dict")?;
     /// # Ok(())
@@ -285,17 +247,17 @@ impl PytorchReader {
     }
 
     /// Get a tensor by name
-    pub fn get(&self, name: &str) -> Option<&PackTensor> {
+    pub fn get(&self, name: &str) -> Option<&Tensor> {
         self.tensors.get(name)
     }
 
     /// Get all tensors
-    pub fn tensors(&self) -> &HashMap<String, PackTensor> {
+    pub fn tensors(&self) -> &HashMap<String, Tensor> {
         &self.tensors
     }
 
     /// Take ownership of all tensors
-    pub fn into_tensors(self) -> HashMap<String, PackTensor> {
+    pub fn into_tensors(self) -> HashMap<String, Tensor> {
         self.tensors
     }
 
@@ -358,7 +320,7 @@ impl PytorchReader {
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use burn_store::pytorch::PytorchReader;
+    /// # use pytorch_reader::PytorchReader;
     /// # use serde::Deserialize;
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// #[derive(Debug, Deserialize)]
@@ -696,7 +658,7 @@ fn parse_tar_tensors(
     blob: &[u8],
     storage_info: &TarStorageInfo,
     source: &Arc<StorageSource>,
-) -> Result<HashMap<String, PackTensor>> {
+) -> Result<HashMap<String, Tensor>> {
     let mut cursor = Cursor::new(blob);
     let count = read_tar_count(&mut cursor, "tensor")?;
     let mut tensors = HashMap::with_capacity(count.min(blob.len() / 8));
@@ -825,7 +787,7 @@ fn select_top_level(root: Object, key: Option<&str>) -> Result<Object> {
 fn extract_tensors_at(
     root: Object,
     top_level_key: Option<&str>,
-) -> Result<HashMap<String, PackTensor>> {
+) -> Result<HashMap<String, Tensor>> {
     let Object::Dict(dict) = select_top_level(root, top_level_key)? else {
         return Err(PytorchError::InvalidFormat(match top_level_key {
             Some(key) => format!("Top-level key '{key}' does not hold a dictionary"),

@@ -15,7 +15,7 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
 
     let n_rows = output.shape(output.rank() - 2);
     let n_cols = output.shape(output.rank() - 1);
-    let dim_k = rhs.shape(rhs.rank() - 1);
+    let dim_k = rhs.shape(rhs.rank() - 2);
 
     if row >= n_rows || col >= n_cols {
         terminate!();
