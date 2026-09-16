@@ -56,3 +56,18 @@ fn should_diff_abs_no_nans() {
     let contains_nan = grad_2.contains_nan();
     assert!(!contains_nan.into_scalar::<bool>());
 }
+
+#[test]
+fn should_diff_abs_of_nan() {
+    let data = TensorData::from([f32::NAN]);
+
+    let device = AutodiffDevice::new();
+    let x = TestTensor::<1>::from_data(data, &device).require_grad();
+
+    let y = x.clone().abs();
+    let grads = y.backward();
+    let grad = x.grad(&grads).unwrap();
+
+    let grad = grad.into_data().convert::<f32>();
+    assert_eq!(grad.as_slice::<f32>().unwrap()[0], 0.0);
+}

@@ -8,17 +8,24 @@ use burn_backend::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_std::{Bytes, IntDType, Shape, Slice, bf16, f16};
-#[cfg(not(feature = "std"))]
-#[allow(unused_imports)]
-use num_traits::Float;
+use num_traits::{Float, ToPrimitive};
 
 use crate::Layout;
-use num_traits::ToPrimitive;
-
 use crate::ops::binary::{BinaryOp, binary_op, scalar_op};
 use crate::ops::matmul;
 use crate::ops::unary;
 use crate::{Flex, FlexTensor};
+
+/// Python/PyTorch-style remainder: result has same sign as divisor.
+#[inline]
+fn remainder_float<T: Float>(a: T, b: T) -> T {
+    let r = a % b;
+    if r != T::zero() && (r < T::zero()) != (b < T::zero()) {
+        r + b
+    } else {
+        r
+    }
+}
 
 impl FloatTensorOps<Flex> for Flex {
     fn float_from_data(data: TensorData, _device: &Device<Flex>) -> FloatTensor<Flex> {
@@ -166,24 +173,12 @@ impl FloatTensorOps<Flex> for Flex {
 
     fn float_remainder(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
         // Python/PyTorch-style remainder: result has same sign as divisor
-        binary_op(
-            lhs,
-            rhs,
-            |a, b| ((a % b) + b) % b,
-            |a, b| ((a % b) + b) % b,
-            None,
-        )
+        binary_op(lhs, rhs, remainder_float, remainder_float, None)
     }
 
     fn float_remainder_scalar(lhs: FloatTensor<Flex>, rhs: Scalar) -> FloatTensor<Flex> {
-        let rhs_val = rhs.to_f64().unwrap();
         // Python/PyTorch-style remainder: result has same sign as divisor
-        scalar_op(
-            lhs,
-            rhs_val,
-            |a, b| ((a % b) + b) % b,
-            |a, b| ((a % b) + b) % b,
-        )
+        scalar_op(lhs, rhs.to_f64().unwrap(), remainder_float, remainder_float)
     }
 
     fn float_matmul(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
@@ -679,20 +674,24 @@ impl FloatTensorOps<Flex> for Flex {
     fn float_clamp_min(tensor: FloatTensor<Flex>, min: Scalar) -> FloatTensor<Flex> {
         let min32 = min.to_f32().unwrap();
         let min64 = min.to_f64().unwrap();
+        // `max` returns the non-NaN operand, which would map NaN to the bound.
+        // Testing `is_nan` first lets NaN propagate, as PyTorch does.
         unary::unary_op(
             tensor,
-            move |x: f32| x.max(min32),
-            move |x: f64| x.max(min64),
+            move |x: f32| if x.is_nan() || x > min32 { x } else { min32 },
+            move |x: f64| if x.is_nan() || x > min64 { x } else { min64 },
         )
     }
 
     fn float_clamp_max(tensor: FloatTensor<Flex>, max: Scalar) -> FloatTensor<Flex> {
         let max32 = max.to_f32().unwrap();
         let max64 = max.to_f64().unwrap();
+        // `min` returns the non-NaN operand, which would map NaN to the bound.
+        // Testing `is_nan` first lets NaN propagate, as PyTorch does.
         unary::unary_op(
             tensor,
-            move |x: f32| x.min(max32),
-            move |x: f64| x.min(max64),
+            move |x: f32| if x.is_nan() || x < max32 { x } else { max32 },
+            move |x: f64| if x.is_nan() || x < max64 { x } else { max64 },
         )
     }
 
@@ -703,26 +702,20 @@ impl FloatTensorOps<Flex> for Flex {
     // whole crate fails to compile for those targets. One scalar constant
     // leaves the pool with nothing to hold.
     //
-    // The zero branch is load bearing: `copysign(1.0, -0.0)` is `-1.0`, not
-    // `0.0`, so negative zero must be caught before it reaches there. `-0.0 ==
-    // 0.0` under IEEE 754, so one comparison covers both signed zeros, matching
-    // the previous fall-through.
+    // `copysign(1.0, -0.0)` is `-1.0`, and NaN isn't `== 0.0` on either sign
+    // bit, so both must be checked before falling into `copysign`
     fn float_sign(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
         unary::unary_op(
             tensor,
             |x: f32| {
-                if x.is_nan() {
-                    x
-                } else if x == 0.0 {
+                if x.is_nan() || x == 0.0 {
                     0.0
                 } else {
                     libm::copysignf(1.0, x)
                 }
             },
             |x: f64| {
-                if x.is_nan() {
-                    x
-                } else if x == 0.0 {
+                if x.is_nan() || x == 0.0 {
                     0.0
                 } else {
                     libm::copysign(1.0, x)

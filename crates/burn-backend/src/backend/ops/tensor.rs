@@ -1774,7 +1774,10 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
+    /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`:
+    /// `1` where positive, `-1` where negative, and `0` where zero (either sign) or NaN.
+    ///
+    /// `sign(NaN) == 0` is part of this contract and every backend override must uphold it too.
     fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let device = tensor.device();
         let bool_dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
