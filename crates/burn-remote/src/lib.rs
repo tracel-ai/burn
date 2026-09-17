@@ -73,7 +73,7 @@ pub use __client::*;
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use burn_flex::Flex;
-    use burn_tensor::{Device, DeviceType, Distribution, Tensor, TensorData, Tolerance};
+    use burn_tensor::{Device, DeviceType, Distribution, Tensor};
 
     /// Run `body` on a worker thread and fail the test if it doesn't finish within `timeout`.
     ///
