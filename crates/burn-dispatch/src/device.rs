@@ -1,5 +1,6 @@
 use burn_backend::{DeviceId, DeviceOps, DeviceSettings};
 
+#[allow(unused_imports)] // Empty in backend-free and capture-only builds.
 use crate::devices::*;
 
 #[cfg(feature = "capture")]
@@ -37,13 +38,16 @@ use burn_backend::cubecl::measure_peak_throughput;
 /// ```
 #[derive(Clone, Eq)]
 pub enum DispatchDevice {
+    #[cfg(not(backend_enabled))]
+    #[doc(hidden)]
+    Unavailable(crate::NoBackend),
     /// A device of the [cubecl backend](crate::backends::Cube): CUDA, ROCm, Metal, Vulkan,
     /// WebGPU, wgpu or the CPU runtime.
     #[cfg(cube_backend)]
     Cube(CubeDevice),
 
     /// The [Flex backend](crate::backends::Flex) device (CPU-only).
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     Flex(FlexDevice),
 
     /// The [NdArray backend](crate::backends::NdArray) device (CPU-only).
@@ -97,7 +101,7 @@ impl DispatchDevice {
             DispatchDevice::Autodiff(device) => device.performance_stats(keys),
 
             // Not cubecl-backed, so there are no kernels to measure.
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchDevice::Flex(_) => Vec::new(),
             #[cfg(feature = "ndarray")]
             DispatchDevice::NdArray(_) => Vec::new(),
@@ -190,9 +194,11 @@ pub enum GradientCheckpointingStrategy {
 impl core::fmt::Debug for DispatchDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             Self::Cube(device) => f.debug_tuple("Cube").field(device).finish(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => f.debug_tuple("NdArray").field(device).finish(),
@@ -214,13 +220,14 @@ impl core::fmt::Debug for DispatchDevice {
 }
 
 impl Default for DispatchDevice {
+    /// Select an enabled backend in this order: CUDA, Metal, ROCm, Vulkan, WebGPU,
+    /// wgpu, CPU, LibTorch, NdArray, Flex, Remote. `BURN_DEVICE` overrides this in
+    /// std builds. Capture devices must be constructed explicitly.
+    ///
+    /// Panics when no execution backend is enabled.
     #[allow(unreachable_code)]
     fn default() -> Self {
-        // TODO: which priority?
-        // Single override e.g. `BURN_DEVICE=vulkan` forces Vulkan or panics if not available.
-        // Priority list e.g. `BURN_DEVICE_PRIORITY=cuda,vulkan,cpu` sets the order.
-        // Both could be tied into `burn.toml` config
-        // For now we just use `BURN_DEVICE` on CI to force a single device
+        // BURN_DEVICE selects one compiled backend or reports a configuration error.
 
         #[cfg(feature = "std")]
         {
@@ -273,7 +280,7 @@ impl Default for DispatchDevice {
                         );
                     }
                     "flex" => {
-                        #[cfg(any(feature = "flex", default_backend))]
+                        #[cfg(feature = "flex")]
                         return Self::Flex(FlexDevice);
                         panic!(
                             "BURN_DEVICE=flex requested, but the 'flex' feature is not enabled."
@@ -320,16 +327,20 @@ impl Default for DispatchDevice {
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
 
-        // Prefer Flex over NdArray when both are enabled: Flex is the long-term
-        // CPU backend replacement and should win the default tie.
-        #[cfg(any(feature = "flex", default_backend))]
+        #[cfg(feature = "ndarray")]
+        return Self::NdArray(NdArrayDevice::default());
+
+        #[cfg(feature = "flex")]
         return Self::Flex(FlexDevice);
 
         #[cfg(feature = "remote")]
         return Self::Remote(RemoteDevice::default());
 
-        #[cfg(feature = "ndarray")]
-        return Self::NdArray(NdArrayDevice::default());
+        panic!(
+            "No execution backend is enabled. Enable a Burn backend feature such as `flex`, \
+             `wgpu`, or `cuda`. To record a graph without executing it, enable `capture` \
+             and use Device::capture()."
+        );
     }
 }
 
@@ -352,7 +363,7 @@ impl PartialEq for DispatchDevice {
             (a, DispatchDevice::Autodiff(b)) => a == b.inner.as_ref(),
             #[cfg(cube_backend)]
             (Self::Cube(a), Self::Cube(b)) => a == b,
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             (Self::Flex(a), Self::Flex(b)) => a == b,
             #[cfg(feature = "ndarray")]
             (Self::NdArray(a), Self::NdArray(b)) => a == b,
@@ -409,9 +420,11 @@ impl DispatchDevice {
     /// Returns a unique number per variant to encode into type_id.
     fn backend_id(&self) -> DispatchDeviceId {
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             Self::Cube(_) => DispatchDeviceId::Cube,
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(_) => DispatchDeviceId::Flex,
             #[cfg(feature = "ndarray")]
             Self::NdArray(_) => DispatchDeviceId::NdArray,
@@ -472,7 +485,7 @@ impl TryFrom<u16> for DispatchDeviceId {
         match value {
             #[cfg(cube_backend)]
             0 => Ok(Self::Cube),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             4 => Ok(Self::Flex),
             #[cfg(feature = "tch")]
             5 => Ok(Self::LibTorch),
@@ -490,9 +503,11 @@ impl TryFrom<u16> for DispatchDeviceId {
 impl DeviceOps for DispatchDevice {
     fn defaults(&self) -> DeviceSettings {
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             Self::Cube(device) => device.defaults(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(device) => device.defaults(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => device.defaults(),
@@ -516,7 +531,7 @@ impl burn_backend::Device for DispatchDevice {
         match dispatch_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => Self::Cube(burn_backend::Device::from_id(device_id)),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
             #[cfg(feature = "ndarray")]
             DispatchDeviceId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
@@ -531,10 +546,12 @@ impl burn_backend::Device for DispatchDevice {
     }
 
     fn to_id(&self) -> DeviceId {
-        let mut device_id = match self {
+        let mut device_id: DeviceId = match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             Self::Cube(device) => device.to_id(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(device) => device.to_id(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => device.to_id(),
@@ -596,7 +613,7 @@ impl From<WgpuDevice> for DispatchDevice {
     }
 }
 
-#[cfg(any(feature = "flex", default_backend))]
+#[cfg(feature = "flex")]
 impl From<FlexDevice> for DispatchDevice {
     fn from(device: FlexDevice) -> Self {
         DispatchDevice::Flex(device)

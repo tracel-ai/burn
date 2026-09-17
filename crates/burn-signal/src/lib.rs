@@ -5,6 +5,9 @@
 
 //! Signal processing operations for Burn tensors.
 //!
+//! No execution backend is enabled by default. Select `flex`, `wgpu`, or another
+//! backend feature here, or enable the matching backend feature on `burn`.
+//!
 //! # Migration
 //!
 //! Signal processing previously lived at `burn_tensor::signal` (and therefore

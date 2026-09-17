@@ -46,6 +46,17 @@ use alloc::vec::Vec;
 ///
 /// # Backend selection
 ///
+/// Default Cargo features do not enable an execution backend. Select one explicitly,
+/// for example with the `wgpu` or `flex` feature; there is no implicit CPU fallback.
+/// Backend-free builds can expose tensor/model APIs, but cannot create an execution device.
+///
+/// [`Device::default()`] selects the first enabled backend in this order:
+/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, LibTorch, NdArray, Flex, Remote.
+/// In std builds, `BURN_DEVICE` overrides this selection. Use an explicit factory
+/// method when the choice must be independent of Cargo feature unification.
+/// Without an execution backend, `Device::default()` panics with configuration guidance.
+/// Capture is never selected implicitly; use `Device::capture()` to record a graph.
+///
 /// Enable the desired backend via Cargo feature flags, then call the
 /// corresponding factory method:
 ///
@@ -312,6 +323,7 @@ impl Device {
     ) -> Result<CapturedGraph, CaptureError> {
         match self.as_dispatch() {
             DispatchDevice::Capture(device) => device.capture_scope(capture),
+            #[allow(unreachable_patterns)] // Capture can be the only enabled backend.
             _ => Err(CaptureError::InvalidDevice),
         }
     }
@@ -901,7 +913,7 @@ impl Device {
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
     ///
     /// Local backends (CPU, CUDA, WGPU, …) enumerate the hardware found on the host. The
-    /// [`Remote`](DeviceType::Remote) variant instead lists every device hosted by the
+    /// `Remote` (with `remote-websocket` enabled) variant instead lists every device hosted by the
     /// `burn-remote` server at the given address — it connects to the server to learn how
     /// many devices it exposes:
     ///
@@ -1111,7 +1123,7 @@ async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::Wgp
 /// Represents the devices that can be used.
 ///
 /// `DeviceType` is used to filter the available device types for [`Device::enumerate`]. Most
-/// variants are fieldless and select a backend's local hardware; [`Remote`](Self::Remote)
+/// variants are fieldless and select a backend's local hardware; `Remote` (with `remote-websocket` enabled)
 /// carries the network address of a `burn-remote` server whose devices should be listed.
 ///
 /// Variants combine into a [`DeviceFilter`] with the `|` operator, so a single
@@ -1160,7 +1172,7 @@ impl DeviceType {
 /// A set of [`DeviceType`]s passed to [`Device::enumerate`].
 ///
 /// Built from a single [`DeviceType`], a `Vec<DeviceType>`, or by combining variants with the
-/// `|` operator (`DeviceType::Cuda | DeviceType::Cpu`). Because [`DeviceType::Remote`] carries
+/// `|` operator (`DeviceType::Cuda | DeviceType::Cpu`). Because `DeviceType::Remote` carries
 /// an address, this is a plain list rather than a bitset.
 #[derive(Debug, Clone, Default)]
 pub struct DeviceFilter(Vec<DeviceType>);

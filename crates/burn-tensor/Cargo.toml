@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std", "burn-dispatch/default"]
-doc = ["default"]
+doc = ["default", "flex"]
 std = [
     "num-traits/std",
     "burn-std/std",

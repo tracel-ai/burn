@@ -453,11 +453,15 @@ macro_rules! unwrap_vec {
 macro_rules! transaction_op_arms {
     ($tx:ident, $first:expr; $([$Backend:ident, $cfg:meta]),*) => {{
         match &$first.kind {
+            #[cfg(not(backend_enabled))]
+            $crate::DispatchTensorKind::Unavailable(never) => never.unreachable(),
             // Autodiff arm first
             #[cfg(feature = "autodiff")]
             $crate::DispatchTensorKind::Autodiff(inner) => {
                 // Recursively dispatch on inner
                 match **inner {
+                    #[cfg(not(backend_enabled))]
+                    $crate::DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
                     $(
                     #[cfg($cfg)]
                     $crate::DispatchTensorKind::$Backend(_) => {

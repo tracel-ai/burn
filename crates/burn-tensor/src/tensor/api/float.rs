@@ -343,7 +343,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// Returns whether this tensor's gradient is retained after backward.
     ///
     /// This is distinct from [`Tensor::is_autodiff`], which reports whether operations use an
-    /// autodiff context, and [`Tensor::is_tracked()`], which reports graph participation when the
+    /// autodiff context, and `Tensor::is_tracked()`, which reports graph participation when the
     /// `autodiff` feature is enabled.
     pub fn is_require_grad(&self) -> bool {
         is_require_grad_impl(&self.primitive)

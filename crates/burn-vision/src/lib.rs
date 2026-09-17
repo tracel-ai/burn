@@ -1,5 +1,8 @@
 //! Vision ops for burn, with GPU acceleration where possible.
 //!
+//! No execution backend is enabled by default. Select `flex`, `wgpu`, or another
+//! backend feature here, or enable the matching backend feature on `burn`.
+//!
 //! # Operations
 //! Operation names are based on `opencv` wherever applicable.
 //!

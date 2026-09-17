@@ -29,7 +29,7 @@ pub(crate) const BACKENDS: &[BackendSpec] = &[
     },
     BackendSpec {
         name: "Flex",
-        cfg: "any(feature = \"flex\", default_backend)",
+        cfg: "feature = \"flex\"",
         distributed: false,
         unidirectional_transfer: false,
     },

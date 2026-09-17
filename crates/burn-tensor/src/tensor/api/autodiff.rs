@@ -164,7 +164,7 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// Returns whether autodiff is enabled for this tensor.
     ///
     /// This doesn't indicate whether the tensor participates in a recorded graph or retains its
-    /// gradient. Inspect those properties with [`is_tracked`](Tensor::is_tracked) and
+    /// gradient. Inspect those properties with `Tensor::is_tracked()` and
     /// [`is_require_grad`](Tensor::is_require_grad), respectively.
     pub fn is_autodiff(&self) -> bool {
         self.device().is_autodiff()
