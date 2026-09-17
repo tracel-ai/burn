@@ -62,18 +62,25 @@ fn flush_reaches_the_server_queue() {
     // Compiled on the server before the windows are compared.
     let _ = lazy_chain(&device).sum().into_scalar::<f32>();
 
-    let (x, lazy) = device.profile("lazy", || lazy_chain(&device)).unwrap();
-    let _ = x.sum().into_scalar::<f32>();
+    // Three runs and the median of each: the ratio is large, but one
+    // scheduling spike over the wire is not, and a flake here says nothing
+    // about what regressed.
+    let mut measure = || {
+        let (x, lazy) = device.profile("lazy", || lazy_chain(&device)).unwrap();
+        let _ = x.sum().into_scalar::<f32>();
 
-    let (x, flushed) = device
-        .profile_with("flushed", ProfileOptions::default().flush(), || {
-            lazy_chain(&device)
-        })
-        .unwrap();
-    let _ = x.sum().into_scalar::<f32>();
+        let (x, flushed) = device
+            .profile_with("flushed", ProfileOptions::default().flush(), || {
+                lazy_chain(&device)
+            })
+            .unwrap();
+        let _ = x.sum().into_scalar::<f32>();
 
-    let lazy = resolve(lazy);
-    let flushed = resolve(flushed);
+        (resolve(lazy), resolve(flushed))
+    };
+    let mut runs = [measure(), measure(), measure()];
+    runs.sort_by_key(|(_, flushed)| *flushed);
+    let (lazy, flushed) = runs[1];
     assert!(
         flushed > lazy * 2,
         "flushed {flushed:?}, lazy {lazy:?}: the flush did not run the server's queue inside \

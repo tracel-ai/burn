@@ -73,6 +73,28 @@ mod cube {
         futures_lite::future::block_on(duration.resolve()).expect("the window carried work")
     }
 
+    /// The element-wise median of three runs of `measure`.
+    ///
+    /// The tests that compare separately-scheduled windows are asserting a
+    /// structural property — that the flush moved the work — off durations
+    /// whose noise, on a loaded machine or a shared GPU, is the same order as
+    /// the difference itself. One sample makes that a coin flip, and a
+    /// coin-flip failure says nothing about what regressed. Three and a median
+    /// is not a benchmark; it is what keeps the property from being decided by
+    /// one scheduling spike.
+    pub(super) fn median_of_three<const N: usize>(
+        mut measure: impl FnMut() -> [Duration; N],
+    ) -> [Duration; N] {
+        let runs = [measure(), measure(), measure()];
+        let mut median = [Duration::ZERO; N];
+        for (at, slot) in median.iter_mut().enumerate() {
+            let mut column = [runs[0][at], runs[1][at], runs[2][at]];
+            column.sort();
+            *slot = column[1];
+        }
+        median
+    }
+
     /// `rounds` of work the device cannot skip, each a matmul the next
     /// depends on.
     fn work(device: &Device, rounds: usize) -> Tensor<2> {
@@ -176,23 +198,27 @@ mod cube {
         // Compiled before the windows are compared: see `later_work_stays_out`.
         let _ = lazy_chain(&device).sum().into_scalar::<f32>();
 
-        let (x, _) = device.profile("lazy", || lazy_chain(&device)).unwrap();
-        let (_, read_after_lazy) = device
-            .profile("read", || x.sum().into_scalar::<f32>())
-            .unwrap();
+        let [flushed, read_after_lazy, read_after_flushed] = median_of_three(|| {
+            let (x, _) = device.profile("lazy", || lazy_chain(&device)).unwrap();
+            let (_, read_after_lazy) = device
+                .profile("read", || x.sum().into_scalar::<f32>())
+                .unwrap();
 
-        let (x, flushed) = device
-            .profile_with("flushed", ProfileOptions::default().flush(), || {
-                lazy_chain(&device)
-            })
-            .unwrap();
-        let (_, read_after_flushed) = device
-            .profile("read", || x.sum().into_scalar::<f32>())
-            .unwrap();
+            let (x, flushed) = device
+                .profile_with("flushed", ProfileOptions::default().flush(), || {
+                    lazy_chain(&device)
+                })
+                .unwrap();
+            let (_, read_after_flushed) = device
+                .profile("read", || x.sum().into_scalar::<f32>())
+                .unwrap();
 
-        let flushed = resolve(flushed).duration();
-        let read_after_lazy = resolve(read_after_lazy).duration();
-        let read_after_flushed = resolve(read_after_flushed).duration();
+            [
+                resolve(flushed).duration(),
+                resolve(read_after_lazy).duration(),
+                resolve(read_after_flushed).duration(),
+            ]
+        });
 
         // A window nothing ran in reads as no time on a runtime that stamps
         // kernels (wgpu).
