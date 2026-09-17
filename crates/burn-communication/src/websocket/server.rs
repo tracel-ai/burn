@@ -13,28 +13,6 @@ use futures::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
 };
-use tracing_core::{Level, LevelFilter};
-use tracing_subscriber::{
-    Layer, filter::filter_fn, layer::SubscriberExt, registry, util::SubscriberInitExt,
-};
-
-fn init_logging() {
-    let layer = tracing_subscriber::fmt::layer()
-        .with_filter(LevelFilter::INFO)
-        .with_filter(filter_fn(|m| {
-            if let Some(path) = m.module_path() {
-                // The wgpu crate is logging too much, so we skip `info` level.
-                if path.starts_with("wgpu") && *m.level() >= Level::INFO {
-                    return false;
-                }
-            }
-            true
-        }));
-
-    // If we start multiple servers in the same process, this will fail, it's ok
-    let _ = registry().with(layer).try_init();
-}
-
 #[derive(Clone, Debug)]
 pub struct WsServer {
     port: u16,
@@ -66,8 +44,6 @@ impl WsServer {
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        init_logging();
-
         // Report the address the listener actually bound to (resolves an ephemeral `:0` port to
         // the real one), so the log confirms the server is accepting connections and tells the
         // operator where.

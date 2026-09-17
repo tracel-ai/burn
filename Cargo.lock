@@ -1011,8 +1011,6 @@ dependencies = [
  "tokio-tungstenite",
  "tokio-util",
  "tracing",
- "tracing-core",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1321,6 +1319,8 @@ dependencies = [
  "serde_bytes",
  "tokio",
  "tokio-util",
+ "tracing-core",
+ "tracing-subscriber",
  "wasm-bindgen-futures",
 ]
 

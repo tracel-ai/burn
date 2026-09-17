@@ -131,6 +131,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
         // The backend is hosted on an async runtime: tensor readbacks must materialize
         // eagerly rather than deferring a blocking device→host copy onto an executor worker.
         burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
+        crate::server::ServerLogging::install();
 
         match self.channel {
             #[cfg(feature = "websocket")]
