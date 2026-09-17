@@ -6,7 +6,7 @@ use crate::dataset::{
 use crate::model::LstmNetworkConfig;
 use burn::{
     data::dataloader::DataLoaderBuilder,
-    module::AutodiffModule,
+    module::Module,
     nn::loss::{MseLoss, Reduction::Mean},
     optim::{AdamConfig, GradientsParams},
     prelude::*,

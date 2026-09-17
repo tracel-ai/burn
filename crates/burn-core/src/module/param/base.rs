@@ -126,7 +126,7 @@ pub struct Param<T: ParameterValue> {
     ///
     /// This is authoritative and kept separately from the effective value so transformations and
     /// backends that cannot currently activate the value don't erase the state that
-    /// [`AutodiffModule::valid`](crate::module::AutodiffModule::valid) temporarily suspends and
+    /// [`Module::valid`](crate::module::Module::valid) temporarily suspends and
     /// `train` restores.
     pub(crate) is_active: bool,
     /// Optional transformation that materializes the effective value from the stored base.

@@ -4,8 +4,8 @@ use core::fmt::{Display, Formatter, Result as FmtResult};
 use burn_tensor::Device;
 
 use crate::module::{
-    AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor, Param, ParamId, ParameterValue,
+    Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
+    Param, ParamId, ParameterValue,
 };
 
 /// A boolean parameter value used for module-owned control state.
@@ -97,9 +97,7 @@ impl Module for Param<Flag> {
     fn collect_devices(&self, devices: Devices) -> Devices {
         devices
     }
-}
 
-impl AutodiffModule for Param<Flag> {
     fn valid(&self) -> Self {
         let enabled = self.is_active;
         let mut flag = Self::initialized(self.id, Flag::new(false));
@@ -107,9 +105,9 @@ impl AutodiffModule for Param<Flag> {
         flag
     }
 
-    fn from_inner(module: Self) -> Self {
-        let enabled = module.is_active;
-        let mut flag = Self::initialized(module.id, Flag::new(enabled));
+    fn train(self) -> Self {
+        let enabled = self.is_active;
+        let mut flag = Self::initialized(self.id, Flag::new(enabled));
         flag.is_active = enabled;
         flag
     }
@@ -135,7 +133,7 @@ mod tests {
         let valid = flag.valid();
 
         assert!(!valid.is_enabled());
-        assert!(Param::<Flag>::from_inner(valid).is_enabled());
+        assert!(valid.train().is_enabled());
     }
 
     #[test]
@@ -144,7 +142,7 @@ mod tests {
         let valid = flag.valid();
 
         assert!(!valid.is_enabled());
-        assert!(!Param::<Flag>::from_inner(valid).is_enabled());
+        assert!(!valid.train().is_enabled());
     }
 
     #[test]
@@ -182,7 +180,7 @@ mod tests {
 
         assert_eq!(flag.clone().with_value(false).id, id);
         assert_eq!(flag.valid().id, id);
-        assert_eq!(Param::<Flag>::from_inner(flag).id, id);
+        assert_eq!(flag.train().id, id);
     }
 
     #[test]

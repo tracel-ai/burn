@@ -25,7 +25,7 @@ use alloc::{boxed::Box, vec::Vec};
 use burn_tensor::{Bool, Device, Int, Tensor};
 use core::{any::Any, fmt::Debug};
 
-use crate::module::{AutodiffModule, Flag, ModuleMapper, ModuleVisitor};
+use crate::module::{Flag, Module, ModuleMapper, ModuleVisitor};
 
 use super::{Param, Reparameterization};
 
@@ -44,8 +44,8 @@ pub trait DynReparameterization: Debug + Send + Sync {
     fn to_device_dyn(self: Box<Self>, device: &Device) -> Box<dyn DynReparameterization>;
     /// Fork nested module state to a device.
     fn fork_dyn(self: Box<Self>, device: &Device) -> Box<dyn DynReparameterization>;
-    /// Convert nested module state from its inner backend.
-    fn from_inner_dyn(self: Box<Self>) -> Box<dyn DynReparameterization>;
+    /// Enable autodiff and restore configured training state in the nested module.
+    fn train_dyn(self: Box<Self>) -> Box<dyn DynReparameterization>;
     /// Collect devices from nested module state.
     fn collect_devices_dyn(&self, devices: Vec<Device>) -> Vec<Device>;
     /// Access the concrete reparameterization for internal downcasting.
@@ -111,8 +111,8 @@ where
         Box::new(Self::new(self.inner.fork(device)))
     }
 
-    fn from_inner_dyn(self: Box<Self>) -> Box<dyn DynReparameterization> {
-        Box::new(Self::new(AutodiffModule::from_inner(self.inner)))
+    fn train_dyn(self: Box<Self>) -> Box<dyn DynReparameterization> {
+        Box::new(Self::new(Module::train(self.inner)))
     }
 
     fn collect_devices_dyn(&self, devices: Vec<Device>) -> Vec<Device> {
