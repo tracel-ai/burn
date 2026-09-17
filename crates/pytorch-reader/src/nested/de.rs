@@ -925,9 +925,16 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
         visitor.visit_map(DefaultMapAccess::new())
     }
 
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_unit()
+    }
+
     forward_to_deserialize_any! {
         u128 bytes byte_buf unit unit_struct newtype_struct
-        enum identifier ignored_any
+        enum identifier
     }
 }
 
@@ -1167,6 +1174,17 @@ mod tests {
         let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
         let result = MockDType::deserialize(de);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_skip_default_in_a_field_the_target_does_not_name() {
+        let mut map = HashMap::new();
+        map.insert("hidden_size".to_string(), NestedValue::I32(1));
+        map.insert("extra".to_string(), NestedValue::Default(None));
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let config = Config::deserialize(de).unwrap();
+        assert_eq!(config, Config { hidden_size: 1 });
     }
 
     #[test]
