@@ -36,6 +36,18 @@ impl ProfileOptions {
 pub struct ProfileToken {
     /// The backend's own identifier for the window.
     pub id: u64,
+    /// The backend's own identifier for **where** the window was opened — a
+    /// stream, a queue — carried so it can be closed there.
+    ///
+    /// Opaque to this crate, and `0` for a backend that has only one such
+    /// place. A window belongs to where it was opened, not to whoever closes
+    /// it: the split pair exists for work launched from somewhere else, so
+    /// the two calls can land on different threads, and a close that guessed
+    /// from the *calling* thread would pair a start recorded on one stream
+    /// with an end recorded on another — which reads as a plausible duration
+    /// and means nothing.
+    #[serde(default)]
+    pub opened_on: u64,
 }
 
 /// Measure `func` in wall-clock time between two syncs of `device`.

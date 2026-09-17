@@ -316,9 +316,18 @@ pub trait Backend:
     /// # Errors
     ///
     /// The device refused to open or close the window, or work inside it
-    /// failed and took the measurement with it. `func` has run by then; its
-    /// output is lost with the error, as it would be on the read that the
-    /// failure surfaces on without a window.
+    /// failed and took the measurement with it. `func` has run by then — a
+    /// window that could not be opened does not cancel the work it was asked
+    /// to measure — and its output is lost with the error, as it would be on
+    /// the read that the failure surfaces on without a window.
+    ///
+    /// **A failure that the device only reports later is not here.** The
+    /// measurement is resolved after this returns, so anything the device
+    /// learns in between — and everything a *remote* server reports, which
+    /// travels back with the measurement rather than ahead of it — arrives as
+    /// a window that resolves to no measurement, with the reason in the log.
+    /// A caller that must distinguish "nothing ran" from "the server failed"
+    /// cannot do it from the `Result` alone.
     fn profile<O: Send + 'static>(
         device: &Self::Device,
         name: &str,

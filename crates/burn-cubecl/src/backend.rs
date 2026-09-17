@@ -151,6 +151,7 @@ impl Backend for CubeBackend {
             .map(|window| {
                 Some(ProfileToken {
                     id: window.token.id,
+                    opened_on: window.stream_id.value,
                 })
             })
             .map_err(profile_err)
@@ -165,9 +166,12 @@ impl Backend for CubeBackend {
         // stream as it is made, so there is nothing for the flush option to
         // force out.
         let client = device.client();
-        // Closed from the stream it was opened on, as the contract asks.
+        // Closed on the stream it was opened on, which the token carries —
+        // not on the calling thread's, which need not be the same one.
         let window = ProfileWindow {
-            stream_id: StreamId::current(),
+            stream_id: StreamId {
+                value: token.opened_on,
+            },
             token: ProfilingToken { id: token.id },
         };
         match client.profile_end(window) {
@@ -181,7 +185,9 @@ impl Backend for CubeBackend {
     /// cubecl returns the start event to its pool and nothing is measured.
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         let window = ProfileWindow {
-            stream_id: StreamId::current(),
+            stream_id: StreamId {
+                value: token.opened_on,
+            },
             token: ProfilingToken { id: token.id },
         };
         device.client().profile_abandon(window);
