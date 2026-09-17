@@ -101,10 +101,15 @@ impl Tensor {
     /// file stored the tensor in: a strided or offset view is gathered, and a `bool` tensor
     /// holds only 0 and 1. Nothing is cached, so each call reads the storage again.
     ///
+    /// Reads from different threads run at once: a ZIP read holds the archive lock only to
+    /// locate its entry. A compressed entry, which `torch.save` does not write, streams
+    /// under the lock instead, as does every entry on a target other than Unix and Windows.
+    ///
     /// # Errors
     ///
     /// A storage that is missing, corrupt or unreadable by its container fails with
-    /// [`io::ErrorKind::InvalidData`], and one shorter than the pickle declared with
+    /// [`io::ErrorKind::InvalidData`] (a ZIP storage's checksum is verified when the tensor
+    /// spans all of it), and one shorter than the pickle declared with
     /// [`io::ErrorKind::UnexpectedEof`]: the file disagrees with itself. Any other kind is
     /// the operating system's, and means the file could not be read at all. Every error
     /// names the tensor and its storage.
