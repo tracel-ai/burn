@@ -239,3 +239,28 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
         self.expose_response(bytes, 1, capability, target).await;
     }
 }
+
+#[cfg(feature = "server")]
+impl<B: BackendIr> super::node::ServeDialed for IrohTransfer<B> {
+    fn serve(
+        self: Arc<Self>,
+        remote: iroh::EndpointId,
+        kind: StreamKind,
+        send: iroh::endpoint::SendStream,
+        recv: iroh::endpoint::RecvStream,
+    ) {
+        match kind {
+            StreamKind::TensorTransfer => {
+                crate::server::spawn::spawn_detached(async move {
+                    if let Err(err) = self.handle_stream(remote, send, recv).await {
+                        log::warn!("Iroh tensor-transfer stream failed: {err}");
+                    }
+                });
+            }
+            // A session runs on the connection its client dialed, and a server dials no clients.
+            StreamKind::Session => {
+                log::warn!("Ignoring a session {remote} opened on a connection we dialed")
+            }
+        }
+    }
+}

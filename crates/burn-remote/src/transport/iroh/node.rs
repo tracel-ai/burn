@@ -6,6 +6,7 @@ use iroh::{
     Endpoint, EndpointAddr, EndpointId,
     endpoint::{Connection, RecvStream, SendStream},
 };
+use std::sync::{OnceLock, Weak};
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
@@ -30,9 +31,27 @@ struct StreamHeader {
 const STREAM_VERSION: u16 = 1;
 const MAX_FRAME_SIZE: usize = 1024 * 1024 * 1024;
 
+/// Serves the streams a peer opens on a connection this node dialed.
+///
+/// A connection carries streams both ways, but only the side that accepted one accepts streams on
+/// it, so without this a request the peer sends down a connection we dialed would never be read. A
+/// server installs one; a client has nothing to serve.
+#[cfg(feature = "server")]
+pub(crate) trait ServeDialed: Send + Sync + 'static {
+    fn serve(
+        self: Arc<Self>,
+        remote: EndpointId,
+        kind: StreamKind,
+        send: SendStream,
+        recv: RecvStream,
+    );
+}
+
 struct RemoteNodeInner {
     endpoint: Endpoint,
     connections: Mutex<HashMap<EndpointId, Arc<OnceCell<Connection>>>>,
+    #[cfg(feature = "server")]
+    serve_dialed: OnceLock<Weak<dyn ServeDialed>>,
 }
 
 /// A process-level Burn Remote networking node.
@@ -66,6 +85,8 @@ impl RemoteNode {
             inner: Arc::new(RemoteNodeInner {
                 endpoint,
                 connections: Mutex::new(HashMap::new()),
+                #[cfg(feature = "server")]
+                serve_dialed: OnceLock::new(),
             }),
         }
     }
@@ -163,9 +184,10 @@ impl RemoteNode {
 
             let endpoint = self.inner.endpoint.clone();
             let peer_for_connect = peer.clone();
+            let node = self.clone();
             let connection = cell
                 .get_or_try_init(|| async move {
-                    endpoint
+                    let connection = endpoint
                         .connect(peer_for_connect.clone(), BURN_REMOTE_ALPN)
                         .await
                         .map_err(|err| {
@@ -173,7 +195,11 @@ impl RemoteNode {
                                 "Failed to connect to Iroh peer {}: {err}",
                                 peer_for_connect.id
                             )
-                        })
+                        })?;
+                    // Runs once per connection, since the cell initializes once.
+                    #[cfg(feature = "server")]
+                    node.serve_dialed_connection(connection.clone());
+                    Ok::<Connection, String>(connection)
                 })
                 .await?;
             return Ok(connection.clone());
@@ -181,6 +207,44 @@ impl RemoteNode {
     }
 
     #[cfg(feature = "server")]
+    /// Serve the streams peers open on the connections this node dials, which is what lets a peer
+    /// reach a server it cannot dial itself. Held weakly, so the server it belongs to still drops.
+    ///
+    /// One node serves one server: each protocol builds its own node, and a second handler here
+    /// would leave one of the two servers' dialed connections unserved.
+    #[cfg(feature = "server")]
+    pub(crate) fn serve_dialed_with(&self, handler: Weak<dyn ServeDialed>) {
+        if self.inner.serve_dialed.set(handler).is_err() {
+            log::error!(
+                "An Iroh node already serves a server: the streams peers open on the connections \
+                 this one dials will go unanswered"
+            );
+        }
+    }
+
+    #[cfg(feature = "server")]
+    fn serve_dialed_connection(&self, connection: Connection) {
+        let Some(handler) = self.inner.serve_dialed.get().cloned() else {
+            return;
+        };
+        crate::server::spawn::spawn_detached(async move {
+            let remote = connection.remote_id();
+            loop {
+                match Self::accept_stream(&connection).await {
+                    Ok(Some((kind, send, recv))) => match handler.upgrade() {
+                        Some(handler) => handler.serve(remote, kind, send, recv),
+                        None => return,
+                    },
+                    Ok(None) => return,
+                    Err(err) => {
+                        log::warn!("Stream from {remote} on a connection we dialed failed: {err}");
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
     pub(crate) async fn remember_connection(&self, connection: Connection) {
         let remote = connection.remote_id();
         let cell = {

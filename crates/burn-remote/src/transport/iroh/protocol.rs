@@ -19,7 +19,7 @@ use crate::{
 
 use super::{
     IrohTransfer,
-    node::{RemoteNode, StreamKind},
+    node::{RemoteNode, ServeDialed, StreamKind},
 };
 
 /// Information presented to a compute node before a remote session is accepted.
@@ -91,6 +91,7 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
         burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
         let node = RemoteNode::from_endpoint(endpoint);
         let transfer = Arc::new(IrohTransfer::new(node.clone()));
+        node.serve_dialed_with(Arc::downgrade(&transfer) as std::sync::Weak<dyn ServeDialed>);
 
         let sessions = Arc::new(
             SessionManager::new(devices.to_vec(), transfer.clone())
