@@ -1177,14 +1177,30 @@ mod tests {
     }
 
     #[test]
-    fn should_skip_default_in_a_field_the_target_does_not_name() {
-        let mut map = HashMap::new();
-        map.insert("hidden_size".to_string(), NestedValue::I32(1));
-        map.insert("extra".to_string(), NestedValue::Default(None));
+    fn should_skip_a_field_the_target_does_not_name() {
+        for extra in [
+            NestedValue::Default(None),
+            NestedValue::Unsupported("torch.device".to_string()),
+        ] {
+            let mut map = HashMap::new();
+            map.insert("hidden_size".to_string(), NestedValue::I32(1));
+            map.insert("extra".to_string(), extra);
 
+            let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+            assert_eq!(Config::deserialize(de).unwrap(), Config { hidden_size: 1 });
+        }
+    }
+
+    #[test]
+    fn should_return_err_on_unsupported_value() {
+        let mut map = HashMap::new();
+        map.insert(
+            "hidden_size".to_string(),
+            NestedValue::Unsupported("numpy.int64".to_string()),
+        );
         let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
-        let config = Config::deserialize(de).unwrap();
-        assert_eq!(config, Config { hidden_size: 1 });
+        let err = Config::deserialize(de).unwrap_err();
+        assert!(err.to_string().contains("numpy.int64"), "{err}");
     }
 
     #[test]

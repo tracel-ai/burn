@@ -281,8 +281,9 @@ pub enum Object {
     },
     Storage(StorageRef),
     /// A Python object this reader does not interpret: an unknown `REDUCE`, `NEWOBJ`,
-    /// `NEWOBJ_EX` or `BUILD`. Nothing downstream looks inside one, so nothing is kept.
-    Opaque,
+    /// `NEWOBJ_EX` or `BUILD`, or an int too wide for an `i64`. Only the name of its
+    /// Python type is kept, so a consumer can say what it could not read.
+    Opaque(String),
     Tensor(Tensor),
 }
 
@@ -304,6 +305,7 @@ impl Object {
         match self {
             Object::String(s) => s.len(),
             Object::Bytes(b) => b.len(),
+            Object::Opaque(name) => name.len(),
             Object::Tuple(v) | Object::List(v) => v.iter().map(|o| o.payload_bytes()).sum(),
             Object::Dict(m) => m.values().map(|o| o.payload_bytes()).sum(),
             _ => 0,
@@ -333,8 +335,21 @@ impl Object {
             Object::Dict(_) => "dict",
             Object::Class { .. } => "class",
             Object::Storage(_) => "storage",
-            Object::Opaque => "object",
+            Object::Opaque(_) => "object",
             Object::Tensor(_) => "tensor",
+        }
+    }
+
+    /// The Python type of the value, as a consumer would name it: the class itself, the
+    /// callable an opaque object was built from, the torch type of a tensor or storage.
+    pub(crate) fn python_type_name(&self) -> String {
+        match self {
+            Object::Class { module_name, name } => format!("{module_name}.{name}"),
+            Object::Opaque(name) => name.clone(),
+            Object::Tensor(_) => "torch.Tensor".to_string(),
+            Object::Storage(StorageRef { dtype: Some(_), .. }) => "torch.TypedStorage".to_string(),
+            Object::Storage(_) => "torch.UntypedStorage".to_string(),
+            other => other.type_name().to_string(),
         }
     }
 }
@@ -591,14 +606,11 @@ fn reduce(callable: Object, args: Object) -> Result<Object> {
 /// so a pickled module whose attributes hold tensors (a full model save) is refused rather
 /// than loaded empty.
 fn opaque(callable: &Object, args: &Object) -> Result<Object> {
+    let name = callable.python_type_name();
     if callable.holds_tensor_data() || args.holds_tensor_data() {
-        let name = match callable {
-            Object::Class { module_name, name } => format!("{module_name}.{name}"),
-            other => other.type_name().to_string(),
-        };
         return Err(PickleError::UnsupportedType(name));
     }
-    Ok(Object::Opaque)
+    Ok(Object::Opaque(name))
 }
 
 /// `OrderedDict()` or `OrderedDict([(key, value), ...])`.
@@ -1514,7 +1526,7 @@ fn parse_index(text: &str) -> Result<u32> {
 /// element count) can be that large, so an out-of-range value is metadata it never looks
 /// at, and refusing the file over it would refuse an otherwise loadable checkpoint.
 fn long_object(bytes: &[u8]) -> Object {
-    int_from_le_bytes(bytes).map_or(Object::Opaque, Object::Int)
+    int_from_le_bytes(bytes).map_or_else(|| Object::Opaque("int".to_string()), Object::Int)
 }
 
 /// Protocol 0 writes a Python long in decimal. Out-of-range values stay opaque, as in
@@ -1530,7 +1542,7 @@ fn parse_long(text: &str) -> Result<Object> {
                 IntErrorKind::PosOverflow | IntErrorKind::NegOverflow
             ) =>
         {
-            Ok(Object::Opaque)
+            Ok(Object::Opaque("int".to_string()))
         }
         Err(e) => Err(PickleError::InvalidData(format!(
             "Invalid integer '{text}': {e}"
@@ -1840,7 +1852,7 @@ mod tests {
             let Object::Dict(dict) = plain(bytes).unwrap_or_else(|e| panic!("{e}")) else {
                 panic!("expected dict");
             };
-            assert!(matches!(dict["seed"], Object::Opaque));
+            assert!(matches!(&dict["seed"], Object::Opaque(name) if name == "int"));
             assert!(matches!(dict["n"], Object::Int(7)));
         }
     }
@@ -1862,7 +1874,10 @@ mod tests {
     fn unknown_reduce_is_kept_opaque() {
         // The shape of a pickled numpy scalar: REDUCE of numpy.core.multiarray.scalar.
         let bytes = b"\x80\x02cnumpy.core.multiarray\nscalar\nU\x02f8U\x08\x00\x00\x00\x00\x00\x00\xe0?\x86R.";
-        assert!(matches!(plain(bytes).unwrap(), Object::Opaque));
+        assert!(matches!(
+            plain(bytes).unwrap(),
+            Object::Opaque(name) if name == "numpy.core.multiarray.scalar"
+        ));
     }
 
     #[test]
