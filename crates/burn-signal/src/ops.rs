@@ -13,7 +13,6 @@ use burn_core::backend::{Backend, backend_extension, tensor::FloatTensor};
         feature = "rocm",
         feature = "cpu"
     )),
-    NdArray: cfg(feature = "ndarray"),
     LibTorch: cfg(feature = "tch"),
     Remote: cfg(feature = "remote"),
     Capture: cfg(feature = "capture"),

@@ -6,8 +6,6 @@ mod cubecl;
 mod flex;
 #[cfg(feature = "fusion")]
 mod fusion;
-#[cfg(feature = "ndarray")]
-mod ndarray;
 #[cfg(feature = "router")]
 pub(crate) mod router;
 #[cfg(feature = "tch")]

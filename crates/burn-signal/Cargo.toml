@@ -32,7 +32,6 @@ webgpu = ["cubecl-backend", "burn-core/webgpu"]
 metal = ["cubecl-backend", "burn-core/metal"]
 cpu = ["cubecl-backend", "burn-core/cpu"]
 flex = ["burn-core/flex", "burn-flex"]
-ndarray = ["burn-core/ndarray"]
 tch = ["burn-core/tch", "burn-tch", "dep:tch"]
 remote-websocket = ["remote", "burn-core/remote-websocket"]
 # Enable the remote transport integration test and its server dependencies.

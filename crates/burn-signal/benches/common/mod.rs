@@ -30,7 +30,7 @@ fn init_device_settings() {
 ///
 /// GPU backends (cuda, wgpu, rocm, metal, vulkan) dispatch ops asynchronously; without a sync
 /// barrier inside the timed region a bench would measure dispatch latency, not execution time.
-/// On CPU backends (flex, ndarray) this is a no-op via the `Backend::sync` default.
+/// On Flex this is a no-op via the `Backend::sync` default.
 #[inline]
 pub fn sync() {
     burn_core::tensor::Device::default().sync().unwrap();

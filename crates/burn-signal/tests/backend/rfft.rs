@@ -114,11 +114,9 @@ fn stft_istft_round_trip_preserves_gradients() {
     }
 }
 
-#[cfg(not(feature = "ndarray"))]
 use burn_core::tensor::{DType, Element};
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn should_diff_rfft() {
     // Lower precisions not supported
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
@@ -149,7 +147,6 @@ fn should_diff_rfft() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -175,7 +172,6 @@ fn round_trip() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_dim_nonzero() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -203,7 +199,6 @@ fn round_trip_with_dim_nonzero() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_some_n_greater() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -229,7 +224,6 @@ fn round_trip_with_some_n_greater() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_some_n_less() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -259,7 +253,6 @@ fn round_trip_with_some_n_less() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_inverse_with_some_n_greater() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -283,7 +276,6 @@ fn round_trip_inverse_with_some_n_greater() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_inverse_with_some_n_less() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;

@@ -86,18 +86,18 @@ pub(crate) fn handle_backend_tests(
 
     let linalg_backend = format!("burn-linalg/{backend_name}");
     let signal_backend = format!("burn-signal/{backend_name}");
-    let mut extension_features = vec![
-        linalg_backend.as_str(),
-        signal_backend.as_str(),
-        "burn-signal/autodiff",
-    ];
+    let mut extension_packages = vec!["burn-linalg"];
+    let mut extension_features = vec![linalg_backend.as_str()];
     if !matches!(context, Context::NoStd) {
-        extension_features.extend([
-            "burn-linalg/std",
-            "burn-linalg/autotune",
-            "burn-signal/std",
-            "burn-signal/autotune",
-        ]);
+        extension_features.extend(["burn-linalg/std", "burn-linalg/autotune"]);
+    }
+    // Signal has no NdArray implementation; keep its suite on supported backends.
+    if !matches!(backend, TestBackend::Ndarray) {
+        extension_packages.push("burn-signal");
+        extension_features.extend([signal_backend.as_str(), "burn-signal/autodiff"]);
+        if !matches!(context, Context::NoStd) {
+            extension_features.extend(["burn-signal/std", "burn-signal/autotune"]);
+        }
     }
 
     if matches!(backend, TestBackend::Cuda) {
@@ -122,7 +122,7 @@ pub(crate) fn handle_backend_tests(
         let mut extension_fusion_features = extension_features.clone();
         extension_fusion_features.extend(["burn-linalg/fusion", "burn-signal/fusion"]);
         run_test_group(
-            &["burn-linalg", "burn-signal"],
+            &extension_packages,
             &extension_fusion_features,
             args.release,
             "linalg and signal fusion backend tests",
@@ -134,21 +134,16 @@ pub(crate) fn handle_backend_tests(
     if group_cpu_tests {
         // Keep each backend separate, and leave SIMD/threading defaults to the
         // standalone backend crate tests. The extension suites request autotuning.
+        let mut packages = vec!["burn-backend-tests"];
+        packages.extend_from_slice(&extension_packages);
+        let backend_feature = format!("burn-backend-tests/{backend_name}");
+        let mut features = extension_features.clone();
+        features.extend([backend_feature.as_str(), "burn-backend-tests/std"]);
         run_test_group(
-            &["burn-backend-tests", "burn-linalg", "burn-signal"],
-            &[
-                &format!("burn-backend-tests/{backend_name}"),
-                "burn-backend-tests/std",
-                &format!("burn-linalg/{backend_name}"),
-                "burn-linalg/std",
-                "burn-linalg/autotune",
-                &format!("burn-signal/{backend_name}"),
-                "burn-signal/std",
-                "burn-signal/autodiff",
-                "burn-signal/autotune",
-            ],
+            &packages,
+            &features,
             args.release,
-            &format!("{backend_name} backend, linalg and signal tests"),
+            &format!("{backend_name} backend and extension tests"),
         )?;
     } else {
         build_helpers::custom_crates_tests(
@@ -176,10 +171,10 @@ pub(crate) fn handle_backend_tests(
 
     if !group_cpu_tests {
         run_test_group(
-            &["burn-linalg", "burn-signal"],
+            &extension_packages,
             &extension_features,
             args.release,
-            "linalg and signal backend tests",
+            "extension backend tests",
         )?;
     }
     Ok(())

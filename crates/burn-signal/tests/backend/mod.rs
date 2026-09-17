@@ -17,16 +17,13 @@ fn init_device_settings() {
 }
 
 mod blackman_window;
-#[cfg(not(any(feature = "ndarray", feature = "capture")))]
+#[cfg(not(feature = "capture"))]
 mod fft;
 mod hamming_window;
 mod hann_window;
-#[cfg(not(any(feature = "ndarray", feature = "capture")))]
+#[cfg(not(feature = "capture"))]
 mod stft;
-#[cfg(all(
-    feature = "autodiff",
-    not(any(feature = "ndarray", feature = "capture"))
-))]
+#[cfg(all(feature = "autodiff", not(feature = "capture")))]
 mod autodiff {
     use super::*;
     struct AutodiffDevice;
