@@ -1,13 +1,122 @@
 use super::*;
-use burn_tensor::TensorData;
-use burn_tensor::Tolerance;
-use burn_tensor::signal;
-
-#[cfg(not(feature = "ndarray"))]
-use burn_tensor::{DType, Element};
+use burn_core::tensor::TensorData;
+use burn_core::tensor::Tolerance;
+use burn_signal as signal;
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
+fn rfft_both_outputs_match_finite_differences() {
+    let values = vec![0.2f32, -0.3, 0.7, 0.1, -0.2, 0.6, 0.4, -0.5];
+    let device = AutodiffDevice::new();
+    let plain_device = burn_core::tensor::Device::default();
+    for (dim, n) in [(0, Some(2)), (0, Some(8)), (1, None)] {
+        let objective = |input| {
+            let (real, imag) = signal::rfft(input, dim, n);
+            real.square().sum() + imag.square().sum() * 0.7
+        };
+        let input = TestTensor::<2>::from_data(TensorData::new(values.clone(), [4, 2]), &device)
+            .require_grad();
+        let gradients = objective(input.clone()).backward();
+        let actual = input.grad(&gradients).unwrap().into_data();
+        let expected: Vec<f32> = (0..values.len())
+            .map(|i| {
+                let mut plus = values.clone();
+                let mut minus = values.clone();
+                plus[i] += 1e-3;
+                minus[i] -= 1e-3;
+                let eval = |data| {
+                    objective(TestTensor::<2>::from_data(
+                        TensorData::new(data, [4, 2]),
+                        &plain_device,
+                    ))
+                    .into_scalar::<f32>()
+                };
+                (eval(plus) - eval(minus)) / 2e-3
+            })
+            .collect();
+        actual.assert_approx_eq::<f32>(
+            &TensorData::new(expected, [4, 2]),
+            Tolerance::absolute(3e-3),
+        );
+    }
+}
+
+#[test]
+fn irfft_both_inputs_match_finite_differences() {
+    let real_values = vec![0.2f32, -0.3, 0.7, 0.1, -0.2, 0.6];
+    let imag_values = vec![0.4f32, 0.5, -0.6, 0.3, 0.8, -0.7];
+    let device = AutodiffDevice::new();
+    let plain_device = burn_core::tensor::Device::default();
+    for n in [Some(2), None, Some(8)] {
+        let objective = |real, imag| signal::irfft(real, imag, 0, n).square().sum();
+        let real =
+            TestTensor::<2>::from_data(TensorData::new(real_values.clone(), [3, 2]), &device)
+                .require_grad();
+        let imag =
+            TestTensor::<2>::from_data(TensorData::new(imag_values.clone(), [3, 2]), &device)
+                .require_grad();
+        let gradients = objective(real.clone(), imag.clone()).backward();
+        for (component, actual) in [
+            real.grad(&gradients).unwrap(),
+            imag.grad(&gradients).unwrap(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let expected: Vec<f32> = (0..6)
+                .map(|i| {
+                    let eval = |delta| {
+                        let mut re = real_values.clone();
+                        let mut im = imag_values.clone();
+                        if component == 0 {
+                            re[i] += delta;
+                        } else {
+                            im[i] += delta;
+                        }
+                        objective(
+                            TestTensor::<2>::from_data(TensorData::new(re, [3, 2]), &plain_device),
+                            TestTensor::<2>::from_data(TensorData::new(im, [3, 2]), &plain_device),
+                        )
+                        .into_scalar::<f32>()
+                    };
+                    (eval(1e-3) - eval(-1e-3)) / 2e-3
+                })
+                .collect();
+            actual.into_data().assert_approx_eq::<f32>(
+                &TensorData::new(expected, [3, 2]),
+                Tolerance::absolute(1e-3),
+            );
+        }
+    }
+}
+
+#[test]
+fn stft_istft_round_trip_preserves_gradients() {
+    let input = TestTensor::<2>::from_data(
+        [[0.2, -0.3, 0.7, 0.1, -0.2, 0.6, 0.4, -0.5]],
+        &AutodiffDevice::new(),
+    )
+    .require_grad();
+    for center in [false, true] {
+        let options = signal::StftOptions {
+            n_fft: 4,
+            hop_length: 2,
+            center,
+            ..signal::StftOptions::new(4)
+        };
+        let spectrum = signal::stft(input.clone(), None, options);
+        let output = signal::istft(spectrum, None, Some(8), options);
+        let gradients = output.sum().backward();
+        input
+            .grad(&gradients)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([[1.0f32; 8]]), Tolerance::absolute(1e-5));
+    }
+}
+
+use burn_core::tensor::{DType, Element};
+
+#[test]
 fn should_diff_rfft() {
     // Lower precisions not supported
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
@@ -38,7 +147,6 @@ fn should_diff_rfft() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -64,7 +172,6 @@ fn round_trip() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_dim_nonzero() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -92,7 +199,6 @@ fn round_trip_with_dim_nonzero() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_some_n_greater() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -118,7 +224,6 @@ fn round_trip_with_some_n_greater() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_some_n_less() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -148,7 +253,6 @@ fn round_trip_with_some_n_less() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_inverse_with_some_n_greater() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;
@@ -172,7 +276,6 @@ fn round_trip_inverse_with_some_n_greater() {
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
 fn round_trip_inverse_with_some_n_less() {
     if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
         return;

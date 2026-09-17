@@ -1,7 +1,7 @@
 use alloc::vec;
 
-use crate::Tensor;
-use crate::ops::PadMode;
+use burn_core::tensor::Tensor;
+use burn_core::tensor::ops::PadMode;
 
 use super::{hermitian_extend, irfft, rfft};
 

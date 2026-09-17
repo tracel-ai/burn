@@ -907,6 +907,7 @@ dependencies = [
  "burn-nn",
  "burn-optim",
  "burn-rl",
+ "burn-signal",
  "burn-std",
  "burn-store",
  "burn-train",
@@ -1355,6 +1356,25 @@ dependencies = [
  "portable-atomic",
  "serde",
  "spin 0.12.3",
+]
+
+[[package]]
+name = "burn-signal"
+version = "0.22.0-pre.3"
+dependencies = [
+ "burn-autodiff",
+ "burn-core",
+ "burn-cubecl",
+ "burn-flex",
+ "burn-fusion",
+ "burn-remote",
+ "burn-router",
+ "burn-std",
+ "burn-tch",
+ "ctor",
+ "divan",
+ "tch",
+ "tokio",
 ]
 
 [[package]]

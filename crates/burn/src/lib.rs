@@ -117,6 +117,7 @@
 //!   - `linalg`: Enables linear algebra operations
 //!   - `capture`: Makes the non-executing graph capture backend available.
 //!   - `ir`: Makes Burn's operation intermediate representation available.
+//!   - `signal`: Enables signal processing operations from `burn-signal`.
 //!   - `server`: Enables the remote server.
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!
@@ -150,6 +151,12 @@ pub mod module {
 /// Tensor types and compatibility re-exports.
 pub mod tensor {
     pub use burn_core::tensor::*;
+
+    /// Compatibility path for signal processing operations.
+    #[cfg(feature = "signal")]
+    pub mod signal {
+        pub use burn_signal::*;
+    }
 
     /// Compatibility path for linear algebra operations.
     #[cfg(feature = "linalg")]
@@ -255,6 +262,12 @@ pub mod cubecl {
 /// Vision module.
 pub mod vision {
     pub use burn_vision::*;
+}
+
+#[cfg(feature = "signal")]
+/// Signal processing module.
+pub mod signal {
+    pub use burn_signal::*;
 }
 
 pub mod prelude {

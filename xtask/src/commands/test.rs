@@ -84,9 +84,20 @@ pub(crate) fn handle_backend_tests(
         test_args.extend(["--features", "std"])
     }
 
-    let mut linalg_test_args = test_args.clone();
+    let linalg_backend = format!("burn-linalg/{backend_name}");
+    let signal_backend = format!("burn-signal/{backend_name}");
+    let mut extension_packages = vec!["burn-linalg"];
+    let mut extension_features = vec![linalg_backend.as_str()];
     if !matches!(context, Context::NoStd) {
-        linalg_test_args.extend(["--features", "autotune"]);
+        extension_features.extend(["burn-linalg/std", "burn-linalg/autotune"]);
+    }
+    // Signal has no NdArray implementation; keep its suite on supported backends.
+    if !matches!(backend, TestBackend::Ndarray) {
+        extension_packages.push("burn-signal");
+        extension_features.extend([signal_backend.as_str(), "burn-signal/autodiff"]);
+        if !matches!(context, Context::NoStd) {
+            extension_features.extend(["burn-signal/std", "burn-signal/autotune"]);
+        }
     }
 
     if matches!(backend, TestBackend::Cuda) {
@@ -108,14 +119,13 @@ pub(crate) fn handle_backend_tests(
             "fusion backend tests",
         )?;
 
-        let mut linalg_fusion_args = linalg_test_args.clone();
-        linalg_fusion_args.extend(["--features", "fusion"]);
-        build_helpers::custom_crates_tests(
-            vec!["burn-linalg"],
-            handle_test_args(&linalg_fusion_args, args.release),
-            None,
-            None,
-            "linalg fusion backend tests",
+        let mut extension_fusion_features = extension_features.clone();
+        extension_fusion_features.extend(["burn-linalg/fusion", "burn-signal/fusion"]);
+        run_test_group(
+            &extension_packages,
+            &extension_fusion_features,
+            args.release,
+            "linalg and signal fusion backend tests",
         )?;
     }
 
@@ -123,18 +133,17 @@ pub(crate) fn handle_backend_tests(
         && matches!(context, Context::Std);
     if group_cpu_tests {
         // Keep each backend separate, and leave SIMD/threading defaults to the
-        // standalone backend crate tests. Only linalg requests autotuning.
+        // standalone backend crate tests. The extension suites request autotuning.
+        let mut packages = vec!["burn-backend-tests"];
+        packages.extend_from_slice(&extension_packages);
+        let backend_feature = format!("burn-backend-tests/{backend_name}");
+        let mut features = extension_features.clone();
+        features.extend([backend_feature.as_str(), "burn-backend-tests/std"]);
         run_test_group(
-            &["burn-backend-tests", "burn-linalg"],
-            &[
-                &format!("burn-backend-tests/{backend_name}"),
-                "burn-backend-tests/std",
-                &format!("burn-linalg/{backend_name}"),
-                "burn-linalg/std",
-                "burn-linalg/autotune",
-            ],
+            &packages,
+            &features,
             args.release,
-            &format!("{backend_name} backend and linalg tests"),
+            &format!("{backend_name} backend and extension tests"),
         )?;
     } else {
         build_helpers::custom_crates_tests(
@@ -161,12 +170,11 @@ pub(crate) fn handle_backend_tests(
     }
 
     if !group_cpu_tests {
-        build_helpers::custom_crates_tests(
-            vec!["burn-linalg"],
-            handle_test_args(&linalg_test_args, args.release),
-            None,
-            None,
-            "linalg backend tests",
+        run_test_group(
+            &extension_packages,
+            &extension_features,
+            args.release,
+            "extension backend tests",
         )?;
     }
     Ok(())
@@ -211,13 +219,17 @@ fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
 fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
     set_burn_device("metal");
 
-    let packages = ["burn-backend-tests", "burn-linalg"];
+    let packages = ["burn-backend-tests", "burn-linalg", "burn-signal"];
     let features = [
         "burn-backend-tests/metal",
         "burn-backend-tests/std",
         "burn-linalg/metal",
         "burn-linalg/std",
         "burn-linalg/autotune",
+        "burn-signal/metal",
+        "burn-signal/std",
+        "burn-signal/autodiff",
+        "burn-signal/autotune",
     ];
 
     let mut fusion_packages = packages.to_vec();
@@ -226,6 +238,7 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
     fusion_features.extend([
         "burn-backend-tests/fusion",
         "burn-linalg/fusion",
+        "burn-signal/fusion",
         // Extension tests share this Metal/Fusion build and use BURN_DEVICE=metal.
         "burn-core/extension-tests",
         // Preserve the default-feature coverage of the former standalone crate tests.
@@ -412,12 +425,20 @@ pub(crate) fn handle_command(
 
                     // Backend crates
                     args.target = Target::AllPackages;
-                    args.only
-                        .extend(["burn-ndarray".to_string(), "burn-flex".to_string()]);
+                    args.only.push("burn-ndarray".to_string());
                     base_commands::test::handle_command(
                         args.clone().try_into().unwrap(),
                         env.clone(),
                         context,
+                    )?;
+
+                    // Native FFT kernels are opt-in, but keep their backend unit tests covered.
+                    build_helpers::custom_crates_tests(
+                        vec!["burn-flex"],
+                        handle_test_args(&["--features", "fft"], args.release),
+                        None,
+                        None,
+                        "Flex backend with FFT kernels",
                     )?;
                 }
                 CiTestType::Crates => {
@@ -537,6 +558,29 @@ pub(crate) fn handle_command(
                         args.release,
                         "std with graph capture",
                     )?;
+
+                    // The relocated websocket FFT test requires explicit server features.
+                    #[cfg(target_os = "linux")]
+                    if !args.exclude.iter().any(|name| name == "burn-signal") {
+                        for features in ["flex,std,remote-tests", "flex,std,remote-tests,fusion"] {
+                            build_helpers::custom_crates_tests(
+                                vec!["burn-signal"],
+                                handle_test_args(
+                                    &[
+                                        "--no-default-features",
+                                        "--features",
+                                        features,
+                                        "--test",
+                                        "remote",
+                                    ],
+                                    args.release,
+                                ),
+                                None,
+                                None,
+                                "signal FFT over websocket",
+                            )?;
+                        }
+                    }
 
                     // Keep all-features coverage in this shard to avoid consuming
                     // another runner from the organization's concurrency limit.

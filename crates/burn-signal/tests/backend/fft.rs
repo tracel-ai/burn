@@ -1,10 +1,76 @@
 use super::*;
-use burn_tensor::signal::{cfft, irfft, rfft};
-use burn_tensor::{TensorData, Tolerance};
+use burn_core::tensor::{TensorData, Tolerance};
+use burn_signal::{cfft, irfft, rfft};
 
 const SQ2INV: f64 = std::f64::consts::FRAC_1_SQRT_2;
 const SQ2INV_PLUS_HALF: f64 = SQ2INV + 0.5;
 const SQ2INV_MINUS_HALF: f64 = SQ2INV - 0.5;
+
+#[test]
+#[cfg(not(feature = "tch"))]
+fn forward_ffts_dequantize_inputs() {
+    use burn_core::tensor::{Device, quantization::QuantValue};
+
+    let device = Device::default();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+    let real =
+        TestTensor::<1>::from_floats([1.0, -2.0, 3.0, -4.0], &device).quantize_dynamic(&scheme);
+    let imag =
+        TestTensor::<1>::from_floats([0.5, 1.0, -1.5, 2.0], &device).quantize_dynamic(&scheme);
+
+    for n in [None, Some(2), Some(8)] {
+        let expected = rfft(real.clone().dequantize(), 0, n);
+        let actual = rfft(real.clone(), 0, n);
+        let expected_complex = cfft(real.clone().dequantize(), imag.clone().dequantize(), 0, n);
+        let actual_complex = cfft(real.clone(), imag.clone(), 0, n);
+
+        for (actual, expected) in [
+            (actual.0, expected.0),
+            (actual.1, expected.1),
+            (actual_complex.0, expected_complex.0),
+            (actual_complex.1, expected_complex.1),
+        ] {
+            actual
+                .into_data()
+                .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::absolute(1e-4));
+        }
+    }
+}
+
+#[test]
+#[cfg(not(feature = "tch"))]
+fn irfft_dequantizes_each_component() {
+    use burn_core::tensor::{Device, quantization::QuantValue};
+
+    let device = Device::default();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+    let real =
+        TestTensor::<1>::from_floats([1.0, -2.0, 3.0, -4.0], &device).quantize_dynamic(&scheme);
+    let imag =
+        TestTensor::<1>::from_floats([0.5, 1.0, -1.5, 2.0], &device).quantize_dynamic(&scheme);
+
+    for n in [Some(4), Some(8)] {
+        let expected =
+            irfft(real.clone().dequantize(), imag.clone().dequantize(), 0, n).into_data();
+        for (real, imag) in [
+            (real.clone(), imag.clone().dequantize()),
+            (real.clone().dequantize(), imag.clone()),
+            (real.clone(), imag.clone()),
+        ] {
+            irfft(real, imag, 0, n)
+                .into_data()
+                .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-4));
+        }
+    }
+}
 
 #[test]
 fn rfft_zeros() {
@@ -35,18 +101,19 @@ fn rfft_constant() {
 }
 
 #[test]
-#[should_panic] // "RFFT requires n_fft >= 2" error is shadowed by the CallError
 fn rfft_length1() {
-    let signal = TestTensor::<1>::from([5.0]);
-    let (re, im) = rfft(signal, 0, None);
+    assert_length_one_behavior(|| {
+        let signal = TestTensor::<1>::from([5.0]);
+        let (re, im) = rfft(signal, 0, None);
 
-    let expected_re = TensorData::from([5.0]);
-    let expected_im = TensorData::from([0.0]);
+        let expected_re = TensorData::from([5.0]);
+        let expected_im = TensorData::from([0.0]);
 
-    re.into_data()
-        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-4));
-    im.into_data()
-        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-4));
+        re.into_data()
+            .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-4));
+        im.into_data()
+            .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-4));
+    });
 }
 
 #[test]
@@ -520,11 +587,10 @@ fn rfft_2d_with_n_padded() {
     // Row 0: impulse zero-padded to 8 -> all-ones real
     let re_data = re.into_data();
     let re_vals = re_data.try_to_vec::<f32>().unwrap();
-    for k in 0..5 {
+    for (k, value) in re_vals.iter().take(5).enumerate() {
         assert!(
-            (re_vals[k] - 1.0).abs() < 1e-3,
-            "row0 re[{k}] should be 1.0, got {}",
-            re_vals[k]
+            (value - 1.0).abs() < 1e-3,
+            "row0 re[{k}] should be 1.0, got {value}",
         );
     }
 }
@@ -694,21 +760,22 @@ fn cfft_with_n_padding() {
 }
 
 #[test]
-#[should_panic] // "RFFT requires n_fft >= 2" error is shadowed by the CallError
 fn cfft_length_1() {
-    // N=1: DFT of a single complex value is itself
-    let re = TestTensor::<1>::from([3.0]);
-    let im = TestTensor::<1>::from([5.0]);
+    assert_length_one_behavior(|| {
+        // N=1: DFT of a single complex value is itself
+        let re = TestTensor::<1>::from([3.0]);
+        let im = TestTensor::<1>::from([5.0]);
 
-    let (cfft_re, cfft_im) = cfft(re, im, 0, None);
+        let (cfft_re, cfft_im) = cfft(re, im, 0, None);
 
-    assert_eq!(cfft_re.dims(), [1]);
-    cfft_re
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&TensorData::from([3.0]), Tolerance::absolute(1e-4));
-    cfft_im
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&TensorData::from([5.0]), Tolerance::absolute(1e-4));
+        assert_eq!(cfft_re.dims(), [1]);
+        cfft_re
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([3.0]), Tolerance::absolute(1e-4));
+        cfft_im
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([5.0]), Tolerance::absolute(1e-4));
+    });
 }
 
 #[test]
@@ -784,4 +851,17 @@ fn cfft_with_n_truncation() {
     cfft_im
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+// CubeCL currently rejects length-one FFTs; Flex and LibTorch support them.
+fn assert_length_one_behavior(run: impl FnOnce() + std::panic::UnwindSafe) {
+    #[cfg(feature = "cubecl-backend")]
+    if matches!(
+        burn_core::tensor::Device::default().as_dispatch(),
+        burn_core::backend::DispatchDevice::Cube(_)
+    ) {
+        assert!(std::panic::catch_unwind(run).is_err());
+        return;
+    }
+    run();
 }

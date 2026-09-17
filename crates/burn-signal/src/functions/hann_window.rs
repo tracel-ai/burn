@@ -1,4 +1,4 @@
-use crate::{Float, Int, Tensor, TensorCreationOptions, check, check::TensorCheck};
+use burn_core::tensor::{Int, Tensor, TensorCreationOptions};
 
 /// Creates a 1D Hann window.
 ///
@@ -23,8 +23,8 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::Device;
-/// use burn_tensor::signal::hann_window;
+/// use burn_core::tensor::Device;
+/// use burn_signal::hann_window;
 ///
 /// let device = Default::default();
 /// let window = hann_window(8, true, &device);
@@ -36,9 +36,8 @@ pub fn hann_window(
     options: impl Into<TensorCreationOptions>,
 ) -> Tensor<1> {
     let opt = options.into();
-    let dtype = opt.resolve_dtype::<Float>();
+    let dtype = opt.dtype_or(opt.device.settings().float_dtype.into());
     let shape = [size];
-    check!(TensorCheck::creation_ops::<1>("HannWindow", &shape));
 
     if size == 0 {
         return Tensor::<1>::empty(shape, opt).cast(dtype);

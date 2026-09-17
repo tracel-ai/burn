@@ -30,7 +30,9 @@ std = [
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",
 ]
-doc = ["default", "wgpu"]
+doc = ["default", "wgpu", "fft"]
+# Native FFT kernels, enabled by burn-signal.
+fft = ["cubek/fft"]
 
 # The runtime to compile against. A backend no longer carries its runtime in its type, but
 # `cubecl::Device` — and through it `CubeBackend` — exists only once at least one runtime is
@@ -90,7 +92,6 @@ cubek = { workspace = true, features = [
     "random",
     "quantization",
     "stdlib",
-    "fft",
 ] }
 tracing = { workspace = true, features = ["attributes"], optional = true }
 
