@@ -26,6 +26,8 @@ tracing = [
 ]
 
 client = ["tokio/sync"]
+# A test that runs on this machine's GPU through the cubecl backend, rather than on Flex.
+gpu-tests = ["dep:burn-cubecl"]
 # Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.
 fusion = ["client", "dep:burn-fusion", "burn-router/fusion"]
 server = ["tokio/sync", "dep:tracing-subscriber"]
@@ -40,6 +42,9 @@ websocket = [
 
 
 [dependencies]
+# Only the GPU-gated test uses it; it sits here rather than in dev-dependencies, which cannot be
+# optional.
+burn-cubecl = { workspace = true, features = ["cpu", "default", "vulkan"], optional = true }
 burn-ir = { workspace = true, features = ["default"] }
 burn-backend = { workspace = true, features = [
     "default",
