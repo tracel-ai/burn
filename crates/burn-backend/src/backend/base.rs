@@ -84,12 +84,49 @@ pub fn profile_with_tokens<B: Backend, O: Send + 'static>(
     options: ProfileOptions,
     func: impl FnOnce() -> O + Send,
 ) -> Result<(O, ProfileDuration), ExecutionError> {
-    let Some(token) = B::profile_start(device)? else {
-        return profile_system_time::<B, O>(device, func);
+    let opened = match B::profile_start(device) {
+        Ok(Some(token)) => token,
+        Ok(None) => return profile_system_time::<B, O>(device, func),
+        // The window could not be opened — a remote device reached from a
+        // browser thread, which cannot wait on the server. `func` still runs:
+        // a caller asked for their work to be measured, and handing back an
+        // error having quietly skipped the work is the one outcome they
+        // cannot recover from. Measuring is what failed, so only the
+        // measurement is lost.
+        Err(err) => {
+            func();
+            return Err(err);
+        }
+    };
+
+    // Held so an unwinding `func` abandons the window instead of leaving it
+    // open on the server for the rest of the process.
+    let mut window = OpenWindow::<B> {
+        device,
+        token: Some(opened),
     };
     let out = func();
+    let token = window
+        .token
+        .take()
+        .expect("the window is held from opening until here");
     let duration = B::profile_end(device, token, options)?;
     Ok((out, duration))
+}
+
+/// An open profiling window, abandoned on drop unless it was taken to be
+/// closed. See [`Backend::profile_abandon`].
+struct OpenWindow<'a, B: Backend> {
+    device: &'a B::Device,
+    token: Option<ProfileToken>,
+}
+
+impl<B: Backend> Drop for OpenWindow<'_, B> {
+    fn drop(&mut self) {
+        if let Some(token) = self.token.take() {
+            B::profile_abandon(self.device, token);
+        }
+    }
 }
 
 /// This trait defines all types and functions needed for a backend to be used with burn.
@@ -322,6 +359,25 @@ pub trait Backend:
         _options: ProfileOptions,
     ) -> Result<ProfileDuration, ExecutionError> {
         Err(profile_unsupported())
+    }
+
+    /// Drop the window `token` opened without measuring it, for a caller that
+    /// will never reach [`profile_end`](Self::profile_end).
+    ///
+    /// **An open window is not free**, and the cost is not paid once: a
+    /// backend holds a start event, keeps timestamp writes on, or retains
+    /// command buffers for as long as one is open, and on wgpu every later
+    /// pass keeps rewriting the live window's end slot. So a window whose
+    /// caller unwound between the two calls is abandoned rather than left,
+    /// which is what [`profile_with_tokens`] does on the panic path.
+    ///
+    /// Cannot fail and answers nothing: it is called while a panic is already
+    /// unwinding, where there is nobody left to tell. The default closes the
+    /// window and discards the measurement, which every backend can already
+    /// do; one that can drop a window without recording an end does that
+    /// instead.
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        let _ = Self::profile_end(device, token, ProfileOptions::default());
     }
 
     /// Prepare `device` for an upcoming graph capture: route allocations into a

@@ -81,6 +81,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::profile_end(device, token, options)
     }
 
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        B::profile_abandon(device, token)
+    }
+
     fn memory_persistent_allocations<
         Output: Send,
         Input: Send,

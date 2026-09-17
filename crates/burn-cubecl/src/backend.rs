@@ -8,7 +8,6 @@ use burn_backend::{
 use burn_std::{
     BoolStore, DType,
     id::StreamId,
-    profile::{Instant, ProfileTicks},
     quantization::quantizable,
 };
 use cubecl::device::DeviceId;
@@ -55,17 +54,23 @@ fn profile_err(err: ProfileError) -> ExecutionError {
     }
 }
 
-/// The measurement of a window nothing ran in.
+/// A window a kernel-stamping runtime could not measure.
 ///
-/// A runtime that stamps the stream (CUDA, HIP) answers such a window with two
-/// stamps and nothing between them; one that stamps kernels (wgpu) has nothing
-/// to answer with and refuses it as [`ProfileError::NotMeasured`]. The refusal
-/// is right for a tuning sweep, where an absence must not read as the fastest
-/// candidate, but a caller measuring a scope asked how long the device spent
-/// on it, and the answer is none — the same answer the other runtimes give.
+/// A runtime that stamps the stream (CUDA, HIP) answers a window nothing ran
+/// in with two stamps and nothing between them. One that stamps kernels (wgpu)
+/// has no query set for it and refuses it as [`ProfileError::NotMeasured`] —
+/// but it refuses **two** cases with one error, and cubecl says so where the
+/// refusal is raised: a window that dispatched nothing, and a window whose
+/// work never landed in a timestamped pass. The second is a kernel that ran.
+///
+/// So this resolves to no measurement rather than to a zero. Zero is the
+/// fastest duration there is, and a caller comparing two windows — which is
+/// what a profiling scope is for — would take the one that could not be
+/// measured as the quicker of the two. `None` is already how every reader of a
+/// [`ProfileDuration`] spells an absence, and the error it replaces carried
+/// exactly that meaning.
 fn empty_window() -> ProfileDuration {
-    let now = Instant::now();
-    ProfileDuration::new_device_time(async move { ProfileTicks::from_start_end(now, now) })
+    ProfileDuration::new_device_time_maybe(async move { None })
 }
 
 /// A captured launch sequence, tagged with the device it was captured on.
@@ -170,6 +175,16 @@ impl Backend for CubeBackend {
             Err(ProfileError::NotMeasured { .. }) => Ok(empty_window()),
             Err(err) => Err(profile_err(err)),
         }
+    }
+
+    /// Dropped on the stream it was opened on, without recording an end —
+    /// cubecl returns the start event to its pool and nothing is measured.
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        let window = ProfileWindow {
+            stream_id: StreamId::current(),
+            token: ProfilingToken { id: token.id },
+        };
+        device.client().profile_abandon(window);
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

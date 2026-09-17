@@ -109,6 +109,16 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         }
     }
 
+    /// Sent through the queue the window's own marks travelled, so it is
+    /// dropped in order with them — and never flushed: abandoning happens on
+    /// a panic, where draining the queue would run the very work that was
+    /// unwinding out from under it.
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        let _ = client.run(move || B::profile_abandon(&device, token));
+    }
+
     fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }

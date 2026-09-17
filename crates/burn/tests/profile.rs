@@ -231,18 +231,64 @@ mod cube {
         assert_eq!(sum, 1024.0);
     }
 
-    /// An empty window is a measurement all the same, whether the runtime
-    /// stamps the stream (and reads the host gap between the two stamps) or
-    /// the kernels (and has nothing to read) — and the output comes back
-    /// either way.
+    /// A panic out of the measured closure leaves no window open behind it.
+    ///
+    /// An open window is not free — a held start event, timestamp writes left
+    /// on, retained command buffers — and on wgpu every later pass keeps
+    /// rewriting the live window's end slot, so one leaked window taxes
+    /// everything that runs afterwards. Nothing closes it later: the whole
+    /// point of the split pair is that the server holds the window until a
+    /// caller ends or abandons it.
+    ///
+    /// The leak is invisible from outside, so what this checks is that the
+    /// device still measures afterwards: a window left open on wgpu takes the
+    /// query set the next one needs, and a following profile comes back
+    /// unmeasured or wrong.
     #[test]
-    fn empty_window_is_a_measurement() {
+    fn a_panicking_closure_abandons_its_window() {
+        let (_guard, device) = device();
+
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = device.profile("panics", || {
+                let _ = work(&device, 2);
+                panic!("the measured work failed");
+            });
+        }));
+        assert!(panicked.is_err(), "the panic reaches the caller");
+
+        // The device is still profilable: the abandoned window released
+        // whatever it was holding.
+        let (sum, duration) = device
+            .profile("after", || work(&device, 4).sum().into_scalar::<f32>())
+            .expect("the device still profiles after an abandoned window");
+
+        assert!(sum.is_finite(), "the work after the panic still ran");
+        assert!(
+            resolve(duration).duration() > Duration::ZERO,
+            "and it is still measured"
+        );
+    }
+
+    /// An empty window is answered, not refused — and the output comes back
+    /// whichever way the runtime answers.
+    ///
+    /// A runtime that stamps the stream (CUDA, HIP) reads the host gap between
+    /// two stamps and reports about nothing. One that stamps kernels (wgpu)
+    /// has no query set to read and reports **no measurement**, which is not a
+    /// zero: it cannot tell a window that dispatched nothing from one whose
+    /// work never reached a timestamped pass, and the second is a kernel that
+    /// ran. So this asserts the shape both give — a window that resolves
+    /// without erroring — rather than a duration only one of them has.
+    #[test]
+    fn empty_window_is_answered_either_way() {
         let (_guard, device) = device();
 
         let (out, duration) = device.profile("empty", || 42).unwrap();
 
         assert_eq!(out, 42);
-        let _ = resolve(duration);
+        // Some(~0) on a stream-stamping runtime, None on a kernel-stamping
+        // one. Both are answers; an error would not be.
+        let _ = futures_lite::future::block_on(duration.resolve());
     }
 }
 

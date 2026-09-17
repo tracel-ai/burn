@@ -220,6 +220,10 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::profile_end(device, token, options))
     }
 
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        dispatch_device!(device, |device| B::profile_abandon(device, token))
+    }
+
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::graph_prepare(device))
     }
