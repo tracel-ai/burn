@@ -367,7 +367,7 @@ checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -857,7 +857,7 @@ dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -1536,7 +1536,7 @@ checksum = "6a1f896587b6f2c069c73d2f0913e2d590c3990285cd2f0b6aa02b786b4c679c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -1837,7 +1837,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -2231,7 +2231,7 @@ dependencies = [
  "document-features",
  "mio",
  "parking_lot",
- "rustix 1.1.4",
+ "rustix 1.1.5",
  "signal-hook 0.3.18",
  "signal-hook-mio",
  "winapi",
@@ -2607,7 +2607,7 @@ dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -2619,7 +2619,7 @@ dependencies = [
  "inflections",
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -2813,7 +2813,7 @@ dependencies = [
 [[package]]
 name = "cubek"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "cubecl",
  "cubek-attention",
@@ -2831,7 +2831,7 @@ dependencies = [
 [[package]]
 name = "cubek-attention"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2845,7 +2845,7 @@ dependencies = [
 [[package]]
 name = "cubek-convolution"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2861,7 +2861,7 @@ dependencies = [
 [[package]]
 name = "cubek-fft"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "cubecl",
 ]
@@ -2869,7 +2869,7 @@ dependencies = [
 [[package]]
 name = "cubek-interpolate"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2882,7 +2882,7 @@ dependencies = [
 [[package]]
 name = "cubek-matmul"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2896,7 +2896,7 @@ dependencies = [
 [[package]]
 name = "cubek-pool"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2906,7 +2906,7 @@ dependencies = [
 [[package]]
 name = "cubek-quant"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2918,7 +2918,7 @@ dependencies = [
 [[package]]
 name = "cubek-random"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2933,7 +2933,7 @@ dependencies = [
 [[package]]
 name = "cubek-reduce"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "cubecl",
  "cubek-std",
@@ -2946,7 +2946,7 @@ dependencies = [
 [[package]]
 name = "cubek-std"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2955,7 +2955,7 @@ dependencies = [
 [[package]]
 name = "cubek-tile"
 version = "0.3.0-pre.3"
-source = "git+https://github.com/tracel-ai/cubek?rev=c3baf04f8f7f67d4044eb5cec34fa81b99e4834c#c3baf04f8f7f67d4044eb5cec34fa81b99e4834c"
+source = "git+https://github.com/tracel-ai/cubek?rev=4962dd555f3d717ff36043282d4d802b235ccc29#4962dd555f3d717ff36043282d4d802b235ccc29"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -3137,7 +3137,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -3170,7 +3170,7 @@ checksum = "2ac7135c3ef02b2f7833bbeb1be5ba7f966dcde8a87c6b87f65a778d71a02785"
 dependencies = [
  "darling_core 0.24.1",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -3219,7 +3219,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c54e03a951783e8b327515db3f2a2fd0e3bed362a96b066f341ce66ed49b4ead"
 dependencies = [
  "data-encoding",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -3430,7 +3430,7 @@ checksum = "c6232dd377dcc64799954cbd3a9bb882e9cdc1308ccd87b1c098f1fb2eaf82a8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -3688,7 +3688,7 @@ checksum = "0590c4a94da3372e83493b956755a6e2266830b6e4e3b101afe66e3f39477b91"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -4023,7 +4023,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8640e34b88f7652208ce9e88b1a37a2ae95227d84abec377ccd3c5cfeb141ed4"
 dependencies = [
- "rustix 1.1.4",
+ "rustix 1.1.5",
  "windows-sys 0.59.0",
 ]
 
@@ -4115,7 +4115,7 @@ checksum = "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -5226,7 +5226,7 @@ dependencies = [
  "indoc",
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -5815,7 +5815,7 @@ checksum = "77060ebe535362c3da75682cd17b0431017b6e7c5661e714fc69a7ad017d1301"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -6223,7 +6223,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -7579,7 +7579,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc-hash 2.1.3",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -8250,7 +8250,7 @@ dependencies = [
  "concurrent-queue",
  "hermit-abi",
  "pin-project-lite",
- "rustix 1.1.4",
+ "rustix 1.1.5",
  "windows-sys 0.61.2",
 ]
 
@@ -8393,7 +8393,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
 dependencies = [
  "proc-macro2",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -9381,9 +9381,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.4"
+version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
+checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
 dependencies = [
  "bitflags 2.13.2",
  "errno",
@@ -9656,7 +9656,7 @@ checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -10265,9 +10265,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "3.0.5"
+version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12df2e0110f65b775f769bb17ef989067a1d931b2eb822bd4346631eeada89f9"
+checksum = "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -10291,7 +10291,7 @@ checksum = "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -10417,7 +10417,7 @@ dependencies = [
  "fastrand",
  "getrandom 0.4.3",
  "once_cell",
- "rustix 1.1.4",
+ "rustix 1.1.5",
  "windows-sys 0.61.2",
 ]
 
@@ -10438,7 +10438,7 @@ checksum = "9048a889effe34a5cddee0af7f53285198b16dca3be510858d38dfdb3e62a04e"
 dependencies = [
  "bitflags 2.13.2",
  "parking_lot",
- "rustix 1.1.4",
+ "rustix 1.1.5",
  "signal-hook 0.3.18",
  "windows-sys 0.61.2",
 ]
@@ -10449,7 +10449,7 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
- "rustix 1.1.4",
+ "rustix 1.1.5",
  "windows-sys 0.61.2",
 ]
 
@@ -10601,7 +10601,7 @@ checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -10754,7 +10754,7 @@ checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -11206,7 +11206,7 @@ dependencies = [
  "regex-syntax",
  "roaring",
  "rustc-hash 2.1.3",
- "rustix 1.1.4",
+ "rustix 1.1.5",
  "ryu",
  "serde_json",
  "shuttle",
@@ -11382,9 +11382,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.24"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
 
 [[package]]
 name = "unicode-normalization"
@@ -11740,7 +11740,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
  "wasm-bindgen-shared",
 ]
 
@@ -12686,7 +12686,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
 dependencies = [
  "libc",
- "rustix 1.1.4",
+ "rustix 1.1.5",
 ]
 
 [[package]]
@@ -12745,7 +12745,7 @@ checksum = "33811428bee40dbceb6d545e95754741d17a6aef9a4849f0fd62e2ba4f412a78"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
  "synstructure",
 ]
 
@@ -12786,7 +12786,7 @@ checksum = "f75b4683f6c7f45248d4d64056a24298c6281e0993356d7d1b4a1a962ef10d4a"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
  "synstructure",
 ]
 
@@ -12842,7 +12842,7 @@ checksum = "34df6fc39dbd26ddc9c10e6a2984476e13acce22e64e4487636ef494369225da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
