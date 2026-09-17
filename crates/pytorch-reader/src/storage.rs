@@ -114,10 +114,10 @@ pub(crate) struct ZipSource {
     /// through. Locked to look any entry up, and for the whole of a read through the
     /// stream: the pickle and text entries, and a deflated storage.
     archive: Mutex<ZipArchive<BufReader<File>>>,
-    /// A second handle to the same file, read at explicit offsets and never seeked. A
-    /// stored storage's bytes come through it once the lookup under `archive` has said
-    /// where they are, so tensor reads from different threads run at once instead of
-    /// queueing on `archive`. Unused past `open` on a target without a positional read
+    /// A second handle to the same file, read at explicit offsets and never through its
+    /// cursor. A stored storage's bytes come through it once the lookup under `archive`
+    /// has said where they are, so tensor reads from different threads run at once instead
+    /// of queueing on `archive`. Unused past `open` on a target without a positional read
     /// (see `read_exact_at`).
     file: File,
     /// Root directory including its trailing slash, or empty at the archive root.
@@ -131,9 +131,7 @@ impl ZipSource {
     pub fn open(path: &Path) -> Result<Self, PytorchError> {
         let file = File::open(path)?;
         let file_len = file.metadata()?.len();
-        // Not a clone of `file`: on Windows a positional read moves the handle's cursor,
-        // and a duplicated handle shares it, which would move the archive's stream.
-        let archive = ZipArchive::new(BufReader::new(File::open(path)?))?;
+        let archive = ZipArchive::new(BufReader::new(stream_handle(&file, path)?))?;
 
         let root = archive
             .file_names()
@@ -334,6 +332,23 @@ fn read_zip_entry<R: Read>(
         }
     }
     Ok(bytes)
+}
+
+/// A second handle to `file` for the archive's stream, with a cursor of its own.
+///
+/// A positional read leaves the cursor alone, so a duplicate of `file` serves: both handles
+/// then come from one open, and a replacement of `path` cannot slip in between two.
+#[cfg(not(windows))]
+fn stream_handle(file: &File, _path: &Path) -> io::Result<File> {
+    file.try_clone()
+}
+
+/// On Windows `seek_read` sets the cursor and a duplicate shares it, so the stream needs
+/// its own open file. A replacement of `path` between the two opens goes unnoticed: std
+/// has no stable file identity to compare on Windows.
+#[cfg(windows)]
+fn stream_handle(_file: &File, path: &Path) -> io::Result<File> {
+    File::open(path)
 }
 
 /// Fill `buf` from `offset` without depending on the handle's cursor, so reads through one
