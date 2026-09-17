@@ -577,4 +577,29 @@ mod tests {
         assert!(!param.is_require_grad());
         assert!(!param.is_active); // stateful
     }
+
+    #[test]
+    fn a_lazy_param_with_an_init_mapper_trains_on_an_autodiff_device() {
+        let device = test_device().autodiff();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device,
+            true,
+            [2, 3].into(),
+        )
+        .init_mapper(|tensor| tensor.mul_scalar(2.0));
+
+        let value = param.val();
+        let grads = value.clone().sum().backward();
+
+        value
+            .into_data()
+            .assert_eq(&TensorData::from([[2.0f32; 3]; 2]), false);
+        param
+            .grad(&grads)
+            .expect("the mapped value is the leaf that receives the gradient")
+            .into_data()
+            .assert_eq(&TensorData::from([[1.0f32; 3]; 2]), false);
+    }
 }

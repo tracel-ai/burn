@@ -340,6 +340,19 @@ mod tests {
     }
 
     #[test]
+    fn col_layout_trains_on_an_autodiff_device() {
+        let device = Device::default().autodiff();
+        let linear = LinearConfig::new(6, 12)
+            .with_layout(LinearLayout::Col)
+            .init(&device);
+        let signal = Tensor::<2>::random([8, 6], burn::tensor::Distribution::Default, &device);
+
+        let grads = linear.forward(signal).sum().backward();
+
+        assert!(linear.weight.grad(&grads).is_some());
+    }
+
+    #[test]
     fn col_row_same_result() {
         let device = Default::default();
         let config_col = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
