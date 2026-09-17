@@ -226,13 +226,14 @@ burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "=0.22.0-
 burn-train = { path = "crates/burn-train", version = "=0.22.0-pre.3", default-features = false }
 burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.3", default-features = false }
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.3", default-features = false }
+pytorch-reader = { path = "crates/pytorch-reader", version = "=0.22.0-pre.3" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a796d7e77ebe128f8c2f7fbd80264a62e36442f4" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a796d7e77ebe128f8c2f7fbd80264a62e36442f4" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a796d7e77ebe128f8c2f7fbd80264a62e36442f4" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a796d7e77ebe128f8c2f7fbd80264a62e36442f4" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "b51e7f4cd4bdbf394f0cdfb1c370a642543e6bd5" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fc902af1cc662195ce9c8cc90d25ea048d222d54" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fc902af1cc662195ce9c8cc90d25ea048d222d54" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fc902af1cc662195ce9c8cc90d25ea048d222d54" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fc902af1cc662195ce9c8cc90d25ea048d222d54" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "e6285f7dc215ac2bbac1c34078d278aff631746f" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

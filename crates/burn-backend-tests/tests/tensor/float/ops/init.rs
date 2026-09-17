@@ -27,6 +27,20 @@ fn should_support_float_zeros() {
 }
 
 #[test]
+fn should_read_float_zeros_with_empty_dimensions() {
+    let device = Default::default();
+    for shape in [[0, 2], [2, 0], [0, 0]] {
+        let tensor = TestTensor::<2>::zeros(shape, &device);
+        assert_eq!(tensor.dims(), shape);
+
+        // Materialize the bytes: into_data() alone may defer device readback.
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::new(Vec::<f32>::new(), shape), false);
+    }
+}
+
+#[test]
 fn should_support_float_zeros_options() {
     let shape = [2, 2];
     let tensor = TestTensor::<2>::zeros(shape, (&Default::default(), DType::F32));

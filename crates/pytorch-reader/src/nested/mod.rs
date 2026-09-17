@@ -1,5 +1,6 @@
-//! Serde-based deserialization of nested values, used for importing model weights from external
-//! formats (e.g. PyTorch's pickle `.pt` files) into Burn modules via `burn-store`.
+//! Serde-based deserialization of nested values, which is how
+//! [`PytorchReader::load_config`](crate::PytorchReader::load_config) turns the non-tensor
+//! part of a checkpoint into a typed value.
 
 /// The adapter trait that is used to convert the nested value to the module type.
 pub mod adapter;

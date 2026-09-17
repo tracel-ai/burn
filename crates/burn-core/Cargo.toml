@@ -102,6 +102,7 @@ autotune-checks = [
     "burn-wgpu?/autotune-checks",
 ]
 fusion = [
+    "dep:burn-fusion",
     "burn-tensor/fusion",
     "burn-cpu?/fusion",
     "burn-cuda?/fusion",
@@ -121,6 +122,13 @@ template = ["burn-tensor/template", "burn-wgpu?/template"]
 # Backend extensions
 # burn-dispatch features are enabled from burn-tensor, we just re-export the public types
 extension = ["burn-tensor/extension", "burn-backend-extension", "burn-dispatch", "burn-backend"]
+
+# These integration tests need CubeCL and Fusion's test utilities.
+# Keep them opt-in so default `burn-core` builds and tests avoid those dependencies;
+# dev-dependencies would be compiled for every test build, even when the tests are skipped.
+# Enable a CubeCL runtime separately (e.g. `cpu` or `metal`) and select it with BURN_DEVICE.
+# Gate the test files with cfg instead of required-features so CI's --test '*' can select them.
+extension-tests = ["extension", "fusion", "dep:burn-cubecl", "burn-fusion/test-util"]
 
 [dependencies]
 
@@ -142,7 +150,11 @@ burn-wgpu = { workspace = true, optional = true }
 burn-backend = { workspace = true, optional = true }
 burn-dispatch = { workspace = true, optional = true }
 burn-backend-extension = { workspace = true, optional = true }
+burn-fusion = { workspace = true, optional = true }
 burn-ir = { workspace = true, optional = true }
+
+# Backend extension integration tests.
+burn-cubecl = { workspace = true, optional = true }
 
 derive-new = { workspace = true }
 log = { workspace = true, optional = true }

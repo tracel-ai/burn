@@ -105,15 +105,20 @@ mod keyremapper;
 #[cfg(feature = "std")]
 pub use keyremapper::{KeyRemapper, map_indices_contiguous};
 
-/// Serde-based deserialization of nested values, used for importing model weights from external
-/// formats (e.g. PyTorch's pickle `.pt` files).
-#[cfg(feature = "pytorch")]
-pub mod nested;
-
 #[cfg(feature = "pytorch")]
 pub mod pytorch;
 #[cfg(feature = "pytorch")]
 pub use pytorch::{PytorchStore, PytorchStoreError};
+
+/// The PyTorch checkpoint reader crate, re-exported.
+///
+/// [`PytorchStore`] is built on it, and [`bridge::from_pytorch`] turns one of its tensors
+/// into the [`burn_pack::Tensor`] the rest of burn-store works with. The crate itself reads
+/// a checkpoint without going through burn-pack at all, and exposes the serde deserializer
+/// behind [`load_config`](pytorch::PytorchReader::load_config) as
+/// [`pytorch_reader::nested`].
+#[cfg(feature = "pytorch")]
+pub use pytorch_reader;
 
 #[cfg(feature = "safetensors")]
 mod safetensors;
