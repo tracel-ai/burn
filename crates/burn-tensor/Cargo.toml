@@ -86,6 +86,10 @@ num-traits = { workspace = true }
 # Serialization
 serde = { workspace = true }
 
+[dev-dependencies]
+# Execution backend for tensor integration tests; ordinary builds remain backend-free.
+burn-dispatch = { workspace = true, features = ["flex"] }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]
