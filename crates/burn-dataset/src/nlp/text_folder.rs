@@ -265,7 +265,6 @@ impl TextFolderDataset {
             .map(|(path, label)| {
                 // Map text path and label
                 let path = path.as_ref();
-                let label = label;
 
                 Self::check_extension(&path.extension().unwrap().to_str().unwrap())?;
 

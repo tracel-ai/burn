@@ -105,6 +105,7 @@ mod tests {
     use crate::SqliteDataset;
     use crate::test_data;
 
+    #[cfg(feature = "sqlite")]
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
 
