@@ -1,7 +1,6 @@
 use super::ParamId;
 use crate::module::{
-    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor, Param,
+    Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor, Param,
 };
 
 use alloc::string::ToString;
@@ -109,6 +108,20 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
 
         devices
     }
+
+    fn valid(&self) -> Self {
+        self.sync();
+        let value = self.value();
+
+        RunningState::with_id(self.id, value.without_autodiff())
+    }
+
+    fn train(self) -> Self {
+        self.sync();
+        let value = self.value();
+
+        RunningState::with_id(self.id, Tensor::from_inner(value))
+    }
 }
 
 impl<const D: usize> RunningState<Tensor<D>> {
@@ -209,21 +222,5 @@ impl<const D: usize> RunningState<Tensor<D>> {
             let mut value_old = self.value.lock();
             *value_old = value;
         }
-    }
-}
-
-impl<const D: usize> AutodiffModule for RunningState<Tensor<D>> {
-    fn valid(&self) -> Self {
-        self.sync();
-        let value = self.value();
-
-        RunningState::with_id(self.id, value.without_autodiff())
-    }
-
-    fn from_inner(module: Self) -> Self {
-        module.sync();
-        let value = module.value();
-
-        RunningState::with_id(module.id, Tensor::from_inner(value))
     }
 }

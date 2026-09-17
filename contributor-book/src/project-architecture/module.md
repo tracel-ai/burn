@@ -9,6 +9,26 @@ Additionally, most modules are created using a (de)serializable configuration, w
 structure of the module and its hyperparameters. Parameters and hyperparameters are not serialized
 into the same file, and both are normally necessary to load a module for inference.
 
+## Training and validation
+
+`Module` includes the `valid(&self)` and `train(self)` transition hooks; the derive generates both
+alongside traversal. There is no separate `AutodiffModule` trait or module `from_inner` conversion.
+The trait does not prove that a particular value currently has autodiff enabled. Both states use the same type, and a module can contain
+parameters with different runtime contexts.
+
+- `valid(&self)` creates a validation snapshot with autodiff and training flags disabled. It keeps
+  configured trainability and flag settings, folds reparameterizations into parameter values, and
+  removes checkpointing strategies with the autodiff association.
+- `train(self)` enables autodiff and applies configured trainability and flags. It does not undo
+  explicit freezing, reconstruct folded adapters, or restore discarded checkpointing strategies.
+- `no_grad()` persistently disables parameter gradients while leaving control flags unchanged.
+- `freeze()` and `unfreeze()` configure both gradients and flags; group variants target subtrees.
+
+Keep the training module and use its `valid()` snapshot for validation. Inspect individual tensors
+with `is_autodiff()`, `is_tracked()`, and `is_require_grad()` rather than inferring training state
+from the trait or `module.devices()`. Device equality ignores autodiff settings, and the latter
+method deduplicates compute resources.
+
 ## Optimization
 
 Optimization is normally done with variants of gradient descent, and it is important to provide an

@@ -159,7 +159,7 @@ impl ModuleDisplay for Linear {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::module::{AutodiffModule, ParamId};
+    use burn::module::{Module, ParamId};
     use burn::store::ModuleRecord;
     use burn::tensor::ElementConversion;
     use burn::tensor::Tolerance;

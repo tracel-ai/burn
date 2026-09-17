@@ -1,7 +1,7 @@
 use alloc::{string::String, string::ToString, vec::Vec};
 use burn_tensor::Tensor;
 
-use crate::module::{AutodiffModule, ModuleMapper};
+use crate::module::{Module, ModuleMapper};
 
 use super::Param;
 
@@ -10,7 +10,7 @@ use super::Param;
 /// Implementations are regular [`Module`](crate::module::Module)s, so their parameters automatically participate in
 /// optimizer, record, device and autodiff traversal. The implementation only needs to describe
 /// how its state materializes an effective value from the stored base parameter.
-pub trait Reparameterization: AutodiffModule + Sync + 'static {
+pub trait Reparameterization: Module + Sync + 'static {
     /// Stable path component used for the reparameterization's nested parameters.
     const NAME: &'static str;
     /// Materialize the effective parameter value from its stored base.
