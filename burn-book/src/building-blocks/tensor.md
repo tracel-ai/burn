@@ -456,6 +456,70 @@ strategies.
 | `tensor.quantize(scheme, qparams)` | N/A                |
 | `tensor.dequantize()`              | N/A                |
 
+## Einstein Summation
+
+Use `einsum!` to express tensor contractions with an equation. Each letter names an input axis;
+commas separate operands, and `->` lists the output axes in order. Values are multiplied along
+matching labels and summed over labels omitted from the output. For example, `"ij,jk->ik"`
+multiplies two matrices and sums over `j`.
+
+| Equation               | Operation                                             |
+| ---------------------- | ----------------------------------------------------- |
+| `"ij,jk->ik"`          | Matrix multiplication                                 |
+| `"ij->ji"`             | Transpose                                             |
+| `"ii->i"`              | Extract a diagonal                                    |
+| `"ii->"`               | Trace (sum of the diagonal)                           |
+| `"i,i->"`              | Dot product                                           |
+| `"...ij,...jk->...ik"` | Matrix multiplication with broadcast batch dimensions |
+
+```rust,ignore
+use burn::tensor::{Tensor, einsum};
+
+// Queries: [batch, queries, channels]; features: [batch, channels, height, width].
+// Sum over channels to produce [batch, queries, height, width].
+let masks = einsum!("bqc,bchw->bqhw", &queries, &features);
+
+// Runtime equations accept operands of different ranks through `.into()`.
+let equation = "ij,j->i";
+let output = Tensor::<1>::einsum(equation, [matrix.into(), vector.into()]);
+```
+
+The macro checks the equation, operand count, and statically determined ranks at compile time.
+Shapes and broadcasting are checked at runtime.
+
+### Broadcasting and diagonals
+
+Matching labels across operands must have equal sizes or a size of one, which broadcasts to the
+other size. Repeated labels within a single operand extract a diagonal and require equal axis sizes;
+singleton broadcasting does not apply there.
+
+An ellipsis (`...`) matches zero or more axes. Ellipsis dimensions broadcast from the right:
+`"...ij,...jk->...ik"` can multiply shapes `[2, 3, 4]` and `[4, 5]` to produce `[2, 3, 5]`. Supply
+the result type when an output ellipsis has unknown width:
+
+```rust,ignore
+let result: Tensor<3> = einsum!("...ij,...jk->...ik", batches, matrix);
+```
+
+Omitting `...` from an explicit output sums over its dimensions. With no `->`, the output contains
+the ellipsis first, followed by labels occurring exactly once across all inputs, sorted `A-Z`, then
+`a-z`. Each axis label is a single letter from `a-z` or `A-Z`. Uppercase and lowercase letters are
+distinct labels.
+
+### Types and limitations
+
+Float and Int operands must share their kind, dtype, and device. Scalar results have shape `[1]`; an
+empty input subscript also accepts a tensor of shape `[1]`. Quantized operands are unsupported.
+Operands are contracted from left to right using existing tensor operations, so floating-point
+contractions support autodiff. The implementation does not search for an optimized contraction
+order.
+
+Run the matrix multiplication, mask prediction, and gradient demo from the repository:
+
+```sh
+cargo run -p burn-tensor --example einsum --features flex,autodiff
+```
+
 ## Activation Functions
 
 | Burn API                                          | PyTorch Equivalent                                  |
@@ -524,7 +588,16 @@ strategies.
 
 ## Signal Processing Functions
 
-Signal-processing helpers live in `burn::tensor::signal` and operate on real-valued float tensors.
+Signal-processing helpers live in the `burn-signal` extension crate and operate on real-valued
+float tensors. Enable Burn's optional `signal` feature to use `burn::signal`; the compatibility
+path `burn::tensor::signal` exports the same functions. The direct `burn_tensor::signal` and
+`burn_core::tensor::signal` paths have been removed.
+
+FFT operations use the `SignalOps` backend extension. Windows and STFT/ISTFT
+compose tensor operations. Enable `autodiff` to differentiate through FFTs. Remote servers and
+captured-graph interpreters must register `burn_signal::register_fft_ops` in their custom-operation
+registry (with the `router` feature enabled).
+
 FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is `Some(size)`, the
 input is truncated or zero-padded to `size` and the output has `size / 2 + 1` frequency bins.
 Non-power-of-two sizes panic at the public API boundary; general arbitrary-size DFT support
@@ -534,6 +607,7 @@ Non-power-of-two sizes panic at the public API boundary; general arbitrary-size 
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `signal::rfft(tensor, dim, n)`                        | `torch.fft.rfft(tensor, n, dim)`                                                  |
 | `signal::irfft(re, im, dim, n)`                       | `torch.fft.irfft(complex, n, dim)`                                                |
+| `signal::cfft(re, im, dim, n)`                        | `torch.fft.fft(complex, n, dim)`                                                 |
 | `signal::stft(signal, window, options)`               | `torch.stft(signal, n_fft, hop_length, win_length, window, center)`               |
 | `signal::istft(stft_matrix, window, length, options)` | `torch.istft(stft_matrix, n_fft, hop_length, win_length, window, center, length)` |
 | `signal::blackman_window(size, periodic, options)`    | `torch.blackman_window(size, periodic)`                                           |

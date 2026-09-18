@@ -4,8 +4,7 @@ use core::fmt::Display;
 
 use crate as burn;
 use crate::module::{
-    AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor,
+    Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
 };
 use burn_tensor::{Device, Tensor};
 
@@ -32,25 +31,19 @@ macro_rules! empty {
         fn collect_devices(&self, devices: burn::module::Devices) -> burn::module::Devices {
             devices
         }
-    };
 
-    (ad_module, $type:ty) => {
         fn valid(&self) -> Self {
             self.clone()
         }
 
-        fn from_inner(module: Self) -> Self {
-            module
+        fn train(self) -> Self {
+            self
         }
     };
 
     ($type:ty) => {
         impl burn::module::Module for $type {
             empty!(module);
-        }
-
-        impl burn::module::AutodiffModule for $type {
-            empty!(ad_module, $type);
         }
 
         impl burn::module::ModuleDisplayDefault for $type {
@@ -98,7 +91,7 @@ impl burn::module::ModuleDisplayDefault for str {
 }
 
 // TODO: tensor record should persist
-impl<const D: usize, K: Basic> Module for Tensor<D, K> {
+impl<const D: usize, K: Autodiff> Module for Tensor<D, K> {
     fn visit<V: ModuleVisitor>(&self, _visitor: &mut V) {}
 
     fn map<M: ModuleMapper>(self, _mapper: &mut M) -> Self {
@@ -122,6 +115,14 @@ impl<const D: usize, K: Basic> Module for Tensor<D, K> {
 
         devices
     }
+
+    fn valid(&self) -> Self {
+        self.clone().without_autodiff()
+    }
+
+    fn train(self) -> Self {
+        Tensor::from_inner(self)
+    }
 }
 
 impl<const D: usize, K: Basic> ModuleDisplayDefault for Tensor<D, K> {
@@ -132,67 +133,6 @@ impl<const D: usize, K: Basic> ModuleDisplayDefault for Tensor<D, K> {
 }
 
 impl<const D: usize, K: Basic> ModuleDisplay for Tensor<D, K> {}
-
-impl<const D: usize, K: Autodiff> AutodiffModule for Tensor<D, K> {
-    fn valid(&self) -> Self {
-        self.clone().without_autodiff()
-    }
-
-    fn from_inner(tensor: Self) -> Self {
-        Tensor::from_inner(tensor)
-    }
-}
-
-// TODO: no longer necessary?
-// impl<T> Module for PhantomData<T> {
-//     type Record = EmptyRecord;
-
-//     fn visit<V: ModuleVisitor>(&self, _visitor: &mut V) {
-//         // Nothing to do
-//     }
-
-//     fn map<M: ModuleMapper>(self, _mapper: &mut M) -> Self {
-//         self
-//     }
-
-//     fn load_record(self, _record: Self::Record) -> Self {
-//         self
-//     }
-
-//     fn into_record(self) -> Self::Record {
-//         EmptyRecord::new()
-//     }
-
-//     fn to_device(self, _: &Device) -> Self {
-//         self
-//     }
-
-//     fn fork(self, _: &Device) -> Self {
-//         self
-//     }
-
-//     fn collect_devices(&self, devices: Devices) -> Devices {
-//         devices
-//     }
-// }
-
-// impl<T> ModuleDisplayDefault for PhantomData<T> {
-//     fn content(&self, content: Content) -> Option<Content> {
-//         content.add_single(&"PhantomData".to_string()).optional()
-//     }
-// }
-
-// impl<T> ModuleDisplay for PhantomData<T> {}
-
-// impl<T> AutodiffModule for PhantomData<T> {
-//     fn valid(&self) -> Self {
-//         PhantomData
-//     }
-
-//     fn from_inner(_module: Self) -> Self {
-//         Self
-//     }
-// }
 
 /// Container to satisfy the Module trait for types that are not modules.
 #[derive(Clone, Debug)]
@@ -226,6 +166,14 @@ where
     fn collect_devices(&self, devices: Devices) -> Devices {
         devices
     }
+
+    fn valid(&self) -> Self {
+        self.clone()
+    }
+
+    fn train(self) -> Self {
+        self
+    }
 }
 
 #[allow(deprecated)]
@@ -249,20 +197,6 @@ where
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{:?}", self.0)
-    }
-}
-
-#[allow(deprecated)]
-impl<T> AutodiffModule for Ignored<T>
-where
-    T: Sync + Send + core::fmt::Debug + Clone,
-{
-    fn valid(&self) -> Self {
-        self.clone()
-    }
-
-    fn from_inner(module: Self) -> Self {
-        module
     }
 }
 

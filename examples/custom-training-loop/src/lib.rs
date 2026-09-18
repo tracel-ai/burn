@@ -1,6 +1,6 @@
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
-    module::AutodiffModule,
+    module::Module,
     nn::loss::CrossEntropyLoss,
     optim::{AdamConfig, GradientsParams},
     prelude::*,

@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use super::GradientsParams;
-use burn::module::{AutodiffModule, ModuleVisitor, Param, ParamId};
+use burn::module::{Module, ModuleVisitor, Param, ParamId};
 use burn::tensor::{Device, Gradients, Tensor};
 use core::marker::PhantomData;
 
@@ -9,7 +9,7 @@ use core::marker::PhantomData;
 use alloc::vec::Vec;
 
 #[derive(new)]
-pub struct GradientsParamsConverter<'a, M: AutodiffModule> {
+pub struct GradientsParamsConverter<'a, M: Module> {
     grads: &'a mut Gradients,
     grads_params: &'a mut GradientsParams,
     phatom: PhantomData<M>,
@@ -17,7 +17,7 @@ pub struct GradientsParamsConverter<'a, M: AutodiffModule> {
 }
 
 #[derive(new)]
-pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule> {
+pub struct GradientsParamsChangeDevice<'a, M: Module> {
     device: &'a Device,
     grads: &'a mut GradientsParams,
     phatom: PhantomData<M>,
@@ -25,7 +25,7 @@ pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule> {
 
 impl<M> ModuleVisitor for GradientsParamsConverter<'_, M>
 where
-    M: AutodiffModule,
+    M: Module,
 {
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
         if let Some(filter) = self.filter.as_ref()
@@ -49,7 +49,7 @@ where
 
 impl<M> ModuleVisitor for GradientsParamsChangeDevice<'_, M>
 where
-    M: AutodiffModule,
+    M: Module,
 {
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
         let Some(grad) = self.grads.remove::<D>(param.id) else {

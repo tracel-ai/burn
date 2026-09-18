@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn backend_transitions_preserve_a_frozen_flag() {
-        use burn::module::AutodiffModule;
+        use burn::module::Module;
 
         let dropout = DropoutConfig::new(0.5).init().freeze();
         let dropout = dropout.valid().train();

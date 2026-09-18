@@ -2,7 +2,8 @@ use std::{cmp::Ordering, marker::PhantomData};
 
 use alloc::vec::Vec;
 use burn_core::backend::{
-    Backend, TensorMetadata, tensor::{BoolTensor, Device}
+    Backend, TensorMetadata,
+    tensor::{BoolTensor, Device},
 };
 use burn_core::tensor::{
     Element, ElementConversion, ElementLimits, ElementOrdered, IntDType, Shape, TensorData,

@@ -786,21 +786,6 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn check_is_power_of_two<const D: usize>(shape: &Shape, dim: usize) -> Self {
-        let mut check = Self::Ok;
-        let dim_size = shape[dim];
-
-        if !dim_size.is_power_of_two() {
-            check = check.register(
-                "Check Is Power of two",
-                TensorError::new("The provided dimension size must be a power of two.")
-                    .details(format!("The length of dimension {dim} is {dim_size}.")),
-            );
-        }
-
-        check
-    }
-
     pub(crate) fn gather<const D: usize>(dim: usize, shape: &Shape, shape_indices: &Shape) -> Self {
         Self::check_gather_scatter_indices::<D>(Self::Ok, "Gather", dim, shape, shape_indices)
     }

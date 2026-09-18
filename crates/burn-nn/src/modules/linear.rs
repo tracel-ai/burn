@@ -159,7 +159,7 @@ impl ModuleDisplay for Linear {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::module::{AutodiffModule, ParamId};
+    use burn::module::{Module, ParamId};
     use burn::store::ModuleRecord;
     use burn::tensor::ElementConversion;
     use burn::tensor::Tolerance;
@@ -337,6 +337,19 @@ mod tests {
         let linear = config.init(&device).train();
 
         assert_col_layout_round_trip(linear, &config);
+    }
+
+    #[test]
+    fn col_layout_trains_on_an_autodiff_device() {
+        let device = Device::default().autodiff();
+        let linear = LinearConfig::new(6, 12)
+            .with_layout(LinearLayout::Col)
+            .init(&device);
+        let signal = Tensor::<2>::random([8, 6], burn::tensor::Distribution::Default, &device);
+
+        let grads = linear.forward(signal).sum().backward();
+
+        assert!(linear.weight.grad(&grads).is_some());
     }
 
     #[test]

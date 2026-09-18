@@ -8,6 +8,7 @@ extern crate derive_new;
 use proc_macro::TokenStream;
 
 pub(crate) mod config;
+pub(crate) mod einsum;
 pub(crate) mod module;
 pub(crate) mod record_state;
 pub(crate) mod shape;
@@ -106,4 +107,14 @@ pub fn __debug_assert_shape(input: TokenStream) -> TokenStream {
 fn shape_macro(input: TokenStream, mode: shape::Mode) -> TokenStream {
     let input = syn::parse_macro_input!(input as shape::ShapeInput);
     shape::expand(input, mode).into()
+}
+
+/// Implementation of `burn_tensor::einsum!`. Not part of the public API.
+#[doc(hidden)]
+#[proc_macro]
+pub fn __einsum(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as einsum::EinsumInput);
+    einsum::expand(input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }

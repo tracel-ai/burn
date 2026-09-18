@@ -5,7 +5,9 @@ use crate::{
 use burn_cubecl::CubeBackend;
 
 use burn_core::backend::{
-    TensorMetadata, ops::IntTensorOps, tensor::{BoolTensor, IntTensor}
+    TensorMetadata,
+    ops::IntTensorOps,
+    tensor::{BoolTensor, IntTensor},
 };
 use burn_core::tensor::IntDType;
 
@@ -17,6 +19,9 @@ impl BoolVisionOps for CubeBackend {
         connectivity: Connectivity,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
+        if img.shape().num_elements() == 0 {
+            return Self::int_zeros(img.shape(), &img.device(), out_dtype);
+        }
         hardware_accelerated(
             img.clone(),
             ConnectedStatsOptions::none(),
@@ -40,6 +45,20 @@ impl BoolVisionOps for CubeBackend {
         out_dtype: IntDType,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         let device = &img.device();
+        if img.shape().num_elements() == 0 {
+            let zeros = |shape| Self::int_zeros(shape, device, out_dtype);
+            return (
+                zeros(img.shape()),
+                ConnectedStatsPrimitive {
+                    area: zeros([1].into()),
+                    left: zeros([1].into()),
+                    top: zeros([1].into()),
+                    right: zeros([1].into()),
+                    bottom: zeros([1].into()),
+                    max_label: zeros([1].into()),
+                },
+            );
+        }
         hardware_accelerated(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
             |_| {
                 let (labels, stats) = cpu::connected_components_with_stats::<Self>(
@@ -57,164 +76,3 @@ impl BoolVisionOps for CubeBackend {
 impl IntVisionOps for CubeBackend {}
 impl FloatVisionOps for CubeBackend {}
 impl VisionBackend for CubeBackend {}
-
-#[cfg(feature = "fusion")]
-mod fusion {
-    use super::*;
-    use burn_core::tensor::Shape;
-    use burn_fusion::{
-        Fusion, FusionBackend, FusionRuntime,
-        custom::{
-            CustomOpIr, HandleContainer, Operation, OperationIr, OperationOutput, StreamId,
-            TensorIr,
-        },
-    };
-
-    impl<B: FusionBackend + BoolVisionOps> BoolVisionOps for Fusion<B> {
-        fn connected_components(
-            img: BoolTensor<Self>,
-            conn: Connectivity,
-            out_dtype: IntDType,
-        ) -> IntTensor<Self> {
-            let height = img.shape[0];
-            let width = img.shape[1];
-            let client = img.client.clone();
-
-            #[derive(derive_new::new, Clone, Debug)]
-            struct ConnComp<B> {
-                desc: CustomOpIr,
-                conn: Connectivity,
-                dtype: IntDType,
-                _b: core::marker::PhantomData<B>,
-            }
-
-            impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnComp<B1> {
-                fn execute(
-                    &self,
-                    handles: &mut HandleContainer<
-                        <B1::FusionRuntime as FusionRuntime>::FusionHandle,
-                    >,
-                ) -> Result<(), burn_fusion::ExecutionError> {
-                    let ([img], [labels]) = self.desc.as_fixed();
-                    let input = handles.get_bool_tensor::<B1>(img);
-                    let output = B1::connected_components(input, self.conn, self.dtype);
-
-                    handles.register_int_tensor::<B1>(&labels.id, output);
-
-                    Ok(())
-                }
-            }
-
-            let streams = StreamId::current();
-            let out = TensorIr::uninit(
-                client.create_empty_handle(),
-                Shape::new([height, width]),
-                out_dtype.into(),
-            );
-
-            let desc = CustomOpIr::new("connected_components", &[img.into_ir()], &[out]);
-            client
-                .register(
-                    streams,
-                    OperationIr::Custom(desc.clone()),
-                    ConnComp::<B>::new(desc, conn, out_dtype),
-                )
-                .output()
-        }
-
-        fn connected_components_with_stats(
-            img: BoolTensor<Self>,
-            conn: Connectivity,
-            opts: ConnectedStatsOptions,
-            out_dtype: IntDType,
-        ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
-            let height = img.shape[0];
-            let width = img.shape[1];
-            let client = img.client.clone();
-
-            #[derive(derive_new::new, Clone, Debug)]
-            struct ConnCompStats<B> {
-                desc: CustomOpIr,
-                conn: Connectivity,
-                opts: ConnectedStatsOptions,
-                dtype: IntDType,
-                _b: core::marker::PhantomData<B>,
-            }
-
-            impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnCompStats<B1> {
-                fn execute(
-                    &self,
-                    handles: &mut HandleContainer<
-                        <B1::FusionRuntime as FusionRuntime>::FusionHandle,
-                    >,
-                ) -> Result<(), burn_fusion::ExecutionError> {
-                    let (
-                        [img],
-                        [
-                            labels_ir,
-                            area_ir,
-                            left_ir,
-                            top_ir,
-                            right_ir,
-                            bottom_ir,
-                            max_label_ir,
-                        ],
-                    ) = self.desc.as_fixed();
-                    let input = handles.get_bool_tensor::<B1>(img);
-                    let (output, stats) = B1::connected_components_with_stats(
-                        input, self.conn, self.opts, self.dtype,
-                    );
-
-                    handles.register_int_tensor::<B1>(&labels_ir.id, output);
-                    handles.register_int_tensor::<B1>(&area_ir.id, stats.area);
-                    handles.register_int_tensor::<B1>(&left_ir.id, stats.left);
-                    handles.register_int_tensor::<B1>(&top_ir.id, stats.top);
-                    handles.register_int_tensor::<B1>(&right_ir.id, stats.right);
-                    handles.register_int_tensor::<B1>(&bottom_ir.id, stats.bottom);
-                    handles.register_int_tensor::<B1>(&max_label_ir.id, stats.max_label);
-
-                    Ok(())
-                }
-            }
-
-            let dtype = out_dtype.into();
-            let shape = Shape::new([height, width]);
-            let shape_flat = shape.clone().flatten();
-            let streams = StreamId::current();
-            let out = TensorIr::uninit(client.create_empty_handle(), shape.clone(), dtype);
-            let area = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
-            let left = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
-            let top = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
-            let right = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
-            let bottom = TensorIr::uninit(client.create_empty_handle(), shape_flat, dtype);
-            let max_label = TensorIr::uninit(client.create_empty_handle(), [1].into(), dtype);
-
-            let desc = CustomOpIr::new(
-                "connected_components",
-                &[img.into_ir()],
-                &[out, area, left, top, right, bottom, max_label],
-            );
-            let [out, area, left, top, right, bottom, max_label] = client
-                .register(
-                    streams,
-                    OperationIr::Custom(desc.clone()),
-                    ConnCompStats::<B>::new(desc, conn, opts, out_dtype),
-                )
-                .try_into()
-                .unwrap();
-
-            let stats = ConnectedStatsPrimitive {
-                area,
-                left,
-                top,
-                right,
-                bottom,
-                max_label,
-            };
-            (out, stats)
-        }
-    }
-    impl<B: FusionBackend + IntVisionOps> IntVisionOps for Fusion<B> {}
-    impl<B: FusionBackend + FloatVisionOps> FloatVisionOps for Fusion<B> {}
-    impl<B: FusionBackend + VisionBackend> VisionBackend for Fusion<B> {}
-}

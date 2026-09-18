@@ -43,9 +43,10 @@ mod tensor;
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
+mod einsum_macros;
 mod shape_macros;
 #[doc(hidden)]
-pub use burn_derive::{__assert_shape, __debug_assert_shape};
+pub use burn_derive::{__assert_shape, __debug_assert_shape, __einsum};
 
 // Re-exported types
 #[cfg(feature = "autodiff")]
