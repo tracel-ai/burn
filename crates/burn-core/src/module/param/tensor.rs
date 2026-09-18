@@ -588,6 +588,69 @@ mod tests {
     }
 
     #[test]
+    fn a_tensor_loaded_after_a_move_lands_on_the_new_device_without_initializing() {
+        let device = test_device();
+        let target = device.clone().autodiff();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |_, _| panic!("the moved parameter initialized before loading"),
+            device.clone(),
+            false,
+            [2, 3].into(),
+        );
+
+        let loaded = param
+            .to_device(&target)
+            .transform_for_load(Tensor::ones([2, 3], &device), ParamId::new());
+
+        assert_eq!(loaded.val().device(), target);
+    }
+
+    #[test]
+    fn a_lazy_int_param_moved_initializes_with_the_new_device() {
+        let device = test_device();
+        let target = device.clone().autodiff();
+        let expected = target.clone();
+        let param: Param<Tensor<2, Int>> = Param::uninitialized(
+            ParamId::new(),
+            move |device, _| {
+                assert_eq!(*device, expected);
+                Tensor::zeros([2, 3], device)
+            },
+            device,
+            false,
+            [2, 3].into(),
+        );
+
+        let param = param.to_device(&target);
+
+        assert!(!param.is_initialized());
+        param.val();
+    }
+
+    #[test]
+    fn a_lazy_bool_param_moved_initializes_with_the_new_device() {
+        let device = test_device();
+        let target = device.clone().autodiff();
+        let expected = target.clone();
+        let param: Param<Tensor<2, Bool>> = Param::uninitialized(
+            ParamId::new(),
+            move |device, _| {
+                assert_eq!(*device, expected);
+                Tensor::<2, Int>::zeros([2, 3], device).bool()
+            },
+            device,
+            false,
+            [2, 3].into(),
+        );
+
+        let param = param.to_device(&target);
+
+        assert!(!param.is_initialized());
+        param.val();
+    }
+
+    #[test]
     fn a_lazy_param_forked_initializes_on_the_new_device() {
         let device = test_device();
         let param: Param<Tensor<2>> = Param::uninitialized(
