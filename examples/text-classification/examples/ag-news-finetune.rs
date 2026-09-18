@@ -1,5 +1,3 @@
-#![recursion_limit = "256"]
-
 // Only the CUDA `launch_multi` path uses these at the top level; the remote module imports
 // them locally. Gating on both features avoids an unused-import warning for `remote,ddp`.
 #[cfg(all(feature = "ddp", feature = "cuda"))]
