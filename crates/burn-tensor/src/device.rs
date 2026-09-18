@@ -1016,15 +1016,17 @@ impl Device {
     /// holding both devices, so a caller placing work on cards never puts two stages on one
     /// card by another name. Opens every device of every runtime, so call it once and keep
     /// the answer.
-    #[cfg(feature = "cubecl")]
+    #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
     pub fn enumerate_physical() -> Vec<PhysicalGpu> {
         let mut gpus: Vec<PhysicalGpu> = Vec::new();
-        for device in Dispatch::enumerate_cube_all() {
+        for device in Dispatch::enumerate(DispatchDeviceId::Cube) {
             let device = Device::new(device);
-            let Some(identity) = device.identity() else {
-                continue;
-            };
-            let Some(physical) = identity.physical else {
+            let Some(DeviceIdentity {
+                name,
+                physical: Some(physical),
+                ..
+            }) = device.identity()
+            else {
                 continue;
             };
             match gpus
@@ -1032,15 +1034,12 @@ impl Device {
                 .find(|gpu| gpu.physical.is_same_card(&physical))
             {
                 Some(gpu) => {
-                    let card = &mut gpu.physical;
-                    card.pci_address = card.pci_address.or(physical.pci_address);
-                    card.luid = card.luid.or(physical.luid);
-                    card.vendor = card.vendor.or(physical.vendor);
+                    gpu.physical.fill_from(&physical);
                     gpu.devices.0.push(device);
                 }
                 None => gpus.push(PhysicalGpu {
                     physical,
-                    name: identity.name,
+                    name,
                     devices: Devices(vec![device]),
                 }),
             }
@@ -1067,7 +1066,7 @@ impl Device {
 }
 
 /// One card and every device that reaches it, from [`Device::enumerate_physical`].
-#[cfg(feature = "cubecl")]
+#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
 #[derive(Debug, Clone)]
 pub struct PhysicalGpu {
     /// The card's PCI address, Windows LUID and vendor, from whichever of its runtimes reported
