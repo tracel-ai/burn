@@ -1545,10 +1545,8 @@ where
             i16,
             u32,
             i32,
-            f32,
             u64,
-            i64,
-            f64
+            i64
         );
 
         tensor.mapv_inplace(|x| match x < min {
@@ -1571,10 +1569,8 @@ where
             i16,
             u32,
             i32,
-            f32,
             u64,
-            i64,
-            f64
+            i64
         );
 
         tensor.mapv_inplace(|x| match x > max {
@@ -1597,10 +1593,8 @@ where
             i16,
             u32,
             i32,
-            f32,
             u64,
-            i64,
-            f64
+            i64
         );
 
         tensor.mapv_inplace(|x| match x < min {
