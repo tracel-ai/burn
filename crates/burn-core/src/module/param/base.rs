@@ -384,7 +384,8 @@ impl<T: Parameter> Param<T> {
     ///
     /// The initializer receives the device and effective gradient requirement, which is false
     /// on devices without autodiff. The requested `is_require_grad` setting is preserved for
-    /// [`Module::train`](crate::module::Module::train).
+    /// [`Module::train`](crate::module::Module::train). The initializer must create the value on
+    /// the device it receives, which is not `device` when the parameter moves before initializing.
     pub fn uninitialized<F>(
         id: ParamId,
         init: F,
@@ -489,10 +490,14 @@ impl<T: Parameter> Param<T> {
                     is_active: base.is_active,
                     reparameterization: None,
                     state: LazyInitState::uninitialized(Uninitialized {
-                        // `base` initializes on the same device. `func` maps an untracked value:
-                        // mapped from a tracked leaf, it would be a non-leaf that can't require grad.
-                        init: new_init_fn(move |_device, require_grad| {
-                            func(base.val().set_require_grad(false)).set_require_grad(require_grad)
+                        // A clone sharing `base` still initializes it where it was built. `func`
+                        // maps an untracked value: mapped from a tracked leaf, it would be a
+                        // non-leaf that can't require grad.
+                        init: new_init_fn(move |device, require_grad| {
+                            let mut base = base;
+                            base.set_lazy_device(device);
+                            let value = base.val().set_require_grad(false).load_to_device(device);
+                            func(value).set_require_grad(require_grad)
                         }),
                         device,
                         is_require_grad,
@@ -526,6 +531,27 @@ impl<T: Parameter> Param<T> {
         match init.as_ref() {
             Some(value) => value.device.clone(),
             None => self.device(),
+        }
+    }
+
+    /// Make a parameter that is not initialized yet initialize on `device`, rather than
+    /// initializing it where it is and copying it over.
+    ///
+    /// Returns false, changing nothing, when the parameter is initialized or a clone shares its
+    /// lazy state: every clone must resolve to the same value.
+    pub(crate) fn set_lazy_device(&mut self, device: &Device) -> bool {
+        let Some(initialization) =
+            Arc::get_mut(&mut self.state).and_then(|state| state.initialization.as_ref())
+        else {
+            return false;
+        };
+
+        match initialization.write().as_mut() {
+            Some(value) => {
+                value.device = device.clone();
+                true
+            }
+            None => false,
         }
     }
 

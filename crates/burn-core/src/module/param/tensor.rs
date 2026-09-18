@@ -190,7 +190,11 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
     fn to_device(mut self, device: &Device) -> Self {
         let reparameterization = self.reparameterization.take();
-        let base = self.map(|tensor| tensor.to_device(device));
+        let base = if self.set_lazy_device(device) {
+            self
+        } else {
+            self.map(|tensor| tensor.to_device(device))
+        };
         match reparameterization {
             None => base,
             Some(reparameterization) => {
@@ -201,16 +205,20 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
     fn fork(mut self, device: &Device) -> Self {
         let reparameterization = self.reparameterization.take();
-        let base = self.map(|tensor| {
-            let is_require_grad = tensor.is_require_grad();
-            let mut tensor = tensor.to_device(device).detach();
+        let base = if self.set_lazy_device(device) {
+            self
+        } else {
+            self.map(|tensor| {
+                let is_require_grad = tensor.is_require_grad();
+                let mut tensor = tensor.to_device(device).detach();
 
-            if is_require_grad {
-                tensor = tensor.require_grad();
-            }
+                if is_require_grad {
+                    tensor = tensor.require_grad();
+                }
 
-            tensor
-        });
+                tensor
+            })
+        };
         match reparameterization {
             None => base,
             Some(reparameterization) => {
@@ -294,7 +302,10 @@ impl<const D: usize> Module for Param<Tensor<D, Int>> {
         mapper.map_int(self)
     }
 
-    fn to_device(self, device: &Device) -> Self {
+    fn to_device(mut self, device: &Device) -> Self {
+        if self.set_lazy_device(device) {
+            return self;
+        }
         self.map(|tensor| tensor.to_device(device))
     }
 
@@ -350,7 +361,10 @@ impl<const D: usize> Module for Param<Tensor<D, Bool>> {
         mapper.map_bool(self)
     }
 
-    fn to_device(self, device: &Device) -> Self {
+    fn to_device(mut self, device: &Device) -> Self {
+        if self.set_lazy_device(device) {
+            return self;
+        }
         self.map(|tensor| tensor.to_device(device))
     }
 
@@ -403,6 +417,7 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 mod tests {
     use super::*;
     use crate::{module::Module, test_device};
+    use burn_tensor::Distribution;
 
     #[test]
     fn set_require_grad_updates_lazy_lifecycle_state() {
@@ -584,5 +599,63 @@ mod tests {
             .expect("the mapped value is the leaf that receives the gradient")
             .into_data()
             .assert_eq(&TensorData::from([[1.0f32; 3]; 2]), false);
+    }
+
+    #[test]
+    fn a_lazy_param_forked_initializes_on_the_new_device() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device.clone(),
+            true,
+            [2, 3].into(),
+        );
+
+        let param = param.fork(&device.clone().autodiff());
+
+        assert!(!param.is_initialized());
+        assert_eq!(param.lazy_device(), device.autodiff());
+        assert!(param.val().is_require_grad());
+    }
+
+    #[test]
+    fn a_lazy_param_with_an_init_mapper_initializes_on_the_new_device() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device.clone(),
+            true,
+            [2, 3].into(),
+        )
+        .init_mapper(|tensor| tensor.mul_scalar(2.0));
+
+        let param = param.fork(&device.clone().autodiff());
+
+        let value = param.val();
+        assert_eq!(value.device(), device.autodiff());
+        assert!(value.is_require_grad());
+    }
+
+    #[test]
+    fn a_lazy_param_shared_with_a_clone_initializes_before_moving() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _| Tensor::random([2, 3], Distribution::Default, device),
+            device.clone(),
+            false,
+            [2, 3].into(),
+        );
+        let clone = param.clone();
+
+        let moved = param.to_device(&device.autodiff());
+
+        assert!(clone.is_initialized());
+        moved
+            .val()
+            .into_data()
+            .assert_eq(&clone.val().into_data(), true);
     }
 }
