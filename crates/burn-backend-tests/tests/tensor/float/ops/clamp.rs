@@ -127,20 +127,23 @@ fn clamp_max_nan_bound_propagation() {
     assert!(values.iter().all(|v| v.is_nan()), "{values:?}");
 }
 
-// Two-sided clamp used to panic here, since `f32::clamp` rejects a NaN bound.
+// Two-sided clamp used to panic here, since `f32::clamp` rejects a NaN bound. Both
+// element types, since flex reaches each one through its own closure.
 #[cfg(feature = "flex")]
 #[test]
 fn clamp_nan_bound_propagation() {
-    for (min, max) in [(f32::NAN, 1.0), (0.0, f32::NAN), (f32::NAN, f32::NAN)] {
-        let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0]);
+    for dtype in [burn_tensor::DType::F32, burn_tensor::DType::F64] {
+        for (min, max) in [(f32::NAN, 1.0), (0.0, f32::NAN), (f32::NAN, f32::NAN)] {
+            let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0]).cast(dtype);
 
-        let output = tensor.clamp(min, max).into_data().convert::<f32>();
-        let values = output.as_slice::<f32>().unwrap();
+            let output = tensor.clamp(min, max).into_data().convert::<f32>();
+            let values = output.as_slice::<f32>().unwrap();
 
-        assert!(
-            values.iter().all(|v| v.is_nan()),
-            "{min} {max} -> {values:?}"
-        );
+            assert!(
+                values.iter().all(|v| v.is_nan()),
+                "{dtype:?} {min} {max} -> {values:?}"
+            );
+        }
     }
 }
 
