@@ -229,16 +229,16 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.3", default-feat
 pytorch-reader = { path = "crates/pytorch-reader", version = "=0.22.0-pre.3" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fc902af1cc662195ce9c8cc90d25ea048d222d54" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fc902af1cc662195ce9c8cc90d25ea048d222d54" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fc902af1cc662195ce9c8cc90d25ea048d222d54" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fc902af1cc662195ce9c8cc90d25ea048d222d54" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "e6285f7dc215ac2bbac1c34078d278aff631746f" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c35625d6261a2671f286758939f66808df397f09" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c35625d6261a2671f286758939f66808df397f09" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c35625d6261a2671f286758939f66808df397f09" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c35625d6261a2671f286758939f66808df397f09" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "908b01578276bb60ee3f842c0127a5e2ae6f10c7" }
 ### For local development. ###
-# cubecl = { path = "../cubecl-deferred-timing/crates/cubecl", default-features = false }
-# cubecl-common = { path = "../cubecl-deferred-timing/crates/cubecl-common", default-features = false }
-# cubecl-environment = { path = "../cubecl-deferred-timing/crates/cubecl-environment", default-features = false }
-# cubecl-zspace = { path = "../cubecl-deferred-timing/crates/cubecl-zspace", default-features = false }
+# cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
+# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+# cubecl-environment = { path = "../cubecl/crates/cubecl-environment", default-features = false }
+# cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
 # cubecl = { version = "=0.11.0-pre.3", default-features = false }
@@ -249,27 +249,3 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
-
-# TODO(profile): cubecl `feat/profiling` — the split window and the deferred launch
-# timing this branch is built on. Replace with a rev bump once that lands.
-[patch."https://github.com/tracel-ai/cubecl"]
-cubecl = { path = "../cubecl-deferred-timing/crates/cubecl" }
-cubecl-common = { path = "../cubecl-deferred-timing/crates/cubecl-common" }
-cubecl-core = { path = "../cubecl-deferred-timing/crates/cubecl-core" }
-cubecl-cpp = { path = "../cubecl-deferred-timing/crates/cubecl-cpp" }
-cubecl-cpu = { path = "../cubecl-deferred-timing/crates/cubecl-cpu" }
-cubecl-cuda = { path = "../cubecl-deferred-timing/crates/cubecl-cuda" }
-cubecl-environment = { path = "../cubecl-deferred-timing/crates/cubecl-environment" }
-cubecl-hip = { path = "../cubecl-deferred-timing/crates/cubecl-hip" }
-cubecl-ir = { path = "../cubecl-deferred-timing/crates/cubecl-ir" }
-cubecl-llvm = { path = "../cubecl-deferred-timing/crates/cubecl-llvm" }
-cubecl-macros = { path = "../cubecl-deferred-timing/crates/cubecl-macros" }
-cubecl-macros-internal = { path = "../cubecl-deferred-timing/crates/cubecl-macros-internal" }
-cubecl-metal = { path = "../cubecl-deferred-timing/crates/cubecl-metal" }
-cubecl-opt = { path = "../cubecl-deferred-timing/crates/cubecl-opt" }
-cubecl-runtime = { path = "../cubecl-deferred-timing/crates/cubecl-runtime" }
-cubecl-server = { path = "../cubecl-deferred-timing/crates/cubecl-server" }
-cubecl-spirv = { path = "../cubecl-deferred-timing/crates/cubecl-spirv" }
-cubecl-std = { path = "../cubecl-deferred-timing/crates/cubecl-std" }
-cubecl-wgpu = { path = "../cubecl-deferred-timing/crates/cubecl-wgpu" }
-cubecl-zspace = { path = "../cubecl-deferred-timing/crates/cubecl-zspace" }
