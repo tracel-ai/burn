@@ -1,0 +1,18 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "pipeline-parallel"
+publish = false
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["flex"]
+flex = ["burn/flex"]
+cuda = ["burn/cuda"]
+vulkan = ["burn/vulkan"]
+
+[dependencies]
+burn = { workspace = true, features = ["std", "optim"] }
