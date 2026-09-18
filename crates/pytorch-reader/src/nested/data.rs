@@ -57,6 +57,10 @@ pub enum NestedValue {
 
     /// A vector of 32-bit floating point values.
     F32s(Vec<f32>),
+
+    /// A value that could not be represented, holding the name of its type in the source.
+    /// Deserializing it into anything is an error; it can only be ignored.
+    Unsupported(String),
 }
 
 impl NestedValue {
@@ -223,6 +227,9 @@ impl fmt::Debug for NestedValue {
             NestedValue::U8s(vec) => f.debug_list().entries(vec.iter()).finish(),
             NestedValue::U16s(vec) => f.debug_list().entries(vec.iter()).finish(),
             NestedValue::F32s(vec) => f.debug_list().entries(vec.iter()).finish(),
+            NestedValue::Unsupported(type_name) => {
+                f.debug_tuple("Unsupported").field(type_name).finish()
+            }
         }
     }
 }

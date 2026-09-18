@@ -1,3 +1,7 @@
+// The Burn Book includes sections of this file using mdBook's ANCHOR / ANCHOR_END
+// markers. Keep each pair around the code it documents, and update the includes in
+// `burn-book/src/basic-workflow/training.md` if you rename or remove a marker.
+
 use std::path::PathBuf;
 
 use crate::{
@@ -15,6 +19,7 @@ use burn::{
     },
 };
 
+// ANCHOR: classification
 impl Model {
     pub fn forward_classification(
         &self,
@@ -30,6 +35,8 @@ impl Model {
     }
 }
 
+// ANCHOR_END: classification
+// ANCHOR: steps
 impl TrainStep for Model {
     type Input = MnistBatch;
     type Output = ClassificationOutput;
@@ -50,6 +57,8 @@ impl InferenceStep for Model {
     }
 }
 
+// ANCHOR_END: steps
+// ANCHOR: training
 #[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: ModelConfig,
@@ -114,3 +123,4 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
         .save(format!("{artifact_dir}/model"))
         .expect("Trained model should be saved successfully");
 }
+// ANCHOR_END: training

@@ -905,10 +905,10 @@ fn test_read_pickle_data_nested_structure() {
         // It could be flat keys like "layer1.weight" or nested dicts
         // Just verify it's a valid dict structure
         for value in dict.values() {
-            // Values could be None (tensors), nested dicts, or other types
+            // Values could be tensors (unsupported), nested dicts, or other types
             assert!(
-                matches!(value, PickleValue::None | PickleValue::Dict(_)),
-                "Values should be None or nested dicts"
+                matches!(value, PickleValue::Unsupported(_) | PickleValue::Dict(_)),
+                "Values should be unsupported or nested dicts"
             );
         }
     } else {
@@ -929,12 +929,11 @@ fn test_read_pickle_data_types() {
         // The file contains different tensor types
         assert!(dict.len() >= 3, "Should have at least 3 tensor types");
 
-        // All tensor values should be None in pickle data
+        // Tensors are not carried in pickle data, only named by type
         for value in dict.values() {
-            // All values should be None (tensors are not included in pickle data)
             assert!(
-                matches!(value, PickleValue::None),
-                "Tensors should be None in pickle data"
+                matches!(value, PickleValue::Unsupported(name) if name == "torch.Tensor"),
+                "Tensors should be unsupported in pickle data"
             );
         }
     } else {
@@ -978,9 +977,9 @@ fn test_read_pickle_data_simple_pickle() {
         assert!(dict.contains_key("weight"));
         assert!(dict.contains_key("bias"));
 
-        // All tensor values should be None in pickle data
+        // Tensors are not carried in pickle data, only named by type
         for value in dict.values() {
-            assert!(matches!(value, PickleValue::None));
+            assert!(matches!(value, PickleValue::Unsupported(name) if name == "torch.Tensor"));
         }
     } else {
         panic!("Expected state_dict to contain a dictionary");
@@ -1051,7 +1050,7 @@ fn test_load_config_complex_types() {
         epoch: i64,
         loss: f64,
         // We skip model_state_dict and optimizer_state_dict
-        // as they contain tensor references that become None
+        // as they contain tensor references that cannot be represented
     }
 
     // Load partial config
@@ -1109,6 +1108,89 @@ fn test_pickle_value_conversion() {
         }
         _ => panic!("Unexpected root type"),
     }
+}
+
+/// `{"config": {"hidden_size": np.int64(768), "dtype": torch.float32}}` at protocol 2.
+///
+/// The numpy scalar is a `REDUCE` the reader does not interpret (with a `numpy.dtype`
+/// and a `_codecs.encode` call nested inside), and the torch dtype is a bare `GLOBAL`.
+const NUMPY_SCALAR_AND_TORCH_DTYPE: &[u8] = b"\x80\x02}q\x00X\x06\x00\x00\x00configq\x01}q\x02(X\x0b\x00\x00\x00hidden_sizeq\x03cnumpy._core.multiarray\nscalar\nq\x04cnumpy\ndtype\nq\x05X\x02\x00\x00\x00i8q\x06\x89\x88\x87q\x07Rq\x08(K\x03X\x01\x00\x00\x00<q\tNNNJ\xff\xff\xff\xffJ\xff\xff\xff\xffK\x00tq\nbc_codecs\nencode\nq\x0bX\x08\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00q\x0cX\x06\x00\x00\x00latin1q\r\x86q\x0eRq\x0f\x86q\x10Rq\x11X\x05\x00\x00\x00dtypeq\x12ctorch\nfloat32\nq\x13us.";
+
+/// `{"device": torch.device("cpu"), "n": 7, "nothing": None}` at protocol 2.
+const TORCH_DEVICE_BESIDE_INT: &[u8] = b"\x80\x02}q\x00(X\x06\x00\x00\x00deviceq\x01ctorch\ndevice\nq\x02X\x03\x00\x00\x00cpuq\x03\x85q\x04Rq\x05X\x01\x00\x00\x00nq\x06K\x07X\x07\x00\x00\x00nothingq\x07Nu.";
+
+fn write_pickle(dir: &tempfile::TempDir, name: &str, bytes: &[u8]) -> std::path::PathBuf {
+    let path = dir.path().join(name);
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+#[test]
+fn test_read_pickle_data_names_unsupported_types() {
+    use crate::PickleValue;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "config.pkl", NUMPY_SCALAR_AND_TORCH_DTYPE);
+
+    let PickleValue::Dict(config) = PytorchReader::read_pickle_data(&path, Some("config")).unwrap()
+    else {
+        panic!("expected a dict");
+    };
+    assert_eq!(
+        config["hidden_size"],
+        PickleValue::Unsupported("numpy._core.multiarray.scalar".to_string())
+    );
+    assert_eq!(
+        config["dtype"],
+        PickleValue::Unsupported("torch.float32".to_string())
+    );
+}
+
+#[test]
+fn test_load_config_rejects_values_it_cannot_represent() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "config.pkl", NUMPY_SCALAR_AND_TORCH_DTYPE);
+
+    #[derive(Debug, serde::Deserialize)]
+    struct Config {
+        #[allow(dead_code)]
+        hidden_size: usize,
+    }
+    let err = PytorchReader::load_config::<Config, _>(&path, Some("config"))
+        .expect_err("a numpy scalar must not deserialize as 0");
+    assert!(
+        err.to_string().contains("numpy._core.multiarray.scalar"),
+        "error should name the Python type: {err}"
+    );
+
+    // The same holds for an optional field: the value is present, so it must not become
+    // `None`.
+    #[derive(Debug, serde::Deserialize)]
+    struct OptionalConfig {
+        #[allow(dead_code)]
+        hidden_size: Option<usize>,
+    }
+    let err = PytorchReader::load_config::<OptionalConfig, _>(&path, Some("config")).unwrap_err();
+    assert!(
+        err.to_string().contains("numpy._core.multiarray.scalar"),
+        "{err}"
+    );
+}
+
+#[test]
+fn test_load_config_ignores_unsupported_values_it_does_not_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "meta.pkl", TORCH_DEVICE_BESIDE_INT);
+
+    // `device` is not a field of the target, so the `torch.device` beside `n` is skipped.
+    #[derive(Debug, serde::Deserialize)]
+    struct Meta {
+        n: i64,
+        nothing: Option<String>,
+    }
+    let meta: Meta = PytorchReader::load_config(&path, None).unwrap();
+    assert_eq!(meta.n, 7);
+    assert_eq!(meta.nothing, None);
 }
 
 // ============================================================================

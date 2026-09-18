@@ -22,6 +22,7 @@ pub use cubecl::Device;
 /// backend covering every runtime, naming a runtime is how a caller asks for a
 /// subset of the devices.
 pub use cubecl::RuntimeId;
+pub use cubecl::ir::{AdapterLuid, DeviceIdentity, PciAddress, PciVendor, PhysicalDevice};
 pub use cubecl::std::throughput::measure_peak_throughput;
 
 /// Convert a cubecl [`ElemType`] into the corresponding burn [`DType`].
