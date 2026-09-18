@@ -8,9 +8,12 @@ training loop instead of using a pre-built one in general.
 Burn's got you covered!
 
 We will start from the same example shown in the [basic workflow](./basic-workflow) section, but
-without using the `Learner` struct.
+without using the `Learner` struct. Reuse the `data` and `model` modules from that project.
 
 ```rust,ignore
+{{#include ../../examples/custom-training-loop/src/lib.rs:imports}}
+use crate::{data::MnistBatcher, model::ModelConfig};
+
 {{#include ../../examples/custom-training-loop/src/lib.rs:config}}
 
 pub fn run(device: Device) {

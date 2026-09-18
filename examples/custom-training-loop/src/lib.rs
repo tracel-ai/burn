@@ -2,7 +2,7 @@
 // markers. Keep each pair around the code it documents, and update the includes in
 // `burn-book/src/custom-training-loop.md` if you rename or remove a marker.
 
-// ANCHOR: config
+// ANCHOR: imports
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     module::Module,
@@ -10,8 +10,10 @@ use burn::{
     optim::{AdamConfig, GradientsParams},
     prelude::*,
 };
+// ANCHOR_END: imports
 use guide::{data::MnistBatcher, model::ModelConfig};
 
+// ANCHOR: config
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
     #[config(default = 10)]
