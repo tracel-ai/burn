@@ -51,7 +51,7 @@ use alloc::vec::Vec;
 /// Backend-free builds can expose tensor/model APIs, but cannot create an execution device.
 ///
 /// [`Device::default()`] selects the first enabled backend in this order:
-/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, LibTorch, NdArray, Flex, Remote.
+/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, LibTorch, Flex, Remote, NdArray.
 /// In std builds, `BURN_DEVICE` overrides this selection. Use an explicit factory
 /// method when the choice must be independent of Cargo feature unification.
 /// Without an execution backend, `Device::default()` panics with configuration guidance.

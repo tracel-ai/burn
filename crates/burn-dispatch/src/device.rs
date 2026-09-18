@@ -89,6 +89,8 @@ impl DispatchDevice {
         // No catch-all arm: a new backend must fail to compile here rather
         // than silently report no peaks.
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             DispatchDevice::Cube(device) => {
                 let client = device.client();
@@ -221,7 +223,7 @@ impl core::fmt::Debug for DispatchDevice {
 
 impl Default for DispatchDevice {
     /// Select an enabled backend in this order: CUDA, Metal, ROCm, Vulkan, WebGPU,
-    /// wgpu, CPU, LibTorch, NdArray, Flex, Remote. `BURN_DEVICE` overrides this in
+    /// wgpu, CPU, LibTorch, Flex, Remote, NdArray. `BURN_DEVICE` overrides this in
     /// std builds. Capture devices must be constructed explicitly.
     ///
     /// Panics when no execution backend is enabled.
@@ -327,14 +329,15 @@ impl Default for DispatchDevice {
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
 
-        #[cfg(feature = "ndarray")]
-        return Self::NdArray(NdArrayDevice::default());
-
+        // Preserve the preference for Flex over the deprecated NdArray backend.
         #[cfg(feature = "flex")]
         return Self::Flex(FlexDevice);
 
         #[cfg(feature = "remote")]
         return Self::Remote(RemoteDevice::default());
+
+        #[cfg(feature = "ndarray")]
+        return Self::NdArray(NdArrayDevice::default());
 
         panic!(
             "No execution backend is enabled. Enable a Burn backend feature such as `flex`, \

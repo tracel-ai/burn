@@ -6,7 +6,9 @@
 //! Signal processing operations for Burn tensors.
 //!
 //! No execution backend is enabled by default. Select `flex`, `wgpu`, or another
-//! backend feature here, or enable the matching backend feature on `burn`.
+//! backend feature on this crate. When configuring through `burn`, enable both
+//! `signal` and the backend feature, for example `features = ["signal", "flex"]`.
+//! Enabling only `burn/flex` does not enable this crate's FFT backend implementation.
 //!
 //! # Migration
 //!
