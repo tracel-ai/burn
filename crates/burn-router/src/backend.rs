@@ -79,6 +79,11 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         client.profile_end(token, options)
     }
 
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        let client = get_client::<R>(device);
+        client.profile_abandon(token);
+    }
+
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         let client = get_client::<R>(device);
         client.dtype_usage(dtype)

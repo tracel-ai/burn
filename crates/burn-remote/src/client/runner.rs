@@ -93,13 +93,22 @@ impl RouterClient for RemoteClient {
         token: ProfileToken,
         options: ProfileOptions,
     ) -> Result<ProfileDuration, ExecutionError> {
+        // The stream is the service's to name, not this thread's: it is the
+        // one the window was opened on, which the service kept.
+        //
         // Blocking only on the issue, so the close keeps its place among the
         // tasks around it; the measurement is awaited through the duration.
-        let stream_id = StreamId::current();
         Ok(self
             .handle
-            .submit_blocking(move |s| s.profile_end(stream_id, token, options))
+            .submit_blocking(move |s| s.profile_end(token, options))
             .expect("Service call failed"))
+    }
+
+    /// Told to the server rather than closed: the close is a blocking round
+    /// trip whose measurement nobody is left to read, and an open window
+    /// costs the server's backend something until it hears.
+    fn profile_abandon(&self, token: ProfileToken) {
+        self.handle.submit(move |s| s.profile_abandon(token));
     }
 
     fn seed(&self, seed: u64) {

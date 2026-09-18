@@ -96,3 +96,50 @@ fn flush_reaches_the_server_queue() {
          its window"
     );
 }
+
+/// A window whose closure panicked is abandoned over the wire, not closed.
+///
+/// The close is a blocking round trip for a measurement nobody is left to
+/// read, and an open window costs the *server's* backend for as long as it
+/// stays open. So the client sends a fire-and-forget abandon instead — and the
+/// server, having heard, still opens windows on the session afterwards.
+///
+/// What the next window *measures* is not asserted: a remote window is not
+/// reliably measured on a server that stamps kernels, which is its own open
+/// question and not this one. That it opens and closes at all is what an
+/// abandoned window could have broken.
+#[test]
+fn a_panicking_closure_abandons_the_server_window() {
+    let port = 3191;
+    std::thread::spawn(move || {
+        burn::server::start(Device::default(), burn::server::Channel::WebSocket { port })
+    });
+    std::thread::sleep(Duration::from_millis(500));
+
+    let device = Device::remote_websocket(&format!("ws://localhost:{port}"), 0);
+
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = device.profile(|| {
+            let _ = Tensor::<1>::ones([1024], &device) * 2.0;
+            panic!("the measured work failed");
+        });
+    }));
+    assert!(panicked.is_err(), "the panic reaches the caller");
+
+    // The server released whatever the abandoned window was holding, and the
+    // session survived a task it answers nothing to.
+    let (x, duration) = device
+        .profile_with(ProfileOptions::default().flush(), || {
+            Tensor::<1>::ones([1024 * 1024], &device) * 2.0
+        })
+        .expect("the remote device still profiles after an abandoned window");
+
+    assert_eq!(
+        x.sum().into_scalar::<f32>(),
+        2.0 * 1024.0 * 1024.0,
+        "the work after the panic still ran"
+    );
+    // Resolved, not asserted on: the window has to come back one way or the
+    // other rather than leaving the caller waiting on a server that forgot it.
+    let _ = measured(duration);
+}

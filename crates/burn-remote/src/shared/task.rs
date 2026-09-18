@@ -227,6 +227,14 @@ pub enum Task {
     /// backend first when the options ask for it. The measurement comes back
     /// once the server's device has answered it, like a read does.
     ProfileEnd(RequestId, StreamId, ProfileToken, ProfileOptions),
+    /// Drop the window `token` where `stream_id` stands without measuring it.
+    ///
+    /// Fire-and-forget, and the only profiling task that is: it is sent while
+    /// a panic is already unwinding on the client, where there is nobody left
+    /// to hand a measurement to. An open window costs the server's backend
+    /// something for as long as it stays open, so the client says so rather
+    /// than leaving it.
+    ProfileAbandon(StreamId, ProfileToken),
 }
 
 #[allow(missing_docs)]

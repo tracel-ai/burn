@@ -14,6 +14,7 @@ use burn_std::{DType, DeviceSettings, id::StreamId, profile::Instant};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
 #[cfg(not(target_family = "wasm"))]
 use burn_std::backtrace::BackTrace;
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::oneshot;
 
@@ -70,6 +71,16 @@ pub struct RemoteService {
     batch: OutgoingBatch,
     /// Request-id allocation + the callbacks awaiting response-producing tasks.
     pending: PendingResponses,
+    /// The client stream each open profiling window was opened on, by token id.
+    ///
+    /// The server orders a task against the other tasks of the stream the
+    /// client names, and a window has to close against the operations it was
+    /// measuring — so the close carries the opening stream rather than
+    /// whichever one its caller happens to be on. (`ProfileToken::opened_on`
+    /// cannot serve: that is the *server backend's* own stream, in a
+    /// numbering this side never shares.) Bounded by the windows currently
+    /// open, since closing or abandoning one takes its entry.
+    profile_streams: HashMap<u64, StreamId>,
     /// Emits this device's telemetry (the ops and graphs it sends).
     probe: TelemetryProbe,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::defaults`).
@@ -114,6 +125,7 @@ impl DeviceService for RemoteService {
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
             pending: PendingResponses::new(),
+            profile_streams: HashMap::new(),
             probe,
             settings: settings_cell(id),
             device_count: device_count_cell(id),
@@ -530,7 +542,7 @@ impl RemoteService {
         #[cfg(not(target_family = "wasm"))]
         {
             let rx = self.submit_request(|id| Task::ProfileStart(id, stream_id));
-            match self.executor.block_on(rx) {
+            let opened = match self.executor.block_on(rx) {
                 Ok(TaskResponseContent::ProfileStart(res)) => res,
                 Ok(other) => panic!("Invalid response for ProfileStart: {other:?}"),
                 Err(_) => Err(ExecutionError::Generic {
@@ -538,7 +550,11 @@ impl RemoteService {
                         .into(),
                     backtrace: BackTrace::capture(),
                 }),
+            };
+            if let Ok(Some(token)) = &opened {
+                self.profile_streams.insert(token.id, stream_id);
             }
+            opened
         }
         #[cfg(target_family = "wasm")]
         {
@@ -554,12 +570,8 @@ impl RemoteService {
     /// its backend first when `options` ask for it. Issued now, so it keeps
     /// its place among the tasks around it; the measurement is awaited
     /// through the returned duration.
-    pub fn profile_end(
-        &mut self,
-        stream_id: StreamId,
-        token: ProfileToken,
-        options: ProfileOptions,
-    ) -> ProfileDuration {
+    pub fn profile_end(&mut self, token: ProfileToken, options: ProfileOptions) -> ProfileDuration {
+        let stream_id = self.profile_stream_of(token);
         let rx = self.submit_request(|id| Task::ProfileEnd(id, stream_id, token, options));
 
         ProfileDuration::new_device_time_maybe(async move {
@@ -584,6 +596,27 @@ impl RemoteService {
                 }
             }
         })
+    }
+
+    /// Drop the window `token` where `stream_id` stands without measuring it.
+    ///
+    /// Nothing comes back, so nothing is waited on and no pending callback is
+    /// registered — the client is unwinding, and a measurement it asked for
+    /// would arrive with nobody to take it.
+    pub fn profile_abandon(&mut self, token: ProfileToken) {
+        let stream_id = self.profile_stream_of(token);
+        self.submit_task(Task::ProfileAbandon(stream_id, token));
+    }
+
+    /// The stream `token` was opened on, taken out of the open-window table.
+    ///
+    /// Falls back to the calling thread's stream for a token this service
+    /// never handed out, which is the best guess available and what every
+    /// same-thread caller would have named anyway.
+    fn profile_stream_of(&mut self, token: ProfileToken) -> StreamId {
+        self.profile_streams
+            .remove(&token.id)
+            .unwrap_or_else(StreamId::current)
     }
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {

@@ -78,6 +78,18 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         ))
     }
 
+    /// Drop the window `token` without measuring it, for a caller that will
+    /// never reach [`profile_end`](Self::profile_end) — see
+    /// [`Backend::profile_abandon`](burn_backend::Backend::profile_abandon).
+    ///
+    /// The default closes the window and discards the measurement, which any
+    /// interpreter that opens one can already do. An interpreter that can say
+    /// so more cheaply — a remote one, where the close is a round trip and
+    /// the caller is unwinding — does that instead.
+    fn profile_abandon(&self, token: ProfileToken) {
+        let _ = self.profile_end(token, ProfileOptions::default());
+    }
+
     /// Register a reusable group of operations (in relative form) under `graph_id` *and* run its
     /// first invocation with `bindings`, so it can later be replayed by id with
     /// [`execute_graph`](Self::execute_graph).

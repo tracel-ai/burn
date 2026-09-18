@@ -2212,4 +2212,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
     ) -> Result<ProfileDuration, ExecutionError> {
         B::profile_end(&self.device, token, options)
     }
+
+    /// Drop the window `token` where the calling stream stands without
+    /// measuring it.
+    pub fn profile_abandon(&self, token: ProfileToken) {
+        B::profile_abandon(&self.device, token)
+    }
 }

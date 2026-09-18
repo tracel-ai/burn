@@ -419,6 +419,10 @@ where
                 self.send_response(request_id, TaskResponseContent::ProfileStart(res))
                     .await
             }
+            Task::ProfileAbandon(stream_id, token) => {
+                stream_id.executes(|| self.runner.profile_abandon(token));
+                Ok(())
+            }
             Task::ProfileEnd(request_id, stream_id, token, options) => {
                 // Closing the window is sync and in order, like the read
                 // above; the measurement is the device's to answer, so the
