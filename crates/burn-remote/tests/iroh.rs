@@ -26,9 +26,18 @@ fn spawn_router<B: BackendIr>(
     authorizer: impl burn_remote::server::PeerAuthorizer,
     probe: TelemetryProbe,
 ) -> Router {
+    spawn_router_hosting::<B>(endpoint, 1, authorizer, probe)
+}
+
+fn spawn_router_hosting<B: BackendIr>(
+    endpoint: Endpoint,
+    devices: usize,
+    authorizer: impl burn_remote::server::PeerAuthorizer,
+    probe: TelemetryProbe,
+) -> Router {
     let protocol = IrohRemoteProtocol::<B>::new(
         endpoint.clone(),
-        vec![Default::default()],
+        vec![Default::default(); devices],
         std::sync::Arc::new(authorizer),
         probe,
         burn_remote::server::CustomOpRegistry::default(),
@@ -207,4 +216,84 @@ async fn fused_compute_surfaces_as_graph_telemetry() {
     );
 
     router.shutdown().await.unwrap();
+}
+
+/// Pipeline stages alternating between two servers, the shape a split model runs in: every hop
+/// crosses servers and the client reads nothing until the end, so transfers between the same pair of
+/// servers are in flight in both directions at once.
+#[tokio::test(flavor = "multi_thread")]
+async fn stages_alternating_between_two_servers_transfer_both_ways() {
+    let first = local_endpoint().await;
+    let second = local_endpoint().await;
+    let client = local_endpoint().await;
+    let routers = [
+        spawn_router_hosting::<Flex>(first.clone(), 2, AllowAll, TelemetryProbe::disabled()),
+        spawn_router_hosting::<Flex>(second.clone(), 2, AllowAll, TelemetryProbe::disabled()),
+    ];
+
+    let stages: Vec<Device> = [
+        (first.addr(), 0),
+        (second.addr(), 0),
+        (first.addr(), 1),
+        (second.addr(), 1),
+    ]
+    .into_iter()
+    .map(|(peer, index)| {
+        let remote = RemoteDevice::iroh(&client, peer, index);
+        remote.connect();
+        Device::new(remote)
+    })
+    .collect();
+
+    // A stalled transfer parks a worker deep in the backend, where it cannot be killed, so the test
+    // reports from here and the process exit carries the worker away.
+    let (done, waiting) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut tensor = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &stages[0]);
+        for stage in &stages[1..] {
+            tensor = tensor.to_device(stage) * 2.0;
+        }
+        let _ = done.send(tensor.into_data().try_into_vec::<f32>().unwrap());
+    });
+    let values = waiting
+        .recv_timeout(std::time::Duration::from_secs(60))
+        .expect("the stages to finish");
+    assert_eq!(values, vec![8.0, 16.0, 24.0, 32.0]);
+
+    for router in routers {
+        router.shutdown().await.unwrap();
+    }
+}
+
+/// The target downloads from the shared endpoint down the connection that endpoint's client
+/// dialed, before the endpoint hosted its server.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_server_that_is_also_a_client_is_downloaded_from() {
+    let shared = local_endpoint().await;
+    let target = local_endpoint().await;
+    let client = local_endpoint().await;
+    let target_router = spawn_router::<Flex>(target.clone(), AllowAll, TelemetryProbe::disabled());
+
+    let shared_as_client = RemoteDevice::iroh(&shared, target.addr(), 0);
+    shared_as_client.connect();
+    let shared_router = spawn_router::<Flex>(shared.clone(), AllowAll, TelemetryProbe::disabled());
+
+    let source = RemoteDevice::iroh(&client, shared.addr(), 0);
+    let destination = RemoteDevice::iroh(&client, target.addr(), 0);
+    source.connect();
+    destination.connect();
+    let (source, destination) = (Device::new(source), Device::new(destination));
+
+    let (done, waiting) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &source).to_device(&destination);
+        let _ = done.send(tensor.try_into_vec_as::<f32>().unwrap());
+    });
+    let values = waiting
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .expect("the transfer to finish");
+    assert_eq!(values, vec![3.0, 5.0, 7.0]);
+
+    shared_router.shutdown().await.unwrap();
+    target_router.shutdown().await.unwrap();
 }

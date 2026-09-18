@@ -15,7 +15,7 @@ use std::sync::Arc;
 ///
 /// Binds a server endpoint with the stable identity carried by `secret` and hosts `devices` as the
 /// sole protocol on it. Reached through [`RemoteServerBuilder`](super::RemoteServerBuilder) (the
-/// single turnkey entry point); use [`RemoteNode::protocol`] for composition with other protocols.
+/// single turnkey entry point); use [`IrohRemoteProtocol`] for composition with other protocols.
 #[cfg(not(target_family = "wasm"))]
 pub(crate) async fn start_iroh_async<B: BackendIr>(
     secret: crate::RemoteSecret,
