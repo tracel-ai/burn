@@ -1,6 +1,9 @@
 //! Iroh protocol handler for Burn Remote compute and tensor-transfer streams.
 
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::{Arc, Weak},
+};
 
 use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
@@ -19,7 +22,7 @@ use crate::{
 
 use super::{
     IrohTransfer,
-    node::{RemoteNode, ServeDialed, StreamKind},
+    node::{RemoteNode, Service, StreamKind},
 };
 
 /// Information presented to a compute node before a remote session is accepted.
@@ -61,6 +64,11 @@ impl PeerAuthorizer for AllowAll {
 /// Register this handler in an existing Iroh `Router` to compose Burn with other application
 /// protocols on the same endpoint.
 pub struct IrohRemoteProtocol<B: BackendIr> {
+    service: Arc<ComputeService<B>>,
+}
+
+/// The sessions and tensor transfers a compute node serves, on every connection its node holds.
+struct ComputeService<B: BackendIr> {
     node: RemoteNode,
     sessions: Arc<SessionManager<B, IrohTransfer<B>>>,
     transfer: Arc<IrohTransfer<B>>,
@@ -70,17 +78,22 @@ pub struct IrohRemoteProtocol<B: BackendIr> {
 impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IrohRemoteProtocol")
-            .field("endpoint_id", &self.node.id())
+            .field("endpoint_id", &self.service.node.id())
             .finish_non_exhaustive()
     }
 }
 
 impl<B: BackendIr> IrohRemoteProtocol<B> {
-    /// Create a handler hosting `devices` on `node`.
+    /// Create a handler hosting `devices` on `endpoint`.
     ///
     /// Anything hosting this runs on an async runtime, so it says so: a session's tensor read then
     /// materializes eagerly instead of parking a blocking device to host copy on an executor worker.
     /// Logging stays the application's, see [`ServerLogging`](crate::server::ServerLogging).
+    ///
+    /// # Panics
+    ///
+    /// Panics when another handler created on `endpoint` is still alive: an endpoint hosts one
+    /// server.
     pub fn new(
         endpoint: Endpoint,
         devices: Vec<Device<B>>,
@@ -89,49 +102,74 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
         custom_ops: CustomOpRegistry<B>,
     ) -> Self {
         burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
-        let node = RemoteNode::from_endpoint(endpoint);
+        let node = RemoteNode::new(&endpoint);
         let transfer = Arc::new(IrohTransfer::new(node.clone()));
-        node.serve_dialed_with(Arc::downgrade(&transfer) as std::sync::Weak<dyn ServeDialed>);
-
         let sessions = Arc::new(
-            SessionManager::new(devices.to_vec(), transfer.clone())
-                .with_telemetry(probe.clone())
-                .with_custom_ops(custom_ops.clone()),
+            SessionManager::new(devices, transfer.clone())
+                .with_telemetry(probe)
+                .with_custom_ops(custom_ops),
         );
-        Self {
+        let service = Arc::new(ComputeService {
             node,
             sessions,
             transfer,
             authorizer,
-        }
+        });
+        service
+            .node
+            .host(Arc::downgrade(&service) as Weak<dyn Service>);
+        Self { service }
     }
+}
 
-    /// Drive an accepted session stream through the shared [`drive_session`] pump.
+impl<B: BackendIr> ComputeService<B> {
+    /// Drive a session stream through the shared [`drive_session`] pump.
     ///
-    /// The Iroh-specific parts are just the authenticated peer identity (`remote_id`, checked by the
+    /// The Iroh-specific parts are just the authenticated peer identity (`remote`, checked by the
     /// application's [`PeerAuthorizer`]) and this server's own id, echoed to the client.
-    async fn handle_session(
-        sessions: Arc<SessionManager<B, IrohTransfer<B>>>,
-        authorizer: Arc<dyn PeerAuthorizer>,
-        server_id: EndpointId,
-        remote_id: EndpointId,
+    async fn session(
+        &self,
+        remote: EndpointId,
         send: SendStream,
         recv: RecvStream,
     ) -> Result<(), String> {
         drive_session(
             recv,
             send,
-            sessions,
-            Some(PeerId::Iroh(server_id)),
+            self.sessions.clone(),
+            Some(PeerId::Iroh(self.node.id())),
             |init| {
-                authorizer.authorize(AuthorizationRequest {
-                    peer: remote_id,
+                self.authorizer.authorize(AuthorizationRequest {
+                    peer: remote,
                     device_index: init.device_index,
                     credential: &init.authorization,
                 })
             },
         )
         .await
+    }
+}
+
+impl<B: BackendIr> Service for ComputeService<B> {
+    fn serve(
+        self: Arc<Self>,
+        remote: EndpointId,
+        kind: StreamKind,
+        send: SendStream,
+        recv: RecvStream,
+    ) {
+        match kind {
+            StreamKind::Session => spawn_detached(async move {
+                if let Err(err) = self.session(remote, send, recv).await {
+                    log::warn!("Rejected or failed Iroh remote session: {err}");
+                }
+            }),
+            StreamKind::TensorTransfer => spawn_detached(async move {
+                if let Err(err) = self.transfer.handle_stream(remote, send, recv).await {
+                    log::warn!("Iroh tensor-transfer stream failed: {err}");
+                }
+            }),
+        }
     }
 }
 
@@ -164,43 +202,11 @@ impl From<RemoteProtocol> for Box<dyn DynProtocolHandler> {
 
 impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
-        let remote_id = connection.remote_id();
-        loop {
-            let Some((kind, send, recv)) = RemoteNode::accept_stream(&connection)
-                .await
-                .map_err(user_error)?
-            else {
-                return Ok(());
-            };
-
-            match kind {
-                StreamKind::Session => {
-                    let sessions = self.sessions.clone();
-                    let authorizer = self.authorizer.clone();
-                    let server_id = self.node.id();
-                    spawn_detached(async move {
-                        if let Err(err) = Self::handle_session(
-                            sessions, authorizer, server_id, remote_id, send, recv,
-                        )
-                        .await
-                        {
-                            log::warn!("Rejected or failed Iroh remote session: {err}");
-                        }
-                    });
-                }
-                StreamKind::TensorTransfer => {
-                    // Only a server opens transfers, and only a server serves streams back down a
-                    // connection it dialed: a client sharing its endpoint does not.
-                    self.node.remember_connection(connection.clone()).await;
-                    let transfer = self.transfer.clone();
-                    spawn_detached(async move {
-                        if let Err(err) = transfer.handle_stream(remote_id, send, recv).await {
-                            log::warn!("Iroh tensor-transfer stream failed: {err}");
-                        }
-                    });
-                }
-            }
-        }
+        self.service
+            .node
+            .accept(connection)
+            .await
+            .map_err(user_error)
     }
 }
 

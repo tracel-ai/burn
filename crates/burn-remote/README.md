@@ -28,8 +28,9 @@ let device = Device::remote_iroh(&endpoint, compute_peer, 0);
 let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 ```
 
-Build every device from the same endpoint: it is the client's identity, which is what a compute
-peer authorizes.
+Build every device from the same endpoint. It is the client's identity, which is what a compute
+peer authorizes, and the devices built from it share one connection per compute peer. The same
+endpoint can also host a server, registered as below.
 
 `Device::remote_iroh_authorized` also sends an opaque credential, which Burn passes to the compute
 peer's `PeerAuthorizer`. Signature format, expiry, tenant policy, and fleet membership remain

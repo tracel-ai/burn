@@ -265,20 +265,18 @@ async fn stages_alternating_between_two_servers_transfer_both_ways() {
     }
 }
 
-/// A server whose endpoint also dials out as a client: the connection its client dialed has
-/// nobody accepting streams on it, so a peer downloading from the server must not use it.
+/// The target downloads from the shared endpoint down the connection that endpoint's client
+/// dialed, before the endpoint hosted its server.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_server_that_is_also_a_client_is_downloaded_from() {
     let shared = local_endpoint().await;
     let target = local_endpoint().await;
     let client = local_endpoint().await;
-    let routers = [
-        spawn_router::<Flex>(shared.clone(), AllowAll, TelemetryProbe::disabled()),
-        spawn_router::<Flex>(target.clone(), AllowAll, TelemetryProbe::disabled()),
-    ];
+    let target_router = spawn_router::<Flex>(target.clone(), AllowAll, TelemetryProbe::disabled());
 
     let shared_as_client = RemoteDevice::iroh(&shared, target.addr(), 0);
     shared_as_client.connect();
+    let shared_router = spawn_router::<Flex>(shared.clone(), AllowAll, TelemetryProbe::disabled());
 
     let source = RemoteDevice::iroh(&client, shared.addr(), 0);
     let destination = RemoteDevice::iroh(&client, target.addr(), 0);
@@ -296,7 +294,6 @@ async fn a_server_that_is_also_a_client_is_downloaded_from() {
         .expect("the transfer to finish");
     assert_eq!(values, vec![3.0, 5.0, 7.0]);
 
-    for router in routers {
-        router.shutdown().await.unwrap();
-    }
+    shared_router.shutdown().await.unwrap();
+    target_router.shutdown().await.unwrap();
 }

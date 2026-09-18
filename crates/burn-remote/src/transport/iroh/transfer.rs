@@ -11,7 +11,9 @@ use burn_backend::TensorData;
 use burn_ir::BackendIr;
 use tokio::sync::{Mutex, Notify};
 
-use super::node::{RemoteNode, StreamKind, recv_frame, send_frame};
+use super::node::{
+    RemoteNode, StreamKind, recv_frame, recv_frame_body, recv_frame_length, send_frame,
+};
 use crate::server::transfer::TensorTransfer;
 use crate::shared::TransferCapability;
 use crate::{PeerAddr, PeerId};
@@ -137,6 +139,10 @@ impl<B: BackendIr> IrohTransfer<B> {
 
 const TRANSFER_WAIT_TIMEOUT: core::time::Duration = core::time::Duration::from_secs(300);
 const TRANSFER_CAPABILITY_TTL: core::time::Duration = core::time::Duration::from_secs(300);
+/// A source answers within [`TRANSFER_WAIT_TIMEOUT`], with a denial when the tensor never came, so
+/// a download that has heard nothing well past it is talking to a peer that will not answer.
+const RESPONSE_TIMEOUT: core::time::Duration =
+    TRANSFER_WAIT_TIMEOUT.saturating_add(core::time::Duration::from_secs(60));
 
 impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
     async fn expose_data(
@@ -197,12 +203,24 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
             return None;
         }
         let _ = send.finish();
-        let response = match recv_frame(&mut recv).await {
-            Ok(Some(response)) => response,
-            Ok(None) => {
-                log::error!("Tensor-transfer peer closed without a response");
-                return None;
-            }
+        let length =
+            match super::time::timeout(RESPONSE_TIMEOUT, recv_frame_length(&mut recv)).await {
+                Ok(Ok(Some(length))) => length,
+                Ok(Ok(None)) => {
+                    log::error!("Tensor-transfer peer closed without a response");
+                    return None;
+                }
+                Ok(Err(err)) => {
+                    log::error!("{err}");
+                    return None;
+                }
+                Err(()) => {
+                    log::error!("Tensor-transfer peer {} never answered", remote.id());
+                    return None;
+                }
+            };
+        let response = match recv_frame_body(&mut recv, length).await {
+            Ok(response) => response,
             Err(err) => {
                 log::error!("{err}");
                 return None;
@@ -237,30 +255,5 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
             }
         };
         self.expose_response(bytes, 1, capability, target).await;
-    }
-}
-
-#[cfg(feature = "server")]
-impl<B: BackendIr> super::node::ServeDialed for IrohTransfer<B> {
-    fn serve(
-        self: Arc<Self>,
-        remote: iroh::EndpointId,
-        kind: StreamKind,
-        send: iroh::endpoint::SendStream,
-        recv: iroh::endpoint::RecvStream,
-    ) {
-        match kind {
-            StreamKind::TensorTransfer => {
-                crate::server::spawn::spawn_detached(async move {
-                    if let Err(err) = self.handle_stream(remote, send, recv).await {
-                        log::warn!("Iroh tensor-transfer stream failed: {err}");
-                    }
-                });
-            }
-            // A session runs on the connection its client dialed, and a server dials no clients.
-            StreamKind::Session => {
-                log::warn!("Ignoring a session {remote} opened on a connection we dialed")
-            }
-        }
     }
 }
