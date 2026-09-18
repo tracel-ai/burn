@@ -494,9 +494,10 @@ impl<T: Parameter> Param<T> {
                         // maps an untracked value: mapped from a tracked leaf, it would be a
                         // non-leaf that can't require grad.
                         init: new_init_fn(move |device, require_grad| {
-                            let mut base = base;
-                            base.set_lazy_device(device);
-                            let value = base.val().set_require_grad(false).load_to_device(device);
+                            let value = base
+                                .map_to_device(device, |value| value.load_to_device(device))
+                                .val()
+                                .set_require_grad(false);
                             func(value).set_require_grad(require_grad)
                         }),
                         device,
@@ -534,24 +535,27 @@ impl<T: Parameter> Param<T> {
         }
     }
 
-    /// Make a parameter that is not initialized yet initialize on `device`, rather than
-    /// initializing it where it is and copying it over.
-    ///
-    /// Returns false, changing nothing, when the parameter is initialized or a clone shares its
-    /// lazy state: every clone must resolve to the same value.
-    pub(crate) fn set_lazy_device(&mut self, device: &Device) -> bool {
-        let Some(initialization) =
-            Arc::get_mut(&mut self.state).and_then(|state| state.initialization.as_ref())
-        else {
-            return false;
-        };
+    /// Put the parameter on `device`: one not initialized yet initializes there, unless a clone
+    /// shares it, and any other is initialized if needed and moved with `move_value`.
+    pub(crate) fn map_to_device(
+        mut self,
+        device: &Device,
+        move_value: impl FnOnce(T) -> T,
+    ) -> Self {
+        let retargeted = Arc::get_mut(&mut self.state)
+            .and_then(|state| state.initialization.as_ref())
+            .is_some_and(|initialization| match initialization.write().as_mut() {
+                Some(uninitialized) => {
+                    uninitialized.device = device.clone();
+                    true
+                }
+                None => false,
+            });
 
-        match initialization.write().as_mut() {
-            Some(value) => {
-                value.device = device.clone();
-                true
-            }
-            None => false,
+        if retargeted {
+            self
+        } else {
+            self.map(move_value)
         }
     }
 

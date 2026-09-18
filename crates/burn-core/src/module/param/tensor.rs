@@ -190,11 +190,7 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
     fn to_device(mut self, device: &Device) -> Self {
         let reparameterization = self.reparameterization.take();
-        let base = if self.set_lazy_device(device) {
-            self
-        } else {
-            self.map(|tensor| tensor.to_device(device))
-        };
+        let base = self.map_to_device(device, |tensor| tensor.to_device(device));
         match reparameterization {
             None => base,
             Some(reparameterization) => {
@@ -205,20 +201,16 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
     fn fork(mut self, device: &Device) -> Self {
         let reparameterization = self.reparameterization.take();
-        let base = if self.set_lazy_device(device) {
-            self
-        } else {
-            self.map(|tensor| {
-                let is_require_grad = tensor.is_require_grad();
-                let mut tensor = tensor.to_device(device).detach();
+        let base = self.map_to_device(device, |tensor| {
+            let is_require_grad = tensor.is_require_grad();
+            let mut tensor = tensor.to_device(device).detach();
 
-                if is_require_grad {
-                    tensor = tensor.require_grad();
-                }
+            if is_require_grad {
+                tensor = tensor.require_grad();
+            }
 
-                tensor
-            })
-        };
+            tensor
+        });
         match reparameterization {
             None => base,
             Some(reparameterization) => {
@@ -302,11 +294,8 @@ impl<const D: usize> Module for Param<Tensor<D, Int>> {
         mapper.map_int(self)
     }
 
-    fn to_device(mut self, device: &Device) -> Self {
-        if self.set_lazy_device(device) {
-            return self;
-        }
-        self.map(|tensor| tensor.to_device(device))
+    fn to_device(self, device: &Device) -> Self {
+        self.map_to_device(device, |tensor| tensor.to_device(device))
     }
 
     fn fork(self, device: &Device) -> Self {
@@ -361,11 +350,8 @@ impl<const D: usize> Module for Param<Tensor<D, Bool>> {
         mapper.map_bool(self)
     }
 
-    fn to_device(mut self, device: &Device) -> Self {
-        if self.set_lazy_device(device) {
-            return self;
-        }
-        self.map(|tensor| tensor.to_device(device))
+    fn to_device(self, device: &Device) -> Self {
+        self.map_to_device(device, |tensor| tensor.to_device(device))
     }
 
     fn fork(self, device: &Device) -> Self {
