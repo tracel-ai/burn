@@ -1319,7 +1319,6 @@ dependencies = [
  "serde_bytes",
  "tokio",
  "tokio-util",
- "tracing-core",
  "tracing-subscriber",
  "wasm-bindgen-futures",
 ]
