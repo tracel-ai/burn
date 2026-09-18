@@ -566,12 +566,14 @@ impl RemoteService {
         }
     }
 
-    /// Close the window `token` where `stream_id` stands, the server flushing
-    /// its backend first when `options` ask for it. Issued now, so it keeps
-    /// its place among the tasks around it; the measurement is awaited
+    /// Close the window `token` on the stream it was opened on, the server
+    /// flushing its backend first when `options` ask for it. Issued now, so it
+    /// keeps its place among the tasks around it; the measurement is awaited
     /// through the returned duration.
     pub fn profile_end(&mut self, token: ProfileToken, options: ProfileOptions) -> ProfileDuration {
-        let stream_id = self.profile_stream_of(token);
+        let Some(stream_id) = self.profile_streams.remove(&token.id) else {
+            return Self::no_such_window();
+        };
         let rx = self.submit_request(|id| Task::ProfileEnd(id, stream_id, token, options));
 
         ProfileDuration::new_device_time_maybe(async move {
@@ -598,25 +600,37 @@ impl RemoteService {
         })
     }
 
-    /// Drop the window `token` where `stream_id` stands without measuring it.
+    /// Drop the window `token` without measuring it, on the stream it was
+    /// opened on.
     ///
     /// Nothing comes back, so nothing is waited on and no pending callback is
     /// registered — the client is unwinding, and a measurement it asked for
-    /// would arrive with nobody to take it.
+    /// would arrive with nobody to take it. Flushed even so: this is usually
+    /// the caller's last word on the device, and an abandon left sitting in
+    /// the batch holds the server's window open for exactly as long as it is
+    /// the only thing in there — which is the case it exists for.
     pub fn profile_abandon(&mut self, token: ProfileToken) {
-        let stream_id = self.profile_stream_of(token);
+        let Some(stream_id) = self.profile_streams.remove(&token.id) else {
+            let _ = Self::no_such_window();
+            return;
+        };
         self.submit_task(Task::ProfileAbandon(stream_id, token));
+        self.flush();
     }
 
-    /// The stream `token` was opened on, taken out of the open-window table.
+    /// The answer to closing or abandoning a window this service does not
+    /// have open: it never handed the token out, or it already took the entry.
     ///
-    /// Falls back to the calling thread's stream for a token this service
-    /// never handed out, which is the best guess available and what every
-    /// same-thread caller would have named anyway.
-    fn profile_stream_of(&mut self, token: ProfileToken) -> StreamId {
-        self.profile_streams
-            .remove(&token.id)
-            .unwrap_or_else(StreamId::current)
+    /// Nothing is sent. The stream a close has to name is the one its open was
+    /// sent on, and only that entry held it — a guess would order the close
+    /// against operations it never measured, and on a `flush` drain a queue
+    /// holding none of them. A token with no entry has no window behind it to
+    /// release anyway.
+    fn no_such_window() -> ProfileDuration {
+        log::error!(
+            "A remote profiling window was closed twice, or with a token this device never opened"
+        );
+        ProfileDuration::new_device_time_maybe(async move { None })
     }
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {

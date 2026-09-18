@@ -23,6 +23,25 @@
 use burn::prelude::{Device, Tensor};
 use burn::tensor::{ProfileDuration, ProfileOptions};
 use core::time::Duration;
+use std::sync::{Mutex, MutexGuard};
+
+/// One test on the device at a time.
+///
+/// Each test here hosts a server over `Device::default()` — the same physical
+/// device, and through the global fusion client the same server thread and
+/// stream. So a window one test measures would otherwise hold another test's
+/// chain, and its compile and tuning with it. `profile.rs` serializes for the
+/// same reason.
+static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+/// Exclusive use of the device, kept even if another test panicked while
+/// holding it — the poison says nothing about the device itself. One of these
+/// tests panics on purpose.
+fn one_at_a_time() -> MutexGuard<'static, ()> {
+    ONE_AT_A_TIME
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 /// What the window measured, or `None` where the device took no measurement.
 ///
@@ -57,6 +76,7 @@ fn lazy_chain(device: &Device) -> Tensor<1> {
 /// idle window as no time.
 #[test]
 fn flush_reaches_the_server_queue() {
+    let _guard = one_at_a_time();
     let port = 3190;
     std::thread::spawn(move || {
         burn::server::start(Device::default(), burn::server::Channel::WebSocket { port })
@@ -110,6 +130,7 @@ fn flush_reaches_the_server_queue() {
 /// abandoned window could have broken.
 #[test]
 fn a_panicking_closure_abandons_the_server_window() {
+    let _guard = one_at_a_time();
     let port = 3191;
     std::thread::spawn(move || {
         burn::server::start(Device::default(), burn::server::Channel::WebSocket { port })
