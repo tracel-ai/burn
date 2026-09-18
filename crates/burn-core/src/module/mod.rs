@@ -2,6 +2,7 @@ mod base;
 mod display;
 mod lora;
 mod param;
+pub mod pipeline;
 mod quantize;
 
 pub use base::*;
