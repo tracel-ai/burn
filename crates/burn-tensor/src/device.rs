@@ -25,7 +25,13 @@ pub use burn_dispatch::backends::capture::{
     CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope, TensorId,
 };
 
-#[cfg(feature = "remote-websocket")]
+#[cfg(any(
+    feature = "remote-websocket",
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu"
+))]
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
