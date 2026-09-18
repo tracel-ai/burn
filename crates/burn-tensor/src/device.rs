@@ -1585,13 +1585,11 @@ mod autodiff_move_tests {
     }
 }
 
-#[cfg(all(test, feature = "cuda", feature = "vulkan"))]
+#[cfg(all(test, feature = "cuda", feature = "wgpu"))]
 mod tests {
     use super::*;
 
-    /// The reason the enumeration exists: a card reached through two runtimes is one card.
-    /// Needs an NVIDIA card visible to both CUDA and Vulkan, so it is ignored by default:
-    /// `cargo test -p burn-tensor --features cuda,vulkan enumerate_physical -- --ignored`.
+    /// `cargo test -p burn-tensor --features cuda,wgpu a_card_reached_by_two_runtimes -- --ignored`
     #[test]
     #[ignore = "needs an NVIDIA card reachable through CUDA and Vulkan"]
     fn a_card_reached_by_two_runtimes_is_listed_once() {
