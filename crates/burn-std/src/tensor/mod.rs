@@ -35,8 +35,16 @@ pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
         return true;
     }
 
-    for (&expected, &stride) in contiguous_strides(shape).iter().zip(strides) {
-        if expected != stride {
+    // A dimension of size one is visited once, so its stride is never applied and can hold
+    // anything: a permute leaves whatever the axis carried before, and broadcast views use 0.
+    // Comparing it would report a contiguous tensor as strided, as [2, 3, 1] with strides
+    // [3, 1, 3] coming out of `permute([0, 2, 1])`.
+    for ((&expected, &stride), &dim) in contiguous_strides(shape)
+        .iter()
+        .zip(strides)
+        .zip(shape.iter())
+    {
+        if dim != 1 && expected != stride {
             return false;
         }
     }
@@ -303,12 +311,33 @@ mod tests {
         assert_eq!(analysis, ReshapeAnalysis::IsContiguous)
     }
 
+    // [32, 1, 1, 1] with strides [1, 32, 32, 32] is contiguous: only the first axis is
+    // ever indexed, and it steps by one. The trailing strides belong to axes of size one
+    // and are never applied, so the analysis short-circuits before reaching the batch and
+    // split branches, which the three tests below cover with genuinely strided inputs.
+    #[test]
+    fn test_reshape_analysis_unit_axes_are_contiguous() {
+        for shape_new in [
+            [1, 1, 32, 1, 1, 1].as_slice(),
+            [32, 1, 1, 1, 1].as_slice(),
+            [4, 8, 1, 1, 1].as_slice(),
+        ] {
+            let analysis = reshape_analysis(
+                &[32, 1, 1, 1].into(),
+                Some(&[1, 32, 32, 32].into()),
+                &shape_new.into(),
+            );
+
+            assert_eq!(analysis, ReshapeAnalysis::IsContiguous, "{shape_new:?}")
+        }
+    }
+
     #[test]
     fn test_reshape_analysis_broadcasted_batch() {
         let analysis = reshape_analysis(
-            &[32, 1, 1, 1].into(),
-            Some(&[1, 32, 32, 32].into()),
-            &[1, 1, 32, 1, 1, 1].into(),
+            &[32, 32].into(),
+            Some(&[1, 32].into()),
+            &[1, 32, 32].into(),
         );
 
         assert_eq!(analysis, ReshapeAnalysis::Broadcasted)
@@ -318,9 +347,9 @@ mod tests {
     fn test_reshape_analysis_unsqueeze_split() {
         // Unsqueeze
         let analysis = reshape_analysis(
-            &[32, 1, 1, 1].into(),
-            Some(&[1, 32, 32, 32].into()),
-            &[32, 1, 1, 1, 1].into(),
+            &[32, 32].into(),
+            Some(&[1, 32].into()),
+            &[32, 32, 1].into(),
         );
 
         assert_eq!(analysis, ReshapeAnalysis::Split)
@@ -329,9 +358,9 @@ mod tests {
     #[test]
     fn test_reshape_analysis_split() {
         let analysis = reshape_analysis(
-            &[32, 1, 1, 1].into(),
-            Some(&[1, 32, 32, 32].into()),
-            &[4, 8, 1, 1, 1].into(),
+            &[32, 32].into(),
+            Some(&[1, 32].into()),
+            &[4, 8, 32].into(),
         );
 
         assert_eq!(analysis, ReshapeAnalysis::Split)
