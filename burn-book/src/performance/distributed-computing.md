@@ -9,6 +9,8 @@ hosted by another process. These capabilities can be used independently or toget
   distributed data-parallel (DDP) training.
 - A remote `Device` sends normal tensor operations to a Burn compute server. A set of remote devices
   can also participate in DDP.
+- `burn::module::pipeline::Pipeline` splits one model by whole layers across several devices, so a
+  model too large for one device runs as a sequence of stages.
 
 ## Distributed Tensor Operations
 
@@ -103,6 +105,87 @@ DDP differs from `ExecutionStrategy::MultiDevice`: DDP gives each device a model
 collectives to synchronize gradients, whereas the multi-device strategy coordinates optimization
 through Burn's non-DDP multi-device training path.
 
+## Pipeline Parallelism
+
+DDP copies the whole model onto every device. When the model does not fit on one device, pipeline
+parallelism cuts it by whole layers instead: each device holds a run of consecutive layers, a stage,
+and the activations move from one device to the next. A model opts in by implementing
+`burn::module::pipeline::Pipeline`, which splits its forward pass into segments: `forward_input`,
+then `forward_block` for each block in order, then `forward_output`.
+
+The input and the activations passed between segments are modules, so they can move to another
+device: tensors, tuples of tensors, arrays, `Vec` and `Option` already are, and a struct of tensors
+can derive `Module`. The model also states which submodules each segment runs, in a
+`PipelineLayout`. A transformer, for instance, passes its hidden state along with its masks:
+
+```rust, ignore
+impl Pipeline for Transformer {
+    type Input = (Tensor<2, Int>, Tensor<2, Bool>);
+    type Output = Tensor<3>;
+    type Activations = (Tensor<3>, Tensor<2, Bool>, Tensor<3, Bool>);
+
+    fn layout(&self) -> PipelineLayout {
+        PipelineLayout::new()
+            .input(&self.embedding_token)
+            .input(&self.embedding_pos)
+            .blocks(&self.layers)
+            .output(&self.output)
+    }
+
+    fn forward_input(&self, (tokens, mask_pad): Self::Input) -> Self::Activations { /* embeddings and masks */ }
+    fn forward_block(&self, index: usize, activations: Self::Activations) -> Self::Activations { /* one layer */ }
+    fn forward_output(&self, activations: Self::Activations) -> Self::Output { /* output projection */ }
+}
+```
+
+A `StageMap` gives every segment a device, usually built from stages. `place` forks each parameter
+onto the device of the segment that owns it, and `forward_on` runs the segments on their devices,
+moving the input and the activations along. The model keeps its type, so the optimizer, records and
+checkpoints work as they do on one device:
+
+```rust, ignore
+let stages = StageMap::new(&[
+    Stage { device: Device::cuda(0).autodiff(), blocks: 6 },
+    Stage { device: Device::cuda(1).autodiff(), blocks: 6 },
+]);
+let model = model.place(&stages);
+
+let logits = model.forward_on(&stages, (tokens, mask_pad));
+let loss = loss_fn.forward(logits.flatten(0, 1), targets.flatten(0, 1));
+let grads = GradientsParams::from_grads(loss.backward(), &model);
+let model = optim.step(lr, model, grads);
+```
+
+A parameter that has not initialized yet is not copied: it takes its segment's device and
+initializes there on first use. The `burn-nn` layers built from a config initialize lazily, so a
+model built on any device never lands on it whole, and weights loaded after `place` go straight to
+their segment's device. That is how a model too large for one device loads:
+
+```rust, ignore
+let model = ModelConfig::new().init(&device).place(&stages).load_record(record);
+```
+
+Inside the segments, create any tensor on the device of the tensors you were handed rather than on a
+device of the model: once placed, the model has several.
+
+Every parameter belongs to exactly one segment: `PipelineLayout` refuses a submodule claimed by two
+segments, and `place` refuses a parameter no segment claims. A segment that reads a parameter another
+segment owns, such as an output head tied to the input embedding, moves it to its own device, and the
+gradient flows back to the owner:
+
+```rust, ignore
+// In a model whose activations are the hidden state alone.
+fn forward_output(&self, hidden: Tensor<3>) -> Tensor<3> {
+    let embedding = self.embedding.weight.val().to_device(&hidden.device());
+    hidden.matmul(embedding.transpose().unsqueeze())
+}
+```
+
+Stages run one after another, so pipeline parallelism buys capacity, not speed: each device waits for
+the previous one, and every move between devices costs the size of the activations.
+
+The `pipeline-parallel` example trains a small model split this way across one device per GPU.
+
 ## Remote Devices
 
 A remote device implements the same `Device` interface as a local CUDA, WGPU, or CPU device. Tensor
@@ -163,5 +246,7 @@ across the selected server devices.
   synchronization.
 - Use local DDP when several devices are directly available to the training process.
 - Use remote devices with DDP when a Burn server exposes several accelerators to a client.
+- Use a pipeline when one copy of the model does not fit on a device, or to run a model across
+  devices of different backends.
 
 Distributed execution assumes that participating devices support the required collective operations.
