@@ -283,7 +283,7 @@ impl PytorchReader {
     /// This is useful for extracting configuration or metadata that isn't tensor data.
     /// Returns a simplified JSON-like structure that can be easily converted to other formats.
     /// Tensors and Python objects the reader does not interpret appear as
-    /// [`PickleValue::None`].
+    /// [`PickleValue::Unsupported`], naming their Python type.
     ///
     /// # Arguments
     /// * `path` - Path to the PyTorch file
@@ -316,7 +316,10 @@ impl PytorchReader {
     ///
     /// # Returns
     /// A `Result` containing the deserialized configuration data, or an `Error` if
-    /// reading or deserialization fails.
+    /// reading or deserialization fails. A field whose value the reader cannot represent
+    /// (a numpy scalar, a `torch.dtype`, a tensor) is an error rather than a default.
+    /// Entries the target type does not name are skipped, so weights saved beside the
+    /// configuration do not get in the way.
     ///
     /// # Example
     /// ```rust,no_run
@@ -367,6 +370,10 @@ pub enum PickleValue {
     Dict(HashMap<String, PickleValue>),
     /// Binary data
     Bytes(Vec<u8>),
+    /// A value the reader cannot represent, holding the name of its Python type: a tensor
+    /// or storage, a class such as `torch.float32`, an object it does not interpret
+    /// (`numpy.core.multiarray.scalar`, `torch.device`), or an `int` too wide for an `i64`.
+    Unsupported(String),
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -800,7 +807,7 @@ fn extract_tensors_at(
 /// Convert an internal object to the public [`PickleValue`].
 ///
 /// Tuples become lists, and anything without a JSON-like counterpart (classes, tensors,
-/// storages, uninterpreted objects) becomes `None`.
+/// storages, uninterpreted objects) becomes [`PickleValue::Unsupported`] naming its type.
 fn to_pickle_value(obj: Object) -> PickleValue {
     match obj {
         Object::None => PickleValue::None,
@@ -817,8 +824,8 @@ fn to_pickle_value(obj: Object) -> PickleValue {
                 .map(|(k, v)| (k, to_pickle_value(v)))
                 .collect(),
         ),
-        Object::Class { .. } | Object::Storage(_) | Object::Opaque | Object::Tensor(_) => {
-            PickleValue::None
+        Object::Class { .. } | Object::Storage(_) | Object::Opaque(_) | Object::Tensor(_) => {
+            PickleValue::Unsupported(obj.python_type_name())
         }
     }
 }
@@ -842,5 +849,6 @@ fn to_nested_value(value: PickleValue) -> NestedValue {
         PickleValue::Bytes(data) => {
             NestedValue::Vec(data.into_iter().map(NestedValue::U8).collect())
         }
+        PickleValue::Unsupported(type_name) => NestedValue::Unsupported(type_name),
     }
 }
