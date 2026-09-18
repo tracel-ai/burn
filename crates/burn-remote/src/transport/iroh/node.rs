@@ -6,6 +6,7 @@ use iroh::{
     Endpoint, EndpointAddr, EndpointId,
     endpoint::{Connection, RecvStream, SendStream},
 };
+#[cfg(feature = "server")]
 use std::sync::{OnceLock, Weak};
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
@@ -184,6 +185,7 @@ impl RemoteNode {
 
             let endpoint = self.inner.endpoint.clone();
             let peer_for_connect = peer.clone();
+            #[cfg(feature = "server")]
             let node = self.clone();
             let connection = cell
                 .get_or_try_init(|| async move {
@@ -206,7 +208,6 @@ impl RemoteNode {
         }
     }
 
-    #[cfg(feature = "server")]
     /// Serve the streams peers open on the connections this node dials, which is what lets a peer
     /// reach a server it cannot dial itself. Held weakly, so the server it belongs to still drops.
     ///
@@ -245,6 +246,7 @@ impl RemoteNode {
         });
     }
 
+    #[cfg(feature = "server")]
     pub(crate) async fn remember_connection(&self, connection: Connection) {
         let remote = connection.remote_id();
         let cell = {
