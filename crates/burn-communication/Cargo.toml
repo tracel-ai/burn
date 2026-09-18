@@ -31,8 +31,6 @@ serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "signal", "tracing"] }
 tokio-util = { workspace = true }
 tracing = { workspace = true, features = ["default"] }
-tracing-core = { workspace = true, features = ["default"] }
-tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filter"] }
 
 # Tensor Data Service
 burn-backend = { workspace = true, optional = true, features = ["default"] }
