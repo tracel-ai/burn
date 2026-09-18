@@ -52,7 +52,7 @@ fn one_at_a_time() -> MutexGuard<'static, ()> {
 /// as the quicker. The lazy window below is that window whenever the server
 /// holds the chain back, so it is read as an absence rather than unwrapped.
 fn measured(duration: ProfileDuration) -> Option<Duration> {
-    futures_lite::future::block_on(duration.resolve()).map(|ticks| ticks.duration())
+    burn_std::future::block_on(duration.resolve()).map(|ticks| ticks.duration())
 }
 
 /// See `lazy_chain` in `profile.rs`: the server's fusion holds it in its

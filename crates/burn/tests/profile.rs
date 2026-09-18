@@ -70,7 +70,7 @@ mod cube {
     }
 
     fn resolve(duration: ProfileDuration) -> ProfileTicks {
-        futures_lite::future::block_on(duration.resolve()).expect("the window carried work")
+        burn_std::future::block_on(duration.resolve()).expect("the window carried work")
     }
 
     /// The element-wise median of three runs of `measure`.
@@ -308,7 +308,7 @@ mod cube {
         assert_eq!(out, 42);
         // Some(~0) on a stream-stamping runtime, None on a kernel-stamping
         // one. Both are answers; an error would not be.
-        let _ = futures_lite::future::block_on(duration.resolve());
+        let _ = burn_std::future::block_on(duration.resolve());
     }
 }
 
@@ -340,7 +340,7 @@ fn default_device_profiles_in_system_time() {
 
     assert_eq!(sum, 1024.0);
     if duration.timing_method() == TimingMethod::System {
-        let ticks = futures_lite::future::block_on(duration.resolve()).unwrap();
+        let ticks = burn_std::future::block_on(duration.resolve()).unwrap();
         assert!(ticks.duration() > core::time::Duration::ZERO);
     }
 }

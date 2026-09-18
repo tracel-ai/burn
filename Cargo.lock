@@ -913,7 +913,6 @@ dependencies = [
  "burn-train",
  "burn-vision",
  "cubecl",
- "futures-lite",
 ]
 
 [[package]]
