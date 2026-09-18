@@ -51,9 +51,23 @@ update the lock file.
 
 ## Contributing to either the Burn Book or Contributor Book
 
-Both the Burn Book and the Contributor Book are built with mdbook. To open the book locally, run
-`mdbook serve <path/to/book>` or `cargo xtask books {burn|contributor} open` which will install and
-use mdbook automatically.
+Both the Burn Book and the Contributor Book are built with mdBook. From the repository root, use
+the xtask commands to build them. These commands install mdBook if needed:
+
+```bash
+cargo xtask books burn build
+cargo xtask books contributor build
+```
+
+To serve a book locally and open it in your browser:
+
+```bash
+cargo xtask books burn open
+cargo xtask books contributor open
+```
+
+Run the command for the book you want to preview. Add `--port 3000` to choose a port; otherwise,
+xtask selects one automatically.
 
 Alternatively, if you want to install mdbook directly, run the following command[^update_note]:
 

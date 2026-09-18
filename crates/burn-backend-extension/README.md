@@ -5,10 +5,23 @@
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-backend-extension.svg)](https://crates.io/crates/burn-backend-extension)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn-backend-extension/blob/master/README.md)
 
-`#[backend_extension]` generates runtime dispatch for custom backend operations. Add `Fusion`
-to generate a lazy implementation that computes output metadata now and calls the backend later.
-Enable Burn's `extension` and `fusion` features plus a CubeCL runtime, such as `cpu` or `wgpu`,
-and add `burn-cubecl` as a dependency for the backend implementation.
+`#[backend_extension]` generates runtime dispatch for custom backend operations. Enable Burn's
+`extension` feature and the backends you target. Implement the extension trait on each selected
+backend, then expose a `Tensor<D>` wrapper through `Dispatch` and `Tensor::into_dispatch` /
+`Tensor::from_dispatch`.
+
+`Cube` selects CubeCL runtimes such as WGPU, CUDA, ROCm, and CPU; `Wgpu` and `Cuda` are not macro
+selectors. Other execution backend selectors include `Flex`, `NdArray`, `LibTorch`, and `Remote`.
+Selectors can be gated with conditions such as `Cube: cfg(feature = "wgpu")`, evaluated in the
+extension crate. Add `Autodiff` to route to your `Autodiff<B, C>` implementation; it does not
+generate derivatives. A default body composing differentiable primitives can also supply that
+implementation. See the
+[book introduction](../../burn-book/src/advanced/backend-extension/README.md) for a small Flex
+example.
+
+Add `Fusion` to generate a lazy implementation that computes output metadata now and calls the
+backend later. Enable Burn's `extension` and `fusion` features plus a CubeCL runtime, such as `cpu`
+or `wgpu`, and add `burn-cubecl` as a dependency for the backend implementation.
 
 ```rust,ignore
 use burn::backend::{Backend, backend_extension, ops::FloatTensorOps, tensor::FloatTensor};
@@ -28,17 +41,18 @@ impl ScaleOps for CubeBackend {
 ```
 
 Here, `dtype = input` copies the input dtype and `shape = input` copies its shape. For a different
-output shape, call a helper shared with the backend implementation, such as `shape = output_shape(input)`.
-Use `#[fusion(meta = callable)]` for structured outputs or `#[fusion(default)]` to inherit a trait body.
+output shape, call a helper shared with the backend implementation, such as
+`shape = output_shape(input)`. Use `#[fusion(meta = callable)]` for structured outputs or
+`#[fusion(default)]` to inherit a trait body.
 
 **For structured outputs, metadata supplies the actual non-tensor return values.** They must match
 direct backend execution; the backend's later values are discarded without comparison.
 
-See the [macro documentation in `src/lib.rs`](src/lib.rs)
-for the complete metadata contract, supported signatures, validation, and scalar encodings.
-The [custom CubeCL kernel tutorial](../../burn-book/src/advanced/backend-extension/custom-cubecl-kernel.md)
-shows how to add a kernel and a handwritten backward pass. Fusion generation does not generate gradients
-or automatically merge custom kernels with neighboring operations.
+See the [macro documentation in `src/lib.rs`](src/lib.rs) for the complete metadata contract,
+supported signatures, validation, and scalar encodings. The
+[custom CubeCL kernel tutorial](../../burn-book/src/advanced/backend-extension/custom-cubecl-kernel.md)
+shows how to add a kernel and a handwritten backward pass. Fusion generation does not generate
+gradients or automatically merge custom kernels with neighboring operations.
 
 ## Integration tests
 

@@ -9,37 +9,14 @@ you can safely use `config.init(device).load_record(record)` without any meaning
 cost. Let's create a simple `infer` method in a new file `src/inference.rs` which we will use to
 load our trained model.
 
-```rust , ignore
-# use crate::{data::MnistBatcher, training::TrainingConfig};
-# use burn::{
-#     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
-#     prelude::*,
-#     store::ModuleRecord,
-# };
-#
-pub fn infer(artifact_dir: &str, device: impl Into<Device>, item: MnistItem) {
-    let device = device.into();
-    let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
-        .expect("Config should exist for the model; run train first");
-    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
-        .expect("Trained model should exist; run train first");
-
-    let model = config.model.init(&device).load_record(record);
-
-    let label = item.label;
-    let batcher = MnistBatcher::default();
-    let batch = batcher.batch(vec![item], &device);
-    let output = model.forward(batch.images);
-    let predicted: u8 = output.argmax(1).flatten::<1>(0, 1).into_scalar();
-
-    println!("Predicted {predicted} Expected {label}");
-}
+```rust,ignore
+{{#include ../../../examples/guide/src/inference.rs}}
 ```
 
 The first step is to load the configuration of the training to fetch the correct model
 configuration. Then we can load the saved record from its burnpack file. Finally we can init the
-model with the configuration and apply the record. For simplicity we can use the
-same batcher used during the training to pass from a MnistItem to a tensor.
+model with the configuration and apply the record. For simplicity we can use the same batcher used
+during the training to pass from a MnistItem to a tensor.
 
 By running the infer function, you should see the predictions of your model!
 

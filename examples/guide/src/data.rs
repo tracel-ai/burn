@@ -1,3 +1,8 @@
+// The Burn Book includes sections of this file using mdBook's ANCHOR / ANCHOR_END
+// markers. Keep each pair around the code it documents, and update the includes in
+// `burn-book/src/basic-workflow/data.md` if you rename or remove a marker.
+
+// ANCHOR: batcher
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
     prelude::*,
@@ -6,6 +11,8 @@ use burn::{
 #[derive(Clone, Default)]
 pub struct MnistBatcher {}
 
+// ANCHOR_END: batcher
+// ANCHOR: batch
 #[derive(Clone, Debug)]
 pub struct MnistBatch {
     pub images: Tensor<3>,
@@ -36,3 +43,4 @@ impl Batcher<MnistItem, MnistBatch> for MnistBatcher {
         MnistBatch { images, targets }
     }
 }
+// ANCHOR_END: batch

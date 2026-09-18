@@ -50,7 +50,7 @@ where
     /// Converts from a dispatch tensor into a tensor.
     ///
     /// # Panics
-    /// Panis if the dispatch dtype does not match the tensor kind `K`.
+    /// Panics if the dispatch dtype does not match the tensor kind `K`.
     pub fn from_dispatch(tensor: DispatchTensor) -> Self {
         match (tensor.dtype(), K::KIND) {
             (DType::QFloat(_), Kind::Float) => Self::new(BridgeTensor::qfloat(tensor)),
@@ -107,7 +107,7 @@ where
     /// This is the inverse of [`Tensor::try_into_primitive`].
     ///
     /// # Panics
-    /// Panis if the tensor kind `K` does not match the tensor underlying primitive kind.
+    /// Panics if the tensor kind `K` does not match the tensor underlying primitive kind.
     pub fn from_primitive<B: Backend>(primitive: <K as BackendPrimitive<B>>::Primitive) -> Self
     where
         K: BackendPrimitive<B>,

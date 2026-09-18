@@ -1,3 +1,8 @@
+// The Burn Book includes sections of this file using mdBook's ANCHOR / ANCHOR_END
+// markers. Keep each pair around the code it documents, and update the includes in
+// `burn-book/src/custom-training-loop.md` if you rename or remove a marker.
+
+// ANCHOR: config
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     module::Module,
@@ -23,7 +28,9 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
+// ANCHOR_END: config
 pub fn run(device: Device) {
+    // ANCHOR: setup
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
@@ -52,6 +59,8 @@ pub fn run(device: Device) {
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
+    // ANCHOR_END: setup
+    // ANCHOR: training_loop
     // Iterate over our training and validation loop for X epochs.
     for epoch in 1..config.num_epochs + 1 {
         // Implement our training loop.
@@ -96,8 +105,10 @@ pub fn run(device: Device) {
             );
         }
     }
+    // ANCHOR_END: training_loop
 }
 
+// ANCHOR: accuracy
 /// Create out own accuracy metric calculation.
 fn accuracy(output: Tensor<2>, targets: Tensor<1, Int>) -> f32 {
     let predictions = output.argmax(1).squeeze_dim(1);
@@ -106,3 +117,4 @@ fn accuracy(output: Tensor<2>, targets: Tensor<1, Int>) -> f32 {
 
     num_corrects / num_predictions * 100.0
 }
+// ANCHOR_END: accuracy

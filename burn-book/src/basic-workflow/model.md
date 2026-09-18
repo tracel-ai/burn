@@ -30,26 +30,8 @@ pooling and ReLU activations. We will also use dropout to improve training perfo
 
 Let us start by defining our model struct in a new file `src/model.rs`.
 
-```rust , ignore
-use burn::{
-    nn::{
-        conv::{Conv2d, Conv2dConfig},
-        pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
-        Dropout, DropoutConfig, Linear, LinearConfig, Relu,
-    },
-    prelude::*,
-};
-
-#[derive(Module, Debug)]
-pub struct Model {
-    conv1: Conv2d,
-    conv2: Conv2d,
-    pool: AdaptiveAvgPool2d,
-    dropout: Dropout,
-    linear1: Linear,
-    linear2: Linear,
-    activation: Relu,
-}
+```rust,ignore
+{{#include ../../../examples/guide/src/model.rs:model}}
 ```
 
 There are two major things going on in this code sample.
@@ -131,49 +113,8 @@ mod model;
 
 Next, we need to instantiate the model for training.
 
-```rust , ignore
-# use burn::{
-#     nn::{
-#         conv::{Conv2d, Conv2dConfig},
-#         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
-#         Dropout, DropoutConfig, Linear, LinearConfig, Relu,
-#     },
-#     prelude::*,
-# };
-#
-# #[derive(Module, Debug)]
-# pub struct Model {
-#     conv1: Conv2d,
-#     conv2: Conv2d,
-#     pool: AdaptiveAvgPool2d,
-#     dropout: Dropout,
-#     linear1: Linear,
-#     linear2: Linear,
-#     activation: Relu,
-# }
-#
-#[derive(Config, Debug)]
-pub struct ModelConfig {
-    num_classes: usize,
-    hidden_size: usize,
-    #[config(default = "0.5")]
-    dropout: f64,
-}
-
-impl ModelConfig {
-    /// Returns the initialized model.
-    pub fn init(&self, device: &Device) -> Model {
-        Model {
-            conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
-            conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
-            pool: AdaptiveAvgPool2dConfig::new([8, 8]).init(),
-            activation: Relu::new(),
-            linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(device),
-            linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(device),
-            dropout: DropoutConfig::new(self.dropout).init(),
-        }
-    }
-}
+```rust,ignore
+{{#include ../../../examples/guide/src/model.rs:model_config}}
 ```
 
 At a glance, you can view the model configuration by printing the model instance:
@@ -266,76 +207,8 @@ which we will flatten in the forward pass to have a 1024 (16 _ 8 _ 8) resulting 
 
 Now let's see how the forward pass is defined.
 
-```rust , ignore
-# use burn::{
-#     nn::{
-#         conv::{Conv2d, Conv2dConfig},
-#         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
-#         Dropout, DropoutConfig, Linear, LinearConfig, Relu,
-#     },
-#     prelude::*,
-# };
-#
-# #[derive(Module, Debug)]
-# pub struct Model {
-#     conv1: Conv2d,
-#     conv2: Conv2d,
-#     pool: AdaptiveAvgPool2d,
-#     dropout: Dropout,
-#     linear1: Linear,
-#     linear2: Linear,
-#     activation: Relu,
-# }
-#
-# #[derive(Config, Debug)]
-# pub struct ModelConfig {
-#     num_classes: usize,
-#     hidden_size: usize,
-#     #[config(default = "0.5")]
-#     dropout: f64,
-# }
-#
-# impl ModelConfig {
-#     /// Returns the initialized model.
-#     pub fn init(&self, device: &Device) -> Model {
-#         Model {
-#             conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
-#             conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
-#             pool: AdaptiveAvgPool2dConfig::new([8, 8]).init(),
-#             activation: Relu::new(),
-#             linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(device),
-#             linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(device),
-#             dropout: DropoutConfig::new(self.dropout).init(),
-#         }
-#     }
-# }
-#
-impl Model {
-    /// # Shapes
-    ///   - Images [batch_size, height, width]
-    ///   - Output [batch_size, num_classes]
-    pub fn forward(&self, images: Tensor<3>) -> Tensor<2> {
-        let [batch_size, height, width] = images.dims();
-
-        // Create a channel at the second dimension.
-        let x = images.reshape([batch_size, 1, height, width]);
-
-
-        let x = self.conv1.forward(x); // [batch_size, 8, _, _]
-        let x = self.dropout.forward(x);
-        let x = self.conv2.forward(x); // [batch_size, 16, _, _]
-        let x = self.dropout.forward(x);
-        let x = self.activation.forward(x);
-
-        let x = self.pool.forward(x); // [batch_size, 16, 8, 8]
-        let x = x.reshape([batch_size, 16 * 8 * 8]);
-        let x = self.linear1.forward(x);
-        let x = self.dropout.forward(x);
-        let x = self.activation.forward(x);
-
-        self.linear2.forward(x) // [batch_size, num_classes]
-    }
-}
+```rust,ignore
+{{#include ../../../examples/guide/src/model.rs:forward}}
 ```
 
 For former PyTorch users, this might feel very intuitive, as each module is directly incorporated

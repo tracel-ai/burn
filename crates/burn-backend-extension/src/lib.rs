@@ -72,6 +72,22 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// method argument. Autodiff support for custom operations requires a handwritten implementation of the extension trait
 /// for Autodiff<B, C>; this macro does not generate backward passes.
 ///
+/// # Backend selection
+///
+/// Execution backend selectors include `Cube`, `Flex`, `NdArray`, `LibTorch`, and `Remote`.
+/// `Cube` covers the CubeCL runtimes, including WGPU, CUDA, ROCm, and CPU; `Wgpu` and `Cuda`
+/// are not selectors. Gate a selector with, for example, `Cube: cfg(feature = "wgpu")`;
+/// this condition refers to the consuming crate's features. Enable Burn's `extension` feature
+/// and the backend features you target.
+///
+/// Implement the extension trait on each selected backend. Add `Autodiff` to generate routing
+/// to your `Autodiff<B, C>` implementation. A default trait body composing differentiable
+/// operations can supply that implementation; the macro does not derive a custom backward pass.
+/// Calling an extension on an unlisted runtime backend panics.
+///
+/// Expose a high-level `Tensor<D>` wrapper by calling the generated `Dispatch` implementation
+/// with `Tensor::into_dispatch` and wrapping its output with `Tensor::from_dispatch`.
+///
 /// # Fusion
 ///
 /// Add `Fusion` (optionally `Fusion: cfg(...)`) to also generate a lazy implementation
