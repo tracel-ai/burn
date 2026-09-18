@@ -664,17 +664,24 @@ impl FloatTensorOps<Flex> for Flex {
         let max32 = max.to_f32().unwrap();
         let min64 = min.to_f64().unwrap();
         let max64 = max.to_f64().unwrap();
-        // `f32::clamp` panics on a NaN bound. Composing the comparisons `clamp_max` and
-        // `clamp_min` use below keeps the three ops in agreement, as PyTorch has them.
+        // `f32::clamp` panics on a NaN bound, so take that case out first and let the rest
+        // keep the native clamp, which decides signed zero and rejects `min > max`. A NaN
+        // bound gives NaN, agreeing with `clamp_min`/`clamp_max` below and with PyTorch.
         unary::unary_op(
             tensor,
             move |x: f32| {
-                let x = if x.is_nan() || x < max32 { x } else { max32 };
-                if x.is_nan() || x > min32 { x } else { min32 }
+                if min32.is_nan() || max32.is_nan() {
+                    f32::NAN
+                } else {
+                    x.clamp(min32, max32)
+                }
             },
             move |x: f64| {
-                let x = if x.is_nan() || x < max64 { x } else { max64 };
-                if x.is_nan() || x > min64 { x } else { min64 }
+                if min64.is_nan() || max64.is_nan() {
+                    f64::NAN
+                } else {
+                    x.clamp(min64, max64)
+                }
             },
         )
     }

@@ -144,6 +144,20 @@ fn clamp_nan_bound_propagation() {
     }
 }
 
+// Taking the NaN bounds out of the way must leave the native clamp in charge, which
+// returns -0.0 rather than the lower bound.
+#[cfg(feature = "flex")]
+#[test]
+fn clamp_keeps_negative_zero() {
+    let tensor = TestTensor::<1>::from([-0.0, 0.0]);
+
+    let output = tensor.clamp(0.0, 1.0).into_data().convert::<f32>();
+    let values = output.as_slice::<f32>().unwrap();
+
+    assert!(values[0].is_sign_negative(), "{values:?}");
+    assert!(values[1].is_sign_positive(), "{values:?}");
+}
+
 // Two-sided clamp still maps NaN to a bound on the cube backends (verified failing on
 // CUDA), so this stays on the CPU backends until that is fixed separately.
 #[cfg(any(feature = "flex", feature = "ndarray"))]
