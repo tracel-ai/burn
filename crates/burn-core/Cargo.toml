@@ -26,6 +26,7 @@ default = [
     "burn-wgpu?/default",
 ]
 doc = [
+    "flex",
     "std",
     "dataset",
     "audio",

@@ -271,12 +271,13 @@ macro_rules! float_to_device_arms {
         match ($tensor.kind, $device) {
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensorKind::Autodiff(kind), $crate::DispatchDevice::Autodiff(device)) => {
-                let $crate::DispatchAutodiffContext::Enabled(ckp) = $tensor.autodiff else {
+                // No transfer arm consumes the strategy in capture-only builds.
+                let $crate::DispatchAutodiffContext::Enabled(_ckp) = $tensor.autodiff else {
                     panic!("an autodiff float primitive must have an enabled autodiff context")
                 };
                 float_to_device_arms!(
                     @autodiff
-                    *kind, &**device, ckp, $to_device;
+                    *kind, &**device, _ckp, $to_device;
                     $([$B1, $src_cfg] => [ $([$B2, $dst_cfg]),+ ]);*
                 )
 
@@ -453,11 +454,15 @@ macro_rules! unwrap_vec {
 macro_rules! transaction_op_arms {
     ($tx:ident, $first:expr; $([$Backend:ident, $cfg:meta]),*) => {{
         match &$first.kind {
+            #[cfg(not(backend_enabled))]
+            $crate::DispatchTensorKind::Unavailable(never) => never.unreachable(),
             // Autodiff arm first
             #[cfg(feature = "autodiff")]
             $crate::DispatchTensorKind::Autodiff(inner) => {
                 // Recursively dispatch on inner
                 match **inner {
+                    #[cfg(not(backend_enabled))]
+                    $crate::DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
                     $(
                     #[cfg($cfg)]
                     $crate::DispatchTensorKind::$Backend(_) => {

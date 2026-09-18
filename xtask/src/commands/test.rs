@@ -1,7 +1,7 @@
 use tracel_xtask::{
     prelude::{clap::ValueEnum, *},
     utils::{
-        process::{ExitSignal, ProcessExitError},
+        process::{ExitSignal, ProcessExitError, run_process},
         workspace::WorkspaceMember,
     },
 };
@@ -357,6 +357,10 @@ fn feature_test_group(
         if package.features.contains_key("default") {
             features.push(format!("{}/default", package.name));
         }
+        // Execution tests need an explicit backend, including capture/replay coverage.
+        if feature != "flex" && package.features.contains_key("flex") {
+            features.push(format!("{}/flex", package.name));
+        }
     }
     (
         packages
@@ -456,6 +460,10 @@ pub(crate) fn handle_command(
                         args.exclude.extend(vec!["burn-remote".to_string()]);
                     };
 
+                    // Select the execution backend explicitly now that defaults are backend-free.
+                    let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
+                    let (_, features) = feature_test_group(&metadata, "flex", &args.exclude);
+                    args.features.get_or_insert_with(Vec::new).extend(features);
                     set_burn_device("flex"); // default device for base tests
                     base_commands::test::handle_command(
                         args.clone().try_into().unwrap(),
@@ -549,6 +557,9 @@ pub(crate) fn handle_command(
                 CiTestType::Crates => {
                     // Capture is intentionally opt-in, so workspace-default tests don't compile
                     // the dispatch, tensor, core, or facade integration tests that exercise it.
+                    if !args.exclude.iter().any(|name| name == "burn") {
+                        super::validate::check_backend_features()?;
+                    }
                     let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
                     let (packages, features) =
                         feature_test_group(&metadata, "capture", &args.exclude);

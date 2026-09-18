@@ -23,7 +23,6 @@ default = [
     "burn-core/default",
     "burn-cubecl?/default",
     "burn-fusion?/default",
-    "flex",
     "fusion",
     "std",
 ]
@@ -90,3 +89,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 burn-core = { workspace = true, features = ["autodiff"] }
+
+[package.metadata.docs.rs]
+features = ["flex"]

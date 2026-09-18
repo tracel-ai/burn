@@ -59,6 +59,9 @@ Then, add Burn as a dependency:
 cargo add burn --features wgpu
 ```
 
+Burn does not enable an execution backend by default. The `wgpu` feature selects GPU
+execution; use `--features flex` instead for the pure-Rust CPU backend.
+
 Finally, compile the local package by executing the following:
 
 ```console

@@ -22,7 +22,7 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,no_run
 /// use burn_core::tensor::Device;
 /// use burn_signal::hann_window;
 ///

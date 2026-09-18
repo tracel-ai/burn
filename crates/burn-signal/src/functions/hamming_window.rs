@@ -22,7 +22,7 @@ where $\alpha = 25/46$, $\beta = 1 - \alpha$, and $N$ = `size` when `periodic` i
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,no_run
 /// use burn_core::tensor::Device;
 /// use burn_signal::hamming_window;
 ///

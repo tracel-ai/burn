@@ -75,7 +75,12 @@
 //! ## Feature Flags
 //!
 //! The following feature flags are available.
-//! By default, the feature `std` is activated.
+//! Default features include `std` but no execution backend.
+//! Select a backend explicitly, for example `features = ["wgpu"]` or `["flex"]`.
+//! Specialized operations are also opt-in, for example `features = ["flex", "signal"]`.
+//! Backend-free builds can define tensor/model APIs without installing an execution backend.
+//! `Device::default()` panics if no execution backend is available; graph capture remains
+//! available through `Device::capture()` with the `capture` feature.
 //!
 //! - Training
 //!   - `train`: Enables features `dataset` and `autodiff` and provides a training environment

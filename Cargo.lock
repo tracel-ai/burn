@@ -1163,6 +1163,7 @@ dependencies = [
  "burn-remote",
  "burn-tch",
  "paste",
+ "portable-atomic",
 ]
 
 [[package]]
