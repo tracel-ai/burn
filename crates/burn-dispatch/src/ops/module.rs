@@ -575,23 +575,6 @@ impl ModuleOps<Self> for Dispatch {
         B::layer_norm(tensor, gamma, beta, epsilon)
     }
 
-    fn rfft(
-        signal: FloatTensor<Self>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        B::rfft(signal, dim, n)
-    }
-
-    fn irfft(
-        spectrum_re: FloatTensor<Self>,
-        spectrum_im: FloatTensor<Self>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> FloatTensor<Self> {
-        B::irfft(spectrum_re, spectrum_im, dim, n)
-    }
-
     #[backend_dispatch(skip)]
     fn has_ctc_loss_backward() -> bool {
         // Dispatch routes per-tensor at runtime, but autodiff queries this flag

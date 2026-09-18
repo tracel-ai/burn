@@ -1,6 +1,6 @@
 use super::*;
-use burn_tensor::Tolerance;
-use burn_tensor::signal::{StftOptions, hann_window, istft, stft};
+use burn_core::tensor::Tolerance;
+use burn_signal::{StftOptions, hann_window, istft, stft};
 
 fn opts(n_fft: usize, hop_length: usize, center: bool, onesided: bool) -> StftOptions {
     StftOptions {
@@ -180,7 +180,7 @@ fn stft_istft_roundtrip_hann_window() {
 
 #[test]
 fn stft_with_hamming_window() {
-    use burn_tensor::signal::hamming_window;
+    use burn_signal::hamming_window;
     let signal = TestTensor::<2>::from([[1.0; 8]]);
     let window: TestTensor<1> = hamming_window(4, true, &Default::default());
     let result = stft(signal, Some(window), opts(4, 2, false, true));

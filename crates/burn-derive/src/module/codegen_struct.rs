@@ -147,7 +147,7 @@ impl ModuleCodegen for StructModuleCodegen {
         let (names, body) = self.gen_fields_fn_names(|name, field_type| {
             if field_type.is_module || field_type.maybe_generic_module() {
                 quote! {
-                    let #name = burn::module::AutodiffModule::valid(&self.#name);
+                    let #name = burn::module::Module::valid(&self.#name);
                 }
             } else {
                 quote! { let #name = self.#name.clone(); }
@@ -162,11 +162,11 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
-    fn gen_from_inner(&self) -> TokenStream {
+    fn gen_train(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name, field_type| {
             if field_type.is_module || field_type.maybe_generic_module() {
                 quote! {
-                    let #name = burn::module::AutodiffModule::from_inner(#name);
+                    let #name = burn::module::Module::train(#name);
                 }
             } else {
                 quote! { let #name = #name; }
@@ -174,11 +174,11 @@ impl ModuleCodegen for StructModuleCodegen {
         });
 
         let destructure = quote! {
-            let Self { #(#names),* } = module;
+            let Self { #(#names),* } = self;
         };
 
         quote! {
-            fn from_inner(module: Self) -> Self {
+            fn train(self) -> Self {
                 #destructure
                 #body
                 Self { #(#names),* }

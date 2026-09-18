@@ -318,10 +318,6 @@ pub enum ModuleOperationIr {
     Interpolate(InterpolateOpIr),
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
-    /// Operation corresponding to [rfft](burn_backend::ops::ModuleOps::rfft)
-    Rfft(RfftOpIr),
-    /// Operation corresponding to [irfft](burn_backend::ops::ModuleOps::irfft)
-    IRfft(IRfftOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
     /// Operation corresponding to [ctc_loss](burn_backend::ops::ModuleOps::ctc_loss).
@@ -1989,83 +1985,6 @@ pub struct InterpolateOpIr {
     pub output_size: [usize; 2],
     pub options: InterpolateOptionsIr,
     pub out: TensorIr,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct RfftOpIr {
-    pub signal: TensorIr,
-    pub dim: usize,
-    pub n: Option<usize>,
-    pub out_re: TensorIr,
-    pub out_im: TensorIr,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct IRfftOpIr {
-    pub input_re: TensorIr,
-    pub input_im: TensorIr,
-    pub dim: usize,
-    pub n: Option<usize>,
-    pub out_signal: TensorIr,
-}
-
-#[allow(missing_docs)]
-impl RfftOpIr {
-    pub fn create<F>(signal: TensorIr, dim: usize, n: Option<usize>, mut new_id: F) -> Self
-    where
-        F: FnMut() -> crate::TensorId,
-    {
-        // `n` is required to be a power of two at the public API boundary, so
-        // the output has `n / 2 + 1` bins (matching scipy/torch for pow2 n).
-        let mut shape = signal.shape.clone();
-        let fft_len = n.unwrap_or(shape[dim]);
-        shape[dim] = fft_len / 2 + 1;
-        let dtype = signal.dtype;
-
-        Self {
-            signal,
-            dim,
-            n,
-            out_re: TensorIr::uninit(new_id(), shape.clone(), dtype),
-            out_im: TensorIr::uninit(new_id(), shape, dtype),
-        }
-    }
-}
-
-#[allow(missing_docs)]
-impl IRfftOpIr {
-    pub fn create<F>(
-        input_re: TensorIr,
-        input_im: TensorIr,
-        dim: usize,
-        n: Option<usize>,
-        mut new_id: F,
-    ) -> Self
-    where
-        F: FnMut() -> crate::TensorId,
-    {
-        debug_assert!(
-            input_re.shape[dim] >= 1,
-            "IRfftOpIr: input spectrum dimension must be >= 1"
-        );
-        debug_assert!(
-            !matches!(n, Some(0)),
-            "IRfftOpIr: n must be >= 1 when specified"
-        );
-        let mut shape = input_re.shape.clone();
-        shape[dim] = n.unwrap_or((shape[dim] - 1) * 2);
-        let dtype = input_re.dtype;
-
-        Self {
-            input_re,
-            input_im,
-            dim,
-            n,
-            out_signal: TensorIr::uninit(new_id(), shape, dtype),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -4016,10 +3935,6 @@ impl ModuleOperationIr {
             ModuleOperationIr::InterpolateBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
-            ModuleOperationIr::Rfft(repr) => Box::new([&repr.signal].into_iter()),
-            ModuleOperationIr::IRfft(repr) => {
-                Box::new([&repr.input_re, &repr.input_im].into_iter())
-            }
             ModuleOperationIr::Attention(repr) => {
                 if let Some(mask) = &repr.mask {
                     if let Some(attn_bias) = &repr.attn_bias {
@@ -4163,8 +4078,6 @@ impl ModuleOperationIr {
             }
             ModuleOperationIr::Interpolate(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::InterpolateBackward(repr) => Box::new([&repr.out].into_iter()),
-            ModuleOperationIr::Rfft(repr) => Box::new([&repr.out_re, &repr.out_im].into_iter()),
-            ModuleOperationIr::IRfft(repr) => Box::new([&repr.out_signal].into_iter()),
             ModuleOperationIr::Attention(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::CtcLoss(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::CtcLossBackward(repr) => Box::new([&repr.out].into_iter()),
@@ -4416,13 +4329,6 @@ impl ModuleOperationIr {
             ModuleOperationIr::InterpolateBackward(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.grad.mark_read_only(nodes, &mut output);
-            }
-            ModuleOperationIr::Rfft(repr) => {
-                repr.signal.mark_read_only(nodes, &mut output);
-            }
-            ModuleOperationIr::IRfft(repr) => {
-                repr.input_re.mark_read_only(nodes, &mut output);
-                repr.input_im.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::Attention(repr) => {
                 repr.query.mark_read_only(nodes, &mut output);
@@ -4755,16 +4661,6 @@ impl ModuleOperationIr {
                 v.visit_tensor_mut(&mut repr.x);
                 v.visit_tensor_mut(&mut repr.grad);
                 v.visit_tensor_mut(&mut repr.out);
-            }
-            ModuleOperationIr::Rfft(repr) => {
-                v.visit_tensor_mut(&mut repr.signal);
-                v.visit_tensor_mut(&mut repr.out_re);
-                v.visit_tensor_mut(&mut repr.out_im);
-            }
-            ModuleOperationIr::IRfft(repr) => {
-                v.visit_tensor_mut(&mut repr.input_re);
-                v.visit_tensor_mut(&mut repr.input_im);
-                v.visit_tensor_mut(&mut repr.out_signal);
             }
             ModuleOperationIr::Attention(repr) => {
                 v.visit_tensor_mut(&mut repr.query);

@@ -1,18 +1,15 @@
+use crate::SignalOps;
 use alloc::vec;
-use burn_backend::ops::ModuleOps;
-use burn_dispatch::Dispatch;
-
-use crate::check;
-use crate::check::TensorCheck;
-use crate::check::unwrap_dim_index;
-use crate::ops::BridgeTensor;
-use crate::{AsIndex, Tensor};
+use burn_core::{
+    backend::Dispatch,
+    tensor::{AsIndex, Tensor},
+};
 
 /// Computes the 1-dimensional discrete Fourier Transform of real-valued input.
 ///
 /// Since the input is real, the Hermitian symmetry is exploited, and only the
 /// first non-redundant values are returned ($N/2 + 1$).
-/// For now, the autodiff is not yet supported
+/// Autodiff is supported when the `autodiff` feature is enabled.
 ///
 #[cfg_attr(
     doc,
@@ -45,25 +42,27 @@ where $N$ is the size of the signal along the specified dimension.
 ///
 /// # Example
 ///
-/// ```rust
-/// use burn_tensor::Tensor;
+/// ```rust,no_run
+/// use burn_core::tensor::Tensor;
 ///
 /// let device = Default::default();
 /// let signal = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
-/// let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
+/// let (real, imag) = burn_signal::rfft(signal, 0, None);
 /// ```
 pub fn rfft<const D: usize>(
     signal: Tensor<D>,
     dim: impl AsIndex,
     n: Option<usize>,
 ) -> (Tensor<D>, Tensor<D>) {
-    let dim = unwrap_dim_index(dim.try_dim_index(D), "RFFT");
+    let dim = dim
+        .try_dim_index(D)
+        .unwrap_or_else(|error| panic!("RFFT: {error}"));
 
     match n {
-        None => check!(TensorCheck::check_is_power_of_two::<D>(
-            &signal.shape(),
-            dim
-        )),
+        None => assert!(
+            signal.dims()[dim].is_power_of_two(),
+            "rfft: signal length must be a power of two"
+        ),
         Some(n) => {
             assert!(n >= 1, "rfft: n must be >= 1, got {n}");
             assert!(
@@ -74,20 +73,15 @@ pub fn rfft<const D: usize>(
         }
     }
 
-    let (re, im) = rfft_impl(signal.primitive, dim, n);
-    (Tensor::new(re), Tensor::new(im))
-}
-
-fn rfft_impl(signal: BridgeTensor, dim: usize, n: Option<usize>) -> (BridgeTensor, BridgeTensor) {
-    let (re, im) = Dispatch::rfft(signal.into_float(), dim, n);
-    (BridgeTensor::float(re), BridgeTensor::float(im))
+    let (re, im) = <Dispatch as SignalOps>::rfft(signal.dequantize().into_dispatch(), dim, n);
+    (Tensor::from_dispatch(re), Tensor::from_dispatch(im))
 }
 
 /// Computes the 1-dimensional inverse discrete Fourier Transform for real-valued signals.
 ///
 /// This function reconstructs the real-valued time-domain signal from the
 /// first non-redundant values ($N/2 + 1$) of the frequency-domain spectrum.
-/// For now, the autodiff is not yet supported.
+/// Autodiff is supported when the `autodiff` feature is enabled.
 ///
 #[cfg_attr(
     doc,
@@ -117,13 +111,13 @@ where $N$ is the size of the reconstructed signal.
 ///
 /// # Example
 ///
-/// ```rust
-/// use burn_tensor::Tensor;
+/// ```rust,no_run
+/// use burn_core::tensor::Tensor;
 ///
 /// let device = Default::default();
 /// let real = Tensor::<1>::from_floats([10.0, -2.0, 2.0], &device);
 /// let imag = Tensor::<1>::from_floats([0.0, 2.0, 0.0], &device);
-/// let signal = burn_tensor::signal::irfft(real, imag, 0, None);
+/// let signal = burn_signal::irfft(real, imag, 0, None);
 /// ```
 pub fn irfft<const D: usize>(
     spectrum_re: Tensor<D>,
@@ -131,7 +125,9 @@ pub fn irfft<const D: usize>(
     dim: impl AsIndex,
     n: Option<usize>,
 ) -> Tensor<D> {
-    let dim = unwrap_dim_index(dim.try_dim_index(D), "IRFFT");
+    let dim = dim
+        .try_dim_index(D)
+        .unwrap_or_else(|error| panic!("IRFFT: {error}"));
 
     if let Some(n) = n {
         assert!(n >= 1, "irfft: n must be >= 1, got {n}");
@@ -142,23 +138,9 @@ pub fn irfft<const D: usize>(
         );
     }
 
-    Tensor::new(irfft_impl(
-        spectrum_re.primitive,
-        spectrum_im.primitive,
-        dim,
-        n,
-    ))
-}
-
-fn irfft_impl(
-    spectrum_re: BridgeTensor,
-    spectrum_im: BridgeTensor,
-    dim: usize,
-    n: Option<usize>,
-) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::irfft(
-        spectrum_re.into_float(),
-        spectrum_im.into_float(),
+    Tensor::from_dispatch(<Dispatch as SignalOps>::irfft(
+        spectrum_re.dequantize().into_dispatch(),
+        spectrum_im.dequantize().into_dispatch(),
         dim,
         n,
     ))
@@ -170,7 +152,7 @@ fn irfft_impl(
 /// extends each half-spectrum to the full `N`-bin spectrum via Hermitian
 /// symmetry.
 ///
-/// Autodiff is not yet supported.
+/// Autodiff is supported when the `autodiff` feature is enabled.
 ///
 #[cfg_attr(
     doc,
@@ -203,13 +185,13 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 ///
 /// # Example
 ///
-/// ```rust
-/// use burn_tensor::Tensor;
+/// ```rust,no_run
+/// use burn_core::tensor::Tensor;
 ///
 /// let device = Default::default();
 /// let re = Tensor::<1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
 /// let im = Tensor::<1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
-/// let (spec_re, spec_im) = burn_tensor::signal::cfft(re, im, 0, None);
+/// let (spec_re, spec_im) = burn_signal::cfft(re, im, 0, None);
 /// ```
 pub fn cfft<const D: usize>(
     signal_re: Tensor<D>,
@@ -225,7 +207,9 @@ pub fn cfft<const D: usize>(
         signal_im.shape(),
     );
 
-    let dim = unwrap_dim_index(dim.try_dim_index(D), "CFFT");
+    let dim = dim
+        .try_dim_index(D)
+        .unwrap_or_else(|error| panic!("CFFT: {error}"));
     let fft_size = n.unwrap_or(signal_re.dims()[dim]);
 
     // rfft validates power-of-two and n constraints internally

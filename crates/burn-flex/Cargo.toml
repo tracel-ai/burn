@@ -16,7 +16,9 @@ workspace = true
 
 [features]
 default = ["std", "simd", "rayon"]
-doc = ["default"]
+doc = ["default", "fft"]
+# Native FFT kernels, enabled by burn-signal.
+fft = []
 std = [
     "gemm/std",
     "burn-backend/std",
@@ -75,5 +77,5 @@ portable-atomic = { workspace = true, optional = true }
 realfft = { workspace = true }
 
 [package.metadata.docs.rs]
-features = ["default"]
+features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

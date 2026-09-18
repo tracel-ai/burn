@@ -1,6 +1,6 @@
 use super::*;
-use burn_tensor::signal::blackman_window;
-use burn_tensor::{DType, TensorData, Tolerance};
+use burn_core::tensor::{DType, TensorData, Tolerance};
+use burn_signal::blackman_window;
 
 #[test]
 fn should_support_blackman_window_options_dtype() {

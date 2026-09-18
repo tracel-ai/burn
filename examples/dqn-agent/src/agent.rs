@@ -1,9 +1,8 @@
-use burn::module::Module;
-use burn::store::{ModuleRecord, RecordError};
 use burn::rl::{
     Batchable, LearnerTransitionBatch, Policy, PolicyLearner, PolicyState, RLTrainOutput,
     SliceAccess,
 };
+use burn::store::{ModuleRecord, RecordError};
 use burn::tensor::activation::softmax;
 use burn::tensor::{Bytes, Device, Int, Transaction};
 use burn::train::ItemLazy;
@@ -12,14 +11,14 @@ use burn::train::metric::{Adaptor, LossInput};
 use burn::{
     Tensor,
     config::Config,
-    module::AutodiffModule,
+    module::Module,
     nn::{self, loss::MseLoss},
     optim::{GradientsParams, ModuleOptimizer, OptimizerRecord},
 };
-use std::path::PathBuf;
 use rand::distr::Distribution;
 use rand::distr::weighted::WeightedIndex;
 use rand::rng;
+use std::path::PathBuf;
 
 use crate::utils::{
     EpsilonGreedyPolicy, EpsilonGreedyPolicyState, create_lin_layers, soft_update_linear,
@@ -438,8 +437,8 @@ impl Checkpoint for DqnLearningRecord {
             ModuleRecord::from_bytes(Bytes::from_bytes_vec(target.to_vec())).map_err(record_err)?;
 
         let optimizer = unframe(&data, &mut offset)?;
-        let optimizer =
-            OptimizerRecord::from_bytes(Bytes::from_bytes_vec(optimizer.to_vec())).map_err(record_err)?;
+        let optimizer = OptimizerRecord::from_bytes(Bytes::from_bytes_vec(optimizer.to_vec()))
+            .map_err(record_err)?;
 
         Ok(Self {
             policy_model,
@@ -452,7 +451,7 @@ impl Checkpoint for DqnLearningRecord {
 #[derive(Clone)]
 pub struct DqnLearningAgent<M>
 where
-    M: DiscreteActionModel + AutodiffModule + TargetModel + 'static,
+    M: DiscreteActionModel + Module + TargetModel + 'static,
 {
     policy_model: M,
     target_model: M,
@@ -463,7 +462,7 @@ where
 
 impl<M> DqnLearningAgent<M>
 where
-    M: DiscreteActionModel + AutodiffModule + TargetModel + 'static,
+    M: DiscreteActionModel + Module + TargetModel + 'static,
 {
     pub fn new(model: M, optimizer: ModuleOptimizer, config: DqnAgentConfig) -> Self {
         let agent = EpsilonGreedyPolicy::new(
@@ -511,7 +510,7 @@ impl Adaptor<LossInput> for SimpleTrainOutput {
 
 impl<M> PolicyLearner for DqnLearningAgent<M>
 where
-    M: DiscreteActionModel + AutodiffModule + TargetModel + 'static,
+    M: DiscreteActionModel + Module + TargetModel + 'static,
     M::Input: Clone,
 {
     type TrainContext = SimpleTrainOutput;

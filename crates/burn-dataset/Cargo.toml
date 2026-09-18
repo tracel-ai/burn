@@ -39,7 +39,7 @@ sqlite = [
 # existing dependents keep building.
 sqlite-bundled = ["sqlite"]
 vision = ["dep:flate2", "dep:globwalk", "dep:image", "network"]
-nlp = ["dep:zip", "dep:encoding_rs"]
+nlp = ["dep:globwalk", "dep:encoding_rs"]
 dataframe = ["dep:polars-core", "dep:planus"]
 
 [dependencies]
@@ -71,7 +71,6 @@ polars-core = { workspace = true, optional = true, features = [
 ] }
 r2d2 = { workspace = true, optional = true }
 rand = { workspace = true, features = ["std", "sys_rng"] }
-zip = { workspace = true, optional = true }
 rmp-serde = { workspace = true }
 sanitize-filename = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }

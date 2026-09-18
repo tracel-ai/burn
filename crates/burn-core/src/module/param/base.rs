@@ -126,7 +126,7 @@ pub struct Param<T: ParameterValue> {
     ///
     /// This is authoritative and kept separately from the effective value so transformations and
     /// backends that cannot currently activate the value don't erase the state that
-    /// [`AutodiffModule::valid`](crate::module::AutodiffModule::valid) temporarily suspends and
+    /// [`Module::valid`](crate::module::Module::valid) temporarily suspends and
     /// `train` restores.
     pub(crate) is_active: bool,
     /// Optional transformation that materializes the effective value from the stored base.
@@ -489,12 +489,11 @@ impl<T: Parameter> Param<T> {
                     is_active: base.is_active,
                     reparameterization: None,
                     state: LazyInitState::uninitialized(Uninitialized {
-                        // (device, require_grad) are already encoded in `Uninitialized` state and
-                        // applied when `base.val()` triggers initialization. The transformed tensor
-                        // inherits those settings automatically, but since the mapper function
-                        // `F: Fn(T) -> T` is applied on the tensor, we need to ensure the require
-                        // grad setting is preserved.
-                        init: new_init_fn(move |_a, b| func(base.val()).set_require_grad(b)),
+                        // `base` initializes on the same device. `func` maps an untracked value:
+                        // mapped from a tracked leaf, it would be a non-leaf that can't require grad.
+                        init: new_init_fn(move |_device, require_grad| {
+                            func(base.val().set_require_grad(false)).set_require_grad(require_grad)
+                        }),
                         device,
                         is_require_grad,
                         shape,

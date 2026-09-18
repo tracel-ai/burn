@@ -65,7 +65,7 @@ fn flush_reaches_the_server_queue() {
     // Three runs and the median of each: the ratio is large, but one
     // scheduling spike over the wire is not, and a flake here says nothing
     // about what regressed.
-    let mut measure = || {
+    let measure = || {
         let (x, lazy) = device.profile("lazy", || lazy_chain(&device)).unwrap();
         let _ = x.sum().into_scalar::<f32>();
 

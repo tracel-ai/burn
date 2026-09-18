@@ -1,4 +1,4 @@
-use crate::{Float, Int, Tensor, TensorCreationOptions, check, check::TensorCheck};
+use burn_core::tensor::{Int, Tensor, TensorCreationOptions};
 
 /// Creates a 1D Blackman window tensor.
 ///
@@ -36,7 +36,8 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 ///
 /// # Example
 /// ```rust
-/// use burn_tensor::{Device, DType, signal::blackman_window};
+/// use burn_core::tensor::{Device, DType};
+/// use burn_signal::blackman_window;
 ///
 /// // Creating a window with default dtype
 /// let device = Device::default();
@@ -56,9 +57,8 @@ pub fn blackman_window(
     options: impl Into<TensorCreationOptions>,
 ) -> Tensor<1> {
     let opt = options.into();
-    let dtype = opt.resolve_dtype::<Float>();
+    let dtype = opt.dtype_or(opt.device.settings().float_dtype.into());
     let shape = [size];
-    check!(TensorCheck::creation_ops::<1>("BlackmanWindow", &shape));
 
     if size == 0 {
         return Tensor::<1>::empty(shape, opt).cast(dtype);

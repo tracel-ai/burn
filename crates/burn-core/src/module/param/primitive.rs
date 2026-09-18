@@ -1,6 +1,5 @@
 use crate::module::{
-    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor,
+    Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
 };
 
 use alloc::{format, string::ToString, vec::Vec};
@@ -37,6 +36,14 @@ where
 
         devices
     }
+
+    fn valid(&self) -> Self {
+        self.as_ref().map(|module| module.valid())
+    }
+
+    fn train(self) -> Self {
+        self.map(Module::train)
+    }
 }
 
 impl<T: ModuleDisplay> ModuleDisplayDefault for Option<T> {
@@ -49,19 +56,6 @@ impl<T: ModuleDisplay> ModuleDisplayDefault for Option<T> {
 }
 
 impl<T: ModuleDisplay> ModuleDisplay for Option<T> {}
-
-impl<T> AutodiffModule for Option<T>
-where
-    T: AutodiffModule + Debug + Send + Clone,
-{
-    fn valid(&self) -> Self {
-        self.as_ref().map(|module| module.valid())
-    }
-
-    fn from_inner(module: Self) -> Self {
-        module.map(|module| T::from_inner(module))
-    }
-}
 
 impl<T> Module for Vec<T>
 where
@@ -115,6 +109,14 @@ where
 
         devices
     }
+
+    fn valid(&self) -> Self {
+        self.iter().map(|module| module.valid()).collect()
+    }
+
+    fn train(self) -> Self {
+        self.into_iter().map(Module::train).collect()
+    }
 }
 
 impl<T: ModuleDisplay> ModuleDisplayDefault for Vec<T> {
@@ -131,22 +133,6 @@ impl<T: ModuleDisplay> ModuleDisplayDefault for Vec<T> {
 }
 
 impl<T: ModuleDisplay> ModuleDisplay for Vec<T> {}
-
-impl<T> AutodiffModule for Vec<T>
-where
-    T: AutodiffModule + Debug + Send + Clone,
-{
-    fn valid(&self) -> Self {
-        self.iter().map(|module| module.valid()).collect()
-    }
-
-    fn from_inner(module: Self) -> Self {
-        module
-            .into_iter()
-            .map(|module| T::from_inner(module))
-            .collect()
-    }
-}
 
 impl<const N: usize, T> Module for [T; N]
 where
@@ -199,6 +185,14 @@ where
     fn fork(self, device: &Device) -> Self {
         self.map(|module| module.fork(device))
     }
+
+    fn valid(&self) -> Self {
+        self.clone().map(|module| module.valid())
+    }
+
+    fn train(self) -> Self {
+        self.map(Module::train)
+    }
 }
 
 impl<const N: usize, T: ModuleDisplay> ModuleDisplayDefault for [T; N] {
@@ -215,19 +209,6 @@ impl<const N: usize, T: ModuleDisplay> ModuleDisplayDefault for [T; N] {
 }
 
 impl<const N: usize, T: ModuleDisplay> ModuleDisplay for [T; N] {}
-
-impl<const N: usize, T> AutodiffModule for [T; N]
-where
-    T: AutodiffModule + Debug + Send + Clone,
-{
-    fn valid(&self) -> Self {
-        self.clone().map(|module| module.valid())
-    }
-
-    fn from_inner(module: Self) -> Self {
-        module.map(|module| T::from_inner(module))
-    }
-}
 
 /// A macro for generating implementations for tuple modules of different sizes.
 /// For example: `impl_module_tuple!([L0, L1][0, 1])`.
@@ -276,18 +257,12 @@ macro_rules! impl_module_tuple {
                 ,)*)
             }
 
-        }
-
-        impl<$($l,)*> AutodiffModule for ($($l,)*)
-        where
-            $($l: AutodiffModule + Debug + Send + Clone,)*
-        {
             fn valid(&self) -> Self {
                 ($(self.$i.valid(),)*)
             }
 
-            fn from_inner(module: Self) -> Self {
-                ($($l::from_inner(module.$i),)*)
+            fn train(self) -> Self {
+                ($(self.$i.train(),)*)
             }
         }
 

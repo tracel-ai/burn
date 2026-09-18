@@ -35,6 +35,7 @@ pub mod conv;
 /// CTC loss kernel
 pub mod ctc;
 /// FFT algorithms
+#[cfg(feature = "fft")]
 pub mod fft;
 /// Grid sampling kernels
 pub mod grid_sample;

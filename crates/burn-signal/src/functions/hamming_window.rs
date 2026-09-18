@@ -1,4 +1,4 @@
-use crate::{Float, Int, Tensor, TensorCreationOptions, check, check::TensorCheck};
+use burn_core::tensor::{Int, Tensor, TensorCreationOptions};
 
 /// Creates a 1D Hamming window.
 ///
@@ -23,8 +23,8 @@ where $\alpha = 25/46$, $\beta = 1 - \alpha$, and $N$ = `size` when `periodic` i
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::Device;
-/// use burn_tensor::signal::hamming_window;
+/// use burn_core::tensor::Device;
+/// use burn_signal::hamming_window;
 ///
 /// let device = Default::default();
 /// let window = hamming_window(8, true, &device);
@@ -36,9 +36,8 @@ pub fn hamming_window(
     options: impl Into<TensorCreationOptions>,
 ) -> Tensor<1> {
     let opt = options.into();
-    let dtype = opt.resolve_dtype::<Float>();
+    let dtype = opt.dtype_or(opt.device.settings().float_dtype.into());
     let shape = [size];
-    check!(TensorCheck::creation_ops::<1>("HammingWindow", &shape));
 
     if size == 0 {
         return Tensor::<1>::empty(shape, opt).cast(dtype);

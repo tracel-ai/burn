@@ -1,6 +1,6 @@
 use super::*;
-use burn_tensor::signal::hann_window;
-use burn_tensor::{DType, TensorData, Tolerance};
+use burn_core::tensor::{DType, TensorData, Tolerance};
+use burn_signal::hann_window;
 
 #[test]
 fn should_support_hann_window_periodic() {

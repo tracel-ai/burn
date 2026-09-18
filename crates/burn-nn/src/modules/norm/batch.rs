@@ -181,7 +181,7 @@ impl ModuleDisplay for BatchNorm {
 #[cfg(test)]
 mod tests_1d {
     use super::*;
-    use burn::module::AutodiffModule;
+    use burn::module::Module;
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
@@ -304,7 +304,7 @@ mod tests_1d {
 #[cfg(test)]
 mod tests_2d {
     use super::*;
-    use burn::module::AutodiffModule;
+    use burn::module::Module;
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
