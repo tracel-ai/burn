@@ -1640,23 +1640,24 @@ fn test_corrupt_compressed_storage_is_invalid_data() {
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData, "{err}");
 }
 
+// Unix only: that is where replacing an open file is well defined.
+#[cfg(unix)]
 #[test]
-fn test_os_errors_keep_their_kind() {
-    // A legacy container reopens the file on every read, so a file that disappears after
-    // open fails at read with the operating system's own kind rather than the reader's.
+fn test_legacy_reads_after_the_file_is_replaced() {
+    // A legacy container keeps its file open from `new` until drop and never reopens by
+    // path, so a checkpoint renamed over underneath a reader (a training loop writing the
+    // next epoch) still reads as it was opened rather than at the old offsets into the
+    // new file.
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("vanishing.pt");
+    let path = dir.path().join("checkpoint.pt");
     std::fs::copy(test_data_path("simple_legacy.pt"), &path).unwrap();
 
     let reader = PytorchReader::new(&path).unwrap();
-    std::fs::remove_file(&path).unwrap();
-    let err = reader
-        .get("bias")
-        .unwrap()
-        .read()
-        .expect_err("a missing file must not load");
-    assert_eq!(err.kind(), std::io::ErrorKind::NotFound, "{err}");
-    assert!(err.to_string().starts_with("tensor 'bias':"), "{err}");
+    let bias = reader.get("bias").unwrap();
+    let next = dir.path().join("next.pt");
+    std::fs::copy(test_data_path("legacy_with_offsets.pt"), &next).unwrap();
+    std::fs::rename(&next, &path).unwrap();
+    assert_close(&read_as::<f32>(bias), &[1.0, 1.0]);
 }
 
 // Unix only: that is where unlinking an open file is well defined.

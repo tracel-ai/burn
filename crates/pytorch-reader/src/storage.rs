@@ -5,12 +5,11 @@
 //! a storage key from that pickle to its bytes on demand: the ZIP and legacy sources read
 //! the file at that point, the TAR source slices an entry already in memory.
 
-use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, BufReader, Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::io::{self, BufReader, Read};
+use std::path::Path;
 use std::sync::Mutex;
 use zip::{CompressionMethod, ZipArchive};
 
@@ -344,11 +343,31 @@ fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> io::Result<()> {
     std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
 }
 
-// Windows has `seek_read`, but it sets the cursor, which the archive's stream depends on and
-// shares through the duplicate; an open of its own for the stream would be a second open by
-// path, which a replacement could slip in between. No stable positional read in std elsewhere.
-// So `read_storage` keeps those targets on the stream path and this is never called.
-#[cfg(not(unix))]
+/// As on Unix, except that `seek_read` also sets the cursor. `LegacySource` is its file
+/// object's only user by the time it reads, so nothing depends on that cursor; `ZipSource`
+/// shares its cursor with the archive's stream and stays on that stream on Windows instead.
+/// Windows serializes I/O on a synchronous handle, so threads still queue in the kernel
+/// here, though no longer behind a lock.
+#[cfg(windows)]
+fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> io::Result<()> {
+    use std::os::windows::fs::FileExt;
+    while !buf.is_empty() {
+        match file.seek_read(buf, offset) {
+            Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
+            Ok(read) => {
+                buf = &mut buf[read..];
+                offset += read as u64;
+            }
+            Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(())
+}
+
+// No stable positional read in std elsewhere. `ZipSource::read_storage` keeps those targets
+// on the stream path; the legacy container has no stream and its storages cannot be read.
+#[cfg(not(any(unix, windows)))]
 fn read_exact_at(_file: &File, _buf: &mut [u8], _offset: u64) -> io::Result<()> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -402,8 +421,13 @@ impl TarSource {
 /// by its bytes. The count prefix gives elements, not bytes, so the sizes declared by the
 /// persistent ids in the main pickle are collected first and the layout is derived from
 /// them once the key list is known.
+///
+/// The file is held open from [`new`](Self::new) until drop and never reopened by path,
+/// so a reader keeps reading the file it opened if that path is unlinked or replaced.
 pub(crate) struct LegacySource {
-    path: PathBuf,
+    /// Read at explicit offsets and never through its cursor, so tensor reads from
+    /// different threads run at once.
+    file: File,
     state: Mutex<LegacyState>,
 }
 
@@ -417,9 +441,10 @@ enum LegacyState {
 }
 
 impl LegacySource {
-    pub fn new(path: &Path) -> Self {
+    /// Wrap the open checkpoint, whose storages are read at explicit offsets from here on.
+    pub fn new(file: File) -> Self {
         Self {
-            path: path.to_path_buf(),
+            file,
             state: Mutex::new(LegacyState::Declaring(HashMap::new())),
         }
     }
@@ -499,10 +524,9 @@ impl LegacySource {
                 .ok_or_else(|| invalid_data(format!("storage '{key}' not found in legacy file")))?
         };
 
-        let mut file = File::open(&self.path)?;
-        file.seek(SeekFrom::Start(offset))?;
-
-        let stored_numel = file.read_i64::<LittleEndian>()?;
+        let mut count = [0u8; 8];
+        read_exact_at(&self.file, &mut count, offset)?;
+        let stored_numel = i64::from_le_bytes(count);
         let expected_numel = (byte_len / element_size) as i64;
         if stored_numel != expected_numel {
             return Err(invalid_data(format!(
@@ -512,8 +536,9 @@ impl LegacySource {
 
         // `finish` checked that the storage lies within the file, so the length is trusted.
         let start = start.min(byte_len);
-        file.seek(SeekFrom::Current(start as i64))?;
         let len = (byte_len - start).min(max_len);
-        Ok((read_exact_len(&mut file, len as u64, len)?, start))
+        let mut bytes = vec![0u8; len];
+        read_exact_at(&self.file, &mut bytes, offset + 8 + start as u64)?;
+        Ok((bytes, start))
     }
 }

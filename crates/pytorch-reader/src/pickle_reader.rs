@@ -2439,6 +2439,37 @@ mod tests {
     }
 
     #[test]
+    fn os_errors_keep_their_kind() {
+        // A read the operating system refuses reaches the caller with the kind the
+        // operating system gave it, not folded into `InvalidData` with the errors a source
+        // raises about the file's contents. A handle open for writing only is refused on
+        // every read, on every platform, once the reader holds it.
+        use std::io::Read;
+        let dir = tempfile::tempdir().unwrap();
+        let file = std::fs::File::create(dir.path().join("write_only.pt")).unwrap();
+        let expected = (&file).read(&mut [0u8; 8]).unwrap_err();
+        assert!(expected.raw_os_error().is_some(), "{expected}");
+
+        let source = Arc::new(StorageSource::Legacy(crate::storage::LegacySource::new(
+            file,
+        )));
+        let args = rebuild_args("FloatStorage", "0", 3, 0, &[3], &[1], &source);
+        let StorageSource::Legacy(legacy) = &*source else {
+            unreachable!()
+        };
+        legacy.finish(&["0".to_string()], 0, 8 + 12).unwrap();
+        let tensor = rebuild(args).unwrap();
+
+        let err = tensor.read().unwrap_err();
+        assert_eq!(err.kind(), expected.kind(), "{err}");
+        assert!(
+            err.to_string()
+                .contains("Failed to read storage '0' for tensor with shape [3]"),
+            "{err}"
+        );
+    }
+
+    #[test]
     fn tensors_inside_lists_and_tuples_get_indexed_names() {
         // Regression test for https://github.com/tracel-ai/burn/issues/5595:
         // torch.save({"weights": [w1, w2]}) must expose both tensors instead of dropping them.

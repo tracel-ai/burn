@@ -486,7 +486,13 @@ fn load_legacy(path: &Path) -> Result<Loaded> {
     let sys_info = read_header(&mut reader, "system info")?;
     check_little_endian(&sys_info)?;
 
-    let source = Arc::new(StorageSource::Legacy(LegacySource::new(path)));
+    // The source reads storages at explicit offsets through a duplicate of the handle the
+    // headers stream through, so both come from the one open above and a replacement of
+    // `path` cannot slip in between two opens. No storage is read until `finish` below, by
+    // which point the stream is done with the cursor the duplicate shares.
+    let source = Arc::new(StorageSource::Legacy(LegacySource::new(
+        reader.get_ref().try_clone()?,
+    )));
     let root = read_pickle(&mut reader, &PersistentIds::Storages(source.clone()))?;
 
     // The storage keys, in the order their bytes follow.
