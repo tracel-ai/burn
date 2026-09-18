@@ -1,6 +1,5 @@
 //! Burn backend tensor tests.
 
-#![recursion_limit = "256"]
 #![allow(clippy::single_range_in_vec_init)]
 
 extern crate alloc;

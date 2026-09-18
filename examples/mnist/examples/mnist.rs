@@ -1,5 +1,3 @@
-#![recursion_limit = "256"]
-
 use burn::tensor::Device;
 use mnist::training;
 

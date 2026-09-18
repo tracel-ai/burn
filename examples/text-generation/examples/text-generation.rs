@@ -1,5 +1,3 @@
-#![recursion_limit = "256"]
-
 use burn::{
     optim::decay::WeightDecayConfig,
     tensor::{Device, DeviceConfig, Element},

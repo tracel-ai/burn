@@ -1,6 +1,5 @@
 // //! Burn backend tensor tests.
 
-#![recursion_limit = "256"]
 #![cfg(any(
     feature = "vulkan",
     feature = "cuda",

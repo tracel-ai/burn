@@ -1,6 +1,5 @@
 //! CubeCL kernel tests.
 #![cfg(feature = "cube")]
-#![recursion_limit = "256"]
 
 #[path = "."]
 mod cube {
