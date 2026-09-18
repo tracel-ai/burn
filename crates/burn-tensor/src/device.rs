@@ -728,11 +728,8 @@ impl Device {
     /// instead: that one waits, and an inner window's syncs are charged to
     /// the outer.
     ///
-    /// `name` labels the window for a tracing profiler, where the backend's
-    /// window carries one; the cubecl backends' windows do not.
-    ///
     /// ```rust,ignore
-    /// let (output, duration) = device.profile("forward", || model.forward(input))?;
+    /// let (output, duration) = device.profile(|| model.forward(input))?;
     /// // Later, once the run is over:
     /// let ticks = duration.resolve().await.expect("the window carried work");
     /// println!("forward: {:?}", ticks.duration());
@@ -745,20 +742,18 @@ impl Device {
     /// wait on the server.
     pub fn profile<O: Send + 'static>(
         &self,
-        name: &str,
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
-        self.profile_with(name, ProfileOptions::default(), func)
+        self.profile_with(ProfileOptions::default(), func)
     }
 
     /// [`profile`](Self::profile) with [`ProfileOptions`].
     pub fn profile_with<O: Send + 'static>(
         &self,
-        name: &str,
         options: ProfileOptions,
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
-        Dispatch::profile(self.as_dispatch(), name, options, func)
+        Dispatch::profile(self.as_dispatch(), options, func)
     }
 
     /// Seeds the random number generator for this device.

@@ -62,7 +62,6 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn profile<O: Send + 'static>(
         device: &Self::Device,
-        name: &str,
         options: ProfileOptions,
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
@@ -78,9 +77,6 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         //
         // An inner backend with no windows is measured the way it measures
         // itself: between two syncs, which drain the queue as they go.
-        //
-        // The name goes nowhere: the split window carries none.
-        let _ = name;
         profile_with_tokens::<Self, O>(device, options, func)
     }
 

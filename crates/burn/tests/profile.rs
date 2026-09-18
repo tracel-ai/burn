@@ -122,7 +122,7 @@ mod cube {
         let (_guard, device) = device();
 
         let (sum, duration) = device
-            .profile("work", || work(&device, 8).sum().into_scalar::<f32>())
+            .profile(|| work(&device, 8).sum().into_scalar::<f32>())
             .unwrap();
 
         assert!(sum.is_finite());
@@ -134,10 +134,10 @@ mod cube {
         let (_guard, device) = device();
 
         let ((_, inner), outer) = device
-            .profile("outer", || {
+            .profile(|| {
                 let a = work(&device, 8);
                 let inner = device
-                    .profile("inner", || work(&device, 8).sum().into_scalar::<f32>())
+                    .profile(|| work(&device, 8).sum().into_scalar::<f32>())
                     .unwrap();
                 let _ = a.sum().into_scalar::<f32>();
                 inner
@@ -162,12 +162,12 @@ mod cube {
             .sum()
             .into_scalar::<f32>();
 
-        let (x, closed_early) = device.profile("early", || work(&device, 2)).unwrap();
+        let (x, closed_early) = device.profile(|| work(&device, 2)).unwrap();
         let after = work(&device, 32) + x;
         let _ = after.sum().into_scalar::<f32>();
 
         let (_, closed_late) = device
-            .profile("late", || {
+            .profile(|| {
                 let x = work(&device, 2);
                 (work(&device, 32) + x).sum().into_scalar::<f32>()
             })
@@ -199,19 +199,13 @@ mod cube {
         let _ = lazy_chain(&device).sum().into_scalar::<f32>();
 
         let [flushed, read_after_lazy, read_after_flushed] = median_of_three(|| {
-            let (x, _) = device.profile("lazy", || lazy_chain(&device)).unwrap();
-            let (_, read_after_lazy) = device
-                .profile("read", || x.sum().into_scalar::<f32>())
-                .unwrap();
+            let (x, _) = device.profile(|| lazy_chain(&device)).unwrap();
+            let (_, read_after_lazy) = device.profile(|| x.sum().into_scalar::<f32>()).unwrap();
 
             let (x, flushed) = device
-                .profile_with("flushed", ProfileOptions::default().flush(), || {
-                    lazy_chain(&device)
-                })
+                .profile_with(ProfileOptions::default().flush(), || lazy_chain(&device))
                 .unwrap();
-            let (_, read_after_flushed) = device
-                .profile("read", || x.sum().into_scalar::<f32>())
-                .unwrap();
+            let (_, read_after_flushed) = device.profile(|| x.sum().into_scalar::<f32>()).unwrap();
 
             [
                 resolve(flushed).duration(),
@@ -240,7 +234,7 @@ mod cube {
         let (_guard, device) = device();
 
         let (sum, _) = device
-            .profile("joined", || {
+            .profile(|| {
                 std::thread::scope(|scope| {
                     scope
                         .spawn(|| {
@@ -275,7 +269,7 @@ mod cube {
         let (_guard, device) = device();
 
         let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = device.profile("panics", || {
+            let _ = device.profile(|| {
                 let _ = work(&device, 2);
                 panic!("the measured work failed");
             });
@@ -285,7 +279,7 @@ mod cube {
         // The device is still profilable: the abandoned window released
         // whatever it was holding.
         let (sum, duration) = device
-            .profile("after", || work(&device, 4).sum().into_scalar::<f32>())
+            .profile(|| work(&device, 4).sum().into_scalar::<f32>())
             .expect("the device still profiles after an abandoned window");
 
         assert!(sum.is_finite(), "the work after the panic still ran");
@@ -309,7 +303,7 @@ mod cube {
     fn empty_window_is_answered_either_way() {
         let (_guard, device) = device();
 
-        let (out, duration) = device.profile("empty", || 42).unwrap();
+        let (out, duration) = device.profile(|| 42).unwrap();
 
         assert_eq!(out, 42);
         // Some(~0) on a stream-stamping runtime, None on a kernel-stamping
@@ -337,7 +331,7 @@ fn default_device_profiles_in_system_time() {
 
     let device = Device::default();
     let (sum, duration) = device
-        .profile("sum", || {
+        .profile(|| {
             Tensor::<1>::ones([1024], &device)
                 .sum()
                 .into_scalar::<f32>()

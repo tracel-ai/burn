@@ -161,7 +161,7 @@ mod tests {
 
         let device = Device::remote_websocket("ws://localhost:3180", 0);
         let (sum, duration) = device
-            .profile("sum", || {
+            .profile(|| {
                 Tensor::<1>::ones([1024], &device)
                     .sum()
                     .into_scalar::<f32>()

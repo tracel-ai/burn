@@ -57,14 +57,11 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
 
     fn profile<O: Send + 'static>(
         device: &Self::Device,
-        name: &str,
         options: ProfileOptions,
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
         // The interpreter is where the window opens; the flush travels to it
         // with the close, for the queue of the backend behind it to drain.
-        // The name stops here: the split window carries none.
-        let _ = name;
         profile_with_tokens::<Self, O>(device, options, func)
     }
 

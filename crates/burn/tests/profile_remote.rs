@@ -24,10 +24,16 @@ use burn::prelude::{Device, Tensor};
 use burn::tensor::{ProfileDuration, ProfileOptions};
 use core::time::Duration;
 
-fn resolve(duration: ProfileDuration) -> Duration {
-    futures_lite::future::block_on(duration.resolve())
-        .expect("the window carried a measurement")
-        .duration()
+/// What the window measured, or `None` where the device took no measurement.
+///
+/// An absence is not a zero, and the difference is the whole subject here: a
+/// runtime that stamps kernels rather than the stream refuses a window that
+/// nothing ran in, and the backend answers that refusal with no measurement
+/// precisely so a caller comparing two windows cannot read the unmeasured one
+/// as the quicker. The lazy window below is that window whenever the server
+/// holds the chain back, so it is read as an absence rather than unwrapped.
+fn measured(duration: ProfileDuration) -> Option<Duration> {
+    futures_lite::future::block_on(duration.resolve()).map(|ticks| ticks.duration())
 }
 
 /// See `lazy_chain` in `profile.rs`: the server's fusion holds it in its
@@ -66,17 +72,20 @@ fn flush_reaches_the_server_queue() {
     // scheduling spike over the wire is not, and a flake here says nothing
     // about what regressed.
     let measure = || {
-        let (x, lazy) = device.profile("lazy", || lazy_chain(&device)).unwrap();
+        let (x, lazy) = device.profile(|| lazy_chain(&device)).unwrap();
         let _ = x.sum().into_scalar::<f32>();
 
         let (x, flushed) = device
-            .profile_with("flushed", ProfileOptions::default().flush(), || {
-                lazy_chain(&device)
-            })
+            .profile_with(ProfileOptions::default().flush(), || lazy_chain(&device))
             .unwrap();
         let _ = x.sum().into_scalar::<f32>();
 
-        (resolve(lazy), resolve(flushed))
+        let flushed = measured(flushed)
+            .expect("the flush ran the server's queue inside the window, leaving work to stamp");
+
+        // No measurement at all is the strongest form of "the chain stayed
+        // out", so it counts as no time rather than failing the run.
+        (measured(lazy).unwrap_or(Duration::ZERO), flushed)
     };
     let mut runs = [measure(), measure(), measure()];
     runs.sort_by_key(|(_, flushed)| *flushed);

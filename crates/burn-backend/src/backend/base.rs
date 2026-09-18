@@ -13,6 +13,7 @@ use enumset::{EnumSet, EnumSetType};
 use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
+use super::profile::profile_unsupported;
 use super::{InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
@@ -60,72 +61,6 @@ fn graph_unsupported() -> ExecutionError {
     ExecutionError::Generic {
         reason: alloc::string::String::from("graph capture is not supported by this backend"),
         backtrace: BackTrace::capture(),
-    }
-}
-
-fn profile_unsupported() -> ExecutionError {
-    ExecutionError::Generic {
-        reason: alloc::string::String::from(
-            "profiling windows are not supported by this backend; use `profile`",
-        ),
-        backtrace: BackTrace::capture(),
-    }
-}
-
-/// A closure-bracketed window over a backend's split
-/// [`profile_start`](Backend::profile_start) / [`profile_end`](Backend::profile_end),
-/// falling back to [`profile_system_time`] when the backend opens none.
-///
-/// What a forwarding backend measures with, when what it forwards to may or
-/// may not have a device clock, and what a backend with a device clock
-/// measures with when the closure must not run under a hold of the device.
-pub fn profile_with_tokens<B: Backend, O: Send + 'static>(
-    device: &B::Device,
-    options: ProfileOptions,
-    func: impl FnOnce() -> O + Send,
-) -> Result<(O, ProfileDuration), ExecutionError> {
-    let opened = match B::profile_start(device) {
-        Ok(Some(token)) => token,
-        Ok(None) => return profile_system_time::<B, O>(device, func),
-        // The window could not be opened — a remote device reached from a
-        // browser thread, which cannot wait on the server. `func` still runs:
-        // a caller asked for their work to be measured, and handing back an
-        // error having quietly skipped the work is the one outcome they
-        // cannot recover from. Measuring is what failed, so only the
-        // measurement is lost.
-        Err(err) => {
-            func();
-            return Err(err);
-        }
-    };
-
-    // Held so an unwinding `func` abandons the window instead of leaving it
-    // open on the server for the rest of the process.
-    let mut window = OpenWindow::<B> {
-        device,
-        token: Some(opened),
-    };
-    let out = func();
-    let token = window
-        .token
-        .take()
-        .expect("the window is held from opening until here");
-    let duration = B::profile_end(device, token, options)?;
-    Ok((out, duration))
-}
-
-/// An open profiling window, abandoned on drop unless it was taken to be
-/// closed. See [`Backend::profile_abandon`].
-struct OpenWindow<'a, B: Backend> {
-    device: &'a B::Device,
-    token: Option<ProfileToken>,
-}
-
-impl<B: Backend> Drop for OpenWindow<'_, B> {
-    fn drop(&mut self) {
-        if let Some(token) = self.token.take() {
-            B::profile_abandon(self.device, token);
-        }
     }
 }
 
@@ -306,9 +241,6 @@ pub trait Backend:
     /// ones being charged to the outer. Work on other streams is not kept
     /// out, and not counted. A window that nothing ran in reads as no time.
     ///
-    /// `name` labels the window for a tracing profiler, on a backend whose
-    /// window carries one.
-    ///
     /// The default is [`profile_system_time`]: wall-clock time between two
     /// syncs, for a backend with no device clock to read. That one does wait,
     /// and an inner window's syncs are charged to the outer.
@@ -330,11 +262,10 @@ pub trait Backend:
     /// cannot do it from the `Result` alone.
     fn profile<O: Send + 'static>(
         device: &Self::Device,
-        name: &str,
         options: ProfileOptions,
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
-        let _ = (name, options);
+        let _ = options;
         profile_system_time::<Self, O>(device, func)
     }
 
@@ -378,7 +309,8 @@ pub trait Backend:
     /// command buffers for as long as one is open, and on wgpu every later
     /// pass keeps rewriting the live window's end slot. So a window whose
     /// caller unwound between the two calls is abandoned rather than left,
-    /// which is what [`profile_with_tokens`] does on the panic path.
+    /// which is what [`profile_with_tokens`](crate::profile_with_tokens) does
+    /// on the panic path.
     ///
     /// Cannot fail and answers nothing: it is called while a panic is already
     /// unwinding, where there is nobody left to tell. The default closes the

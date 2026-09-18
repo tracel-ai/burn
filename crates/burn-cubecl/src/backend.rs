@@ -125,7 +125,6 @@ impl Backend for CubeBackend {
 
     fn profile<O: Send + 'static>(
         device: &Self::Device,
-        name: &str,
         options: ProfileOptions,
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
@@ -134,9 +133,6 @@ impl Backend for CubeBackend {
         // another thread's call to the same device — a data loader building
         // its batch there, say — would never get it back. The split window
         // opens and closes on the stream without holding anything between.
-        //
-        // The name goes nowhere: the split window carries none.
-        let _ = name;
         profile_with_tokens::<Self, O>(device, options, func)
     }
 
