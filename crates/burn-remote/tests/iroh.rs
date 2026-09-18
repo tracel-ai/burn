@@ -264,3 +264,39 @@ async fn stages_alternating_between_two_servers_transfer_both_ways() {
         router.shutdown().await.unwrap();
     }
 }
+
+/// A server whose endpoint also dials out as a client: the connection its client dialed has
+/// nobody accepting streams on it, so a peer downloading from the server must not use it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_server_that_is_also_a_client_is_downloaded_from() {
+    let shared = local_endpoint().await;
+    let target = local_endpoint().await;
+    let client = local_endpoint().await;
+    let routers = [
+        spawn_router::<Flex>(shared.clone(), AllowAll, TelemetryProbe::disabled()),
+        spawn_router::<Flex>(target.clone(), AllowAll, TelemetryProbe::disabled()),
+    ];
+
+    let shared_as_client = RemoteDevice::iroh(&shared, target.addr(), 0);
+    shared_as_client.connect();
+
+    let source = RemoteDevice::iroh(&client, shared.addr(), 0);
+    let destination = RemoteDevice::iroh(&client, target.addr(), 0);
+    source.connect();
+    destination.connect();
+    let (source, destination) = (Device::new(source), Device::new(destination));
+
+    let (done, waiting) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &source).to_device(&destination);
+        let _ = done.send(tensor.try_into_vec_as::<f32>().unwrap());
+    });
+    let values = waiting
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .expect("the transfer to finish");
+    assert_eq!(values, vec![3.0, 5.0, 7.0]);
+
+    for router in routers {
+        router.shutdown().await.unwrap();
+    }
+}

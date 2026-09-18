@@ -165,7 +165,6 @@ impl From<RemoteProtocol> for Box<dyn DynProtocolHandler> {
 impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         let remote_id = connection.remote_id();
-        self.node.remember_connection(connection.clone()).await;
         loop {
             let Some((kind, send, recv)) = RemoteNode::accept_stream(&connection)
                 .await
@@ -190,6 +189,9 @@ impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
                     });
                 }
                 StreamKind::TensorTransfer => {
+                    // Only a server opens transfers, and only a server serves streams back down a
+                    // connection it dialed: a client sharing its endpoint does not.
+                    self.node.remember_connection(connection.clone()).await;
                     let transfer = self.transfer.clone();
                     spawn_detached(async move {
                         if let Err(err) = transfer.handle_stream(remote_id, send, recv).await {
