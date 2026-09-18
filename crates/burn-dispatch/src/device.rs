@@ -644,6 +644,15 @@ impl From<RemoteDevice> for DispatchDevice {
     }
 }
 
+#[cfg(all(test, not(backend_enabled)))]
+mod no_backend_tests {
+    #[test]
+    #[should_panic(expected = "No execution backend is enabled. Enable a Burn backend feature")]
+    fn default_requires_backend() {
+        super::DispatchDevice::default();
+    }
+}
+
 #[cfg(all(test, feature = "capture"))]
 mod tests {
     use super::*;

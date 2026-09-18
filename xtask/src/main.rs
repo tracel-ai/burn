@@ -14,6 +14,7 @@ const NO_STD_CRATES: &[&str] = &[
     "burn",
     "burn-autodiff",
     "burn-core",
+    "burn-dispatch",
     "burn-linalg",
     "burn-signal",
     "burn-std",

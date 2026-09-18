@@ -271,12 +271,13 @@ macro_rules! float_to_device_arms {
         match ($tensor.kind, $device) {
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensorKind::Autodiff(kind), $crate::DispatchDevice::Autodiff(device)) => {
-                let $crate::DispatchAutodiffContext::Enabled(ckp) = $tensor.autodiff else {
+                // No transfer arm consumes the strategy in capture-only builds.
+                let $crate::DispatchAutodiffContext::Enabled(_ckp) = $tensor.autodiff else {
                     panic!("an autodiff float primitive must have an enabled autodiff context")
                 };
                 float_to_device_arms!(
                     @autodiff
-                    *kind, &**device, ckp, $to_device;
+                    *kind, &**device, _ckp, $to_device;
                     $([$B1, $src_cfg] => [ $([$B2, $dst_cfg]),+ ]);*
                 )
 

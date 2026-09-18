@@ -119,7 +119,16 @@ macro_rules! is_tracked_arms {
     };
 }
 
-#[cfg(feature = "autodiff")]
+#[cfg(all(
+    feature = "autodiff",
+    any(
+        cube_backend,
+        feature = "flex",
+        feature = "ndarray",
+        feature = "tch",
+        feature = "remote"
+    )
+))]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
@@ -323,6 +332,18 @@ fn enable_autodiff_context(context: DispatchAutodiffContext) -> DispatchAutodiff
 }
 
 #[cfg(feature = "autodiff")]
+// Capture does not support autodiff. Without an execution backend, the dispatch
+// arms below only panic, leaving gradient arguments unused and return code unreachable.
+#[cfg_attr(
+    not(any(
+        cube_backend,
+        feature = "flex",
+        feature = "ndarray",
+        feature = "tch",
+        feature = "remote"
+    )),
+    allow(unused_variables, unreachable_code)
+)]
 impl AutodiffBackend for Dispatch {
     type InnerBackend = Dispatch;
 
