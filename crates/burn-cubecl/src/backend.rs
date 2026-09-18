@@ -5,11 +5,7 @@ use burn_backend::{
     InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions,
     ProfileToken, SlicedPool, SlicedPoolReport, TensorData, profile_with_tokens,
 };
-use burn_std::{
-    BoolStore, DType,
-    id::StreamId,
-    quantization::quantizable,
-};
+use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
 use cubecl::{
     MemoryConfiguration, MemoryPoolKind,
