@@ -8433,6 +8433,7 @@ version = "0.22.0-pre.3"
 dependencies = [
  "bytemuck",
  "byteorder",
+ "crc32fast",
  "half",
  "num-traits",
  "serde",
