@@ -5,14 +5,16 @@ use crate::shared::{
 };
 use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
-    DTypeUsageSet, ExecutionError, TensorData,
+    DTypeUsageSet, ExecutionError, ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken,
+    TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_std::{DType, DeviceSettings, id::StreamId};
+use burn_std::{DType, DeviceSettings, id::StreamId, profile::Instant};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
 #[cfg(not(target_family = "wasm"))]
 use burn_std::backtrace::BackTrace;
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::oneshot;
 
@@ -69,6 +71,16 @@ pub struct RemoteService {
     batch: OutgoingBatch,
     /// Request-id allocation + the callbacks awaiting response-producing tasks.
     pending: PendingResponses,
+    /// The client stream each open profiling window was opened on, by token id.
+    ///
+    /// The server orders a task against the other tasks of the stream the
+    /// client names, and a window has to close against the operations it was
+    /// measuring — so the close carries the opening stream rather than
+    /// whichever one its caller happens to be on. (`ProfileToken::opened_on`
+    /// cannot serve: that is the *server backend's* own stream, in a
+    /// numbering this side never shares.) Bounded by the windows currently
+    /// open, since closing or abandoning one takes its entry.
+    profile_streams: HashMap<u64, StreamId>,
     /// Emits this device's telemetry (the ops and graphs it sends).
     probe: TelemetryProbe,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::defaults`).
@@ -113,6 +125,7 @@ impl DeviceService for RemoteService {
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
             pending: PendingResponses::new(),
+            profile_streams: HashMap::new(),
             probe,
             settings: settings_cell(id),
             device_count: device_count_cell(id),
@@ -514,6 +527,110 @@ impl RemoteService {
             self.flush();
             Ok(())
         }
+    }
+
+    /// Open a profiling window on the server where `stream_id` stands.
+    ///
+    /// Blocks on the token, which the closing call needs. A browser thread
+    /// cannot block, and cannot fall back either: the wall-clock window a
+    /// caller brackets with two syncs would measure nothing, because a
+    /// browser sync does not wait for the server. So it refuses.
+    pub fn profile_start(
+        &mut self,
+        stream_id: StreamId,
+    ) -> Result<Option<ProfileToken>, ExecutionError> {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rx = self.submit_request(|id| Task::ProfileStart(id, stream_id));
+            let opened = match self.executor.block_on(rx) {
+                Ok(TaskResponseContent::ProfileStart(res)) => res,
+                Ok(other) => panic!("Invalid response for ProfileStart: {other:?}"),
+                Err(_) => Err(ExecutionError::Generic {
+                    reason: "Remote response channel closed before the profile window opened"
+                        .into(),
+                    backtrace: BackTrace::capture(),
+                }),
+            };
+            if let Ok(Some(token)) = &opened {
+                self.profile_streams.insert(token.id, stream_id);
+            }
+            opened
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = stream_id;
+            Err(ExecutionError::with_context(
+                "a remote device cannot be profiled from a browser thread, which cannot wait on \
+                 the server",
+            ))
+        }
+    }
+
+    /// Close the window `token` on the stream it was opened on, the server
+    /// flushing its backend first when `options` ask for it. Issued now, so it
+    /// keeps its place among the tasks around it; the measurement is awaited
+    /// through the returned duration.
+    pub fn profile_end(&mut self, token: ProfileToken, options: ProfileOptions) -> ProfileDuration {
+        let Some(stream_id) = self.profile_streams.remove(&token.id) else {
+            return Self::no_such_window();
+        };
+        let rx = self.submit_request(|id| Task::ProfileEnd(id, stream_id, token, options));
+
+        ProfileDuration::new_device_time_maybe(async move {
+            let duration = match rx.await {
+                Ok(TaskResponseContent::ProfileEnd(res)) => res,
+                Ok(other) => panic!("Invalid response for ProfileEnd: {other:?}"),
+                Err(_) => Err(ExecutionError::with_context(
+                    "Remote response channel closed before the profile window closed",
+                )),
+            };
+            match duration {
+                Ok(Some(duration)) => {
+                    // The server's clock is not this one: only the length of
+                    // the window travels, placed here where it was learned.
+                    let start = Instant::now();
+                    Some(ProfileTicks::from_start_end(start, start + duration))
+                }
+                Ok(None) => None,
+                Err(err) => {
+                    log::error!("A remote profile window resolved no measurement: {err}");
+                    None
+                }
+            }
+        })
+    }
+
+    /// Drop the window `token` without measuring it, on the stream it was
+    /// opened on.
+    ///
+    /// Nothing comes back, so nothing is waited on and no pending callback is
+    /// registered — the client is unwinding, and a measurement it asked for
+    /// would arrive with nobody to take it. Flushed even so: this is usually
+    /// the caller's last word on the device, and an abandon left sitting in
+    /// the batch holds the server's window open for exactly as long as it is
+    /// the only thing in there — which is the case it exists for.
+    pub fn profile_abandon(&mut self, token: ProfileToken) {
+        let Some(stream_id) = self.profile_streams.remove(&token.id) else {
+            let _ = Self::no_such_window();
+            return;
+        };
+        self.submit_task(Task::ProfileAbandon(stream_id, token));
+        self.flush();
+    }
+
+    /// The answer to closing or abandoning a window this service does not
+    /// have open: it never handed the token out, or it already took the entry.
+    ///
+    /// Nothing is sent. The stream a close has to name is the one its open was
+    /// sent on, and only that entry held it — a guess would order the close
+    /// against operations it never measured, and on a `flush` drain a queue
+    /// holding none of them. A token with no entry has no window behind it to
+    /// release anyway.
+    fn no_such_window() -> ProfileDuration {
+        log::error!(
+            "A remote profiling window was closed twice, or with a token this device never opened"
+        );
+        ProfileDuration::new_device_time_maybe(async move { None })
     }
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {

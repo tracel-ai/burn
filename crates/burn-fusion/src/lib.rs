@@ -23,6 +23,8 @@ mod ops;
 mod server;
 mod tensor;
 
+pub mod observer;
+
 /// Test-only introspection into fusion runtime behavior — see
 /// [`inspect::FusionInspector`].
 #[cfg(feature = "test-util")]

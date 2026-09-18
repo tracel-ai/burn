@@ -7,8 +7,8 @@ use crate::{
 };
 use alloc::boxed::Box;
 use burn_backend::{
-    Backend, DType, DeviceOps, ExecutionError, Shape, TensorData, distributed::DistributedOps,
-    tensor::IndexingUpdateOp,
+    Backend, DType, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
+    Shape, TensorData, distributed::DistributedOps, tensor::IndexingUpdateOp,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2197,5 +2197,25 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// The set of supported usages for `dtype` on this backend.
     pub fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet {
         B::dtype_usage(&self.device, dtype)
+    }
+
+    /// Open a profiling window on the backend where the calling stream stands.
+    pub fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
+        B::profile_start(&self.device)
+    }
+
+    /// Close the window `token` where the calling stream stands.
+    pub fn profile_end(
+        &self,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        B::profile_end(&self.device, token, options)
+    }
+
+    /// Drop the window `token` where the calling stream stands without
+    /// measuring it.
+    pub fn profile_abandon(&self, token: ProfileToken) {
+        B::profile_abandon(&self.device, token)
     }
 }

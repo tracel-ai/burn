@@ -1,6 +1,9 @@
 use super::{RouterChannel, RouterClient, RouterTensor, get_client};
 use alloc::{format, string::String};
-use burn_backend::{Backend, BackendTypes, DType, ExecutionError};
+use burn_backend::{
+    Backend, BackendTypes, DType, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
+    profile_with_tokens,
+};
 use core::marker::PhantomData;
 
 /// A backend that forwards the tensor operations to the appropriate backend (given multiple backends).
@@ -50,6 +53,35 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = get_client::<R>(device);
         client.sync()
+    }
+
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        // The interpreter is where the window opens; the flush travels to it
+        // with the close, for the queue of the backend behind it to drain.
+        profile_with_tokens::<Self, O>(device, options, func)
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.profile_start()
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.profile_end(token, options)
+    }
+
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        let client = get_client::<R>(device);
+        client.profile_abandon(token);
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
