@@ -219,7 +219,15 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     ///
     /// The effect is similar to increasing the `batch size` and the `learning rate` by the `accumulation`
     /// amount.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `accumulation` is zero.
     pub fn grads_accumulation(mut self, accumulation: usize) -> Self {
+        assert!(
+            accumulation > 0,
+            "Gradient accumulation must be greater than zero."
+        );
         self.grad_accumulation = Some(accumulation);
         self
     }

@@ -81,6 +81,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
+        let mut naturally_exhausted = false;
 
         let accumulation = self.grad_accumulation.unwrap_or(1);
         let step = MultiDevicesTrainStep::<M>::new(&devices);
@@ -97,10 +98,9 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
                 }
             };
             if items.is_empty() {
+                naturally_exhausted = true;
                 break;
             }
-
-            learner.lr_step();
 
             let mut progress_items = Vec::with_capacity(items.len());
             for item in items.into_iter() {
@@ -113,6 +113,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
 
             if accumulation <= accumulation_current {
                 let grads = accumulator.grads();
+                learner.lr_step();
                 learner.optimizer_step(grads);
                 accumulation_current = 0;
             }
@@ -132,6 +133,12 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             if interrupter.should_stop() {
                 break;
             }
+        }
+
+        if naturally_exhausted && accumulation_current > 0 {
+            let grads = accumulator.grads();
+            learner.lr_step();
+            learner.optimizer_step(grads);
         }
     }
 
@@ -160,6 +167,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             .map(|_| GradientsAccumulator::new())
             .collect();
         let mut accumulation_current = 0;
+        let mut naturally_exhausted = false;
 
         let accumulation = self.grad_accumulation.unwrap_or(1);
         let step = MultiDevicesTrainStep::<M>::new(&devices);
@@ -173,10 +181,9 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
                 }
             };
             if items.is_empty() {
+                naturally_exhausted = true;
                 break;
             }
-
-            learner.lr_step();
 
             let mut progress_items = Vec::with_capacity(items.len());
             for item in items.into_iter() {
@@ -193,6 +200,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
                     let grad = accumulator.grads();
                     grads.grads.push((grad, devices[device_id].clone()));
                 }
+                learner.lr_step();
                 learner.optimizer_step_multi(grads);
                 accumulation_current = 0;
             }
@@ -212,6 +220,16 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             if interrupter.should_stop() {
                 break;
             }
+        }
+
+        if naturally_exhausted && accumulation_current > 0 {
+            let mut grads = MultiGradientsParams::default();
+            for (device_id, accumulator) in accumulators.iter_mut().enumerate() {
+                let grad = accumulator.grads();
+                grads.grads.push((grad, devices[device_id].clone()));
+            }
+            learner.lr_step();
+            learner.optimizer_step_multi(grads);
         }
     }
 }
