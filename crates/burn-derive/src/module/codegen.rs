@@ -16,7 +16,7 @@ pub(crate) trait ModuleCodegen {
     fn gen_fork(&self) -> TokenStream;
     fn gen_map(&self) -> TokenStream;
     fn gen_valid(&self) -> TokenStream;
-    fn gen_from_inner(&self) -> TokenStream;
+    fn gen_train(&self) -> TokenStream;
     fn gen_clone(&self) -> TokenStream;
 
     fn gen_display(&self) -> TokenStream;
@@ -41,13 +41,11 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let to_device = codegen.gen_to_device();
     let fork = codegen.gen_fork();
     let valid_fn = codegen.gen_valid();
-    let from_inner_fn = codegen.gen_from_inner();
+    let train_fn = codegen.gen_train();
     let clone_fn = codegen.gen_clone();
 
     let (generics_module, generics_ty_module, generics_where_module) =
         generics.module.split_for_impl();
-    let (generics_module_autodiff, generics_ty_module_autodiff, generics_where_module_autodiff) =
-        generics.module_autodiff.split_for_impl();
 
     let mut codegen = quote! {
 
@@ -61,13 +59,9 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
             #to_device
             #fork
 
-        }
-
-        impl #generics_module_autodiff burn::module::AutodiffModule for #name #generics_ty_module_autodiff #generics_where_module_autodiff
-        {
             #valid_fn
 
-            #from_inner_fn
+            #train_fn
         }
 
         impl #generics_module core::fmt::Display for #name #generics_ty_module #generics_where_module {
@@ -115,10 +109,6 @@ pub(crate) fn generate_module_stateless<Codegen: ModuleCodegen>(
             burn::empty!(module);
         }
 
-        impl #generics burn::module::AutodiffModule for #name #generics_ty #generics_where {
-            burn::empty!(ad_module, #name #generics_ty);
-        }
-
         impl #generics core::fmt::Display for #name #generics_ty #generics_where {
             #display_fn
         }
@@ -145,13 +135,11 @@ pub(crate) fn generate_module_stateless<Codegen: ModuleCodegen>(
 
 struct GenericsParser {
     module: Generics,
-    module_autodiff: Generics,
 }
 
 impl GenericsParser {
     fn from_ast(generics: &Generics, module_generics: &ModuleGenerics) -> Self {
         let mut module = GenericsHelper::new(generics.clone());
-        let mut module_autodiff = GenericsHelper::new(generics.clone());
 
         module.types().into_iter().for_each(|ident| {
             // By default, require module bound
@@ -173,21 +161,10 @@ impl GenericsParser {
                 module.add_predicate(parse_quote! {
                     #ident: burn::module::ModuleDisplay
                 });
-
-                module_autodiff.add_predicate(parse_quote! {
-                    #ident: burn::module::AutodiffModule
-                });
-
-                module_autodiff.add_predicate(parse_quote! {
-                    #ident: burn::module::ModuleDisplay
-                });
             } else {
                 // Add required bounds to impl
                 if let Some(GenericKind::Skip) = generic_kind {
                     module.add_predicate(parse_quote! {
-                        #ident: Clone + core::fmt::Debug + Send
-                    });
-                    module_autodiff.add_predicate(parse_quote! {
                         #ident: Clone + core::fmt::Debug + Send
                     });
                 }
@@ -196,7 +173,6 @@ impl GenericsParser {
 
         Self {
             module: module.generics,
-            module_autodiff: module_autodiff.generics,
         }
     }
 }

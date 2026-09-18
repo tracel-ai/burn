@@ -13,6 +13,7 @@ mod cartesian_grid;
 mod cast;
 mod cat;
 mod chunk;
+mod clamp;
 mod comparison;
 mod create_like;
 mod cumulative;

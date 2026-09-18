@@ -118,7 +118,7 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_valid(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {
-                Self::#variant(burn::module::AutodiffModule::valid(module))
+                Self::#variant(burn::module::Module::valid(module))
             }
         });
 
@@ -129,15 +129,15 @@ impl ModuleCodegen for EnumModuleCodegen {
         }
     }
 
-    fn gen_from_inner(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn_param("module", "Self::", |variant| {
+    fn gen_train(&self) -> TokenStream {
+        let match_body = self.gen_variants_match_fn_param("self", "Self::", |variant| {
             quote! {
-                Self::#variant(burn::module::AutodiffModule::from_inner(module))
+                Self::#variant(burn::module::Module::train(module))
             }
         });
 
         quote! {
-            fn from_inner(module: Self) -> Self {
+            fn train(self) -> Self {
                 #match_body
             }
         }

@@ -12,7 +12,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
+use burn::module::{Module, ModuleMapper, Param, ParamId};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor};
 use hashbrown::HashMap;
@@ -112,7 +112,7 @@ impl ModuleOptimizer {
         self
     }
 
-    fn step_common<M: AutodiffModule>(
+    fn step_common<M: Module>(
         &mut self,
         lr_policy: ModuleLearningRate,
         module: M,
@@ -160,7 +160,7 @@ impl ModuleOptimizer {
 
 impl ModuleOptimizer {
     /// Update the `module` parameters with the given `gradients`, advancing the optimizer state.
-    pub fn step<M: AutodiffModule>(
+    pub fn step<M: Module>(
         &mut self,
         lr_module: impl Into<ModuleLearningRate>,
         module: M,
@@ -170,7 +170,7 @@ impl ModuleOptimizer {
     }
 
     /// Like [`step`](Self::step), but accumulating gradients sourced from multiple devices.
-    pub fn step_multi<M: AutodiffModule>(
+    pub fn step_multi<M: Module>(
         &mut self,
         lr_module: impl Into<ModuleLearningRate>,
         module: M,

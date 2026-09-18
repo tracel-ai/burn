@@ -112,7 +112,7 @@ impl Reparameterizer for WeightNormMapper {
 mod tests {
     use super::*;
     #[cfg(feature = "autodiff")]
-    use burn_core::module::AutodiffModule;
+    use burn_core::module::Module;
     use burn_tensor::Tolerance;
 
     #[derive(Debug, Module)]

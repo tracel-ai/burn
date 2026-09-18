@@ -1,8 +1,7 @@
 use super::reparameterization_dyn::{self, DynReparameterization};
 use super::{Param, ParamId, Parameter, ParameterValue, Reparameterization};
 use crate::module::{
-    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor,
+    Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
 };
 use alloc::{boxed::Box, format, string::ToString, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
@@ -233,6 +232,41 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
         devices
     }
+
+    fn valid(&self) -> Self {
+        // Preserve whether the parameter was active, but reset the inner value's gradient state.
+        // `val()` folds any reparameterization into the base for inference.
+        //
+        // The param mapper crosses with it: it describes how the value relates to
+        // its *stored* form, which a change of backend does not alter. Dropping it
+        // makes `transform_for_save` the identity, so a record taken from a
+        // `valid()`ed module holds the in-memory shape rather than the checkpoint
+        // one — silently, for any layout that maps (a `Col` linear transposes).
+        let is_active = self.is_active;
+        let mut param = Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff().set_require_grad(false),
+            self.param_mapper.clone(),
+        );
+        param.is_active = is_active;
+        param
+    }
+
+    fn train(mut self) -> Self {
+        // Keep the reparameterization structure and its parameters on the autodiff backend.
+        let reparameterization = self.reparameterization.take();
+        // Reinstate the parameter's training state.
+        let is_active = self.is_active;
+        let tensor = Tensor::from_inner(self.val()).set_require_grad(is_active);
+        let mut base = Param::from_mapped_value(self.id, tensor, self.param_mapper);
+        base.is_active = is_active;
+        match reparameterization {
+            None => base,
+            Some(reparameterization) => {
+                base.with_dyn_reparameterization(Some(reparameterization.train_dyn()))
+            }
+        }
+    }
 }
 
 impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D>> {
@@ -276,6 +310,18 @@ impl<const D: usize> Module for Param<Tensor<D, Int>> {
         }
 
         devices
+    }
+
+    fn valid(&self) -> Self {
+        Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff(),
+            self.param_mapper.clone(),
+        )
+    }
+
+    fn train(self) -> Self {
+        Param::from_mapped_value(self.id, Tensor::from_inner(self.val()), self.param_mapper)
     }
 }
 
@@ -321,6 +367,18 @@ impl<const D: usize> Module for Param<Tensor<D, Bool>> {
 
         devices
     }
+
+    fn valid(&self) -> Self {
+        Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff(),
+            self.param_mapper.clone(),
+        )
+    }
+
+    fn train(self) -> Self {
+        Param::from_mapped_value(self.id, Tensor::from_inner(self.val()), self.param_mapper)
+    }
 }
 
 impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Bool>> {
@@ -340,79 +398,6 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Bool>> {
 }
 
 impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
-
-impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
-    fn valid(&self) -> Self {
-        // Preserve whether the parameter was active, but reset the inner value's gradient state.
-        // `val()` folds any reparameterization into the base for inference.
-        //
-        // The param mapper crosses with it: it describes how the value relates to
-        // its *stored* form, which a change of backend does not alter. Dropping it
-        // makes `transform_for_save` the identity, so a record taken from a
-        // `valid()`ed module holds the in-memory shape rather than the checkpoint
-        // one — silently, for any layout that maps (a `Col` linear transposes).
-        let is_active = self.is_active;
-        let mut param = Param::from_mapped_value(
-            self.id,
-            self.val().without_autodiff().set_require_grad(false),
-            self.param_mapper.clone(),
-        );
-        param.is_active = is_active;
-        param
-    }
-
-    fn from_inner(mut module: Self) -> Self {
-        // Keep the reparameterization structure and its parameters on the autodiff backend.
-        let reparameterization = module.reparameterization.take();
-        // Reinstate the parameter's training state.
-        let is_active = module.is_active;
-        let tensor = Tensor::from_inner(module.val()).set_require_grad(is_active);
-        let mut base = Param::from_mapped_value(module.id, tensor, module.param_mapper);
-        base.is_active = is_active;
-        match reparameterization {
-            None => base,
-            Some(reparameterization) => {
-                base.with_dyn_reparameterization(Some(reparameterization.from_inner_dyn()))
-            }
-        }
-    }
-}
-
-impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
-    fn valid(&self) -> Self {
-        Param::from_mapped_value(
-            self.id,
-            self.val().without_autodiff(),
-            self.param_mapper.clone(),
-        )
-    }
-
-    fn from_inner(module: Self) -> Self {
-        Param::from_mapped_value(
-            module.id,
-            Tensor::from_inner(module.val()),
-            module.param_mapper,
-        )
-    }
-}
-
-impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
-    fn valid(&self) -> Self {
-        Param::from_mapped_value(
-            self.id,
-            self.val().without_autodiff(),
-            self.param_mapper.clone(),
-        )
-    }
-
-    fn from_inner(module: Self) -> Self {
-        Param::from_mapped_value(
-            module.id,
-            Tensor::from_inner(module.val()),
-            module.param_mapper,
-        )
-    }
-}
 
 #[cfg(all(test, feature = "std", feature = "autodiff"))]
 mod tests {
@@ -559,8 +544,6 @@ mod tests {
         assert!(!param.is_require_grad());
         assert!(param.is_active); // stateful
 
-        // Without `HasAutodiffModule`, we would need to specify the param type as well, which would be annoying:
-        // let param: Param<Tensor<TestAutodiffBackend, _>> = param.train();
         let param = param.train();
         assert!(param.is_require_grad());
         assert!(param.is_active); // stateful
@@ -576,5 +559,30 @@ mod tests {
         let param = param.train();
         assert!(!param.is_require_grad());
         assert!(!param.is_active); // stateful
+    }
+
+    #[test]
+    fn a_lazy_param_with_an_init_mapper_trains_on_an_autodiff_device() {
+        let device = test_device().autodiff();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device,
+            true,
+            [2, 3].into(),
+        )
+        .init_mapper(|tensor| tensor.mul_scalar(2.0));
+
+        let value = param.val();
+        let grads = value.clone().sum().backward();
+
+        value
+            .into_data()
+            .assert_eq(&TensorData::from([[2.0f32; 3]; 2]), false);
+        param
+            .grad(&grads)
+            .expect("the mapped value is the leaf that receives the gradient")
+            .into_data()
+            .assert_eq(&TensorData::from([[1.0f32; 3]; 2]), false);
     }
 }

@@ -224,8 +224,9 @@ the destination's autodiff defaults do not enable training. For a module created
 or returned by `valid()`, use `module.train().fork(&destination)` to enable autodiff, restore its
 configured training state, and create independent destination parameters.
 
-The `AutodiffModule` trait provides transitions between autodiff-enabled training modules and
-inner-backend validation modules.
+The `Module` trait provides both `valid()` and `train()`. Importing `Module` is sufficient for
+these transitions; there is no separate `AutodiffModule` trait. A `Module` bound does not establish
+the current autodiff state. Training and validation modules have the same Rust type.
 
 | Burn API         | PyTorch Equivalent |
 | ---------------- | ------------------ |
