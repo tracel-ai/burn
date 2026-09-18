@@ -613,7 +613,7 @@ impl IntTensorOps<Self> for CubeBackend {
 
     fn int_clamp(tensor: IntTensor<Self>, min: Scalar, max: Scalar) -> IntTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::clamp(
+        kernel::clamp_int(
             tensor,
             InputScalar::new(min, dtype_to_storage_type(dtype)),
             InputScalar::new(max, dtype_to_storage_type(dtype)),
