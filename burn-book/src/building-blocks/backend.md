@@ -107,9 +107,9 @@ to `without_autodiff()`. Chain `autodiff().gradient_checkpointing()` to enable a
 balanced checkpointing strategy. Repeating `autodiff()` doesn't enable higher-order differentiation;
 Burn currently supports first-order autodiff only.
 
-Device equality compares compute resources and ignores autodiff and checkpointing settings.
-Use `tensor.is_autodiff()` to inspect a tensor's association; equality with an autodiff device does
-not establish that the tensor has autodiff enabled.
+Device equality compares compute resources and ignores autodiff and checkpointing settings. Use
+`tensor.is_autodiff()` to inspect a tensor's association; equality with an autodiff device does not
+establish that the tensor has autodiff enabled.
 
 The following methods are also useful when coordinating execution:
 
@@ -123,8 +123,9 @@ The following methods are also useful when coordinating execution:
 
 ## Device Settings
 
-Each device has their own runtime settings, including its default float, integer, and boolean
-dtypes. Inspect them with `settings()` and set them with `configure()`:
+Each device has runtime settings, including its default float, integer, and boolean dtypes. Set them
+with `configure()` before creating tensors or initializing model parameters, then inspect them with
+`settings()`:
 
 ```rust, ignore
 use burn::tensor::{Device, DeviceConfig, FloatDType, IntDType};
@@ -139,8 +140,21 @@ device.configure(
 let settings = device.settings();
 ```
 
-Configure defaults before the first tensor operation on that device. Once initialized, the default
-dtypes are locked; a later incompatible configuration returns an error.
+Configure defaults before the first tensor operation on that device. Device settings are initialized
+once; creating the first tensor uses the backend's defaults if configuration has not happened
+earlier.
+
+These settings choose defaults, not a single precision for every tensor on the device. You can still
+specify a supported float or integer dtype at creation or cast an existing tensor:
+
+```rust, ignore
+use burn::tensor::{DType, FloatDType, Tensor};
+
+let tensor = Tensor::<2>::zeros([2, 3], (&device, DType::F32));
+let tensor = tensor.cast(FloatDType::F16);
+```
+
+Neither choice changes the device's defaults.
 
 ## Enumerating Devices
 
@@ -170,7 +184,16 @@ Under the hood, an operation flows through the **Tensor → Bridge → Dispatch 
 - `Dispatch` selects the implementation associated with the tensor's device.
 - The backend executes the primitive operation.
 
+This replaces the backend parameter in the former `Tensor<B, D, K>` API. Cargo features make
+backends available, and devices select them at runtime, so one application can use several backends
+with the same tensor and model types. The opaque bridge keeps their concrete implementation types
+out of the public tensor representation.
+
 The `Backend` and `AutodiffBackend` traits still define the low-level implementation contract, but
 ordinary application code does not need bounds such as `B: Backend`. You will mainly encounter those
 traits when implementing or extending a backend; see
-[Backend Extension](../advanced/backend-extension/README.md).
+[Backend Extension](../advanced/backend-extension/).
+
+For the responsibilities of each layer, the reason for the opaque bridge, and an operation
+walkthrough, see the contributor book's
+[Tensor architecture chapter](https://burn.dev/contributor-book/project-architecture/tensor.html).

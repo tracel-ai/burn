@@ -1,20 +1,20 @@
 # Learning Rate Scheduler
 
-Learning rate schedulers control how the learning rate evolves during training. A scheduler is
-built from its configuration and passed to the learner along with the model and the optimizer, as
-shown in the [learner section](./learner.md). A constant learning rate can be provided as a simple
-float. We currently offer the following schedulers.
+Learning rate schedulers control how the learning rate evolves during training. A scheduler is built
+from its configuration and passed to the learner along with the model and the optimizer, as shown in
+the [learner section](./learner.md). A constant learning rate can be provided as a simple float. We
+currently offer the following schedulers.
 
-| Scheduler        | Description                                                                       |
-| ---------------- | --------------------------------------------------------------------------------- |
-| Constant         | Keep the learning rate fixed during training                                       |
-| Linear           | Interpolate linearly between an initial and final learning rate                    |
-| Cosine Annealing | Anneal the learning rate following a cosine curve                                  |
-| Exponential      | Multiply the learning rate by a constant factor at every step                      |
-| Noam             | Warm up linearly, then decay proportionally to the inverse square root of the step |
-| Step             | Multiply the learning rate by a constant factor at fixed intervals                 |
-| Composed         | Combine schedulers per parameter group (see the [learner section](./learner.md#multiple-optimizers)) |
-| Sequential       | Run different schedulers during non-overlapping parts of training                  |
+| Scheduler        | Description                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| Constant         | Keep the learning rate fixed during training                                                      |
+| Linear           | Interpolate linearly between an initial and final learning rate                                   |
+| Cosine Annealing | Anneal the learning rate following a cosine curve                                                 |
+| Exponential      | Multiply the learning rate by a constant factor at every step                                     |
+| Noam             | Warm up linearly, then decay proportionally to the inverse square root of the step                |
+| Step             | Multiply the learning rate by a constant factor at fixed intervals                                |
+| Composed         | Combine schedulers per parameter group (see the [learner section](./learner.md#parameter-groups)) |
+| Sequential       | Run different schedulers during non-overlapping parts of training                                 |
 
 ## Sequential learning rate schedules
 

@@ -35,10 +35,13 @@
 //! We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
 //! then deploy on customer hardwares, which vary from user to user.
 //!
-//! Compared to other frameworks, Burn has a very different approach to supporting many backends.
-//! By design, most code is generic over the Backend trait, which allows us to build Burn with swappable backends.
-//! This makes composing backend possible, augmenting them with additional functionalities such as
-//! autodifferentiation and automatic kernel fusion.
+//! Burn's backend architecture lets you swap backends while keeping the same model code. You can
+//! enable multiple backends in the same application and choose the device for your tensors and
+//! modules at runtime through [`tensor::Device`]. This gives you the freedom to use different
+//! backends side by side and select the hardware best suited to each workload.
+//!
+//! Autodifferentiation and automatic kernel fusion integrate with the same tensor and module APIs,
+//! so models benefit from these capabilities on supported backends without changing their implementation.
 //!
 //! - WGPU (WebGPU): Cross-Platform GPU Backend
 //! - LibTorch: Backend using the LibTorch bindings (deprecated)
