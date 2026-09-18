@@ -58,12 +58,6 @@ pub fn mask_where(
     strategy: MaskWhereStrategy,
     dtype_bool: DType,
 ) -> CubeTensor {
-    let vector_size = max_vector_size_many(&[&input, &mask, &value], input.meta.num_dims() - 1);
-
-    let working_units = input.meta.num_elements() / vector_size as usize;
-    let cube_dim = CubeDim::new(&input.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
-
     let out_shape = broadcast_shape(&[&input, &mask, &value]);
 
     // A zero-sized broadcast output has no elements to compute, and the strategies below assume a
@@ -76,6 +70,14 @@ pub fn mask_where(
             input.dtype,
         );
     }
+
+    let vector_size = max_vector_size_many(&[&input, &mask, &value], input.meta.num_dims() - 1);
+
+    // Count the broadcast output, not the input: a broadcast input holds fewer elements, and
+    // launching for those leaves the rest of the output with whatever its allocation held.
+    let working_units = out_shape.num_elements() / vector_size as usize;
+    let cube_dim = CubeDim::new(&input.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let output = match strategy {
         MaskWhereStrategy::Readonly => empty_device_dtype(
