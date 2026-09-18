@@ -169,13 +169,20 @@ pub(crate) fn handle_backend_tests(
         )?;
 
         let mut placement_args = test_args.clone();
-        placement_args.extend(["--features", "ndarray", "--test", "lazy_param_device"]);
+        placement_args.extend([
+            "--features",
+            "ndarray",
+            "--test",
+            "lazy_param_device",
+            "--test",
+            "pipeline_placement",
+        ]);
         build_helpers::custom_crates_tests(
             vec!["burn-core"],
             handle_test_args(&placement_args, args.release),
             None,
             None,
-            "lazy parameter placement tests",
+            "device placement tests",
         )?;
     }
 
