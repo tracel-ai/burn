@@ -103,7 +103,7 @@ impl Tensor {
     ///
     /// Reads from different threads run at once: a ZIP read holds the archive lock only to
     /// locate its entry. A compressed entry, which `torch.save` does not write, streams
-    /// under the lock instead, as does every entry on a target other than Unix and Windows.
+    /// under the lock instead, as does every entry on a target other than Unix.
     ///
     /// # Errors
     ///

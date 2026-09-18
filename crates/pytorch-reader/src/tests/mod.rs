@@ -1710,6 +1710,9 @@ fn test_zip_reads_from_several_threads() {
     }
 }
 
+// Unix only: the positional path is the one that reads into a buffer sized at open. The
+// stream path elsewhere reports a cut-short file as an archive that disagrees with itself.
+#[cfg(unix)]
 #[test]
 fn test_zip_reads_of_a_truncated_file_are_an_error() {
     // The file length and entry offsets were taken at open. A file cut short underneath
@@ -1779,7 +1782,7 @@ fn test_deflated_checksum_mismatch_is_an_error() {
 }
 
 // The positional path's own check; the stream path reports this as a checksum failure.
-#[cfg(any(unix, windows))]
+#[cfg(unix)]
 #[test]
 fn test_zip_storage_beyond_file_end_is_an_error() {
     // A local header whose extra field length puts the entry's data past the end of the
@@ -1802,7 +1805,7 @@ fn test_zip_storage_beyond_file_end_is_an_error() {
 }
 
 // The positional path's own check; the stream path reports this as a short read.
-#[cfg(any(unix, windows))]
+#[cfg(unix)]
 #[test]
 fn test_zip_stored_entry_size_mismatch_is_an_error() {
     // A stored entry whose central directory sizes disagree. The bytes past the smaller

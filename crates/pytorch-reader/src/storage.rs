@@ -117,8 +117,8 @@ pub(crate) struct ZipSource {
     /// A second handle to the same file, read at explicit offsets and never through its
     /// cursor. A stored storage's bytes come through it once the lookup under `archive`
     /// has said where they are, so tensor reads from different threads run at once instead
-    /// of queueing on `archive`. Unused past `open` on a target without a positional read
-    /// (see `read_exact_at`).
+    /// of queueing on `archive`. Unused past `open` on Windows and on a target without a
+    /// positional read (see `read_exact_at`).
     file: File,
     /// Root directory including its trailing slash, or empty at the archive root.
     root: String,
@@ -131,7 +131,10 @@ impl ZipSource {
     pub fn open(path: &Path) -> Result<Self, PytorchError> {
         let file = File::open(path)?;
         let file_len = file.metadata()?.len();
-        let archive = ZipArchive::new(BufReader::new(stream_handle(&file, path)?))?;
+        // The stream gets a duplicate of the handle rather than an open of its own, so a
+        // replacement of `path` cannot slip in between two opens. The duplicate shares the
+        // cursor, which is why `file` is only ever read at explicit offsets.
+        let archive = ZipArchive::new(BufReader::new(file.try_clone()?))?;
 
         let root = archive
             .file_names()
@@ -213,7 +216,7 @@ impl ZipSource {
         let rest = size - skipped;
         let len = rest.min(max_len as u64);
 
-        if cfg!(any(unix, windows)) && entry.compression() == CompressionMethod::Stored {
+        if cfg!(unix) && entry.compression() == CompressionMethod::Stored {
             // Every entry `torch.save` writes is stored, so this is the path tensors take.
             if entry.compressed_size() != size {
                 return Err(invalid_data(format!(
@@ -334,23 +337,6 @@ fn read_zip_entry<R: Read>(
     Ok(bytes)
 }
 
-/// A second handle to `file` for the archive's stream, with a cursor of its own.
-///
-/// A positional read leaves the cursor alone, so a duplicate of `file` serves: both handles
-/// then come from one open, and a replacement of `path` cannot slip in between two.
-#[cfg(not(windows))]
-fn stream_handle(file: &File, _path: &Path) -> io::Result<File> {
-    file.try_clone()
-}
-
-/// On Windows `seek_read` sets the cursor and a duplicate shares it, so the stream needs
-/// its own open file. A replacement of `path` between the two opens goes unnoticed: std
-/// has no stable file identity to compare on Windows.
-#[cfg(windows)]
-fn stream_handle(_file: &File, path: &Path) -> io::Result<File> {
-    File::open(path)
-}
-
 /// Fill `buf` from `offset` without depending on the handle's cursor, so reads through one
 /// handle from several threads do not interfere.
 #[cfg(unix)]
@@ -358,29 +344,11 @@ fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> io::Result<()> {
     std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
 }
 
-/// As on Unix, except that `seek_read` also sets the cursor, which is why nothing reads
-/// `ZipSource::file` through it. Windows serializes I/O on a synchronous handle, so threads
-/// still queue in the kernel here, though no longer behind the archive lock and its stream.
-#[cfg(windows)]
-fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> io::Result<()> {
-    use std::os::windows::fs::FileExt;
-    while !buf.is_empty() {
-        match file.seek_read(buf, offset) {
-            Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
-            Ok(read) => {
-                buf = &mut buf[read..];
-                offset += read as u64;
-            }
-            Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
-            Err(err) => return Err(err),
-        }
-    }
-    Ok(())
-}
-
-// No stable positional read in std elsewhere, so `read_storage` keeps those targets on the
-// stream path and this is never called.
-#[cfg(not(any(unix, windows)))]
+// Windows has `seek_read`, but it sets the cursor, which the archive's stream depends on and
+// shares through the duplicate; an open of its own for the stream would be a second open by
+// path, which a replacement could slip in between. No stable positional read in std elsewhere.
+// So `read_storage` keeps those targets on the stream path and this is never called.
+#[cfg(not(unix))]
 fn read_exact_at(_file: &File, _buf: &mut [u8], _offset: u64) -> io::Result<()> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
