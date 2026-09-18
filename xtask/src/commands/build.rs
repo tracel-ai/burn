@@ -32,12 +32,22 @@ pub(crate) fn handle_command(
                     build_args.extend(vec!["--target", *build_target]);
                 }
 
+                // Resolve independently: burn-no-std-tests selects Flex for execution,
+                // which would otherwise hide regressions in backend-free library builds.
+                build_helpers::custom_crates_build(
+                    vec!["burn"],
+                    build_args.clone(),
+                    None,
+                    None,
+                    &format!("backend-free no-std with target {}", *build_target),
+                )?;
+
                 let mut crates = NO_STD_CRATES.to_vec();
 
                 if *build_target == ARM_NO_ATOMIC_PTR_TARGET {
                     // Only build a subset of crates which require `portable_atomic_unsafe_assume_single_core`.
-                    // Other crates build with `burn-flex` (default_backend) which requires the `critical-section`
-                    // feature (automatically enabled via `burn-dispatch` when `not(target_has_atomic = "ptr")`),
+                    // Dispatch and the explicit Flex integration tests enable `critical-section`
+                    // on targets without pointer atomics,
                     // which is mutually exclusive with `portable_atomic_unsafe_assume_single_core` cfg.
                     crates = vec!["burn-std", "burn-backend", "burn-ndarray"];
                     env_vars.insert(

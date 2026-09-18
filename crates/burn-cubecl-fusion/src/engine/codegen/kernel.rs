@@ -982,7 +982,17 @@ fn clamp<C: Numeric, N: Size>(
     let input = read::<C, N>(inputs, &*outputs, &*locals, write_pos, input, config);
     let min = read::<C, N>(inputs, &*outputs, &*locals, write_pos, min, config);
     let max = read::<C, N>(inputs, &*outputs, &*locals, write_pos, max, config);
-    let result = cubecl::prelude::clamp(input, min, max);
+
+    let elem_type = elem_type_of::<C>();
+    let result = if comptime!(elem_type.is_float()) {
+        // clamp lowers to max(min(x, max), min), which returns the non-NaN operand and so mapped
+        // NaN to a bound. Comparisons against NaN are false, so it survives here, in the same
+        // order as the clamp_min/clamp_max trait default.
+        let clamped = select(input > max, max, input);
+        select(clamped < min, min, clamped)
+    } else {
+        cubecl::prelude::clamp(input, min, max)
+    };
 
     write::<C, N>(inputs, outputs, locals, write_pos, result, out, config);
 }

@@ -805,7 +805,7 @@ impl FloatTensorOps<Self> for CubeBackend {
 
     fn float_clamp(tensor: FloatTensor<Self>, min: Scalar, max: Scalar) -> FloatTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::clamp(
+        kernel::clamp_float(
             tensor,
             InputScalar::new(min, dtype_to_storage_type(dtype)),
             InputScalar::new(max, dtype_to_storage_type(dtype)),

@@ -312,6 +312,23 @@ mod cube {
     }
 }
 
+/// Only where the build has a backend to be the default.
+///
+/// `Device::default()` panics outright otherwise, and a build with no backend
+/// is a supported one. `remote` is left out although it answers `default()`:
+/// its device wants a server on the other end, which a unit test has not got.
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "flex",
+    feature = "metal",
+    feature = "ndarray",
+    feature = "rocm",
+    feature = "tch",
+    feature = "vulkan",
+    feature = "webgpu",
+    feature = "wgpu"
+))]
 #[test]
 fn default_device_profiles_in_system_time() {
     use burn::prelude::{Device, Tensor};

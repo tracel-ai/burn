@@ -1601,7 +1601,7 @@ where
     /// on a device inherit its configuration, while tensors moved to that device retain their
     /// existing one. Change it explicitly with [`autodiff`](Tensor::autodiff),
     /// [`without_autodiff`](Tensor::without_autodiff), or
-    /// [`with_gradient_checkpointing_strategy`](Tensor::with_gradient_checkpointing_strategy).
+    /// `Tensor::with_gradient_checkpointing_strategy`.
     ///
     /// For tracked floating-point tensors, `to_device` is a recorded operation, including when
     /// the target is the current device. Its output is a non-leaf tensor and cannot retain its

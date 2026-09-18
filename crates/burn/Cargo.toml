@@ -36,6 +36,7 @@ default = [
 ]
 doc = [
     "default",
+    "flex",
     "train",
     "burn-core/doc",
     "burn-train/doc",

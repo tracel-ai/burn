@@ -6,7 +6,7 @@ use burn_backend::cubecl::{Device as CubeDevice, RuntimeId};
 
 // The cubecl runtimes — `cpu` among them — enumerate through `cube_devices` rather than a
 // `vec![]` literal, so only the backends that still list a fixed device need this.
-#[cfg(any(feature = "ndarray", feature = "flex", default_backend))]
+#[cfg(any(feature = "ndarray", feature = "flex"))]
 use alloc::vec;
 
 #[cfg(feature = "autodiff")]
@@ -24,12 +24,15 @@ use burn_backend::{
 /// captured by, and can only replay on, the backend it was recorded on.
 #[derive(Debug, Clone)]
 pub enum DispatchGraph {
+    #[cfg(not(backend_enabled))]
+    #[doc(hidden)]
+    Unavailable(crate::NoBackend),
     /// A graph captured on the [cubecl backend](Cube).
     #[cfg(cube_backend)]
     Cube(BackendGraph<Cube>),
 
     /// A graph captured on the [Flex backend](Flex).
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     Flex(BackendGraph<Flex>),
 
     /// A graph captured on the [NdArray backend](NdArray).
@@ -117,7 +120,16 @@ macro_rules! is_tracked_arms {
     };
 }
 
-#[cfg(feature = "autodiff")]
+#[cfg(all(
+    feature = "autodiff",
+    any(
+        cube_backend,
+        feature = "flex",
+        feature = "ndarray",
+        feature = "tch",
+        feature = "remote"
+    )
+))]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
@@ -128,7 +140,7 @@ use crate::DispatchAutodiffContext;
 use crate::DispatchDeviceId;
 #[allow(unused)]
 use crate::DispatchTensorKind;
-#[cfg(any(feature = "flex", default_backend))]
+#[cfg(feature = "flex")]
 use crate::devices::FlexDevice;
 #[cfg(feature = "tch")]
 use crate::devices::LibTorchDevice;
@@ -259,7 +271,7 @@ impl Backend for Dispatch {
         match dispatch_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
             #[cfg(feature = "ndarray")]
             DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
@@ -345,6 +357,18 @@ fn enable_autodiff_context(context: DispatchAutodiffContext) -> DispatchAutodiff
 }
 
 #[cfg(feature = "autodiff")]
+// Capture does not support autodiff. Without an execution backend, the dispatch
+// arms below only panic, leaving gradient arguments unused and return code unreachable.
+#[cfg_attr(
+    not(any(
+        cube_backend,
+        feature = "flex",
+        feature = "ndarray",
+        feature = "tch",
+        feature = "remote"
+    )),
+    allow(unused_variables, unreachable_code)
+)]
 impl AutodiffBackend for Dispatch {
     type InnerBackend = Dispatch;
 
@@ -355,9 +379,11 @@ impl AutodiffBackend for Dispatch {
 
         match kind {
             DispatchTensorKind::Autodiff(tensor) => match *tensor {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
-                #[cfg(any(feature = "flex", default_backend))]
+                #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "ndarray")]
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
@@ -381,12 +407,14 @@ impl AutodiffBackend for Dispatch {
         let DispatchTensor { kind, .. } = tensor;
         let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Cube(crate::BackendTensor::Float(t))),
-                #[cfg(any(feature = "flex", default_backend))]
+                #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
@@ -426,12 +454,14 @@ impl AutodiffBackend for Dispatch {
         let DispatchTensor { kind, .. } = tensor;
         let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Cube(crate::BackendTensor::Float(t))),
-                #[cfg(any(feature = "flex", default_backend))]
+                #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
@@ -485,7 +515,7 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Cube(tensor), DispatchTensorKind::Cube(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(any(feature = "flex", default_backend))]
+                #[cfg(feature = "flex")]
                 (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
@@ -518,11 +548,13 @@ impl AutodiffBackend for Dispatch {
 
         let kind = match kind {
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => DispatchTensorKind::Cube(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
-                #[cfg(any(feature = "flex", default_backend))]
+                #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
@@ -584,7 +616,7 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Cube>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Flex(
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
@@ -655,6 +687,8 @@ impl AutodiffBackend for Dispatch {
 
         let kind = match kind {
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => {
                     DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cube(
@@ -693,6 +727,8 @@ impl AutodiffBackend for Dispatch {
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => {
                     Autodiff::<Cube>::distributed_params(tensor.as_autodiff())
@@ -719,6 +755,8 @@ impl AutodiffBackend for Dispatch {
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
                 #[cfg(cube_backend)]
                 DispatchTensorKind::Cube(tensor) => {
                     Autodiff::<Cube>::is_distributed(tensor.as_autodiff())
@@ -740,7 +778,7 @@ impl AutodiffBackend for Dispatch {
     }
 }
 
-#[cfg(all(test, feature = "autodiff", any(feature = "flex", default_backend)))]
+#[cfg(all(test, feature = "autodiff", feature = "flex"))]
 mod autodiff_context_tests {
     use super::*;
     use crate::{DispatchAutodiffContext, DispatchTensorKind, GradientCheckpointingStrategy};
@@ -1111,7 +1149,7 @@ impl Dispatch {
                 .filter(|device| cube_runtime_enabled(device.runtime()))
                 .map(DispatchDevice::Cube)
                 .collect(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
             #[cfg(feature = "ndarray")]
             DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],

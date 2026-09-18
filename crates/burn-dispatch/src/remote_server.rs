@@ -1,7 +1,7 @@
 //! Concrete-backend dispatch for `burn-remote`'s server entry points.
 //!
 //! Lives in `burn-dispatch` because matching on [`DispatchDevice`] requires the
-//! local `cube_backend`/`default_backend` cfgs set by this crate's `build.rs`,
+//! local `cube_backend` cfg set by this crate's `build.rs`,
 //! plus visibility of every in-tree `BackendIr` type. The user surface
 //! (`Channel` enum, opaque `Device` argument) lives in `burn-tensor`.
 
@@ -15,7 +15,7 @@ use crate::DispatchDevice;
 use crate::backends::*;
 // Only the non-cubecl backends still enumerate through `Dispatch`; the cubecl one enumerates
 // its devices directly (see `host_devices!`).
-#[cfg(any(feature = "flex", feature = "ndarray", default_backend))]
+#[cfg(any(feature = "flex", feature = "ndarray"))]
 use crate::{Dispatch, DispatchDeviceId};
 
 /// Transport used to serve remote clients. Re-exported from `burn-remote` so the whole stack
@@ -80,7 +80,7 @@ macro_rules! with_backend {
                 let $devices = host_devices!(cube: device);
                 $body
             }
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchDevice::Flex(_) => {
                 type $b = Flex;
                 let $devices = host_devices!(DispatchDeviceId::Flex, Flex);

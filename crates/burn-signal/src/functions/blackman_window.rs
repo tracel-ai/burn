@@ -35,7 +35,7 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 /// Panics if `size` exceeds `i64::MAX`.
 ///
 /// # Example
-/// ```rust
+/// ```rust,no_run
 /// use burn_core::tensor::{Device, DType};
 /// use burn_signal::blackman_window;
 ///

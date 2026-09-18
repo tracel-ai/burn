@@ -20,7 +20,7 @@ default = []
 
 # ** Please make sure all dependencies support no_std **
 
-burn = { workspace = true }
+burn = { workspace = true, features = ["flex"] }
 burn-flex = { workspace = true }
 
 burn-store = { workspace = true, features = ["safetensors"] }

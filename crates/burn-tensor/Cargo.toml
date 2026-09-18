@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std", "burn-dispatch/default"]
-doc = ["default"]
+doc = ["default", "flex"]
 std = [
     "num-traits/std",
     "burn-std/std",
@@ -85,6 +85,10 @@ num-traits = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
+
+[dev-dependencies]
+# Execution backend for tensor integration tests; ordinary builds remain backend-free.
+burn-dispatch = { workspace = true, features = ["flex"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

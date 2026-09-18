@@ -1,8 +1,7 @@
 fn main() {
-    println!("cargo::rustc-check-cfg=cfg(default_backend)");
     println!("cargo::rustc-check-cfg=cfg(cube_backend)");
+    println!("cargo::rustc-check-cfg=cfg(backend_enabled)");
 
-    // If you try to build with `--no-default-features`, we enable a cpu backend by default
     let cuda = cfg!(feature = "cuda");
     let flex = cfg!(feature = "flex");
     let rocm = cfg!(feature = "rocm");
@@ -14,11 +13,21 @@ fn main() {
     let webgpu = cfg!(feature = "webgpu");
     let wgpu = cfg!(feature = "wgpu");
 
-    let no_backend_enabled =
-        !(cuda || flex || rocm || ndarray || tch || cpu || metal || vulkan || webgpu || wgpu);
-
-    if no_backend_enabled {
-        println!("cargo:rustc-cfg=default_backend");
+    // Backend-free builds expose tensor/model APIs without installing an execution backend.
+    if cuda
+        || flex
+        || rocm
+        || ndarray
+        || tch
+        || cpu
+        || metal
+        || vulkan
+        || webgpu
+        || wgpu
+        || cfg!(feature = "remote")
+        || cfg!(feature = "capture")
+    {
+        println!("cargo::rustc-cfg=backend_enabled");
     }
 
     // Every cubecl-backed feature selects the same backend type now — the

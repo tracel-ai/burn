@@ -44,6 +44,7 @@ pub fn handle_command(
     })?;
 
     check_no_std()?;
+    check_backend_features()?;
 
     super::test::handle_backend_tests(
         TestCmdArgs {
@@ -70,10 +71,75 @@ pub fn handle_command(
 
 /// Check no-std compatibility on the host without compiling the full embedded target matrix.
 fn check_no_std() -> anyhow::Result<()> {
+    // Keep this separate: the integration-test crate selects Flex in the group below.
+    run_process(
+        "cargo",
+        &["check", "-p", "burn", "--no-default-features"],
+        None,
+        None,
+        "Backend-free no-std check failed",
+    )?;
+
     let mut args = vec!["check", "--no-default-features", "--color", "always"];
     for package in NO_STD_CRATES {
         args.extend(["-p", package]);
     }
 
     run_process("cargo", &args, None, None, "Quick no-std check failed")
+}
+
+/// Resolve Burn independently so workspace feature unification cannot supply a backend.
+pub(crate) fn check_backend_features() -> anyhow::Result<()> {
+    run_process(
+        "cargo",
+        &["check", "-p", "burn"],
+        None,
+        None,
+        "Backend-free default build failed",
+    )?;
+
+    for (features, forbidden) in [
+        (
+            "signal,linalg,vision",
+            &[
+                "burn-flex",
+                "burn-cubecl",
+                "burn-ndarray",
+                "burn-tch",
+                "burn-remote",
+                "burn-capture",
+            ][..],
+        ),
+        ("wgpu,signal,linalg,vision", &["burn-flex"][..]),
+    ] {
+        // Dev-dependencies intentionally select backends for execution tests.
+        let output = std::process::Command::new("cargo")
+            .args([
+                "tree",
+                "-p",
+                "burn",
+                "--features",
+                features,
+                "--edges",
+                "normal,build",
+                "--prefix",
+                "none",
+            ])
+            .output()?;
+        anyhow::ensure!(
+            output.status.success(),
+            "Dependency check failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        for package in String::from_utf8(output.stdout)?
+            .lines()
+            .filter_map(|line| line.split_whitespace().next())
+        {
+            anyhow::ensure!(
+                !forbidden.contains(&package),
+                "Features {features} unexpectedly enabled {package}"
+            );
+        }
+    }
+    Ok(())
 }
