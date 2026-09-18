@@ -11,8 +11,8 @@ Applications own the Iroh endpoint configuration. This keeps identity persistenc
 address lookup, and fleet discovery outside Burn:
 
 ```rust,ignore
-use burn::{Device, Tensor};
-use burn::backend::remote::{Endpoint, RemoteNode, endpoint::presets};
+use burn::tensor::{Device, Tensor};
+use iroh::{Endpoint, endpoint::presets};
 
 let endpoint = Endpoint::builder(presets::N0)
     // .secret_key(persistent_secret_key)
@@ -20,49 +20,52 @@ let endpoint = Endpoint::builder(presets::N0)
     // .address_lookup(platform_lookup)
     .bind()
     .await?;
-let node = RemoteNode::from_endpoint(endpoint);
 
 // Supplied by your platform, invitation, or other discovery mechanism.
 let compute_peer = fleet.lookup("gpu-worker-7").await?;
-let device = Device::remote_iroh(&node, compute_peer, 0);
+let device = Device::remote_iroh(&endpoint, compute_peer, 0);
 
 let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 ```
 
-`RemoteNode` is process-level. Clone it rather than creating one per device: clones share one
-Iroh endpoint, peer connection pool, and multiplexed QUIC connections.
+Build every device from the same endpoint: it is the client's identity, which is what a compute
+peer authorizes.
 
-Platforms can issue a `RemoteTicket` containing an `EndpointAddr` and opaque authorization bytes.
-Burn passes the credential to the compute peer's `PeerAuthorizer`; signature format, expiry,
-tenant policy, and fleet membership remain application concerns.
+`Device::remote_iroh_authorized` also sends an opaque credential, which Burn passes to the compute
+peer's `PeerAuthorizer`. Signature format, expiry, tenant policy, and fleet membership remain
+application concerns.
 
 ## Compute peer
 
 ```rust,ignore
-use burn::{Device, server::{self, Channel}};
-use burn::backend::remote::RemoteNode;
+use burn::{server::{self, Channel, RemoteSecret}, tensor::Device};
 
-let node = RemoteNode::bind().await?;
-println!("compute peer: {}", node.endpoint().addr());
+let secret = RemoteSecret::random();
+println!("compute peer: {}", secret.id());
 
 server::start_async(
     Device::cuda(0),
-    Channel::Iroh { node },
+    Channel::Iroh { secret: Box::new(secret) },
 ).await;
 ```
 
-For an endpoint shared with other Iroh protocols, register Burn's composable handler in the
-application router:
+This serves every peer that dials it. To authorize peers, or to share an endpoint with other Iroh
+protocols, register Burn's composable handler in the application router:
 
 ```rust,ignore
-use burn_remote::BURN_REMOTE_ALPN;
+use burn::{
+    server::{self, AuthorizationRequest, BURN_REMOTE_ALPN},
+    tensor::Device,
+};
 use iroh::protocol::Router;
 
-let burn = node
-    .protocol::<MyBackend>(devices)
-    .with_authorizer(|request| platform.verify(request.peer, request.credential));
+let burn = server::protocol(Device::cuda(0), &endpoint)
+    .with_authorizer(|request: AuthorizationRequest<'_>| {
+        platform.verify(request.peer, request.credential)
+    })
+    .build();
 
-let router = Router::builder(node.endpoint().clone())
+let router = Router::builder(endpoint)
     .accept(BURN_REMOTE_ALPN, burn)
     .accept(MY_OTHER_ALPN, other_protocol)
     .spawn();
@@ -80,5 +83,5 @@ Tensor movement between an Iroh peer and a legacy WebSocket peer is not supporte
 
 ## WebSocket compatibility
 
-The `websocket` feature preserves `Device::remote("ws://host:port", index)` and
+The `websocket` feature preserves `Device::remote_websocket("ws://host:port", index)` and
 `Channel::WebSocket`. It is intended for compatibility; new integrations should use Iroh.
