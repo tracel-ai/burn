@@ -2,7 +2,7 @@
 
 use crate::{
     ApplyResult, KeyRemapper, ModuleSnapshot, ModuleStore, PathFilter, PyTorchToBurnAdapter,
-    bridge, map_indices_contiguous,
+    bridge, map_indices_contiguous_except,
 };
 
 use alloc::collections::BTreeMap;
@@ -80,6 +80,8 @@ pub struct PytorchStore {
     pub(crate) skip_enum_variants: bool,
     /// Enable contiguous mapping of layer indices (default: true)
     pub(crate) map_indices_contiguous: bool,
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    pub(crate) keep_indices: PathFilter,
     /// Cached tensors (parsed once, reused)
     tensors_cache: Option<BTreeMap<String, PackTensor>>,
 }
@@ -109,6 +111,7 @@ impl PytorchStore {
             // Enable contiguous index mapping by default for PyTorch files
             // This handles nn.Sequential models with gaps in layer indices
             map_indices_contiguous: true,
+            keep_indices: PathFilter::new(),
             tensors_cache: None,
         }
     }
@@ -313,6 +316,35 @@ impl PytorchStore {
         self
     }
 
+    /// Leave the indices under prefixes matching `pattern` untouched when contiguous
+    /// index mapping is enabled.
+    ///
+    /// The regex is matched against the path leading up to a numeric segment, without
+    /// the trailing dot: `flows` for `flows.2.weight`, `flows.2.enc.in_layers` for
+    /// `flows.2.enc.in_layers.0.weight`. Anchor the pattern (`^...$`) to keep exactly
+    /// one list; an unanchored `^flows` would also keep every list nested under it.
+    /// Can be called multiple times.
+    ///
+    /// Use this when a `Vec` on the Burn side mirrors the PyTorch indices directly, for
+    /// example because its odd entries are parameter-free, while other lists in the same
+    /// file still have gaps that need collapsing.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
+    /// // flows.{0,2,4} stay as-is, every other list is still renumbered
+    /// let store = PytorchStore::from_file("model.pth")
+    ///     .map_indices_contiguous_except(r"^model_g\.flow\.flows$");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    pub fn map_indices_contiguous_except<S: AsRef<str>>(mut self, pattern: S) -> Self {
+        self.keep_indices = self.keep_indices.with_regex(pattern);
+        self
+    }
+
     /// Apply remapping to tensors.
     fn apply_remapping(&self, tensors: Vec<PackTensor>) -> Vec<PackTensor> {
         if self.remapper.is_empty() {
@@ -426,7 +458,8 @@ impl PytorchStore {
         // Apply contiguous index mapping if enabled
         // This must be done after remapping so that remapped paths are mapped
         if self.map_indices_contiguous {
-            let (mapped, _) = map_indices_contiguous(tensors);
+            let (mapped, _) =
+                map_indices_contiguous_except(tensors, |prefix| self.keep_indices.matches(prefix));
             tensors = mapped;
         }
 

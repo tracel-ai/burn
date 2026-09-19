@@ -336,3 +336,32 @@ fn test_file_cache_invalidation_on_save() {
     let snapshots2 = store.get_all_tensors().unwrap();
     assert_eq!(snapshots2.len(), 4);
 }
+
+#[cfg(feature = "std")]
+#[test]
+fn test_memory_keys_map_indices_contiguous_except() {
+    // flows.{0,2,4} and fc.{0,2} on disk; only fc should be renumbered.
+    #[derive(Module, Debug)]
+    struct GappyModule {
+        flows: Vec<Option<Param<Tensor<1>>>>,
+        fc: Vec<Option<Param<Tensor<1>>>>,
+    }
+
+    let device: Device = Default::default();
+    let param = |v: f32| Some(Param::from_data([v], &device));
+    let module = GappyModule {
+        flows: vec![param(0.0), None, param(2.0), None, param(4.0)],
+        fc: vec![param(0.0), None, param(2.0)],
+    };
+
+    let mut save_store = SafetensorsStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    let mut load_store = SafetensorsStore::from_bytes(Some(bytes))
+        .map_indices_contiguous(true)
+        .map_indices_contiguous_except(r"^flows$");
+
+    let keys = load_store.keys().unwrap();
+    assert_eq!(keys, ["fc.0", "fc.1", "flows.0", "flows.2", "flows.4"]);
+}

@@ -4,7 +4,7 @@ use crate::bridge;
 use crate::{ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter};
 
 #[cfg(feature = "std")]
-use crate::{KeyRemapper, map_indices_contiguous};
+use crate::{KeyRemapper, map_indices_contiguous_except};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
@@ -134,6 +134,7 @@ impl SafetensorsStore {
             // Contiguous index mapping is off by default for SafeTensors
             // (SafeTensors files typically have clean, contiguous indices)
             map_indices_contiguous: false,
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -154,6 +155,8 @@ impl SafetensorsStore {
             // Contiguous index mapping is off by default for SafeTensors
             #[cfg(feature = "std")]
             map_indices_contiguous: false,
+            #[cfg(feature = "std")]
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -449,6 +452,44 @@ impl SafetensorsStore {
         self
     }
 
+    /// Leave the indices under prefixes matching `pattern` untouched when contiguous
+    /// index mapping is enabled.
+    ///
+    /// The regex is matched against the path leading up to a numeric segment, without
+    /// the trailing dot: `flows` for `flows.2.weight`, `flows.2.enc.in_layers` for
+    /// `flows.2.enc.in_layers.0.weight`. Anchor the pattern (`^...$`) to keep exactly
+    /// one list; an unanchored `^flows` would also keep every list nested under it.
+    /// Can be called multiple times.
+    ///
+    /// Use this when a `Vec` on the Burn side mirrors the file's indices directly, for
+    /// example because its odd entries are parameter-free, while other lists in the same
+    /// file still have gaps that need collapsing.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// // flows.{0,2,4} stay as-is, every other list is renumbered
+    /// let store = SafetensorsStore::from_file("model.safetensors")
+    ///     .map_indices_contiguous(true)
+    ///     .map_indices_contiguous_except(r"^model_g\.flow\.flows$");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    #[cfg(feature = "std")]
+    pub fn map_indices_contiguous_except<S: AsRef<str>>(mut self, pattern: S) -> Self {
+        match &mut self {
+            Self::File(p) => {
+                p.keep_indices = core::mem::take(&mut p.keep_indices).with_regex(pattern)
+            }
+            Self::Memory(p) => {
+                p.keep_indices = core::mem::take(&mut p.keep_indices).with_regex(pattern)
+            }
+        }
+        self
+    }
+
     /// Set whether to overwrite existing files when saving (default: false).
     ///
     /// When set to `false`, attempting to save to an existing file will result in an error.
@@ -533,6 +574,8 @@ pub struct FileStore {
     skip_enum_variants: bool,
     /// Enable contiguous mapping of layer indices (default: false)
     map_indices_contiguous: bool,
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    keep_indices: PathFilter,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
@@ -552,6 +595,9 @@ pub struct MemoryStore {
     /// Enable contiguous mapping of layer indices (default: false)
     #[cfg(feature = "std")]
     map_indices_contiguous: bool,
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    #[cfg(feature = "std")]
+    keep_indices: PathFilter,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
@@ -571,6 +617,8 @@ impl Default for MemoryStore {
             skip_enum_variants: false,
             #[cfg(feature = "std")]
             map_indices_contiguous: false,
+            #[cfg(feature = "std")]
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -850,6 +898,14 @@ impl SafetensorsStore {
         }
     }
 
+    #[cfg(feature = "std")]
+    fn get_keep_indices(&self) -> &PathFilter {
+        match self {
+            Self::File(p) => &p.keep_indices,
+            Self::Memory(p) => &p.keep_indices,
+        }
+    }
+
     /// Ensure the tensors cache is populated
     fn ensure_tensors_cache(&mut self) -> Result<(), SafetensorsStoreError> {
         // Check if cache exists
@@ -890,7 +946,8 @@ impl SafetensorsStore {
         // This must be done after remapping so that remapped paths are mapped
         #[cfg(feature = "std")]
         if self.get_map_indices_contiguous() {
-            let (mapped, _) = map_indices_contiguous(tensors);
+            let keep = self.get_keep_indices();
+            let (mapped, _) = map_indices_contiguous_except(tensors, |prefix| keep.matches(prefix));
             tensors = mapped;
         }
 

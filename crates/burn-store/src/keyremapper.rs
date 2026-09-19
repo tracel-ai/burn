@@ -214,6 +214,34 @@ impl KeyRemapper {
 pub fn map_indices_contiguous(
     tensors: Vec<PackTensor>,
 ) -> (Vec<PackTensor>, Vec<(String, String)>) {
+    map_indices_contiguous_except(tensors, |_| false)
+}
+
+/// Like [`map_indices_contiguous`], but leaves the indices under any prefix for which
+/// `keep` returns `true` untouched.
+///
+/// `keep` receives the path leading up to a numeric segment, without the trailing dot
+/// and with the original (unmapped) indices of any enclosing lists: `flows` for
+/// `flows.2.weight`, and `flows.2.enc.in_layers` for `flows.2.enc.in_layers.0.weight`.
+/// Every index at that position is then kept or renumbered as a group.
+///
+/// This is for files where one list mirrors its indices directly on the Burn side
+/// (for example a `Vec` whose odd entries are parameter-free) while another list in
+/// the same file has gaps that do need collapsing.
+///
+/// # Example
+///
+/// Input paths, keeping `flows`:
+/// - `flows.0.weight`, `flows.2.weight`, `flows.4.weight`
+/// - `fc.0.weight`, `fc.2.weight`
+///
+/// Output paths:
+/// - `flows.0.weight`, `flows.2.weight`, `flows.4.weight`
+/// - `fc.0.weight`, `fc.1.weight`
+pub fn map_indices_contiguous_except(
+    tensors: Vec<PackTensor>,
+    keep: impl Fn(&str) -> bool,
+) -> (Vec<PackTensor>, Vec<(String, String)>) {
     if tensors.is_empty() {
         return (tensors, Vec::new());
     }
@@ -222,7 +250,7 @@ pub fn map_indices_contiguous(
     // For each index position (identified by prefix using ORIGINAL indices),
     // collect all indices seen at that position.
     //
-    // Key: prefix using original path (e.g., "feature.layers." or "feature.layers.0.conv_block.")
+    // Key: prefix using original path (e.g., "feature.layers" or "feature.layers.0.conv_block")
     // Value: BTreeMap of original_index -> new_index
     let mut index_maps: BTreeMap<String, BTreeMap<usize, usize>> = BTreeMap::new();
 
@@ -235,11 +263,12 @@ pub fn map_indices_contiguous(
         for (i, part) in parts.iter().enumerate() {
             if let Ok(index) = part.parse::<usize>() {
                 // The prefix is everything before this index (using original path)
-                let prefix = if i > 0 {
-                    format!("{}.", parts[..i].join("."))
-                } else {
-                    String::new()
-                };
+                let prefix = parts[..i].join(".");
+
+                // A kept prefix gets no map entry, so the third pass leaves it as-is
+                if keep(&prefix) {
+                    continue;
+                }
 
                 index_maps
                     .entry(prefix)
@@ -290,11 +319,7 @@ fn remap_all_indices_with_original_prefix(
     for (i, part) in parts.iter().enumerate() {
         if let Ok(index) = part.parse::<usize>() {
             // Build the prefix from ORIGINAL parts (not remapped)
-            let prefix = if i > 0 {
-                format!("{}.", parts[..i].join("."))
-            } else {
-                String::new()
-            };
+            let prefix = parts[..i].join(".");
 
             // Look up the new index using original prefix
             if let Some(index_map) = index_maps.get(&prefix)
@@ -629,5 +654,85 @@ mod tests {
             mapped.iter().any(|v| v.name == "a.1.b.0.c.0.weight"),
             "a.2.b.0.c.0 should become a.1.b.0.c.0"
         );
+    }
+
+    fn names(tensors: &[PackTensor]) -> Vec<&str> {
+        tensors.iter().map(|t| t.name.as_str()).collect()
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_except_keeps_matching_prefix() {
+        // The scenario from issue #4716: `flows` mirrors its indices on the Burn side
+        // (odd entries are parameter-free), while `fc` is a Sequential with ReLU gaps.
+        let tensors = vec![
+            create_test_tensor("flows.0.weight"),
+            create_test_tensor("flows.2.weight"),
+            create_test_tensor("flows.4.weight"),
+            create_test_tensor("fc.0.weight"),
+            create_test_tensor("fc.2.weight"),
+        ];
+
+        let (mapped, _) = map_indices_contiguous_except(tensors, |prefix| prefix == "flows");
+
+        assert_eq!(
+            names(&mapped),
+            [
+                "flows.0.weight",
+                "flows.2.weight",
+                "flows.4.weight",
+                "fc.0.weight",
+                "fc.1.weight",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_except_prefix_is_original_and_per_level() {
+        // Keeping the outer list must not keep the inner one, and the inner prefix
+        // is reported with the original outer index (flows.2, not flows.1).
+        let tensors = vec![
+            create_test_tensor("flows.0.in_layers.0.weight"),
+            create_test_tensor("flows.0.in_layers.2.weight"),
+            create_test_tensor("flows.2.in_layers.0.weight"),
+            create_test_tensor("flows.2.in_layers.2.weight"),
+        ];
+
+        let (mapped, _) =
+            map_indices_contiguous_except(tensors.clone(), |prefix| prefix == "flows");
+        assert_eq!(
+            names(&mapped),
+            [
+                "flows.0.in_layers.0.weight",
+                "flows.0.in_layers.1.weight",
+                "flows.2.in_layers.0.weight",
+                "flows.2.in_layers.1.weight",
+            ]
+        );
+
+        // Keeping only the inner list under the original `flows.2` leaves the outer
+        // renumbering and the sibling `flows.0.in_layers` untouched.
+        let (mapped, _) =
+            map_indices_contiguous_except(tensors, |prefix| prefix == "flows.2.in_layers");
+        assert_eq!(
+            names(&mapped),
+            [
+                "flows.0.in_layers.0.weight",
+                "flows.0.in_layers.1.weight",
+                "flows.1.in_layers.0.weight",
+                "flows.1.in_layers.2.weight",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_map_indices_contiguous_except_top_level_index_has_empty_prefix() {
+        let tensors = vec![
+            create_test_tensor("0.weight"),
+            create_test_tensor("2.weight"),
+        ];
+
+        let (mapped, _) = map_indices_contiguous_except(tensors, |prefix| prefix.is_empty());
+
+        assert_eq!(names(&mapped), ["0.weight", "2.weight"]);
     }
 }
