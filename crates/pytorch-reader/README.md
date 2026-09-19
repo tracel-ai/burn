@@ -22,6 +22,7 @@ for tensor in reader.tensors().values() {
 // Bytes are read from the file here, not at open.
 let weight = reader.get("fc.weight").unwrap();
 let bytes: Vec<u8> = weight.read()?;
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 A checkpoint that nests its weights under a key (`"state_dict"`, `"model"`, ...) is opened
