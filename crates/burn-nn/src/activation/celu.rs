@@ -22,7 +22,7 @@ pub struct Celu {
 /// Configuration to create a [Celu](Celu) layer using the [init function](CeluConfig::init).
 #[derive(Config, Debug)]
 pub struct CeluConfig {
-    /// The alpha value for the CELU formulation. Default is 1.0
+    /// The finite, positive alpha value for the CELU formulation. Default is 1.0.
     #[config(default = "1.0")]
     pub alpha: f64,
 }
@@ -30,6 +30,13 @@ pub struct CeluConfig {
 impl CeluConfig {
     /// Initialize a new [Celu](Celu) Layer
     pub fn init(&self) -> Celu {
+        if !self.alpha.is_finite() || self.alpha <= 0.0 {
+            panic!(
+                "CELU alpha must be finite and strictly positive, but got {}",
+                self.alpha
+            );
+        }
+
         Celu { alpha: self.alpha }
     }
 }
@@ -97,5 +104,29 @@ mod tests {
     fn display() {
         let config = CeluConfig::new().init();
         assert_eq!(alloc::format!("{config}"), "Celu {alpha: 1}");
+    }
+
+    #[test]
+    #[should_panic(expected = "CELU alpha must be finite and strictly positive")]
+    fn zero_alpha_should_panic() {
+        CeluConfig::new().with_alpha(0.0).init();
+    }
+
+    #[test]
+    #[should_panic(expected = "CELU alpha must be finite and strictly positive")]
+    fn negative_alpha_should_panic() {
+        CeluConfig::new().with_alpha(-1.0).init();
+    }
+
+    #[test]
+    #[should_panic(expected = "CELU alpha must be finite and strictly positive")]
+    fn nan_alpha_should_panic() {
+        CeluConfig::new().with_alpha(f64::NAN).init();
+    }
+
+    #[test]
+    #[should_panic(expected = "CELU alpha must be finite and strictly positive")]
+    fn infinite_alpha_should_panic() {
+        CeluConfig::new().with_alpha(f64::INFINITY).init();
     }
 }

@@ -32,9 +32,9 @@ pub struct GaussianNoise {
 impl GaussianNoiseConfig {
     /// Initialize a new [Gaussian noise](GaussianNoise) module.
     pub fn init(&self) -> GaussianNoise {
-        if self.std.is_sign_negative() {
+        if !self.std.is_finite() || self.std < 0.0 {
             panic!(
-                "Standard deviation is required to be non-negative, but got {}",
+                "Standard deviation must be finite and non-negative, but got {}",
                 self.std
             );
         }
@@ -132,9 +132,21 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Standard deviation is required to be non-negative")]
+    #[should_panic(expected = "Standard deviation must be finite and non-negative")]
     fn negative_std_should_panic() {
         GaussianNoiseConfig { std: -0.5 }.init();
+    }
+
+    #[test]
+    #[should_panic(expected = "Standard deviation must be finite and non-negative")]
+    fn nan_std_should_panic() {
+        GaussianNoiseConfig::new(f64::NAN).init();
+    }
+
+    #[test]
+    #[should_panic(expected = "Standard deviation must be finite and non-negative")]
+    fn infinite_std_should_panic() {
+        GaussianNoiseConfig::new(f64::INFINITY).init();
     }
 
     #[test]
