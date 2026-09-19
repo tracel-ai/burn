@@ -585,4 +585,18 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([[1.0f32; 3]; 2]), false);
     }
+
+    #[test]
+    fn counting_a_lazy_param_leaves_it_uninitialized() {
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            test_device(),
+            true,
+            [2, 3].into(),
+        );
+
+        assert_eq!(Module::num_params(&param), 6);
+        assert!(!param.is_initialized());
+    }
 }
