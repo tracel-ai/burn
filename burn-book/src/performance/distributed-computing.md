@@ -190,6 +190,27 @@ schedule that splits a batch into microbatches, such as GPipe or 1F1B, which is 
 The `pipeline` example splits a small model across one device per GPU, loads its weights onto each
 stage, and checks its predictions against the same model on one device.
 
+### Training a Pipeline
+
+A placed model trains as it would on one device. `place` forks rather than moves, so every parameter
+stays a leaf on its segment's device: its gradient lands there and the optimizer updates it there.
+Place the model on autodiff devices, and put the targets on the output segment's device, where the
+loss runs:
+
+```rust, ignore
+let devices = [Device::cuda(0).autodiff(), Device::cuda(1).autodiff()];
+let placement = PipelinePlacement::even(&devices, 8);
+let mut model = model.place(&placement);
+
+let predictions = model.forward(features);
+let loss = loss_fn.forward(predictions, targets.to_device(&placement.output), Reduction::Mean);
+let grads = GradientsParams::from_grads(loss.backward(), &model);
+model = optim.step(lr, model, grads);
+```
+
+A parameter a segment moves from its owner, such as a tied output head, sends its gradient back to
+the owner. The `pipeline-train` example trains the same small model split this way.
+
 ## Remote Devices
 
 A remote device implements the same `Device` interface as a local CUDA, WGPU, or CPU device. Tensor
