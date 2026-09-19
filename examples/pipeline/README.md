@@ -8,6 +8,7 @@ the blocks are what gets shared out.
 src/model.rs      the model, its config, and its `Pipeline` implementation
 src/devices.rs    which devices to split across
 src/inference.rs  place, load the weights onto each stage, run the split forward
+src/training.rs   place on autodiff devices, then train with Adam
 ```
 
 The order is the point. `ModelConfig::init` builds the layers lazily, so nothing is allocated;
@@ -15,9 +16,11 @@ The order is the point. `ModelConfig::init` builds the layers lazily, so nothing
 exist; and `load_record` then puts each weight straight onto its own stage. The model never exists
 whole on one device, which is what lets one too large for a single card load at all.
 
-There is no training example yet, so an initialized model stands in for a trained one, where a real
-program would call `ModuleRecord::load`. The predictions are checked against the same weights on one
-device.
+`pipeline-infer` stands an initialized model in for a trained one, where a real program would call
+`ModuleRecord::load`, and checks the predictions against the same weights on one device.
+`pipeline-train` places the model on autodiff devices instead and trains it with Adam, each
+parameter updated on the stage it lives on. It runs on Flex alone without a GPU, since the CPU
+backend forwards but cannot launch the backward matmul.
 
 Only one device works at a time here, so what this runs today is a model too large for one device
 rather than a faster one. Overlapping the stages takes a schedule that splits a batch into
@@ -34,6 +37,7 @@ cargo run --example pipeline-infer --release --features rocm          # every su
 cargo run --example pipeline-infer --release --features metal         # every Apple GPU
 cargo run --example pipeline-infer --release --features vulkan        # every GPU, through Vulkan
 cargo run --example pipeline-infer --release --features cuda,vulkan   # every GPU, NVIDIA ones through CUDA
+cargo run --example pipeline-train --release                          # train, Flex alone without a GPU
 ```
 
 A card several runtimes reach is taken through the first of CUDA, ROCm, Metal, Vulkan, WebGPU that

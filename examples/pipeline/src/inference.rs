@@ -15,7 +15,7 @@ pub fn infer(devices: Vec<Device>) {
     let placement = PipelinePlacement::even(&devices, config.blocks);
 
     // A trained model's record, which a real program reads from a file with `ModuleRecord::load`.
-    // There is no training example yet, so an initialized model stands in for one.
+    // An initialized model stands in for one here, so this runs without training first.
     let trained = config.init(&devices[0]);
     let record = trained.clone().into_record();
 

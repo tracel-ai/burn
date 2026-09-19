@@ -51,3 +51,16 @@ fn preferred(devices: Vec<Device>, preference: &[Vec<Device>]) -> Device {
 pub fn available() -> Vec<Device> {
     vec![Device::flex(), Device::cpu()]
 }
+
+/// The devices to train across.
+#[cfg(any(feature = "cuda", feature = "rocm", feature = "wgpu"))]
+pub fn trainable() -> Vec<Device> {
+    available()
+}
+
+/// Flex alone: the CPU backend forwards but cannot launch the backward matmul, so training across
+/// the two CPU backends would panic partway through the first step.
+#[cfg(not(any(feature = "cuda", feature = "rocm", feature = "wgpu")))]
+pub fn trainable() -> Vec<Device> {
+    vec![Device::flex()]
+}
