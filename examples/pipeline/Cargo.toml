@@ -21,4 +21,4 @@ metal = ["wgpu", "burn/metal"]
 webgpu = ["wgpu", "burn/webgpu"]
 
 [dependencies]
-burn = { workspace = true, features = ["std"] }
+burn = { workspace = true, features = ["std", "optim"] }
