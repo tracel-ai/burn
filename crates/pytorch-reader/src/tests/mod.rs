@@ -8,6 +8,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::{ByteOrder, DType, FileFormat, PytorchReader, Tensor};
+use std::error::Error;
 use std::path::PathBuf;
 
 pub(crate) fn test_data_path(filename: &str) -> PathBuf {
@@ -816,7 +817,7 @@ fn test_small_invalid_file() {
     if let Err(e) = result {
         let err_str = format!("{}", e);
         assert!(
-            err_str.contains("Pickle") || err_str.contains("Invalid"),
+            err_str.contains("pickle") || err_str.contains("invalid"),
             "Error should mention pickle or invalid format: {}",
             err_str
         );
@@ -1493,7 +1494,7 @@ fn test_tar_absurd_storage_count_is_an_error() {
 
     let err = PytorchReader::new(&path).expect_err("absurd count must be rejected");
     assert!(
-        err.to_string().contains("Pickle"),
+        err.to_string().contains("pickle"),
         "unexpected error: {err}"
     );
 }
@@ -1949,6 +1950,30 @@ fn test_legacy_big_endian_file_is_refused() {
     let err = PytorchReader::new(&path).expect_err("big-endian legacy files are refused");
     assert!(
         err.to_string().contains("Big-endian"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn source_chain_reaches_io_error() {
+    let err = PytorchReader::new("/nonexistent/x.pt").unwrap_err();
+    assert!(
+        err.source().is_some(),
+        "expected source() to reach the underlying io::Error"
+    );
+}
+
+#[test]
+fn rejects_non_pytorch_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("not_a_checkpoint.json");
+    std::fs::write(&path, b"{\"hello\": \"world\"}").unwrap();
+
+    let err = PytorchReader::new(&path).expect_err("non-checkpoint file must be rejected");
+    assert!(
+        err.to_string()
+            .to_lowercase()
+            .contains("not a pytorch checkpoint"),
         "unexpected error: {err}"
     );
 }
