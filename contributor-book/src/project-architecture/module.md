@@ -88,7 +88,7 @@ used.
 
 #### OptimizerAdaptor
 
-Located in in
+Located in
 [`crates/burn-core/src/optim/simple/adaptor.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/simple/adaptor.rs#L14),
 the `OptimizerAdaptor` is a simple struct composed of a `SimpleOptimizer` and a hashmap with all
 records associated with each parameter ID.
