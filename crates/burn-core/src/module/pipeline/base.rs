@@ -66,7 +66,8 @@ pub trait Pipeline: Module {
     /// Fork every parameter onto the device `placement` gives the segment that owns it, giving a
     /// [`PlacedPipeline`] that runs its forward pass there.
     ///
-    /// A parameter not initialized yet only takes the device, so it initializes there and a record
+    /// Forking rather than moving keeps each parameter a leaf, so the model still trains. A
+    /// parameter not initialized yet only takes the device, so it initializes there and a record
     /// loaded afterwards loads there. One that a live clone of the model shares initializes where
     /// it is and is copied instead, so drop other clones first. Only parameters move: a tensor a
     /// module holds directly stays where the model was built.
@@ -178,6 +179,29 @@ mod tests {
             stack: Stack::new(3, &device),
         };
         model.place(&PipelinePlacement::even(&[device], 3));
+    }
+
+    /// A parameter moved instead of forked gets no gradient, and the optimizer skips it.
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn every_parameter_receives_a_gradient() {
+        let device = test_device().autodiff();
+        let placement = PipelinePlacement::even(core::slice::from_ref(&device), 3);
+        let stack = Stack::new(3, &device).place(&placement);
+        let input = Tensor::random([4, WIDTH], Distribution::Default, &device);
+
+        let grads = stack.forward(input).sum().backward();
+
+        for (i, layer) in stack.layers.iter().enumerate() {
+            assert!(
+                layer.weight.grad(&grads).is_some(),
+                "layer {i} has no gradient"
+            );
+        }
+        assert!(
+            stack.head.weight.grad(&grads).is_some(),
+            "head has no gradient"
+        );
     }
 
     const WIDTH: usize = 8;
