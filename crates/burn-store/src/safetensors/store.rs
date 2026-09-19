@@ -455,15 +455,10 @@ impl SafetensorsStore {
     /// Leave the indices under prefixes matching `pattern` untouched when contiguous
     /// index mapping is enabled.
     ///
-    /// The regex is matched against the path leading up to a numeric segment, without
-    /// the trailing dot: `flows` for `flows.2.weight`, `flows.2.enc.in_layers` for
-    /// `flows.2.enc.in_layers.0.weight`. Anchor the pattern (`^...$`) to keep exactly
-    /// one list; an unanchored `^flows` would also keep every list nested under it.
-    /// Can be called multiple times.
-    ///
-    /// Use this when a `Vec` on the Burn side mirrors the file's indices directly, for
-    /// example because its odd entries are parameter-free, while other lists in the same
-    /// file still have gaps that need collapsing.
+    /// The regex is matched against the prefix before a numeric segment (`flows` for
+    /// `flows.2.weight`), so anchor it to keep exactly one list. Can be called multiple
+    /// times. See [`map_indices_contiguous_except`](crate::map_indices_contiguous_except)
+    /// for the prefix rules.
     ///
     /// # Example
     /// ```rust,no_run
@@ -480,12 +475,8 @@ impl SafetensorsStore {
     #[cfg(feature = "std")]
     pub fn map_indices_contiguous_except<S: AsRef<str>>(mut self, pattern: S) -> Self {
         match &mut self {
-            Self::File(p) => {
-                p.keep_indices = core::mem::take(&mut p.keep_indices).with_regex(pattern)
-            }
-            Self::Memory(p) => {
-                p.keep_indices = core::mem::take(&mut p.keep_indices).with_regex(pattern)
-            }
+            Self::File(p) => p.keep_indices = p.keep_indices.clone().with_regex(pattern),
+            Self::Memory(p) => p.keep_indices = p.keep_indices.clone().with_regex(pattern),
         }
         self
     }

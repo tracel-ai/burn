@@ -319,15 +319,9 @@ impl PytorchStore {
     /// Leave the indices under prefixes matching `pattern` untouched when contiguous
     /// index mapping is enabled.
     ///
-    /// The regex is matched against the path leading up to a numeric segment, without
-    /// the trailing dot: `flows` for `flows.2.weight`, `flows.2.enc.in_layers` for
-    /// `flows.2.enc.in_layers.0.weight`. Anchor the pattern (`^...$`) to keep exactly
-    /// one list; an unanchored `^flows` would also keep every list nested under it.
-    /// Can be called multiple times.
-    ///
-    /// Use this when a `Vec` on the Burn side mirrors the PyTorch indices directly, for
-    /// example because its odd entries are parameter-free, while other lists in the same
-    /// file still have gaps that need collapsing.
+    /// The regex is matched against the prefix before a numeric segment (`flows` for
+    /// `flows.2.weight`), so anchor it to keep exactly one list. Can be called multiple
+    /// times. See [`map_indices_contiguous_except`] for the prefix rules.
     ///
     /// # Example
     /// ```rust,no_run

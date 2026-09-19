@@ -223,7 +223,8 @@ pub fn map_indices_contiguous(
 /// `keep` receives the path leading up to a numeric segment, without the trailing dot
 /// and with the original (unmapped) indices of any enclosing lists: `flows` for
 /// `flows.2.weight`, and `flows.2.enc.in_layers` for `flows.2.enc.in_layers.0.weight`.
-/// Every index at that position is then kept or renumbered as a group.
+/// Every index at that position is then kept or renumbered as a group, and each nesting
+/// level is decided separately, so keeping `flows` does not keep `flows.2.enc.in_layers`.
 ///
 /// This is for files where one list mirrors its indices directly on the Burn side
 /// (for example a `Vec` whose odd entries are parameter-free) while another list in
@@ -265,11 +266,6 @@ pub fn map_indices_contiguous_except(
                 // The prefix is everything before this index (using original path)
                 let prefix = parts[..i].join(".");
 
-                // A kept prefix gets no map entry, so the third pass leaves it as-is
-                if keep(&prefix) {
-                    continue;
-                }
-
                 index_maps
                     .entry(prefix)
                     .or_default()
@@ -278,6 +274,9 @@ pub fn map_indices_contiguous_except(
             }
         }
     }
+
+    // A kept prefix gets no map entry, so the third pass leaves it as-is
+    index_maps.retain(|prefix, _| !keep(prefix));
 
     // Second pass: assign contiguous indices for each position
     for indices in index_maps.values_mut() {
