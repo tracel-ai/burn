@@ -327,6 +327,11 @@ $$
 pub fn quiet_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
     let dim = unwrap_dim_index(dim.try_dim_index(D), "Quiet Softmax");
     let max_vals = tensor.clone().detach().max_dim(dim);
+    let all_neg_inf = max_vals.clone().equal_scalar(f32::NEG_INFINITY);
+    // Subtracting an all-negative-infinity maximum would produce NaN. Replacing only that
+    // reduced maximum with zero preserves finite and mixed slices while evaluating an all-masked
+    // slice as exp(-inf) / (1 + sum(exp(-inf))) = 0.
+    let max_vals = max_vals.mask_fill(all_neg_inf, 0.0);
     let exp_x = (tensor - max_vals.clone()).exp();
     let sum_exp = exp_x.clone().sum_dim(dim);
 
