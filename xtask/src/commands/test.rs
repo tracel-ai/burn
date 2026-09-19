@@ -168,6 +168,8 @@ pub(crate) fn handle_backend_tests(
         placement_args.extend([
             "--features",
             "ndarray",
+            "--features",
+            "autodiff",
             "--test",
             "lazy_param_device",
             "--test",

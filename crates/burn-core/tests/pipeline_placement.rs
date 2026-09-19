@@ -2,7 +2,7 @@
 //!
 //! Two fixed CPU backends stand in for two cards, so a split is observable without one.
 //!
-//! Run with `cargo test -p burn-core --features flex,ndarray --test pipeline_placement`.
+//! Run with `cargo test -p burn-core --features flex,ndarray,autodiff --test pipeline_placement`.
 #![cfg(all(feature = "flex", feature = "ndarray"))]
 #![allow(deprecated)]
 
@@ -51,6 +51,35 @@ fn a_model_split_across_two_devices_computes_what_one_device_does() {
         .to_device(&flex)
         .into_data()
         .assert_approx_eq::<f32>(&expected.into_data(), Tolerance::default());
+}
+
+#[cfg(feature = "autodiff")]
+#[test]
+fn gradients_of_a_split_model_match_the_gradients_on_one_device() {
+    let (flex, ndarray) = devices();
+    let (flex, ndarray) = (flex.autodiff(), ndarray.autodiff());
+
+    let stack = Stack::new(4, &flex);
+    let input = Tensor::random([4, WIDTH], Distribution::Default, &flex);
+    let expected = stack.plain_forward(input.clone()).sum().backward();
+    let expected_first = stack.layers[0].weight.grad(&expected).unwrap();
+    let expected_last = stack.layers[3].weight.grad(&expected).unwrap();
+
+    let placement = PipelinePlacement::even(&[flex.clone(), ndarray.clone()], 4);
+    let stack = stack.place(&placement);
+    let grads = stack.forward(input).sum().backward();
+
+    let first = stack.layers[0].weight.grad(&grads).unwrap();
+    let last = stack.layers[3].weight.grad(&grads).unwrap();
+    assert_eq!(first.device(), flex.clone().inner());
+    assert_eq!(last.device(), ndarray.inner());
+    first
+        .to_device(&flex.clone().inner())
+        .into_data()
+        .assert_approx_eq::<f32>(&expected_first.into_data(), Tolerance::default());
+    last.to_device(&flex.inner())
+        .into_data()
+        .assert_approx_eq::<f32>(&expected_last.into_data(), Tolerance::default());
 }
 
 #[derive(Module, Debug)]
