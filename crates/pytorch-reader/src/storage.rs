@@ -12,7 +12,8 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use zip::{CompressionMethod, ZipArchive};
+use zip::read::ZipFile;
+use zip::{CompressionMethod, ZipArchive, ZipReadOptions};
 
 use crate::{MAX_PICKLE_SIZE, PytorchError};
 
@@ -205,9 +206,7 @@ impl ZipSource {
     ) -> io::Result<(Vec<u8>, usize)> {
         let name = format!("{}data/{key}", self.root);
         let mut archive = lock_ignoring_poison(&self.archive);
-        let mut entry = archive
-            .by_name(&name)
-            .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
+        let mut entry = open_entry(&mut archive, &name)?;
         let size = entry.size();
         let skipped = (start as u64).min(size);
         let rest = size - skipped;
@@ -224,7 +223,10 @@ impl ZipSource {
             let data_start = entry
                 .data_start()
                 .ok_or_else(|| invalid_data(format!("ZIP entry '{name}' has no data offset")))?;
-            let crc32 = (len == size).then_some(entry.crc32());
+            // A CRC of 0 was never computed (see `open_entry`).
+            let crc32 = (len == size)
+                .then_some(entry.crc32())
+                .filter(|&crc32| crc32 != 0);
             drop(entry);
             drop(archive);
             let bytes = self.read_stored(&name, data_start, skipped, len, crc32)?;
@@ -242,7 +244,7 @@ impl ZipSource {
 
     /// Read `len` bytes of a stored entry, `skipped` bytes past its data at `data_start`.
     /// They are checked against `crc32` when it is given, which the caller does only when
-    /// they are the whole entry.
+    /// they are the whole entry and the entry declares a checksum.
     fn read_stored(
         &self,
         name: &str,
@@ -292,9 +294,7 @@ impl ZipSource {
     /// Read a whole entry that must not exceed `max_size` bytes.
     fn read_entry(&self, name: &str, max_size: u64) -> io::Result<Vec<u8>> {
         let mut archive = lock_ignoring_poison(&self.archive);
-        let mut entry = archive
-            .by_name(name)
-            .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
+        let mut entry = open_entry(&mut archive, name)?;
         let size = entry.size();
         if size > max_size {
             return Err(invalid_data(format!(
@@ -303,6 +303,31 @@ impl ZipSource {
         }
         read_zip_entry(&mut entry, name, size, size, self.file_len)
     }
+}
+
+/// Open `name` for a read through the archive's stream.
+///
+/// The `zip` crate checks an entry's CRC once a read reaches its end. This skips that check
+/// when the central directory declares a CRC of 0: `torch.save` writes that for every
+/// entry under `compute_crc32=False`, and `torch.load` accepts it, so it means no checksum
+/// rather than one to fail. An empty entry's true CRC is 0 as well, and its check could
+/// only pass; a non-empty entry whose true CRC happens to be 0 loses its check.
+fn open_entry<'a>(
+    archive: &'a mut ZipArchive<BufReader<File>>,
+    name: &str,
+) -> io::Result<ZipFile<'a, BufReader<File>>> {
+    let index = archive
+        .index_for_name(name)
+        .ok_or_else(|| invalid_data(format!("ZIP entry '{name}': not found in archive")))?;
+    // The raw lookup parses the local header at most once; the read below finds its offset
+    // cached.
+    let crc32 = archive
+        .by_index_raw(index)
+        .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?
+        .crc32();
+    archive
+        .by_index_with_options(index, ZipReadOptions::new().ignore_crc32(crc32 == 0))
+        .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))
 }
 
 /// Read the first `len` bytes of a ZIP entry whose header declares `size` bytes.
