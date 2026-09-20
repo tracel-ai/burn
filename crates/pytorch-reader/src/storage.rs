@@ -5,12 +5,11 @@
 //! a storage key from that pickle to its bytes on demand: the ZIP and legacy sources read
 //! the file at that point, the TAR source slices an entry already in memory.
 
-use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, BufReader, Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::io::{self, BufReader, Read};
+use std::path::Path;
 use std::sync::Mutex;
 use zip::{CompressionMethod, ZipArchive};
 
@@ -434,8 +433,11 @@ impl TarSource {
 /// by its bytes. The count prefix gives elements, not bytes, so the sizes declared by the
 /// persistent ids in the main pickle are collected first and the layout is derived from
 /// them once the key list is known.
+///
+/// The file is held open from [`new`](Self::new) until drop and never reopened by path,
+/// so a reader keeps reading the file it opened when that path is unlinked or replaced.
 pub(crate) struct LegacySource {
-    path: PathBuf,
+    file: File,
     state: Mutex<LegacyState>,
 }
 
@@ -449,9 +451,9 @@ enum LegacyState {
 }
 
 impl LegacySource {
-    pub fn new(path: &Path) -> Self {
+    pub fn new(file: File) -> Self {
         Self {
-            path: path.to_path_buf(),
+            file,
             state: Mutex::new(LegacyState::Declaring(HashMap::new())),
         }
     }
@@ -531,10 +533,14 @@ impl LegacySource {
                 .ok_or_else(|| invalid_data(format!("storage '{key}' not found in legacy file")))?
         };
 
-        let mut file = File::open(&self.path)?;
-        file.seek(SeekFrom::Start(offset))?;
-
-        let stored_numel = file.read_i64::<LittleEndian>()?;
+        // The layout was checked against the file length by `finish`, so the count
+        // prefix and the window both lie within the file as it was opened. Both are read
+        // at absolute offsets through the held-open handle: a replacement of the path
+        // cannot slip a different file under them, and a change to the file itself comes
+        // back with the operating system's own error kind.
+        let mut count = [0u8; 8];
+        read_exact_at(&self.file, &mut count, offset)?;
+        let stored_numel = i64::from_le_bytes(count);
         let expected_numel = (byte_len / element_size) as i64;
         if stored_numel != expected_numel {
             return Err(invalid_data(format!(
@@ -542,10 +548,10 @@ impl LegacySource {
             )));
         }
 
-        // `finish` checked that the storage lies within the file, so the length is trusted.
         let start = start.min(byte_len);
-        file.seek(SeekFrom::Current(start as i64))?;
         let len = (byte_len - start).min(max_len);
-        Ok((read_exact_len(&mut file, len as u64, len)?, start))
+        let mut bytes = vec![0u8; len];
+        read_exact_at(&self.file, &mut bytes, offset + 8 + start as u64)?;
+        Ok((bytes, start))
     }
 }

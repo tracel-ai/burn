@@ -486,7 +486,12 @@ fn load_legacy(path: &Path) -> Result<Loaded> {
     let sys_info = read_header(&mut reader, "system info")?;
     check_little_endian(&sys_info)?;
 
-    let source = Arc::new(StorageSource::Legacy(LegacySource::new(path)));
+    // The source takes its own handle to the same file the pickles were read through:
+    // storage reads are positional, so a rename or unlink of the path later cannot make
+    // a held reader see a different file.
+    let source = Arc::new(StorageSource::Legacy(LegacySource::new(
+        reader.get_ref().try_clone()?,
+    )));
     let root = read_pickle(&mut reader, &PersistentIds::Storages(source.clone()))?;
 
     // The storage keys, in the order their bytes follow.

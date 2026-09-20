@@ -1642,21 +1642,45 @@ fn test_corrupt_compressed_storage_is_invalid_data() {
 
 #[test]
 fn test_os_errors_keep_their_kind() {
-    // A legacy container reopens the file on every read, so a file that disappears after
-    // open fails at read with the operating system's own kind rather than the reader's.
+    // A legacy container keeps its file open from `new` until drop, so an operating
+    // system error reaches the caller with its own kind only when the file itself
+    // changes under the reader: shrinking it after open puts the storage offsets past
+    // the end instead of surfacing the reader's own `InvalidData`.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("shrinking.pt");
+    std::fs::copy(test_data_path("simple_legacy.pt"), &path).unwrap();
+
+    let reader = PytorchReader::new(&path).unwrap();
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_len(0)
+        .unwrap();
+
+    let err = reader
+        .get("bias")
+        .unwrap()
+        .read()
+        .expect_err("a shrunk file must not load");
+    assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof, "{err}");
+    assert!(err.to_string().starts_with("tensor 'bias':"), "{err}");
+}
+
+// Unix only: that is where unlinking an open file is well defined.
+#[cfg(unix)]
+#[test]
+fn test_legacy_reads_after_the_file_is_removed() {
+    // A legacy container keeps its file open from `new` until drop, so a checkpoint
+    // that is unlinked underneath a reader still reads as it was opened.
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("vanishing.pt");
     std::fs::copy(test_data_path("simple_legacy.pt"), &path).unwrap();
 
     let reader = PytorchReader::new(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
-    let err = reader
-        .get("bias")
-        .unwrap()
-        .read()
-        .expect_err("a missing file must not load");
-    assert_eq!(err.kind(), std::io::ErrorKind::NotFound, "{err}");
-    assert!(err.to_string().starts_with("tensor 'bias':"), "{err}");
+    let bias = reader.get("bias").unwrap();
+    assert_eq!(read_as::<f32>(bias), [1.0, 1.0]);
 }
 
 // Unix only: that is where unlinking an open file is well defined.
