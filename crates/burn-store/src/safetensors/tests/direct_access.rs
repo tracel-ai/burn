@@ -337,16 +337,14 @@ fn test_file_cache_invalidation_on_save() {
     assert_eq!(snapshots2.len(), 4);
 }
 
-#[cfg(feature = "std")]
-#[test]
-fn test_memory_keys_map_indices_contiguous_except() {
-    // flows.{0,2,4} and fc.{0,2} on disk; only fc should be renumbered.
-    #[derive(Module, Debug)]
-    struct GappyModule {
-        flows: Vec<Option<Param<Tensor<1>>>>,
-        fc: Vec<Option<Param<Tensor<1>>>>,
-    }
+// flows.{0,2,4} and fc.{0,2} on disk, for index mapping tests
+#[derive(Module, Debug)]
+struct GappyModule {
+    flows: Vec<Option<Param<Tensor<1>>>>,
+    fc: Vec<Option<Param<Tensor<1>>>>,
+}
 
+fn gappy_bytes() -> Vec<u8> {
     let device: Device = Default::default();
     let param = |v: f32| Some(Param::from_data([v], &device));
     let module = GappyModule {
@@ -356,12 +354,41 @@ fn test_memory_keys_map_indices_contiguous_except() {
 
     let mut save_store = SafetensorsStore::from_bytes(None);
     save_store.collect_from(&module).unwrap();
-    let bytes = save_store.get_bytes().unwrap();
+    save_store.get_bytes().unwrap()
+}
 
-    let mut load_store = SafetensorsStore::from_bytes(Some(bytes))
+#[cfg(feature = "std")]
+#[test]
+fn test_memory_keys_map_indices_contiguous_except() {
+    // Only fc should be renumbered.
+    let mut load_store = SafetensorsStore::from_bytes(Some(gappy_bytes()))
         .map_indices_contiguous(true)
         .map_indices_contiguous_except(r"^flows$");
 
     let keys = load_store.keys().unwrap();
     assert_eq!(keys, ["fc.0", "fc.1", "flows.0", "flows.2", "flows.4"]);
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_memory_builder_after_read_rebuilds_cache() {
+    // First read populates the cache with every list renumbered
+    let mut store = SafetensorsStore::from_bytes(Some(gappy_bytes())).map_indices_contiguous(true);
+    assert_eq!(
+        store.keys().unwrap(),
+        ["fc.0", "fc.1", "flows.0", "flows.1", "flows.2"]
+    );
+
+    // Reconfiguring must not serve the stale names
+    let mut store = store.map_indices_contiguous_except(r"^flows$");
+    assert_eq!(
+        store.keys().unwrap(),
+        ["fc.0", "fc.1", "flows.0", "flows.2", "flows.4"]
+    );
+
+    let mut store = store.map_indices_contiguous(false);
+    assert_eq!(
+        store.keys().unwrap(),
+        ["fc.0", "fc.2", "flows.0", "flows.2", "flows.4"]
+    );
 }

@@ -1154,4 +1154,24 @@ mod map_indices_contiguous_tests {
             "Without index mapping, should NOT have fc.1 (not in original file)"
         );
     }
+
+    #[test]
+    fn test_builder_after_read_rebuilds_cache() {
+        let path = pytorch_test_path("non_contiguous_indexes", "non_contiguous_indexes.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // First read populates the cache with mapped names (fc.2 -> fc.1)
+        let mut store = PytorchStore::from_file(&path);
+        assert!(store.keys().unwrap().contains(&"fc.1.weight".to_string()));
+
+        // Reconfiguring must not serve the stale names
+        let mut store = store.map_indices_contiguous_except(r"^fc$");
+        let keys = store.keys().unwrap();
+        assert!(keys.contains(&"fc.2.weight".to_string()), "{keys:?}");
+        assert!(!keys.contains(&"fc.1.weight".to_string()), "{keys:?}");
+    }
 }

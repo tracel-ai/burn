@@ -82,7 +82,7 @@ pub struct PytorchStore {
     pub(crate) map_indices_contiguous: bool,
     /// Prefixes whose indices contiguous mapping leaves untouched
     pub(crate) keep_indices: PathFilter,
-    /// Cached tensors (parsed once, reused)
+    /// Cached tensors (parsed once, reused until a builder that feeds the cache is called)
     tensors_cache: Option<BTreeMap<String, PackTensor>>,
 }
 
@@ -129,6 +129,7 @@ impl PytorchStore {
     /// ```
     pub fn with_top_level_key(mut self, key: impl Into<String>) -> Self {
         self.top_level_key = Some(key.into());
+        self.tensors_cache = None;
         self
     }
 
@@ -229,6 +230,7 @@ impl PytorchStore {
     /// Remap tensor names during load.
     pub fn remap(mut self, remapper: KeyRemapper) -> Self {
         self.remapper = remapper;
+        self.tensors_cache = None;
         self
     }
 
@@ -250,6 +252,7 @@ impl PytorchStore {
             .remapper
             .add_pattern(from_pattern, to_pattern)
             .expect("Invalid regex pattern");
+        self.tensors_cache = None;
         self
     }
 
@@ -313,6 +316,7 @@ impl PytorchStore {
     /// ```
     pub fn map_indices_contiguous(mut self, map: bool) -> Self {
         self.map_indices_contiguous = map;
+        self.tensors_cache = None;
         self
     }
 
@@ -336,6 +340,7 @@ impl PytorchStore {
     /// Panics if `pattern` is not a valid regular expression.
     pub fn map_indices_contiguous_except<S: AsRef<str>>(mut self, pattern: S) -> Self {
         self.keep_indices = self.keep_indices.with_regex(pattern);
+        self.tensors_cache = None;
         self
     }
 

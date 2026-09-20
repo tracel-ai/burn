@@ -298,6 +298,7 @@ impl SafetensorsStore {
             Self::File(p) => p.remapper = remapper,
             Self::Memory(p) => p.remapper = remapper,
         }
+        self.clear_tensors_cache();
         self
     }
 
@@ -332,6 +333,7 @@ impl SafetensorsStore {
                     .expect("Invalid regex pattern");
             }
         }
+        self.clear_tensors_cache();
         self
     }
 
@@ -449,6 +451,7 @@ impl SafetensorsStore {
             Self::File(p) => p.map_indices_contiguous = map,
             Self::Memory(p) => p.map_indices_contiguous = map,
         }
+        self.clear_tensors_cache();
         self
     }
 
@@ -478,6 +481,7 @@ impl SafetensorsStore {
             Self::File(p) => p.keep_indices = p.keep_indices.clone().with_regex(pattern),
             Self::Memory(p) => p.keep_indices = p.keep_indices.clone().with_regex(pattern),
         }
+        self.clear_tensors_cache();
         self
     }
 
@@ -671,11 +675,7 @@ impl ModuleStore for SafetensorsStore {
 
     fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error> {
         // Invalidate cache since we're writing new data
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => p.tensors_cache = None,
-            Self::Memory(p) => p.tensors_cache = None,
-        }
+        self.clear_tensors_cache();
 
         // Collect the module's tensors with the adapter applied
         // The to_adapter converts from Burn format to target format for saving
@@ -894,6 +894,15 @@ impl SafetensorsStore {
         match self {
             Self::File(p) => &p.keep_indices,
             Self::Memory(p) => &p.keep_indices,
+        }
+    }
+
+    /// Drop the cached tensors so the next access rebuilds them with the current settings
+    fn clear_tensors_cache(&mut self) {
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.tensors_cache = None,
+            Self::Memory(p) => p.tensors_cache = None,
         }
     }
 
