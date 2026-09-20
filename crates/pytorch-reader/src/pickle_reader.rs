@@ -30,23 +30,27 @@ pub enum PickleError {
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
     /// A byte that is not a pickle opcode, or an opcode this reader does not implement.
-    #[error("invalid pickle opcode: 0x{0:02x}")]
+    #[error(
+        "invalid pickle opcode: 0x{0:02x}. The file may be corrupted or use an unsupported pickle feature."
+    )]
     InvalidOpCode(u8),
     /// An opcode that is understood but deliberately unsupported (extension registry,
     /// out-of-band buffers).
     #[error("unsupported pickle opcode {0:?}")]
     UnsupportedOpCode(OpCode),
-    #[error("invalid or unsupported pickle protocol version: {0}")]
+    #[error("invalid or unsupported pickle protocol version: {0}. Supported versions are 0-5.")]
     InvalidProtocol(u8),
     #[error("unexpected pickle opcode {0:?} in current context")]
     UnexpectedOpCode(OpCode),
-    #[error("unsupported Python type '{0}'")]
+    #[error(
+        "unsupported Python type '{0}'. This may indicate a full model save rather than a state_dict."
+    )]
     UnsupportedType(String),
     #[error("invalid data in pickle file: {0}")]
     InvalidData(String),
-    #[error("pickle stack underflow")]
+    #[error("pickle stack underflow - the file may be corrupted")]
     StackUnderflow,
-    #[error("pickle memo reference {0} not found")]
+    #[error("pickle memo reference {0} not found - the file may be corrupted")]
     MemoNotFound(u32),
     /// The pickle references tensor storages but nothing can supply their bytes.
     #[error(

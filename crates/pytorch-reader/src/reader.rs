@@ -391,7 +391,9 @@ fn detect_format(path: &Path) -> Result<FileFormat> {
         Ok(FileFormat::Legacy)
     } else {
         match header.first() {
-            Some(0x80) | Some(b'(') | Some(b'}') | Some(b']') | Some(b'c') => {
+            Some(0x80) | Some(b'(') | Some(b'}') | Some(b']') | Some(b'c')
+                if !starts_like_safetensors(&header) =>
+            {
                 Ok(FileFormat::Pickle)
             }
             _ => Err(PytorchError::InvalidFormat(
@@ -399,6 +401,20 @@ fn detect_format(path: &Path) -> Result<FileFormat> {
             )),
         }
     }
+}
+
+/// The largest JSON header the safetensors format accepts.
+const SAFETENSORS_MAX_HEADER: u64 = 100_000_000;
+
+/// Whether `header` opens like a safetensors file: a little-endian `u64` JSON length, then
+/// the `{` the JSON starts with. The length's low byte can equal a pickle opcode (a 128-byte
+/// JSON header starts with `0x80`, the `PROTO` opcode), so the first byte alone can't tell
+/// the two apart.
+fn starts_like_safetensors(header: &[u8]) -> bool {
+    let Some(len) = header.first_chunk::<8>().map(|b| u64::from_le_bytes(*b)) else {
+        return false;
+    };
+    len <= SAFETENSORS_MAX_HEADER && header.get(8) == Some(&b'{')
 }
 
 fn load_file(path: &Path) -> Result<Loaded> {

@@ -813,7 +813,8 @@ fn test_small_invalid_file() {
     let result = PytorchReader::new(&path);
     assert!(result.is_err(), "Expected error for broken file");
 
-    // The error should be a pickle error since the file is too small to be valid
+    // The file is too small to hold any container header, so it is rejected as an invalid
+    // format (or, for a short pickle-looking file, as a pickle error)
     if let Err(e) = result {
         let err_str = format!("{}", e);
         assert!(
@@ -1970,6 +1971,33 @@ fn rejects_non_pytorch_file() {
     std::fs::write(&path, b"{\"hello\": \"world\"}").unwrap();
 
     let err = PytorchReader::new(&path).expect_err("non-checkpoint file must be rejected");
+    assert!(
+        err.to_string()
+            .to_lowercase()
+            .contains("not a pytorch checkpoint"),
+        "unexpected error: {err}"
+    );
+}
+
+/// A safetensors file opens with its JSON header's length, and a 128-byte header makes
+/// that length's first byte `0x80`, the pickle `PROTO` opcode.
+#[test]
+fn rejects_safetensors_whose_header_length_looks_like_a_pickle_opcode() {
+    let json = format!(
+        "{{\"__metadata__\":{{\"k\":\"{}\"}}}}",
+        "x".repeat(128 - 25)
+    );
+    assert_eq!(json.len(), 128);
+
+    let mut bytes = (json.len() as u64).to_le_bytes().to_vec();
+    bytes.extend_from_slice(json.as_bytes());
+    assert_eq!(bytes[0], 0x80);
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.safetensors");
+    std::fs::write(&path, &bytes).unwrap();
+
+    let err = PytorchReader::new(&path).expect_err("safetensors must be rejected");
     assert!(
         err.to_string()
             .to_lowercase()
