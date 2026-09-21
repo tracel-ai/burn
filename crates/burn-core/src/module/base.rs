@@ -118,7 +118,7 @@ macro_rules! module {
         impl<'a> ModuleVisitor for Visitor<'a> {
             fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
                 let func = $item;
-                func(&param.val(), &mut self.state)
+                func(param, &mut self.state)
             }
         }
         #[allow(clippy::redundant_closure_call)]
@@ -133,7 +133,7 @@ macro_rules! module {
 ///
 /// Modules should be created using the [derive](burn_derive::Module) attribute.
 /// This will make your module trainable, savable and loadable via
-/// `state` and `load`.
+/// [`into_record`](Module::into_record) and [`load_record`](Module::load_record).
 ///
 /// # Example
 ///
@@ -381,12 +381,13 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// after validation.
     fn valid(&self) -> Self;
 
-    /// Get the number of parameters the module has, including all of its sub-modules.
+    /// Get the number of parameters the module has, including all of its sub-modules, without
+    /// initializing the ones not initialized yet.
     fn num_params(&self) -> usize {
         module!(
             visit_float = self,
-            ops = |tensor: &Tensor<D>, state: &mut usize| {
-                *state += tensor.shape().num_elements();
+            ops = |param: &Param<Tensor<D>>, state: &mut usize| {
+                *state += param.lazy_shape().num_elements();
             },
             state = usize,
             init = || 0

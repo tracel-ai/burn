@@ -11,13 +11,13 @@ test-vulkan = "test --release --no-default-features --features vulkan,std,fusion
 test-metal = "test --release --no-default-features --features metal,std,fusion"
 
 # Fusion disabled tests
-test-cpu-nofuse = "test --release --no-default-features --features cpu,std"
-test-cuda-nofuse = "test --release --no-default-features --features cuda,std"
-test-rocm-nofuse = "test --release --no-default-features --features rocm,std"
-test-wgpu-nofuse = "test --release --no-default-features --features wgpu,std"
-test-vulkan-nofuse = "test --release --no-default-features --features vulkan,std"
-test-metal-nofuse = "test --release --no-default-features --features metal,std"
-test-remote-nofuse = "test --release --no-default-features --features remote,std"
+test-cpu-no-fusion = "test --release --no-default-features --features cpu,std"
+test-cuda-no-fusion = "test --release --no-default-features --features cuda,std"
+test-rocm-no-fusion = "test --release --no-default-features --features rocm,std"
+test-wgpu-no-fusion = "test --release --no-default-features --features wgpu,std"
+test-vulkan-no-fusion = "test --release --no-default-features --features vulkan,std"
+test-metal-no-fusion = "test --release --no-default-features --features metal,std"
+test-remote-no-fusion = "test --release --no-default-features --features remote,std"
 
 # Benches
 bench-cpu = "bench --no-default-features --features cpu,std,fusion"

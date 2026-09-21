@@ -52,16 +52,31 @@ Burn's `ParamGroup` routes module parameters by path or ID. Optimizers and learn
 use the same matching rules but can be configured independently.
 
 ```rust,ignore
+use burn::{
+    module::ParamGroup,
+    optim::{
+        AdamWConfig,
+        lr_scheduler::{
+            composed::ComposedLrSchedulerConfig,
+            cosine::CosineAnnealingLrSchedulerConfig,
+            linear::LinearLrSchedulerConfig,
+            module_lr_scheduler::ModuleLrSchedulerConfig,
+        },
+    },
+    train::Learner,
+};
+
 let lr_scheduler_base = ComposedLrSchedulerConfig::new()
     .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
     .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
     .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
-let lr_scheduler = lr_scheduler_base.init().unwrap().with_group(
-    ParamGroup::from_predicate("conv"),
-    LinearLrSchedulerConfig::new(1e-6, 1e-3, 14000)
-        .build()
-        .unwrap(),
-);
+let lr_scheduler = ModuleLrSchedulerConfig::new(lr_scheduler_base.into())
+    .with_group(
+        ParamGroup::from_predicate("conv"),
+        LinearLrSchedulerConfig::new(1e-6, 1e-3, 14000),
+    )
+    .init()
+    .unwrap();
 
 let optim = AdamWConfig::new()
     .with_cautious_weight_decay(true)
@@ -74,6 +89,11 @@ let result = training.launch(Learner::new(
     lr_scheduler,
 ));
 ```
+
+The composed base schedule multiplies the values of its three component schedules at every step.
+`ModuleLrSchedulerConfig` assigns that base policy to parameters outside the `conv` group and the
+separate linear policy to parameters inside it. Configure the groups before calling `init()`;
+the individual scheduler configurations' `build()` methods are internal APIs.
 
 For group-specific optimizers, matching precedence, gradient clipping, and optimizer state, see
 [Optimizer](./optimizer.md#parameter-groups).

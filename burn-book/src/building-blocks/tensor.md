@@ -67,7 +67,7 @@ To convert an _existing_ tensor to another element type, use
 let x_f64 = x.cast(FloatDType::F64); // convert the f32 tensor above to f64
 ```
 
-Burn Tensors are defined by the number of dimensions D in its declaration as opposed to its shape.
+Burn Tensors are defined by the number of dimensions D in their declaration as opposed to their shape.
 The actual shape of the tensor is inferred from its initialization. For example, a Tensor of size
 (5,) is initialized as below:
 
