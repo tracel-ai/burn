@@ -42,7 +42,7 @@ let loss = loss_fn.forward(output, targets);
 let gradients = loss.backward();
 let gradients = GradientsParams::from_grads(gradients, &model);
 
-model = optimizer.step(learning_rate.into(), model, gradients);
+model = optimizer.step(learning_rate, model, gradients);
 ```
 
 Unlike optimizers that store gradients on every parameter, Burn returns gradients from `backward`.

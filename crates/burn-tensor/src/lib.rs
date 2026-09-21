@@ -3,8 +3,10 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! This library provides the core abstractions required to run tensor operations with Burn.
-//! `Tensor`s are generic over the backend to allow users to perform operations using different `Backend` implementations.
-//! Burn's tensors also support auto-differentiation thanks to the `AutodiffBackend` trait.
+//! [`Tensor<D, K>`](Tensor) is generic over rank and tensor kind; its [`Device`] selects the
+//! backend at runtime. Operations pass through an opaque bridge and runtime dispatch to backend
+//! primitives. With the `autodiff` feature, create tensors on `Device::autodiff()` devices and
+//! mark source leaves with [`Tensor::require_grad`] to record gradients.
 //!
 //! # Note for contributors: `*_impl` helpers
 //!

@@ -9,8 +9,8 @@ autodiff defaults.
 The user-facing tensor and module types no longer distinguish `B: Backend` from
 `B: AutodiffBackend`; autodiff APIs check their preconditions at runtime. Enabling autodiff permits
 graph recording but does not make every input require gradients. Use `require_grad()` on source
-leaves whose gradients you need, and let ordinary model inputs remain constants when their
-gradients aren't needed. For modules, `train()` enables autodiff and restores configured parameter
+leaves whose gradients you need, and let ordinary model inputs remain constants when their gradients
+aren't needed. For modules, `train()` enables autodiff and restores configured parameter
 trainability and training flags; see [module training state](./module.md#methods).
 
 ```rust, ignore
@@ -42,37 +42,36 @@ properties:
 
 `require_grad()` makes an autodiff leaf participate in the graph and retain its gradient; it does
 not enable autodiff. On a floating-point tensor without autodiff, it panics; call `.autodiff()`
-first. On a tracked non-leaf, it also panics:
-retaining intermediate gradients while preserving their source graph is currently unsupported.
-`set_require_grad(false)` starts a new untracked lineage, cutting any connection to upstream
-tensors; it doesn't merely disable gradient storage. Disabling gradients on a plain tensor is
-harmless. Quantized tensors cannot retain gradients; their `require_grad()` and
-`set_require_grad(...)` calls leave them unchanged.
+first. On a tracked non-leaf, it also panics: retaining intermediate gradients while preserving
+their source graph is currently unsupported. `set_require_grad(false)` starts a new untracked
+lineage, cutting any connection to upstream tensors; it doesn't merely disable gradient storage.
+Disabling gradients on a plain tensor is harmless. Quantized tensors cannot retain gradients; their
+`require_grad()` and `set_require_grad(...)` calls leave them unchanged.
 
 `detach()` keeps the autodiff association but starts a new graph lineage, preserving a leaf's
 gradient-retention setting. `without_autodiff()` removes the association entirely.
 
 `to_device()` preserves the source tensor's autodiff association and checkpointing strategy,
 ignoring the destination's autodiff configuration. For tracked inputs, it records a differentiable
-operation even when the device is unchanged. Choose the transfer according to where gradients
-should flow:
+operation even when the device is unchanged. Choose the transfer according to where gradients should
+flow:
 
 ```rust, ignore
 let moved = source.clone().to_device(&destination); // Gradients flow back to source.
 let leaf = source.to_device(&destination).detach().require_grad(); // New destination leaf.
 ```
 
-The first result cannot retain its own gradient; retrieve the source's gradient after backward.
-The second can retain its gradient, but is disconnected from the source graph. Distributed
-backward currently requires every distributed parameter to use the same backend as the loss;
-incompatible graphs are rejected before synchronization or gradient computation begins.
+The first result cannot retain its own gradient; retrieve the source's gradient after backward. The
+second can retain its gradient, but is disconnected from the source graph. Distributed backward
+currently requires every distributed parameter to use the same backend as the loss; incompatible
+graphs are rejected before synchronization or gradient computation begins.
 
-When combining tensors that both have autodiff enabled, their checkpointing strategies must match
-or the operation panics. A transferred tensor keeps its source strategy, which may differ from
-that of tensors newly created on the destination. For example, a transferred `Balanced` tensor
-cannot combine with a new autodiff tensor using the destination's `Disabled` strategy. Create the
-other operand on `moved.device()` to inherit the matching context, or explicitly align the
-operands with `with_gradient_checkpointing_strategy(...)`.
+When combining tensors that both have autodiff enabled, their checkpointing strategies must match or
+the operation panics. A transferred tensor keeps its source strategy, which may differ from that of
+tensors newly created on the destination. For example, a transferred `Balanced` tensor cannot
+combine with a new autodiff tensor using the destination's `Disabled` strategy. Create the other
+operand on `moved.device()` to inherit the matching context, or explicitly align the operands with
+`with_gradient_checkpointing_strategy(...)`.
 
 For floating-point tensors, retained gradients imply graph participation, and graph participation
 implies an autodiff association:
@@ -81,6 +80,17 @@ implies an autodiff association:
 is_require_grad() => is_tracked() => is_autodiff()
 gradient_checkpointing_strategy().is_some() == is_autodiff()
 ```
+
+## Backward consumes the graph
+
+`backward()` borrows its output tensor but consumes the recorded steps reachable from it. Cloned
+handles share those steps. Calling backward again through a consumed intermediate panics; Burn does
+not provide `retain_graph`. Combine losses sharing intermediates before backward, or recompute the
+forward pass for each backward. Parameter leaves can be reused in fresh forwards.
+
+`is_tracked()` reports graph participation, including after backward has consumed the tape. It is
+not a check that another backward will succeed. `detach()` starts a new lineage; it does not restore
+consumed graph steps. Checkpointing does not change this lifetime rule.
 
 ## Difference with PyTorch
 
@@ -91,9 +101,9 @@ Similarly named APIs do not always have the same semantics:
   also applies to tracked intermediate tensors whose gradients are not retained. Burn's
   `is_tracked()` is the closer comparison for graph participation.
 - Burn's `detach()` preserves a leaf's gradient-retention setting. PyTorch's
-  [`detach()`](https://docs.pytorch.org/docs/stable/generated/torch.Tensor.detach.html) always returns
-  a tensor that does not require gradients. Use `set_require_grad(false)` in Burn to start a new
-  lineage with gradient retention disabled while keeping the autodiff association.
+  [`detach()`](https://docs.pytorch.org/docs/stable/generated/torch.Tensor.detach.html) always
+  returns a tensor that does not require gradients. Use `set_require_grad(false)` in Burn to start a
+  new lineage with gradient retention disabled while keeping the autodiff association.
 
 The way Burn handles gradients is different from PyTorch. First, when calling `backward`, each
 parameter doesn't have its `grad` field updated. Instead, the backward pass returns all the
@@ -115,9 +125,9 @@ with torch.no_grad():
    ...
 ```
 
-With Burn, call `without_autodiff()` on a tensor to remove its autodiff association for inference
-or validation. Moving it to a device without autodiff leaves its existing association intact.
-The historical `inner()` method is equivalent to `without_autodiff()`.
+With Burn, call `without_autodiff()` on a tensor to remove its autodiff association for inference or
+validation. Moving it to a device without autodiff leaves its existing association intact. The
+historical `inner()` method is equivalent to `without_autodiff()`.
 
 When an operation combines a tensor with autodiff and a tensor without it, the operation uses
 autodiff and treats the latter tensor as a constant. The original tensor remains unchanged.

@@ -179,7 +179,8 @@ the same behavior only to values matched by the parameter group.
 
 Parameter setters preserve configured trainability even on devices without autodiff, applying it
 when `module.train()` enables autodiff. This differs from calling `Tensor::require_grad()` or
-`Tensor::set_require_grad(true)` directly, which requires the tensor to already have autodiff enabled.
+`Tensor::set_require_grad(true)` directly, which requires the tensor to already have autodiff
+enabled.
 
 | Burn API                                           | PyTorch Equivalent                       |
 | -------------------------------------------------- | ---------------------------------------- |
@@ -214,19 +215,19 @@ let moved = model.clone().to_device(&destination); // Gradients flow to model's 
 let independent = model.fork(&destination); // Optimize this module on the destination.
 ```
 
-`to_device` records transfers of tracked parameters, even when the compute device is unchanged.
-The destination parameters are intermediates whose own gradients are not retained, so the moved
-module cannot itself be optimized with gradient descent. `fork` starts independent graph lineages
-and preserves the parameters' gradient-retention settings.
+`to_device` records transfers of tracked parameters, even when the compute device is unchanged. The
+destination parameters are intermediates whose own gradients are not retained, so the moved module
+cannot itself be optimized with gradient descent. `fork` starts independent graph lineages and
+preserves the parameters' gradient-retention settings.
 
-Both operations preserve the source tensors' autodiff association and checkpointing strategy;
-the destination's autodiff defaults do not enable training. For a module created without autodiff
-or returned by `valid()`, use `module.train().fork(&destination)` to enable autodiff, restore its
+Both operations preserve the source tensors' autodiff association and checkpointing strategy; the
+destination's autodiff defaults do not enable training. For a module created without autodiff or
+returned by `valid()`, use `module.train().fork(&destination)` to enable autodiff, restore its
 configured training state, and create independent destination parameters.
 
-The `Module` trait provides both `valid()` and `train()`. Importing `Module` is sufficient for
-these transitions; there is no separate `AutodiffModule` trait. A `Module` bound does not establish
-the current autodiff state. Training and validation modules have the same Rust type.
+The `Module` trait provides both `valid()` and `train()`. Importing `Module` is sufficient for these
+transitions; there is no separate `AutodiffModule` trait. A `Module` bound does not establish the
+current autodiff state. Training and validation modules have the same Rust type.
 
 | Burn API         | PyTorch Equivalent |
 | ---------------- | ------------------ |
@@ -234,9 +235,14 @@ the current autodiff state. Training and validation modules have the same Rust t
 | `module.train()` | `module.train()`   |
 
 Unlike their PyTorch counterparts, Burn's `valid()` and `train()` also transition a module between
-its autodiff and inner backends. `valid()` temporarily disables gradient tracking and training
-flags while preserving their configured state. `train()` returns the module to the autodiff backend
-and reapplies that state; it does not undo an explicit `no_grad()` or `freeze()`.
+its autodiff and inner backends. `valid()` temporarily disables gradient tracking and training flags
+while preserving their configured state. `train()` returns the module to the autodiff backend and
+reapplies that state; it does not undo an explicit `no_grad()` or `freeze()`.
+
+For dropout, training behavior also requires an autodiff-associated input. `dropout.train()` cannot
+change the context of inputs supplied later. Create inputs on the training device, or explicitly
+call `input.autodiff()`; `input.to_device(&training_device)` alone does not enable autodiff.
+Ordinary model inputs need no `require_grad()` unless their own gradients are needed.
 
 Burn's `freeze()` and `unfreeze()` persistently set both tensor gradient tracking and module-owned
 training flags, so they have no direct PyTorch equivalent.
@@ -253,8 +259,8 @@ Burn, optimizers are essentially just sophisticated module mappers. Visitors, on
 used when you don't intend to modify the module but need to retrieve specific information from it,
 such as the number of parameters or a list of devices in use.
 
-You can implement your own mapper or visitor using the following tensor hooks. They receive
-`Param` values, which provide access to both the parameter ID and its tensor:
+You can implement your own mapper or visitor using the following tensor hooks. They receive `Param`
+values, which provide access to both the parameter ID and its tensor:
 
 ```rust, ignore
 use burn::{

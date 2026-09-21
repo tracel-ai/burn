@@ -17,7 +17,7 @@ To learn more about crates and examples, read the Rust section below.
 <details>
 <summary><strong>🦀 About Rust crates</strong></summary>
 
-Each Burn example is a **package** which are subdirectories of the `examples` directory. A package
+Each Burn example is a **package**, which is a subdirectory of the `examples` directory. A package
 is composed of one or more **crates**.
 
 A package is a bundle of one or more crates that provides a set of functionality. A package contains
@@ -45,8 +45,8 @@ crate, the compiler first looks in the crate root file (`src/lib.rs` for a libra
 `src/main.rs` for a binary crate). Any module declared in the crate root file will be inserted in
 the crate for compilation.
 
-All Burn examples are library crates and they can contain one or more executable examples that uses
-the library. We even have some Burn examples that uses the library crate of other examples.
+All Burn examples are library crates and they can contain one or more executable examples that use
+the library. We even have some Burn examples that use the library crate of other examples.
 
 The examples are unique files under the `examples` directory. Each file produces an executable file
 with the same name. Each example can then be executed with `cargo run --example <executable name>`.

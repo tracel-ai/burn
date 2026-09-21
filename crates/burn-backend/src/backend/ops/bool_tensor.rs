@@ -507,7 +507,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// A boolean tensor primitive with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
     fn bool_any_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
@@ -525,7 +525,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
+    /// A boolean tensor primitive with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     fn bool_all(tensor: BoolTensor<B>) -> BoolTensor<B> {
         let dtype = tensor.dtype();
@@ -544,7 +544,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// A boolean tensor primitive with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     fn bool_all_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
