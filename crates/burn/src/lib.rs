@@ -78,7 +78,7 @@
 //! ## Feature Flags
 //!
 //! The following feature flags are available.
-//! Default features include `std` but no execution backend.
+//! Default features include `std` and `optim` (and therefore `autodiff`) but no execution backend.
 //! Select a backend explicitly, for example `features = ["wgpu"]` or `["flex"]`.
 //! Specialized operations are also opt-in, for example `features = ["flex", "signal"]`.
 //! Backend-free builds can define tensor/model APIs without installing an execution backend.
@@ -121,8 +121,9 @@
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Model Storage
-//!   - `store`: Enables the `burn-store` snapshot tooling
-//!   - `safetensors`: Enables SafeTensors import and export (implies `store`)
+//!   - `store`: Enables the `burn-store` snapshot tooling and burnpack stores; with `std`, this
+//!     also includes SafeTensors
+//!   - `safetensors`: Enables SafeTensors import and export in `no_std` builds (implies `store`)
 //!   - `pytorch`: Enables PyTorch checkpoint import (implies `store`)
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
@@ -132,7 +133,7 @@
 //!   - `signal`: Enables signal processing operations from `burn-signal`.
 //!   - `extension`: Enables the backend extension API, including `Tensor::from_primitive`.
 //!   - `remote`: Enables remote devices over Iroh; `remote-websocket` adds the WebSocket transport.
-//!   - `remote-server`: Enables the remote server.
+//!   - `remote-server`: Enables the remote server (implies `remote`).
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!
 //! You can also check the details in sub-crates [`burn-core`](https://docs.rs/burn-core) and [`burn-train`](https://docs.rs/burn-train).
@@ -194,8 +195,9 @@ pub mod rl {
 #[cfg(feature = "remote-server")]
 pub use burn_core::tensor::server;
 
-/// Model storage and serialization: the non-generic record system (always available), plus —
-/// with the `store` feature — the snapshot tooling and importers (SafeTensors, PyTorch, burnpack).
+/// Model storage and serialization: the non-generic record system (always available), plus,
+/// with the `store` feature, the snapshot tooling and burnpack stores. The `safetensors` and
+/// `pytorch` features add those importers.
 pub mod store {
     pub use burn_core::store::*;
     #[cfg(feature = "store")]

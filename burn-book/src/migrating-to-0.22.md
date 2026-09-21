@@ -221,8 +221,10 @@ metrics.
 Custom `MetricsRenderer` implementations must also implement `TrainingProgressLogger` and
 `EvaluationProgressLogger`. The `render_train`, `render_valid`, and `render_test` methods and the
 `TrainingProgress`, `EvaluationProgress`, and `ProgressType` types are removed; progress arrives
-through the logger callbacks instead. Custom event processors must handle the new
-`LearnerEvent::StartSplit`, `LearnerEvent::EndSplit`, and `EvaluatorEvent::StartTest` variants.
+through the logger callbacks instead. In custom event processors, `LearnerEvent::Start` and
+`EvaluatorEvent::Start` are now struct variants carrying `total_epochs`/`starting_epoch` and
+`total_tests`, and the `LearnerEvent::StartSplit`, `LearnerEvent::EndSplit`,
+`EvaluatorEvent::StartTest`, and `EvaluatorEvent::EndTest` variants are new.
 
 ## Distributed training
 
@@ -238,15 +240,17 @@ See [Distributed Computing](./performance/distributed-computing.md).
 - The minimum supported Rust version is 1.95.
 - `sqlite` is no longer a default feature of `burn-dataset`. `burn/dataset` and `burn/train` alone
   no longer provide `SqliteDataset` or `HuggingfaceDatasetLoader`; enable `burn/sqlite` as well.
-  `sqlite-bundled` is now an alias for `sqlite`. The `SqliteDatasetError::Sql` and `Row` payloads
-  changed type because the storage is backed by Turso instead of `rusqlite`.
+  `sqlite-bundled` is now an alias for `sqlite`. The storage is backed by Turso instead of
+  `rusqlite`, so `SqliteDatasetError::Sql` now wraps `turso::Error`, and the `Row` and
+  `Deserialize` variants are new.
 - `server` is renamed to `remote-server`. `remote` enables remote devices over Iroh, and
   `remote-websocket` adds the WebSocket transport. The `router`, `dispatch`,
   `record-item-custom-serde`, and `candle*` features are removed. New features include
   `safetensors` and `pytorch` (which imply `store`), `linalg`, `signal`, `extension`, `capture`,
   `optim`, and `rayon`.
-- `Tensor::from_primitive` and `into_primitive` require the `extension` feature and are generic
-  over the backend, for example `Tensor::from_primitive::<B>(primitive)`.
+- `Tensor::from_primitive` requires the `extension` feature and is generic over the backend, for
+  example `Tensor::from_primitive::<B>(primitive)`. `into_primitive` is replaced by
+  `try_into_primitive::<B>()`, which returns an error when the tensor is not on backend `B`.
 
 ## Tensor data and numeric semantics
 
@@ -255,11 +259,12 @@ which return the stored dtype without conversion. Use `try_to_vec_as::<E>()` and
 `try_into_vec_as::<E>()` to convert to another element type, on both `TensorData` and `Tensor`.
 `Tensor::try_into_scalar` now returns `TensorReadError`, and the `DataError` variants were reworked.
 
-Extrema reductions propagate NaN on every backend: `max`, `min`, `max_abs`, `argmax`, `argmin`,
-`cummax`, and `cummin` return NaN (or the index of the first NaN) when the reduced slice contains
-one. Reducing a zero-length axis returns the identity for `sum` (0), `prod` (1), `any` (false), and
-`all` (true), NaN for a float `mean`, and panics for `max` and `min`. `max_abs_dims(&[])` and the
-`*_norm_dims(&[])` variants apply the elementwise transformation without reducing.
+Extrema reductions propagate NaN on every backend: `max`, `min`, and `max_abs` return NaN when the
+reduced slice contains one, `argmax` and `argmin` return the index of the first NaN, and `cummax`
+and `cummin` are NaN from the first NaN onward. Reducing a zero-length axis returns the identity for
+`sum` (0), `prod` (1), `any` (false), and `all` (true), NaN for a float `mean`, and panics for `max`
+and `min`. `max_abs_dims(&[])` and the `*_norm_dims(&[])` variants apply the elementwise
+transformation without reducing.
 
 Dimension arguments accept negative indices across the tensor API, counting from the last axis.
 Most calls are source-compatible; untyped empty inputs now need an annotation, for example
@@ -294,8 +299,9 @@ each spatial dimension. `ConvOptions::new(..)` still takes symmetric padding; us
   checkpoints are read through the `pytorch-reader` crate.
 - `ParamId::serialize()` and `deserialize()` are replaced by its `Display` and `FromStr`
   implementations.
-- For backend and extension authors: `TensorKind::id()` is replaced by the `TensorKind::KIND`
-  constant and `TensorKindId` is renamed to `Kind`; `AutodiffTensor` fields are no longer public.
+- For backend and extension authors: `TensorKind` no longer has a backend type parameter or a
+  `Primitive` associated type, is sealed, and identifies the kind through the `TensorKind::KIND`
+  constant of type `Kind`; `AutodiffTensor` fields are no longer public.
 
 This page covers the main API migration. Consult individual operation documentation when updating
 code that relies on changed quantization or padding semantics.

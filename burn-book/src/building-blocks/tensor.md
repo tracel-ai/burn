@@ -227,7 +227,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.full_like(fill_value)`                       | `torch.full_like(tensor, fill_value)`                                     |
 | `tensor.gather(dim, indices)`                        | `torch.gather(tensor, dim, indices)`                                      |
 | `tensor.into_data()`                                 | N/A                                                                       |
-| `tensor.into_primitive()`                            | N/A                                                                       |
+| `tensor.try_into_primitive()`                        | N/A                                                                       |
 | `tensor.into_scalar()`                               | `tensor.item()`                                                           |
 | `tensor.mask_fill(mask, value)`                      | `tensor.masked_fill(mask, value)`                                         |
 | `tensor.mask_select(mask)`                           | `tensor.masked_select(mask)`                                              |

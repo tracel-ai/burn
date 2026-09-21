@@ -930,9 +930,10 @@ impl Device {
     /// creation time.
     ///
     /// Settings can only be initialized once per device. Configure defaults before creating
-    /// tensors or initializing model parameters: the first tensor created on the device locks
-    /// the settings to the backend's defaults, and any later call returns
-    /// [`DeviceError::AlreadyInitialized`].
+    /// tensors or initializing model parameters: the first read of the settings locks them to the
+    /// backend's defaults, and any later call returns [`DeviceError::AlreadyInitialized`].
+    /// Creating any tensor on the device, even with an explicit dtype, and calling
+    /// [`settings`](Device::settings) both read them.
     ///
     /// Individual tensors can still use an explicit supported dtype at creation or be converted
     /// with [`Tensor::cast`](crate::Tensor::cast); neither changes the defaults.
@@ -941,7 +942,7 @@ impl Device {
     ///
     /// Returns [`DeviceError::UnsupportedDType`] if a requested dtype is unsupported.
     /// Returns [`DeviceError::AlreadyInitialized`] if settings have already been initialized
-    /// for this device, either by a prior call or by tensor creation.
+    /// for this device, either by a prior call or by a read of the settings.
     ///
     /// # Example
     ///
@@ -1468,8 +1469,8 @@ impl Devices {
     /// creation time.
     ///
     /// Settings can only be initialized once per device. Configure defaults before creating
-    /// tensors or initializing model parameters; the first tensor created on a device locks its
-    /// settings.
+    /// tensors or initializing model parameters; the first read of a device's settings, including
+    /// by tensor creation, locks them.
     ///
     /// See [`Device::configure`].
     pub fn configure(&mut self, config: impl Into<DeviceConfig>) -> Result<(), DeviceError> {
