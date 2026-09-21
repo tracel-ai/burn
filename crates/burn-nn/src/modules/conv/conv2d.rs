@@ -152,11 +152,10 @@ impl Conv2d {
     /// use burn::nn::conv::Conv2dConfig;
     /// use burn::tensor::Tensor;
     ///
-    /// // Assuming backend type alias `B`
     /// let device = Default::default();
     /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init(&device);
     ///
-    /// let x = Tensor::<B, 4>::zeros([1, 3, 28, 28], &device);
+    /// let x = Tensor::<4>::zeros([1, 3, 28, 28], &device);
     /// let y = conv.forward(x);
     ///
     /// println!("{:?}", y.dims()); // [1, 8, 26, 26]

@@ -40,6 +40,10 @@ started:
 Once the kernel is installed, you can open the notebook files in your preferred editor and run the
 code. Ensure that the kernel is set to `Rust` within the notebook for proper execution.
 
+Run the kernel from `examples/notebook`: the dependency cells use paths relative to that directory.
+The notebooks target the current workspace API and explicitly enable `flex` (and `autodiff` for
+the gradient examples). Backend selection uses `Device`; tensors have rank and kind parameters.
+
 ## Additional Reading Resources
 
 - [Notebook Special Commands for Evcxr](https://github.com/evcxr/evcxr/blob/main/COMMON.md): Learn

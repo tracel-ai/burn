@@ -2,6 +2,7 @@
 - [Why Burn?](./motivation.md)
 - [Getting started](./getting-started.md)
   - [Examples](./examples.md)
+- [Migrating to Burn 0.22](./migrating-to-0.22.md)
 - [Basic Workflow: From Training to Inference](./basic-workflow/README.md)
   - [Model](./basic-workflow/model.md)
   - [Data](./basic-workflow/data.md)
