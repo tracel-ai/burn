@@ -184,6 +184,10 @@ tempfile = { workspace = true }
 # Default device for tests
 burn-tensor = { workspace = true, features = ["flex"] }
 
+[[test]]
+name = "lazy_param_device"
+required-features = ["flex", "ndarray"]
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]
