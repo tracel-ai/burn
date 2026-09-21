@@ -127,6 +127,40 @@ fn clamp_max_nan_bound_propagation() {
     assert!(values.iter().all(|v| v.is_nan()), "{values:?}");
 }
 
+// Two-sided clamp used to panic here, since `f32::clamp` rejects a NaN bound. Both
+// element types, since flex reaches each one through its own closure.
+#[cfg(feature = "flex")]
+#[test]
+fn clamp_nan_bound_propagation() {
+    for dtype in [burn_tensor::DType::F32, burn_tensor::DType::F64] {
+        for (min, max) in [(f32::NAN, 1.0), (0.0, f32::NAN), (f32::NAN, f32::NAN)] {
+            let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0]).cast(dtype);
+
+            let output = tensor.clamp(min, max).into_data().convert::<f32>();
+            let values = output.as_slice::<f32>().unwrap();
+
+            assert!(
+                values.iter().all(|v| v.is_nan()),
+                "{dtype:?} {min} {max} -> {values:?}"
+            );
+        }
+    }
+}
+
+// Taking the NaN bounds out of the way must leave the native clamp in charge, which
+// returns -0.0 rather than the lower bound.
+#[cfg(feature = "flex")]
+#[test]
+fn clamp_keeps_negative_zero() {
+    let tensor = TestTensor::<1>::from([-0.0, 0.0]);
+
+    let output = tensor.clamp(0.0, 1.0).into_data().convert::<f32>();
+    let values = output.as_slice::<f32>().unwrap();
+
+    assert!(values[0].is_sign_negative(), "{values:?}");
+    assert!(values[1].is_sign_positive(), "{values:?}");
+}
+
 #[test]
 fn clamp_nan_propagation() {
     let tensor = TestTensor::<1>::from([f32::NAN, -1.0, 2.0]);
@@ -136,6 +170,47 @@ fn clamp_nan_propagation() {
 
     assert!(values[0].is_nan());
     assert_eq!(values[1..], [0.0, 1.0]);
+}
+
+#[cfg(feature = "ndarray")]
+#[test]
+fn clamp_nan_propagation_through_simd() {
+    let mut data = vec![2.0; 64];
+    data[0] = f32::NAN;
+    let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default());
+
+    for (output, expected) in [
+        (tensor.clone().clamp_min(0.0), [f32::NAN, 2.0]),
+        (tensor.clone().clamp_max(1.0), [f32::NAN, 1.0]),
+        (tensor.clamp(0.0, 1.0), [f32::NAN, 1.0]),
+    ] {
+        let values = output.into_data().convert::<f32>();
+        let values = values.as_slice::<f32>().unwrap();
+
+        assert!(values[0].is_nan());
+        assert!(values[1..].iter().all(|value| *value == expected[1]));
+    }
+}
+
+#[cfg(feature = "ndarray")]
+#[test]
+fn clamp_nan_propagation_through_simd_f64() {
+    let mut data = vec![2.0_f32; 64];
+    data[0] = f32::NAN;
+    let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default())
+        .cast(burn_tensor::DType::F64);
+
+    for (output, expected) in [
+        (tensor.clone().clamp_min(0.0), 2.0),
+        (tensor.clone().clamp_max(1.0), 1.0),
+        (tensor.clamp(0.0, 1.0), 1.0),
+    ] {
+        let values = output.into_data();
+        let values = values.as_slice::<f64>().unwrap();
+
+        assert!(values[0].is_nan());
+        assert!(values[1..].iter().all(|value| *value == expected));
+    }
 }
 
 #[cfg(any(feature = "flex", feature = "ndarray"))]

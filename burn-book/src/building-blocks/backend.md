@@ -175,6 +175,23 @@ let devices = devices.into_vec();
 The exact `DeviceType` variants available depend on the backend features enabled for the
 application.
 
+A GPU can be reachable through more than one runtime: an NVIDIA card enumerates under
+`DeviceType::Cuda` and again under `DeviceType::Vulkan`. `Device::enumerate_physical` lists each
+card once, with every device that runs on it, and `Device::identity` says which card a device
+is on:
+
+```rust, ignore
+for gpu in Device::enumerate_physical() {
+    let address = gpu.physical.pci_address.map(|address| address.to_string());
+    println!("{} at {address:?}: {:?}", gpu.name, gpu.devices);
+}
+```
+
+A card is recognized by its PCI address, which CUDA, ROCm and Vulkan report, or by its Windows
+LUID. A card that reports neither, such as an Apple GPU, is listed as a card of its own. The LUID changes when the machine restarts, so anything stored to recognize a card later
+should use the PCI address. Both calls open the devices they report on, so enumerate once and keep
+the answer.
+
 ## Execution Stack
 
 Under the hood, an operation flows through the **Tensor → Bridge → Dispatch → Backend** stack:

@@ -12,7 +12,6 @@ burn = { version = "0.22.0-pre.3", features = ["wgpu"] }
 ```
 
 ```rust , ignore
-# #![recursion_limit = "256"]
 # mod data;
 # mod model;
 # mod training;

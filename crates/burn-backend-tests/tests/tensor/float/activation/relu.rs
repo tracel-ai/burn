@@ -36,6 +36,35 @@ fn test_relu_nan_propagation() {
     assert_eq!(values[1..], [0.0, 0.0, 2.0]);
 }
 
+#[cfg(feature = "ndarray")]
+#[test]
+fn test_relu_nan_propagation_through_simd() {
+    let mut data = vec![2.0; 64];
+    data[0] = f32::NAN;
+    let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default());
+
+    let values = activation::relu(tensor).into_data().convert::<f32>();
+    let values = values.as_slice::<f32>().unwrap();
+
+    assert!(values[0].is_nan());
+    assert!(values[1..].iter().all(|value| *value == 2.0));
+}
+
+#[cfg(feature = "ndarray")]
+#[test]
+fn test_relu_nan_propagation_through_simd_f64() {
+    let mut data = vec![2.0_f32; 64];
+    data[0] = f32::NAN;
+    let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default())
+        .cast(burn_tensor::DType::F64);
+
+    let values = activation::relu(tensor).into_data();
+    let values = values.as_slice::<f64>().unwrap();
+
+    assert!(values[0].is_nan());
+    assert!(values[1..].iter().all(|value| *value == 2.0));
+}
+
 #[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn test_relu_nan_propagation_f64() {

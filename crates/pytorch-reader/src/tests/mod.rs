@@ -905,10 +905,10 @@ fn test_read_pickle_data_nested_structure() {
         // It could be flat keys like "layer1.weight" or nested dicts
         // Just verify it's a valid dict structure
         for value in dict.values() {
-            // Values could be None (tensors), nested dicts, or other types
+            // Values could be tensors (unsupported), nested dicts, or other types
             assert!(
-                matches!(value, PickleValue::None | PickleValue::Dict(_)),
-                "Values should be None or nested dicts"
+                matches!(value, PickleValue::Unsupported(_) | PickleValue::Dict(_)),
+                "Values should be unsupported or nested dicts"
             );
         }
     } else {
@@ -929,12 +929,11 @@ fn test_read_pickle_data_types() {
         // The file contains different tensor types
         assert!(dict.len() >= 3, "Should have at least 3 tensor types");
 
-        // All tensor values should be None in pickle data
+        // Tensors are not carried in pickle data, only named by type
         for value in dict.values() {
-            // All values should be None (tensors are not included in pickle data)
             assert!(
-                matches!(value, PickleValue::None),
-                "Tensors should be None in pickle data"
+                matches!(value, PickleValue::Unsupported(name) if name == "torch.Tensor"),
+                "Tensors should be unsupported in pickle data"
             );
         }
     } else {
@@ -978,9 +977,9 @@ fn test_read_pickle_data_simple_pickle() {
         assert!(dict.contains_key("weight"));
         assert!(dict.contains_key("bias"));
 
-        // All tensor values should be None in pickle data
+        // Tensors are not carried in pickle data, only named by type
         for value in dict.values() {
-            assert!(matches!(value, PickleValue::None));
+            assert!(matches!(value, PickleValue::Unsupported(name) if name == "torch.Tensor"));
         }
     } else {
         panic!("Expected state_dict to contain a dictionary");
@@ -1051,7 +1050,7 @@ fn test_load_config_complex_types() {
         epoch: i64,
         loss: f64,
         // We skip model_state_dict and optimizer_state_dict
-        // as they contain tensor references that become None
+        // as they contain tensor references that cannot be represented
     }
 
     // Load partial config
@@ -1109,6 +1108,89 @@ fn test_pickle_value_conversion() {
         }
         _ => panic!("Unexpected root type"),
     }
+}
+
+/// `{"config": {"hidden_size": np.int64(768), "dtype": torch.float32}}` at protocol 2.
+///
+/// The numpy scalar is a `REDUCE` the reader does not interpret (with a `numpy.dtype`
+/// and a `_codecs.encode` call nested inside), and the torch dtype is a bare `GLOBAL`.
+const NUMPY_SCALAR_AND_TORCH_DTYPE: &[u8] = b"\x80\x02}q\x00X\x06\x00\x00\x00configq\x01}q\x02(X\x0b\x00\x00\x00hidden_sizeq\x03cnumpy._core.multiarray\nscalar\nq\x04cnumpy\ndtype\nq\x05X\x02\x00\x00\x00i8q\x06\x89\x88\x87q\x07Rq\x08(K\x03X\x01\x00\x00\x00<q\tNNNJ\xff\xff\xff\xffJ\xff\xff\xff\xffK\x00tq\nbc_codecs\nencode\nq\x0bX\x08\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00q\x0cX\x06\x00\x00\x00latin1q\r\x86q\x0eRq\x0f\x86q\x10Rq\x11X\x05\x00\x00\x00dtypeq\x12ctorch\nfloat32\nq\x13us.";
+
+/// `{"device": torch.device("cpu"), "n": 7, "nothing": None}` at protocol 2.
+const TORCH_DEVICE_BESIDE_INT: &[u8] = b"\x80\x02}q\x00(X\x06\x00\x00\x00deviceq\x01ctorch\ndevice\nq\x02X\x03\x00\x00\x00cpuq\x03\x85q\x04Rq\x05X\x01\x00\x00\x00nq\x06K\x07X\x07\x00\x00\x00nothingq\x07Nu.";
+
+fn write_pickle(dir: &tempfile::TempDir, name: &str, bytes: &[u8]) -> std::path::PathBuf {
+    let path = dir.path().join(name);
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+#[test]
+fn test_read_pickle_data_names_unsupported_types() {
+    use crate::PickleValue;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "config.pkl", NUMPY_SCALAR_AND_TORCH_DTYPE);
+
+    let PickleValue::Dict(config) = PytorchReader::read_pickle_data(&path, Some("config")).unwrap()
+    else {
+        panic!("expected a dict");
+    };
+    assert_eq!(
+        config["hidden_size"],
+        PickleValue::Unsupported("numpy._core.multiarray.scalar".to_string())
+    );
+    assert_eq!(
+        config["dtype"],
+        PickleValue::Unsupported("torch.float32".to_string())
+    );
+}
+
+#[test]
+fn test_load_config_rejects_values_it_cannot_represent() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "config.pkl", NUMPY_SCALAR_AND_TORCH_DTYPE);
+
+    #[derive(Debug, serde::Deserialize)]
+    struct Config {
+        #[allow(dead_code)]
+        hidden_size: usize,
+    }
+    let err = PytorchReader::load_config::<Config, _>(&path, Some("config"))
+        .expect_err("a numpy scalar must not deserialize as 0");
+    assert!(
+        err.to_string().contains("numpy._core.multiarray.scalar"),
+        "error should name the Python type: {err}"
+    );
+
+    // The same holds for an optional field: the value is present, so it must not become
+    // `None`.
+    #[derive(Debug, serde::Deserialize)]
+    struct OptionalConfig {
+        #[allow(dead_code)]
+        hidden_size: Option<usize>,
+    }
+    let err = PytorchReader::load_config::<OptionalConfig, _>(&path, Some("config")).unwrap_err();
+    assert!(
+        err.to_string().contains("numpy._core.multiarray.scalar"),
+        "{err}"
+    );
+}
+
+#[test]
+fn test_load_config_ignores_unsupported_values_it_does_not_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "meta.pkl", TORCH_DEVICE_BESIDE_INT);
+
+    // `device` is not a field of the target, so the `torch.device` beside `n` is skipped.
+    #[derive(Debug, serde::Deserialize)]
+    struct Meta {
+        n: i64,
+        nothing: Option<String>,
+    }
+    let meta: Meta = PytorchReader::load_config(&path, None).unwrap();
+    assert_eq!(meta.n, 7);
+    assert_eq!(meta.nothing, None);
 }
 
 // ============================================================================
@@ -1416,12 +1498,14 @@ fn test_tar_absurd_storage_count_is_an_error() {
     );
 }
 
-/// Rewrite a ZIP checkpoint with every entry moved under `new_root`, letting `edit`
-/// change each entry's bytes (keyed by the name without its root) on the way.
+/// Rewrite a ZIP checkpoint with every entry moved under `new_root` and written with
+/// `compression`, letting `edit` change each entry's bytes (keyed by the name without its
+/// root) on the way.
 fn rezip(
     original: &std::path::Path,
     target: &std::path::Path,
     new_root: &str,
+    compression: zip::CompressionMethod,
     edit: impl Fn(&str, &mut Vec<u8>),
 ) {
     let mut source = zip::ZipArchive::new(std::fs::File::open(original).unwrap()).unwrap();
@@ -1438,13 +1522,44 @@ fn rezip(
         writer
             .start_file(
                 format!("{new_root}{name}"),
-                zip::write::SimpleFileOptions::default()
-                    .compression_method(zip::CompressionMethod::Stored),
+                zip::write::SimpleFileOptions::default().compression_method(compression),
             )
             .unwrap();
         std::io::Write::write_all(&mut writer, &bytes).unwrap();
     }
     writer.finish().unwrap();
+}
+
+/// Rezip `float32.pt` with `compression`, let `patch` edit its bytes at an offset taken
+/// from its `data/0` entry, and return the error that reading `tensor` then produces.
+fn read_error_after_patching(
+    dir: &std::path::Path,
+    compression: zip::CompressionMethod,
+    offset: impl FnOnce(&zip::read::ZipFile<'_, std::fs::File>) -> u64,
+    patch: impl FnOnce(&mut [u8], usize),
+) -> std::io::Error {
+    let path = dir.join("patched.pt");
+    rezip(
+        &test_data_path("float32.pt"),
+        &path,
+        "float32/",
+        compression,
+        |_, _| {},
+    );
+    let at = {
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+        offset(&archive.by_name("float32/data/0").unwrap()) as usize
+    };
+    let mut bytes = std::fs::read(&path).unwrap();
+    patch(&mut bytes, at);
+    std::fs::write(&path, &bytes).unwrap();
+
+    let reader = PytorchReader::new(&path).expect("metadata still parses");
+    reader
+        .get("tensor")
+        .unwrap()
+        .read()
+        .expect_err("a patched storage must not load")
 }
 
 #[test]
@@ -1455,6 +1570,7 @@ fn test_unrecognized_byteorder_is_an_error() {
         &test_data_path("float32.pt"),
         &path,
         "float32/",
+        zip::CompressionMethod::Stored,
         |name, bytes| {
             if name == "byteorder" {
                 *bytes = b"middle".to_vec();
@@ -1477,6 +1593,7 @@ fn test_storage_larger_than_tensor_reads_only_what_is_needed() {
         &test_data_path("float32.pt"),
         &path,
         "float32/",
+        zip::CompressionMethod::Stored,
         |name, bytes| {
             if name == "data/0" {
                 bytes.extend(std::iter::repeat_n(0xffu8, 1024));
@@ -1492,24 +1609,12 @@ fn test_storage_larger_than_tensor_reads_only_what_is_needed() {
 fn test_zip_checksum_mismatch_is_an_error() {
     // A weight edited in place, leaving the entry's CRC behind.
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("corrupt.pt");
-    rezip(&test_data_path("float32.pt"), &path, "float32/", |_, _| {});
-
-    let data_start = {
-        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
-        let entry = archive.by_name("float32/data/0").unwrap();
-        entry.data_start().expect("stored entry has a data offset") as usize
-    };
-    let mut bytes = std::fs::read(&path).unwrap();
-    bytes[data_start] ^= 0xff;
-    std::fs::write(&path, &bytes).unwrap();
-
-    let reader = PytorchReader::new(&path).expect("metadata still parses");
-    let err = reader
-        .get("tensor")
-        .unwrap()
-        .read()
-        .expect_err("a storage that fails its checksum must not load");
+    let err = read_error_after_patching(
+        dir.path(),
+        zip::CompressionMethod::Stored,
+        |entry| entry.data_start().expect("stored entry has a data offset"),
+        |bytes, data_start| bytes[data_start] ^= 0xff,
+    );
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     let message = err.to_string();
     assert!(
@@ -1524,62 +1629,204 @@ fn test_corrupt_compressed_storage_is_invalid_data() {
     // its own kind (flate2 says `InvalidInput`), which must not reach a caller as anything
     // but the file disagreeing with itself.
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("deflated.pt");
-    {
-        let original = test_data_path("float32.pt");
-        let mut source = zip::ZipArchive::new(std::fs::File::open(&original).unwrap()).unwrap();
-        let mut writer = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
-        for i in 0..source.len() {
-            let mut entry = source.by_index(i).unwrap();
-            let mut bytes = Vec::new();
-            std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
-            writer
-                .start_file(
-                    entry.name(),
-                    zip::write::SimpleFileOptions::default()
-                        .compression_method(zip::CompressionMethod::Deflated),
-                )
-                .unwrap();
-            std::io::Write::write_all(&mut writer, &bytes).unwrap();
-        }
-        writer.finish().unwrap();
-    }
-    let data_start = {
-        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
-        let entry = archive.by_name("float32/data/0").unwrap();
-        entry.data_start().expect("entry has a data offset") as usize
-    };
-    let mut bytes = std::fs::read(&path).unwrap();
-    // The first byte carries the block type; 0b11 is reserved and refused by any inflater.
-    bytes[data_start] |= 0x06;
-    std::fs::write(&path, &bytes).unwrap();
-
-    let reader = PytorchReader::new(&path).expect("metadata still parses");
-    let err = reader
-        .get("tensor")
-        .unwrap()
-        .read()
-        .expect_err("a corrupt stream must not load");
+    let err = read_error_after_patching(
+        dir.path(),
+        zip::CompressionMethod::Deflated,
+        |entry| entry.data_start().expect("entry has a data offset"),
+        // The first byte carries the block type; 0b11 is reserved and refused by any
+        // inflater.
+        |bytes, data_start| bytes[data_start] |= 0x06,
+    );
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData, "{err}");
 }
 
+// Unix only: that is where replacing an open file is well defined.
+#[cfg(unix)]
 #[test]
-fn test_os_errors_keep_their_kind() {
-    // A legacy container reopens the file on every read, so a file that disappears after
-    // open fails at read with the operating system's own kind rather than the reader's.
+fn test_legacy_reads_after_the_file_is_replaced() {
+    // A legacy container keeps its file open from `new` until drop and never reopens by
+    // path, so a checkpoint renamed over underneath a reader (a training loop writing the
+    // next epoch) still reads as it was opened rather than at the old offsets into the
+    // new file.
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("vanishing.pt");
+    let path = dir.path().join("checkpoint.pt");
     std::fs::copy(test_data_path("simple_legacy.pt"), &path).unwrap();
 
     let reader = PytorchReader::new(&path).unwrap();
+    let bias = reader.get("bias").unwrap();
+    let next = dir.path().join("next.pt");
+    std::fs::copy(test_data_path("legacy_with_offsets.pt"), &next).unwrap();
+    std::fs::rename(&next, &path).unwrap();
+    assert_close(&read_as::<f32>(bias), &[1.0, 1.0]);
+}
+
+// Unix only: that is where unlinking an open file is well defined.
+#[cfg(unix)]
+#[test]
+fn test_zip_reads_after_the_file_is_removed() {
+    // A ZIP container keeps its file open from `new` until drop, so a checkpoint that is
+    // unlinked underneath a reader still reads as it was opened.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("vanishing.pt");
+    std::fs::copy(test_data_path("float32.pt"), &path).unwrap();
+
+    let reader = PytorchReader::new(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
-    let err = reader
-        .get("bias")
+    let tensor = reader.get("tensor").unwrap();
+    assert_eq!(read_as::<f32>(tensor), [1.0, 2.5, -3.7, 0.0]);
+}
+
+#[test]
+fn test_zip_reads_from_several_threads() {
+    // Threads reading a checkpoint at once get the bytes one thread gets. A stored entry
+    // is read at its offset outside the archive lock, a deflated one streams under it,
+    // so both are exercised.
+    let dir = tempfile::tempdir().unwrap();
+    let stored = test_data_path("state_dict.pt");
+    let deflated = dir.path().join("deflated.pt");
+    rezip(
+        &stored,
+        &deflated,
+        "state_dict/",
+        zip::CompressionMethod::Deflated,
+        |_, _| {},
+    );
+
+    for path in [stored, deflated] {
+        let reader = PytorchReader::new(&path).unwrap();
+        let tensors: Vec<_> = reader.tensors().values().cloned().collect();
+        assert_eq!(tensors.len(), 4);
+        let expected: Vec<Vec<u8>> = tensors.iter().map(|t| t.read().unwrap()).collect();
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    for _ in 0..16 {
+                        for (tensor, expected) in tensors.iter().zip(&expected) {
+                            assert_eq!(&tensor.read().unwrap(), expected, "{}", tensor.name);
+                        }
+                    }
+                });
+            }
+        });
+    }
+}
+
+// Unix only: the positional path is the one that reads into a buffer sized at open. The
+// stream path elsewhere reports a cut-short file as an archive that disagrees with itself.
+#[cfg(unix)]
+#[test]
+fn test_zip_reads_of_a_truncated_file_are_an_error() {
+    // The file length and entry offsets were taken at open. A file cut short underneath
+    // the reader must fail the read rather than hand back the zeroed buffer.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("truncated.pt");
+    std::fs::copy(test_data_path("float32.pt"), &path).unwrap();
+
+    let reader = PytorchReader::new(&path).unwrap();
+    let tensor = reader.get("tensor").unwrap();
+    assert_eq!(read_as::<f32>(tensor), [1.0, 2.5, -3.7, 0.0]);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
         .unwrap()
+        .set_len(0)
+        .unwrap();
+
+    let err = tensor
         .read()
-        .expect_err("a missing file must not load");
-    assert_eq!(err.kind(), std::io::ErrorKind::NotFound, "{err}");
-    assert!(err.to_string().starts_with("tensor 'bias':"), "{err}");
+        .expect_err("a truncated storage must not load");
+    assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof, "{err}");
+    assert!(
+        err.to_string().contains("shrank"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_deflated_offset_views() {
+    // A deflated entry has only the stream path, where an offset view makes the bytes
+    // before its window be decompressed and dropped under the lock.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("deflated_views.pt");
+    rezip(
+        &test_data_path("non_contiguous.pt"),
+        &path,
+        "non_contiguous/",
+        zip::CompressionMethod::Deflated,
+        |_, _| {},
+    );
+    let reader = PytorchReader::new(&path).unwrap();
+    assert_eq!(
+        read_as::<f32>(reader.get("expanded").unwrap()),
+        [1.0, 2.0, 3.0, 1.0, 2.0, 3.0]
+    );
+    assert_eq!(
+        read_as::<f32>(reader.get("permuted").unwrap())[..4],
+        [5.0, 9.0, 13.0, 6.0]
+    );
+}
+
+#[test]
+fn test_deflated_checksum_mismatch_is_an_error() {
+    // The stream path leaves the CRC to the zip crate, which checks it only once a read
+    // reaches the entry's end; the probe past the declared size takes it there.
+    let dir = tempfile::tempdir().unwrap();
+    let err = read_error_after_patching(
+        dir.path(),
+        zip::CompressionMethod::Deflated,
+        |entry| entry.central_header_start(),
+        // The CRC-32 is at offset 16 of the 46 byte central directory header.
+        |bytes, central_header_start| bytes[central_header_start + 16] ^= 0xff,
+    );
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData, "{err}");
+    assert!(err.to_string().contains("Invalid checksum"), "{err}");
+}
+
+// The positional path's own check; the stream path reports this as a checksum failure.
+#[cfg(unix)]
+#[test]
+fn test_zip_storage_beyond_file_end_is_an_error() {
+    // A local header whose extra field length puts the entry's data past the end of the
+    // file. The central directory still declares 16 bytes, so nothing else looks wrong.
+    let dir = tempfile::tempdir().unwrap();
+    let err = read_error_after_patching(
+        dir.path(),
+        zip::CompressionMethod::Stored,
+        |entry| entry.header_start(),
+        // The extra field length is the last field of the 30 byte local header.
+        |bytes, header_start| {
+            bytes[header_start + 28..header_start + 30].copy_from_slice(&u16::MAX.to_le_bytes());
+        },
+    );
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData, "{err}");
+    assert!(
+        err.to_string().contains("beyond the end of the file"),
+        "unexpected error: {err}"
+    );
+}
+
+// The positional path's own check; the stream path reports this as a short read.
+#[cfg(unix)]
+#[test]
+fn test_zip_stored_entry_size_mismatch_is_an_error() {
+    // A stored entry whose central directory sizes disagree. The bytes past the smaller
+    // one belong to the next entry, so a windowed read must not hand them out.
+    let dir = tempfile::tempdir().unwrap();
+    let err = read_error_after_patching(
+        dir.path(),
+        zip::CompressionMethod::Stored,
+        |entry| entry.central_header_start(),
+        // The compressed size is at offset 20 of the 46 byte central directory header.
+        |bytes, central_header_start| {
+            bytes[central_header_start + 20..central_header_start + 24]
+                .copy_from_slice(&8u32.to_le_bytes());
+        },
+    );
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData, "{err}");
+    assert!(
+        err.to_string().contains("declares 16 bytes but stores 8"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]
@@ -1589,7 +1836,13 @@ fn test_zip_archive_and_root_level_layouts() {
     let dir = tempfile::tempdir().unwrap();
     for root in ["archive/", ""] {
         let path = dir.path().join(format!("layout_{}.pt", root.len()));
-        rezip(&original, &path, root, |_, _| {});
+        rezip(
+            &original,
+            &path,
+            root,
+            zip::CompressionMethod::Stored,
+            |_, _| {},
+        );
 
         let reader = PytorchReader::new(&path).unwrap_or_else(|e| panic!("root {root:?}: {e}"));
         let tensor = reader.get("tensor").expect("tensor not found");

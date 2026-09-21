@@ -1,5 +1,3 @@
-#![recursion_limit = "256"]
-
 use burn::tensor::{Device, DeviceConfig, Element};
 use text_classification::AgNewsDataset;
 

@@ -335,6 +335,20 @@ let mut store = PytorchStore::from_file("model.pt")
     .map_indices_contiguous(false);
 ```
 
+Some lists mirror their indices on the Burn side, for example a `Vec` whose odd entries are
+parameter-free flips, while other lists in the same file still have gaps to collapse. Exclude
+those prefixes instead of turning the mapping off:
+
+```rust, ignore
+// flows.{0,2,4} stay as-is, fc.{0,2} still become fc.{0,1}
+let mut store = PytorchStore::from_file("model.pt")
+    .map_indices_contiguous_except(r"^model_g\.flow\.flows$");
+```
+
+The regex is matched against the path up to the numeric segment (`model_g.flow.flows`, not the
+full tensor name), so anchor it to keep exactly one list; a nested list such as
+`model_g.flow.flows.2.enc.in_layers` is matched separately.
+
 #### Zero-Copy Loading
 
 For embedded models or large files, use zero-copy loading to avoid memory copies:
@@ -449,22 +463,23 @@ model2.apply(snapshots, Some(filter), None, false);
 
 #### Builder Methods
 
-| Category      | Method                         | Description                  |
-| ------------- | ------------------------------ | ---------------------------- |
-| **Filtering** | `with_regex(pattern)`          | Filter by regex pattern      |
-|               | `with_full_path(path)`         | Include specific tensor      |
-|               | `with_predicate(fn)`           | Custom filter logic          |
-| **Remapping** | `with_key_remapping(from, to)` | Regex-based renaming         |
-|               | `remap(KeyRemapper)`           | Complex remapping rules      |
-| **Adapters**  | `with_from_adapter(adapter)`   | Loading transformations      |
-|               | `with_to_adapter(adapter)`     | Saving transformations       |
-|               | `HalfPrecisionAdapter::new()`  | F32/F16 mixed-precision      |
-| **Config**    | `allow_partial(bool)`          | Continue on missing tensors  |
-|               | `with_top_level_key(key)`      | Access nested dict (PyTorch) |
-|               | `skip_enum_variants(bool)`     | Skip enum variants in paths  |
-|               | `map_indices_contiguous(bool)` | Remap non-contiguous indices |
-|               | `metadata(key, value)`         | Add custom metadata          |
-|               | `zero_copy(bool)`              | Enable zero-copy loading     |
+| Category      | Method                                 | Description                          |
+| ------------- | -------------------------------------- | ------------------------------------ |
+| **Filtering** | `with_regex(pattern)`                  | Filter by regex pattern              |
+|               | `with_full_path(path)`                 | Include specific tensor              |
+|               | `with_predicate(fn)`                   | Custom filter logic                  |
+| **Remapping** | `with_key_remapping(from, to)`         | Regex-based renaming                 |
+|               | `remap(KeyRemapper)`                   | Complex remapping rules              |
+| **Adapters**  | `with_from_adapter(adapter)`           | Loading transformations              |
+|               | `with_to_adapter(adapter)`             | Saving transformations               |
+|               | `HalfPrecisionAdapter::new()`          | F32/F16 mixed-precision              |
+| **Config**    | `allow_partial(bool)`                  | Continue on missing tensors          |
+|               | `with_top_level_key(key)`              | Access nested dict (PyTorch)         |
+|               | `skip_enum_variants(bool)`             | Skip enum variants in paths          |
+|               | `map_indices_contiguous(bool)`         | Remap non-contiguous indices         |
+|               | `map_indices_contiguous_except(regex)` | Keep indices under matching prefixes |
+|               | `metadata(key, value)`                 | Add custom metadata                  |
+|               | `zero_copy(bool)`                      | Enable zero-copy loading             |
 
 #### Direct Access Methods
 
