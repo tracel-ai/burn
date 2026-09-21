@@ -14,6 +14,7 @@ Backend implementations and extensions still use low-level backend traits.
 | A backend type alias at the application entry point | A constructor such as `Device::wgpu(...)`, `Device::cuda(0)`, or `Device::flex()` |
 | `Autodiff<B>` as the application's backend          | `device.autodiff()` before model/input initialization                             |
 | Backend element type parameters                     | Device dtype defaults, explicit creation dtypes, and `tensor.cast(...)`           |
+| `tensor.into_scalar()`                              | `tensor.into_scalar::<f32>()`, or an inferred element type                        |
 | Backend-generic optimizers                          | `ModuleOptimizer`, returned by optimizer configuration `init()`                   |
 
 Enable the Cargo features for each backend constructor you use. When upgrading a model, remove its
@@ -52,6 +53,11 @@ assert!(model.linear.weight.grad(&gradients).is_some());
 
 Configure device dtype defaults before creating tensors. Configuration is shared by the compute
 device and can only be initialized once. See [Backend and Device](./building-blocks/backend.md).
+
+Scalar readback is now generic over the returned element type. Specify it explicitly with
+`tensor.into_scalar::<f32>()` or let a typed binding infer it:
+`let value: f32 = tensor.into_scalar();`. The same applies to asynchronous and fallible scalar
+readback methods.
 
 ## Autodiff is runtime state
 
@@ -101,6 +107,25 @@ adapters such as LoRA into parameter values and discards checkpointing strategie
 `snapshot.train()` does not reconstruct those. Dropout additionally checks its input tensor's
 autodiff context, so create model inputs on the training device even when their gradients are not
 needed. See [Module](./building-blocks/module.md).
+
+## Datasets and dataloaders
+
+`Dataset<I>` now has an optional error type parameter: `Dataset<I, E = DatasetError>`. Change
+`get(&self, index: usize) -> Option<I>` implementations to return `Result<I, E>`. Return `Ok(item)`
+for an in-bounds item and `Err(error)` for a retrieval failure, such as an I/O or decoding error.
+Accessing `index >= len()` must panic; it no longer returns `None`. A custom error type must
+implement `std::error::Error + Send + Sync + 'static`.
+
+Dataset iterators yield `Result<I, E>`, and dataloader iterators yield
+`Result<Batch, DatasetError>`. In custom loops, handle each result before passing the item or batch
+to your model, for example with `let batch = batch?;` in a function returning `Result`. An iterator
+returns `None` only when it is exhausted; a retrieval error is an item to handle, not an end-of-data
+marker. See [Dataset](./building-blocks/dataset.md) for the updated trait and a fallible batch loop.
+
+`ImageDatasetItem.image` now stores `PixelData` instead of `Vec<PixelDepth>`. Match `PixelData::U8`,
+`PixelData::U16`, or `PixelData::F32` to access the packed vector, and construct the matching
+variant when producing image items. For depth-independent processing, `image.iter()` still yields
+individual `PixelDepth` values. See [Images](./building-blocks/dataset.md#images).
 
 ## Backend extensions
 
@@ -175,8 +200,18 @@ scheduler state, or implement a separate conversion if preserving that state is 
 
 - Optimizer implementations use the per-tensor `Optimizer` trait, wrapped by `ModuleOptimizer`. See
   [Optimizer](./building-blocks/optimizer.md).
+- `CosineAnnealingLrScheduler` no longer resets to the initial learning rate after each cycle.
+  `num_iters` is the number of steps from the initial rate to the minimum; subsequent steps continue
+  along the cosine curve and the rate rises again. Existing 0.21 configurations that relied on warm
+  restarts will produce a different schedule. See
+  [Cosine annealing](./building-blocks/lr-scheduler.md#cosine-annealing).
 - Linear algebra operations moved to `burn-linalg`, re-exported as `burn::linalg` with the `linalg`
   feature. Import its extension traits for those methods.
+- Signal-processing functions moved to `burn-signal`. Enable the `signal` feature to use
+  `burn::signal` or the compatibility path `burn::tensor::signal`. Direct `burn_tensor::signal` and
+  `burn_core::tensor::signal` imports have been removed. Remote servers and captured-graph
+  interpreters must register the FFT custom operations; see
+  [Signal Processing Functions](./building-blocks/tensor.md#signal-processing-functions).
 - NdArray and LibTorch are deprecated, and the Candle backend has been removed. Backend tracing
   requires the opt-in `tracing` feature.
 
