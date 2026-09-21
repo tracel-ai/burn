@@ -1,6 +1,55 @@
 use super::*;
 use burn_tensor::Distribution;
+use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
+
+#[test]
+fn mask_fill_should_broadcast_concrete_inputs() {
+    let device = Default::default();
+    const N: usize = 65;
+    let mask_data: Vec<bool> = (0..N * N).map(|i| i % 2 == 0).collect();
+
+    for shape in [[1, 1], [1, N], [N, 1]] {
+        for shared in [false, true] {
+            let input: Vec<f32> = (0..shape[0] * shape[1]).map(|i| i as f32 + 1.0).collect();
+            let expected: Vec<f32> = (0..N * N)
+                .map(|i| {
+                    let row = (i / N) % shape[0];
+                    let col = (i % N) % shape[1];
+                    if mask_data[i] {
+                        -7.0
+                    } else {
+                        input[row * shape[1] + col]
+                    }
+                })
+                .collect();
+            let tensor = TestTensor::<2>::from_data(TensorData::new(input.clone(), shape), &device);
+            let mask =
+                TestTensorBool::<2>::from_data(TensorData::new(mask_data.clone(), [N, N]), &device);
+            let retained_input = shared.then(|| tensor.clone());
+
+            let output = tensor.mask_fill(mask, -7.0);
+
+            assert_eq!(output.dims(), [N, N]);
+            assert_eq!(output.into_data().try_to_vec::<f32>().unwrap(), expected);
+            if let Some(tensor) = retained_input {
+                assert_eq!(tensor.into_data().try_to_vec::<f32>().unwrap(), input);
+            }
+        }
+    }
+}
+
+#[test]
+fn mask_fill_should_broadcast_to_empty_output() {
+    let device = Default::default();
+    let tensor = TestTensor::<1>::from_data([2.0], &device);
+    let mask = TestTensorBool::<1>::from_data(TensorData::new(Vec::<bool>::new(), [0]), &device);
+
+    let output = tensor.mask_fill(mask, 7.0);
+
+    assert_eq!(output.dims(), [0]);
+    assert!(output.into_data().try_to_vec::<f32>().unwrap().is_empty());
+}
 
 #[test]
 fn mask_fill_should_match_reference_backend() {

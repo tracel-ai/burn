@@ -11,7 +11,7 @@ pub(crate) fn mask_fill_auto(
     value: InputScalar,
     dtype_bool: DType,
 ) -> CubeTensor {
-    let strategy = if tensor.can_mut() && tensor.is_nonoverlapping() {
+    let strategy = if tensor.can_mut_broadcast(&mask) {
         MaskFillStrategy::Inplace
     } else {
         MaskFillStrategy::Readonly
@@ -27,9 +27,9 @@ pub(crate) fn mask_where_auto(
     value: CubeTensor,
     dtype_bool: DType,
 ) -> CubeTensor {
-    let strategy = if tensor.can_mut_broadcast(&value) {
+    let strategy = if tensor.can_mut_broadcast(&value) && tensor.can_mut_broadcast(&mask) {
         MaskWhereStrategy::InplaceLhs
-    } else if value.can_mut_broadcast(&tensor) {
+    } else if value.can_mut_broadcast(&tensor) && value.can_mut_broadcast(&mask) {
         MaskWhereStrategy::InplaceRhs
     } else {
         MaskWhereStrategy::Readonly
