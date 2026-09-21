@@ -61,30 +61,19 @@ fn test_log_softmax_grad() {
 
 #[test]
 fn test_quiet_softmax_grad() {
-    let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
-    let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
-
+    let data = TensorData::from([
+        [f32::NEG_INFINITY, f32::NEG_INFINITY],
+        [f32::NEG_INFINITY, 0.0],
+    ]);
     let device = AutodiffDevice::new();
-    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestTensor::<2>::from_data(data_2, &device).require_grad();
+    let tensor = TestTensor::<2>::from_data(data, &device).require_grad();
 
-    let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
-    let tensor_4 = activation::softmax(tensor_3, 1).matmul(tensor_2.clone());
+    let output = activation::quiet_softmax(tensor.clone(), 1);
+    let grads = output.sum().backward();
+    let grad = tensor.grad(&grads).unwrap();
 
-    let grads = tensor_4.backward();
-    let grad_1 = tensor_1.grad(&grads).unwrap();
-    let grad_2 = tensor_2.grad(&grads).unwrap();
-
-    let expected = TensorData::from([[1.179665, 1.179661], [0.005462, 0.005463]]);
-
-    // Precision is quite bad yet on softmax grad especially with half precision.
-    let tolerance = Tolerance::rel_abs(0.5, 0.2);
-    grad_1
-        .to_data()
-        .assert_approx_eq::<FloatElem>(&expected, tolerance);
-
-    let expected = TensorData::from([[0.253469, 0.286237], [0.528630, 2.931664]]);
-    grad_2
-        .to_data()
-        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+    assert!(!grad.clone().contains_nan().into_scalar::<bool>());
+    let expected = TensorData::from([[0.0, 0.0], [0.0, 0.25]]);
+    grad.to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
