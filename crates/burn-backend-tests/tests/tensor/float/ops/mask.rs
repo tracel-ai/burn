@@ -87,9 +87,9 @@ fn should_support_mask_where_broadcast_inputs_smaller_than_mask() {
     let output = tensor.mask_where(mask, value);
 
     assert_eq!(output.dims(), [2, 2]);
-    let data = output.into_data();
-    assert_eq!(data.iter::<f32>().count(), 4);
-    data.assert_eq(&TensorData::from([[7.0, 2.0], [2.0, 7.0]]), false);
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[7.0, 2.0], [2.0, 7.0]]), false);
 }
 
 #[test]
@@ -101,9 +101,9 @@ fn should_support_mask_fill_broadcast_input_smaller_than_mask() {
     let output = tensor.mask_fill(mask, 7.0);
 
     assert_eq!(output.dims(), [2, 2]);
-    let data = output.into_data();
-    assert_eq!(data.iter::<f32>().count(), 4);
-    data.assert_eq(&TensorData::from([[7.0, 2.0], [2.0, 7.0]]), false);
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[7.0, 2.0], [2.0, 7.0]]), false);
 }
 
 #[test]

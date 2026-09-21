@@ -204,6 +204,7 @@ impl<F: Float> Tolerance<F> {
 
 impl TensorData {
     /// Asserts the data is equal to another data.
+    /// Shapes, element counts, and values must match.
     ///
     /// # Arguments
     ///
@@ -272,9 +273,18 @@ impl TensorData {
             .as_str();
         }
 
+        // Count the stored elements: num_elements() only reflects the declared shape.
+        let iter_self = self.iter_exact::<E>();
+        let iter_other = other.iter_exact::<E>();
+        let len_self = iter_self.len();
+        let len_other = iter_other.len();
+        if len_self != len_other {
+            message += format!("\n  => Element counts differ: {len_self} != {len_other}").as_str();
+        }
+
         let mut num_diff = 0;
         let max_num_diff = 5;
-        for (i, (a, b)) in self.iter::<E>().zip(other.iter::<E>()).enumerate() {
+        for (i, (a, b)) in iter_self.zip(iter_other).enumerate() {
             if !a.eq(&b) {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
@@ -403,6 +413,52 @@ impl TensorData {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic(expected = "Element counts differ")]
+    fn should_assert_eq_reject_shorter_data() {
+        // Raw data can have a buffer shorter than its declared shape.
+        let data = TensorData::from_bytes(TensorData::from([1.0f32]).bytes, [2], DType::F32);
+        let expected = TensorData::from([1.0f32, 2.0]);
+
+        data.assert_eq(&expected, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "Element counts differ")]
+    fn should_assert_eq_reject_longer_data() {
+        let data = TensorData::from([1.0f32, 2.0]);
+        let expected = TensorData::from_bytes(TensorData::from([1.0f32]).bytes, [2], DType::F32);
+
+        data.assert_eq(&expected, true);
+    }
+
+    #[test]
+    #[should_panic(expected = "Element counts differ")]
+    fn should_assert_eq_reject_empty_data_with_nonempty_shape() {
+        let data = TensorData::from_bytes_vec(vec![], [1], DType::F32);
+        let expected = TensorData::from([1.0f32]);
+
+        data.assert_eq(&expected, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "Element counts differ")]
+    fn should_assert_eq_reject_different_counts_with_equal_byte_lengths() {
+        let data = TensorData::from_bytes(TensorData::from([1.0f64]).bytes, [2], DType::F64);
+        let expected = TensorData::from([1.0f32, 2.0]);
+
+        data.assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_assert_eq_allow_different_dtypes_when_not_strict() {
+        let data = TensorData::from([1.0f32, 2.0]);
+        let expected = TensorData::from([1i64, 2]);
+
+        data.assert_eq(&expected, false);
+        expected.assert_eq(&data, false);
+    }
 
     #[test]
     fn should_assert_appox_eq_limit() {

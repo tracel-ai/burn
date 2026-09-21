@@ -5,50 +5,6 @@ use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
 #[test]
-fn mask_where_should_broadcast_concrete_inputs() {
-    let device = Device::default();
-    // Exceed a single workgroup so sizing the launch from the scalar input cannot suffice.
-    const N: usize = 4097;
-    let mask_data: Vec<bool> = (0..N).map(|i| i % 2 == 0).collect();
-    let expected: Vec<f32> = mask_data
-        .iter()
-        .map(|&m| if m { 7.0 } else { 2.0 })
-        .collect();
-
-    for value_len in [1, N] {
-        // Exercise both in-place candidates and the read-only path. A full-sized value may
-        // still be reused, but the work must cover its entire length.
-        for (share_input, share_value) in [(false, false), (true, false), (true, true)] {
-            let tensor = TestTensor::<1>::from_data([2.0], &device);
-            let value = TestTensor::<1>::from_data(
-                TensorData::new(vec![7.0; value_len], [value_len]),
-                &device,
-            );
-            let mask =
-                TestTensorBool::<1>::from_data(TensorData::new(mask_data.clone(), [N]), &device);
-            let retained_input = share_input.then(|| tensor.clone());
-            let retained_value = share_value.then(|| value.clone());
-
-            let output = tensor.mask_where(mask, value);
-
-            assert_eq!(output.dims(), [N]);
-            assert_eq!(output.into_data().try_to_vec::<f32>().unwrap(), expected);
-            if let Some(tensor) = retained_input {
-                tensor
-                    .into_data()
-                    .assert_eq(&TensorData::from([2.0]), false);
-            }
-            if let Some(value) = retained_value {
-                assert_eq!(
-                    value.into_data().try_to_vec::<f32>().unwrap(),
-                    vec![7.0; value_len]
-                );
-            }
-        }
-    }
-}
-
-#[test]
 fn mask_where_should_broadcast_rows_and_columns() {
     let device = Device::default();
     const N: usize = 65;
@@ -63,6 +19,7 @@ fn mask_where_should_broadcast_rows_and_columns() {
                 .map(move |(&input, &m)| if m { value } else { input })
         })
         .collect();
+    let expected = TensorData::new(expected, [N, N]);
     let tensor = TestTensor::<2>::from_data(TensorData::new(row, [1, N]), &device);
     let value = TestTensor::<2>::from_data(TensorData::new(column, [N, 1]), &device);
     let mask = TestTensorBool::<2>::from_data(TensorData::new(mask, [1, N]), &device);
@@ -70,7 +27,7 @@ fn mask_where_should_broadcast_rows_and_columns() {
     let output = tensor.mask_where(mask, value);
 
     assert_eq!(output.dims(), [N, N]);
-    assert_eq!(output.into_data().try_to_vec::<f32>().unwrap(), expected);
+    output.into_data().assert_eq(&expected, false);
 }
 
 #[test]
@@ -137,4 +94,101 @@ fn inputs_mask_where() -> (
     mask.to_data().assert_eq(&mask_ref.to_data(), false);
 
     (tensor, value, mask, tensor_ref, value_ref, mask_ref)
+}
+
+// Exceed a single workgroup so sizing the launch from the scalar input cannot suffice.
+const BROADCAST_LEN: usize = 4097;
+
+#[test]
+fn mask_where_should_broadcast_scalar_inputs() {
+    let (tensor, mask, value, expected) = inputs_mask_where_broadcast(1);
+
+    let output = tensor.mask_where(mask, value);
+
+    assert_eq!(output.dims(), [BROADCAST_LEN]);
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn mask_where_should_broadcast_scalar_inputs_with_shared_input() {
+    let (tensor, mask, value, expected) = inputs_mask_where_broadcast(1);
+
+    let output = tensor.clone().mask_where(mask, value);
+
+    assert_eq!(output.dims(), [BROADCAST_LEN]);
+    output.into_data().assert_eq(&expected, false);
+    tensor
+        .into_data()
+        .assert_eq(&TensorData::from([2.0]), false);
+}
+
+#[test]
+fn mask_where_should_broadcast_shared_scalar_inputs() {
+    let (tensor, mask, value, expected) = inputs_mask_where_broadcast(1);
+
+    let output = tensor.clone().mask_where(mask, value.clone());
+
+    assert_eq!(output.dims(), [BROADCAST_LEN]);
+    output.into_data().assert_eq(&expected, false);
+    tensor
+        .into_data()
+        .assert_eq(&TensorData::from([2.0]), false);
+    value.into_data().assert_eq(&TensorData::from([7.0]), false);
+}
+
+#[test]
+fn mask_where_should_broadcast_scalar_input_with_full_sized_value() {
+    let (tensor, mask, value, expected) = inputs_mask_where_broadcast(BROADCAST_LEN);
+
+    let output = tensor.mask_where(mask, value);
+
+    assert_eq!(output.dims(), [BROADCAST_LEN]);
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn mask_where_should_broadcast_shared_scalar_input_with_full_sized_value() {
+    let (tensor, mask, value, expected) = inputs_mask_where_broadcast(BROADCAST_LEN);
+
+    let output = tensor.clone().mask_where(mask, value);
+
+    assert_eq!(output.dims(), [BROADCAST_LEN]);
+    output.into_data().assert_eq(&expected, false);
+    tensor
+        .into_data()
+        .assert_eq(&TensorData::from([2.0]), false);
+}
+
+#[test]
+fn mask_where_should_broadcast_shared_scalar_input_with_shared_full_sized_value() {
+    let (tensor, mask, value, expected) = inputs_mask_where_broadcast(BROADCAST_LEN);
+
+    let output = tensor.clone().mask_where(mask, value.clone());
+
+    assert_eq!(output.dims(), [BROADCAST_LEN]);
+    output.into_data().assert_eq(&expected, false);
+    tensor
+        .into_data()
+        .assert_eq(&TensorData::from([2.0]), false);
+    value.into_data().assert_eq(
+        &TensorData::new(vec![7.0; BROADCAST_LEN], [BROADCAST_LEN]),
+        false,
+    );
+}
+
+fn inputs_mask_where_broadcast(
+    value_len: usize,
+) -> (TestTensor<1>, TestTensorBool<1>, TestTensor<1>, TensorData) {
+    let device = Device::default();
+    let mask_data: Vec<bool> = (0..BROADCAST_LEN).map(|i| i % 2 == 0).collect();
+    let expected: Vec<f32> = mask_data
+        .iter()
+        .map(|&m| if m { 7.0 } else { 2.0 })
+        .collect();
+    let tensor = TestTensor::<1>::from_data([2.0], &device);
+    let value =
+        TestTensor::<1>::from_data(TensorData::new(vec![7.0; value_len], [value_len]), &device);
+    let mask = TestTensorBool::<1>::from_data(TensorData::new(mask_data, [BROADCAST_LEN]), &device);
+    let expected = TensorData::new(expected, [BROADCAST_LEN]);
+    (tensor, mask, value, expected)
 }
