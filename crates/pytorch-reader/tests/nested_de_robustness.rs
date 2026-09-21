@@ -84,6 +84,16 @@ fn untagged_enum_deserializes_string_variant() {
 }
 
 #[test]
+fn untagged_enum_rejects_unsupported_value_with_source_type() {
+    let de = Deserializer::<DefaultAdapter>::new(
+        NestedValue::Unsupported("numpy.int64".to_string()),
+        false,
+    );
+    let err = Untagged::deserialize(de).unwrap_err();
+    assert!(err.to_string().contains("numpy.int64"), "{err}");
+}
+
+#[test]
 fn tuple_struct_field_deserializes() {
     let de = Deserializer::<DefaultAdapter>::new(
         NestedValue::Vec(vec![NestedValue::I32(1), NestedValue::I32(2)]),
