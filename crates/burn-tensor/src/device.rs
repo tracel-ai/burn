@@ -1472,6 +1472,8 @@ impl Devices {
     /// tensors or initializing model parameters; the first read of a device's settings, including
     /// by tensor creation, locks them.
     ///
+    /// Stops at the first error; devices configured before it keep their settings.
+    ///
     /// See [`Device::configure`].
     pub fn configure(&mut self, config: impl Into<DeviceConfig>) -> Result<(), DeviceError> {
         let config = config.into();

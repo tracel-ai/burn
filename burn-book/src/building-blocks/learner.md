@@ -34,7 +34,7 @@ provides you with numerous options when it comes to configurations.
 | Checkpointing Strategy | Configure which checkpoints are kept (default keeps the last two and the best validation loss)                                          |
 | Early Stopping         | Stop training early based on a metric                                                                                                   |
 | Num Epochs             | Set the number of epochs                                                                                                                |
-| Devices                | Set the devices to be used                                                                                                              |
+| Devices                | Set the devices to be used through the training strategy (single device, multi-device, or DDP)                                          |
 | Checkpoint             | Restart training from a checkpoint                                                                                                      |
 | Application logging    | Configure the application logging installer (default is writing to `experiment.log`)                                                    |
 | Training Strategy      | Use a custom training strategy, allowing you to use your own training loop with all the capabilities of the `SupervisedTraining` struct |

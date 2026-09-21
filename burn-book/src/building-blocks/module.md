@@ -440,7 +440,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Fold4d`            | `nn.Fold`                                     |
 | `GaussianNoise`     | _No direct equivalent_                        |
 | `Gelu`              | `nn.Gelu`                                     |
-| `Glu`               | `nn.Glu`                                      |
+| `GLU`               | `nn.GLU`                                      |
 | `GroupNorm`         | `nn.GroupNorm`                                |
 | `HardShrink`        | `nn.Hardshrink`                               |
 | `HardSigmoid`       | `nn.Hardsigmoid`                              |
@@ -458,7 +458,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `PairwiseDistance`  | `nn.PairwiseDistance`                         |
 | `PixelShuffle`      | `nn.PixelShuffle`                             |
 | `PixelUnshuffle`    | `nn.PixelUnshuffle`                           |
-| `Prelu`             | `nn.PReLu`                                    |
+| `PRelu`             | `nn.PReLU`                                    |
 | `Relu`              | `nn.ReLU`                                     |
 | `Relu6`             | `nn.ReLU6`                                    |
 | `RRelu`             | `nn.RReLU`                                    |

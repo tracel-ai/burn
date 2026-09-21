@@ -202,8 +202,8 @@ scheduler state, or implement a separate conversion if preserving that state is 
 `with_file_checkpointer(CompactRecorder::new())` with `with_default_checkpointers()`, which writes
 burnpack files for the model, optimizer, and scheduler under the artifact directory. To use your own
 storage, pass `Checkpointer<ModuleRecord>`, `Checkpointer<OptimizerRecord>`, and
-`Checkpointer<LrSchedulerRecord>` implementations to `with_custom_checkpointers(..)`.
-`renderer(..)` now takes a `Box<dyn MetricsRenderer>`, and `with_progress_logger(..)` registers a
+`Checkpointer<LrSchedulerRecord>` implementations to `with_custom_checkpointers(..)`. `renderer(..)`
+now takes a `Box<dyn MetricsRenderer>`, and `with_progress_logger(..)` registers a
 `TrainingProgressLogger` that observes the training lifecycle. See
 [Learner](./building-blocks/learner.md).
 
@@ -241,13 +241,13 @@ See [Distributed Computing](./performance/distributed-computing.md).
 - `sqlite` is no longer a default feature of `burn-dataset`. `burn/dataset` and `burn/train` alone
   no longer provide `SqliteDataset` or `HuggingfaceDatasetLoader`; enable `burn/sqlite` as well.
   `sqlite-bundled` is now an alias for `sqlite`. The storage is backed by Turso instead of
-  `rusqlite`, so `SqliteDatasetError::Sql` now wraps `turso::Error`, and the `Row` and
-  `Deserialize` variants are new.
+  `rusqlite`, so `SqliteDatasetError::Sql` now wraps `turso::Error`, and the `Row` and `Deserialize`
+  variants are new.
 - `server` is renamed to `remote-server`. `remote` enables remote devices over Iroh, and
   `remote-websocket` adds the WebSocket transport. The `router`, `dispatch`,
-  `record-item-custom-serde`, and `candle*` features are removed. New features include
-  `safetensors` and `pytorch` (which imply `store`), `linalg`, `signal`, `extension`, `capture`,
-  `optim`, and `rayon`.
+  `record-item-custom-serde`, and `candle*` features are removed. New features include `safetensors`
+  and `pytorch` (which imply `store`), `linalg`, `signal`, `extension`, `capture`, `optim`, and
+  `rayon`.
 - `Tensor::from_primitive` requires the `extension` feature and is generic over the backend, for
   example `Tensor::from_primitive::<B>(primitive)`. `into_primitive` is replaced by
   `try_into_primitive::<B>()`, which returns an error when the tensor is not on backend `B`.
@@ -266,8 +266,8 @@ and `cummin` are NaN from the first NaN onward. Reducing a zero-length axis retu
 and `min`. `max_abs_dims(&[])` and the `*_norm_dims(&[])` variants apply the elementwise
 transformation without reducing.
 
-Dimension arguments accept negative indices across the tensor API, counting from the last axis.
-Most calls are source-compatible; untyped empty inputs now need an annotation, for example
+Dimension arguments accept negative indices across the tensor API, counting from the last axis. Most
+calls are source-compatible; untyped empty inputs now need an annotation, for example
 `flip([] as [isize; 0])` or `squeeze_dims(&[] as &[isize])`.
 
 `ConvOptions::padding` is now `[(usize, usize); N]`, holding the padding at the beginning and end of
@@ -293,10 +293,10 @@ each spatial dimension. `ConvOptions::new(..)` still takes symmetric padding; us
 - NdArray and LibTorch are deprecated, and the Candle backend has been removed. Backend tracing
   requires the opt-in `tracing` feature.
 - `burn-store` transports tensors as `burn_pack::Tensor` instead of `TensorSnapshot`: `collect` and
-  `apply` take and return it, `get_snapshot` and `get_all_snapshots` are renamed to `get_tensor`
-  and `get_all_tensors`, and `ModuleAdapter::adapt` receives the tensor and a borrowed
-  `ModuleContext`. The `burnpack` feature is gone; burnpack support is always available. PyTorch
-  checkpoints are read through the `pytorch-reader` crate.
+  `apply` take and return it, `get_snapshot` and `get_all_snapshots` are renamed to `get_tensor` and
+  `get_all_tensors`, and `ModuleAdapter::adapt` receives the tensor and a borrowed `ModuleContext`.
+  The `burnpack` feature is gone; burnpack support is always available. PyTorch checkpoints are read
+  through the `pytorch-reader` crate.
 - `ParamId::serialize()` and `deserialize()` are replaced by its `Display` and `FromStr`
   implementations.
 - For backend and extension authors: `TensorKind` no longer has a backend type parameter or a
