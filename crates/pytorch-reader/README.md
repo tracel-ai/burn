@@ -8,7 +8,8 @@ Read PyTorch checkpoint files (`.pt`, `.pth`) without PyTorch or Burn.
 The crate parses the pickle inside a checkpoint and hands back each tensor's name, element
 type and shape, with the bytes produced only when asked for. It reads every container
 `torch.save` has written: the ZIP archive of PyTorch 1.6 and later, the legacy pickle stream
-of 0.1.10 through 1.5, and the TAR archive before that.
+of 0.1.10 through 1.5, the TAR archive before that, and the plain pickle some tools write
+for configuration on its own.
 
 ```rust
 use pytorch_reader::PytorchReader;
@@ -21,6 +22,7 @@ for tensor in reader.tensors().values() {
 // Bytes are read from the file here, not at open.
 let weight = reader.get("fc.weight").unwrap();
 let bytes: Vec<u8> = weight.read()?;
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 A checkpoint that nests its weights under a key (`"state_dict"`, `"model"`, ...) is opened
