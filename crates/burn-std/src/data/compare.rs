@@ -413,6 +413,7 @@ impl TensorData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     #[should_panic(expected = "Element counts differ")]
