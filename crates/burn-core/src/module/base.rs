@@ -175,6 +175,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Both transfers preserve the source tensors' autodiff association and checkpointing
     /// strategy. The destination's autodiff defaults do not enable training; use
     /// [`train`](Module::train) first when starting from a validation module.
+    ///
+    /// A parameter not initialized yet initializes on the destination, unless a clone shares
+    /// it, in which case it initializes where it is and is then copied.
     fn fork(self, device: &Device) -> Self;
 
     /// Move the module and all of its sub-modules to the given device.
@@ -185,6 +188,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// not be what you want. The output model will be an intermediary model, meaning that you
     /// can't optimize it with gradient descent. If you want to optimize the output network on the
     /// target device, use [fork](Module::fork) instead.
+    ///
+    /// A parameter not initialized yet initializes on the destination, unless a clone shares
+    /// it, in which case it initializes where it is and is then moved.
     fn to_device(self, device: &Device) -> Self;
 
     /// Set whether every floating-point tensor parameter in the module tree requires gradients.

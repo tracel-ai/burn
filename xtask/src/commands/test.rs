@@ -156,8 +156,8 @@ pub(crate) fn handle_backend_tests(
     }
 
     if matches!(backend, TestBackend::Flex) {
-        // The dedicated transfer target requires two backends. Keep it separate
-        // from the main suite, where ndarray disables some Flex-specific tests.
+        // These targets each need a second backend. Keep them out of the main suite, where
+        // ndarray disables some Flex-specific tests.
         let mut transfer_args = test_args.clone();
         transfer_args.extend(["--features", "ndarray", "--test", "autodiff_transfer"]);
         build_helpers::custom_crates_tests(
@@ -166,6 +166,16 @@ pub(crate) fn handle_backend_tests(
             None,
             None,
             "autodiff backend transfer tests",
+        )?;
+
+        let mut placement_args = test_args.clone();
+        placement_args.extend(["--features", "ndarray", "--test", "lazy_param_device"]);
+        build_helpers::custom_crates_tests(
+            vec!["burn-core"],
+            handle_test_args(&placement_args, args.release),
+            None,
+            None,
+            "lazy parameter placement tests",
         )?;
     }
 
