@@ -4,6 +4,27 @@ Burn 0.22 selects backends at runtime through `Device`. Tensor operations follow
 Dispatch → Backend; ordinary models and tensor functions no longer carry a backend type parameter.
 Backend implementations and extensions still use low-level backend traits.
 
+## Cargo features and toolchain
+
+The minimum supported Rust version is 1.95. NdArray and LibTorch are deprecated, the Candle backend
+is removed, and backend tracing requires the opt-in `tracing` feature. Enable a feature for each
+backend constructor you use; `burn` has no default execution backend.
+
+| 0.21                                                                          | 0.22                                                                   |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `server`                                                                      | `remote-server`                                                        |
+| `remote` (WebSocket)                                                          | `remote` (Iroh); add `remote-websocket` for WebSocket                  |
+| `sqlite` through `dataset` or `train`                                         | `sqlite`, enabled explicitly (`sqlite-bundled` is an alias)            |
+| Linear algebra in `burn::tensor::linalg`                                      | `linalg` feature; `burn::linalg` extension traits                      |
+| Signal processing in `burn::tensor::signal`                                   | `signal` feature; `burn::signal` or `burn::tensor::signal`             |
+| `burn-store` dependency for SafeTensors and PyTorch                           | `safetensors` and `pytorch` features (imply `store`)                   |
+| `candle`, `candle-cuda`, `candle-metal`                                       | Removed                                                                |
+| `router`, `dispatch`, `distributed`, `collective`, `record-item-custom-serde` | Removed; runtime dispatch and `burn::tensor::distributed` are built in |
+
+Remote servers and captured-graph interpreters must register the FFT custom operations from
+`burn-signal`; see
+[Signal Processing Functions](./building-blocks/tensor.md#signal-processing-functions).
+
 ## Types and devices
 
 | Previous API                                        | 0.22 API                                                                          |
@@ -17,9 +38,8 @@ Backend implementations and extensions still use low-level backend traits.
 | `tensor.into_scalar()`                              | `tensor.into_scalar::<f32>()`, or an inferred element type                        |
 | Backend-generic optimizers                          | `ModuleOptimizer`, returned by optimizer configuration `init()`                   |
 
-Enable the Cargo features for each backend constructor you use. When upgrading a model, remove its
-backend parameter and the corresponding parameters on fields and methods. The rank and kind remain
-part of the tensor type:
+When upgrading a model, remove its backend parameter and the corresponding parameters on fields and
+methods. The rank and kind remain part of the tensor type:
 
 ```rust,ignore
 use burn::{
@@ -94,13 +114,12 @@ independent destination leaves. Starting from a plain or validation module, use
 `model.train().fork(&destination)` to enable training explicitly.
 
 `AutodiffModule` has been merged into `Module`. Replace its imports and bounds with `Module`;
-replace module `from_inner(module)` calls with `module.train()`. Handwritten module implementations
-now implement `valid(&self)` and `train(self)` in their `Module` implementation, while the derive
-generates both. Tensor `from_inner` remains available. A `Module` bound does not establish that a
-value is currently training. `valid()` and `train()` return the same type. `valid()` disables
-autodiff and training flags in a snapshot; `train()` restores configured trainability and flags.
-Explicit `no_grad()` and `freeze()` settings persist. `freeze()` also disables module-owned training
-flags, whereas `no_grad()` only changes parameter gradients.
+replace module `from_inner(module)` calls with `module.train()`. Tensor `from_inner` remains
+available. A `Module` bound does not establish that a value is currently training. `valid()` and
+`train()` return the same type. `valid()` disables autodiff and training flags in a snapshot;
+`train()` restores configured trainability and flags. Explicit `no_grad()` and `freeze()` settings
+persist. `freeze()` also disables module-owned training flags, whereas `no_grad()` only changes
+parameter gradients.
 
 Keep the original training model when using `model.valid()` for validation. The snapshot folds
 adapters such as LoRA into parameter values and discards checkpointing strategies;
@@ -127,13 +146,9 @@ marker. See [Dataset](./building-blocks/dataset.md) for the updated trait and a 
 variant when producing image items. For depth-independent processing, `image.iter()` still yields
 individual `PixelDepth` values. See [Images](./building-blocks/dataset.md#images).
 
-## Backend extensions
-
-Use `#[backend_extension(...)]` on your low-level trait, implement it on the supported backends, and
-expose a `Tensor<D>` wrapper using `Dispatch` and `into_dispatch()` / `from_dispatch()`. The macro
-generates routing; it does not generate a custom derivative. The CubeCL selector is `Cube`, covering
-runtime aliases such as WGPU and CUDA. See [Backend Extension](./advanced/backend-extension/) for a
-complete example and Fusion requirements.
+`SqliteDataset` is backed by Turso instead of `rusqlite`, so `SqliteDatasetError::Sql` now wraps
+`turso::Error`, and the `Row` and `Deserialize` variants are new. Its `sqlite` feature is no longer
+enabled by `dataset`; see [Cargo features and toolchain](#cargo-features-and-toolchain).
 
 ## Migrating checkpoints
 
@@ -200,57 +215,21 @@ scheduler state, or implement a separate conversion if preserving that state is 
 
 `SupervisedTraining` no longer takes a recorder for checkpointing. Replace
 `with_file_checkpointer(CompactRecorder::new())` with `with_default_checkpointers()`, which writes
-burnpack files for the model, optimizer, and scheduler under the artifact directory. To use your own
-storage, pass `Checkpointer<ModuleRecord>`, `Checkpointer<OptimizerRecord>`, and
-`Checkpointer<LrSchedulerRecord>` implementations to `with_custom_checkpointers(..)`. `renderer(..)`
+burnpack files for the model, optimizer, and scheduler under the artifact directory. `renderer(..)`
 now takes a `Box<dyn MetricsRenderer>`, and `with_progress_logger(..)` registers a
 `TrainingProgressLogger` that observes the training lifecycle. See
 [Learner](./building-blocks/learner.md).
-
-Custom metrics must implement `Metric::compute(&mut self)`, which produces the epoch value after the
-per-batch `update` calls. `Numeric::value()` and `running_value()` now return
-`Option<NumericEntry>`, returning `None` for metrics that are only defined at the end of an epoch,
-and `final_value()` returns the computed epoch value. See
-[Custom Metric](./building-blocks/metric.md#custom-metric).
 
 `AurocMetric::new()` and `AurocInput` are removed. Construct the metric with
 `AurocMetric::binary()`, `multiclass(ClassReduction)`, or `multilabel(ClassReduction)`; it adapts
 from `ClassificationOutput` and `MultiLabelClassificationOutput` like the other classification
 metrics.
 
-Custom `MetricsRenderer` implementations must also implement `TrainingProgressLogger` and
-`EvaluationProgressLogger`. The `render_train`, `render_valid`, and `render_test` methods and the
-`TrainingProgress`, `EvaluationProgress`, and `ProgressType` types are removed; progress arrives
-through the logger callbacks instead. In custom event processors, `LearnerEvent::Start` and
-`EvaluatorEvent::Start` are now struct variants carrying `total_epochs`/`starting_epoch` and
-`total_tests`, and the `LearnerEvent::StartSplit`, `LearnerEvent::EndSplit`,
-`EvaluatorEvent::StartTest`, and `EvaluatorEvent::EndTest` variants are new.
-
-## Distributed training
-
-The `distributed` and `collective` Cargo features and the `burn-collective` crate are gone;
-collective operations live in `burn::tensor::distributed` without a feature flag.
-`DistributedSession` and `DistributedRuntime` are replaced by `DistributedContext`, and the DDP
-strategy is created with `ExecutionStrategy::ddp(devices, DistributedConfig { .. })`.
-`Device::enumerate(..)` returns a `Devices` wrapper; call `into_vec()` to obtain the `Vec<Device>`.
-See [Distributed Computing](./performance/distributed-computing.md).
-
-## Cargo features and toolchain
-
-- The minimum supported Rust version is 1.95.
-- `sqlite` is no longer a default feature of `burn-dataset`. `burn/dataset` and `burn/train` alone
-  no longer provide `SqliteDataset` or `HuggingfaceDatasetLoader`; enable `burn/sqlite` as well.
-  `sqlite-bundled` is now an alias for `sqlite`. The storage is backed by Turso instead of
-  `rusqlite`, so `SqliteDatasetError::Sql` now wraps `turso::Error`, and the `Row` and `Deserialize`
-  variants are new.
-- `server` is renamed to `remote-server`. `remote` enables remote devices over Iroh, and
-  `remote-websocket` adds the WebSocket transport. The `router`, `dispatch`,
-  `record-item-custom-serde`, and `candle*` features are removed. New features include `safetensors`
-  and `pytorch` (which imply `store`), `linalg`, `signal`, `extension`, `capture`, `optim`, and
-  `rayon`.
-- `Tensor::from_primitive` requires the `extension` feature and is generic over the backend, for
-  example `Tensor::from_primitive::<B>(primitive)`. `into_primitive` is replaced by
-  `try_into_primitive::<B>()`, which returns an error when the tensor is not on backend `B`.
+`CosineAnnealingLrScheduler` no longer resets to the initial learning rate after each cycle.
+`num_iters` is the number of steps from the initial rate to the minimum; subsequent steps continue
+along the cosine curve and the rate rises again. Existing 0.21 configurations that relied on warm
+restarts will produce a different schedule. See
+[Cosine annealing](./building-blocks/lr-scheduler.md#cosine-annealing).
 
 ## Tensor data and numeric semantics
 
@@ -275,34 +254,73 @@ calls are source-compatible; untyped empty inputs now need an annotation, for ex
 each spatial dimension. `ConvOptions::new(..)` still takes symmetric padding; use
 `ConvOptions::new_with_padding(..)` for asymmetric padding. `PaddedConvOptions` is deprecated.
 
-## Other migration points
+Quantization schemes select their granularity and scale dtype with `per_tensor(ScaleDtype)` and
+`per_block(block, ScaleDtype)` instead of `with_level(..)` and `with_param(..)`. See
+[Quantization](./performance/quantization.md).
 
-- Optimizer implementations use the per-tensor `Optimizer` trait, wrapped by `ModuleOptimizer`. See
-  [Optimizer](./building-blocks/optimizer.md).
-- `CosineAnnealingLrScheduler` no longer resets to the initial learning rate after each cycle.
-  `num_iters` is the number of steps from the initial rate to the minimum; subsequent steps continue
-  along the cosine curve and the rate rises again. Existing 0.21 configurations that relied on warm
-  restarts will produce a different schedule. See
-  [Cosine annealing](./building-blocks/lr-scheduler.md#cosine-annealing).
-- Linear algebra operations moved to `burn-linalg`, re-exported as `burn::linalg` with the `linalg`
-  feature. Import its extension traits for those methods.
-- Signal-processing functions moved to `burn-signal`. Enable the `signal` feature to use
-  `burn::signal` or the compatibility path `burn::tensor::signal`. Direct `burn_tensor::signal` and
-  `burn_core::tensor::signal` imports have been removed. Remote servers and captured-graph
-  interpreters must register the FFT custom operations; see
-  [Signal Processing Functions](./building-blocks/tensor.md#signal-processing-functions).
-- NdArray and LibTorch are deprecated, and the Candle backend has been removed. Backend tracing
-  requires the opt-in `tracing` feature.
-- `burn-store` transports tensors as `burn_pack::Tensor` instead of `TensorSnapshot`: `collect` and
-  `apply` take and return it, `get_snapshot` and `get_all_snapshots` are renamed to `get_tensor` and
-  `get_all_tensors`, and `ModuleAdapter::adapt` receives the tensor and a borrowed `ModuleContext`.
-  The `burnpack` feature is gone; burnpack support is always available. PyTorch checkpoints are read
-  through the `pytorch-reader` crate.
-- `ParamId::serialize()` and `deserialize()` are replaced by its `Display` and `FromStr`
-  implementations.
-- For backend and extension authors: `TensorKind` no longer has a backend type parameter or a
-  `Primitive` associated type, is sealed, and identifies the kind through the `TensorKind::KIND`
-  constant of type `Kind`; `AutodiffTensor` fields are no longer public.
+## Custom integrations
 
-This page covers the main API migration. Consult individual operation documentation when updating
-code that relies on changed quantization or padding semantics.
+The following sections apply when you implement Burn traits yourself or use lower-level APIs. Skip
+them if your project only uses the built-in modules, optimizers, metrics, and stores.
+
+### Modules and optimizers
+
+Handwritten `Module` implementations now implement `valid(&self)` and `train(self)`; the derive
+generates both. `ParamId::serialize()` and `deserialize()` are replaced by its `Display` and
+`FromStr` implementations. Optimizer implementations use the per-tensor `Optimizer` trait, wrapped
+by `ModuleOptimizer`. See [Module](./building-blocks/module.md) and
+[Optimizer](./building-blocks/optimizer.md).
+
+### Custom metrics
+
+Custom metrics must implement `Metric::compute(&mut self)`, which produces the epoch value after the
+per-batch `update` calls. `Numeric::value()` and `running_value()` now return
+`Option<NumericEntry>`, returning `None` for metrics that are only defined at the end of an epoch,
+and `final_value()` returns the computed epoch value. See
+[Custom Metric](./building-blocks/metric.md#custom-metric).
+
+### Renderers and event processors
+
+Custom `MetricsRenderer` implementations must also implement `TrainingProgressLogger` and
+`EvaluationProgressLogger`. The `render_train`, `render_valid`, and `render_test` methods and the
+`TrainingProgress`, `EvaluationProgress`, and `ProgressType` types are removed; progress arrives
+through the logger callbacks instead. In custom event processors, `LearnerEvent::Start` and
+`EvaluatorEvent::Start` are now struct variants carrying `total_epochs`/`starting_epoch` and
+`total_tests`, and the `LearnerEvent::StartSplit`, `LearnerEvent::EndSplit`,
+`EvaluatorEvent::StartTest`, and `EvaluatorEvent::EndTest` variants are new.
+
+### Distributed training
+
+The `distributed` and `collective` Cargo features and the `burn-collective` crate are gone;
+collective operations live in `burn::tensor::distributed` without a feature flag.
+`DistributedSession` and `DistributedRuntime` are replaced by `DistributedContext`, and the DDP
+strategy is created with `ExecutionStrategy::ddp(devices, DistributedConfig { .. })`.
+`Device::enumerate(..)` returns a `Devices` wrapper; call `into_vec()` to obtain the `Vec<Device>`.
+See [Distributed Computing](./performance/distributed-computing.md).
+
+### Storage adapters and checkpointers
+
+`burn-store` transports tensors as `burn_pack::Tensor` instead of `TensorSnapshot`: `collect` and
+`apply` take and return it, `get_snapshot` and `get_all_snapshots` are renamed to `get_tensor` and
+`get_all_tensors`, and `ModuleAdapter::adapt` receives the tensor and a borrowed `ModuleContext`.
+The `burnpack` feature is gone; burnpack support is always available. PyTorch checkpoints are read
+through the `pytorch-reader` crate. See [Saving and Loading Models](./saving-and-loading.md).
+
+To store training checkpoints elsewhere than the default burnpack files, pass
+`Checkpointer<ModuleRecord>`, `Checkpointer<OptimizerRecord>`, and `Checkpointer<LrSchedulerRecord>`
+implementations to `SupervisedTraining::with_custom_checkpointers(..)`.
+
+### Backend extensions
+
+Enable the `extension` feature. Use `#[backend_extension(...)]` on your low-level trait, implement
+it on the supported backends, and expose a `Tensor<D>` wrapper using `Dispatch` and
+`into_dispatch()` / `from_dispatch()`. The macro generates routing; it does not generate a custom
+derivative. The CubeCL selector is `Cube`, covering runtime aliases such as WGPU and CUDA. See
+[Backend Extension](./advanced/backend-extension/) for a complete example and Fusion requirements.
+
+`Tensor::from_primitive` is generic over the backend, for example
+`Tensor::from_primitive::<B>(primitive)`. `into_primitive` is replaced by
+`try_into_primitive::<B>()`, which returns an error when the tensor is not on backend `B`.
+`TensorKind` no longer has a backend type parameter or a `Primitive` associated type, is sealed, and
+identifies the kind through the `TensorKind::KIND` constant of type `Kind`. `AutodiffTensor` fields
+are no longer public.
