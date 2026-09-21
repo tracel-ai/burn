@@ -10,7 +10,10 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{Shape, ops::ConvTransposeOptions};
+use burn_backend::{
+    Shape,
+    ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
+};
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
@@ -231,16 +234,28 @@ pub fn conv_transpose2d_direct_nhwc(
     let [_, kernel_0, kernel_1, out_c_per_group] = weight.meta.shape().dims();
     let out_channels = out_c_per_group * options.groups;
 
-    let out_0 = (in_height - 1) * options.stride[0]
-        + options.dilation[0] * (kernel_0 - 1)
-        + options.padding_out[0]
-        - 2 * options.padding[0]
-        + 1;
-    let out_1 = (in_width - 1) * options.stride[1]
-        + options.dilation[1] * (kernel_1 - 1)
-        + options.padding_out[1]
-        - 2 * options.padding[1]
-        + 1;
+    // The shared helper rather than the same arithmetic inlined. `conv_transpose2d_col2im` is
+    // the sibling autotune candidate for this key and already calls it, so restating it here
+    // lets the two candidates allocate different shapes if either expression drifts. It also
+    // groups the `+ 1` with the dilated extent instead of trailing the subtraction, which keeps
+    // a usize that this form would underflow — `in 1, kernel 2, dilation 1, padding 1` reaches
+    // `0 + 1 + 0 - 2` here and `0 + 2 + 0 - 2` there.
+    let out_0 = calculate_conv_transpose_output_size(
+        kernel_0,
+        options.stride[0],
+        options.padding[0],
+        options.padding_out[0],
+        options.dilation[0],
+        in_height,
+    );
+    let out_1 = calculate_conv_transpose_output_size(
+        kernel_1,
+        options.stride[1],
+        options.padding[1],
+        options.padding_out[1],
+        options.dilation[1],
+        in_width,
+    );
 
     let output = empty_device_dtype(
         input.client.clone(),
@@ -298,7 +313,6 @@ pub fn conv_transpose2d_direct_nhwc(
     any(feature = "wgpu", feature = "cpu", feature = "cuda", feature = "hip")
 ))]
 mod tests {
-    use burn_backend::ops::conv::calculate_conv_transpose_output_size;
     use burn_std::TensorData;
 
     use crate::{
