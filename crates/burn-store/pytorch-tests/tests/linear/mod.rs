@@ -113,6 +113,20 @@ mod tests {
     }
 
     #[test]
+    fn linear_full_model_save() {
+        // torch.save(model) of the model behind linear.pt, with fc2 leaving its bias slot
+        // as None: the state_dict is rebuilt from the pickled module.
+        let device = Default::default();
+        let mut model = Net::init(&device);
+        let mut store = PytorchStore::from_file("tests/linear/linear_full_model.pt");
+        model
+            .load_from(&mut store)
+            .expect("Should decode state successfully");
+
+        linear_test(model, 1e-7);
+    }
+
+    #[test]
     fn linear_with_bias() {
         let device = Default::default();
 

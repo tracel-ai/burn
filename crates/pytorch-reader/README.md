@@ -26,9 +26,10 @@ let bytes: Vec<u8> = weight.read()?;
 ```
 
 A checkpoint that nests its weights under a key (`"state_dict"`, `"model"`, ...) is opened
-with `PytorchReader::with_top_level_key("checkpoint.pt", "state_dict")`. Non-tensor values
-(configuration dictionaries, say) can be deserialized into any `serde` type with
-`PytorchReader::load_config`.
+with `PytorchReader::with_top_level_key("checkpoint.pt", "state_dict")`. A full-model save
+(`torch.save(model)` rather than `torch.save(model.state_dict())`) is read as the module's
+`state_dict()`. Non-tensor values (configuration dictionaries, say) can be deserialized into
+any `serde` type with `PytorchReader::load_config`.
 
 This is the reader behind [`burn-store`](https://crates.io/crates/burn-store), which wraps
 its tensors for loading into [Burn](https://github.com/tracel-ai/burn) modules.
