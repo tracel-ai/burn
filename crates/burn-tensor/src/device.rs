@@ -673,6 +673,7 @@ impl Device {
     /// Applies `source`'s autodiff association and gradient-checkpointing strategy to this device,
     /// discarding this device's own.
     #[must_use]
+    #[doc(hidden)]
     pub fn with_autodiff_context_from(self, source: &Self) -> Self {
         #[cfg(feature = "autodiff")]
         {
