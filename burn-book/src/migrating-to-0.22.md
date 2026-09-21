@@ -255,9 +255,10 @@ See [Distributed Computing](./performance/distributed-computing.md).
 ## Tensor data and numeric semantics
 
 `TensorData::to_vec` and `into_vec` are deprecated in favor of `try_to_vec` and `try_into_vec`,
-which return the stored dtype without conversion. Use `try_to_vec_as::<E>()` and
-`try_into_vec_as::<E>()` to convert to another element type, on both `TensorData` and `Tensor`.
-`Tensor::try_into_scalar` now returns `TensorReadError`, and the `DataError` variants were reworked.
+which return `Result<Vec<E>, DataError>` and fail when `E` does not match the stored dtype. Use
+`try_to_vec_as::<E>()` and `try_into_vec_as::<E>()` to convert to another element type, on both
+`TensorData` and `Tensor`. `Tensor::try_into_scalar` now returns `TensorReadError`, and the
+`DataError` variants were reworked.
 
 Extrema reductions propagate NaN on every backend: `max`, `min`, and `max_abs` return NaN when the
 reduced slice contains one, `argmax` and `argmin` return the index of the first NaN, and `cummax`
