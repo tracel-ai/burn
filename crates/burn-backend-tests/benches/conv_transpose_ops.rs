@@ -232,6 +232,16 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
+                fn conv_transpose1d_1x64x2048_to_8192(bencher: Bencher) {
+                    let x = make_input_1d(1, 64, 2048);
+                    let w = make_weight_1d(64, 64, 8);
+                    let opts = ConvTransposeOptions::new([4], [2], [0], [1], 1);
+                    bencher.bench_synced(|| {
+                        module::conv_transpose1d(x.clone(), w.clone(), None, opts.clone())
+                    });
+                }
+
+                #[divan::bench]
                 fn conv_transpose1d_1x32x8192_to_65536(bencher: Bencher) {
                     let x = make_input_1d(1, 32, 8192);
                     let w = make_weight_1d(32, 32, 16);

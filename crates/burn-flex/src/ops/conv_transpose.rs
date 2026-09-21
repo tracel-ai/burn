@@ -332,6 +332,13 @@ fn conv_transpose3d_impl<
     let mut output = vec![zero; output_size];
 
     let group_chunk_len = out_channels_per_group * out_spatial;
+    #[cfg(feature = "rayon")]
+    let total_groups = batch_size * groups;
+    // Use channels when batch/group parallelism does not fill the thread pool.
+    #[cfg(feature = "rayon")]
+    let parallel_channels = columns_len >= super::PARALLEL_THRESHOLD
+        && out_channels_per_group > 1
+        && total_groups < rayon::current_num_threads();
 
     let process_group = |b: usize, g: usize, group_output: &mut [T], columns: &mut [T]| {
         let ic_start = g * in_channels_per_group;
@@ -358,78 +365,97 @@ fn conv_transpose3d_impl<
             );
 
             // Add this tile to the output for this (batch, group).
-            for oc in 0..out_channels_per_group {
-                let out_ch_base = oc * out_spatial;
-                let oc_col_base = oc * k_spatial;
+            let process_channels = |first_channel: usize, channel_output: &mut [T]| {
+                for local_channel in 0..channel_output.len() / out_spatial {
+                    let out_ch_base = local_channel * out_spatial;
+                    let oc_col_base = (first_channel + local_channel) * k_spatial;
 
-                for kd in 0..kernel_d {
-                    let (id_start, id_end) =
-                        valid_in_range(kd, dilation_d, pad_d, stride_d, in_d, out_d);
-                    let (id_start, id_end) = if TILED {
-                        (
-                            id_start.max(tile_start / (in_h * in_w)),
-                            id_end.min(tile_end.div_ceil(in_h * in_w)),
-                        )
-                    } else {
-                        (id_start, id_end)
-                    };
-                    if id_start >= id_end {
-                        continue;
-                    }
-                    for kh in 0..kernel_h {
-                        let (ih_start, ih_end) =
-                            valid_in_range(kh, dilation_h, pad_h, stride_h, in_h, out_h);
-                        if ih_start >= ih_end {
+                    for kd in 0..kernel_d {
+                        let (id_start, id_end) =
+                            valid_in_range(kd, dilation_d, pad_d, stride_d, in_d, out_d);
+                        let (id_start, id_end) = if TILED {
+                            (
+                                id_start.max(tile_start / (in_h * in_w)),
+                                id_end.min(tile_end.div_ceil(in_h * in_w)),
+                            )
+                        } else {
+                            (id_start, id_end)
+                        };
+                        if id_start >= id_end {
                             continue;
                         }
-                        for kw in 0..kernel_w {
-                            let (iw_start, iw_end) =
-                                valid_in_range(kw, dilation_w, pad_w, stride_w, in_w, out_w);
-                            if iw_start >= iw_end {
+                        for kh in 0..kernel_h {
+                            let (ih_start, ih_end) =
+                                valid_in_range(kh, dilation_h, pad_h, stride_h, in_h, out_h);
+                            if ih_start >= ih_end {
                                 continue;
                             }
-                            let k_idx = kd * kernel_h * kernel_w + kh * kernel_w + kw;
-                            let col_base = (oc_col_base + k_idx) * tile_len;
+                            for kw in 0..kernel_w {
+                                let (iw_start, iw_end) =
+                                    valid_in_range(kw, dilation_w, pad_w, stride_w, in_w, out_w);
+                                if iw_start >= iw_end {
+                                    continue;
+                                }
+                                let k_idx = kd * kernel_h * kernel_w + kh * kernel_w + kw;
+                                let col_base = (oc_col_base + k_idx) * tile_len;
 
-                            for id in id_start..id_end {
-                                let od = id * stride_d + kd * dilation_d - pad_d;
-                                let in_d_base = id * in_h * in_w;
-                                let out_d_base = od * out_h * out_w;
-                                let (ih_start, ih_end) = if TILED {
-                                    (
-                                        ih_start.max(tile_start.saturating_sub(in_d_base) / in_w),
-                                        ih_end
-                                            .min(tile_end.saturating_sub(in_d_base).div_ceil(in_w)),
-                                    )
-                                } else {
-                                    (ih_start, ih_end)
-                                };
-
-                                for ih in ih_start..ih_end {
-                                    let oh = ih * stride_h + kh * dilation_h - pad_h;
-                                    let in_h_base = in_d_base + ih * in_w;
-                                    let out_h_base = out_d_base + oh * out_w;
-                                    let (iw_start, iw_end) = if TILED {
+                                for id in id_start..id_end {
+                                    let od = id * stride_d + kd * dilation_d - pad_d;
+                                    let in_d_base = id * in_h * in_w;
+                                    let out_d_base = od * out_h * out_w;
+                                    let (ih_start, ih_end) = if TILED {
                                         (
-                                            iw_start.max(tile_start.saturating_sub(in_h_base)),
-                                            iw_end.min(tile_end.saturating_sub(in_h_base)),
+                                            ih_start
+                                                .max(tile_start.saturating_sub(in_d_base) / in_w),
+                                            ih_end.min(
+                                                tile_end.saturating_sub(in_d_base).div_ceil(in_w),
+                                            ),
                                         )
                                     } else {
-                                        (iw_start, iw_end)
+                                        (ih_start, ih_end)
                                     };
-                                    for iw in iw_start..iw_end {
-                                        let ow = iw * stride_w + kw * dilation_w - pad_w;
-                                        let s = in_h_base + iw - tile_start;
-                                        let val = columns[col_base + s];
-                                        let out_idx = out_ch_base + out_h_base + ow;
-                                        group_output[out_idx] = T::add(group_output[out_idx], val);
+
+                                    for ih in ih_start..ih_end {
+                                        let oh = ih * stride_h + kh * dilation_h - pad_h;
+                                        let in_h_base = in_d_base + ih * in_w;
+                                        let out_h_base = out_d_base + oh * out_w;
+                                        let (iw_start, iw_end) = if TILED {
+                                            (
+                                                iw_start.max(tile_start.saturating_sub(in_h_base)),
+                                                iw_end.min(tile_end.saturating_sub(in_h_base)),
+                                            )
+                                        } else {
+                                            (iw_start, iw_end)
+                                        };
+                                        for iw in iw_start..iw_end {
+                                            let ow = iw * stride_w + kw * dilation_w - pad_w;
+                                            let s = in_h_base + iw - tile_start;
+                                            let val = columns[col_base + s];
+                                            let out_idx = out_ch_base + out_h_base + ow;
+                                            channel_output[out_idx] =
+                                                T::add(channel_output[out_idx], val);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+            };
+            #[cfg(feature = "rayon")]
+            if parallel_channels && columns.len() >= super::PARALLEL_THRESHOLD {
+                use rayon::prelude::*;
+                group_output
+                    .par_chunks_mut(out_spatial)
+                    .enumerate()
+                    .for_each(|(oc, channel_output)| {
+                        process_channels(oc, channel_output);
+                    });
+            } else {
+                process_channels(0, group_output);
             }
+            #[cfg(not(feature = "rayon"))]
+            process_channels(0, group_output);
         };
         if TILED {
             // For a fixed output, increasing kernel indices read decreasing input
@@ -442,8 +468,6 @@ fn conv_transpose3d_impl<
         }
     };
 
-    #[cfg(feature = "rayon")]
-    let total_groups = batch_size * groups;
     #[cfg(feature = "rayon")]
     if total_groups > 1
         && (total_groups * out_channels_per_group * out_spatial) >= super::PARALLEL_THRESHOLD
@@ -674,6 +698,112 @@ mod tests {
             }
         }
     }
+
+    #[cfg(feature = "rayon")]
+    macro_rules! check_parallel_channels {
+        ($name:ident, $ty:ty, $dtype:expr, $zero:expr, $gemm:ident) => {
+            #[test]
+            fn $name() {
+                let serial = rayon::ThreadPoolBuilder::new()
+                    .num_threads(1)
+                    .build()
+                    .unwrap();
+                let parallel = rayon::ThreadPoolBuilder::new()
+                    .num_threads(4)
+                    .build()
+                    .unwrap();
+                for (batch, groups) in [(1, 1), (2, 1), (1, 4)] {
+                    let x_shape = [batch, 4, 3, 65, 67];
+                    let w_shape = [4, 4, 3, 3, 3];
+                    let x = FlexTensor::from_data(
+                        TensorData::new(
+                            (0..x_shape.iter().product())
+                                .map(|i| ((i % 17) as f32 - 8.0) / 8.0)
+                                .collect::<Vec<_>>(),
+                            x_shape,
+                        )
+                        .convert_dtype($dtype),
+                    );
+                    let weight = FlexTensor::from_data(
+                        TensorData::new(
+                            (0..w_shape.iter().product())
+                                .map(|i| ((i % 13) as f32 - 6.0) / 16.0)
+                                .collect::<Vec<_>>(),
+                            w_shape,
+                        )
+                        .convert_dtype($dtype),
+                    );
+                    let options =
+                        ConvTransposeOptions::new([1, 2, 3], [1; 3], [0; 3], [1; 3], groups);
+                    let expected = serial.install(|| {
+                        conv_transpose3d_impl::<$ty, { usize::MAX }, false>(
+                            x.clone(),
+                            weight.clone(),
+                            None,
+                            &options,
+                            $dtype,
+                            $zero,
+                            $gemm,
+                        )
+                    });
+                    // Full tiles exceed the parallel threshold. The short last tile does not.
+                    let actual = parallel.install(|| {
+                        conv_transpose3d_impl::<
+                            $ty,
+                            { 384 * 1024 * core::mem::size_of::<$ty>() },
+                            true,
+                        >(
+                            x.clone(),
+                            weight.clone(),
+                            None,
+                            &options,
+                            $dtype,
+                            $zero,
+                            $gemm,
+                        )
+                    });
+                    assert_eq!(expected.storage::<$ty>(), actual.storage::<$ty>());
+                    let untiled = parallel.install(|| {
+                        conv_transpose3d_impl::<$ty, { usize::MAX }, false>(
+                            x.clone(),
+                            weight.clone(),
+                            None,
+                            &options,
+                            $dtype,
+                            $zero,
+                            $gemm,
+                        )
+                    });
+                    assert_eq!(expected.storage::<$ty>(), untiled.storage::<$ty>());
+                }
+            }
+        };
+    }
+
+    #[cfg(feature = "rayon")]
+    check_parallel_channels!(
+        test_conv_transpose_parallel_channels_f32,
+        f32,
+        DType::F32,
+        0.0,
+        conv_transpose_gemm_f32
+    );
+    #[cfg(feature = "rayon")]
+    check_parallel_channels!(
+        test_conv_transpose_parallel_channels_f64,
+        f64,
+        DType::F64,
+        0.0,
+        conv_transpose_gemm_f64
+    );
+    #[cfg(feature = "rayon")]
+    check_parallel_channels!(
+        test_conv_transpose_parallel_channels_f16,
+        f16,
+        DType::F16,
+        f16::from_f32(0.0),
+        conv_transpose_gemm_f16
+    );
 
     macro_rules! check_addition_order {
         ($name:ident, $ty:ty, $dtype:expr, $gemm:ident, $values:expr, $one:expr, $zero:expr) => {
