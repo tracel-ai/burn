@@ -55,6 +55,9 @@ tch = { workspace = true, optional = true }
 burn-remote = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["rt-multi-thread"] }
 
+# `sin`/`cos` for the Bluestein chirp sequence in no_std builds.
+libm = { workspace = true }
+
 [dev-dependencies]
 divan = "0.1"
 ctor = "0.10.1"
