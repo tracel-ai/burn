@@ -208,6 +208,9 @@ bf16_via_f32!(
 /// GEMM for conv_transpose: `c = a^T @ b`, with a row stride for each input tile.
 type ConvTransposeGemmFn<T> = fn(&mut [T], &[T], &[T], usize, usize, usize, usize);
 
+#[cfg(feature = "rayon")]
+const GEMM_PARALLEL_WORK: usize = 192 * 192 * 192;
+
 /// Compute the half-open range `[in_start, in_end)` of input spatial positions `i`
 /// for which the corresponding output index `i * stride + k * dilation - pad`
 /// lies inside `[0, out_size)`.
@@ -336,9 +339,25 @@ fn conv_transpose3d_impl<
     let total_groups = batch_size * groups;
     // Use channels when batch/group parallelism does not fill the thread pool.
     #[cfg(feature = "rayon")]
-    let parallel_channels = columns_len >= super::PARALLEL_THRESHOLD
+    let gemm_min_columns = GEMM_PARALLEL_WORK.div_ceil(in_channels_per_group.max(1));
+    #[cfg(feature = "rayon")]
+    let mut channel_min_columns = super::PARALLEL_THRESHOLD;
+    #[cfg(feature = "rayon")]
+    let parallel_channels = columns_len
+        >= super::PARALLEL_THRESHOLD.min(gemm_min_columns.max(super::PARALLEL_THRESHOLD / 2))
         && out_channels_per_group > 1
-        && total_groups < rayon::current_num_threads();
+        && {
+            let threads = rayon::current_num_threads();
+            // Lower the limit only when GEMM uses Rayon. Keep at least two
+            // channel tasks per thread, with enough column work per thread.
+            if out_channels_per_group >= 2 * threads {
+                channel_min_columns = (super::PARALLEL_THRESHOLD / 2)
+                    .max(32 * 1024 * threads)
+                    .max(gemm_min_columns)
+                    .min(super::PARALLEL_THRESHOLD);
+            }
+            columns_len >= channel_min_columns && total_groups < threads
+        };
 
     let process_group = |b: usize, g: usize, group_output: &mut [T], columns: &mut [T]| {
         let ic_start = g * in_channels_per_group;
@@ -443,7 +462,7 @@ fn conv_transpose3d_impl<
                 }
             };
             #[cfg(feature = "rayon")]
-            if parallel_channels && columns.len() >= super::PARALLEL_THRESHOLD {
+            if parallel_channels && columns.len() >= channel_min_columns {
                 use rayon::prelude::*;
                 group_output
                     .par_chunks_mut(out_spatial)
@@ -540,7 +559,7 @@ macro_rules! conv_transpose_gemm_typed {
             debug_assert_eq!(a.len(), k * m);
             debug_assert!(k == 0 || b.len() >= (k - 1) * b_stride + n);
             #[cfg(feature = "rayon")]
-            let parallelism = if m * n * k >= 192 * 192 * 192 {
+            let parallelism = if m * n * k >= GEMM_PARALLEL_WORK {
                 gemm::Parallelism::Rayon(0)
             } else {
                 gemm::Parallelism::None
@@ -776,6 +795,50 @@ mod tests {
                     });
                     assert_eq!(expected.storage::<$ty>(), untiled.storage::<$ty>());
                 }
+
+                let x_shape = [1, 64, 1, 1, 6145];
+                let w_shape = [64, 8, 1, 1, 8];
+                let x = FlexTensor::from_data(
+                    TensorData::new(
+                        (0..x_shape.iter().product())
+                            .map(|i| ((i % 17) as f32 - 8.0) / 8.0)
+                            .collect::<Vec<_>>(),
+                        x_shape,
+                    )
+                    .convert_dtype($dtype),
+                );
+                let weight = FlexTensor::from_data(
+                    TensorData::new(
+                        (0..w_shape.iter().product())
+                            .map(|i| ((i % 13) as f32 - 6.0) / 16.0)
+                            .collect::<Vec<_>>(),
+                        w_shape,
+                    )
+                    .convert_dtype($dtype),
+                );
+                let options = ConvTransposeOptions::new([1, 1, 2], [0, 0, 3], [0, 0, 1], [1; 3], 1);
+                let expected = serial.install(|| {
+                    conv_transpose3d_impl::<$ty, { usize::MAX }, false>(
+                        x.clone(),
+                        weight.clone(),
+                        None,
+                        &options,
+                        $dtype,
+                        $zero,
+                        $gemm,
+                    )
+                });
+                // GEMM uses Rayon for the 128K-element tiles. The final tile has
+                // one input position and stays on the serial col2im path.
+                let actual =
+                    parallel.install(|| {
+                        conv_transpose3d_impl::<
+                            $ty,
+                            { 128 * 1024 * core::mem::size_of::<$ty>() },
+                            true,
+                        >(x, weight, None, &options, $dtype, $zero, $gemm)
+                    });
+                assert_eq!(expected.storage::<$ty>(), actual.storage::<$ty>());
             }
         };
     }
