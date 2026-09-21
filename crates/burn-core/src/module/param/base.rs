@@ -536,7 +536,8 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Put the parameter on `device`: one not initialized yet initializes there, unless a clone
-    /// shares it, and any other is initialized if needed and moved with `move_value`.
+    /// shares it, and any other is initialized if needed and moved with `move_value`. Either way it
+    /// keeps the autodiff context it was built with, as moving a value does.
     pub(crate) fn map_to_device(
         mut self,
         device: &Device,
@@ -546,7 +547,9 @@ impl<T: Parameter> Param<T> {
             .and_then(|state| state.initialization.as_ref())
             .is_some_and(|initialization| match initialization.write().as_mut() {
                 Some(uninitialized) => {
-                    uninitialized.device = device.clone();
+                    uninitialized.device = device
+                        .clone()
+                        .with_autodiff_context_from(&uninitialized.device);
                     true
                 }
                 None => false,

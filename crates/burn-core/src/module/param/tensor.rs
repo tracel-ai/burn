@@ -402,7 +402,10 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 #[cfg(all(test, feature = "std", feature = "autodiff"))]
 mod tests {
     use super::*;
-    use crate::{module::Module, test_device};
+    use crate::{
+        module::{LoraAdapter, Module},
+        test_device,
+    };
     use burn_tensor::Distribution;
 
     #[test]
@@ -599,74 +602,110 @@ mod tests {
         );
 
         let moved = param.to_device(&device.clone().autodiff());
-        assert!(moved.lazy_device().is_autodiff());
 
+        assert!(!moved.is_initialized());
         moved.transform_for_load(Tensor::ones([2, 3], &device), ParamId::new());
     }
 
     #[test]
-    fn a_lazy_int_param_moved_initializes_with_the_new_device() {
+    fn a_moved_lazy_param_keeps_the_autodiff_context_it_was_built_with() {
         let device = test_device();
+        let lazy_ones = |device: &Device| -> Param<Tensor<2>> {
+            Param::uninitialized(
+                ParamId::new(),
+                |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+                device.clone(),
+                true,
+                [2, 3].into(),
+            )
+        };
+
+        let onto_autodiff = lazy_ones(&device).to_device(&device.clone().autodiff());
+        let onto_plain = lazy_ones(&device.clone().autodiff()).fork(&device);
+
+        assert!(!onto_autodiff.lazy_device().is_autodiff());
+        assert!(onto_plain.lazy_device().is_autodiff());
+    }
+
+    #[test]
+    fn a_moved_param_keeps_its_reparameterization() {
+        let device = test_device();
+        let adapter = || LoraAdapter {
+            a: Param::from_tensor(Tensor::<2>::ones([3, 1], &device)),
+            b: Param::from_tensor(Tensor::<2>::zeros([1, 3], &device)),
+            scale: 1.0,
+        };
+        let lazy: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _| Tensor::ones([3, 3], device),
+            device.clone(),
+            false,
+            [3, 3].into(),
+        )
+        .with_reparameterization(adapter());
+        let initialized = Param::from_tensor(Tensor::<2>::ones([3, 3], &device))
+            .with_reparameterization(adapter());
+
         let target = device.clone().autodiff();
+
+        assert!(lazy.to_device(&target).adapter().is_some());
+        assert!(initialized.fork(&target).adapter().is_some());
+    }
+
+    #[test]
+    fn a_lazy_int_param_moved_never_initializes() {
+        let device = test_device();
         let param: Param<Tensor<2, Int>> = Param::uninitialized(
             ParamId::new(),
-            |device, _| {
-                assert!(device.is_autodiff());
-                Tensor::zeros([2, 3], device)
-            },
-            device,
+            |_, _| panic!("the moved parameter initialized"),
+            device.clone(),
             false,
             [2, 3].into(),
         );
 
-        let param = param.to_device(&target);
+        let param = param.to_device(&device.clone().autodiff());
 
         assert!(!param.is_initialized());
-        param.val();
+        assert!(!param.lazy_device().is_autodiff());
     }
 
     #[test]
-    fn a_lazy_bool_param_moved_initializes_with_the_new_device() {
+    fn a_lazy_bool_param_moved_never_initializes() {
         let device = test_device();
-        let target = device.clone().autodiff();
         let param: Param<Tensor<2, Bool>> = Param::uninitialized(
             ParamId::new(),
-            |device, _| {
-                assert!(device.is_autodiff());
-                Tensor::<2, Int>::zeros([2, 3], device).bool()
-            },
-            device,
+            |_, _| panic!("the moved parameter initialized"),
+            device.clone(),
             false,
             [2, 3].into(),
         );
 
-        let param = param.to_device(&target);
+        let param = param.to_device(&device.clone().autodiff());
 
         assert!(!param.is_initialized());
-        param.val();
+        assert!(!param.lazy_device().is_autodiff());
     }
 
     #[test]
-    fn a_lazy_param_forked_initializes_on_the_new_device() {
+    fn a_lazy_param_forked_keeps_its_gradient_requirement() {
         let device = test_device();
         let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),
             |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
-            device.clone(),
+            device.clone().autodiff(),
             true,
             [2, 3].into(),
         );
 
-        let param = param.fork(&device.clone().autodiff());
+        let param = param.fork(&device);
 
         assert!(!param.is_initialized());
-        assert!(param.lazy_device().is_autodiff());
         assert!(param.val().is_require_grad());
     }
 
     #[test]
-    fn a_lazy_param_with_an_init_mapper_initializes_on_the_new_device() {
-        let device = test_device();
+    fn a_lazy_param_with_an_init_mapper_follows_the_move() {
+        let device = test_device().autodiff();
         let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),
             |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
@@ -676,11 +715,78 @@ mod tests {
         )
         .init_mapper(|tensor| tensor.mul_scalar(2.0));
 
-        let param = param.fork(&device.clone().autodiff());
+        let param = param.fork(&device);
 
+        assert!(!param.is_initialized());
         let value = param.val();
         assert!(value.device().is_autodiff());
         assert!(value.is_require_grad());
+    }
+
+    /// A device on each of two different cards, or `None` when this build reaches fewer, so
+    /// running the ignored tests below with `--include-ignored` skips rather than fails.
+    #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+    fn two_devices() -> Option<(Device, Device)> {
+        let cards = Device::enumerate_physical();
+        let mut devices = cards
+            .iter()
+            .filter_map(|card| card.devices.first().cloned());
+        match (devices.next(), devices.next()) {
+            (Some(first), Some(second)) => Some((first, second)),
+            _ => {
+                println!("skipped: this build reaches fewer than two cards");
+                None
+            }
+        }
+    }
+
+    /// `cargo test -p burn-core --features autodiff,cuda --lib -- --ignored`, or `vulkan` in place
+    /// of `cuda`.
+    #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+    #[test]
+    #[ignore = "needs two cards"]
+    fn a_lazy_param_moved_to_a_second_device_initializes_there() {
+        let Some((first, second)) = two_devices() else {
+            return;
+        };
+        let expected = second.clone();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            move |device, _| {
+                assert_eq!(*device, expected, "the initializer ran on the wrong device");
+                Tensor::ones([2, 3], device)
+            },
+            first,
+            false,
+            [2, 3].into(),
+        );
+
+        let param = param.to_device(&second);
+
+        assert!(!param.is_initialized());
+        assert_eq!(param.val().device(), second);
+    }
+
+    #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+    #[test]
+    #[ignore = "needs two cards"]
+    fn a_lazy_param_loaded_after_a_move_lands_on_the_second_device() {
+        let Some((first, second)) = two_devices() else {
+            return;
+        };
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |_, _| panic!("the moved parameter initialized before loading"),
+            first.clone(),
+            false,
+            [2, 3].into(),
+        );
+
+        let loaded = param
+            .to_device(&second)
+            .transform_for_load(Tensor::ones([2, 3], &first), ParamId::new());
+
+        assert_eq!(loaded.val().device(), second);
     }
 
     #[test]
