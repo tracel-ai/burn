@@ -10,20 +10,16 @@ The minimum supported Rust version is 1.95. NdArray and LibTorch are deprecated,
 is removed, and backend tracing requires the opt-in `tracing` feature. Enable a feature for each
 backend constructor you use; `burn` has no default execution backend.
 
-| 0.21                                                                          | 0.22                                                                   |
-| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `server`                                                                      | `remote-server`                                                        |
-| `remote` (WebSocket)                                                          | `remote` (Iroh); add `remote-websocket` for WebSocket                  |
-| `sqlite` through `dataset` or `train`                                         | `sqlite`, enabled explicitly (`sqlite-bundled` is an alias)            |
-| Linear algebra in `burn::tensor::linalg`                                      | `linalg` feature; `burn::linalg` extension traits                      |
-| Signal processing in `burn::tensor::signal`                                   | `signal` feature; `burn::signal` or `burn::tensor::signal`             |
-| `burn-store` dependency for SafeTensors and PyTorch                           | `safetensors` and `pytorch` features (imply `store`)                   |
-| `candle`, `candle-cuda`, `candle-metal`                                       | Removed                                                                |
-| `router`, `dispatch`, `distributed`, `collective`, `record-item-custom-serde` | Removed; runtime dispatch and `burn::tensor::distributed` are built in |
-
-Remote servers and captured-graph interpreters must register the FFT custom operations from
-`burn-signal`; see
-[Signal Processing Functions](./building-blocks/tensor.md#signal-processing-functions).
+| 0.21                                                                          | 0.22                                                                                                                                                   |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `server`                                                                      | `remote-server`                                                                                                                                        |
+| `remote` (WebSocket)                                                          | `remote` (Iroh); add `remote-websocket` for WebSocket                                                                                                  |
+| `sqlite` through `dataset` or `train`                                         | `sqlite`, enabled explicitly (`sqlite-bundled` is an alias)                                                                                            |
+| Linear algebra in `burn::tensor::linalg`                                      | `linalg` feature; `burn::linalg` extension traits                                                                                                      |
+| Signal processing in `burn::tensor::signal`                                   | `signal` feature; `burn::signal` or `burn::tensor::signal`. See [Signal Processing Functions](./building-blocks/tensor.md#signal-processing-functions) |
+| `burn-store` dependency for SafeTensors and PyTorch                           | `safetensors` and `pytorch` features (imply `store`)                                                                                                   |
+| `candle`, `candle-cuda`, `candle-metal`                                       | Removed                                                                                                                                                |
+| `router`, `dispatch`, `distributed`, `collective`, `record-item-custom-serde` | Removed; runtime dispatch and `burn::tensor::distributed` are built in                                                                                 |
 
 ## Types and devices
 
