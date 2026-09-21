@@ -105,6 +105,9 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
                 NestedValue::F32s(v),
                 default_for_missing_fields,
             )?),
+            Some(NestedValue::Unsupported(type_name)) => Err(custom_err(format!(
+                "cannot deserialize unsupported source type: {type_name}"
+            ))),
             // A placeholder has no concrete type, and `None` means nothing was
             // available: neither can be turned into an untyped value.
             Some(NestedValue::Default(_)) | None => Err(custom_err(
