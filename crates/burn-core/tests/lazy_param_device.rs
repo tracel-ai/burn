@@ -3,6 +3,7 @@
 //! Two fixed CPU backends stand in for two cards, so the placement is observable without one.
 //!
 //! Run with `cargo test -p burn-core --features flex,ndarray --test lazy_param_device`.
+#![cfg(all(feature = "flex", feature = "ndarray"))]
 #![allow(deprecated)]
 
 use burn_core::module::{Module, Param, ParamId};

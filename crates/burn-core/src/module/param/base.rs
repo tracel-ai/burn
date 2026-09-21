@@ -483,7 +483,7 @@ impl<T: Parameter> Param<T> {
                 let shape = value.shape.clone();
                 core::mem::drop(init);
 
-                let base = self;
+                let mut base = self;
                 Self {
                     id: base.id,
                     param_mapper: base.param_mapper.clone(),
@@ -494,10 +494,15 @@ impl<T: Parameter> Param<T> {
                         // maps an untracked value: mapped from a tracked leaf, it would be a
                         // non-leaf that can't require grad.
                         init: new_init_fn(move |device, require_grad| {
-                            let value = base
+                            // Move the base and attached state together before materializing.
+                            // Detaching here prevents the map_to_device fallback from dropping it.
+                            let reparameterization = base.reparameterization.take();
+                            let base = base
                                 .map_to_device(device, |value| value.load_to_device(device))
-                                .val()
-                                .set_require_grad(false);
+                                .with_dyn_reparameterization(
+                                    reparameterization.map(|state| state.to_device_dyn(device)),
+                                );
+                            let value = base.val().set_require_grad(false);
                             func(value).set_require_grad(require_grad)
                         }),
                         device,

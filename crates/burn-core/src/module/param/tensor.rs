@@ -667,6 +667,41 @@ mod tests {
     }
 
     #[test]
+    fn init_mapper_preserves_lora_after_a_clone_initializes_the_base() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _| Tensor::ones([3, 3], device),
+            device.clone(),
+            false,
+            [3, 3].into(),
+        )
+        .with_reparameterization(crate::module::LoraAdapter {
+            a: Param::from_tensor(Tensor::<2>::ones([3, 1], &device)),
+            b: Param::from_tensor(Tensor::<2>::ones([1, 3], &device)),
+            scale: 2.0,
+        });
+        let clone = param.clone();
+        assert!(!param.is_initialized());
+        let mapped = param.init_mapper(|value| value.mul_scalar(2.0));
+
+        // Initialize the captured base after registering the lazy mapper, then remove sharing.
+        // This exercises init_mapper's map_to_device fallback, not Module::to_device or fork.
+        clone
+            .val()
+            .into_data()
+            .assert_eq(&TensorData::from([[3.0f32; 3]; 3]), true);
+        drop(clone);
+        assert!(!mapped.is_initialized());
+
+        // Map the effective LoRA value: (base + scale * A @ B) * 2 = (1 + 2) * 2 = 6.
+        mapped
+            .val()
+            .into_data()
+            .assert_eq(&TensorData::from([[6.0f32; 3]; 3]), true);
+    }
+
+    #[test]
     fn a_lazy_int_param_moved_never_initializes() {
         let device = test_device();
         let param: Param<Tensor<2, Int>> = Param::uninitialized(
