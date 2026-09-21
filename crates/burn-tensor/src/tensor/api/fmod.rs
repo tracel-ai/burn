@@ -93,8 +93,9 @@ impl<const D: usize> Tensor<D, Float> {
         // but 0 * infinity = NaN, which is wrong - it should be 0
         if scalar.is_infinite() {
             // For finite values, fmod(x, ±∞) = x
-            // For infinite values, fmod(±∞, ±∞) = NaN (which is handled by arithmetic)
-            return self;
+            // For infinite values, fmod(±∞, ±∞) = NaN
+            let is_inf = self.clone().is_inf();
+            return self.mask_fill(is_inf, f32::NAN);
         }
 
         self - product
