@@ -437,14 +437,17 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Dropout`           | `nn.Dropout`                                  |
 | `Elu`               | `nn.ELU`                                      |
 | `Embedding`         | `nn.Embedding`                                |
+| `Fold4d`            | `nn.Fold`                                     |
 | `GaussianNoise`     | _No direct equivalent_                        |
 | `Gelu`              | `nn.Gelu`                                     |
 | `Glu`               | `nn.Glu`                                      |
 | `GroupNorm`         | `nn.GroupNorm`                                |
 | `HardShrink`        | `nn.Hardshrink`                               |
 | `HardSigmoid`       | `nn.Hardsigmoid`                              |
+| `Hardtanh`          | `nn.Hardtanh`                                 |
 | `CosineSimilarity`  | `nn.CosineSimilarity`                         |
 | `HardSwish`         | `nn.Hardswish`                                |
+| `Identity`          | `nn.Identity`                                 |
 | `InstanceNorm`      | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `LayerNorm`         | `nn.LayerNorm`                                |
 | `LocalResponseNorm` | `nn.LocalResponseNorm`                        |
@@ -457,6 +460,8 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `PixelUnshuffle`    | `nn.PixelUnshuffle`                           |
 | `Prelu`             | `nn.PReLu`                                    |
 | `Relu`              | `nn.ReLU`                                     |
+| `Relu6`             | `nn.ReLU6`                                    |
+| `RRelu`             | `nn.RReLU`                                    |
 | `Selu`              | `nn.SELU`                                     |
 | `Sigmoid`           | `nn.Sigmoid`                                  |
 | `SiLU`              | `nn.SiLU`                                     |
@@ -467,7 +472,10 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `RmsNorm`           | _No direct equivalent_                        |
 | `SwiGlu`            | _No direct equivalent_                        |
 | `Tanh`              | `nn.Tanh`                                     |
+| `Tanhshrink`        | `nn.Tanhshrink`                               |
+| `Threshold`         | `nn.Threshold`                                |
 | `ThresholdedRelu`   | _No direct equivalent_                        |
+| `Unfold4d`          | `nn.Unfold`                                   |
 
 ### Convolutions
 
@@ -487,6 +495,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | ------------------- | ---------------------- |
 | `AdaptiveAvgPool1d` | `nn.AdaptiveAvgPool1d` |
 | `AdaptiveAvgPool2d` | `nn.AdaptiveAvgPool2d` |
+| `AdaptiveAvgPool3d` | `nn.AdaptiveAvgPool3d` |
 | `AvgPool1d`         | `nn.AvgPool1d`         |
 | `AvgPool2d`         | `nn.AvgPool2d`         |
 | `MaxPool1d`         | `nn.MaxPool1d`         |
@@ -555,4 +564,5 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`               |
 | `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |
 | `SmoothL1Loss`           | `nn.SmoothL1Loss`                 |
+| `SoftMarginLoss`         | `nn.SoftMarginLoss`               |
 | `TripletMarginLoss`      | `nn.TripletMarginLoss`            |

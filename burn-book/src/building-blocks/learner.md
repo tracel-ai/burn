@@ -27,8 +27,12 @@ provides you with numerous options when it comes to configurations.
 | Validation Metric Plot | Register a validation metric with plotting (requires the metric to be numeric)                                                          |
 | Metric Logger          | Configure the metric loggers (default is saving them to files)                                                                          |
 | Renderer               | Configure how to render metrics (default is CLI)                                                                                        |
+| Progress Logger        | Register a `TrainingProgressLogger` that observes the training lifecycle                                                                |
 | Grad Accumulation      | Configure the number of steps before applying gradients                                                                                 |
-| File Checkpointer      | Configure how the model, optimizer and scheduler states are saved                                                                       |
+| Gradient Checkpointing | Recompute memory-bound activations during backpropagation to reduce peak memory                                                         |
+| Checkpointers          | Save the model, optimizer and scheduler states with the default burnpack file checkpointers or custom `Checkpointer` implementations    |
+| Checkpointing Strategy | Configure which checkpoints are kept (default keeps the last two and the best validation loss)                                          |
+| Early Stopping         | Stop training early based on a metric                                                                                                   |
 | Num Epochs             | Set the number of epochs                                                                                                                |
 | Devices                | Set the devices to be used                                                                                                              |
 | Checkpoint             | Restart training from a checkpoint                                                                                                      |

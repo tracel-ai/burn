@@ -142,7 +142,7 @@ let settings = device.settings();
 
 Configure defaults before the first tensor operation on that device. Device settings are initialized
 once; creating the first tensor uses the backend's defaults if configuration has not happened
-earlier.
+earlier, and a later `configure()` call returns `DeviceError::AlreadyInitialized`.
 
 These settings choose defaults, not a single precision for every tensor on the device. You can still
 specify a supported float or integer dtype at creation or cast an existing tensor:

@@ -930,8 +930,9 @@ impl Device {
     /// creation time.
     ///
     /// Settings can only be initialized once per device. Configure defaults before creating
-    /// tensors or initializing model parameters; otherwise, tensor creation uses the backend's
-    /// defaults.
+    /// tensors or initializing model parameters: the first tensor created on the device locks
+    /// the settings to the backend's defaults, and any later call returns
+    /// [`DeviceError::AlreadyInitialized`].
     ///
     /// Individual tensors can still use an explicit supported dtype at creation or be converted
     /// with [`Tensor::cast`](crate::Tensor::cast); neither changes the defaults.
@@ -940,7 +941,7 @@ impl Device {
     ///
     /// Returns [`DeviceError::UnsupportedDType`] if a requested dtype is unsupported.
     /// Returns [`DeviceError::AlreadyInitialized`] if settings have already been initialized
-    /// for this device.
+    /// for this device, either by a prior call or by tensor creation.
     ///
     /// # Example
     ///
@@ -1467,7 +1468,8 @@ impl Devices {
     /// creation time.
     ///
     /// Settings can only be initialized once per device. Configure defaults before creating
-    /// tensors or initializing model parameters.
+    /// tensors or initializing model parameters; the first tensor created on a device locks its
+    /// settings.
     ///
     /// See [`Device::configure`].
     pub fn configure(&mut self, config: impl Into<DeviceConfig>) -> Result<(), DeviceError> {

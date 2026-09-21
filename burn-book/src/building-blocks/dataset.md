@@ -146,6 +146,9 @@ dataset to use should be based on the dataset's size as well as its intended pur
 | `SqliteDataset`    | Dataset that uses [Turso](https://turso.tech/) to index items that can be saved in a simple SQLite database file. Well-suited for larger datasets.   |
 | `DataframeDataset` | Dataset that uses [Polars](https://www.pola.rs/) dataframe to store and manage data. Well-suited for efficient data manipulation and analysis.       |
 
+`SqliteDataset` and the Hugging Face loader below require the `sqlite` feature of `burn`, which the
+`dataset` and `train` features do not enable on their own.
+
 ## Sources
 
 For now, there are only a couple of dataset sources available with Burn, but more to come!

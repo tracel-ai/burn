@@ -196,6 +196,79 @@ scheduler records, so it does not resume the full training checkpoint. Start wit
 scheduler state, or implement a separate conversion if preserving that state is required. See
 [Record](./building-blocks/record.md) for the 0.22 record APIs.
 
+## Training with `burn-train`
+
+`SupervisedTraining` no longer takes a recorder for checkpointing. Replace
+`with_file_checkpointer(CompactRecorder::new())` with `with_default_checkpointers()`, which writes
+burnpack files for the model, optimizer, and scheduler under the artifact directory. To use your own
+storage, pass `Checkpointer<ModuleRecord>`, `Checkpointer<OptimizerRecord>`, and
+`Checkpointer<LrSchedulerRecord>` implementations to `with_custom_checkpointers(..)`.
+`renderer(..)` now takes a `Box<dyn MetricsRenderer>`, and `with_progress_logger(..)` registers a
+`TrainingProgressLogger` that observes the training lifecycle. See
+[Learner](./building-blocks/learner.md).
+
+Custom metrics must implement `Metric::compute(&mut self)`, which produces the epoch value after the
+per-batch `update` calls. `Numeric::value()` and `running_value()` now return
+`Option<NumericEntry>`, returning `None` for metrics that are only defined at the end of an epoch,
+and `final_value()` returns the computed epoch value. See
+[Custom Metric](./building-blocks/metric.md#custom-metric).
+
+`AurocMetric::new()` and `AurocInput` are removed. Construct the metric with
+`AurocMetric::binary()`, `multiclass(ClassReduction)`, or `multilabel(ClassReduction)`; it adapts
+from `ClassificationOutput` and `MultiLabelClassificationOutput` like the other classification
+metrics.
+
+Custom `MetricsRenderer` implementations must also implement `TrainingProgressLogger` and
+`EvaluationProgressLogger`. The `render_train`, `render_valid`, and `render_test` methods and the
+`TrainingProgress`, `EvaluationProgress`, and `ProgressType` types are removed; progress arrives
+through the logger callbacks instead. Custom event processors must handle the new
+`LearnerEvent::StartSplit`, `LearnerEvent::EndSplit`, and `EvaluatorEvent::StartTest` variants.
+
+## Distributed training
+
+The `distributed` and `collective` Cargo features and the `burn-collective` crate are gone;
+collective operations live in `burn::tensor::distributed` without a feature flag.
+`DistributedSession` and `DistributedRuntime` are replaced by `DistributedContext`, and the DDP
+strategy is created with `ExecutionStrategy::ddp(devices, DistributedConfig { .. })`.
+`Device::enumerate(..)` returns a `Devices` wrapper; call `into_vec()` to obtain the `Vec<Device>`.
+See [Distributed Computing](./performance/distributed-computing.md).
+
+## Cargo features and toolchain
+
+- The minimum supported Rust version is 1.95.
+- `sqlite` is no longer a default feature of `burn-dataset`. `burn/dataset` and `burn/train` alone
+  no longer provide `SqliteDataset` or `HuggingfaceDatasetLoader`; enable `burn/sqlite` as well.
+  `sqlite-bundled` is now an alias for `sqlite`. The `SqliteDatasetError::Sql` and `Row` payloads
+  changed type because the storage is backed by Turso instead of `rusqlite`.
+- `server` is renamed to `remote-server`. `remote` enables remote devices over Iroh, and
+  `remote-websocket` adds the WebSocket transport. The `router`, `dispatch`,
+  `record-item-custom-serde`, and `candle*` features are removed. New features include
+  `safetensors` and `pytorch` (which imply `store`), `linalg`, `signal`, `extension`, `capture`,
+  `optim`, and `rayon`.
+- `Tensor::from_primitive` and `into_primitive` require the `extension` feature and are generic
+  over the backend, for example `Tensor::from_primitive::<B>(primitive)`.
+
+## Tensor data and numeric semantics
+
+`TensorData::to_vec` and `into_vec` are deprecated in favor of `try_to_vec` and `try_into_vec`,
+which return the stored dtype without conversion. Use `try_to_vec_as::<E>()` and
+`try_into_vec_as::<E>()` to convert to another element type, on both `TensorData` and `Tensor`.
+`Tensor::try_into_scalar` now returns `TensorReadError`, and the `DataError` variants were reworked.
+
+Extrema reductions propagate NaN on every backend: `max`, `min`, `max_abs`, `argmax`, `argmin`,
+`cummax`, and `cummin` return NaN (or the index of the first NaN) when the reduced slice contains
+one. Reducing a zero-length axis returns the identity for `sum` (0), `prod` (1), `any` (false), and
+`all` (true), NaN for a float `mean`, and panics for `max` and `min`. `max_abs_dims(&[])` and the
+`*_norm_dims(&[])` variants apply the elementwise transformation without reducing.
+
+Dimension arguments accept negative indices across the tensor API, counting from the last axis.
+Most calls are source-compatible; untyped empty inputs now need an annotation, for example
+`flip([] as [isize; 0])` or `squeeze_dims(&[] as &[isize])`.
+
+`ConvOptions::padding` is now `[(usize, usize); N]`, holding the padding at the beginning and end of
+each spatial dimension. `ConvOptions::new(..)` still takes symmetric padding; use
+`ConvOptions::new_with_padding(..)` for asymmetric padding. `PaddedConvOptions` is deprecated.
+
 ## Other migration points
 
 - Optimizer implementations use the per-tensor `Optimizer` trait, wrapped by `ModuleOptimizer`. See
@@ -214,6 +287,15 @@ scheduler state, or implement a separate conversion if preserving that state is 
   [Signal Processing Functions](./building-blocks/tensor.md#signal-processing-functions).
 - NdArray and LibTorch are deprecated, and the Candle backend has been removed. Backend tracing
   requires the opt-in `tracing` feature.
+- `burn-store` transports tensors as `burn_pack::Tensor` instead of `TensorSnapshot`: `collect` and
+  `apply` take and return it, `get_snapshot` and `get_all_snapshots` are renamed to `get_tensor`
+  and `get_all_tensors`, and `ModuleAdapter::adapt` receives the tensor and a borrowed
+  `ModuleContext`. The `burnpack` feature is gone; burnpack support is always available. PyTorch
+  checkpoints are read through the `pytorch-reader` crate.
+- `ParamId::serialize()` and `deserialize()` are replaced by its `Display` and `FromStr`
+  implementations.
+- For backend and extension authors: `TensorKind::id()` is replaced by the `TensorKind::KIND`
+  constant and `TensorKindId` is renamed to `Kind`; `AutodiffTensor` fields are no longer public.
 
 This page covers the main API migration. Consult individual operation documentation when updating
-code that relies on changed numerical, padding, quantization, or tensor-data conversion semantics.
+code that relies on changed quantization or padding semantics.

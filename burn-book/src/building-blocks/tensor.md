@@ -89,10 +89,10 @@ let tensor_1 = Tensor::<1>::from_floats(floats, &device);
 Burn Tensors are primarily initialized using the `from_data()` method which takes the `TensorData`
 struct as input. The `TensorData` struct has two public fields: `shape` and `dtype`. The `value`,
 now stored as bytes, is private but can be accessed via any of the following methods: `as_slice`,
-`as_mut_slice`, `to_vec` and `iter`. To retrieve the data from a tensor, the method `.to_data()`
-should be employed when intending to reuse the tensor afterward. Alternatively, `.into_data()` is
-recommended for one-time use. Let's look at a couple of examples for initializing a tensor from
-different inputs.
+`as_mut_slice`, `try_to_vec`, `try_to_vec_as` and `iter`. To retrieve the data from a tensor, the
+method `.to_data()` should be employed when intending to reuse the tensor afterward. Alternatively,
+`.into_data()` is recommended for one-time use. Let's look at a couple of examples for initializing
+a tensor from different inputs.
 
 ```rust, ignore
 
@@ -206,7 +206,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | ---------------------------------------------------- | ------------------------------------------------------------------------- |
 | `Tensor::cat(tensors, dim)`                          | `torch.cat(tensors, dim)`                                                 |
 | `Tensor::empty(shape, options)`                      | `torch.empty(shape, device=device, dtype=dtype)`                          |
-| `tensor::empty_like()`                               | `tensor.empty_like(tensor)`                                               |
+| `tensor.empty_like()`                                | `torch.empty_like(tensor)`                                                |
 | `Tensor::from_primitive(primitive)`                  | N/A                                                                       |
 | `Tensor::stack(tensors, dim)`                        | `torch.stack(tensors, dim)`                                               |
 | `tensor.all()`                                       | `tensor.all()`                                                            |
@@ -707,10 +707,9 @@ Options:
   Here's an example of how to use `check_closeness`:
 
   ```rust, ignore
-  use burn::tensor::{check_closeness, Tensor};
-  type B = burn::backend::Flex;
+  use burn::tensor::{check_closeness, Device, Tensor};
 
-  let device = Default::default();
+  let device = Device::flex();
   let tensor1 = Tensor::<1>::from_floats(
       [1.0, 2.0, 3.0, 4.0, 5.0, 6.001, 7.002, 8.003, 9.004, 10.1],
       &device,

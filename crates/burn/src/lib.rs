@@ -86,7 +86,9 @@
 //! available through `Device::capture()` with the `capture` feature.
 //!
 //! - Training
-//!   - `train`: Enables features `dataset` and `autodiff` and provides a training environment
+//!   - `train`: Enables features `dataset` and `optim` and provides a training environment
+//!   - `optim`: Enables optimizers and learning rate schedulers (implies `autodiff`)
+//!   - `rl`: Enables reinforcement learning utilities
 //!   - `tui`: Includes Text UI with progress bar and plots
 //!   - `metrics`: Includes system info metrics (CPU/GPU usage, etc.)
 //! - Dataset
@@ -119,14 +121,18 @@
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Model Storage
-//!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
+//!   - `store`: Enables the `burn-store` snapshot tooling
+//!   - `safetensors`: Enables SafeTensors import and export (implies `store`)
+//!   - `pytorch`: Enables PyTorch checkpoint import (implies `store`)
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `linalg`: Enables linear algebra operations
 //!   - `capture`: Makes the non-executing graph capture backend available.
 //!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `signal`: Enables signal processing operations from `burn-signal`.
-//!   - `server`: Enables the remote server.
+//!   - `extension`: Enables the backend extension API, including `Tensor::from_primitive`.
+//!   - `remote`: Enables remote devices over Iroh; `remote-websocket` adds the WebSocket transport.
+//!   - `remote-server`: Enables the remote server.
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!
 //! You can also check the details in sub-crates [`burn-core`](https://docs.rs/burn-core) and [`burn-train`](https://docs.rs/burn-train).
