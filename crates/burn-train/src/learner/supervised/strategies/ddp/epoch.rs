@@ -93,14 +93,12 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
-        let mut naturally_exhausted = true;
 
         while let Some(item) = iterator.next() {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
                     interrupter.stop(Some(&format!("dataset error during training: {err}")));
-                    naturally_exhausted = false;
                     break;
                 }
             };
@@ -118,7 +116,7 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
                     accumulator.accumulate(&learner.model(), item.grads);
                     accumulation_current += 1;
 
-                    if accumulation <= accumulation_current {
+                    if accumulation <= accumulation_current || progress.is_completed() {
                         let grads = accumulator.grads();
 
                         learner.lr_step();
@@ -146,15 +144,8 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
-                naturally_exhausted = false;
                 break;
             }
-        }
-
-        if naturally_exhausted && accumulation_current > 0 {
-            let grads = accumulator.grads();
-            learner.lr_step();
-            learner.optimizer_step(grads);
         }
     }
 }

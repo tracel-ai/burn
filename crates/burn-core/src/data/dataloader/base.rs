@@ -18,6 +18,13 @@ pub struct Progress {
     pub unit: Option<String>,
 }
 
+impl Progress {
+    /// Returns whether all items have been processed.
+    pub fn is_completed(&self) -> bool {
+        self.items_processed == self.items_total
+    }
+}
+
 /// A data loader iterator that can be used to iterate over a data loader.
 ///
 /// Yields `Err` instead of panicking when a dataset retrieval fails, so callers can decide
