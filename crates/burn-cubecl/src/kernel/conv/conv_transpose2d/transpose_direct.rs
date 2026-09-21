@@ -128,7 +128,9 @@ fn conv_transpose2d_direct_nhwc_kernel<E: Numeric, N: Size>(
         unreachable!()
     };
 
-    let group = (oc_out / out_c_per_group) % args.groups;
+    // `oc_out < out_c_per_group * groups`, since that product is the axis it was decomposed
+    // from, so the quotient is already the group and needs no wrapping.
+    let group = oc_out / out_c_per_group;
     let in_c_start = group * in_c_per_group;
     let in_c_end = in_c_start + in_c_per_group;
 
@@ -153,7 +155,7 @@ fn conv_transpose2d_direct_nhwc_kernel<E: Numeric, N: Size>(
     let numerator_w_base = out_x + args.padding_1;
 
     let idx_input_batch = batch * input.stride(0);
-    let idx_weight_oc = oc_out - out_c_per_group * group;
+    let idx_weight_oc = oc_out % out_c_per_group;
 
     let bias: ComptimeOption<Vector<E, N>> = bias.as_ref().map(|bias| bias[oc_out / line]);
     let mut sum = bias.unwrap_or(Vector::broadcast(E::from_int(0)));
@@ -210,11 +212,16 @@ pub fn conv_transpose2d_direct_nhwc(
     // contiguous — exactly the axis this kernel wants dense. Materialize it the way
     // `conv_direct` does on the forward pass.
     //
-    // For the weight this is correctness, not tuning: the kernel vectorizes that axis and
-    // indexes it without applying `stride(3)`, which only holds at unit stride. For the input
-    // it is a measured call — on the conv1d data gradient the copy costs less than the strided
-    // reads it saves on most shapes, though the margin narrowed once the channel axis was
-    // vectorized and the reads began coming from a register.
+    // For the weight this is correctness, not tuning. The kernel indexes it without applying
+    // `stride(3)` and divides the whole offset by the vector width, so it needs unit stride on
+    // that axis *and* every other weight stride to be a multiple of the width. Materializing
+    // gives both: the vector width is chosen to divide the channel axis, and a contiguous
+    // weight's outer strides are all multiples of it. Handing the kernel a weight that is
+    // merely unit-strided on axis 3 would not be enough.
+    //
+    // For the input it is a measured call — on the conv1d data gradient the copy costs less
+    // than the strided reads it saves on most shapes, though the margin narrowed once the
+    // channel axis was vectorized and the reads began coming from a register.
     if input.meta.strides()[3] != 1 {
         input = into_contiguous_aligned(input);
     }
@@ -293,6 +300,7 @@ pub fn conv_transpose2d_direct_nhwc(
     any(feature = "wgpu", feature = "cpu", feature = "cuda", feature = "hip")
 ))]
 mod tests {
+    use burn_backend::ops::conv::calculate_conv_transpose_output_size;
     use burn_std::TensorData;
 
     use crate::{
@@ -330,10 +338,24 @@ mod tests {
         } = options;
         let cin_pg = cin / groups;
         let cout = cout_pg * groups;
-        let oh =
-            (ih - 1) * stride[0] + dilation[0] * (kh - 1) + padding_out[0] - 2 * padding[0] + 1;
-        let ow =
-            (iw - 1) * stride[1] + dilation[1] * (kw - 1) + padding_out[1] - 2 * padding[1] + 1;
+        // The shared helper rather than the launcher's inline formula: an oracle that restates
+        // the expression it checks agrees with its own mistakes.
+        let oh = calculate_conv_transpose_output_size(
+            kh,
+            stride[0],
+            padding[0],
+            padding_out[0],
+            dilation[0],
+            ih,
+        );
+        let ow = calculate_conv_transpose_output_size(
+            kw,
+            stride[1],
+            padding[1],
+            padding_out[1],
+            dilation[1],
+            iw,
+        );
 
         let mut out = vec![0f32; n * cout * oh * ow];
         if let Some(bias) = bias {
@@ -414,13 +436,14 @@ mod tests {
         );
 
         let actual = into_data_sync(actual);
-        for (i, (a, e)) in actual
-            .as_slice::<f32>()
-            .unwrap()
-            .iter()
-            .zip(&expected)
-            .enumerate()
-        {
+        let actual = actual.as_slice::<f32>().unwrap();
+        // `zip` stops at the shorter side, so the count is asserted before the values.
+        assert_eq!(
+            actual.len(),
+            expected.len(),
+            "{case}: element counts differ"
+        );
+        for (i, (a, e)) in actual.iter().zip(&expected).enumerate() {
             assert!((a - e).abs() < 1e-4, "{case}: at {i}, got {a}, want {e}");
         }
     }

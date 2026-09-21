@@ -130,9 +130,13 @@ pub(crate) fn conv_data_backward_fallback<const N_DIM: usize>(
 
 /// Runs a 1D transposition as a 2D one whose width is a single column.
 ///
-/// In NHWC that unit axis sits between the length and the channels, so the channels stay
-/// innermost and the 2D kernel keeps the layout it is fast on. Its `x_start..x_end` loop then
-/// runs exactly once per output element.
+/// The unit axis goes between the length and the channels so the channel axis stays last, which
+/// is the order the 2D kernel decomposes. Its `x_start..x_end` loop then runs exactly once per
+/// output element.
+///
+/// Logical order only: these tensors were permuted from NCHW, so the channel axis is still the
+/// strided one and the kernel materializes it. Placing the unit axis correctly is what lets that
+/// one copy be the whole cost, rather than a copy plus a kernel reading against its layout.
 fn conv_transpose1d_from_conv_transpose2d_nhwc(
     x: CubeTensor,
     weight: CubeTensor,
