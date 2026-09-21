@@ -90,8 +90,18 @@ where
     }
 
     pub fn mask_fill(tensor: SharedArray<E>, mask: SharedArray<bool>, value: E) -> SharedArray<E> {
-        // Use into_owned() instead of clone() - only copies if shared, avoids copy if unique
-        let mut output = tensor.into_owned();
+        let output_dim = tensor
+            .shape()
+            .into_shape()
+            .broadcast(&mask.shape().into_shape())
+            .expect("The input and mask shapes should be broadcastable")
+            .into_dimension();
+        let mut output = if tensor.raw_dim() == output_dim {
+            // Reuse the input allocation when uniquely owned and already the output shape.
+            tensor.into_owned()
+        } else {
+            tensor.broadcast(output_dim).unwrap().to_owned()
+        };
         let broadcast_mask = mask.broadcast(output.dim()).unwrap();
         Zip::from(&mut output)
             .and(&broadcast_mask)

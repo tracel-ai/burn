@@ -107,6 +107,48 @@ fn should_support_mask_fill_broadcast_input_smaller_than_mask() {
 }
 
 #[test]
+fn should_support_mask_fill_broadcast_shared_input_smaller_than_mask() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[2.0]], &device);
+    let mask = TestTensorBool::<2>::from_data([[true, false], [false, true]], &device);
+
+    let output = tensor.clone().mask_fill(mask, 7.0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[7.0, 2.0], [2.0, 7.0]]), false);
+    tensor
+        .into_data()
+        .assert_eq(&TensorData::from([[2.0]]), false);
+}
+
+#[test]
+fn should_support_mask_fill_broadcast_row_input_and_column_mask() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0]], &device);
+    let mask = TestTensorBool::<2>::from_data([[true], [false]], &device);
+
+    let output = tensor.mask_fill(mask, 7.0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[7.0, 7.0, 7.0], [1.0, 2.0, 3.0]]), false);
+}
+
+#[test]
+fn should_support_mask_fill_broadcast_to_empty_output() {
+    let device = Default::default();
+    let tensor = TestTensor::<1>::from_data([2.0], &device);
+    let mask = TestTensorBool::<1>::from_data(TensorData::new(Vec::<bool>::new(), [0]), &device);
+
+    let output = tensor.mask_fill(mask, 7.0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::new(Vec::<f32>::new(), [0]), false);
+}
+
+#[test]
 fn should_handle_mask_where_nans() {
     let device = Default::default();
     let tensor = TestTensor::from_data(
