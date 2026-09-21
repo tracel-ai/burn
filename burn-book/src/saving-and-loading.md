@@ -148,7 +148,9 @@ torch.save(model.state_dict(), "model.pt")
 A file saved with `torch.save(model)` (the whole module rather than its `state_dict()`) loads
 too: its parameters and buffers are read under the names `state_dict()` gives them, so the
 tensor names are the same either way. Non-persistent buffers and tensors assigned as plain
-attributes are not part of it, exactly as `state_dict()` leaves them out.
+attributes are not part of it, exactly as `state_dict()` leaves them out. A module that
+customizes its state dict (`get_extra_state()`, state dict hooks) is read from its stored
+parameters and buffers only, so entries those would add are absent.
 
 #### Accessing Nested State Dicts
 

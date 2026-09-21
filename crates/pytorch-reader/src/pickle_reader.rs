@@ -15,7 +15,7 @@
 use crate::storage::{StorageSource, read_exact_len};
 use crate::{DType, MAX_TENSOR_SIZE, Tensor};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead};
 use std::sync::Arc;
 
@@ -695,11 +695,11 @@ fn is_module_state(attrs: &HashMap<String, Object>) -> bool {
 /// not in the pickle and so not here either.
 fn module_state_dict(mut attrs: HashMap<String, Object>) -> Result<Object> {
     let non_persistent = match attrs.remove("_non_persistent_buffers_set") {
-        None => Vec::new(),
+        None => HashSet::new(),
         Some(Object::List(names)) => names
             .iter()
             .map(|name| key_string(name, "non-persistent buffer name"))
-            .collect::<Result<Vec<_>>>()?,
+            .collect::<Result<HashSet<_>>>()?,
         Some(other) => {
             return Err(PickleError::InvalidData(format!(
                 "module _non_persistent_buffers_set must be a set, got {}",

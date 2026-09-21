@@ -50,7 +50,9 @@
 //! A full-model save (`torch.save(model)` rather than `torch.save(model.state_dict())`) is
 //! read as the module's `state_dict()`: its parameters and buffers under the names
 //! `state_dict()` gives them, leaving out non-persistent buffers and every other attribute.
-//! Checkpoints holding sparse, quantized or nested tensors are refused, since those cannot
+//! What a module computes for its state dict rather than stores, extra state
+//! (`get_extra_state()`) and the work of state dict hooks, is not in the pickle and so is
+//! not read. Checkpoints holding sparse, quantized or nested tensors are refused, since those cannot
 //! be represented. Only little-endian files are supported.
 //!
 //! # Safety limits
