@@ -209,24 +209,22 @@ pub fn conv_transpose2d_direct_nhwc(
     options: ConvTransposeOptions<2>,
 ) -> Result<CubeTensor, ConvSetupError> {
     // Both tensors arrive permuted from NCHW, so the channel axis is the one that is *not*
-    // contiguous — exactly the axis this kernel wants dense. Materialize it the way
-    // `conv_direct` does on the forward pass.
+    // contiguous — exactly the axis this kernel wants dense.
     //
-    // For the weight this is correctness, not tuning. The kernel indexes it without applying
-    // `stride(3)` and divides the whole offset by the vector width, so it needs unit stride on
-    // that axis *and* every other weight stride to be a multiple of the width. Materializing
-    // gives both: the vector width is chosen to divide the channel axis, and a contiguous
-    // weight's outer strides are all multiples of it. Handing the kernel a weight that is
-    // merely unit-strided on axis 3 would not be enough.
-    //
-    // For the input it is a measured call — on the conv1d data gradient the copy costs less
-    // than the strided reads it saves on most shapes, though the margin narrowed once the
-    // channel axis was vectorized and the reads began coming from a register.
+    // The weight is a correctness requirement, not tuning. The kernel indexes it without
+    // applying `stride(3)` and divides the whole element offset by the vector width, so it
+    // needs unit stride on that axis *and* every outer stride to be a multiple of the width.
+    // `into_contiguous_aligned` tests precisely that pair — it returns early only for a
+    // row-major (optionally pitched) layout — so it is called unconditionally rather than
+    // behind a `strides[3] != 1` guard, which would be the weaker of the two conditions.
+    weight = into_contiguous_aligned(weight);
+
+    // The input is addressed through all four strides, so any layout is correct here and this
+    // is purely a measured call: on the conv1d data gradient the copy costs less than the
+    // strided reads it saves on most shapes, though the margin narrowed once the channel axis
+    // was vectorized and each read began serving a whole register of channels.
     if input.meta.strides()[3] != 1 {
         input = into_contiguous_aligned(input);
-    }
-    if weight.meta.strides()[3] != 1 {
-        weight = into_contiguous_aligned(weight);
     }
 
     let [batch_size, in_height, in_width, _] = input.meta.shape().dims();
