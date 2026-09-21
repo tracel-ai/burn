@@ -5,12 +5,11 @@
 //! a storage key from that pickle to its bytes on demand: the ZIP and legacy sources read
 //! the file at that point, the TAR source slices an entry already in memory.
 
-use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, BufReader, Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::io::{self, BufReader, Read};
+use std::path::Path;
 use std::sync::Mutex;
 use zip::{CompressionMethod, ZipArchive};
 
@@ -117,8 +116,8 @@ pub(crate) struct ZipSource {
     /// A second handle to the same file, read at explicit offsets and never through its
     /// cursor. A stored storage's bytes come through it once the lookup under `archive`
     /// has said where they are, so tensor reads from different threads run at once instead
-    /// of queueing on `archive`. Unused past `open` on a target without a positional read
-    /// (see `read_exact_at`).
+    /// of queueing on `archive`. Unused past `open` on Windows and on a target without a
+    /// positional read (see `read_exact_at`).
     file: File,
     /// Root directory including its trailing slash, or empty at the archive root.
     root: String,
@@ -131,7 +130,10 @@ impl ZipSource {
     pub fn open(path: &Path) -> Result<Self, PytorchError> {
         let file = File::open(path)?;
         let file_len = file.metadata()?.len();
-        let archive = ZipArchive::new(BufReader::new(stream_handle(&file, path)?))?;
+        // The stream gets a duplicate of the handle rather than an open of its own, so a
+        // replacement of `path` cannot slip in between two opens. The duplicate shares the
+        // cursor, which is why `file` is only ever read at explicit offsets.
+        let archive = ZipArchive::new(BufReader::new(file.try_clone()?))?;
 
         let root = archive
             .file_names()
@@ -213,7 +215,7 @@ impl ZipSource {
         let rest = size - skipped;
         let len = rest.min(max_len as u64);
 
-        if cfg!(any(unix, windows)) && entry.compression() == CompressionMethod::Stored {
+        if cfg!(unix) && entry.compression() == CompressionMethod::Stored {
             // Every entry `torch.save` writes is stored, so this is the path tensors take.
             if entry.compressed_size() != size {
                 return Err(invalid_data(format!(
@@ -334,23 +336,6 @@ fn read_zip_entry<R: Read>(
     Ok(bytes)
 }
 
-/// A second handle to `file` for the archive's stream, with a cursor of its own.
-///
-/// A positional read leaves the cursor alone, so a duplicate of `file` serves: both handles
-/// then come from one open, and a replacement of `path` cannot slip in between two.
-#[cfg(not(windows))]
-fn stream_handle(file: &File, _path: &Path) -> io::Result<File> {
-    file.try_clone()
-}
-
-/// On Windows `seek_read` sets the cursor and a duplicate shares it, so the stream needs
-/// its own open file. A replacement of `path` between the two opens goes unnoticed: std
-/// has no stable file identity to compare on Windows.
-#[cfg(windows)]
-fn stream_handle(_file: &File, path: &Path) -> io::Result<File> {
-    File::open(path)
-}
-
 /// Fill `buf` from `offset` without depending on the handle's cursor, so reads through one
 /// handle from several threads do not interfere.
 #[cfg(unix)]
@@ -358,9 +343,11 @@ fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> io::Result<()> {
     std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
 }
 
-/// As on Unix, except that `seek_read` also sets the cursor, which is why nothing reads
-/// `ZipSource::file` through it. Windows serializes I/O on a synchronous handle, so threads
-/// still queue in the kernel here, though no longer behind the archive lock and its stream.
+/// As on Unix, except that `seek_read` also sets the cursor. `LegacySource` is its file
+/// object's only user by the time it reads, so nothing depends on that cursor; `ZipSource`
+/// shares its cursor with the archive's stream and stays on that stream on Windows instead.
+/// Windows serializes I/O on a synchronous handle, so threads still queue in the kernel
+/// here, though no longer behind a lock.
 #[cfg(windows)]
 fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> io::Result<()> {
     use std::os::windows::fs::FileExt;
@@ -378,8 +365,8 @@ fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> io::Result
     Ok(())
 }
 
-// No stable positional read in std elsewhere, so `read_storage` keeps those targets on the
-// stream path and this is never called.
+// No stable positional read in std elsewhere. `ZipSource::read_storage` keeps those targets
+// on the stream path; the legacy container has no stream and its storages cannot be read.
 #[cfg(not(any(unix, windows)))]
 fn read_exact_at(_file: &File, _buf: &mut [u8], _offset: u64) -> io::Result<()> {
     Err(io::Error::new(
@@ -434,8 +421,13 @@ impl TarSource {
 /// by its bytes. The count prefix gives elements, not bytes, so the sizes declared by the
 /// persistent ids in the main pickle are collected first and the layout is derived from
 /// them once the key list is known.
+///
+/// The file is held open from [`new`](Self::new) until drop and never reopened by path,
+/// so a reader keeps reading the file it opened if that path is unlinked or replaced.
 pub(crate) struct LegacySource {
-    path: PathBuf,
+    /// Read at explicit offsets and never through its cursor, so tensor reads from
+    /// different threads run at once.
+    file: File,
     state: Mutex<LegacyState>,
 }
 
@@ -449,9 +441,10 @@ enum LegacyState {
 }
 
 impl LegacySource {
-    pub fn new(path: &Path) -> Self {
+    /// Wrap the open checkpoint, whose storages are read at explicit offsets from here on.
+    pub fn new(file: File) -> Self {
         Self {
-            path: path.to_path_buf(),
+            file,
             state: Mutex::new(LegacyState::Declaring(HashMap::new())),
         }
     }
@@ -531,10 +524,9 @@ impl LegacySource {
                 .ok_or_else(|| invalid_data(format!("storage '{key}' not found in legacy file")))?
         };
 
-        let mut file = File::open(&self.path)?;
-        file.seek(SeekFrom::Start(offset))?;
-
-        let stored_numel = file.read_i64::<LittleEndian>()?;
+        let mut count = [0u8; 8];
+        read_exact_at(&self.file, &mut count, offset)?;
+        let stored_numel = i64::from_le_bytes(count);
         let expected_numel = (byte_len / element_size) as i64;
         if stored_numel != expected_numel {
             return Err(invalid_data(format!(
@@ -544,8 +536,9 @@ impl LegacySource {
 
         // `finish` checked that the storage lies within the file, so the length is trusted.
         let start = start.min(byte_len);
-        file.seek(SeekFrom::Current(start as i64))?;
         let len = (byte_len - start).min(max_len);
-        Ok((read_exact_len(&mut file, len as u64, len)?, start))
+        let mut bytes = vec![0u8; len];
+        read_exact_at(&self.file, &mut bytes, offset + 8 + start as u64)?;
+        Ok((bytes, start))
     }
 }
