@@ -532,9 +532,9 @@ softmax_last_dtype!(
 /// `gamma` and `beta` are 1-D tensors of length `input.shape()[-1]`;
 /// `beta` is optional (set to `None` for a bias-free layer norm).
 ///
-/// The f32 row kernel makes three passes (mean, centered variance,
-/// normalize+affine), SIMD via macerator when the `simd` feature is on;
-/// each row stays cache-hot across them.
+/// The f32 SIMD row kernel makes three passes (mean, centered variance,
+/// normalize+affine) via macerator; each row stays cache-hot across them.
+/// With the `simd` feature off, the scalar fallback uses Welford.
 ///
 /// Supports `f32` (SIMD-vectorized), `f64` (scalar + LLVM autovec), and
 /// `f16`/`bf16` (via an f32 cast-fuse-cast shell; the f32 row kernel
@@ -879,8 +879,7 @@ fn layer_norm_rows_f32_no_beta(
 }
 
 /// Scalar fallback row kernel for layer_norm when the `simd` feature is
-/// disabled. Same passes as the SIMD version (mean, centered variance,
-/// normalize+affine).
+/// disabled. Welford mean/variance, then normalize+affine.
 #[cfg(not(feature = "simd"))]
 #[inline]
 fn layer_norm_row_f32_scalar(
@@ -890,9 +889,20 @@ fn layer_norm_row_f32_scalar(
     beta: Option<&[f32]>,
     epsilon: f32,
 ) {
-    let n = input.len() as f32;
-    let mean = input.iter().sum::<f32>() / n;
-    let var = input.iter().map(|&x| (x - mean) * (x - mean)).sum::<f32>() / n;
+    // Welford's online algorithm tracks a running mean instead of a raw
+    // sum, so it avoids the E[x^2] - E[x]^2 cancellation and also stays
+    // finite for large inputs whose sum would overflow f32.
+    let len = input.len();
+    let mut mean = 0.0f32;
+    let mut m2 = 0.0f32;
+    for (k, &x) in input.iter().enumerate() {
+        let n_k = (k + 1) as f32;
+        let delta = x - mean;
+        mean += delta / n_k;
+        let delta2 = x - mean;
+        m2 += delta * delta2;
+    }
+    let var = m2 / len as f32;
     let inv_std = 1.0f32 / (var + epsilon).sqrt();
     for (i, &x) in input.iter().enumerate() {
         let scale = inv_std * gamma[i];
