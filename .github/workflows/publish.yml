@@ -462,7 +462,6 @@ jobs:
       - publish-burn-vision
       - publish-burn-linalg
       - publish-burn-signal
-      - publish-burn-store
       - publish-burn-rl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
     with:
