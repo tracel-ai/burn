@@ -228,14 +228,13 @@ jobs:
             exit 1
           fi
 
-          status=$(curl --silent --show-error --retry 3 \
-            --output "$RUNNER_TEMP/published-version.json" --write-out '%{http_code}' \
-            "https://crates.io/api/v1/crates/$CRATE/$version")
-          case "$status" in
-            200) echo "published=true" >> "$GITHUB_OUTPUT" ;;
-            404) echo "published=false" >> "$GITHUB_OUTPUT" ;;
-            *) echo "::error::Registry lookup failed with HTTP $status."; exit 1 ;;
-          esac
+          # Explicitly query the registry, not the local workspace package.
+          # If lookup fails, let cargo publish report any registry/network error.
+          if cargo info --registry crates-io "$CRATE@$version" > /dev/null; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: verify package
         if: steps.version.outputs.published != 'true'
         run: cargo publish -p "$CRATE" --features "$PUBLISH_FEATURES" --dry-run
