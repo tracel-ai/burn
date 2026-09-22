@@ -769,6 +769,15 @@ fn cfft_rejects_mismatched_shapes() {
 }
 
 #[test]
+#[should_panic(expected = "same shape")]
+fn irfft_rejects_mismatched_shapes() {
+    // Also validates the non-power-of-two path, which otherwise broadcasts.
+    let re = TestTensor::<1>::from([1.0, 2.0, 3.0]);
+    let im = TestTensor::<1>::from([1.0, 2.0]);
+    let _ = irfft(re, im, 0, Some(5));
+}
+
+#[test]
 fn cfft_dim0_2d_tensor() {
     // Apply cfft along dim=0 on a 2D tensor (4 rows, 2 columns)
     // Column 0: complex exponential exp(i·2π·n/4) → DFT = [0, 4, 0, 0]
