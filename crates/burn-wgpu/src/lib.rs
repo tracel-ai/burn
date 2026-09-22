@@ -130,9 +130,21 @@ mod tests {
             assert!(B::supports_dtype(&device, DType::U16));
             assert!(B::supports_dtype(&device, DType::U8));
 
+            assert!(B::supports_dtype(&device, DType::BF16));
             assert!(!B::supports_dtype(&device, DType::F64));
-            assert!(!B::supports_dtype(&device, DType::BF16));
             assert!(!B::supports_dtype(&device, DType::Flex32));
+
+            // fp8 block scales are stored and converted in software: NVFP4 and MXFP4 quantize.
+            use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+            let fp4 = QuantScheme::default()
+                .with_value(QuantValue::E2M1)
+                .with_store(QuantStore::PackedU32(0));
+            let nvfp4 = fp4
+                .per_block([16], ScaleDtype::UE4M3)
+                .per_tensor(ScaleDtype::F32);
+            let mxfp4 = fp4.per_block([32], ScaleDtype::UE8M0);
+            assert!(B::supports_dtype(&device, DType::QFloat(nvfp4)));
+            assert!(B::supports_dtype(&device, DType::QFloat(mxfp4)));
         }
 
         // On macOS without the `metal` feature, wgpu still uses Metal at runtime,
