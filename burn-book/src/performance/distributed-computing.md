@@ -109,11 +109,10 @@ through Burn's non-DDP multi-device training path.
 ## Pipeline Parallelism
 
 DDP and the multi-device strategy keep a whole copy of the model on each device. When the model does
-not fit on one device, pipeline parallelism cuts it by whole layers instead: each device holds a run
-of consecutive layers, a stage, and the activations move from one device to the next. A model opts
-in by implementing `burn::module::pipeline::Pipeline`, which splits its forward pass into segments:
-`forward_input`, then `forward_block` for each block in order, then `forward_output`. The model also
-states which submodules each segment runs, in a `PipelineLayout`:
+not fit on one, pipeline parallelism cuts it by whole layers instead: each device holds a run of
+consecutive layers, a stage, and the activations move from one device to the next. A model opts in
+by implementing `burn::module::pipeline::Pipeline`, splitting its forward pass into segments and
+stating which submodules each one runs:
 
 ```rust, ignore
 impl Pipeline for Model {
@@ -143,18 +142,14 @@ impl Pipeline for Model {
 ```
 
 What a segment passes to the next is its `Carry`: the activations, and whatever rides along with
-them. A transformer, for instance, passes its hidden state along with its masks. The input and the
-carry are modules, so they can move to another device: tensors, tuples of tensors, arrays, `Vec` and
-`Option` already are, and a struct of tensors can derive `Module`.
+them, such as a transformer's masks. It is a module, so it can move between devices. Tensors,
+tuples, arrays, `Vec` and `Option` already are, and a struct of tensors can derive `Module`.
 
-A `PipelinePlacement` gives every segment a device: `PipelinePlacement::even` shares the blocks out
-in order across some devices, and `PipelinePlacement::new` takes stages of chosen sizes. `place`
-forks each parameter onto the device of the segment that owns it and returns a `PlacedPipeline`,
-whose `forward` runs each segment where its own parameters ended up, moving the input and the
-carry along. The placement is named once, at `place`, so the carry can never be sent somewhere the
-weights are not, and where the segments run is resolved once rather than on every forward. A
-`PlacedPipeline` dereferences to the model and is itself a `Module`, so records and the model's own
-methods work as they do on one device:
+A `PipelinePlacement` gives every segment a device, either evenly across some devices or as stages
+of chosen sizes. `place` forks each parameter onto the device of the segment that owns it and
+returns a `PlacedPipeline`, which runs each segment where its own parameters ended up. It
+dereferences to the model and is itself a `Module`, so records and the model's own methods work as
+they do on one device:
 
 ```rust, ignore
 // One device per card: `enumerate_physical` returns each card once, with every runtime that
@@ -164,9 +159,7 @@ let devices: Vec<Device> = Device::enumerate_physical()
     .map(|gpu| gpu.devices[0].clone())
     .collect();
 
-let placement = PipelinePlacement::even(&devices, 8);
-let model = model.place(&placement);
-
+let model = model.place(&PipelinePlacement::even(&devices, 8));
 let predictions = model.forward(features);
 ```
 
@@ -179,41 +172,23 @@ their segment's device. That is how a model too large for one device loads:
 let model = ModelConfig::new().init(&device).place(&placement).load_record(record);
 ```
 
-A lazy parameter that a live clone of the model shares is the exception: it initializes where it is
-and is then copied, since every clone must see one value. Drop other clones before placing.
+Three things to watch:
 
-Only parameters move. A tensor a module holds directly, such as a precomputed positional table,
-stays where the model was built, so the segment that reads it moves it to its own device. Likewise,
-create any tensor inside a segment on the device of the tensors you were handed rather than on a
-device of the model: once placed, the model has several.
-
-Every parameter belongs to exactly one segment: `PipelineLayout` refuses a submodule claimed by two
-segments, and `place` refuses a parameter no segment claims. A segment that reads a parameter
-another segment owns, such as an output head tied to the input embedding, moves it to its own
-device:
-
-```rust, ignore
-// In a model whose carry is the hidden state alone.
-fn forward_output(&self, hidden: Tensor<3>) -> Tensor<3> {
-    let embedding = self.embedding.weight.val().to_device(&hidden.device());
-    hidden.matmul(embedding.transpose().unsqueeze())
-}
-```
-
-That copies the whole embedding on every forward pass, so every generated token. When the parameter
-does not train, put the output segment on the input segment's device instead:
-
-```rust, ignore
-let placement = PipelinePlacement { output: placement.input.clone(), ..placement };
-```
+- **A lazy parameter shared with a live clone** initializes where it is and is copied instead, since
+  every clone must see one value. Drop other clones before placing.
+- **Only parameters move.** A tensor a module holds directly, such as a precomputed positional
+  table, stays where the model was built, so the segment reading it has to move it. Create tensors
+  inside a segment on the device of the tensors you were handed, never on a device of the model.
+- **Every parameter belongs to exactly one segment.** A segment reading a parameter another owns,
+  such as an output head tied to the input embedding, has to `to_device` it on every forward pass.
+  When that parameter does not train, place the two segments on one device instead.
 
 Stages run one after another, so what this buys today is capacity rather than speed: each device
-waits for the previous one, and every move between devices costs the size of the carry. Overlapping
-the stages takes a schedule that splits a batch into microbatches, such as GPipe or 1F1B; the layout
-and placement here are what such a schedule would drive, but none is implemented yet.
+waits for the one before it, and every move costs the size of the carry. Overlapping them takes a
+schedule that splits a batch into microbatches, such as GPipe or 1F1B, which is not implemented yet.
 
-The `pipeline` example splits a small model this way across one device per GPU, loads its weights
-onto each stage, and checks its predictions against the same model on one device.
+The `pipeline` example splits a small model across one device per GPU, loads its weights onto each
+stage, and checks its predictions against the same model on one device.
 
 ## Remote Devices
 
