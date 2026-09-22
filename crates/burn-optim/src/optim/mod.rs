@@ -4,6 +4,7 @@ pub mod decay;
 /// Momentum module for optimizers.
 pub mod momentum;
 
+mod adafactor;
 mod adagrad;
 mod adam;
 mod adamw;
@@ -20,6 +21,7 @@ mod sgd;
 mod state;
 mod visitor;
 
+pub use adafactor::*;
 pub use adagrad::*;
 pub use adam::*;
 pub use adamw::*;
