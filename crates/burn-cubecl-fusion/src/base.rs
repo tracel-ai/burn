@@ -1,6 +1,6 @@
 use burn_fusion::stream::Context;
 use burn_std::{
-    DType, Shape, Strides,
+    DType, Metadata, Shape, Strides,
     quantization::{QParamTensor, global_scale_dtype},
     strides,
 };
@@ -98,6 +98,17 @@ impl CubeFusionHandle {
         match &self.tiles {
             Some(tiles) => tiles.shape.clone(),
             None => logical,
+        }
+    }
+
+    /// The buffer's metadata, `logical` being the shape the IR states: rows under that shape, or
+    /// the storage tiles the handle carries, folded back to it by their tiling.
+    pub fn metadata(&self, logical: Shape) -> Metadata {
+        match &self.tiles {
+            Some(tiles) => Metadata::new(tiles.shape.clone(), self.strides.clone())
+                .with_tiling(tiles.tiling)
+                .expect("a fusion handle's tiling describes its own rank"),
+            None => Metadata::new(logical, self.strides.clone()),
         }
     }
 

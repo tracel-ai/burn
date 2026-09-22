@@ -7,7 +7,6 @@ use burn_fusion::{
     stream::{FallbackOp, OrderedExecution},
 };
 use burn_ir::{BackendIr, TensorHandle};
-use burn_std::Metadata;
 
 mod registry;
 pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
@@ -132,18 +131,11 @@ impl FusionBackend for CubeBackend {
 }
 
 fn into_tensor(handle: CubeFusionHandle, shape: Shape) -> CubeTensor {
-    // The IR states the logical shape; a storage-tiled handle carries the physical one it folds.
-    let meta = match &handle.tiles {
-        Some(tiles) => Metadata::new(tiles.shape.clone(), handle.strides.clone())
-            .with_tiling(tiles.tiling)
-            .expect("a fusion handle's tiling describes its own rank"),
-        None => Metadata::new(shape, handle.strides.clone()),
-    };
     CubeTensor {
         client: handle.client.clone(),
         handle: handle.handle.clone(),
         device: handle.device.clone(),
-        meta: Box::new(meta),
+        meta: Box::new(handle.metadata(shape)),
         dtype: handle.dtype,
         qparams: handle.qparams.clone(),
     }
