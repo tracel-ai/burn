@@ -521,9 +521,9 @@ softmax_last_dtype!(
 // ============================================================================
 //
 // Backs the `ModuleOps::layer_norm` hook, replacing the default decomposition
-// into ~6 primitive tensor ops with intermediate allocations. The f32 row
-// kernel makes three passes (mean, centered variance, normalize+affine),
-// vectorized via macerator.
+// into ~6 primitive tensor ops with intermediate allocations. The f32 SIMD
+// row kernel makes three passes (mean, centered variance, normalize+affine)
+// via macerator; the scalar fallback and f64 paths use Welford.
 
 /// Fused layer normalization along the last axis.
 ///
@@ -890,8 +890,8 @@ fn layer_norm_row_f32_scalar(
     epsilon: f32,
 ) {
     // Welford's online algorithm tracks a running mean instead of a raw
-    // sum, so it avoids the E[x^2] - E[x]^2 cancellation and also stays
-    // finite for large inputs whose sum would overflow f32.
+    // sum, so it avoids the E[x^2] - E[x]^2 cancellation and the mean stays
+    // finite for inputs whose raw sum would overflow f32.
     let len = input.len();
     let mut mean = 0.0f32;
     let mut m2 = 0.0f32;
