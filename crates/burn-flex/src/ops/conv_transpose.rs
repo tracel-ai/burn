@@ -718,6 +718,65 @@ mod tests {
         }
     }
 
+    macro_rules! check_column_buffer_limit {
+        ($name:ident, $ty:ty, $dtype:expr, $conv:ident) => {
+            #[test]
+            fn $name() {
+                let max_len = 8 * 1024 * 1024 / core::mem::size_of::<$ty>() / (8 * 8);
+                let options = ConvTransposeOptions::new([2], [3], [0], [1], 1);
+                // Exercise the typed entry point at the production byte limit.
+                for len in [max_len - 1, max_len, max_len + 1] {
+                    let x_values: Vec<f32> = (0..len).map(|i| (i % 7) as f32 - 3.0).collect();
+                    let w_values: Vec<f32> = (0..64).map(|i| (i % 5) as f32 - 2.0).collect();
+                    let x = FlexTensor::from_data(
+                        TensorData::new(x_values.clone(), [1, 1, len]).convert_dtype($dtype),
+                    );
+                    let weight = FlexTensor::from_data(
+                        TensorData::new(w_values.clone(), [1, 8, 8]).convert_dtype($dtype),
+                    );
+                    let actual = $conv(x, weight, None, &options);
+
+                    // Small integers make this direct reference exact for all three types.
+                    let out_len = 2 * len;
+                    let mut expected = vec![0.0f32; 8 * out_len];
+                    for (oc, kernel) in w_values.chunks_exact(8).enumerate() {
+                        for (i, &input) in x_values.iter().enumerate() {
+                            for (k, &weight) in kernel.iter().enumerate() {
+                                let out = 2 * i + k;
+                                if (3..out_len + 3).contains(&out) {
+                                    expected[oc * out_len + out - 3] += input * weight;
+                                }
+                            }
+                        }
+                    }
+                    let expected = TensorData::new(expected, [1, 8, out_len]).convert_dtype($dtype);
+                    assert_eq!(actual.layout().shape().to_vec(), vec![1, 8, out_len]);
+                    assert_eq!(actual.dtype(), $dtype);
+                    assert_eq!(actual.storage::<$ty>(), expected.as_slice::<$ty>().unwrap());
+                }
+            }
+        };
+    }
+
+    check_column_buffer_limit!(
+        test_column_buffer_limit_f32,
+        f32,
+        DType::F32,
+        conv_transpose1d_f32
+    );
+    check_column_buffer_limit!(
+        test_column_buffer_limit_f64,
+        f64,
+        DType::F64,
+        conv_transpose1d_f64
+    );
+    check_column_buffer_limit!(
+        test_column_buffer_limit_f16,
+        f16,
+        DType::F16,
+        conv_transpose1d_f16
+    );
+
     #[cfg(feature = "rayon")]
     macro_rules! check_parallel_channels {
         ($name:ident, $ty:ty, $dtype:expr, $zero:expr, $gemm:ident) => {
