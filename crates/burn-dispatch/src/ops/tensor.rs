@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
+    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData, Tiling,
     ops::{FloatTensorOps, PadMode},
     tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -131,6 +131,10 @@ impl FloatTensorOps<Self> for Dispatch {
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         B::float_reshape(tensor, shape)
+    }
+
+    fn float_into_tiled(tensor: FloatTensor<Self>, tiling: Tiling) -> FloatTensor<Self> {
+        B::float_into_tiled(tensor, tiling)
     }
 
     fn float_gather(

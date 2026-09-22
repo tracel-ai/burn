@@ -11,7 +11,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
-use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
+use burn_backend::{Distribution, Shape, TensorData, Tiling, ops::FloatTensorOps};
 use burn_backend::{ExecutionError, Scalar, get_device_settings};
 use burn_std::{BoolDType, IntDType};
 use cubecl::prelude::*;
@@ -164,6 +164,26 @@ impl FloatTensorOps<Self> for CubeBackend {
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         super::reshape(tensor, shape)
+    }
+
+    /// The buffer already lies in its fragments: only the metadata changes, to say so. The
+    /// kernels that read storage tiles map each logical coordinate onto them; everything else
+    /// lays the tensor back into rows first ([`untile`](crate::kernel::untile)).
+    fn float_into_tiled(mut tensor: FloatTensor<Self>, tiling: Tiling) -> FloatTensor<Self> {
+        assert!(
+            !tensor.meta.is_tiled(),
+            "into_tiled: the tensor is already storage-tiled ({:?})",
+            tensor.meta.tiling
+        );
+        tensor.meta = Box::new(
+            tensor
+                .meta
+                .as_ref()
+                .clone()
+                .with_tiling(tiling)
+                .unwrap_or_else(|err| panic!("into_tiled: {err:?}")),
+        );
+        tensor
     }
 
     fn float_gather(

@@ -1,7 +1,7 @@
 use crate::{CubeBackend, CubeDevice, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
-pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
+pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation, Tiles};
 use burn_fusion::{
     FusionBackend, FusionRuntime,
     stream::{FallbackOp, OrderedExecution},
@@ -132,15 +132,18 @@ impl FusionBackend for CubeBackend {
 }
 
 fn into_tensor(handle: CubeFusionHandle, shape: Shape) -> CubeTensor {
+    // The IR states the logical shape; a storage-tiled handle carries the physical one it folds.
+    let meta = match &handle.tiles {
+        Some(tiles) => Metadata::new(tiles.shape.clone(), handle.strides.clone())
+            .with_tiling(tiles.tiling)
+            .expect("a fusion handle's tiling describes its own rank"),
+        None => Metadata::new(shape, handle.strides.clone()),
+    };
     CubeTensor {
         client: handle.client.clone(),
         handle: handle.handle.clone(),
         device: handle.device.clone(),
-        meta: Box::new(
-            Metadata::new(shape, handle.strides.clone())
-                .with_tiling(handle.tiling)
-                .expect("a fusion handle's tiling describes its own rank"),
-        ),
+        meta: Box::new(meta),
         dtype: handle.dtype,
         qparams: handle.qparams.clone(),
     }
@@ -153,7 +156,10 @@ impl From<CubeTensor> for CubeFusionHandle {
             handle: value.handle.clone(),
             device: value.device.clone(),
             strides: value.meta.strides.clone(),
-            tiling: value.meta.tiling,
+            tiles: value.meta.is_tiled().then(|| Tiles {
+                shape: value.meta.shape.clone(),
+                tiling: value.meta.tiling,
+            }),
             dtype: value.dtype,
             qparams: value.qparams.clone(),
         }
