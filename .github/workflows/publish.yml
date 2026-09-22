@@ -398,6 +398,7 @@ jobs:
     needs:
       - publish-burn-std
       - publish-burn-backend
+      - publish-burn-backend-extension
       - publish-burn-autodiff
       - publish-burn-cpu
       - publish-burn-cuda

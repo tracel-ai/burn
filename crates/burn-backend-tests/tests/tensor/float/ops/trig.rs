@@ -1,9 +1,9 @@
 #![allow(clippy::approx_constant)]
 
 use super::*;
+use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 use burn_tensor::s;
-use burn_tensor::{DType, TensorData};
 use core::f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, FRAC_PI_8, PI};
 
 #[test]
