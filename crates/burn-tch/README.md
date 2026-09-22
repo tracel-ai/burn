@@ -55,7 +55,7 @@ commands:
 
 ```shell
 export TORCH_CUDA_VERSION=cu128
-cargo run --bin cuda --release
+cargo run -p burn-tch --bin cuda --release
 ```
 
 **Important:** make sure your driver version is compatible with the selected CUDA version. A CUDA
@@ -72,9 +72,9 @@ Once your installation is complete, you should be able to build/run your project
 validate your installation by running the appropriate `cpu`, `cuda` or `mps` sample as below.
 
 ```shell
-cargo run --bin cpu --release
-cargo run --bin cuda --release
-cargo run --bin mps --release
+cargo run -p burn-tch --bin cpu --release
+cargo run -p burn-tch --bin cuda --release
+cargo run -p burn-tch --bin mps --release
 ```
 
 _Note: no MPS distribution is available for automatic download at this time, please check out the

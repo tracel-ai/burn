@@ -55,17 +55,17 @@ Run it with the Torch GPU backend:
 
 ```sh
 export TORCH_CUDA_VERSION=cu128
-cargo run --example custom-image-dataset --release --features tch-gpu
+cargo run -p custom-image-dataset --example custom-image-dataset --release --features tch-gpu
 ```
 
 Run it with our WGPU backend:
 
 ```sh
-cargo run --example custom-image-dataset --release --features wgpu
+cargo run -p custom-image-dataset --example custom-image-dataset --release --features wgpu
 ```
 
 Run it with our Metal backend:
 
 ```sh
-cargo run --example custom-image-dataset --release --features metal
+cargo run -p custom-image-dataset --example custom-image-dataset --release --features metal
 ```

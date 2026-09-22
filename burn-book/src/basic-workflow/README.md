@@ -21,7 +21,7 @@ The current version of Burn is `0.21` and the corresponding branch to checkout i
 The code for this demo can be executed from Burn's base directory using the command:
 
 ```bash
-cargo run --release --example guide
+cargo run -p guide --release --example guide
 ```
 
 ## Key Learnings

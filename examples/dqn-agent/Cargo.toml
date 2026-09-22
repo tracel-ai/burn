@@ -10,8 +10,8 @@
 
 [package]
 name = "dqn-agent"
-edition = "2024"
-version = "0.22.0-pre.3"
+edition.workspace = true
+version.workspace = true
 publish = false
 
 [features]
@@ -26,7 +26,7 @@ rocm = ["burn/rocm"]
 
 [dependencies]
 # Disable autotune default for now.
-burn = { path = "../../crates/burn", version = "=0.22.0-pre.3", default-features = false, features = [
+burn = { path = "../../crates/burn", version = "=0.22.0-pre.4", default-features = false, features = [
     "train",
     "metrics",
     "std",

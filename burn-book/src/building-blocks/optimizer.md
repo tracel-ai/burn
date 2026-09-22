@@ -1,7 +1,7 @@
 # Optimizer
 
 Optimizers update a module's trainable parameters from their gradients. Burn provides common
-optimizers such as SGD, Adam, AdamW, AdaGrad, RMSProp, Adan, LAMB, and Muon in `burn-optim`,
+optimizers such as SGD, Adam, AdamW, Adafactor, AdaGrad, RMSProp, Adan, LAMB, and Muon in `burn-optim`,
 re-exported under `burn::optim`.
 
 Most applications interact with a [`ModuleOptimizer`](#moduleoptimizer). Create one from an
@@ -23,6 +23,35 @@ use burn::optim::{AdamWConfig, grad_clipping::GradientClippingConfig};
 let optimizer = AdamWConfig::new()
     .with_weight_decay(5e-5)
     .with_grad_clipping(Some(GradientClippingConfig::Norm(1.0)))
+    .init();
+```
+
+Adafactor saves memory by storing row and column second moments for matrices and higher-rank
+parameters. By default, the learning rate passed to `step` caps the relative step size at
+`min(learning_rate, 1 / sqrt(step))`, and updates are scaled by the parameter RMS. Use `0.01`
+for the schedule proposed in the [Adafactor paper](https://arxiv.org/abs/1804.04235).
+The learning rate is supplied to `step`; it is not part of `AdafactorConfig`. The configuration
+defaults are:
+
+| Option | Default |
+| --- | --- |
+| `epsilon_1` | `1e-30` |
+| `epsilon_2` | `1e-3` |
+| `clip_threshold` | `1.0` |
+| `decay_rate` | `-0.8` |
+| `relative_step` | `true` |
+| `scale_parameter` | `true` |
+| `weight_decay` | `0.0` |
+| `grad_clipping` | `None` |
+
+For an absolute learning rate controlled by an external scheduler, disable both options:
+
+```rust, ignore
+use burn::optim::AdafactorConfig;
+
+let optimizer = AdafactorConfig::new()
+    .with_relative_step(false)
+    .with_scale_parameter(false)
     .init();
 ```
 

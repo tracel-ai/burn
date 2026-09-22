@@ -12,6 +12,14 @@ then be executed using the following cargo command line in the root of the examp
 cargo run --release --example <example name>
 ```
 
+From the repository root the package has to be named too. A root invocation with no `-p` selects
+every workspace member and unifies their features, which builds backends the example never asked
+for:
+
+```bash
+cargo run -p <package name> --release --example <example name>
+```
+
 To learn more about crates and examples, read the Rust section below.
 
 <details>
