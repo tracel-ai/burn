@@ -159,9 +159,16 @@ macro_rules! module {
 pub trait Module: Clone + Send + core::fmt::Debug {
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
+    ///
+    /// Device collection should not initialize lazy parameters. Use [`Param::lazy_device`]
+    /// to inspect their devices without accessing tensor values.
     fn collect_devices(&self, devices: Devices) -> Devices;
 
     /// Return all the devices found in the underneath module tree without duplicates.
+    ///
+    /// Lazy tensor parameters report their initialization device without being initialized.
+    /// Device equality ignores autodiff and checkpointing settings, so this list is not a summary
+    /// of the module's training state.
     fn devices(&self) -> Devices {
         self.collect_devices(Devices::new())
     }
