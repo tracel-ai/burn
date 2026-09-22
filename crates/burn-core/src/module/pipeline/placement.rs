@@ -71,6 +71,7 @@ impl PipelinePlacement {
         Self::new(&stages)
     }
 
+    /// Indexing `blocks` is safe once [`assert_covers`](Self::assert_covers) has passed.
     pub(crate) fn device(&self, segment: PipelineSegment) -> &Device {
         match segment {
             PipelineSegment::Input => &self.input,
@@ -79,6 +80,7 @@ impl PipelinePlacement {
         }
     }
 
+    /// Checked before the walk, so a block with no device is refused before a parameter moves.
     pub(crate) fn assert_covers(&self, layout: &PipelineLayout) {
         assert_eq!(
             self.blocks.len(),
