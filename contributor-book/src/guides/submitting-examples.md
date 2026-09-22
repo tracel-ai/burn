@@ -54,7 +54,7 @@ Brief description of what this example demonstrates.
 ## Running the Example
 
 ```bash
-cargo run --example <my-example>
+cargo run -p <my-example> --example <my-example>
 ```
 
 ## Prerequisites

@@ -22,11 +22,11 @@ git clone https://github.com/tracel-ai/burn.git
 cd burn
 # Use the --release flag to really speed up training.
 echo "Using flex backend"
-cargo run --example regression --release --features flex                   # CPU Flex Backend - f32
+cargo run -p simple-regression --example regression --release --features flex                   # CPU Flex Backend - f32
 echo "Using tch backend"
 export TORCH_CUDA_VERSION=cu128                                            # Set the cuda version
-cargo run --example regression --release --features tch-gpu                # GPU Tch Backend - f32
-cargo run --example regression --release --features tch-cpu                # CPU Tch Backend - f32
+cargo run -p simple-regression --example regression --release --features tch-gpu                # GPU Tch Backend - f32
+cargo run -p simple-regression --example regression --release --features tch-cpu                # CPU Tch Backend - f32
 echo "Using wgpu backend"
-cargo run --example regression --release --features wgpu
+cargo run -p simple-regression --example regression --release --features wgpu
 ```

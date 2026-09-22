@@ -513,5 +513,5 @@ Use [Netron](https://github.com/lutzroeder/netron) to visualize `.pt` and `.safe
 For Burnpack files:
 
 ```bash
-cargo run --example burnpack_inspect model.bpk
+cargo run -p burn-store --example burnpack_inspect -- model.bpk
 ```
