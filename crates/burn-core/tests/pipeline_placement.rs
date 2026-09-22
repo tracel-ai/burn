@@ -85,6 +85,7 @@ impl Stack {
             .map(|layer| &layer.weight)
     }
 
+    /// The reference the split forward has to reproduce.
     fn plain_forward(&self, input: Tensor<2>) -> Tensor<2> {
         let hidden = self
             .layers
@@ -134,6 +135,7 @@ impl Linear {
         }
     }
 
+    /// Uninitialized, so `place` retargets it before any weight exists.
     fn lazy(inputs: usize, outputs: usize, device: &Device) -> Self {
         Self {
             weight: Param::uninitialized(
