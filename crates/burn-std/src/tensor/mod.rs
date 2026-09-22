@@ -334,11 +334,8 @@ mod tests {
 
     #[test]
     fn test_reshape_analysis_broadcasted_batch() {
-        let analysis = reshape_analysis(
-            &[32, 32].into(),
-            Some(&[1, 32].into()),
-            &[1, 32, 32].into(),
-        );
+        let analysis =
+            reshape_analysis(&[32, 32].into(), Some(&[1, 32].into()), &[1, 32, 32].into());
 
         assert_eq!(analysis, ReshapeAnalysis::Broadcasted)
     }
@@ -346,22 +343,16 @@ mod tests {
     #[test]
     fn test_reshape_analysis_unsqueeze_split() {
         // Unsqueeze
-        let analysis = reshape_analysis(
-            &[32, 32].into(),
-            Some(&[1, 32].into()),
-            &[32, 32, 1].into(),
-        );
+        let analysis =
+            reshape_analysis(&[32, 32].into(), Some(&[1, 32].into()), &[32, 32, 1].into());
 
         assert_eq!(analysis, ReshapeAnalysis::Split)
     }
 
     #[test]
     fn test_reshape_analysis_split() {
-        let analysis = reshape_analysis(
-            &[32, 32].into(),
-            Some(&[1, 32].into()),
-            &[4, 8, 32].into(),
-        );
+        let analysis =
+            reshape_analysis(&[32, 32].into(), Some(&[1, 32].into()), &[4, 8, 32].into());
 
         assert_eq!(analysis, ReshapeAnalysis::Split)
     }
