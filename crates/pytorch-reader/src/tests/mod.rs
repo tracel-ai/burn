@@ -1784,6 +1784,49 @@ fn test_deflated_checksum_mismatch_is_an_error() {
     assert!(err.to_string().contains("Invalid checksum"), "{err}");
 }
 
+#[test]
+fn test_zip_without_checksums_loads() {
+    // Saved with `torch.utils.serialization.config.save.compute_crc32 = False`, which
+    // writes a CRC of 0 for every entry. `torch.load` accepts the file, so a CRC of 0 is
+    // taken as absent rather than as a checksum to fail.
+    let path = test_data_path("no_crc32.pt");
+    let reader = PytorchReader::new(&path).expect("a file saved without checksums must open");
+    let tensor = reader.get("tensor").unwrap();
+    assert_eq!(read_as::<f32>(tensor), [1.0, 2.5, -3.7, 0.0]);
+}
+
+#[test]
+fn test_deflated_zip_without_checksums_loads() {
+    // The same rule for a storage on the stream path: `torch.save` writes only stored
+    // entries, so a deflated storage whose central directory declares a CRC of 0 has to be
+    // made here.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("deflated_no_crc32.pt");
+    rezip(
+        &test_data_path("float32.pt"),
+        &path,
+        "float32/",
+        zip::CompressionMethod::Deflated,
+        |_, _| {},
+    );
+    let crc_offsets: Vec<usize> = {
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+        (0..archive.len())
+            // The CRC-32 is at offset 16 of the 46 byte central directory header.
+            .map(|i| archive.by_index_raw(i).unwrap().central_header_start() as usize + 16)
+            .collect()
+    };
+    let mut bytes = std::fs::read(&path).unwrap();
+    for offset in crc_offsets {
+        bytes[offset..offset + 4].fill(0);
+    }
+    std::fs::write(&path, &bytes).unwrap();
+
+    let reader = PytorchReader::new(&path).unwrap();
+    let tensor = reader.get("tensor").unwrap();
+    assert_eq!(read_as::<f32>(tensor), [1.0, 2.5, -3.7, 0.0]);
+}
+
 // The positional path's own check; the stream path reports this as a checksum failure.
 #[cfg(unix)]
 #[test]
