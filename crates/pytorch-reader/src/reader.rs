@@ -17,70 +17,34 @@ use crate::pickle_reader::{
 };
 use crate::storage::{LegacySource, StorageSource, TarSource, ZipSource};
 use byteorder::{LittleEndian, ReadBytesExt};
+use thiserror::Error;
 
 /// Error type for PyTorch file operations
-#[derive(Debug)]
+#[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum PytorchError {
     /// IO error
-    Io(std::io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
     /// Pickle parsing error
-    Pickle(PickleError),
+    #[error("pickle: {0}")]
+    Pickle(#[from] PickleError),
     /// Zip archive error
-    Zip(zip::result::ZipError),
+    #[error("zip archive error: {0}")]
+    Zip(#[from] zip::result::ZipError),
     /// TAR archive error
-    Tar(std::io::Error),
+    #[error("TAR archive error: {0}")]
+    Tar(#[source] std::io::Error),
     /// Invalid file format
+    #[error("invalid PyTorch file format: {0}")]
     InvalidFormat(String),
     /// Key not found
+    #[error("key not found in PyTorch file: {0}")]
     KeyNotFound(String),
     /// Serde deserialization error
-    Serde(crate::nested::error::Error),
+    #[error("serde deserialization error: {0}")]
+    Serde(#[from] crate::nested::error::Error),
 }
-
-impl From<std::io::Error> for PytorchError {
-    fn from(e: std::io::Error) -> Self {
-        PytorchError::Io(e)
-    }
-}
-
-impl From<PickleError> for PytorchError {
-    fn from(e: PickleError) -> Self {
-        PytorchError::Pickle(e)
-    }
-}
-
-impl From<zip::result::ZipError> for PytorchError {
-    fn from(e: zip::result::ZipError) -> Self {
-        PytorchError::Zip(e)
-    }
-}
-
-impl From<crate::nested::error::Error> for PytorchError {
-    fn from(e: crate::nested::error::Error) -> Self {
-        PytorchError::Serde(e)
-    }
-}
-
-impl std::fmt::Display for PytorchError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PytorchError::Io(e) => write!(f, "IO error: {}", e),
-            PytorchError::Pickle(e) => write!(
-                f,
-                "Pickle parsing error: {}. This may indicate an unsupported PyTorch file format or corrupted file.",
-                e
-            ),
-            PytorchError::Zip(e) => write!(f, "Zip archive error: {}", e),
-            PytorchError::Tar(e) => write!(f, "TAR archive error: {}", e),
-            PytorchError::InvalidFormat(msg) => write!(f, "Invalid PyTorch file format: {}", msg),
-            PytorchError::KeyNotFound(msg) => write!(f, "Key not found in PyTorch file: {}", msg),
-            PytorchError::Serde(e) => write!(f, "Serde deserialization error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for PytorchError {}
 
 type Result<T> = std::result::Result<T, PytorchError>;
 
@@ -426,8 +390,31 @@ fn detect_format(path: &Path) -> Result<FileFormat> {
     } else if starts_with_legacy_magic(&header) {
         Ok(FileFormat::Legacy)
     } else {
-        Ok(FileFormat::Pickle)
+        match header.first() {
+            Some(0x80) | Some(b'(') | Some(b'}') | Some(b']') | Some(b'c')
+                if !starts_like_safetensors(&header) =>
+            {
+                Ok(FileFormat::Pickle)
+            }
+            _ => Err(PytorchError::InvalidFormat(
+                "not a PyTorch checkpoint: no ZIP, TAR, legacy or pickle header found".to_string(),
+            )),
+        }
     }
+}
+
+/// The largest JSON header the safetensors format accepts.
+const SAFETENSORS_MAX_HEADER: u64 = 100_000_000;
+
+/// Whether `header` opens like a safetensors file: a little-endian `u64` JSON length, then
+/// the `{` the JSON starts with. The length's low byte can equal a pickle opcode (a 128-byte
+/// JSON header starts with `0x80`, the `PROTO` opcode), so the first byte alone can't tell
+/// the two apart.
+fn starts_like_safetensors(header: &[u8]) -> bool {
+    let Some(len) = header.first_chunk::<8>().map(|b| u64::from_le_bytes(*b)) else {
+        return false;
+    };
+    len <= SAFETENSORS_MAX_HEADER && header.get(8) == Some(&b'{')
 }
 
 fn load_file(path: &Path) -> Result<Loaded> {
