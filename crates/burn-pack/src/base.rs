@@ -358,10 +358,6 @@ pub enum Error {
     TensorBytesSizeMismatch(String),
     ValidationError(String),
     /// A write that must not replace an existing file found one at this path.
-    ///
-    /// The message suggests `.overwrite(true)`, the switch on [`Writer`](crate::Writer) and
-    /// the stores built on it; a direct `AtomicFile` caller replaces with
-    /// `commit` instead of `commit_new`.
     AlreadyExists(String),
 }
 
@@ -385,7 +381,8 @@ impl core::fmt::Display for Error {
             Error::ValidationError(e) => write!(f, "Validation error: {}", e),
             Error::AlreadyExists(path) => write!(
                 f,
-                "File already exists: {}. Use .overwrite(true) to overwrite.",
+                "File already exists: {}. To replace it, use .overwrite(true), or \
+                 AtomicFile::commit instead of commit_new.",
                 path
             ),
         }
