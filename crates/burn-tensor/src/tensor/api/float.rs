@@ -1,9 +1,9 @@
 use crate::AsIndex;
-use crate::Tiling;
 use crate::Cast;
 use crate::DType;
 use crate::Device;
 use crate::Tensor;
+use crate::Tiling;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;

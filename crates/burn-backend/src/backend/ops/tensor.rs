@@ -1982,4 +1982,3 @@ pub trait FloatTensorOps<B: Backend> {
         super::pad::float_pad::<B>(tensor, padding, mode)
     }
 }
-

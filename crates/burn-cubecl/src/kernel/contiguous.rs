@@ -177,7 +177,7 @@ mod storage_tiled {
             matmul::{MatmulStrategy, matmul},
             slice, untile,
         },
-        ops::{from_data, into_data_sync, reshape, swap_dims},
+        ops::{from_data, into_data_sync, permute, reshape, swap_dims},
         tensor::CubeTensor,
     };
 
@@ -283,6 +283,20 @@ mod storage_tiled {
         let sliced = slice(weight.clone(), &ranges);
         assert!(!sliced.meta.is_tiled());
         assert_eq!(values(sliced), values(slice(rhs.clone(), &ranges)));
+
+        let swapped = swap_dims(weight.clone(), 0, 1);
+        assert!(!swapped.meta.is_tiled());
+        assert_eq!(
+            values(into_contiguous(swapped)),
+            values(into_contiguous(swap_dims(rhs.clone(), 0, 1)))
+        );
+
+        let permuted = permute(weight.clone(), &[1, 0]);
+        assert!(!permuted.meta.is_tiled());
+        assert_eq!(
+            values(into_contiguous(permuted)),
+            values(into_contiguous(permute(rhs.clone(), &[1, 0])))
+        );
 
         let contiguous = into_contiguous(weight);
         assert!(!contiguous.meta.is_tiled());

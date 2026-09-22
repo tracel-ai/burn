@@ -8,13 +8,12 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec::Vec};
 
 use burn_backend::{
-    DType, Distribution, Slice,
+    DType, Distribution, Slice, Tiling,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
         GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
     },
     quantization::QuantScheme,
-    Tiling,
 };
 
 use crate::{ScalarIr, TensorId, TensorIr, TensorStatus};

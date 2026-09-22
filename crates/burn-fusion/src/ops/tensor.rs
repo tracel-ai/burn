@@ -7,8 +7,8 @@ use crate::{
     unary_float_ops,
 };
 use burn_backend::{
-    BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, Tiling,
-    TensorData,
+    BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
+    TensorData, Tiling,
     ops::{FloatTensorOps, GridSampleOptions, PadMode},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -731,9 +731,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let desc = IntoTiledOpIr::create(tensor.into_ir(), tiling, || {
-            client.create_empty_handle()
-        });
+        let desc = IntoTiledOpIr::create(tensor.into_ir(), tiling, || client.create_empty_handle());
 
         client
             .register(
