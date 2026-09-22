@@ -1,8 +1,7 @@
 use super::reparameterization_dyn::{self, DynReparameterization};
 use super::{Param, ParamId, Parameter, ParameterValue, Reparameterization};
 use crate::module::{
-    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor,
+    Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
 };
 use alloc::{boxed::Box, format, string::ToString, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
@@ -191,7 +190,7 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
     fn to_device(mut self, device: &Device) -> Self {
         let reparameterization = self.reparameterization.take();
-        let base = self.map(|tensor| tensor.to_device(device));
+        let base = self.map_to_device(device, |tensor| tensor.to_device(device));
         match reparameterization {
             None => base,
             Some(reparameterization) => {
@@ -202,7 +201,7 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
     fn fork(mut self, device: &Device) -> Self {
         let reparameterization = self.reparameterization.take();
-        let base = self.map(|tensor| {
+        let base = self.map_to_device(device, |tensor| {
             let is_require_grad = tensor.is_require_grad();
             let mut tensor = tensor.to_device(device).detach();
 
@@ -233,6 +232,41 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
         devices
     }
+
+    fn valid(&self) -> Self {
+        // Preserve whether the parameter was active, but reset the inner value's gradient state.
+        // `val()` folds any reparameterization into the base for inference.
+        //
+        // The param mapper crosses with it: it describes how the value relates to
+        // its *stored* form, which a change of backend does not alter. Dropping it
+        // makes `transform_for_save` the identity, so a record taken from a
+        // `valid()`ed module holds the in-memory shape rather than the checkpoint
+        // one — silently, for any layout that maps (a `Col` linear transposes).
+        let is_active = self.is_active;
+        let mut param = Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff().set_require_grad(false),
+            self.param_mapper.clone(),
+        );
+        param.is_active = is_active;
+        param
+    }
+
+    fn train(mut self) -> Self {
+        // Keep the reparameterization structure and its parameters on the autodiff backend.
+        let reparameterization = self.reparameterization.take();
+        // Reinstate the parameter's training state.
+        let is_active = self.is_active;
+        let tensor = Tensor::from_inner(self.val()).set_require_grad(is_active);
+        let mut base = Param::from_mapped_value(self.id, tensor, self.param_mapper);
+        base.is_active = is_active;
+        match reparameterization {
+            None => base,
+            Some(reparameterization) => {
+                base.with_dyn_reparameterization(Some(reparameterization.train_dyn()))
+            }
+        }
+    }
 }
 
 impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D>> {
@@ -261,7 +295,7 @@ impl<const D: usize> Module for Param<Tensor<D, Int>> {
     }
 
     fn to_device(self, device: &Device) -> Self {
-        self.map(|tensor| tensor.to_device(device))
+        self.map_to_device(device, |tensor| tensor.to_device(device))
     }
 
     fn fork(self, device: &Device) -> Self {
@@ -276,6 +310,18 @@ impl<const D: usize> Module for Param<Tensor<D, Int>> {
         }
 
         devices
+    }
+
+    fn valid(&self) -> Self {
+        Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff(),
+            self.param_mapper.clone(),
+        )
+    }
+
+    fn train(self) -> Self {
+        Param::from_mapped_value(self.id, Tensor::from_inner(self.val()), self.param_mapper)
     }
 }
 
@@ -305,7 +351,7 @@ impl<const D: usize> Module for Param<Tensor<D, Bool>> {
     }
 
     fn to_device(self, device: &Device) -> Self {
-        self.map(|tensor| tensor.to_device(device))
+        self.map_to_device(device, |tensor| tensor.to_device(device))
     }
 
     fn fork(self, device: &Device) -> Self {
@@ -320,6 +366,18 @@ impl<const D: usize> Module for Param<Tensor<D, Bool>> {
         }
 
         devices
+    }
+
+    fn valid(&self) -> Self {
+        Param::from_mapped_value(
+            self.id,
+            self.val().without_autodiff(),
+            self.param_mapper.clone(),
+        )
+    }
+
+    fn train(self) -> Self {
+        Param::from_mapped_value(self.id, Tensor::from_inner(self.val()), self.param_mapper)
     }
 }
 
@@ -341,83 +399,14 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Bool>> {
 
 impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 
-impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
-    fn valid(&self) -> Self {
-        // Preserve whether the parameter was active, but reset the inner value's gradient state.
-        // `val()` folds any reparameterization into the base for inference.
-        //
-        // The param mapper crosses with it: it describes how the value relates to
-        // its *stored* form, which a change of backend does not alter. Dropping it
-        // makes `transform_for_save` the identity, so a record taken from a
-        // `valid()`ed module holds the in-memory shape rather than the checkpoint
-        // one — silently, for any layout that maps (a `Col` linear transposes).
-        let is_active = self.is_active;
-        let mut param = Param::from_mapped_value(
-            self.id,
-            self.val().without_autodiff().set_require_grad(false),
-            self.param_mapper.clone(),
-        );
-        param.is_active = is_active;
-        param
-    }
-
-    fn from_inner(mut module: Self) -> Self {
-        // Keep the reparameterization structure and its parameters on the autodiff backend.
-        let reparameterization = module.reparameterization.take();
-        // Reinstate the parameter's training state.
-        let is_active = module.is_active;
-        let tensor = Tensor::from_inner(module.val()).set_require_grad(is_active);
-        let mut base = Param::from_mapped_value(module.id, tensor, module.param_mapper);
-        base.is_active = is_active;
-        match reparameterization {
-            None => base,
-            Some(reparameterization) => {
-                base.with_dyn_reparameterization(Some(reparameterization.from_inner_dyn()))
-            }
-        }
-    }
-}
-
-impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
-    fn valid(&self) -> Self {
-        Param::from_mapped_value(
-            self.id,
-            self.val().without_autodiff(),
-            self.param_mapper.clone(),
-        )
-    }
-
-    fn from_inner(module: Self) -> Self {
-        Param::from_mapped_value(
-            module.id,
-            Tensor::from_inner(module.val()),
-            module.param_mapper,
-        )
-    }
-}
-
-impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
-    fn valid(&self) -> Self {
-        Param::from_mapped_value(
-            self.id,
-            self.val().without_autodiff(),
-            self.param_mapper.clone(),
-        )
-    }
-
-    fn from_inner(module: Self) -> Self {
-        Param::from_mapped_value(
-            module.id,
-            Tensor::from_inner(module.val()),
-            module.param_mapper,
-        )
-    }
-}
-
 #[cfg(all(test, feature = "std", feature = "autodiff"))]
 mod tests {
     use super::*;
-    use crate::{module::Module, test_device};
+    use crate::{
+        module::{LoraAdapter, Module},
+        test_device,
+    };
+    use burn_tensor::Distribution;
 
     #[test]
     fn set_require_grad_updates_lazy_lifecycle_state() {
@@ -559,8 +548,6 @@ mod tests {
         assert!(!param.is_require_grad());
         assert!(param.is_active); // stateful
 
-        // Without `HasAutodiffModule`, we would need to specify the param type as well, which would be annoying:
-        // let param: Param<Tensor<TestAutodiffBackend, _>> = param.train();
         let param = param.train();
         assert!(param.is_require_grad());
         assert!(param.is_active); // stateful
@@ -576,5 +563,233 @@ mod tests {
         let param = param.train();
         assert!(!param.is_require_grad());
         assert!(!param.is_active); // stateful
+    }
+
+    #[test]
+    fn a_lazy_param_with_an_init_mapper_trains_on_an_autodiff_device() {
+        let device = test_device().autodiff();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device,
+            true,
+            [2, 3].into(),
+        )
+        .init_mapper(|tensor| tensor.mul_scalar(2.0));
+
+        let value = param.val();
+        let grads = value.clone().sum().backward();
+
+        value
+            .into_data()
+            .assert_eq(&TensorData::from([[2.0f32; 3]; 2]), false);
+        param
+            .grad(&grads)
+            .expect("the mapped value is the leaf that receives the gradient")
+            .into_data()
+            .assert_eq(&TensorData::from([[1.0f32; 3]; 2]), false);
+    }
+
+    #[test]
+    fn counting_a_lazy_param_leaves_it_uninitialized() {
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            test_device(),
+            true,
+            [2, 3].into(),
+        );
+
+        assert_eq!(Module::num_params(&param), 6);
+        assert!(!param.is_initialized());
+    }
+
+    #[test]
+    fn a_lazy_param_moved_then_loaded_never_initializes() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |_, _| panic!("the moved parameter initialized before loading"),
+            device.clone(),
+            false,
+            [2, 3].into(),
+        );
+
+        let moved = param.to_device(&device.clone().autodiff());
+
+        assert!(!moved.is_initialized());
+        moved.transform_for_load(Tensor::ones([2, 3], &device), ParamId::new());
+    }
+
+    #[test]
+    fn a_moved_lazy_param_keeps_the_autodiff_context_it_was_built_with() {
+        let device = test_device();
+        let lazy_ones = |device: &Device| -> Param<Tensor<2>> {
+            Param::uninitialized(
+                ParamId::new(),
+                |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+                device.clone(),
+                true,
+                [2, 3].into(),
+            )
+        };
+
+        let onto_autodiff = lazy_ones(&device).to_device(&device.clone().autodiff());
+        let onto_plain = lazy_ones(&device.clone().autodiff()).fork(&device);
+
+        assert!(!onto_autodiff.lazy_device().is_autodiff());
+        assert!(onto_plain.lazy_device().is_autodiff());
+    }
+
+    #[test]
+    fn a_moved_param_keeps_its_reparameterization() {
+        let device = test_device();
+        let adapter = || LoraAdapter {
+            a: Param::from_tensor(Tensor::<2>::ones([3, 1], &device)),
+            b: Param::from_tensor(Tensor::<2>::zeros([1, 3], &device)),
+            scale: 1.0,
+        };
+        let lazy: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _| Tensor::ones([3, 3], device),
+            device.clone(),
+            false,
+            [3, 3].into(),
+        )
+        .with_reparameterization(adapter());
+        let initialized = Param::from_tensor(Tensor::<2>::ones([3, 3], &device))
+            .with_reparameterization(adapter());
+
+        let target = device.clone().autodiff();
+
+        assert!(lazy.to_device(&target).adapter().is_some());
+        assert!(initialized.fork(&target).adapter().is_some());
+    }
+
+    #[test]
+    fn init_mapper_preserves_lora_after_a_clone_initializes_the_base() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _| Tensor::ones([3, 3], device),
+            device.clone(),
+            false,
+            [3, 3].into(),
+        )
+        .with_reparameterization(crate::module::LoraAdapter {
+            a: Param::from_tensor(Tensor::<2>::ones([3, 1], &device)),
+            b: Param::from_tensor(Tensor::<2>::ones([1, 3], &device)),
+            scale: 2.0,
+        });
+        let clone = param.clone();
+        assert!(!param.is_initialized());
+        let mapped = param.init_mapper(|value| value.mul_scalar(2.0));
+
+        // Initialize the captured base after registering the lazy mapper, then remove sharing.
+        // This exercises init_mapper's map_to_device fallback, not Module::to_device or fork.
+        clone
+            .val()
+            .into_data()
+            .assert_eq(&TensorData::from([[3.0f32; 3]; 3]), true);
+        drop(clone);
+        assert!(!mapped.is_initialized());
+
+        // Map the effective LoRA value: (base + scale * A @ B) * 2 = (1 + 2) * 2 = 6.
+        mapped
+            .val()
+            .into_data()
+            .assert_eq(&TensorData::from([[6.0f32; 3]; 3]), true);
+    }
+
+    #[test]
+    fn a_lazy_int_param_moved_never_initializes() {
+        let device = test_device();
+        let param: Param<Tensor<2, Int>> = Param::uninitialized(
+            ParamId::new(),
+            |_, _| panic!("the moved parameter initialized"),
+            device.clone(),
+            false,
+            [2, 3].into(),
+        );
+
+        let param = param.to_device(&device.clone().autodiff());
+
+        assert!(!param.is_initialized());
+        assert!(!param.lazy_device().is_autodiff());
+    }
+
+    #[test]
+    fn a_lazy_bool_param_moved_never_initializes() {
+        let device = test_device();
+        let param: Param<Tensor<2, Bool>> = Param::uninitialized(
+            ParamId::new(),
+            |_, _| panic!("the moved parameter initialized"),
+            device.clone(),
+            false,
+            [2, 3].into(),
+        );
+
+        let param = param.to_device(&device.clone().autodiff());
+
+        assert!(!param.is_initialized());
+        assert!(!param.lazy_device().is_autodiff());
+    }
+
+    #[test]
+    fn a_lazy_param_forked_keeps_its_gradient_requirement() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device.clone().autodiff(),
+            true,
+            [2, 3].into(),
+        );
+
+        let param = param.fork(&device);
+
+        assert!(!param.is_initialized());
+        assert!(param.val().is_require_grad());
+    }
+
+    #[test]
+    fn a_lazy_param_with_an_init_mapper_follows_the_move() {
+        let device = test_device().autodiff();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
+            device.clone(),
+            true,
+            [2, 3].into(),
+        )
+        .init_mapper(|tensor| tensor.mul_scalar(2.0));
+
+        let param = param.fork(&device);
+
+        assert!(!param.is_initialized());
+        let value = param.val();
+        assert!(value.device().is_autodiff());
+        assert!(value.is_require_grad());
+    }
+
+    #[test]
+    fn a_lazy_param_shared_with_a_clone_initializes_before_moving() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _| Tensor::random([2, 3], Distribution::Default, device),
+            device.clone(),
+            false,
+            [2, 3].into(),
+        );
+        let clone = param.clone();
+
+        let moved = param.to_device(&device.autodiff());
+
+        assert!(clone.is_initialized());
+        moved
+            .val()
+            .into_data()
+            .assert_eq(&clone.val().into_data(), true);
     }
 }

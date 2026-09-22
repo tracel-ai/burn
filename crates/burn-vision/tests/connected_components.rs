@@ -146,3 +146,51 @@ fn normalize_labels(mut labels: TensorData) -> TensorData {
     }
     labels
 }
+
+/// CPU fallback data stays compact while Fusion retains its existing image-sized metadata.
+#[cfg(feature = "cpu")]
+#[test]
+fn cube_fallback_statistics_are_not_padded() {
+    let device = burn_core::tensor::Device::cpu();
+    for (shape, data, counts) in [
+        ([0, 3], vec![], [1, 1]),
+        ([3, 0], vec![], [1, 1]),
+        ([1, 1], vec![true], [2, 2]),
+        ([1, 1], vec![false], [1, 1]),
+        ([2, 3], vec![true, false, true, false, true, false], [4, 2]),
+        ([256, 256], vec![true; 256 * 256], [2, 2]),
+    ] {
+        for (connectivity, count) in [Connectivity::Four, Connectivity::Eight]
+            .into_iter()
+            .zip(counts)
+        {
+            for bits in 0..8 {
+                let opts = ConnectedStatsOptions {
+                    bounds_enabled: bits & 1 != 0,
+                    max_label_enabled: bits & 2 != 0,
+                    compact_labels: bits & 4 != 0,
+                };
+                let img =
+                    TestTensorBool::<2>::from_data(TensorData::new(data.clone(), shape), &device);
+                let (labels, stats) = img.connected_components_with_stats(connectivity, opts);
+                assert_eq!(labels.dims(), shape);
+                assert_eq!(labels.into_data().shape, shape.into());
+                for stat in [stats.area, stats.left, stats.top, stats.right, stats.bottom] {
+                    #[cfg(feature = "fusion")]
+                    assert_eq!(stat.dims(), [data.len()]);
+                    #[cfg(not(feature = "fusion"))]
+                    {
+                        assert_eq!(stat.dims(), [count]);
+                        assert_eq!(stat.into_data().shape, [count].into());
+                    }
+                    // Fusion reconstructs tensors with its declared shape. Full-array reads
+                    // and consumers retain main's mismatch; compact data is checked unfused.
+                }
+                stats
+                    .max_label
+                    .into_data()
+                    .assert_eq(&TensorData::from([count as i32 - 1]), false);
+            }
+        }
+    }
+}

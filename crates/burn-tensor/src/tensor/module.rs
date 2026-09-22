@@ -47,6 +47,64 @@ pub fn batch_norm<const D: usize>(
     )))
 }
 
+/// Output and batch statistics from [`batch_norm_train`].
+pub struct BatchNormTrainOutput<const D: usize> {
+    /// The normalized input, with the same shape as the input.
+    pub output: Tensor<D>,
+
+    /// The batch mean with shape `[channels]`, detached on autodiff devices.
+    pub mean: Tensor<1>,
+
+    /// The biased (population) batch variance with shape `[channels]`, excluding
+    /// epsilon and detached on autodiff devices.
+    pub variance: Tensor<1>,
+}
+
+/// Applies batch normalization using statistics computed from the input batch.
+///
+/// `input` has shape `[batch, channels, ...]`; `gamma` and `beta` have shape
+/// `[channels]`.
+///
+/// Returns the normalized input with its original shape, along with the batch
+/// mean and biased (population) variance, both with shape `[channels]`.
+/// Statistics are computed over every dimension except the channel dimension.
+/// The returned variance excludes `epsilon`.
+///
+/// This function does not update running statistics. For normalization using
+/// explicitly supplied statistics, use [`batch_norm`].
+///
+/// # Autodiff
+///
+/// This function can be used with or without autodiff. It does not enable
+/// gradient tracking.
+///
+/// On an autodiff-enabled device, gradients through the normalized output
+/// account for the dependence of the batch statistics on the input. The returned
+/// mean and variance remain on the same device but are detached.
+pub fn batch_norm_train<const D: usize>(
+    input: Tensor<D>,
+    gamma: Tensor<1>,
+    beta: Tensor<1>,
+    epsilon: f64,
+) -> BatchNormTrainOutput<D> {
+    assert!(D >= 2, "batch norm requires an input rank of at least 2");
+    let channels = input.dims()[1];
+    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
+    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
+    let result = Dispatch::batch_norm_train(
+        input.primitive.into_float(),
+        gamma.primitive.into_float(),
+        beta.primitive.into_float(),
+        epsilon,
+    );
+
+    BatchNormTrainOutput {
+        output: Tensor::new(BridgeTensor::float(result.output)),
+        mean: Tensor::new(BridgeTensor::float(result.mean)),
+        variance: Tensor::new(BridgeTensor::float(result.variance)),
+    }
+}
+
 /// Computes the [CTC loss](burn_backend::ops::ModuleOps::ctc_loss).
 ///
 /// # Arguments

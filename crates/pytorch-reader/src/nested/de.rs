@@ -1,0 +1,1364 @@
+use std::collections::HashMap;
+
+use super::data::NestedValue;
+use super::{adapter::BurnModuleAdapter, error::Error};
+
+use serde::de::{EnumAccess, VariantAccess};
+use serde::{
+    de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor},
+    forward_to_deserialize_any,
+};
+
+const RECORD_ITEM_SUFFIX: &str = "RecordItem";
+
+#[inline]
+fn custom_err<T: core::fmt::Display>(msg: T) -> Error {
+    <Error as de::Error>::custom(msg)
+}
+
+/// Length of a `NestedValue` that represents a sequence, if it is one.
+fn sequence_len(value: &NestedValue) -> Option<usize> {
+    match value {
+        NestedValue::Vec(v) => Some(v.len()),
+        NestedValue::U8s(v) => Some(v.len()),
+        NestedValue::U16s(v) => Some(v.len()),
+        NestedValue::F32s(v) => Some(v.len()),
+        _ => None,
+    }
+}
+
+/// A deserializer for the nested value data structure.
+pub struct Deserializer<A: BurnModuleAdapter> {
+    // This string starts with the input data and characters are truncated off
+    // the beginning as data is parsed.
+    value: Option<NestedValue>,
+    default_for_missing_fields: bool,
+    phantom: std::marker::PhantomData<A>,
+}
+
+impl<A: BurnModuleAdapter> Deserializer<A> {
+    /// Creates a new deserializer with the given nested value.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A nested value.
+    /// * `default_for_missing_fields` - A boolean indicating whether to add missing fields with default value.
+    pub fn new(value: NestedValue, default_for_missing_fields: bool) -> Self {
+        Self {
+            value: Some(value),
+            default_for_missing_fields,
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    fn extract_scalar<T>(
+        self,
+        expected: &'static str,
+        extractor: impl FnOnce(&NestedValue) -> Option<T>,
+    ) -> Result<T, Error> {
+        let value = self
+            .value
+            .ok_or_else(|| custom_err(format!("expected {expected}, found nothing")))?;
+
+        match extractor(&value) {
+            Some(val) => Ok(val),
+            None => Err(custom_err(format!("expected {expected} but got {value:?}"))),
+        }
+    }
+}
+
+impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let default_for_missing_fields = self.default_for_missing_fields;
+        match self.value {
+            Some(NestedValue::Bool(v)) => visitor.visit_bool(v),
+            Some(NestedValue::String(v)) => visitor.visit_string(v),
+            Some(NestedValue::F32(v)) => visitor.visit_f32(v),
+            Some(NestedValue::F64(v)) => visitor.visit_f64(v),
+            Some(NestedValue::I16(v)) => visitor.visit_i16(v),
+            Some(NestedValue::I32(v)) => visitor.visit_i32(v),
+            Some(NestedValue::I64(v)) => visitor.visit_i64(v),
+            Some(NestedValue::U8(v)) => visitor.visit_u8(v),
+            Some(NestedValue::U16(v)) => visitor.visit_u16(v),
+            Some(NestedValue::U64(v)) => visitor.visit_u64(v),
+            Some(NestedValue::Map(map)) => {
+                visitor.visit_map(HashMapAccess::<A>::new(map, default_for_missing_fields))
+            }
+            Some(NestedValue::Vec(v)) => visitor.visit_seq(VecSeqAccess::<A, NestedValue>::new(
+                NestedValue::Vec(v),
+                default_for_missing_fields,
+            )?),
+            Some(NestedValue::U8s(v)) => visitor.visit_seq(VecSeqAccess::<A, u8>::new(
+                NestedValue::U8s(v),
+                default_for_missing_fields,
+            )?),
+            Some(NestedValue::U16s(v)) => visitor.visit_seq(VecSeqAccess::<A, u16>::new(
+                NestedValue::U16s(v),
+                default_for_missing_fields,
+            )?),
+            Some(NestedValue::F32s(v)) => visitor.visit_seq(VecSeqAccess::<A, f32>::new(
+                NestedValue::F32s(v),
+                default_for_missing_fields,
+            )?),
+            Some(NestedValue::Unsupported(type_name)) => Err(custom_err(format!(
+                "cannot deserialize unsupported source type: {type_name}"
+            ))),
+            // A placeholder has no concrete type, and `None` means nothing was
+            // available: neither can be turned into an untyped value.
+            Some(NestedValue::Default(_)) | None => Err(custom_err(
+                "cannot deserialize an untyped value: no concrete source value is available",
+            )),
+        }
+    }
+
+    fn deserialize_struct<V>(
+        self,
+        name: &'static str,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let value = match self.value {
+            Some(value) => {
+                // Adapt modules
+                if let Some(name) = name.strip_suffix(RECORD_ITEM_SUFFIX) {
+                    A::adapt(name, value)
+                } else {
+                    value
+                }
+            }
+            None => {
+                return Err(custom_err(format!(
+                    "Expected some value but got {:?}",
+                    self.value
+                )));
+            }
+        };
+
+        match value {
+            NestedValue::Map(map) => {
+                // Add missing fields into the map with default value if needed.
+                let map = if self.default_for_missing_fields {
+                    let mut map = map;
+                    for field in fields.iter().map(|s| s.to_string()) {
+                        map.entry(field.clone())
+                            .or_insert(NestedValue::Default(Some(field)));
+                    }
+                    map
+                } else {
+                    map
+                };
+
+                visitor.visit_map(HashMapAccess::<A>::new(
+                    map,
+                    self.default_for_missing_fields,
+                ))
+            }
+
+            _ => Err(custom_err(format!("Expected struct but got {value:?}"))),
+        }
+    }
+
+    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        match self.value {
+            Some(NestedValue::String(val)) => visitor.visit_string(val),
+            Some(other) => Err(custom_err(format!("expected string but got {other:?}"))),
+            None => Err(custom_err("expected string, found nothing")),
+        }
+    }
+
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_unit()
+    }
+
+    fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        match self.value {
+            Some(NestedValue::Map(map)) => visitor.visit_map(HashMapAccess::<A>::new(
+                map,
+                self.default_for_missing_fields,
+            )),
+
+            _ => Err(custom_err(format!(
+                "Expected map value but got {:?}",
+                self.value
+            ))),
+        }
+    }
+
+    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("bool", |v| v.clone().as_bool())?;
+        visitor.visit_bool(val)
+    }
+
+    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("i8", |v| {
+            v.clone().as_i16().and_then(|x| i8::try_from(x).ok())
+        })?;
+        visitor.visit_i8(val)
+    }
+
+    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("i16", |v| v.clone().as_i16())?;
+        visitor.visit_i16(val)
+    }
+
+    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("i32", |v| v.clone().as_i32())?;
+        visitor.visit_i32(val)
+    }
+
+    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("i64", |v| v.clone().as_i64())?;
+        visitor.visit_i64(val)
+    }
+
+    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("u8", |v| v.clone().as_u8())?;
+        visitor.visit_u8(val)
+    }
+
+    fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("u16", |v| v.clone().as_u16())?;
+        visitor.visit_u16(val)
+    }
+
+    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("u32", |v| {
+            v.clone().as_u64().and_then(|x| u32::try_from(x).ok())
+        })?;
+        visitor.visit_u32(val)
+    }
+
+    fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("u64", |v| v.clone().as_u64())?;
+        visitor.visit_u64(val)
+    }
+
+    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("f32", |v| v.clone().as_f32())?;
+        visitor.visit_f32(val)
+    }
+
+    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let val = self.extract_scalar("f64", |v| v.clone().as_f64())?;
+        visitor.visit_f64(val)
+    }
+
+    fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        match self.value {
+            Some(NestedValue::String(s)) if s.chars().count() == 1 => {
+                visitor.visit_char(s.chars().next().expect("count checked above"))
+            }
+            Some(other) => Err(custom_err(format!(
+                "expected a single-character string but got {other:?}"
+            ))),
+            None => Err(custom_err("expected char, found nothing")),
+        }
+    }
+
+    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        match self.value {
+            Some(NestedValue::String(val)) => visitor.visit_str(&val),
+            Some(other) => Err(custom_err(format!("expected str but got {other:?}"))),
+            None => Err(custom_err("expected str, found nothing")),
+        }
+    }
+
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        match self.value {
+            Some(NestedValue::U8s(bytes)) => visitor.visit_bytes(&bytes),
+            Some(other) => Err(custom_err(format!("expected bytes but got {other:?}"))),
+            None => Err(custom_err("expected bytes, found nothing")),
+        }
+    }
+
+    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        match self.value {
+            Some(NestedValue::U8s(bytes)) => visitor.visit_byte_buf(bytes),
+            Some(other) => Err(custom_err(format!(
+                "expected byte buffer but got {other:?}"
+            ))),
+            None => Err(custom_err("expected byte buffer, found nothing")),
+        }
+    }
+
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        if let Some(value) = self.value {
+            visitor.visit_some(Deserializer::<A>::new(
+                value,
+                self.default_for_missing_fields,
+            ))
+        } else {
+            visitor.visit_none()
+        }
+    }
+
+    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        // A unit carries no data, so it is only valid when nothing (or an
+        // explicit placeholder) was provided. Anything else is a type error.
+        match self.value {
+            None | Some(NestedValue::Default(_)) => visitor.visit_unit(),
+            Some(other) => Err(custom_err(format!("expected unit but got {other:?}"))),
+        }
+    }
+
+    fn deserialize_unit_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_unit(visitor)
+    }
+
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let value = self
+            .value
+            .ok_or_else(|| custom_err("expected value for newtype struct but got None"))?;
+        visitor.visit_newtype_struct(Deserializer::<A>::new(
+            value,
+            self.default_for_missing_fields,
+        ))
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        if let Some(value) = self.value {
+            match value {
+                NestedValue::Vec(_) => visitor.visit_seq(VecSeqAccess::<A, NestedValue>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )?),
+                NestedValue::U8s(_) => visitor.visit_seq(VecSeqAccess::<A, u8>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )?),
+                NestedValue::U16s(_) => visitor.visit_seq(VecSeqAccess::<A, u16>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )?),
+                NestedValue::F32s(_) => visitor.visit_seq(VecSeqAccess::<A, f32>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )?),
+                _ => Err(custom_err(format!("Expected Vec but got {value:?}"))),
+            }
+        } else {
+            Err(custom_err("Expected Vec but got None"))
+        }
+    }
+
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        // Tuples and fixed-size arrays are represented as sequences, and the
+        // declared length is enforced so trailing elements are never silently
+        // dropped (nor missing ones silently defaulted).
+        let actual = self.value.as_ref().and_then(sequence_len).ok_or_else(|| {
+            custom_err(format!(
+                "expected a sequence of length {len} but got {:?}",
+                self.value
+            ))
+        })?;
+        if actual != len {
+            return Err(<Error as de::Error>::invalid_length(
+                actual,
+                &format!("tuple of length {len}").as_str(),
+            ));
+        }
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let actual = self.value.as_ref().and_then(sequence_len).ok_or_else(|| {
+            custom_err(format!(
+                "expected a sequence of length {len} but got {:?}",
+                self.value
+            ))
+        })?;
+        if actual != len {
+            return Err(<Error as de::Error>::invalid_length(
+                actual,
+                &format!("tuple struct of length {len}").as_str(),
+            ));
+        }
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_enum<V>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let value = self
+            .value
+            .ok_or_else(|| custom_err("expected value for enum but got None"))?;
+
+        // The nested encoding carries no separate variant tag: variants are
+        // stored as `NestedValue::Map { "DType": <variant name> }` (see
+        // `ProbeEnumAccess::unit_variant`). Require that tag and reject anything
+        // else rather than guessing a variant, since silently selecting one (for
+        // example the first declared variant) would decode the wrong data.
+        //
+        // The previous implementation additionally duplicated the caller's
+        // visitor with a raw `ptr::copy_nonoverlapping` so it could retry
+        // variants. `Visitor` is not `Copy`, so that bitwise copy aliased any
+        // heap-owned visitor state and was undefined behaviour (a double free,
+        // confirmed under Miri). The visitor is now consumed exactly once.
+        let variant = match &value {
+            NestedValue::Map(map) => match map.get("DType") {
+                Some(NestedValue::String(name)) => name.clone(),
+                other => {
+                    return Err(custom_err(format!(
+                        "cannot resolve the enum variant: expected a 'DType' string tag, got {other:?}"
+                    )));
+                }
+            },
+            other => {
+                return Err(custom_err(format!(
+                    "cannot resolve the enum variant: expected a map with a 'DType' tag, got {other:?}"
+                )));
+            }
+        };
+
+        visitor.visit_enum(ProbeEnumAccess::<A>::new(
+            value,
+            variant,
+            self.default_for_missing_fields,
+        ))
+    }
+
+    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        match self.value {
+            Some(NestedValue::String(val)) => visitor.visit_str(&val),
+            Some(other) => Err(custom_err(format!(
+                "expected identifier string but got {other:?}"
+            ))),
+            None => Err(custom_err("expected identifier, found nothing")),
+        }
+    }
+}
+
+/// A sequence access for a vector in the nested value data structure.
+struct VecSeqAccess<A: BurnModuleAdapter, I> {
+    iter: Box<dyn Iterator<Item = I>>,
+    default_for_missing_fields: bool,
+    phantom: std::marker::PhantomData<A>,
+}
+
+impl<A: BurnModuleAdapter> VecSeqAccess<A, NestedValue> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Result<Self, Error> {
+        match vec {
+            NestedValue::Vec(v) => Ok(VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            }),
+            other => Err(custom_err(format!("expected Vec, found {other:?}"))),
+        }
+    }
+}
+
+impl<A: BurnModuleAdapter> VecSeqAccess<A, u8> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Result<Self, Error> {
+        match vec {
+            NestedValue::U8s(v) => Ok(VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            }),
+            other => Err(custom_err(format!("expected U8s, found {other:?}"))),
+        }
+    }
+}
+
+impl<A: BurnModuleAdapter> VecSeqAccess<A, u16> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Result<Self, Error> {
+        match vec {
+            NestedValue::U16s(v) => Ok(VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            }),
+            other => Err(custom_err(format!("expected U16s, found {other:?}"))),
+        }
+    }
+}
+
+impl<A: BurnModuleAdapter> VecSeqAccess<A, f32> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Result<Self, Error> {
+        match vec {
+            NestedValue::F32s(v) => Ok(VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            }),
+            other => Err(custom_err(format!("expected F32s, found {other:?}"))),
+        }
+    }
+}
+
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, NestedValue>
+where
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(item, self.default_for_missing_fields).into_deserializer(),
+        )
+        .map(Some)
+    }
+}
+
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, u8>
+where
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(NestedValue::U8(item), self.default_for_missing_fields)
+                .into_deserializer(),
+        )
+        .map(Some)
+    }
+}
+
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, u16>
+where
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(NestedValue::U16(item), self.default_for_missing_fields)
+                .into_deserializer(),
+        )
+        .map(Some)
+    }
+}
+
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, f32>
+where
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(NestedValue::F32(item), self.default_for_missing_fields)
+                .into_deserializer(),
+        )
+        .map(Some)
+    }
+}
+
+/// A map access for a map in the nested value data structure.
+struct HashMapAccess<A: BurnModuleAdapter> {
+    iter: std::collections::hash_map::IntoIter<String, NestedValue>,
+    next_value: Option<NestedValue>,
+    default_for_missing_fields: bool,
+    phantom: std::marker::PhantomData<A>,
+}
+
+impl<A: BurnModuleAdapter> HashMapAccess<A> {
+    fn new(map: HashMap<String, NestedValue>, default_for_missing_fields: bool) -> Self {
+        HashMapAccess {
+            iter: map.into_iter(),
+            next_value: None,
+            default_for_missing_fields,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'de, A> MapAccess<'de> for HashMapAccess<A>
+where
+    String: IntoDeserializer<'de, Error>,
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_key_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        match self.iter.next() {
+            Some((k, v)) => {
+                self.next_value = Some(v);
+                seed.deserialize(k.into_deserializer()).map(Some)
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn next_value_seed<T>(&mut self, seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        match self.next_value.take() {
+            Some(NestedValue::Default(originator)) => {
+                seed.deserialize(DefaultDeserializer::new(originator))
+            }
+            Some(v) => seed.deserialize(
+                NestedValueWrapper::new(v, self.default_for_missing_fields).into_deserializer(),
+            ),
+            None => seed.deserialize(DefaultDeserializer::new(None)),
+        }
+    }
+}
+
+struct ProbeEnumAccess<A: BurnModuleAdapter> {
+    value: NestedValue,
+    current_variant: String,
+    default_for_missing_fields: bool,
+    phantom: std::marker::PhantomData<A>,
+}
+
+impl<A: BurnModuleAdapter> ProbeEnumAccess<A> {
+    fn new(value: NestedValue, current_variant: String, default_for_missing_fields: bool) -> Self {
+        ProbeEnumAccess {
+            value,
+            current_variant,
+            default_for_missing_fields,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'de, A> EnumAccess<'de> for ProbeEnumAccess<A>
+where
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+    type Variant = Self;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        seed.deserialize(self.current_variant.clone().into_deserializer())
+            .map(|v| (v, self))
+    }
+}
+
+impl<'de, A> VariantAccess<'de> for ProbeEnumAccess<A>
+where
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let value = seed.deserialize(
+            NestedValueWrapper::<A>::new(self.value, self.default_for_missing_fields)
+                .into_deserializer(),
+        )?;
+        Ok(value)
+    }
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        match self.value {
+            NestedValue::Map(value) => match value.get("DType") {
+                Some(NestedValue::String(variant)) => {
+                    if *variant == self.current_variant {
+                        Ok(())
+                    } else {
+                        Err(Error::Other("Wrong variant".to_string()))
+                    }
+                }
+                Some(other) => Err(custom_err(format!(
+                    "expected DType variant as string, got {other:?}"
+                ))),
+                None => Err(custom_err("expected map containing 'DType' key for enum")),
+            },
+            other => Err(custom_err(format!(
+                "expected map for enum variant, got {other:?}"
+            ))),
+        }
+    }
+
+    fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let default_for_missing_fields = self.default_for_missing_fields;
+        match self.value {
+            NestedValue::Vec(v) => visitor.visit_seq(VecSeqAccess::<A, NestedValue>::new(
+                NestedValue::Vec(v),
+                default_for_missing_fields,
+            )?),
+            NestedValue::U8s(v) => visitor.visit_seq(VecSeqAccess::<A, u8>::new(
+                NestedValue::U8s(v),
+                default_for_missing_fields,
+            )?),
+            NestedValue::U16s(v) => visitor.visit_seq(VecSeqAccess::<A, u16>::new(
+                NestedValue::U16s(v),
+                default_for_missing_fields,
+            )?),
+            NestedValue::F32s(v) => visitor.visit_seq(VecSeqAccess::<A, f32>::new(
+                NestedValue::F32s(v),
+                default_for_missing_fields,
+            )?),
+            other => Err(custom_err(format!(
+                "expected a sequence for a tuple enum variant but got {other:?}"
+            ))),
+        }
+    }
+
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        match self.value {
+            NestedValue::Map(map) => visitor.visit_map(HashMapAccess::<A>::new(
+                map,
+                self.default_for_missing_fields,
+            )),
+            other => Err(custom_err(format!(
+                "expected a map for a struct enum variant but got {other:?}"
+            ))),
+        }
+    }
+}
+
+/// A wrapper for the nested value data structure with a burn module adapter.
+struct NestedValueWrapper<A: BurnModuleAdapter> {
+    value: NestedValue,
+    default_for_missing_fields: bool,
+    phantom: std::marker::PhantomData<A>,
+}
+
+impl<A: BurnModuleAdapter> NestedValueWrapper<A> {
+    fn new(value: NestedValue, default_for_missing_fields: bool) -> Self {
+        Self {
+            value,
+            default_for_missing_fields,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<A: BurnModuleAdapter> IntoDeserializer<'_, Error> for NestedValueWrapper<A> {
+    type Deserializer = Deserializer<A>;
+
+    fn into_deserializer(self) -> Self::Deserializer {
+        Deserializer::<A>::new(self.value, self.default_for_missing_fields)
+    }
+}
+
+/// A default deserializer that always returns the default value.
+struct DefaultDeserializer {
+    originator_field_name: Option<String>,
+}
+
+impl DefaultDeserializer {
+    fn new(originator_field_name: Option<String>) -> Self {
+        Self {
+            originator_field_name,
+        }
+    }
+}
+
+impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        // A "default" deserializer has no concrete value to hand out; every
+        // typed entry point above supplies a type-specific zero instead.
+        Err(Error::Other(format!(
+            "Missing source values for the '{}' field of type '<unknown>'. Please verify the source data and ensure the field name is correct",
+            self.originator_field_name.unwrap_or("UNKNOWN".to_string()),
+        )))
+    }
+
+    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_i32(Default::default())
+    }
+
+    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_f32(Default::default())
+    }
+
+    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_i16(Default::default())
+    }
+
+    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_i64(Default::default())
+    }
+
+    fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_u16(Default::default())
+    }
+
+    fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_u64(Default::default())
+    }
+
+    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_f64(Default::default())
+    }
+
+    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_bool(Default::default())
+    }
+
+    fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_char(Default::default())
+    }
+
+    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_str(Default::default())
+    }
+
+    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_i8(Default::default())
+    }
+
+    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_u8(Default::default())
+    }
+
+    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_u32(Default::default())
+    }
+
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_none()
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(DefaultSeqAccess::new(None))
+    }
+
+    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_string(Default::default())
+    }
+
+    fn deserialize_struct<V>(
+        self,
+        name: &'static str,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        Err(Error::Other(format!(
+            "Missing source values for the '{}' field of type '{}'. Please verify the source data and ensure the field name is correct",
+            self.originator_field_name.unwrap_or("UNKNOWN".to_string()),
+            name,
+        )))
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(DefaultSeqAccess::new(Some(len)))
+    }
+
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(DefaultSeqAccess::new(Some(len)))
+    }
+
+    fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_map(DefaultMapAccess::new())
+    }
+
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_unit()
+    }
+
+    forward_to_deserialize_any! {
+        u128 bytes byte_buf unit unit_struct newtype_struct
+        enum identifier
+    }
+}
+
+/// A default sequence access that always returns None (empty sequence).
+pub struct DefaultSeqAccess {
+    size: Option<usize>,
+}
+
+impl Default for DefaultSeqAccess {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
+impl DefaultSeqAccess {
+    /// Creates a new default sequence access with the given size hint.
+    pub fn new(size: Option<usize>) -> Self {
+        DefaultSeqAccess { size }
+    }
+}
+
+impl<'de> SeqAccess<'de> for DefaultSeqAccess {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        match self.size {
+            Some(0) => Ok(None),
+            Some(ref mut size) => {
+                *size -= 1;
+                seed.deserialize(DefaultDeserializer::new(None)).map(Some)
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        self.size
+    }
+}
+
+/// A default map access that always returns None (empty map).
+pub struct DefaultMapAccess;
+
+impl Default for DefaultMapAccess {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DefaultMapAccess {
+    /// Creates a new default map access.
+    pub fn new() -> Self {
+        DefaultMapAccess
+    }
+}
+
+impl<'de> MapAccess<'de> for DefaultMapAccess {
+    type Error = Error;
+
+    fn next_key_seed<T>(&mut self, _seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        Ok(None)
+    }
+
+    fn next_value_seed<T>(&mut self, _seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        // `next_key_seed` always returns `None`, so a well-behaved visitor never
+        // asks for a value. Return an error instead of panicking if one does.
+        Err(custom_err(
+            "no value is available from the default (empty) map access",
+        ))
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::nested::adapter::DefaultAdapter;
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct AllScalars {
+        b: bool,
+        i16_val: i16,
+        i32_val: i32,
+        i64_val: i64,
+        u8_val: u8,
+        u16_val: u16,
+        u64_val: u64,
+        f32_val: f32,
+        f64_val: f64,
+        s: String,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Config {
+        hidden_size: i32,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Newtype(i32);
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    enum MockDType {
+        Float32,
+        Int32,
+    }
+
+    #[test]
+    fn should_deserialize_all_scalars_correctly() {
+        let mut map = HashMap::new();
+        map.insert("b".to_string(), NestedValue::Bool(true));
+        map.insert("i16_val".to_string(), NestedValue::I16(16));
+        map.insert("i32_val".to_string(), NestedValue::I32(32));
+        map.insert("i64_val".to_string(), NestedValue::I64(64));
+        map.insert("u8_val".to_string(), NestedValue::U8(8));
+        map.insert("u16_val".to_string(), NestedValue::U16(16));
+        map.insert("u64_val".to_string(), NestedValue::U64(64));
+        map.insert("f32_val".to_string(), NestedValue::F32(1.25));
+        map.insert("f64_val".to_string(), NestedValue::F64(2.5));
+        map.insert("s".to_string(), NestedValue::String("burn".to_string()));
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let config = AllScalars::deserialize(de).unwrap();
+
+        assert_eq!(
+            config,
+            AllScalars {
+                b: true,
+                i16_val: 16,
+                i32_val: 32,
+                i64_val: 64,
+                u8_val: 8,
+                u16_val: 16,
+                u64_val: 64,
+                f32_val: 1.25,
+                f64_val: 2.5,
+                s: "burn".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn should_deserialize_i64_as_i32_when_in_range() {
+        let mut map = HashMap::new();
+        map.insert("hidden_size".to_string(), NestedValue::I64(768));
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let config = Config::deserialize(de).unwrap();
+
+        assert_eq!(config, Config { hidden_size: 768 });
+    }
+
+    #[test]
+    fn should_return_err_on_type_mismatch() {
+        let mut map = HashMap::new();
+        map.insert(
+            "hidden_size".to_string(),
+            NestedValue::String("768".to_string()),
+        );
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let result = Config::deserialize(de);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_return_err_on_missing_field() {
+        let map = HashMap::new();
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let result = Config::deserialize(de);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_deserialize_newtype_struct() {
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(42), false);
+        let result = Newtype::deserialize(de).unwrap();
+        assert_eq!(result, Newtype(42));
+    }
+
+    #[test]
+    fn should_return_err_on_invalid_seq() {
+        #[derive(Debug, Deserialize)]
+        #[allow(dead_code)]
+        struct SeqHolder(Vec<i32>);
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(42), false);
+        let result = SeqHolder::deserialize(de);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_deserialize_dtype_enum() {
+        let mut map = HashMap::new();
+        map.insert(
+            "DType".to_string(),
+            NestedValue::String("Float32".to_string()),
+        );
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let result = MockDType::deserialize(de).unwrap();
+        assert_eq!(result, MockDType::Float32);
+    }
+
+    #[test]
+    fn should_return_err_on_missing_dtype_key() {
+        let mut map = HashMap::new();
+        map.insert(
+            "OtherKey".to_string(),
+            NestedValue::String("Float32".to_string()),
+        );
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let result = MockDType::deserialize(de);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_return_err_on_invalid_enum_shape() {
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::I32(42), false);
+        let result = MockDType::deserialize(de);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_return_err_on_invalid_dtype_variant_type() {
+        let mut map = HashMap::new();
+        map.insert("DType".to_string(), NestedValue::I32(42));
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let result = MockDType::deserialize(de);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_skip_a_field_the_target_does_not_name() {
+        for extra in [
+            NestedValue::Default(None),
+            NestedValue::Unsupported("torch.device".to_string()),
+        ] {
+            let mut map = HashMap::new();
+            map.insert("hidden_size".to_string(), NestedValue::I32(1));
+            map.insert("extra".to_string(), extra);
+
+            let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+            assert_eq!(Config::deserialize(de).unwrap(), Config { hidden_size: 1 });
+        }
+    }
+
+    #[test]
+    fn should_return_err_on_unsupported_value() {
+        let mut map = HashMap::new();
+        map.insert(
+            "hidden_size".to_string(),
+            NestedValue::Unsupported("numpy.int64".to_string()),
+        );
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::Map(map), false);
+        let err = Config::deserialize(de).unwrap_err();
+        assert!(err.to_string().contains("numpy.int64"), "{err}");
+    }
+
+    #[test]
+    fn should_deserialize_u8s_as_byte_buf() {
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct ByteHolder(Vec<u8>);
+
+        let de = Deserializer::<DefaultAdapter>::new(NestedValue::U8s(vec![1, 2, 3, 4]), false);
+        let result = ByteHolder::deserialize(de).unwrap();
+        assert_eq!(result, ByteHolder(vec![1, 2, 3, 4]));
+    }
+}

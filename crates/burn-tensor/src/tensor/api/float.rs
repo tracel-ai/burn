@@ -77,7 +77,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let tensor_in_radians = tensor.deg2rad();
     /// ```
     pub fn deg2rad(self) -> Self {
-        self.mul_scalar(f32::consts::PI / 180.0)
+        self.mul_scalar(core::f64::consts::PI / 180.0)
     }
 
     /// Converts each of the elements of the input tensor from angles in radians to degrees.
@@ -87,7 +87,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let tensor_in_degrees = tensor.rad2deg();
     /// ```
     pub fn rad2deg(self) -> Self {
-        self.mul_scalar(180.0 / f32::consts::PI)
+        self.mul_scalar(180.0 / core::f64::consts::PI)
     }
 
     /// Applies element wise round operation.
@@ -343,7 +343,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// Returns whether this tensor's gradient is retained after backward.
     ///
     /// This is distinct from [`Tensor::is_autodiff`], which reports whether operations use an
-    /// autodiff context, and [`Tensor::is_tracked()`], which reports graph participation when the
+    /// autodiff context, and `Tensor::is_tracked()`, which reports graph participation when the
     /// `autodiff` feature is enabled.
     pub fn is_require_grad(&self) -> bool {
         is_require_grad_impl(&self.primitive)

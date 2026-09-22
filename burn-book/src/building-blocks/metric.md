@@ -131,6 +131,9 @@ pub trait Metric: Send + Sync + Clone {
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry;
 
+    /// Compute the final metric value.
+    fn compute(&mut self) -> SerializedEntry;
+
     /// Clear the metric state.
     fn clear(&mut self);
 }

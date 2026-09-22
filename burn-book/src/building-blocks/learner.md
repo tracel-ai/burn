@@ -27,10 +27,14 @@ provides you with numerous options when it comes to configurations.
 | Validation Metric Plot | Register a validation metric with plotting (requires the metric to be numeric)                                                          |
 | Metric Logger          | Configure the metric loggers (default is saving them to files)                                                                          |
 | Renderer               | Configure how to render metrics (default is CLI)                                                                                        |
+| Progress Logger        | Register a `TrainingProgressLogger` that observes the training lifecycle                                                                |
 | Grad Accumulation      | Configure the number of steps before applying gradients                                                                                 |
-| File Checkpointer      | Configure how the model, optimizer and scheduler states are saved                                                                       |
+| Gradient Checkpointing | Recompute memory-bound activations during backpropagation to reduce peak memory                                                         |
+| Checkpointers          | Save the model, optimizer and scheduler states with the default burnpack file checkpointers or custom `Checkpointer` implementations    |
+| Checkpointing Strategy | Configure which checkpoints are kept (default keeps the last two and the best validation loss)                                          |
+| Early Stopping         | Stop training early based on a metric                                                                                                   |
 | Num Epochs             | Set the number of epochs                                                                                                                |
-| Devices                | Set the devices to be used                                                                                                              |
+| Devices                | Set the devices to be used through the training strategy (single device, multi-device, or DDP)                                          |
 | Checkpoint             | Restart training from a checkpoint                                                                                                      |
 | Application logging    | Configure the application logging installer (default is writing to `experiment.log`)                                                    |
 | Training Strategy      | Use a custom training strategy, allowing you to use your own training loop with all the capabilities of the `SupervisedTraining` struct |
@@ -52,16 +56,31 @@ Burn's `ParamGroup` routes module parameters by path or ID. Optimizers and learn
 use the same matching rules but can be configured independently.
 
 ```rust,ignore
+use burn::{
+    module::ParamGroup,
+    optim::{
+        AdamWConfig,
+        lr_scheduler::{
+            composed::ComposedLrSchedulerConfig,
+            cosine::CosineAnnealingLrSchedulerConfig,
+            linear::LinearLrSchedulerConfig,
+            module_lr_scheduler::ModuleLrSchedulerConfig,
+        },
+    },
+    train::Learner,
+};
+
 let lr_scheduler_base = ComposedLrSchedulerConfig::new()
     .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
     .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
     .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
-let lr_scheduler = lr_scheduler_base.init().unwrap().with_group(
-    ParamGroup::from_predicate("conv"),
-    LinearLrSchedulerConfig::new(1e-6, 1e-3, 14000)
-        .build()
-        .unwrap(),
-);
+let lr_scheduler = ModuleLrSchedulerConfig::new(lr_scheduler_base.into())
+    .with_group(
+        ParamGroup::from_predicate("conv"),
+        LinearLrSchedulerConfig::new(1e-6, 1e-3, 14000),
+    )
+    .init()
+    .unwrap();
 
 let optim = AdamWConfig::new()
     .with_cautious_weight_decay(true)
@@ -74,6 +93,11 @@ let result = training.launch(Learner::new(
     lr_scheduler,
 ));
 ```
+
+The composed base schedule multiplies the values of its three component schedules at every step.
+`ModuleLrSchedulerConfig` assigns that base policy to parameters outside the `conv` group and the
+separate linear policy to parameters inside it. Configure the groups before calling `init()`;
+the individual scheduler configurations' `build()` methods are internal APIs.
 
 For group-specific optimizers, matching precedence, gradient clipping, and optimizer state, see
 [Optimizer](./optimizer.md#parameter-groups).

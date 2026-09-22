@@ -27,3 +27,16 @@ fn should_support_sign_ops_float_negative_zero() {
     assert_eq!(output[0].to_bits(), 0.0f32.to_bits());
     assert_eq!(output[1].to_bits(), 0.0f32.to_bits());
 }
+
+#[test]
+fn should_support_sign_ops_float_nan() {
+    // `sign(NaN)` must be `0` on every backend. Covers both NaN sign bits, since a
+    // sign-bit-keyed implementation can pass on one and fail on the other.
+    let tensor = TestTensor::<1>::from([f32::NAN, -f32::NAN]);
+
+    let output = tensor.sign().into_data().convert::<f32>();
+    let output = output.as_slice::<f32>().unwrap();
+
+    assert_eq!(output[0], 0.0);
+    assert_eq!(output[1], 0.0);
+}

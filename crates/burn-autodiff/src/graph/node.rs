@@ -48,6 +48,8 @@ pub type NodeRef = Arc<Node>;
 #[derive(new, Debug, Clone, PartialEq, Eq)]
 pub struct Parent {
     pub id: NodeId,
+    /// Leaves remain valid gradient endpoints after their no-op root step is consumed.
+    pub is_leaf: bool,
 }
 
 impl Node {

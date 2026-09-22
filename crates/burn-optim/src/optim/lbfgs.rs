@@ -6,7 +6,7 @@ use super::{GradientsParams, ParameterContext};
 use crate::{LearningRate, OptimizerRecord, RecordTensor};
 use crate::{RecordState, StateSink, StateSource};
 use burn::config::Config;
-use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
+use burn::module::{Module, ModuleMapper, ModuleVisitor, Param};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor};
 use serde::{Deserialize, Serialize};
@@ -597,7 +597,7 @@ impl LBFGS {
     /// A single optimization step for any tensor that represents the parameters of a model.
     pub fn step<M, F>(&mut self, lr: LearningRate, mut module: M, mut closure: F) -> (M, f64)
     where
-        M: AutodiffModule + Clone,
+        M: Module + Clone,
         F: FnMut(M) -> (f64, GradientsParams),
     {
         // evaluate initial f(x) and df/dx

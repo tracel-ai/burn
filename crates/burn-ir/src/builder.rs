@@ -102,7 +102,12 @@ impl ShapeOpIr {
     }
 
     pub fn reshape(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
-        let shape = input.shape.reshape(shape).unwrap();
+        // The shape is already resolved; zeros represent empty dimensions here.
+        assert_eq!(
+            input.shape.num_elements(),
+            shape.num_elements(),
+            "Reshape must preserve the number of elements"
+        );
         Self::create(input, shape, new_id)
     }
 
@@ -1598,5 +1603,42 @@ impl MaxPool2dWithIndicesOpIr {
             out,
             out_indices,
         }
+    }
+}
+
+#[cfg(test)]
+mod shape_tests {
+    use super::*;
+
+    #[test]
+    fn reshape_preserves_concrete_shape() {
+        for (source, target) in [
+            (Shape::new([2, 3]), Shape::new([3, 1, 2])),
+            (Shape::new([2, 0]), Shape::new([2, 1, 0])),
+            (Shape::new([2, 0]), Shape::new([0, 2])),
+            (Shape::new([0, 3]), Shape::new([1, 0, 3])),
+        ] {
+            let input = TensorIr::uninit(TensorId::new(1), source, DType::F32);
+            let desc = ShapeOpIr::reshape(input.clone(), target.clone(), || TensorId::new(2));
+
+            assert_eq!(desc.input, input);
+            assert_eq!(desc.out.shape, target);
+            assert_eq!(desc.out.dtype, input.dtype);
+            assert_eq!(desc.out.id, TensorId::new(2));
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Reshape must preserve the number of elements")]
+    fn reshape_rejects_different_element_counts() {
+        let input = TensorIr::uninit(TensorId::new(1), Shape::new([2, 3]), DType::F32);
+        ShapeOpIr::reshape(input, Shape::new([2, 2]), || TensorId::new(2));
+    }
+
+    #[test]
+    #[should_panic(expected = "Reshape must preserve the number of elements")]
+    fn reshape_rejects_zero_as_copy_dimension() {
+        let input = TensorIr::uninit(TensorId::new(1), Shape::new([2, 3]), DType::F32);
+        ShapeOpIr::reshape(input, Shape::new([0, 3]), || TensorId::new(2));
     }
 }

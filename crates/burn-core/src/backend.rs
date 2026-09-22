@@ -1,3 +1,6 @@
+#[cfg(feature = "fusion")]
+pub use burn_fusion as fusion;
+
 #[cfg(feature = "ir")]
 pub use burn_ir as ir;
 
@@ -7,8 +10,10 @@ pub use burn_backend_extension::{ExtensionType, backend_extension};
 // Dispatch backend extension types
 pub use burn_dispatch::{backend::*, device::*, tensor::*};
 // Re-export the backends dispatches directly.
+#[allow(unused_imports)] // No concrete types are exported in backend-free builds.
 pub use burn_dispatch::backends::*;
 // Re-export their devices without conflating them with backend implementations in burn-dispatch.
+#[allow(unused_imports)]
 pub use burn_dispatch::devices::*;
 
 // Public runtime facade crates. CubeCL runtimes share one dispatch backend, but these aliases and

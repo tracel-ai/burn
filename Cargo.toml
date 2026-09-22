@@ -38,6 +38,7 @@ clap = { version = "4.6.0", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1"
+crc32fast = "1.5.1"
 csv = "1.3.1"
 dashmap = "6.1.0"
 data-encoding = { version = "2.11.0", default-features = false, features = [
@@ -72,6 +73,8 @@ parking_lot = { version = "0.12.5", default-features = false }
 paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.54.0", features = ["lazy", "strings"] }
+# Dataset adapters only need the DataFrame types, not the query or file-format engines.
+polars-core = { version = "0.54.0", default-features = false }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.106"
 quote = "1.0.45"
@@ -119,7 +122,7 @@ tracing-subscriber = "0.3.23"
 turso = { version = "=0.8.0-pre.8", default-features = false }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-zip = "8.6.0"
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -203,6 +206,7 @@ burn-cuda = { path = "crates/burn-cuda", version = "=0.22.0-pre.3", default-feat
 burn-dataset = { path = "crates/burn-dataset", version = "=0.22.0-pre.3", default-features = false }
 burn-derive = { path = "crates/burn-derive", version = "=0.22.0-pre.3", default-features = false }
 burn-dispatch = { path = "crates/burn-dispatch", version = "=0.22.0-pre.3", default-features = false }
+burn-einsum = { path = "crates/burn-einsum", version = "=0.22.0-pre.3", default-features = false }
 burn-flex = { path = "crates/burn-flex", version = "=0.22.0-pre.3", default-features = false }
 burn-fusion = { path = "crates/burn-fusion", version = "=0.22.0-pre.3", default-features = false }
 burn-ir = { path = "crates/burn-ir", version = "=0.22.0-pre.3", default-features = false }
@@ -215,6 +219,7 @@ burn-remote = { path = "crates/burn-remote", version = "=0.22.0-pre.3", default-
 burn-rl = { path = "crates/burn-rl", version = "=0.22.0-pre.3", default-features = false }
 burn-rocm = { path = "crates/burn-rocm", version = "=0.22.0-pre.3", default-features = false }
 burn-router = { path = "crates/burn-router", version = "=0.22.0-pre.3", default-features = false }
+burn-signal = { path = "crates/burn-signal", version = "=0.22.0-pre.3", default-features = false }
 burn-std = { path = "crates/burn-std", version = "=0.22.0-pre.3", default-features = false }
 burn-store = { path = "crates/burn-store", version = "=0.22.0-pre.3", default-features = false }
 burn-tch = { path = "crates/burn-tch", version = "=0.22.0-pre.3", default-features = false }
@@ -223,13 +228,14 @@ burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "=0.22.0-
 burn-train = { path = "crates/burn-train", version = "=0.22.0-pre.3", default-features = false }
 burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.3", default-features = false }
 burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.3", default-features = false }
+pytorch-reader = { path = "crates/pytorch-reader", version = "=0.22.0-pre.3" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f3e3bd9e015d74c9627a3485edd10e2dd14268ec" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f3e3bd9e015d74c9627a3485edd10e2dd14268ec" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f3e3bd9e015d74c9627a3485edd10e2dd14268ec" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f3e3bd9e015d74c9627a3485edd10e2dd14268ec" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "a1dff403c3a6a8ac2f0f03fd5a4afd05d94e45ad" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c1285188a1473df51ba3346739974512135a0663" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c1285188a1473df51ba3346739974512135a0663" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c1285188a1473df51ba3346739974512135a0663" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c1285188a1473df51ba3346739974512135a0663" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "d94a163986dda5524b76ba33848e649a281dc9a6" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

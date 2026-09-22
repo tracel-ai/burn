@@ -92,10 +92,10 @@ First, add the required dependencies to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-burn = { version = "~0.21", features = ["flex"] }
+burn = { version = "~0.22", features = ["flex"] }
 
 [build-dependencies]
-burn-onnx = "~0.21"
+burn-onnx = "~0.22"
 ```
 
 ### Step 2: Update `build.rs`
@@ -130,18 +130,17 @@ pub mod my_model {
 Now you can use the imported model in your code:
 
 ```rust, ignore
-use burn::tensor;
-use burn::backend::{Flex, flex::FlexDevice};
+use burn::tensor::{Device, Tensor};
 use model::my_model::Model;
 
 fn main() {
-    let device = FlexDevice;
+    let device = Device::flex();
 
     // Create model instance and load weights from target dir default device
-    let model: Model<Flex> = Model::default();
+    let model: Model = Model::default();
 
     // Create input tensor (replace with your actual input)
-    let input = tensor::Tensor::<Flex, 4>::zeros([1, 3, 224, 224], &device);
+    let input = Tensor::<4>::zeros([1, 3, 224, 224], &device);
 
     // Perform inference
     let output = model.forward(input);

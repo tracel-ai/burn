@@ -19,17 +19,6 @@ fn pytorch_test_path(subdir: &str, filename: &str) -> PathBuf {
         .join(filename)
 }
 
-/// Path to burn-store test data files
-fn test_data_path(filename: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src")
-        .join("pytorch")
-        .join("tests")
-        .join("reader")
-        .join("test_data")
-        .join(filename)
-}
-
 /// Path to store test data files
 fn store_test_data_path(filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -314,45 +303,6 @@ mod conv_model_tests {
 #[cfg(test)]
 mod complex_model_tests {
     use super::*;
-
-    #[test]
-    fn test_load_with_top_level_key() {
-        let path = test_data_path("checkpoint.pt");
-
-        // Just verify that we can create a store with top-level key
-        let store = PytorchStore::from_file(path)
-            .with_top_level_key("model_state_dict")
-            .allow_partial(true);
-
-        assert_eq!(store.top_level_key, Some("model_state_dict".to_string()));
-    }
-
-    #[test]
-    fn test_load_nested_structure() {
-        let path = test_data_path("complex_structure.pt");
-
-        // Just verify that we can create a store for nested structure
-        let store = PytorchStore::from_file(path).allow_partial(true);
-
-        assert!(store.allow_partial);
-    }
-
-    #[test]
-    fn test_legacy_format() {
-        let path = test_data_path("simple_legacy.pt");
-
-        if !path.exists() {
-            println!("Skipping legacy format test - file not found: {:?}", path);
-            return;
-        }
-
-        // Just verify that we can create a store for legacy format
-        let store = PytorchStore::from_file(path).allow_partial(true);
-
-        assert!(store.allow_partial);
-
-        // Could load into an actual model if we had legacy model structure
-    }
 
     #[test]
     fn test_key_remap_chained() {
@@ -1203,5 +1153,25 @@ mod map_indices_contiguous_tests {
             !keys_no_mapping.iter().any(|k| k.starts_with("fc.1.")),
             "Without index mapping, should NOT have fc.1 (not in original file)"
         );
+    }
+
+    #[test]
+    fn test_builder_after_read_rebuilds_cache() {
+        let path = pytorch_test_path("non_contiguous_indexes", "non_contiguous_indexes.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // First read populates the cache with mapped names (fc.2 -> fc.1)
+        let mut store = PytorchStore::from_file(&path);
+        assert!(store.keys().unwrap().contains(&"fc.1.weight".to_string()));
+
+        // Reconfiguring must not serve the stale names
+        let mut store = store.map_indices_contiguous_except(r"^fc$");
+        let keys = store.keys().unwrap();
+        assert!(keys.contains(&"fc.2.weight".to_string()), "{keys:?}");
+        assert!(!keys.contains(&"fc.1.weight".to_string()), "{keys:?}");
     }
 }

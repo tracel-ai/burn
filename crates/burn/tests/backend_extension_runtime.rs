@@ -7,9 +7,9 @@
 #![cfg(feature = "ndarray")]
 // `multi_backend_autodiff` needs two concrete backends compiled in at once to prove the dispatch
 // walk inspects the backend inside `DispatchTensorKind::Autodiff` rather than letting the first
-// generated arm capture everything. This suite still pairs NdArray with Flex (the latter coming
-// from the default features); `Cpu` + Flex would work without a GPU or libtorch too, so this
-// should move to that pair before burn-ndarray is removed.
+// generated arm capture everything. Enable both `ndarray` and `flex` to cover that pair;
+// `Cpu` + Flex would work without a GPU or libtorch too, so this should move to that
+// pair before burn-ndarray is removed.
 #![allow(deprecated)]
 
 use burn::backend::{
@@ -450,19 +450,20 @@ mod autodiff_gradients {
             }
 
             match MulPairBackward
-                .prepare::<C>([p.x.node.clone(), p.y.node.clone()])
+                .prepare::<C>([p.x.node(), p.y.node()])
                 .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => {
-                    let x = p.x.primitive.clone();
-                    let y = p.y.primitive.clone();
+                    let x = p.x.primitive().clone();
+                    let y = p.y.primitive().clone();
                     let output = NdArray::float_mul(x.clone(), y.clone());
                     prep.finish((x, y), output)
                 }
-                OpsKind::UnTracked(prep) => {
-                    prep.finish(NdArray::float_mul(p.x.primitive, p.y.primitive))
-                }
+                OpsKind::UnTracked(prep) => prep.finish(NdArray::float_mul(
+                    p.x.into_primitive(),
+                    p.y.into_primitive(),
+                )),
             }
         }
     }

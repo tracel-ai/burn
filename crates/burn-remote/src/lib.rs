@@ -73,10 +73,7 @@ pub use __client::*;
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use burn_flex::Flex;
-    use burn_tensor::{
-        Device, DeviceType, Distribution, Tensor, TensorData, Tolerance,
-        signal::{irfft, rfft},
-    };
+    use burn_tensor::{Device, DeviceType, Distribution, Tensor};
 
     /// Run `body` on a worker thread and fail the test if it doesn't finish within `timeout`.
     ///
@@ -142,8 +139,13 @@ mod tests {
         rt.shutdown_background();
     }
 
+    /// A profiling window over the wire. The server here hosts a backend with
+    /// no device clock, so the window it is asked to open is answered with
+    /// none and the client measures between two syncs instead — the path a
+    /// remote device that opens no windows has to keep working on, with or
+    /// without fusion in front of the router.
     #[test]
-    pub fn test_fft_over_websocket() {
+    pub fn test_profile_over_websocket() {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .build()
@@ -151,29 +153,25 @@ mod tests {
 
         rt.spawn(
             crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3160)
+                .port(3180)
                 .start_async(),
         );
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = Device::remote_websocket("ws://localhost:3160", 0);
-        let signal = Tensor::<1>::from_floats([1.0, 1.0, 1.0, 1.0], &device);
-        let (spectrum_re, spectrum_im) = rfft(signal, 0, None);
-        let reconstructed = irfft(spectrum_re.clone(), spectrum_im.clone(), 0, None);
+        let device = Device::remote_websocket("ws://localhost:3180", 0);
+        let (sum, duration) = device
+            .profile(|| {
+                Tensor::<1>::ones([1024], &device)
+                    .sum()
+                    .into_scalar::<f32>()
+            })
+            .expect("a window the server cannot open is measured between syncs");
 
-        spectrum_re.into_data().assert_approx_eq::<f32>(
-            &TensorData::from([4.0, 0.0, 0.0]),
-            Tolerance::absolute(1e-4),
-        );
-        spectrum_im.into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.0, 0.0, 0.0]),
-            Tolerance::absolute(1e-4),
-        );
-        reconstructed.into_data().assert_approx_eq::<f32>(
-            &TensorData::from([1.0, 1.0, 1.0, 1.0]),
-            Tolerance::absolute(1e-4),
-        );
+        assert_eq!(sum, 1024.0);
+        let ticks = burn_std::future::block_on(duration.resolve())
+            .expect("a system-time window always carries a measurement");
+        assert!(ticks.duration() > std::time::Duration::ZERO);
 
         rt.shutdown_background();
     }

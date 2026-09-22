@@ -1,5 +1,3 @@
-use alloc::{vec, vec::Vec};
-
 use crate::Autodiff;
 use crate::checkpoint::base::Checkpointer;
 use crate::checkpoint::strategy::CheckpointStrategy;
@@ -13,11 +11,110 @@ use burn_backend::ops::attention::attention_fallback;
 use burn_backend::ops::*;
 use burn_backend::tensor::{FloatTensor, IntTensor};
 use burn_backend::{Backend, get_device_settings};
-use burn_std::{IntDType, Slice};
+use burn_std::IntDType;
 
 use super::OpsKind;
 
 impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B, C> {
+    fn batch_norm_train(
+        x: AutodiffTensor<B>,
+        gamma: AutodiffTensor<B>,
+        beta: AutodiffTensor<B>,
+        epsilon: f64,
+    ) -> BatchNormTrain<Self> {
+        #[derive(Debug)]
+        struct BatchNormTrainOps;
+
+        impl<B: Backend> Backward<B, 3> for BatchNormTrainOps {
+            // The input and gamma are checkpointed; the batch statistics come
+            // along as the forward computed them.
+            type State = (
+                NodeId,
+                NodeId,
+                B::FloatTensorPrimitive,
+                B::FloatTensorPrimitive,
+                f64,
+            );
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_gamma, node_beta] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+                let (x_state, gamma_state, mean, variance, epsilon) = ops.state;
+                let x = checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(x_state);
+                let gamma =
+                    checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(gamma_state);
+
+                let backward =
+                    B::batch_norm_train_backward(x, gamma, mean, variance, epsilon, grad);
+
+                if let Some(node) = node_x {
+                    grads.register::<B>(node.id, backward.x_grad);
+                }
+                if let Some(node) = node_gamma {
+                    grads.register::<B>(node.id, backward.gamma_grad);
+                }
+                if let Some(node) = node_beta {
+                    grads.register::<B>(node.id, backward.beta_grad);
+                }
+            }
+        }
+
+        match BatchNormTrainOps
+            .prepare::<C>([x.node(), gamma.node(), beta.node()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                let gamma_state = prep.checkpoint(&gamma);
+                let result =
+                    B::batch_norm_train(x.primitive, gamma.primitive, beta.primitive, epsilon);
+                let output = prep.finish(
+                    (
+                        x_state,
+                        gamma_state,
+                        result.mean.clone(),
+                        result.variance.clone(),
+                        epsilon,
+                    ),
+                    result.output,
+                );
+
+                BatchNormTrain::new(
+                    output,
+                    AutodiffTensor::new(result.mean),
+                    AutodiffTensor::new(result.variance),
+                )
+            }
+            OpsKind::UnTracked(prep) => {
+                let result =
+                    B::batch_norm_train(x.primitive, gamma.primitive, beta.primitive, epsilon);
+
+                BatchNormTrain::new(
+                    prep.finish(result.output),
+                    AutodiffTensor::new(result.mean),
+                    AutodiffTensor::new(result.variance),
+                )
+            }
+        }
+    }
+
+    fn batch_norm_train_backward(
+        _x: AutodiffTensor<B>,
+        _gamma: AutodiffTensor<B>,
+        _mean: AutodiffTensor<B>,
+        _variance: AutodiffTensor<B>,
+        _epsilon: f64,
+        _output_grad: AutodiffTensor<B>,
+    ) -> BatchNormTrainBackward<Self> {
+        panic!("Can't differentiate batch norm train backward.");
+    }
+
     fn embedding(weights: AutodiffTensor<B>, indices: IntTensor<B>) -> AutodiffTensor<B> {
         #[derive(Debug)]
         struct Embedding;
@@ -40,7 +137,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match Embedding
-            .prepare::<C>([weights.node])
+            .prepare::<C>([weights.node()])
             .compute_bound()
             .stateful()
         {
@@ -137,7 +234,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match LinearWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -157,7 +254,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match LinearNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -277,7 +374,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
         match bias {
             Some(bias) => match Conv1DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -298,7 +395,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match Conv1DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -404,7 +501,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match ConvTranspose1DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -430,7 +527,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match ConvTranspose1DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -537,7 +634,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match Conv2DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -558,7 +655,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match Conv2DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -743,11 +840,11 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         match (mask, bias) {
             (Some(mask), Some(bias)) => match DeformConv2DWithMaskWithBias
                 .prepare::<C>([
-                    x.node.clone(),
-                    offset.node.clone(),
-                    weight.node.clone(),
-                    mask.node.clone(),
-                    bias.node.clone(),
+                    x.node(),
+                    offset.node(),
+                    weight.node(),
+                    mask.node(),
+                    bias.node(),
                 ])
                 .compute_bound()
                 .stateful()
@@ -787,12 +884,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             (Some(mask), None) => match DeformConv2DWithMaskNoBias
-                .prepare::<C>([
-                    x.node.clone(),
-                    offset.node.clone(),
-                    weight.node.clone(),
-                    mask.node.clone(),
-                ])
+                .prepare::<C>([x.node(), offset.node(), weight.node(), mask.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -829,12 +921,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             (None, Some(bias)) => match DeformConv2DNoMaskWithBias
-                .prepare::<C>([
-                    x.node.clone(),
-                    offset.node.clone(),
-                    weight.node.clone(),
-                    bias.node.clone(),
-                ])
+                .prepare::<C>([x.node(), offset.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -871,7 +958,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             (None, None) => match DeformConv2DNoMaskNoBias
-                .prepare::<C>([x.node.clone(), offset.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), offset.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1002,7 +1089,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match ConvTranspose2DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1029,7 +1116,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match ConvTranspose2DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1137,7 +1224,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match Conv3DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1158,7 +1245,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match Conv3DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1265,7 +1352,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match bias {
             Some(bias) => match ConvTranspose3DWithBias
-                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .prepare::<C>([x.node(), weight.node(), bias.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1292,7 +1379,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match ConvTranspose3DNoBias
-                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .prepare::<C>([x.node(), weight.node()])
                 .compute_bound()
                 .stateful()
             {
@@ -1372,7 +1459,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AvgPool1D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1450,7 +1537,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AvgPool2D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1507,7 +1594,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         match MaxPool1D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1557,7 +1644,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         int_dtype: IntDType,
     ) -> MaxPool1dWithIndices<Self> {
         match MaxPool1D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1637,7 +1724,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         ceil_mode: bool,
     ) -> AutodiffTensor<B> {
         match MaxPool2D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1687,7 +1774,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         int_dtype: IntDType,
     ) -> MaxPool2dWithIndices<Self> {
         match MaxPool2D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1773,7 +1860,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AdaptiveAvgPool1D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1812,7 +1899,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AdaptiveAvgPool2D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1858,7 +1945,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match AdaptiveAvgPool3D
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1909,7 +1996,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match Interpolate
-            .prepare::<C>([x.node.clone()])
+            .prepare::<C>([x.node()])
             .compute_bound()
             .stateful()
         {
@@ -1998,7 +2085,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match CtcLoss
-            .prepare::<C>([log_probs.node.clone()])
+            .prepare::<C>([log_probs.node()])
             .compute_bound()
             .stateful()
         {
@@ -2031,190 +2118,6 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             )),
         }
     }
-
-    fn rfft(
-        signal: FloatTensor<Autodiff<B, C>>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> (FloatTensor<Autodiff<B, C>>, FloatTensor<Autodiff<B, C>>) {
-        #[derive(Debug)]
-        struct Rfft;
-
-        impl<B: Backend> Backward<B, 1> for Rfft {
-            type State = (usize, Option<usize>, usize, usize, Vec<Slice>, Vec<Slice>);
-
-            fn backward(
-                self,
-                ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
-            ) {
-                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    let (dim, n, input_len, n_fft, slices_re, slices_im) = ops.state;
-
-                    let grad_re = B::float_slice(grad.clone(), &slices_re);
-                    let grad_im = B::float_slice(grad.clone(), &slices_im);
-
-                    let grad_re = mul_interior::<B>(grad_re, dim, n_fft, 0.5);
-                    let grad_im = mul_interior::<B>(grad_im, dim, n_fft, 0.5);
-
-                    let grad = B::irfft(grad_re, grad_im, dim, n);
-                    let grad = B::float_mul_scalar(grad, (n_fft as f64).into());
-
-                    pad_to_length::<B>(grad, dim, input_len)
-                });
-            }
-        }
-
-        let input_len = signal.shape()[dim];
-        let n_fft = n.unwrap_or(input_len);
-        let (re, im) = B::rfft(signal.primitive, dim, n);
-
-        // In order to perform only a single irfft in the backward pass, we have to temporarily
-        // bundle `re` and `im` into a single tensor. The following slice vecs are used to split
-        // them back up in both the forward and the backward pass.
-        let slices_re = re
-            .shape()
-            .iter()
-            .map(|&len| Slice::from(0..len))
-            .collect::<Vec<Slice>>();
-        let slices_im = {
-            let mut slices = slices_re.clone();
-            let len = slices[0].end.unwrap();
-            slices[0].start = len;
-            slices[0].end = Some(2 * len);
-            slices
-        };
-        let spectrum = B::float_cat(vec![re, im], 0);
-        let state = (
-            dim,
-            n,
-            input_len,
-            n_fft,
-            slices_re.clone(),
-            slices_im.clone(),
-        );
-
-        let spectrum = match Rfft
-            .prepare::<C>([signal.node.clone()])
-            .compute_bound()
-            .stateful()
-        {
-            OpsKind::Tracked(prep) => prep.finish(state, spectrum),
-            OpsKind::UnTracked(prep) => prep.finish(spectrum),
-        };
-
-        let re = Self::float_slice(spectrum.clone(), &slices_re);
-        let im = Self::float_slice(spectrum.clone(), &slices_im);
-
-        (re, im)
-    }
-
-    fn irfft(
-        spectrum_re: FloatTensor<Autodiff<B, C>>,
-        spectrum_im: FloatTensor<Autodiff<B, C>>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> FloatTensor<Autodiff<B, C>> {
-        #[derive(Debug)]
-        struct Irfft;
-
-        impl<B: Backend> Backward<B, 2> for Irfft {
-            type State = (usize, Option<usize>, usize, usize);
-
-            fn backward(
-                self,
-                ops: Ops<Self::State, 2>,
-                grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
-            ) {
-                let (dim, n, input_len, n_fft) = ops.state;
-                let [node_re, node_im] = ops.parents;
-                let grad = grads.consume::<B>(&ops.node);
-
-                let grad = B::float_div_scalar(grad, (n_fft as f64).into());
-
-                let (grad_re, grad_im) = B::rfft(grad, dim, n);
-
-                let grad_re = mul_interior::<B>(grad_re, dim, n_fft, 2.0);
-                let grad_im = mul_interior::<B>(grad_im, dim, n_fft, 2.0);
-
-                let grad_re = pad_to_length::<B>(grad_re, dim, input_len);
-                let grad_im = pad_to_length::<B>(grad_im, dim, input_len);
-
-                if let Some(node) = node_re {
-                    grads.register::<B>(node.id, grad_re);
-                }
-                if let Some(node) = node_im {
-                    grads.register::<B>(node.id, grad_im);
-                }
-            }
-        }
-
-        let input_len = spectrum_re.shape()[dim];
-        let signal = B::irfft(spectrum_re.primitive, spectrum_im.primitive, dim, n);
-        let n_fft = n.unwrap_or(signal.shape()[dim]);
-        let state = (dim, n, input_len, n_fft);
-
-        match Irfft
-            .prepare::<C>([spectrum_re.node.clone(), spectrum_im.node.clone()])
-            .compute_bound()
-            .stateful()
-        {
-            OpsKind::Tracked(prep) => prep.finish(state, signal),
-            OpsKind::UnTracked(prep) => prep.finish(signal),
-        }
-    }
-}
-
-// adapted from: burn_cubecl::kernel::fft::base::pad_to_length
-fn pad_to_length<B: Backend>(tensor: FloatTensor<B>, dim: usize, target: usize) -> FloatTensor<B> {
-    let shape = tensor.shape();
-    let current = shape[dim];
-    if current == target {
-        return tensor;
-    }
-    if current > target {
-        let slices: Vec<_> = shape
-            .iter()
-            .enumerate()
-            .map(|(i, &s)| Slice::from(if i == dim { 0..target } else { 0..s }))
-            .collect();
-        return B::float_slice(tensor, &slices);
-    }
-    let mut padded_shape = shape.clone();
-    padded_shape[dim] = target;
-    let padded = B::float_zeros(padded_shape, &tensor.device(), tensor.dtype().into());
-    let slices: Vec<Slice> = shape.iter().map(|&s| Slice::from(0..s)).collect();
-    B::float_slice_assign(padded, &slices, tensor)
-}
-
-fn mul_interior<B: Backend>(
-    bins: FloatTensor<B>,
-    dim: usize,
-    n_fft: usize,
-    factor: f64,
-) -> FloatTensor<B> {
-    // identify the interior bins (all bins except DC and Nyquist)
-    let slices_interior: Vec<Slice> = {
-        let mut ranges = bins.shape().into_ranges();
-
-        // skip the DC bin
-        ranges[dim].start += 1;
-
-        // if `n_fft` is even, we have a Nyquist bin to skip
-        if n_fft.is_multiple_of(2) {
-            ranges[dim].end -= 1;
-        }
-
-        ranges.into_iter().map(Slice::from).collect()
-    };
-
-    // multiply only the interior bins by `factor`
-    let interior = B::float_slice(bins.clone(), &slices_interior);
-    let interior = B::float_mul_scalar(interior, factor.into());
-
-    B::float_slice_assign(bins, &slices_interior, interior)
 }
 
 #[derive(Debug)]

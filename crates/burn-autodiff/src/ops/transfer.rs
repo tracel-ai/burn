@@ -70,7 +70,7 @@ impl<Src: Backend, C: CheckpointStrategy> Autodiff<Src, C> {
     {
         let source_device = tensor.primitive.device();
         let prep = Transfer::<Src, Dst, Adapter>(PhantomData)
-            .prepare::<C>([tensor.node])
+            .prepare::<C>([tensor.node()])
             .compute_bound()
             .stateful();
         let output = Adapter::forward(tensor.primitive, device);

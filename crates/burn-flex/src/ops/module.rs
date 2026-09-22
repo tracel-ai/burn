@@ -251,6 +251,7 @@ impl ModuleOps<Flex> for Flex {
         bias: Option<FloatTensor<Flex>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Flex> {
+        let (x, options) = pad_asymmetric_conv_input::<Flex, 3>(x, options);
         match x.dtype() {
             DType::F32 => conv::conv3d_f32(x, weight, bias, &options),
             DType::F64 => conv::conv3d_f64(x, weight, bias, &options),
@@ -730,35 +731,6 @@ impl ModuleOps<Flex> for Flex {
         crate::ops::attention::attention(query, key, value, mask, attn_bias, options)
     }
 
-    fn rfft(
-        signal: FloatTensor<Flex>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> (FloatTensor<Flex>, FloatTensor<Flex>) {
-        match signal.dtype() {
-            DType::F32 => crate::ops::fft::rfft_f32(signal, dim, n),
-            DType::F64 => crate::ops::fft::rfft_f64(signal, dim, n),
-            DType::F16 => crate::ops::fft::rfft_f16(signal, dim, n),
-            DType::BF16 => crate::ops::fft::rfft_bf16(signal, dim, n),
-            dtype => panic!("rfft: unsupported dtype {:?}", dtype),
-        }
-    }
-
-    fn irfft(
-        spectrum_re: FloatTensor<Flex>,
-        spectrum_im: FloatTensor<Flex>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> FloatTensor<Flex> {
-        match spectrum_re.dtype() {
-            DType::F32 => crate::ops::fft::irfft_f32(spectrum_re, spectrum_im, dim, n),
-            DType::F64 => crate::ops::fft::irfft_f64(spectrum_re, spectrum_im, dim, n),
-            DType::F16 => crate::ops::fft::irfft_f16(spectrum_re, spectrum_im, dim, n),
-            DType::BF16 => crate::ops::fft::irfft_bf16(spectrum_re, spectrum_im, dim, n),
-            dtype => panic!("irfft: unsupported dtype {:?}", dtype),
-        }
-    }
-
     fn embedding(weights: FloatTensor<Flex>, indices: IntTensor<Flex>) -> FloatTensor<Flex> {
         let [batch_size, seq_length] = indices.shape().dims();
         let [_, d_model] = weights.shape().dims();
@@ -806,5 +778,26 @@ impl ModuleOps<Flex> for Flex {
             output_grad,
             burn_backend::tensor::IndexingUpdateOp::Add,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::TensorData;
+
+    #[test]
+    fn test_conv3d_asymmetric_end_padding() {
+        let x = FlexTensor::from_data(TensorData::new(
+            vec![1.0f32, 2.0, 3.0, 4.0],
+            vec![1, 1, 1, 1, 4],
+        ));
+        let w = FlexTensor::from_data(TensorData::new(vec![1.0f32, 1.0], vec![1, 1, 1, 1, 2]));
+        let opts =
+            ConvOptions::<3>::new_with_padding([1, 1, 1], [(0, 0), (0, 0), (0, 1)], [1, 1, 1], 1);
+        let out = Flex::conv3d(x, w, None, opts);
+        assert_eq!(out.shape().to_vec(), vec![1, 1, 1, 1, 4]);
+        let values: Vec<f32> = out.into_data().try_into_vec().unwrap();
+        assert_eq!(values, vec![3.0, 5.0, 7.0, 4.0]);
     }
 }

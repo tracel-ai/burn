@@ -1,4 +1,3 @@
-#![recursion_limit = "256"]
 // The LibTorch bench group exists to compare against the deprecated backend.
 #![cfg_attr(feature = "tch", allow(deprecated))]
 

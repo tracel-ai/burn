@@ -112,7 +112,7 @@ impl<B: Backend> BackendTensor<B> {
     /// Returns the inner autodiff tensor primitive.
     pub fn autodiff_inner(self) -> B::FloatTensorPrimitive {
         match self {
-            BackendTensor::Autodiff(tensor) => tensor.primitive,
+            BackendTensor::Autodiff(tensor) => tensor.into_primitive(),
             _ => unreachable!(),
         }
     }
@@ -255,12 +255,15 @@ pub struct DispatchTensor {
 /// Each variant corresponds to a specific backend implementation.
 #[derive(Clone, Debug)]
 pub enum DispatchTensorKind {
+    #[cfg(not(backend_enabled))]
+    #[doc(hidden)]
+    Unavailable(crate::NoBackend),
     /// A tensor on the [cubecl backend](Cube) — its device says which runtime.
     #[cfg(cube_backend)]
     Cube(BackendTensor<Cube>),
 
     /// The [Flex backend](Flex) tensor.
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     Flex(BackendTensor<Flex>),
 
     /// The [NdArray backend](NdArray) tensor.
@@ -288,9 +291,11 @@ impl TensorMetadata for DispatchTensorKind {
 
     fn dtype(&self) -> DType {
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             Self::Cube(tensor) => tensor.dtype(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.dtype(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.dtype(),
@@ -307,9 +312,11 @@ impl TensorMetadata for DispatchTensorKind {
 
     fn shape(&self) -> Shape {
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             Self::Cube(tensor) => tensor.shape(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.shape(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.shape(),
@@ -326,9 +333,11 @@ impl TensorMetadata for DispatchTensorKind {
 
     fn device(&self) -> DispatchDevice {
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             DispatchTensorKind::Cube(tensor) => DispatchDevice::Cube(tensor.device()),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
             #[cfg(feature = "ndarray")]
             DispatchTensorKind::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
@@ -345,9 +354,11 @@ impl TensorMetadata for DispatchTensorKind {
 
     fn can_mut(&self) -> bool {
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             Self::Cube(tensor) => tensor.can_mut(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.can_mut(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.can_mut(),
@@ -414,9 +425,11 @@ impl DispatchTensorKind {
     /// Returns the backend tensor kind name.
     pub(crate) fn name(&self) -> &'static str {
         match self {
+            #[cfg(not(backend_enabled))]
+            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             DispatchTensorKind::Cube(_) => "Cube",
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(_) => "Flex",
             #[cfg(feature = "ndarray")]
             DispatchTensorKind::NdArray(_) => "NdArray",
@@ -581,7 +594,7 @@ macro_rules! impl_dispatch_conversion {
 // One invocation per dispatch variant. Every cubecl runtime is the same `Cube`
 // backend, so they share the one impl rather than getting seven identical ones.
 impl_dispatch_conversion!(Cube, cube_backend);
-impl_dispatch_conversion!(Flex, any(feature = "flex", default_backend));
+impl_dispatch_conversion!(Flex, feature = "flex");
 impl_dispatch_conversion!(Remote, feature = "remote");
 impl_dispatch_conversion!(Capture, feature = "capture");
 impl_dispatch_conversion!(NdArray, feature = "ndarray");

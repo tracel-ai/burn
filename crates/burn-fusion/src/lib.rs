@@ -23,6 +23,8 @@ mod ops;
 mod server;
 mod tensor;
 
+pub mod observer;
+
 /// Test-only introspection into fusion runtime behavior — see
 /// [`inspect::FusionInspector`].
 #[cfg(feature = "test-util")]
@@ -46,9 +48,4 @@ pub use tensor::*;
 ///
 /// Backend extension crates can use this module without depending directly on
 /// `burn-ir` or coordinating its version with `burn-fusion`.
-pub mod custom {
-    pub use crate::stream::{Operation, StreamId};
-    pub use burn_ir::{
-        CustomOpIr, HandleContainer, OperationIr, OperationOutput, ScalarIr, TensorIr,
-    };
-}
+pub mod custom;

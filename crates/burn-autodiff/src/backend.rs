@@ -9,7 +9,8 @@ use core::marker::PhantomData;
 use burn_backend::{
     backend::{
         AutodiffBackend, Backend, BackendTypes, ExecutionError, InstallMemoryPoolsError,
-        MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport,
+        MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken,
+        SlicedPoolReport,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -57,6 +58,30 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     fn sync(device: &B::Device) -> Result<(), ExecutionError> {
         B::sync(device)
+    }
+
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        B::profile(device, options, func)
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        B::profile_start(device)
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        B::profile_end(device, token, options)
+    }
+
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        B::profile_abandon(device, token)
     }
 
     fn memory_persistent_allocations<

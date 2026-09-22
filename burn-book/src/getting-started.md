@@ -59,6 +59,9 @@ Then, add Burn as a dependency:
 cargo add burn --features wgpu
 ```
 
+Burn does not enable an execution backend by default. The `wgpu` feature selects GPU
+execution; use `--features flex` instead for the pure-Rust CPU backend.
+
 Finally, compile the local package by executing the following:
 
 ```console
@@ -67,22 +70,6 @@ cargo build
 
 That's it, you're ready to start! You have a project configured with Burn and the WGPU backend,
 which allows to execute low-level operations on any platform using the GPU.
-
-<div class="warning">
-
-When using one of the `wgpu` backends, you may encounter compilation errors related to recursive
-type evaluation. This is due to complex type nesting within the `wgpu` dependency chain.
-
-To resolve this issue, add the following line at the top of your `main.rs` or `lib.rs` file:
-
-```rust
-#![recursion_limit = "256"]
-```
-
-The default recursion limit (128) is often just below the required depth (typically 130-150) due to
-deeply nested associated types and trait bounds.
-
-</div>
 
 ## Writing a code snippet
 

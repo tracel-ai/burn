@@ -191,7 +191,12 @@ impl FloatTensorOps<Self> for CubeBackend {
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 kernel::scatter_mul(dim, tensor, indices, value)
             }
-            other => unimplemented!("float_scatter with {other:?} update is not implemented"),
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                kernel::scatter_min(dim, tensor, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                kernel::scatter_max(dim, tensor, indices, value)
+            }
         }
     }
 
@@ -233,8 +238,11 @@ impl FloatTensorOps<Self> for CubeBackend {
             burn_backend::tensor::IndexingUpdateOp::Mul => {
                 kernel::select_assign_mul(tensor, dim, indices, value)
             }
-            other => {
-                unimplemented!("float_select_assign with {other:?} update is not implemented")
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                kernel::select_assign_min(tensor, dim, indices, value)
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                kernel::select_assign_max(tensor, dim, indices, value)
             }
         }
     }
@@ -797,7 +805,7 @@ impl FloatTensorOps<Self> for CubeBackend {
 
     fn float_clamp(tensor: FloatTensor<Self>, min: Scalar, max: Scalar) -> FloatTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::clamp(
+        kernel::clamp_float(
             tensor,
             InputScalar::new(min, dtype_to_storage_type(dtype)),
             InputScalar::new(max, dtype_to_storage_type(dtype)),

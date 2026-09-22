@@ -90,8 +90,18 @@ where
     }
 
     pub fn mask_fill(tensor: SharedArray<E>, mask: SharedArray<bool>, value: E) -> SharedArray<E> {
-        // Use into_owned() instead of clone() - only copies if shared, avoids copy if unique
-        let mut output = tensor.into_owned();
+        let output_dim = tensor
+            .shape()
+            .into_shape()
+            .broadcast(&mask.shape().into_shape())
+            .expect("The input and mask shapes should be broadcastable")
+            .into_dimension();
+        let mut output = if tensor.raw_dim() == output_dim {
+            // Reuse the input allocation when uniquely owned and already the output shape.
+            tensor.into_owned()
+        } else {
+            tensor.broadcast(output_dim).unwrap().to_owned()
+        };
         let broadcast_mask = mask.broadcast(output.dim()).unwrap();
         Zip::from(&mut output)
             .and(&broadcast_mask)
@@ -283,6 +293,90 @@ where
                 let index = index.elem::<i64>() as usize;
                 let out = &mut tensor[[b, index]];
                 *out = *out * value[[b, i]];
+            }
+        }
+
+        let mut output = NdArrayOps::reshape(tensor.into_shared().into_dyn(), shape_tensor);
+        if dim != ndims - 1 {
+            output.swap_axes(ndims - 1, dim);
+        }
+        output
+    }
+
+    pub fn scatter_min<I: NdArrayElement>(
+        dim: usize,
+        tensor: SharedArray<E>,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
+    ) -> SharedArray<E>
+    where
+        E: PartialOrd,
+    {
+        Self::scatter_extreme(dim, tensor, indices, value, |out, value| value < *out)
+    }
+
+    pub fn scatter_max<I: NdArrayElement>(
+        dim: usize,
+        tensor: SharedArray<E>,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
+    ) -> SharedArray<E>
+    where
+        E: PartialOrd,
+    {
+        Self::scatter_extreme(dim, tensor, indices, value, |out, value| value > *out)
+    }
+
+    /// Shared traversal for the Min/Max scatter variants. `replace` decides whether
+    /// the incoming value overwrites the destination; its comparison defines the
+    /// NaN handling, matching the `scatter_nd` Min/Max reductions.
+    fn scatter_extreme<I: NdArrayElement, F>(
+        dim: usize,
+        mut tensor: SharedArray<E>,
+        mut indices: SharedArray<I>,
+        mut value: SharedArray<E>,
+        replace: F,
+    ) -> SharedArray<E>
+    where
+        F: Fn(&E, E) -> bool,
+    {
+        let ndims = tensor.shape().num_dims();
+        if dim != ndims - 1 {
+            tensor.swap_axes(ndims - 1, dim);
+            indices.swap_axes(ndims - 1, dim);
+            value.swap_axes(ndims - 1, dim);
+        }
+
+        let (shape_tensor, shape_indices, shape_value) =
+            (tensor.shape().into_shape(), indices.shape(), value.shape());
+        let (size_tensor, size_index, size_value) = (
+            shape_tensor[ndims - 1],
+            shape_indices[ndims - 1],
+            shape_value[ndims - 1],
+        );
+        let batch_size = Self::gather_batch_size(&shape_tensor, shape_indices);
+
+        if shape_value != shape_indices {
+            panic!(
+                "scatter_min/scatter_max: the indices and value tensors must have the same shape, \
+                 but got indices {shape_indices:?} and value {shape_value:?}"
+            );
+        }
+
+        let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index]));
+        let value = NdArrayOps::reshape(value, Shape::new([batch_size, size_value]));
+        let mut tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor]));
+
+        for b in 0..batch_size {
+            let indices = indices.slice(s!(b, ..));
+
+            for (i, index) in indices.iter().enumerate() {
+                let index = index.elem::<i64>() as usize;
+                let value = value[[b, i]];
+                let out = &mut tensor[[b, index]];
+                if replace(out, value) {
+                    *out = value;
+                }
             }
         }
 
@@ -855,6 +949,22 @@ pub(crate) fn empty_mean<E: NdArrayElement>() -> E {
     0.elem::<E>() / 0.elem::<E>()
 }
 
+/// Python/PyTorch-style remainder: result has same sign as divisor.
+#[inline]
+fn remainder<E: NdArrayElement + PartialOrd>(a: E, b: E) -> E {
+    let zero = 0.elem::<E>();
+    // Any signed integer modulo -1 is zero, including MIN % -1.
+    if E::dtype().is_int() && b == zero - 1.elem::<E>() {
+        return zero;
+    }
+    let r = a % b;
+    if r != zero && (r < zero) != (b < zero) {
+        r + b
+    } else {
+        r
+    }
+}
+
 impl<E> NdArrayMathOps<E>
 where
     E: Copy + NdArrayElement,
@@ -962,26 +1072,25 @@ where
         array.into_shared()
     }
 
-    pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
+    pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E>
+    where
+        E: PartialOrd,
+    {
+        // Python/PyTorch-style remainder: result has same sign as divisor
         let (lhs, rhs) = broadcast_for_binary_ops(&lhs, &rhs);
 
         Zip::from(&lhs)
             .and(&rhs)
-            .map_collect(|&a, &b| {
-                let a_f = a.to_f64();
-                let b_f = b.to_f64();
-                let r = a_f - b_f * (a_f / b_f).floor();
-                r.elem()
-            })
+            .map_collect(|&a, &b| remainder(a, b))
             .into_shared()
     }
 
     pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E>
     where
-        E: core::ops::Rem<Output = E>,
+        E: PartialOrd,
     {
-        let array = lhs.mapv(|x| ((x % rhs) + rhs) % rhs);
-        array.into_shared()
+        // Python/PyTorch-style remainder: result has same sign as divisor
+        lhs.mapv(|x| remainder(x, rhs)).into_shared()
     }
 
     pub fn recip(tensor: SharedArray<E>) -> SharedArray<E> {
@@ -1121,6 +1230,85 @@ where
         output_array.into_shared()
     }
 
+    pub fn select_assign_min<I: NdArrayElement>(
+        tensor: SharedArray<E>,
+        dim: usize,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
+    ) -> SharedArray<E>
+    where
+        E: PartialOrd,
+    {
+        Self::select_assign_extreme(tensor, dim, indices, value, |a, b| *b < *a)
+    }
+
+    pub fn select_assign_max<I: NdArrayElement>(
+        tensor: SharedArray<E>,
+        dim: usize,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
+    ) -> SharedArray<E>
+    where
+        E: PartialOrd,
+    {
+        Self::select_assign_extreme(tensor, dim, indices, value, |a, b| *b > *a)
+    }
+
+    /// Shared traversal for the Min/Max select_assign variants. `replace` decides
+    /// whether the incoming value overwrites the destination; its comparison defines
+    /// the NaN handling.
+    fn select_assign_extreme<I: NdArrayElement, F>(
+        tensor: SharedArray<E>,
+        dim: usize,
+        indices: SharedArray<I>,
+        value: SharedArray<E>,
+        replace: F,
+    ) -> SharedArray<E>
+    where
+        F: Fn(&mut E, &E) -> bool,
+    {
+        let ndims = tensor.shape().num_dims();
+        assert!(
+            dim < ndims,
+            "select_assign_min/select_assign_max: dim {dim} is out of bounds for a {ndims}-D tensor"
+        );
+        assert_eq!(
+            indices.shape().num_dims(),
+            1,
+            "select_assign_min/select_assign_max: indices must be 1D, got shape {:?}",
+            indices.shape()
+        );
+        assert_eq!(
+            value.shape().num_dims(),
+            ndims,
+            "select_assign_min/select_assign_max: value rank ({}) must match tensor rank ({ndims})",
+            value.shape().num_dims()
+        );
+        assert_eq!(
+            value.shape()[dim],
+            indices.shape()[0],
+            "select_assign_min/select_assign_max: value dim {dim} ({}) must equal the number of \
+             indices ({})",
+            value.shape()[dim],
+            indices.shape()[0]
+        );
+
+        let mut output_array = tensor.into_owned();
+
+        for (index_value, index) in indices.into_iter().enumerate() {
+            let mut view = output_array.index_axis_mut(Axis(dim), index.elem::<i64>() as usize);
+            let value = value.index_axis(Axis(dim), index_value);
+
+            view.zip_mut_with(&value, |a, b| {
+                if replace(a, b) {
+                    *a = *b;
+                }
+            });
+        }
+
+        output_array.into_shared()
+    }
+
     fn broadcast_dims<D>(lhs: D::Pattern, rhs: D::Pattern) -> Option<D::Pattern>
     where
         D: Dimension + IntoDimension<Dim = D>,
@@ -1234,20 +1422,21 @@ where
 
     pub(crate) fn sign_op(tensor: SharedArray<E>) -> SharedArray<E>
     where
-        E: Signed,
+        // `PartialOrd` in addition to the enclosing impl block's bounds:
+        // needed for the numeric bound comparisons.
+        E: Signed + PartialOrd,
     {
         let zero = 0.elem();
         let one = 1.elem::<E>();
 
         tensor
             .mapv(|x| {
-                if x == zero {
-                    zero
+                if x > zero {
+                    one
+                } else if x < zero {
+                    -one
                 } else {
-                    match x.is_positive() {
-                        true => one,
-                        false => -one,
-                    }
+                    zero
                 }
             })
             .into_shared()
@@ -1366,10 +1555,8 @@ where
             i16,
             u32,
             i32,
-            f32,
             u64,
-            i64,
-            f64
+            i64
         );
 
         tensor.mapv_inplace(|x| match x < min {
@@ -1392,10 +1579,8 @@ where
             i16,
             u32,
             i32,
-            f32,
             u64,
-            i64,
-            f64
+            i64
         );
 
         tensor.mapv_inplace(|x| match x > max {
@@ -1418,10 +1603,8 @@ where
             i16,
             u32,
             i32,
-            f32,
             u64,
-            i64,
-            f64
+            i64
         );
 
         tensor.mapv_inplace(|x| match x < min {
@@ -1834,6 +2017,30 @@ mod tests {
     use crate::NdArrayTensor;
 
     use super::*;
+
+    #[test]
+    fn remainder_preserves_i64_precision_and_handles_overflow() {
+        for (a, b, expected) in [
+            ((1i64 << 53) + 1, 2, 1),
+            (i64::MAX - 1, i64::MAX, i64::MAX - 1),
+            (i64::MIN, -1, 0),
+            (1, i64::MIN, i64::MIN + 1),
+            (-5, 3, 1),
+        ] {
+            let lhs = ndarray::array![a].into_dyn().into_shared();
+            let rhs = ndarray::array![b].into_dyn().into_shared();
+            assert_eq!(NdArrayMathOps::remainder(lhs.clone(), rhs)[[0]], expected);
+            assert_eq!(NdArrayMathOps::remainder_scalar(lhs, b)[[0]], expected);
+        }
+    }
+
+    #[test]
+    fn remainder_preserves_u64_precision() {
+        let lhs = ndarray::array![u64::MAX].into_dyn().into_shared();
+        let rhs = ndarray::array![2u64].into_dyn().into_shared();
+        assert_eq!(NdArrayMathOps::remainder(lhs.clone(), rhs)[[0]], 1);
+        assert_eq!(NdArrayMathOps::remainder_scalar(lhs, 2)[[0]], 1);
+    }
 
     #[test]
     fn should_generate_row_major_layout_for_cat() {

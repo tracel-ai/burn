@@ -16,7 +16,7 @@ pub struct DropoutConfig {
 /// This is an effective regularization technique as describe in the paper
 /// [Improving neural networks by preventing co-adaptation of feature detectors](https://arxiv.org/abs/1207.0580).
 ///
-/// The input is also scaled during training to `1 / (1 - prob_keep)`.
+/// Kept values are scaled during training by `1 / (1 - prob)`.
 ///
 /// Should be created with [DropoutConfig].
 #[derive(Module, Debug)]
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn backend_transitions_preserve_a_frozen_flag() {
-        use burn::module::AutodiffModule;
+        use burn::module::Module;
 
         let dropout = DropoutConfig::new(0.5).init().freeze();
         let dropout = dropout.valid().train();

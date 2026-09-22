@@ -153,10 +153,13 @@ Most backends support all operating systems, so we don't mention them in the tab
 
 <br />
 
-Compared to other frameworks, Burn has a very different approach to supporting many backends. By
-design, most code is generic over the Backend trait, which allows us to build Burn with swappable
-backends. This makes composing backend possible, augmenting them with additional functionalities
-such as autodifferentiation and automatic kernel fusion.
+Burn's backend architecture lets you swap backends while keeping the same model code. You can enable
+multiple backends in the same application and choose the device for your tensors and modules at
+runtime through `Device`. This gives you the freedom to use different backends side by side and
+select the hardware best suited to each workload.
+
+Autodifferentiation and automatic kernel fusion integrate with the same tensor and module APIs, so
+models benefit from these capabilities on supported backends without changing their implementation.
 
 <details>
 <summary>
@@ -167,20 +170,17 @@ Autodiff: Backend decorator that brings backpropagation to any backend 🔄
 Contrary to the aforementioned backends, Autodiff is actually a backend _decorator_. This means that
 it cannot exist by itself; it must encapsulate another backend.
 
-The simple act of wrapping a base backend with Autodiff transparently equips it with
-autodifferentiation support, making it possible to call backward on your model.
+In application code, enable autodiff on a device before creating tensors or initializing a model.
+With the `autodiff` and `wgpu` features enabled:
 
 ```rust
-use burn::backend::{Autodiff, Wgpu};
-use burn::tensor::{Distribution, Tensor};
+use burn::tensor::{Device, Distribution, Tensor};
 
 fn main() {
-    type Backend = Autodiff<Wgpu>;
+    let device = Device::wgpu(Default::default()).autodiff();
 
-    let device = Default::default();
-
-    let x: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default, &device);
-    let y: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default, &device).require_grad();
+    let x: Tensor<2> = Tensor::random([32, 32], Distribution::Default, &device);
+    let y: Tensor<2> = Tensor::random([32, 32], Distribution::Default, &device).require_grad();
 
     let tmp = x.clone() + y.clone();
     let tmp = tmp.matmul(x);
@@ -192,9 +192,10 @@ fn main() {
 }
 ```
 
-Of note, it is impossible to make the mistake of calling backward on a model that runs on a backend
-that does not support autodiff (for inference), as this method is only offered by an Autodiff
-backend.
+`backward()` checks graph participation at runtime. Enable autodiff before the forward pass and call
+`require_grad()` on source leaves whose gradients you need. `is_autodiff()`, `is_tracked()`, and
+`is_require_grad()` inspect autodiff association, graph participation, and gradient retention
+respectively. See the [autodiff guide](./burn-book/src/building-blocks/autodiff.md).
 
 See the [Autodiff Backend README](./crates/burn-autodiff/README.md) for more details.
 
@@ -202,7 +203,7 @@ See the [Autodiff Backend README](./crates/burn-autodiff/README.md) for more det
 
 <details>
 <summary>
-Fusion: Backend decorator that brings kernel fusion to all first-party backends
+Fusion: Backend decorator that brings kernel fusion to supported backends
 </summary>
 <br />
 
@@ -213,15 +214,14 @@ feature flag), so you typically don't need to apply it manually.
 
 ```rust
 #[cfg(not(feature = "fusion"))]
-pub type Cuda<F = f32, I = i32> = CubeBackend<CudaRuntime, F, I, u8>;
+pub type Cube = burn_cubecl::CubeBackend;
 
 #[cfg(feature = "fusion")]
-pub type Cuda<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CudaRuntime, F, I, u8>>;
+pub type Cube = burn_fusion::Fusion<burn_cubecl::CubeBackend>;
 ```
 
-Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory
-bound operations, which will work gracefully with the fusion backend to make your code run even
-faster during training, see [this issue](https://github.com/tracel-ai/burn/issues/936).
+`Device::autodiff().gradient_checkpointing()` enables the balanced gradient-checkpointing strategy,
+which trades recomputation for reduced activation storage during training.
 
 See the [Fusion Backend README](./crates/burn-fusion/README.md) for more details.
 
@@ -233,27 +233,24 @@ Remote (Beta): Backend decorator for remote backend execution, useful for distri
 </summary>
 <br />
 
-That backend has two parts, one client and one server. The client sends tensor operations over the
-network to a remote compute backend. You can use any first-party backend as server in a single line
-of code:
+Remote execution has a client and a server. The server's `Device` selects the compute backend;
+clients use a remote `Device` with the same tensor API. Iroh is the preferred transport for new
+integrations; see the [server example](./examples/server) and
+[device guide](./burn-book/src/building-blocks/backend.md). For a WebSocket setup, enable
+`remote-server`, `remote-websocket`, and `cuda` on the server, and `remote-websocket` plus
+`autodiff` on the client:
 
 ```rust
+use burn::tensor::{Device, Distribution, Tensor};
+
 fn main_server() {
-    // Start a server on port 3000.
-    burn::server::start::<burn::backend::Cuda>(Default::default(), 3000);
+    burn::server::start(Device::cuda(0), burn::server::Channel::WebSocket { port: 3000 });
 }
 
 fn main_client() {
-    // Create a client that communicate with the server on port 3000.
-    use burn::backend::{Autodiff, RemoteBackend};
-
-    type Backend = Autodiff<RemoteDevice>;
-
-    let device = RemoteDevice::new("ws://localhost:3000");
-    let tensor_gpu =
-        Tensor::<Backend, 2>::random([3, 3], Distribution::Default, &device);
+    let device = Device::remote_websocket("ws://localhost:3000", 0).autodiff();
+    let tensor_gpu = Tensor::<2>::random([3, 3], Distribution::Default, &device);
 }
-
 ```
 
 </details>
@@ -379,18 +376,6 @@ dedicated benchmarking suite.
 
 Run and compare benchmarks using [burn-bench](https://github.com/tracel-ai/burn-bench).
 
-> ⚠️ **Warning** When using one of the `wgpu` backends, you may encounter compilation errors related
-> to recursive type evaluation. This is due to complex type nesting within the `wgpu` dependency
-> chain. To resolve this issue, add the following line at the top of your `main.rs` or `lib.rs`
-> file:
->
-> ```rust
-> #![recursion_limit = "256"]
-> ```
->
-> The default recursion limit (128) is often just below the required depth (typically 130-150) due
-> to deeply nested associated types and trait bounds.
-
 ## Getting Started
 
 <div align="left">
@@ -431,18 +416,18 @@ we declare a neural network module with some parameters along with its forward p
 ```rust
 use burn::nn;
 use burn::module::Module;
-use burn::tensor::backend::Backend;
+use burn::tensor::Tensor;
 
 #[derive(Module, Debug)]
-pub struct PositionWiseFeedForward<B: Backend> {
-    linear_inner: nn::Linear<B>,
-    linear_outer: nn::Linear<B>,
+pub struct PositionWiseFeedForward {
+    linear_inner: nn::Linear,
+    linear_outer: nn::Linear,
     dropout: nn::Dropout,
     gelu: nn::Gelu,
 }
 
-impl<B: Backend> PositionWiseFeedForward<B> {
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+impl PositionWiseFeedForward {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let x = self.linear_inner.forward(input);
         let x = self.gelu.forward(x);
         let x = self.dropout.forward(x);
@@ -545,42 +530,23 @@ runtime to ship, running from servers down to `no_std` embedded targets.
 > keeping the data type as a field. If you are using `Data` in your code, make sure to switch to
 > `TensorData`.
 
-<!-- >
-> In the event that you are trying to load a model record saved in a previous version, make sure to
-> enable the `record-backward-compat` feature using a previous version of burn (<=0.16.0). Otherwise,
-> the record won't be deserialized correctly and you will get an error message (which will also point
-> you to the backward compatible feature flag). The backward compatibility was maintained for
-> deserialization (loading), so as soon as you have saved the record again it will be saved according
-> to the new structure and you will be able to upgrade to this version. Please note that binary formats
-> are not backward compatible. Thus, you will need to load your record in a previous version and save it
-> to another of the self-describing record formats before using a compatible version (as described) with the
-> `record-backward-compat` feature flag. -->
-
 <details id="deprecation">
 <summary>
 Loading Model Records From Previous Versions ⚠️
 </summary>
 <br />
 
-In the event that you are trying to load a model record saved in a version older than `0.14.0`, make
-sure to use a compatible version (`0.14`, `0.15` or `0.16`) with the `record-backward-compat`
-feature flag.
+Burn 0.22 uses burnpack for native records and cannot directly read legacy `Recorder` formats such
+as `.mpk`, `.bin`, or JSON. Load the checkpoint in a compatible older Burn project, export the model
+weights through `burn-store`, and import them into your 0.22 model. See
+[Migrating checkpoints](burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
+the distinction between transferring weights and resuming training state.
 
-```
-features = [..., "record-backward-compat"]
-```
-
-Otherwise, the record won't be deserialized correctly and you will get an error message. This error
-will also point you to the backward compatible feature flag.
-
-The backward compatibility was maintained for deserialization when loading records. Therefore, as
-soon as you have saved the record again it will be saved according to the new structure and you can
-upgrade back to the current version
-
-Please note that binary formats are not backward compatible. Thus, you will need to load your record
-in a previous version and save it in any of the other self-describing record format (e.g., using the
-`NamedMpkFileRecorder`) before using a compatible version (as described) with the
-`record-backward-compat` feature flag.
+For records saved before `0.14.0`, an earlier migration step may also be needed: use Burn `0.14`,
+`0.15`, or `0.16` with the `record-backward-compat` feature to load and re-save the record with the
+newer tensor-data representation. For legacy binary records, first use the version that wrote them
+to export a self-describing format such as `NamedMpkFileRecorder`. This historical migration does
+not convert records to the format required by 0.22; follow the checkpoint migration guide afterward.
 
 </details>
 

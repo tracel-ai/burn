@@ -2,18 +2,19 @@ use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError,
-    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
-    TensorData,
+    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPool, SlicedPoolReport, TensorData, profile_with_tokens,
 };
-use burn_std::{BoolStore, DType, quantization::quantizable};
+use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
 use cubecl::{
     MemoryConfiguration, MemoryPoolKind,
-    client::Client,
+    client::{Client, ProfileWindow},
     config::memory::{MemoryPoolConfig, MemoryPoolsConfig, MemoryPoolsPreset},
     config::size::MemorySize,
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
+    server::{ProfileError, ProfilingToken},
 };
 
 #[cfg(not(feature = "fusion"))]
@@ -40,6 +41,32 @@ fn graph_err(err: impl core::fmt::Display) -> ExecutionError {
     ExecutionError::WithContext {
         reason: format!("{err}"),
     }
+}
+
+/// Turn a cubecl profiling error into a backend [`ExecutionError`].
+fn profile_err(err: ProfileError) -> ExecutionError {
+    ExecutionError::WithContext {
+        reason: format!("{err}"),
+    }
+}
+
+/// A window a kernel-stamping runtime could not measure.
+///
+/// A runtime that stamps the stream (CUDA, HIP) answers a window nothing ran
+/// in with two stamps and nothing between them. One that stamps kernels (wgpu)
+/// has no query set for it and refuses it as [`ProfileError::NotMeasured`] —
+/// but it refuses **two** cases with one error, and cubecl says so where the
+/// refusal is raised: a window that dispatched nothing, and a window whose
+/// work never landed in a timestamped pass. The second is a kernel that ran.
+///
+/// So this resolves to no measurement rather than to a zero. Zero is the
+/// fastest duration there is, and a caller comparing two windows — which is
+/// what a profiling scope is for — would take the one that could not be
+/// measured as the quicker of the two. `None` is already how every reader of a
+/// [`ProfileDuration`] spells an absence, and the error it replaces carried
+/// exactly that meaning.
+fn empty_window() -> ProfileDuration {
+    ProfileDuration::new_device_time_maybe(async move { None })
 }
 
 /// A captured launch sequence, tagged with the device it was captured on.
@@ -94,6 +121,68 @@ impl Backend for CubeBackend {
         futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
             reason: format!("{err}"),
         })
+    }
+
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        // Not cubecl's bracketed `profile`: that one runs the closure on the
+        // device's runner while holding the device, so a closure waiting on
+        // another thread's call to the same device — a data loader building
+        // its batch there, say — would never get it back. The split window
+        // opens and closes on the stream without holding anything between.
+        profile_with_tokens::<Self, O>(device, options, func)
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        let client = device.client();
+        client
+            .profile_start()
+            .map(|window| {
+                Some(ProfileToken {
+                    id: window.token.id,
+                    opened_on: window.stream_id.value,
+                })
+            })
+            .map_err(profile_err)
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+        _options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        // Nothing is queued past the window here: every launch reaches the
+        // stream as it is made, so there is nothing for the flush option to
+        // force out.
+        let client = device.client();
+        // Closed on the stream it was opened on, which the token carries —
+        // not on the calling thread's, which need not be the same one.
+        let window = ProfileWindow {
+            stream_id: StreamId {
+                value: token.opened_on,
+            },
+            token: ProfilingToken { id: token.id },
+        };
+        match client.profile_end(window) {
+            Ok(duration) => Ok(duration),
+            Err(ProfileError::NotMeasured { .. }) => Ok(empty_window()),
+            Err(err) => Err(profile_err(err)),
+        }
+    }
+
+    /// Dropped on the stream it was opened on, without recording an end —
+    /// cubecl returns the start event to its pool and nothing is measured.
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        let window = ProfileWindow {
+            stream_id: StreamId {
+                value: token.opened_on,
+            },
+            token: ProfilingToken { id: token.id },
+        };
+        device.client().profile_abandon(window);
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

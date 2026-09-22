@@ -2,7 +2,7 @@
 
 use crate::{
     ApplyResult, KeyRemapper, ModuleSnapshot, ModuleStore, PathFilter, PyTorchToBurnAdapter,
-    map_indices_contiguous,
+    bridge, map_indices_contiguous_except,
 };
 
 use alloc::collections::BTreeMap;
@@ -15,7 +15,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use std::path::PathBuf;
 
-use super::reader::{PytorchError as ReaderError, PytorchReader};
+use pytorch_reader::{PytorchError as ReaderError, PytorchReader};
 
 /// Errors that can occur during PyTorch operations.
 #[derive(Debug)]
@@ -80,7 +80,9 @@ pub struct PytorchStore {
     pub(crate) skip_enum_variants: bool,
     /// Enable contiguous mapping of layer indices (default: true)
     pub(crate) map_indices_contiguous: bool,
-    /// Cached tensors (parsed once, reused)
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    pub(crate) keep_indices: PathFilter,
+    /// Cached tensors (parsed once, reused until a builder that feeds the cache is called)
     tensors_cache: Option<BTreeMap<String, PackTensor>>,
 }
 
@@ -109,6 +111,7 @@ impl PytorchStore {
             // Enable contiguous index mapping by default for PyTorch files
             // This handles nn.Sequential models with gaps in layer indices
             map_indices_contiguous: true,
+            keep_indices: PathFilter::new(),
             tensors_cache: None,
         }
     }
@@ -126,6 +129,7 @@ impl PytorchStore {
     /// ```
     pub fn with_top_level_key(mut self, key: impl Into<String>) -> Self {
         self.top_level_key = Some(key.into());
+        self.tensors_cache = None;
         self
     }
 
@@ -226,6 +230,7 @@ impl PytorchStore {
     /// Remap tensor names during load.
     pub fn remap(mut self, remapper: KeyRemapper) -> Self {
         self.remapper = remapper;
+        self.tensors_cache = None;
         self
     }
 
@@ -247,6 +252,7 @@ impl PytorchStore {
             .remapper
             .add_pattern(from_pattern, to_pattern)
             .expect("Invalid regex pattern");
+        self.tensors_cache = None;
         self
     }
 
@@ -310,6 +316,31 @@ impl PytorchStore {
     /// ```
     pub fn map_indices_contiguous(mut self, map: bool) -> Self {
         self.map_indices_contiguous = map;
+        self.tensors_cache = None;
+        self
+    }
+
+    /// Leave the indices under prefixes matching `pattern` untouched when contiguous
+    /// index mapping is enabled.
+    ///
+    /// The regex is matched against the prefix before a numeric segment (`flows` for
+    /// `flows.2.weight`), so anchor it to keep exactly one list. Can be called multiple
+    /// times. See [`map_indices_contiguous_except`] for the prefix rules.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
+    /// // flows.{0,2,4} stay as-is, every other list is still renumbered
+    /// let store = PytorchStore::from_file("model.pth")
+    ///     .map_indices_contiguous_except(r"^model_g\.flow\.flows$");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    pub fn map_indices_contiguous_except<S: AsRef<str>>(mut self, pattern: S) -> Self {
+        self.keep_indices = self.keep_indices.with_regex(pattern);
+        self.tensors_cache = None;
         self
     }
 
@@ -412,9 +443,13 @@ impl PytorchStore {
 
         let reader = self.create_reader()?;
 
-        // The reader already names each tensor by its key, and PyTorch carries no parameter
-        // identity, so nothing has to be patched up here.
-        let mut tensors: Vec<PackTensor> = reader.into_tensors().into_values().collect();
+        // The reader already names each tensor by its key, so nothing has to be patched up
+        // here beyond wrapping each one for the applier.
+        let mut tensors: Vec<PackTensor> = reader
+            .into_tensors()
+            .into_values()
+            .map(bridge::from_pytorch)
+            .collect();
 
         // Apply remapping (but NOT filtering - that's done at apply time)
         tensors = self.apply_remapping(tensors);
@@ -422,7 +457,8 @@ impl PytorchStore {
         // Apply contiguous index mapping if enabled
         // This must be done after remapping so that remapped paths are mapped
         if self.map_indices_contiguous {
-            let (mapped, _) = map_indices_contiguous(tensors);
+            let (mapped, _) =
+                map_indices_contiguous_except(tensors, |prefix| self.keep_indices.matches(prefix));
             tensors = mapped;
         }
 

@@ -54,7 +54,7 @@ Brief description of what this example demonstrates.
 ## Running the Example
 
 ```bash
-cargo run --example <my-example>
+cargo run -p <my-example> --example <my-example>
 ```
 
 ## Prerequisites
@@ -96,6 +96,49 @@ List any prerequisites here.
    - Include inline comments for complex logic
    - Explain any non-obvious implementation details
 
+## Sharing Code with the Book
+
+When a book chapter shows code from a maintained example, use an mdBook include so changes to the
+example also update the chapter. Include the whole file when it is short, or select a named region
+to preserve a tutorial's step-by-step presentation. Prefer named regions over line numbers, which
+shift as the source changes.
+
+Mark a region in the Rust source with ordinary comments:
+
+```rust,ignore
+// ANCHOR: example_model
+#[derive(Module, Debug)]
+pub struct Model {
+    linear: Linear,
+}
+// ANCHOR_END: example_model
+```
+
+Inside the chapter's Rust code fence, reference the source path and region. For example, the
+basic-workflow model chapter uses:
+
+```text
+\{{#include ../../../examples/guide/src/model.rs:model}}
+```
+
+Paths are relative to the Markdown file containing the include. The example above is relative to
+`burn-book/src/basic-workflow/model.md`. mdBook removes the anchor comments from rendered snippets.
+Keep conceptual or deliberately abbreviated snippets inline when the maintained implementation
+would obscure the explanation. Update the surrounding prose when an included API changes.
+
+Build both books from the repository root to check includes:
+
+```sh
+cargo xtask books burn build
+cargo xtask books contributor build
+```
+
+These commands install mdBook if needed. To preview either book in your browser, replace `build`
+with `open`.
+
+An include keeps the displayed code synchronized with its source; compiling and testing the
+example remains a separate check.
+
 ## Submitting Your Example
 
 1. Ensure your example follows all the guidelines above
@@ -105,4 +148,4 @@ List any prerequisites here.
    - Any relevant issue numbers
    - Screenshots or output examples (if applicable)
 
-Feel free to ask questions in the pull request if you need clarification or guidance. 
+Feel free to ask questions in the pull request if you need clarification or guidance.

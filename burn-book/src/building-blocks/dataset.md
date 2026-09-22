@@ -11,11 +11,26 @@ implemented on your type. The dataset trait is quite similar to the dataset abst
 PyTorch:
 
 ```rust, ignore
-pub trait Dataset<I>: Send + Sync {
-    fn get(&self, index: usize) -> Option<I>;
+use burn::data::dataset::DatasetError;
+use std::error::Error;
+
+pub trait Dataset<I, E = DatasetError>: Send + Sync
+where
+    E: Error + Send + Sync + 'static,
+{
+    fn get(&self, index: usize) -> Result<I, E>;
     fn len(&self) -> usize;
 }
 ```
+
+`get` returns `Ok(item)` for a retrieved item and `Err(error)` for a failure to retrieve an
+in-bounds item. Accessing an index at or beyond `len()` must panic, as with indexing a slice.
+`DatasetError` is the default error type; implementations can supply their own error type instead.
+`DatasetError::new(error)` wraps an error when a default-error implementation needs to propagate it.
+
+Dataset iteration yields `Result<I, E>` for each index. The iterator advances past a failed item,
+so callers can choose whether to stop or continue. Only exhaustion ends the iterator. In 0.21,
+`get` returned `Option<I>`; see [Migrating to Burn 0.22](../migrating-to-0.22.md#datasets-and-dataloaders).
 
 The dataset trait assumes a fixed-length set of items that can be randomly accessed in constant
 time. This is a major difference from datasets that use Apache Arrow underneath to improve streaming
@@ -131,6 +146,9 @@ dataset to use should be based on the dataset's size as well as its intended pur
 | `SqliteDataset`    | Dataset that uses [Turso](https://turso.tech/) to index items that can be saved in a simple SQLite database file. Well-suited for larger datasets.   |
 | `DataframeDataset` | Dataset that uses [Polars](https://www.pola.rs/) dataframe to store and manage data. Well-suited for efficient data manipulation and analysis.       |
 
+`SqliteDataset` and the Hugging Face loader below require the `sqlite` feature of `burn`, which the
+`dataset` and `train` features do not enable on their own.
+
 ## Sources
 
 For now, there are only a couple of dataset sources available with Burn, but more to come!
@@ -174,6 +192,22 @@ loader.
 `ImageFolderDataset` is a generic vision dataset used to load images from disk. It is currently
 available for multi-class and multi-label classification tasks as well as semantic segmentation and
 object detection tasks.
+
+Each `ImageDatasetItem` stores its image in a `PixelData` buffer. The `U8`, `U16`, and `F32` variants
+hold a vector of components with that element type. Match the variant to process the packed values
+directly, or use `item.image.iter()` to iterate over individual `PixelDepth` values regardless of
+the buffer's type. For example, this extracts an 8-bit image buffer:
+
+```rust,ignore
+use burn::data::dataset::vision::{ImageDatasetItem, PixelData};
+
+fn into_u8_pixels(item: ImageDatasetItem) -> Vec<u8> {
+    match item.image {
+        PixelData::U8(pixels) => pixels,
+        _ => panic!("This preprocessing pipeline expects an 8-bit image"),
+    }
+}
+```
 
 ```rust, ignore
 // Create an image classification dataset from the root folder,
@@ -290,6 +324,28 @@ step to prepare the batch data, as is done [in the basic workflow guide](../basi
 The process is illustrated in the figure below for the MNIST dataset.
 
 <img title="Burn Data Loading Pipeline" alt="Burn Data Loading Pipeline" src="./dataset.png">
+
+Dataloader iterators yield `Result<Batch, DatasetError>`. Handle each result before using the batch.
+For example, this helper stops at the first retrieval error and returns it to the caller:
+
+```rust,ignore
+use burn::data::{dataloader::DataLoader, dataset::DatasetError};
+
+fn for_each_batch<Batch>(
+    dataloader: &dyn DataLoader<Batch>,
+    mut consume: impl FnMut(Batch),
+) -> Result<(), DatasetError> {
+    for batch in dataloader.iter() {
+        let batch = batch?;
+        consume(batch);
+    }
+    Ok(())
+}
+```
+
+The callback can run a model's forward pass and optimization step. A custom loop can instead match
+on each result to report or skip a failed batch. The [custom training loop](../custom-training-loop.md)
+shows how batch processing fits into training and validation.
 
 Although we have conveniently implemented the
 [`MnistDataset`](https://github.com/tracel-ai/burn/blob/main/crates/burn-dataset/src/vision/mnist.rs)
@@ -514,8 +570,10 @@ Since the `MnistDataset` simply wraps a `MapperDataset` instance with `InMemData
 implement the `Dataset` trait.
 
 ```rust, ignore
+use burn::data::dataset::{Dataset, DatasetError};
+
 impl Dataset<MnistItem> for MnistDataset {
-    fn get(&self, index: usize) -> Option<MnistItem> {
+    fn get(&self, index: usize) -> Result<MnistItem, DatasetError> {
         self.dataset.get(index)
     }
 

@@ -26,15 +26,6 @@ mod wgpu {
 }
 ```
 
-> ⚠️ **Warning**  
-> When using one of the `wgpu` backends, you may encounter compilation errors related to recursive type evaluation. This is due to complex type nesting within the `wgpu` dependency chain.  
-> To resolve this issue, add the following line at the top of your `main.rs` or `lib.rs` file:
-> ```rust
-> #![recursion_limit = "256"]
-> ```
-> The default recursion limit (128) is often just below the required depth (typically 130-150) due to deeply nested associated types and trait bounds.
-
-
 ## Configuration
 
 You can set `BURN_WGPU_MAX_TASKS` to a positive integer that determines how many computing tasks are

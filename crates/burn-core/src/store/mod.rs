@@ -74,7 +74,7 @@ struct RecordTensor {
 /// A non-generic record holding a module's parameters.
 ///
 /// Obtain one from a module with [`Module::into_record`], then either save it
-/// ([`save`](ModuleRecord::save) / [`into_bytes`](ModuleRecord::into_bytes)) or apply it back with
+/// (`save` with `std` enabled / [`into_bytes`](ModuleRecord::into_bytes)) or apply it back with
 /// [`Module::load_record`]. Load-time behavior is
 /// configured with the builder methods; they are ignored when saving.
 ///

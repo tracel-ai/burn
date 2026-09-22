@@ -1,0 +1,544 @@
+//! Where tensor bytes come from once a pickle has been parsed.
+//!
+//! Every PyTorch container keeps tensor metadata (a pickle) apart from the storages holding
+//! the raw bytes (little-endian in every file this reader accepts). A [`StorageSource`] maps
+//! a storage key from that pickle to its bytes on demand: the ZIP and legacy sources read
+//! the file at that point, the TAR source slices an entry already in memory.
+
+use std::collections::HashMap;
+use std::fmt;
+use std::fs::File;
+use std::io::{self, BufReader, Read};
+use std::path::Path;
+use std::sync::Mutex;
+use zip::{CompressionMethod, ZipArchive};
+
+use crate::{MAX_PICKLE_SIZE, PytorchError};
+
+/// Largest `version`, `byteorder` or similar text entry accepted.
+const MAX_TEXT_ENTRY_SIZE: u64 = 4096;
+
+/// Storage bytes for one container format.
+pub(crate) enum StorageSource {
+    Zip(ZipSource),
+    Tar(TarSource),
+    Legacy(LegacySource),
+}
+
+impl fmt::Debug for StorageSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Zip(_) => "StorageSource::Zip",
+            Self::Tar(_) => "StorageSource::Tar",
+            Self::Legacy(_) => "StorageSource::Legacy",
+        })
+    }
+}
+
+impl StorageSource {
+    /// Read at most `max_len` bytes of the storage saved under `key`, starting at `start`.
+    ///
+    /// A caller knows the window its tensor can touch, and the rest of the storage is never
+    /// held: bytes past the window are left unread, and bytes before it are dropped as they
+    /// go by, so a ZIP entry that decompresses far beyond its archive size costs its window
+    /// rather than its size. A storage shorter than the window yields what it has.
+    ///
+    /// Returns the window and the number of bytes that preceded it, which is below `start`
+    /// only when the storage ends inside them. The two together say how far the storage
+    /// reaches, which a short read is diagnosed with.
+    pub fn read(&self, key: &str, start: usize, max_len: usize) -> io::Result<(Vec<u8>, usize)> {
+        match self {
+            Self::Zip(source) => source.read_storage(key, start, max_len),
+            Self::Tar(source) => source.read_storage(key, start, max_len),
+            Self::Legacy(source) => source.read_storage(key, start, max_len),
+        }
+    }
+
+    /// Record the size a pickle declares for a storage.
+    ///
+    /// Only the legacy container needs this: its storages are concatenated without any
+    /// index, so the pickle's declarations are the only way to find their boundaries.
+    pub fn declare(&self, key: &str, byte_len: usize, element_size: usize) -> io::Result<()> {
+        match self {
+            Self::Legacy(source) => source.declare(key, byte_len, element_size),
+            Self::Zip(_) | Self::Tar(_) => Ok(()),
+        }
+    }
+}
+
+fn invalid_data(message: String) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message)
+}
+
+fn lock_ignoring_poison<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Read exactly `len` bytes without trusting `len` for the up-front allocation.
+///
+/// A length read from an untrusted file could be anything, so at most `capacity_bound`
+/// bytes are reserved ahead of the read (the caller's idea of the largest plausible size,
+/// such as the file length); beyond that the buffer grows only with bytes that actually
+/// arrive, and a short read is an error.
+pub(crate) fn read_exact_len<R: Read>(
+    reader: &mut R,
+    len: u64,
+    capacity_bound: usize,
+) -> io::Result<Vec<u8>> {
+    let capacity = usize::try_from(len).map_or(capacity_bound, |len| len.min(capacity_bound));
+    let mut buffer = Vec::with_capacity(capacity);
+    reader.by_ref().take(len).read_to_end(&mut buffer)?;
+    if buffer.len() as u64 != len {
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            format!("expected {len} bytes, found {}", buffer.len()),
+        ));
+    }
+    Ok(buffer)
+}
+
+/// The modern ZIP container (PyTorch 1.6+).
+///
+/// `torch.save` writes every entry under a root directory named after the file
+/// (`model/data.pkl`, `model/data/0`, `model/version`, ...). Files saved through a file
+/// object or an in-memory buffer use `archive/`, and some tools write the entries at the
+/// root. The directory holding `data.pkl` is the root for every other entry.
+///
+/// The file is held open from [`open`](Self::open) until drop and never reopened by path,
+/// so a reader keeps reading the file it opened if that path is unlinked or replaced.
+pub(crate) struct ZipSource {
+    /// The central directory, and the stream every entry but a stored storage is read
+    /// through. Locked to look any entry up, and for the whole of a read through the
+    /// stream: the pickle and text entries, and a deflated storage.
+    archive: Mutex<ZipArchive<BufReader<File>>>,
+    /// A second handle to the same file, read at explicit offsets and never through its
+    /// cursor. A stored storage's bytes come through it once the lookup under `archive`
+    /// has said where they are, so tensor reads from different threads run at once instead
+    /// of queueing on `archive`. Unused past `open` on Windows and on a target without a
+    /// positional read (see `read_exact_at`).
+    file: File,
+    /// Root directory including its trailing slash, or empty at the archive root.
+    root: String,
+    /// Size of the archive file. A stored storage is checked to lie within it, and it caps
+    /// the up-front allocation for a deflated one, which grows as it is read.
+    file_len: u64,
+}
+
+impl ZipSource {
+    pub fn open(path: &Path) -> Result<Self, PytorchError> {
+        let file = File::open(path)?;
+        let file_len = file.metadata()?.len();
+        // The stream gets a duplicate of the handle rather than an open of its own, so a
+        // replacement of `path` cannot slip in between two opens. The duplicate shares the
+        // cursor, which is why `file` is only ever read at explicit offsets.
+        let archive = ZipArchive::new(BufReader::new(file.try_clone()?))?;
+
+        let root = archive
+            .file_names()
+            .filter_map(|name| name.strip_suffix("data.pkl"))
+            .filter(|root| root.is_empty() || root.ends_with('/'))
+            .min_by_key(|root| root.len())
+            .map(str::to_string)
+            .ok_or_else(|| {
+                PytorchError::InvalidFormat(
+                    "No data.pkl entry found in ZIP archive. Expected a PyTorch 1.6+ checkpoint"
+                        .to_string(),
+                )
+            })?;
+
+        Ok(Self {
+            archive: Mutex::new(archive),
+            file,
+            root,
+            file_len,
+        })
+    }
+
+    /// Total uncompressed size of the storage entries.
+    pub fn data_size(&self) -> io::Result<u64> {
+        let data_prefix = format!("{}data/", self.root);
+        let mut archive = lock_ignoring_poison(&self.archive);
+        let indices: Vec<usize> = archive
+            .file_names()
+            .filter(|name| name.starts_with(&data_prefix) && !name.ends_with('/'))
+            .filter_map(|name| archive.index_for_name(name))
+            .collect();
+        let mut data_size = 0u64;
+        for index in indices {
+            data_size = data_size.saturating_add(archive.by_index_raw(index)?.size());
+        }
+        Ok(data_size)
+    }
+
+    /// The `data.pkl` bytes. Refused beyond [`MAX_PICKLE_SIZE`], since a deflated entry can
+    /// claim any decompressed size.
+    pub fn pickle(&self) -> io::Result<Vec<u8>> {
+        self.read_entry(&format!("{}data.pkl", self.root), MAX_PICKLE_SIZE)
+    }
+
+    /// A small text entry next to `data.pkl` (`version`, `byteorder`, ...), trimmed, if the
+    /// archive has it.
+    pub fn read_text(&self, name: &str) -> io::Result<Option<String>> {
+        let full_name = format!("{}{name}", self.root);
+        if !self.has_entry(name) {
+            return Ok(None);
+        }
+        let bytes = self.read_entry(&full_name, MAX_TEXT_ENTRY_SIZE)?;
+        let text = String::from_utf8(bytes)
+            .map_err(|err| invalid_data(format!("ZIP entry '{full_name}': {err}")))?;
+        Ok(Some(text.trim().to_string()))
+    }
+
+    /// Whether an entry next to `data.pkl` exists.
+    pub fn has_entry(&self, name: &str) -> bool {
+        let full_name = format!("{}{name}", self.root);
+        lock_ignoring_poison(&self.archive)
+            .index_for_name(&full_name)
+            .is_some()
+    }
+
+    fn read_storage(
+        &self,
+        key: &str,
+        start: usize,
+        max_len: usize,
+    ) -> io::Result<(Vec<u8>, usize)> {
+        let name = format!("{}data/{key}", self.root);
+        let mut archive = lock_ignoring_poison(&self.archive);
+        let mut entry = archive
+            .by_name(&name)
+            .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
+        let size = entry.size();
+        let skipped = (start as u64).min(size);
+        let rest = size - skipped;
+        let len = rest.min(max_len as u64);
+
+        if cfg!(unix) && entry.compression() == CompressionMethod::Stored {
+            // Every entry `torch.save` writes is stored, so this is the path tensors take.
+            if entry.compressed_size() != size {
+                return Err(invalid_data(format!(
+                    "ZIP entry '{name}' declares {size} bytes but stores {}",
+                    entry.compressed_size()
+                )));
+            }
+            let data_start = entry
+                .data_start()
+                .ok_or_else(|| invalid_data(format!("ZIP entry '{name}' has no data offset")))?;
+            let crc32 = (len == size).then_some(entry.crc32());
+            drop(entry);
+            drop(archive);
+            let bytes = self.read_stored(&name, data_start, skipped, len, crc32)?;
+            return Ok((bytes, skipped as usize));
+        }
+
+        // A compressed entry yields its bytes only in order, so those before the window are
+        // decompressed and dropped instead of being held.
+        io::copy(&mut (&mut entry).take(skipped), &mut io::sink())?;
+        // Stopping short of the entry's end skips its CRC check; the bytes a tensor uses
+        // are still validated against its declared extent.
+        let bytes = read_zip_entry(&mut entry, &name, len, rest, self.file_len)?;
+        Ok((bytes, skipped as usize))
+    }
+
+    /// Read `len` bytes of a stored entry, `skipped` bytes past its data at `data_start`.
+    /// They are checked against `crc32` when it is given, which the caller does only when
+    /// they are the whole entry.
+    fn read_stored(
+        &self,
+        name: &str,
+        data_start: u64,
+        skipped: u64,
+        len: u64,
+        crc32: Option<u32>,
+    ) -> io::Result<Vec<u8>> {
+        // The offsets and lengths come from the file's own headers, so they are checked
+        // against the file before `len` sizes an allocation: a stored entry cannot reach
+        // past the end of the file.
+        let offset = data_start
+            .checked_add(skipped)
+            .filter(|offset| {
+                offset
+                    .checked_add(len)
+                    .is_some_and(|end| end <= self.file_len)
+            })
+            .ok_or_else(|| {
+                invalid_data(format!(
+                    "ZIP entry '{name}' extends beyond the end of the file"
+                ))
+            })?;
+        let mut bytes = vec![0u8; len as usize];
+        read_exact_at(&self.file, &mut bytes, offset).map_err(|err| match err.kind() {
+            // The range lay within the file when it was opened, so a short read means the
+            // file has shrunk since. An operating system error passes through as it is.
+            io::ErrorKind::UnexpectedEof => io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                format!(
+                    "ZIP entry '{name}' ends before its {len} bytes: the file shrank after it was opened"
+                ),
+            ),
+            _ => err,
+        })?;
+        // The stream path checks the CRC whenever a read reaches the entry's end, since the
+        // bytes it skips still pass through its checksum. Skipped bytes are never read
+        // here, so only a read of the whole entry can be checked.
+        if crc32.is_some_and(|crc32| crc32fast::hash(&bytes) != crc32) {
+            return Err(invalid_data(format!(
+                "ZIP entry '{name}': Invalid checksum"
+            )));
+        }
+        Ok(bytes)
+    }
+
+    /// Read a whole entry that must not exceed `max_size` bytes.
+    fn read_entry(&self, name: &str, max_size: u64) -> io::Result<Vec<u8>> {
+        let mut archive = lock_ignoring_poison(&self.archive);
+        let mut entry = archive
+            .by_name(name)
+            .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
+        let size = entry.size();
+        if size > max_size {
+            return Err(invalid_data(format!(
+                "ZIP entry '{name}' is {size} bytes, above the {max_size} byte limit"
+            )));
+        }
+        read_zip_entry(&mut entry, name, size, size, self.file_len)
+    }
+}
+
+/// Read the first `len` bytes of a ZIP entry whose header declares `size` bytes.
+///
+/// The `zip` crate checks an entry's CRC only when a read reaches its end, and a bounded
+/// read stops on its own limit instead. When the whole entry is wanted, one read past
+/// `size` reaches that end: a well-formed entry has nothing there and pays only for the
+/// checksum, and bytes beyond the declared size mean the header lied about it.
+fn read_zip_entry<R: Read>(
+    entry: &mut R,
+    name: &str,
+    len: u64,
+    size: u64,
+    capacity_bound: u64,
+) -> io::Result<Vec<u8>> {
+    let capacity_bound = usize::try_from(capacity_bound).unwrap_or(usize::MAX);
+    let bytes = read_exact_len(entry, len, capacity_bound)?;
+    if len == size {
+        let mut probe = [0u8; 1];
+        let trailing = entry
+            .read(&mut probe)
+            .map_err(|err| invalid_data(format!("ZIP entry '{name}': {err}")))?;
+        if trailing != 0 {
+            return Err(invalid_data(format!(
+                "ZIP entry '{name}' holds more than the {size} bytes it declares"
+            )));
+        }
+    }
+    Ok(bytes)
+}
+
+/// Fill `buf` from `offset` without depending on the handle's cursor, so reads through one
+/// handle from several threads do not interfere.
+#[cfg(unix)]
+fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> io::Result<()> {
+    std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
+}
+
+/// As on Unix, except that `seek_read` also sets the cursor. `LegacySource` is its file
+/// object's only user by the time it reads, so nothing depends on that cursor; `ZipSource`
+/// shares its cursor with the archive's stream and stays on that stream on Windows instead.
+/// Windows serializes I/O on a synchronous handle, so threads still queue in the kernel
+/// here, though no longer behind a lock.
+#[cfg(windows)]
+fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> io::Result<()> {
+    use std::os::windows::fs::FileExt;
+    while !buf.is_empty() {
+        match file.seek_read(buf, offset) {
+            Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
+            Ok(read) => {
+                buf = &mut buf[read..];
+                offset += read as u64;
+            }
+            Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(())
+}
+
+// No stable positional read in std elsewhere. `ZipSource::read_storage` keeps those targets
+// on the stream path; the legacy container has no stream and its storages cannot be read.
+#[cfg(not(any(unix, windows)))]
+fn read_exact_at(_file: &File, _buf: &mut [u8], _offset: u64) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "no positional file read on this target",
+    ))
+}
+
+/// The TAR container written by PyTorch before 0.1.10.
+///
+/// The `storages` entry is a count pickle followed, per storage, by a `(key, location,
+/// storage type)` pickle, an `i64` element count and the raw bytes, then a list of storage
+/// views. The whole entry is kept in memory and sliced. `reader::parse_tar_storages` parses
+/// the layout, since that module has the pickle parser the metadata needs.
+pub(crate) struct TarSource {
+    blob: Vec<u8>,
+    /// Storage key to `(offset, byte length)` within `blob`.
+    layout: HashMap<String, (usize, usize)>,
+}
+
+impl TarSource {
+    /// Wrap a parsed `storages` entry. Every range in `layout` must lie within `blob`.
+    pub fn new(blob: Vec<u8>, layout: HashMap<String, (usize, usize)>) -> Self {
+        Self { blob, layout }
+    }
+
+    fn read_storage(
+        &self,
+        key: &str,
+        start: usize,
+        max_len: usize,
+    ) -> io::Result<(Vec<u8>, usize)> {
+        let &(offset, len) = self
+            .layout
+            .get(key)
+            .ok_or_else(|| invalid_data(format!("storage '{key}' not found in TAR archive")))?;
+        let start = start.min(len);
+        let window = (len - start).min(max_len);
+        offset
+            .checked_add(start)
+            .and_then(|from| Some(from..from.checked_add(window)?))
+            .and_then(|range| self.blob.get(range))
+            .map(|bytes| (bytes.to_vec(), start))
+            .ok_or_else(|| invalid_data(format!("storage '{key}' lies outside the TAR data")))
+    }
+}
+
+/// The legacy container (PyTorch 0.1.10 to 1.5, and `_use_new_zipfile_serialization=False`).
+///
+/// After the metadata pickles the file holds every storage back to back, in the order of a
+/// key list that follows the main pickle. Each storage is an `i64` element count followed
+/// by its bytes. The count prefix gives elements, not bytes, so the sizes declared by the
+/// persistent ids in the main pickle are collected first and the layout is derived from
+/// them once the key list is known.
+///
+/// The file is held open from [`new`](Self::new) until drop and never reopened by path,
+/// so a reader keeps reading the file it opened if that path is unlinked or replaced.
+pub(crate) struct LegacySource {
+    /// Read at explicit offsets and never through its cursor, so tensor reads from
+    /// different threads run at once.
+    file: File,
+    state: Mutex<LegacyState>,
+}
+
+enum LegacyState {
+    /// Collecting declarations while the main pickle is parsed:
+    /// storage key to `(byte length, element size)`.
+    Declaring(HashMap<String, (usize, usize)>),
+    /// Layout fixed by the key list:
+    /// storage key to `(file offset of the element count, byte length, element size)`.
+    Finished(HashMap<String, (u64, usize, usize)>),
+}
+
+impl LegacySource {
+    /// Wrap the open checkpoint, whose storages are read at explicit offsets from here on.
+    pub fn new(file: File) -> Self {
+        Self {
+            file,
+            state: Mutex::new(LegacyState::Declaring(HashMap::new())),
+        }
+    }
+
+    fn declare(&self, key: &str, byte_len: usize, element_size: usize) -> io::Result<()> {
+        let mut state = lock_ignoring_poison(&self.state);
+        let LegacyState::Declaring(declared) = &mut *state else {
+            return Err(invalid_data(format!(
+                "storage '{key}' declared after the legacy layout was finalized"
+            )));
+        };
+        match declared.get(key) {
+            Some(&(prior_len, prior_size))
+                if (prior_len, prior_size) != (byte_len, element_size) =>
+            {
+                Err(invalid_data(format!(
+                    "storage '{key}' is declared twice with different sizes ({prior_len} and {byte_len} bytes)"
+                )))
+            }
+            Some(_) => Ok(()),
+            None => {
+                declared.insert(key.to_string(), (byte_len, element_size));
+                Ok(())
+            }
+        }
+    }
+
+    /// Fix the storage layout from the ordered key list and the data section bounds.
+    pub fn finish(&self, keys: &[String], data_start: u64, file_len: u64) -> io::Result<()> {
+        let mut state = lock_ignoring_poison(&self.state);
+        let LegacyState::Declaring(declared) = &*state else {
+            return Err(invalid_data(
+                "legacy storage layout finalized twice".to_string(),
+            ));
+        };
+        let mut layout = HashMap::with_capacity(keys.len());
+        let mut offset = data_start;
+
+        for key in keys {
+            let &(byte_len, element_size) = declared.get(key).ok_or_else(|| {
+                invalid_data(format!(
+                    "storage '{key}' is listed in the legacy key list but never referenced by the pickle"
+                ))
+            })?;
+            let end = offset
+                .checked_add(8)
+                .and_then(|start| start.checked_add(byte_len as u64))
+                .filter(|&end| end <= file_len)
+                .ok_or_else(|| {
+                    invalid_data(format!(
+                        "storage '{key}' ({byte_len} bytes) extends beyond the end of the file"
+                    ))
+                })?;
+            layout.insert(key.clone(), (offset, byte_len, element_size));
+            offset = end;
+        }
+
+        *state = LegacyState::Finished(layout);
+        Ok(())
+    }
+
+    fn read_storage(
+        &self,
+        key: &str,
+        start: usize,
+        max_len: usize,
+    ) -> io::Result<(Vec<u8>, usize)> {
+        let (offset, byte_len, element_size) = {
+            let state = lock_ignoring_poison(&self.state);
+            let LegacyState::Finished(layout) = &*state else {
+                return Err(invalid_data(
+                    "legacy storage layout was never finalized".to_string(),
+                ));
+            };
+            *layout
+                .get(key)
+                .ok_or_else(|| invalid_data(format!("storage '{key}' not found in legacy file")))?
+        };
+
+        let mut count = [0u8; 8];
+        read_exact_at(&self.file, &mut count, offset)?;
+        let stored_numel = i64::from_le_bytes(count);
+        let expected_numel = (byte_len / element_size) as i64;
+        if stored_numel != expected_numel {
+            return Err(invalid_data(format!(
+                "storage '{key}' holds {stored_numel} elements but the pickle declares {expected_numel}"
+            )));
+        }
+
+        // `finish` checked that the storage lies within the file, so the length is trusted.
+        let start = start.min(byte_len);
+        let len = (byte_len - start).min(max_len);
+        let mut bytes = vec![0u8; len];
+        read_exact_at(&self.file, &mut bytes, offset + 8 + start as u64)?;
+        Ok((bytes, start))
+    }
+}

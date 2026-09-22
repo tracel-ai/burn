@@ -4,7 +4,7 @@ use crate::bridge;
 use crate::{ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter};
 
 #[cfg(feature = "std")]
-use crate::{KeyRemapper, map_indices_contiguous};
+use crate::{KeyRemapper, map_indices_contiguous_except};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
@@ -134,6 +134,7 @@ impl SafetensorsStore {
             // Contiguous index mapping is off by default for SafeTensors
             // (SafeTensors files typically have clean, contiguous indices)
             map_indices_contiguous: false,
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -154,6 +155,8 @@ impl SafetensorsStore {
             // Contiguous index mapping is off by default for SafeTensors
             #[cfg(feature = "std")]
             map_indices_contiguous: false,
+            #[cfg(feature = "std")]
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -295,6 +298,7 @@ impl SafetensorsStore {
             Self::File(p) => p.remapper = remapper,
             Self::Memory(p) => p.remapper = remapper,
         }
+        self.clear_tensors_cache();
         self
     }
 
@@ -329,6 +333,7 @@ impl SafetensorsStore {
                     .expect("Invalid regex pattern");
             }
         }
+        self.clear_tensors_cache();
         self
     }
 
@@ -446,6 +451,37 @@ impl SafetensorsStore {
             Self::File(p) => p.map_indices_contiguous = map,
             Self::Memory(p) => p.map_indices_contiguous = map,
         }
+        self.clear_tensors_cache();
+        self
+    }
+
+    /// Leave the indices under prefixes matching `pattern` untouched when contiguous
+    /// index mapping is enabled.
+    ///
+    /// The regex is matched against the prefix before a numeric segment (`flows` for
+    /// `flows.2.weight`), so anchor it to keep exactly one list. Can be called multiple
+    /// times. See [`map_indices_contiguous_except`](crate::map_indices_contiguous_except)
+    /// for the prefix rules.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// // flows.{0,2,4} stay as-is, every other list is renumbered
+    /// let store = SafetensorsStore::from_file("model.safetensors")
+    ///     .map_indices_contiguous(true)
+    ///     .map_indices_contiguous_except(r"^model_g\.flow\.flows$");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    #[cfg(feature = "std")]
+    pub fn map_indices_contiguous_except<S: AsRef<str>>(mut self, pattern: S) -> Self {
+        match &mut self {
+            Self::File(p) => p.keep_indices = p.keep_indices.clone().with_regex(pattern),
+            Self::Memory(p) => p.keep_indices = p.keep_indices.clone().with_regex(pattern),
+        }
+        self.clear_tensors_cache();
         self
     }
 
@@ -533,6 +569,8 @@ pub struct FileStore {
     skip_enum_variants: bool,
     /// Enable contiguous mapping of layer indices (default: false)
     map_indices_contiguous: bool,
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    keep_indices: PathFilter,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
@@ -552,6 +590,9 @@ pub struct MemoryStore {
     /// Enable contiguous mapping of layer indices (default: false)
     #[cfg(feature = "std")]
     map_indices_contiguous: bool,
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    #[cfg(feature = "std")]
+    keep_indices: PathFilter,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
@@ -571,6 +612,8 @@ impl Default for MemoryStore {
             skip_enum_variants: false,
             #[cfg(feature = "std")]
             map_indices_contiguous: false,
+            #[cfg(feature = "std")]
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -632,11 +675,7 @@ impl ModuleStore for SafetensorsStore {
 
     fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error> {
         // Invalidate cache since we're writing new data
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => p.tensors_cache = None,
-            Self::Memory(p) => p.tensors_cache = None,
-        }
+        self.clear_tensors_cache();
 
         // Collect the module's tensors with the adapter applied
         // The to_adapter converts from Burn format to target format for saving
@@ -850,6 +889,23 @@ impl SafetensorsStore {
         }
     }
 
+    #[cfg(feature = "std")]
+    fn get_keep_indices(&self) -> &PathFilter {
+        match self {
+            Self::File(p) => &p.keep_indices,
+            Self::Memory(p) => &p.keep_indices,
+        }
+    }
+
+    /// Drop the cached tensors so the next access rebuilds them with the current settings
+    fn clear_tensors_cache(&mut self) {
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.tensors_cache = None,
+            Self::Memory(p) => p.tensors_cache = None,
+        }
+    }
+
     /// Ensure the tensors cache is populated
     fn ensure_tensors_cache(&mut self) -> Result<(), SafetensorsStoreError> {
         // Check if cache exists
@@ -890,7 +946,8 @@ impl SafetensorsStore {
         // This must be done after remapping so that remapped paths are mapped
         #[cfg(feature = "std")]
         if self.get_map_indices_contiguous() {
-            let (mapped, _) = map_indices_contiguous(tensors);
+            let keep = self.get_keep_indices();
+            let (mapped, _) = map_indices_contiguous_except(tensors, |prefix| keep.matches(prefix));
             tensors = mapped;
         }
 

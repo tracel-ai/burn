@@ -183,8 +183,6 @@ impl Reparameterizer for QLora {
 mod tests {
     use super::*;
     use crate as burn;
-    #[cfg(feature = "autodiff")]
-    use crate::module::AutodiffModule;
     use crate::module::{Flag, Module, ParamId};
     use crate::test_device;
     use crate::test_utils::SimpleLinear;

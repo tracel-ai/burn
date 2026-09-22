@@ -1,7 +1,21 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![recursion_limit = "138"]
+// Without a backend, generated dispatch bodies diverge and their arguments/imports
+// are unused. Keep the API available for libraries that let consumers select a backend.
+#![cfg_attr(
+    not(backend_enabled),
+    allow(
+        unused_imports,
+        unused_variables,
+        unused_mut,
+        unused_macros,
+        unused_assignments,
+        dead_code,
+        irrefutable_let_patterns,
+        unreachable_code
+    )
+)]
 // Wiring up the deprecated `NdArray` and `LibTorch` backends is this crate's job, and the backend
 // registry macros expand them into every dispatch impl, so the warnings land on `macros.rs` rather
 // than on any site we could annotate individually. `allow(deprecated)` is a lint level scoped to
@@ -27,7 +41,7 @@
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
 //! **Note:** The features can be combined freely. The cubecl-backed ones all
-//! select the same backend, so they share the one [`DispatchDevice::Cube`]
+//! select the same backend, so they share the one `DispatchDevice::Cube`
 //! variant — enabling several compiles several runtimes in, and the device a
 //! tensor carries is what picks between them.
 
@@ -52,6 +66,23 @@ pub use tensor::*;
 
 extern crate alloc;
 
+// Keep backend-free dispatch types opaque to downstream crates. An actually empty
+// enum makes every API accepting/returning a tensor appear unreachable there.
+// The private field prevents construction without leaking uninhabitedness.
+#[cfg(not(backend_enabled))]
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NoBackend {
+    never: core::convert::Infallible,
+}
+
+#[cfg(not(backend_enabled))]
+impl NoBackend {
+    pub(crate) fn unreachable(&self) -> ! {
+        match self.never {}
+    }
+}
+
 /// Backends and devices used.
 pub mod backends {
     #[cfg(feature = "autodiff")]
@@ -65,9 +96,9 @@ pub mod backends {
     #[cfg(cube_backend)]
     pub use burn_cubecl::Cube;
 
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     pub use burn_flex as flex;
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     pub use burn_flex::Flex;
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray as ndarray;
@@ -107,7 +138,7 @@ pub mod devices {
     pub use burn_cubecl::cubecl::hip::AmdDevice as RocmDevice;
     #[cfg(feature = "wgpu")]
     pub use burn_cubecl::cubecl::wgpu::{
-        AutoCompiler, AutoGraphicsApi, WgpuDevice, init_setup_async,
+        AutoCompiler, AutoGraphicsApi, WgpuBackend, WgpuDevice, WgpuDeviceKind, init_setup_async,
     };
 
     /// The device every cubecl runtime shares; which runtime it names is a
@@ -117,7 +148,7 @@ pub mod devices {
     pub use burn_cubecl::CubeDevice;
     #[cfg(cube_backend)]
     pub use burn_cubecl::cubecl::RuntimeId;
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     pub use burn_flex::FlexDevice;
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray::NdArrayDevice;

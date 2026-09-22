@@ -22,23 +22,23 @@ default = [
     "std",
     "burn-autodiff?/default",
     "burn-cubecl?/default",
-    "burn-flex/default",
+    "burn-flex?/default",
     "burn-ndarray?/default",
     "burn-tch?/default",
 ]
-doc = ["default"]
+doc = ["default", "flex"]
 std = [
     "burn-backend/std",
     "burn-autodiff?/std",
     "burn-cubecl?/std",
-    "burn-flex/std",
+    "burn-flex?/std",
     "burn-ndarray?/std",
     "burn-tch?/std",
 ]
 tracing = [
     "burn-autodiff?/tracing",
     "burn-cubecl?/tracing",
-    "burn-flex/tracing",
+    "burn-flex?/tracing",
     "burn-ndarray?/tracing",
     "burn-tch?/tracing",
 ]
@@ -48,7 +48,7 @@ cubecl = ["dep:burn-cubecl", "burn-backend/cubecl"]
 
 # Backends
 cuda = ["cubecl", "burn-cubecl/cuda"]
-flex = [] # default
+flex = ["dep:burn-flex"]
 rocm = ["cubecl", "burn-cubecl/hip"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
@@ -74,15 +74,13 @@ fusion = [
     "burn-remote?/fusion",
 ]
 
-# CPU backend codegen and threading. `burn-flex` is a non-optional dependency
-# here, so these reach it without the weak `?` form (which only fires when the
-# optional dependency's own feature is enabled).
-simd = ["burn-flex/simd", "burn-ndarray?/simd"]
-rayon = ["burn-flex/rayon", "burn-ndarray?/multi-threads"]
+# CPU backend codegen and threading; these do not select a backend.
+simd = ["burn-flex?/simd", "burn-ndarray?/simd"]
+rayon = ["burn-flex?/rayon", "burn-ndarray?/multi-threads"]
 
 # Opt-in gemm codegen paths (burn-flex).
-x86-v4 = ["burn-flex/x86-v4"]
-apple-amx = ["burn-flex/apple-amx"]
+x86-v4 = ["burn-flex?/x86-v4"]
+apple-amx = ["burn-flex?/apple-amx"]
 
 # BLAS providers (burn-ndarray).
 accelerate = ["burn-ndarray?/blas-accelerate"]
@@ -100,7 +98,7 @@ burn-backend-extension = { workspace = true }
 burn-autodiff = { workspace = true, optional = true }
 # The one backend shared by every CubeCL runtime.
 burn-cubecl = { workspace = true, optional = true }
-burn-flex = { workspace = true }
+burn-flex = { workspace = true, optional = true }
 burn-ndarray = { workspace = true, optional = true }
 burn-tch = { workspace = true, optional = true }
 
@@ -111,7 +109,9 @@ burn-capture = { workspace = true, optional = true }
 paste = { workspace = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-burn-flex = { workspace = true, features = ["critical-section"]}
+# Shared tensor infrastructure needs CAS even when no execution backend is selected.
+portable-atomic = { workspace = true, features = ["critical-section"] }
+burn-flex = { workspace = true, optional = true, features = ["critical-section"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

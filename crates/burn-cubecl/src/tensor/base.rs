@@ -4,6 +4,7 @@ use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
+use cubecl::ir::{ElemType, UIntKind};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
 use cubecl::{client::Client, std::tensor::layout::linear::LinearViewLaunch};
@@ -168,14 +169,20 @@ impl CubeTensor {
 
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(&mut self, client: Client, device: CubeDevice) -> Self {
-        let desc = self.handle.clone().copy_descriptor(
-            self.meta.shape().clone(),
-            self.meta.strides().clone(),
-            self.elem_size(),
-        );
-        let handle = self
-            .client
-            .to_client_tensor(desc, &client, dtype_to_elem_type(self.dtype));
+        let (handle, qparams) = match self.qparams.clone() {
+            Some(qparams) => {
+                let (handle, qparams) = self.whole_allocation_to_client(&client, qparams);
+                (handle, Some(qparams))
+            }
+            None => {
+                let handle = self.client.to_client(
+                    self.handle.clone(),
+                    &client,
+                    dtype_to_elem_type(self.dtype),
+                );
+                (handle, None)
+            }
+        };
 
         // The copy keeps the physical layout, so the metadata travels whole, tiling included.
         Self {
@@ -184,8 +191,38 @@ impl CubeTensor {
             meta: self.meta.clone(),
             device,
             dtype: self.dtype,
-            qparams: self.qparams.clone(),
+            qparams,
         }
+    }
+
+    /// Copy the whole allocation behind the handle, not the region its offsets bound.
+    ///
+    /// A quantized tensor's scales live in the same allocation as its values, past the region
+    /// `handle` bounds, and `qparams` names them by offset into that allocation. Moving all of it
+    /// as bytes keeps every start offset valid on the destination. End offsets count back from the
+    /// end of the allocation, which the destination may round up to its own alignment, so each one
+    /// grows by what the allocation did.
+    fn whole_allocation_to_client(
+        &mut self,
+        client: &Client,
+        mut qparams: QParams,
+    ) -> (Handle, QParams) {
+        let mut whole = self.handle.clone();
+        whole.offset_start = None;
+        whole.offset_end = None;
+
+        let mut moved = self
+            .client
+            .to_client(whole, client, ElemType::UInt(UIntKind::U8));
+        let grown = moved.size() - self.handle.size();
+
+        moved.offset_start = self.handle.offset_start;
+        moved.offset_end = Some(self.handle.offset_end.unwrap_or(0) + grown);
+        qparams.scales.offset_end += grown as usize;
+        if let Some(global) = &mut qparams.global {
+            global.offset_end += grown as usize;
+        }
+        (moved, qparams)
     }
 
     /// Return the reference to a tensor handle.

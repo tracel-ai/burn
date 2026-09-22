@@ -131,71 +131,28 @@ impl BatchNorm {
 
     fn forward_train<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let device = input.device();
-        let dims = input.dims();
-        let batch_size = dims[0];
-        let channels = dims[1];
 
-        let mut shape_unsqueeze = [1; D];
-        let mut flatten_size = batch_size;
-        shape_unsqueeze[1] = channels;
-
-        for dim in dims.iter().take(D).skip(2) {
-            flatten_size *= dim;
-        }
-
-        let mean = input
-            .clone()
-            .swap_dims(0, 1)
-            .reshape([channels, flatten_size])
-            .mean_dim(1)
-            .reshape(shape_unsqueeze);
-
-        let var = input
-            .clone()
-            .sub(mean.clone())
-            .square()
-            .swap_dims(0, 1)
-            .reshape([channels, flatten_size])
-            .mean_dim(1)
-            .reshape(shape_unsqueeze);
+        let result = burn::tensor::module::batch_norm_train(
+            input,
+            self.gamma.val(),
+            self.beta.val(),
+            self.epsilon,
+        );
 
         let running_mean = self.running_mean.value_sync().to_device(&device);
         let running_var = self.running_var.value_sync().to_device(&device);
 
-        let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
-            mean.clone()
-                .detach()
-                .mul_scalar(self.momentum)
-                .reshape([channels]),
-        );
-        let running_var = running_var.mul_scalar(1.0 - self.momentum).add(
-            var.clone()
-                .detach()
-                .mul_scalar(self.momentum)
-                .reshape([channels]),
-        );
+        let running_mean = running_mean
+            .mul_scalar(1.0 - self.momentum)
+            .add(result.mean.detach().mul_scalar(self.momentum));
+        let running_var = running_var
+            .mul_scalar(1.0 - self.momentum)
+            .add(result.variance.detach().mul_scalar(self.momentum));
 
         self.running_mean.update(running_mean.detach());
         self.running_var.update(running_var.detach());
 
-        self.forward_shared(input, mean, var)
-    }
-
-    fn forward_shared<const D: usize>(
-        &self,
-        x: Tensor<D>,
-        mean: Tensor<D>,
-        var: Tensor<D>,
-    ) -> Tensor<D> {
-        let channels = x.dims()[1];
-        burn::tensor::module::batch_norm(
-            x,
-            self.gamma.val(),
-            self.beta.val(),
-            mean.reshape([channels]),
-            var.reshape([channels]),
-            self.epsilon,
-        )
+        result.output
     }
 }
 
@@ -224,7 +181,7 @@ impl ModuleDisplay for BatchNorm {
 #[cfg(test)]
 mod tests_1d {
     use super::*;
-    use burn::module::AutodiffModule;
+    use burn::module::Module;
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
@@ -274,6 +231,19 @@ mod tests_1d {
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected_valid(), Tolerance::default());
+    }
+
+    #[test]
+    fn batch_norm_trains_under_gradient_checkpointing() {
+        let device = Device::default().autodiff().gradient_checkpointing();
+        let module = BatchNormConfig::new(3).init(&device);
+
+        let output = module.forward(input_tensor(&device));
+
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_train(), Tolerance::rel_abs(0.1, 0.001));
+        assert_eq!(module.running_mean.value_sync().dims(), [3]);
     }
 
     fn expected_valid() -> TensorData {
@@ -334,7 +304,7 @@ mod tests_1d {
 #[cfg(test)]
 mod tests_2d {
     use super::*;
-    use burn::module::AutodiffModule;
+    use burn::module::Module;
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;

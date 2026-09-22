@@ -118,7 +118,7 @@ macro_rules! module {
         impl<'a> ModuleVisitor for Visitor<'a> {
             fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
                 let func = $item;
-                func(&param.val(), &mut self.state)
+                func(param, &mut self.state)
             }
         }
         #[allow(clippy::redundant_closure_call)]
@@ -133,7 +133,7 @@ macro_rules! module {
 ///
 /// Modules should be created using the [derive](burn_derive::Module) attribute.
 /// This will make your module trainable, savable and loadable via
-/// `state` and `load`.
+/// [`into_record`](Module::into_record) and [`load_record`](Module::load_record).
 ///
 /// # Example
 ///
@@ -153,6 +153,9 @@ macro_rules! module {
 ///   my_other_field: usize,
 /// }
 /// ```
+/// Training and validation use the same module type. This trait provides state transitions,
+/// not a guarantee that a value currently has autodiff enabled. Inspect individual parameter
+/// tensors with [`Tensor::is_autodiff`] and [`Tensor::is_require_grad`]; contexts can be mixed.
 pub trait Module: Clone + Send + core::fmt::Debug {
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
@@ -169,6 +172,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// This is similar to [to_device](Module::to_device), but it ensures the output module on the
     /// new device will have its own autodiff graph.
+    /// Both transfers preserve the source tensors' autodiff association and checkpointing
+    /// strategy. The destination's autodiff defaults do not enable training; use
+    /// [`train`](Module::train) first when starting from a validation module.
+    ///
+    /// A parameter not initialized yet initializes on the destination, unless a clone shares
+    /// it, in which case it initializes where it is and is then copied.
     fn fork(self, device: &Device) -> Self;
 
     /// Move the module and all of its sub-modules to the given device.
@@ -179,6 +188,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// not be what you want. The output model will be an intermediary model, meaning that you
     /// can't optimize it with gradient descent. If you want to optimize the output network on the
     /// target device, use [fork](Module::fork) instead.
+    ///
+    /// A parameter not initialized yet initializes on the destination, unless a clone shares
+    /// it, in which case it initializes where it is and is then moved.
     fn to_device(self, device: &Device) -> Self;
 
     /// Set whether every floating-point tensor parameter in the module tree requires gradients.
@@ -235,8 +247,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// # Warnings
     ///
-    /// This should not be used for inference, use [valid](AutodiffModule::valid) when using
-    /// AD modules. This is useful for partial fine-tuning when tensor gradients should be disabled
+    /// Use [valid](Module::valid) for inference. `no_grad` is useful for partial fine-tuning
+    /// when tensor gradients should be disabled
     /// while layer training behavior remains active. For example, matched batch-normalization
     /// layers continue updating their running statistics, and dropout remains enabled. Use
     /// [`freeze`](Module::freeze) when that module-owned training behavior should also stop.
@@ -259,8 +271,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// # Warnings
     ///
-    /// This should not be used for inference; use [`valid`](AutodiffModule::valid) with AD modules
-    /// instead. `freeze` is intended for partial finetuning where a module remains on the training
+    /// Use [`valid`](Module::valid) for inference. `freeze` is intended for partial finetuning
+    /// where a module remains on the training
     /// device but should not participate in training.
     fn freeze(self) -> Self {
         module!(
@@ -307,7 +319,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// # Warnings
     ///
     /// Like [`freeze`](Module::freeze), this should not be used for inference; use
-    /// [valid](AutodiffModule::valid) with AD modules instead.
+    /// [valid](Module::valid) instead.
     fn freeze_group(self, group: ParamGroup) -> Self {
         module!(
             map = self,
@@ -338,27 +350,44 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         )
     }
 
-    /// Move the module and all of its sub-modules to the autodiff backend.
+    /// Enables autodiff and restores configured training state throughout the module.
     ///
     /// # Gradient and training state
     ///
-    /// This is the supported transition back to training after [`valid`](AutodiffModule::valid).
+    /// This is the supported transition back to training after [`valid`](Module::valid).
     /// It applies the latest gradient-tracking settings and training-flag values. Mappings, device
     /// moves, forks and explicit state changes on a validation module preserve or update what this
     /// method applies.
-    fn train(self) -> Self
-    where
-        Self: AutodiffModule,
-    {
-        AutodiffModule::from_inner(self)
-    }
+    ///
+    /// Tensor-bearing modules require the `autodiff` feature to enable autodiff. This does not
+    /// undo explicit freezing or reconstruct state discarded by [`valid`](Module::valid).
+    fn train(self) -> Self;
 
-    /// Get the number of parameters the module has, including all of its sub-modules.
+    /// Returns a validation snapshot without autodiff or active training flags.
+    ///
+    /// # Gradient and training state
+    ///
+    /// Tensor gradient requirements and module-owned training flags are disabled in the returned
+    /// value while their configured state is retained internally. Use [`Module::train`] to apply
+    /// that state. Mappings, device moves and forks preserve both the disabled effective validation
+    /// state and what `train` will restore. Calling `valid` when the module's tensors are already on
+    /// a plain device still disables its training flags, so the operation is idempotent but not
+    /// necessarily a structural no-op.
+    ///
+    /// The returned value is an inference snapshot: parameter reparameterizations are folded into
+    /// their values, and tensor checkpointing strategies are removed with autodiff. Calling
+    /// [`Module::train`] on that snapshot does not reconstruct those reparameterizations or restore
+    /// the previous checkpointing strategies. Keep the original module when continuing training
+    /// after validation.
+    fn valid(&self) -> Self;
+
+    /// Get the number of parameters the module has, including all of its sub-modules, without
+    /// initializing the ones not initialized yet.
     fn num_params(&self) -> usize {
         module!(
             visit_float = self,
-            ops = |tensor: &Tensor<D>, state: &mut usize| {
-                *state += tensor.shape().num_elements();
+            ops = |param: &Param<Tensor<D>>, state: &mut usize| {
+                *state += param.lazy_shape().num_elements();
             },
             state = usize,
             init = || 0
@@ -733,25 +762,6 @@ pub trait ModuleMapper {
     }
 }
 
-/// Module with auto-differentiation backend.
-pub trait AutodiffModule: Module + Send + core::fmt::Debug {
-    /// Returns the same module on the inner backend without auto-differentiation.
-    ///
-    /// # Gradient and training state
-    ///
-    /// Tensor gradient requirements and module-owned training flags are disabled in the returned
-    /// value while their configured state is retained internally. Use [`Module::train`] to apply
-    /// that state. Mappings, device moves and forks preserve both the disabled effective validation
-    /// state and what `train` will restore. Calling `valid` when the module's tensors are already on
-    /// a plain device still disables its training flags, so the operation is idempotent but not
-    /// necessarily a structural no-op.
-    fn valid(&self) -> Self;
-
-    /// Wraps an inner module back into an autodiff module and restores the training state retained
-    /// by [`AutodiffModule::valid`].
-    fn from_inner(module: Self) -> Self;
-}
-
 #[cfg(all(test, feature = "autodiff"))]
 mod tests {
     use super::*;
@@ -778,8 +788,6 @@ mod tests {
         assert!(!module.weight.is_require_grad());
         assert!(module.weight.is_active); // stateful
 
-        // Without `HasAutodiffModule`, we would need to specify the module type as well, which would be annoying
-        // let module: SimpleLinear<TestAutodiffBackend> = module.train();
         let module = module.train();
         assert!(module.weight.is_require_grad());
         assert!(module.weight.is_active); // stateful

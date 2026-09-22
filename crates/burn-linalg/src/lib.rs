@@ -6,6 +6,11 @@
 
 //! Linear algebra operations for Burn tensors.
 //!
+//! No execution backend is enabled by default. Select `flex`, `wgpu`, or another
+//! backend feature on this crate. When configuring through `burn`, enable both
+//! `linalg` and the backend feature, for example `features = ["linalg", "flex"]`.
+//! Enabling only `burn/flex` does not enable this crate's backend implementations.
+//!
 //! # Migration
 //!
 //! Linear algebra previously lived at `burn_tensor::linalg` (and therefore

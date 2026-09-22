@@ -1,5 +1,10 @@
 //! Vision ops for burn, with GPU acceleration where possible.
 //!
+//! No execution backend is enabled by default. Select `flex`, `wgpu`, or another
+//! backend feature on this crate. When configuring through `burn`, enable both
+//! `vision` and the backend feature, for example `features = ["vision", "flex"]`.
+//! Enabling only `burn/flex` does not enable this crate's backend implementations.
+//!
 //! # Operations
 //! Operation names are based on `opencv` wherever applicable.
 //!

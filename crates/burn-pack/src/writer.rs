@@ -563,3 +563,112 @@ impl Sink for FileSink {
             .map_err(|e| Error::IoError(format!("cannot write to '{}': {e}", self.path.display())))
     }
 }
+
+// Checks the peak-memory guarantee at the loop that provides it: `write_tensors` drops each
+// deferred tensor's bytes before it asks the next provider for its own. Every other test would
+// still pass if the writer collected all the bytes first and wrote them afterwards, so the
+// backing of each tensor logs when it is freed and each provider checks that log.
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    use burn_std::{AllocationProperty, DType};
+    use std::sync::{Arc, Mutex};
+
+    const PAYLOAD: usize = 1024 * 1024;
+    const COUNT: usize = 4;
+
+    type FreedLog = Arc<Mutex<Vec<usize>>>;
+
+    /// Writes a container through one of the writer's sinks and returns its size in bytes.
+    type WriteFn = fn(Writer, &Path) -> usize;
+
+    /// The backing of one tensor's bytes. Records its index in the log when it is freed.
+    struct Tracked {
+        data: Vec<u8>,
+        index: usize,
+        freed: FreedLog,
+    }
+
+    impl AsRef<[u8]> for Tracked {
+        fn as_ref(&self) -> &[u8] {
+            &self.data
+        }
+    }
+
+    impl Drop for Tracked {
+        fn drop(&mut self) {
+            self.freed.lock().unwrap().push(self.index);
+        }
+    }
+
+    /// Deferred tensors whose providers assert that every earlier tensor's bytes are already
+    /// freed, in write order, before they produce their own.
+    fn tracked_tensors(freed: &FreedLog) -> Vec<Tensor> {
+        (0..COUNT)
+            .map(|index| {
+                let freed = freed.clone();
+                Tensor::deferred(
+                    format!("t{index}"),
+                    DType::U8,
+                    vec![PAYLOAD],
+                    None,
+                    PAYLOAD,
+                    move || {
+                        let already_freed = freed.lock().unwrap().clone();
+                        assert_eq!(
+                            already_freed,
+                            (0..index).collect::<Vec<_>>(),
+                            "tensor t{index} was requested while an earlier tensor's bytes were \
+                             still live"
+                        );
+                        let backing = Tracked {
+                            data: vec![index as u8; PAYLOAD],
+                            index,
+                            freed: freed.clone(),
+                        };
+                        Ok(Bytes::from_shared(
+                            bytes::Bytes::from_owner(backing),
+                            AllocationProperty::Native,
+                        ))
+                    },
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn each_tensor_is_freed_before_the_next_is_produced() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.bpk");
+
+        // Every write path goes through `write_tensors`, with a different sink.
+        let writes: [(&str, WriteFn); 3] = [
+            ("write_to_file", |writer, path| {
+                writer.write_to_file(path).unwrap();
+                std::fs::metadata(path).unwrap().len() as usize
+            }),
+            ("write_to_file_atomic", |writer, path| {
+                writer.write_to_file_atomic(path).unwrap();
+                std::fs::metadata(path).unwrap().len() as usize
+            }),
+            ("into_bytes", |writer, _| writer.into_bytes().unwrap().len()),
+        ];
+
+        for (name, write) in writes {
+            let freed = FreedLog::default();
+            let written = write(Writer::new(tracked_tensors(&freed)), &path);
+
+            // Also guards against a vacuous pass: a backing is only logged once its provider
+            // has run.
+            assert_eq!(
+                *freed.lock().unwrap(),
+                (0..COUNT).collect::<Vec<_>>(),
+                "{name}: every tensor's bytes should be freed by the end of the write"
+            );
+            assert!(
+                written >= COUNT * PAYLOAD,
+                "{name}: all tensors should have been written"
+            );
+        }
+    }
+}
