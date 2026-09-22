@@ -18,80 +18,47 @@ use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead};
 use std::sync::Arc;
+use thiserror::Error;
 
 /// Cap on the up-front allocation for a length-prefixed string, bytes or long value;
 /// longer values grow as their bytes arrive.
 const STRING_PREALLOC_BOUND: usize = 1 << 16;
 
 /// Error type for pickle operations.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum PickleError {
-    Io(io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
     /// A byte that is not a pickle opcode, or an opcode this reader does not implement.
+    #[error(
+        "invalid pickle opcode: 0x{0:02x}. The file may be corrupted or use an unsupported pickle feature."
+    )]
     InvalidOpCode(u8),
     /// An opcode that is understood but deliberately unsupported (extension registry,
     /// out-of-band buffers).
+    #[error("unsupported pickle opcode {0:?}")]
     UnsupportedOpCode(OpCode),
+    #[error("invalid or unsupported pickle protocol version: {0}. Supported versions are 0-5.")]
     InvalidProtocol(u8),
+    #[error("unexpected pickle opcode {0:?} in current context")]
     UnexpectedOpCode(OpCode),
+    #[error(
+        "unsupported Python type '{0}'. The file holds tensor data in a form this reader cannot represent."
+    )]
     UnsupportedType(String),
+    #[error("invalid data in pickle file: {0}")]
     InvalidData(String),
+    #[error("pickle stack underflow - the file may be corrupted")]
     StackUnderflow,
+    #[error("pickle memo reference {0} not found - the file may be corrupted")]
     MemoNotFound(u32),
     /// The pickle references tensor storages but nothing can supply their bytes.
+    #[error(
+        "pickle references tensor storages but no tensor data is available; tensors can only be loaded from a PyTorch checkpoint file, not a plain pickle"
+    )]
     NoDataSource,
 }
-
-impl From<io::Error> for PickleError {
-    fn from(e: io::Error) -> Self {
-        PickleError::Io(e)
-    }
-}
-
-impl std::fmt::Display for PickleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PickleError::Io(e) => write!(f, "IO error: {}", e),
-            PickleError::InvalidOpCode(code) => write!(
-                f,
-                "Invalid pickle opcode: 0x{:02x}. The file may be corrupted or use an unsupported pickle feature.",
-                code
-            ),
-            PickleError::UnsupportedOpCode(op) => {
-                write!(f, "Unsupported pickle opcode {:?}", op)
-            }
-            PickleError::InvalidProtocol(proto) => write!(
-                f,
-                "Invalid or unsupported pickle protocol version: {}. Supported versions are 0-5.",
-                proto
-            ),
-            PickleError::UnexpectedOpCode(op) => {
-                write!(f, "Unexpected pickle opcode {:?} in current context", op)
-            }
-            PickleError::UnsupportedType(ty) => write!(
-                f,
-                "Unsupported Python type '{}'. The file holds tensor data in a form this reader cannot represent.",
-                ty
-            ),
-            PickleError::InvalidData(msg) => write!(f, "Invalid data in pickle file: {}", msg),
-            PickleError::StackUnderflow => {
-                write!(f, "Pickle stack underflow - the file may be corrupted")
-            }
-            PickleError::MemoNotFound(idx) => write!(
-                f,
-                "Pickle memo reference {} not found - the file may be corrupted",
-                idx
-            ),
-            PickleError::NoDataSource => write!(
-                f,
-                "Pickle references tensor storages but no tensor data is available. Tensors can only be loaded from a PyTorch checkpoint file, not a plain pickle."
-            ),
-        }
-    }
-}
-
-impl std::error::Error for PickleError {}
 
 type Result<T> = std::result::Result<T, PickleError>;
 

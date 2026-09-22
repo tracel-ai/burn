@@ -109,7 +109,8 @@ impl Tensor {
     ///
     /// A storage that is missing, corrupt or unreadable by its container fails with
     /// [`io::ErrorKind::InvalidData`] (a ZIP storage's checksum is verified when the tensor
-    /// spans all of it), and one shorter than the pickle declared with
+    /// spans all of it, unless the file was saved without checksums, as
+    /// `compute_crc32=False` does), and one shorter than the pickle declared with
     /// [`io::ErrorKind::UnexpectedEof`]: the file disagrees with itself. Any other kind is
     /// the operating system's, and means the file could not be read at all. Every error
     /// names the tensor and its storage.

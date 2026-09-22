@@ -1,65 +1,124 @@
 # Tensor
 
-A proper deep learning framework should have a fast tensor implementation with autodiff support, and
-Burn is no exception. The tensor API abstracts away backend implementation details and focuses on
-usability without compromising performance. To make it as easy as possible to use, there is only one
-tensor type, which is different from multiple tensor and deep learning crates in Rust. Generic
-parameters are used instead to specialize the tensor type.
+The public tensor type is `Tensor<const D: usize, K = Float>`: `D` is its rank and `K` is `Float`,
+`Int`, or `Bool`. Backend and element precision are runtime properties, selected through `Device`
+and `DType`. Models and tensor functions do not have a backend generic parameter.
 
-- **B: Backend:** The first argument is the backend on which the tensor implementation lies.
-- **const D: usize:** The second argument is the dimensionality of the tensor.
-- **K: TensorKind:** The third argument is the tensor kind, which can be either Float, Int or Bool.
-  By default, the tensor kind is set to Float, so for most tensors, the kind argument is not
-  necessary.
+## From backend generics to runtime selection
 
-Having one struct for tensors reduces the complexity of the tensor API, which also means less
-duplicated documentation to write and maintain.
+Previously, `Tensor<B, D, K>` carried the backend in its Rust type. Model fields and functions
+propagated `B: Backend`, and selecting another backend instantiated that generic code for another
+backend type. The current API keeps rank and kind in the type while moving backend selection to
+runtime values. The same `Tensor<2>` type can represent a tensor on Flex, CUDA, or WGPU.
 
-Tensors are thread-safe, which means that you can send a tensor to another thread, and everything
-will work, including auto-differentiation. Note that there are no explicit in-place tensor
-operations since all tensor operations take owned tensors as parameters, which make it possible to
-mutate them. Tensors can be shared simply by cloning them, but if there is only one reference to a
-tensor, the backend implementation is free to reuse the tensor's allocated data. For more
-information about how it is done, you can have a look at this
-[blog post](https://burn.dev/blog/burn-rusty-approach-to-tensor-handling).
+Cargo features determine which backends are compiled into an application. A `Device` selects the
+compute resource and supplies creation settings; existing tensors carry the information needed to
+route subsequent operations. Multiple enabled backends can be used side by side, with the same model
+code targeting each of them. There is no single process-wide backend that every tensor must use.
+Combining tensors still requires compatible devices; transfers are explicit.
+
+The `Backend` trait remains the implementation contract below dispatch. Concrete backends and
+decorators such as `Autodiff<B, C>` and `Fusion<B>` still compose using backend types. The change
+moves those types out of ordinary application signatures and into the implementation layers.
 
 ## Tensor Operations
 
-Operations on Tensors (sometimes shortened to Ops) are defined in traits (generally part of the
-Backend Supertrait) and implemented for the Tensor struct. The appropriate parent trait of an
-operation depends on the type of operation:
+Operations follow this path:
 
-- `base` => All tensor kinds should implement these operations (reshape, into_data, etc.). The
-  implementation is in
-  [crates/burn-tensor/src/tensor/api/base.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-tensor/src/tensor/api/base.rs).
-- `numeric` => All tensors that are numeric by nature should implement these operations (Add, Sub,
-  Div, etc.). The implementation is in
-  [crates/burn-tensor/src/tensor/api/numeric.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-tensor/src/tensor/api/numeric.rs).
-- `Float` => Tensor operations are only available for float tensors. The implementation is in
-  [burn-tensor/src/tensor/api/float.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-tensor/src/tensor/api/float.rs).
-- `Int` => Tensor operations are only available for int tensors. The implementation is in
-  [burn-tensor/src/tensor/api/int.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-tensor/src/tensor/api/int.rs).
-- `bool` => Tensor operations are only available for bool tensors. The implementation is in
-  [burn-tensor/src/tensor/api/bool.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-tensor/src/tensor/api/bool.rs).
+```text
+Tensor<D, K> → BridgeTensor → DispatchTensor → backend primitive
+```
 
-`Numeric` is directly implemented for `Float` and `Int` tensors, and in general, The implementations
-for these methods are calling the corresponding `{Int|Float}` method defined in the backend
-supertrait.
+The layers have distinct responsibilities:
 
-Anything that is implemented by numeric should have an implementation in the `{Int|Float}` traits,
-though it may be avoidable if the operation for one type requires casting to the other type. To
-provide an example, `powf` should be implemented for `Int` tensors, but it should not be an Int
-Tensor Operation. The LHS should be converted to a float, and the output should be converted back to
-an int. So it's possible to avoid implementing `IntTensorOp` altogether.
+- [`burn-tensor/src/tensor/api`](https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor/src/tensor/api)
+  defines the rank- and kind-checked API, shape checks, and user documentation. `base.rs` covers
+  common operations, `numeric.rs` covers numeric kinds, and `float.rs`, `int.rs`, and `bool.rs`
+  contain kind-specific operations. Activations and neural-network operations also have function
+  APIs in `tensor/activation` and `tensor/module.rs`.
+- [`burn-tensor/src/bridge`](https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor/src/bridge)
+  stores tensor primitives opaquely and implements kind-specific forwarding. Thin generic methods
+  call non-generic helpers taking `BridgeTensor`, so downstream monomorphization does not repeatedly
+  resolve the backend implementation types. Follow the `*_impl` pattern described in the
+  `burn-tensor` crate documentation when adding operations.
+- [`burn-dispatch`](https://github.com/tracel-ai/burn/tree/main/crates/burn-dispatch/src) selects a
+  backend from runtime tensors and devices. It also routes autodiff and checkpointing contexts.
+  Built-in forwarding uses `#[backend_dispatch]`; extensions use `#[backend_extension]`.
+- [`burn-backend`](https://github.com/tracel-ai/burn/tree/main/crates/burn-backend/src/backend)
+  defines `BackendTypes`, `Backend`, and operation traits implemented by concrete backends and
+  decorators. These low-level APIs still use backend generics and tensor primitive aliases.
 
-Additionally there are some operations that should be defined as functions instead of tensor op
-methods. These are:
+A new kernel operation may need changes at every layer. An operation expressed entirely in terms of
+existing tensor operations may need only a public composition. See
+[Adding a New Operation](../guides/adding-a-new-operation-to-burn.md).
 
-`module` => These should be exported as functions instead of methods on tensors. The implementation
-is in
-[crates/burn-tensor/src/tensor/ops/module.rs](https://github.com/tracel-ai/burn/tree/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-tensor/src/tensor/ops/modules).
-`activation` => These should also be exported as functions instead of methods on tensors. The
-implementation is in
-[crates/burn-tensor/src/tensor/ops/activation.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-tensor/src/tensor/ops/activation.rs).
-Note that some activations are just a combination of backend operations and are not declared in
-there.
+## Why the bridge is opaque
+
+Runtime selection and type erasure solve different problems. `DispatchTensor` represents runtime
+selection with an enum containing the concrete primitives of the enabled backends, plus autodiff
+context. Putting that enum directly into the public `Tensor` would still expose its nested backend
+types to the compiler when compiling downstream code.
+
+Instead, `Tensor` stores a `BridgeTensor`. Its private `BridgeTensorVariant` distinguishes float,
+integer, boolean, and quantized float values, each holding a dispatch tensor. That variant lives
+inside aligned opaque storage generated by `burn_std::obfuscate!`. The public `Device` similarly
+hides its `DispatchDevice` representation. These wrappers erase the concrete field types at the
+public boundary; unwrapping them does not itself transfer tensor data between devices.
+
+Rust specializes generic tensor methods for the ranks and kinds used by an application. To keep
+that work small, these methods pass opaque `BridgeTensor` handles to non-generic bridge methods
+or `*_impl` helper functions. Those functions contain the calls into dispatch and are compiled
+once in `burn-tensor`. This lets application code specialize the thin public methods without
+repeatedly compiling the dispatch logic or resolving the concrete backend types behind it.
+
+When adding operations, preserve both boundaries: keep backend primitives behind the opaque
+representation and outline dispatch-facing work into non-generic functions. See the
+[`burn-tensor` contributor notes](https://github.com/tracel-ai/burn/blob/main/crates/burn-tensor/src/lib.rs)
+for the helper pattern.
+
+## Following an addition through the stack
+
+For an ordinary floating-point `lhs + rhs`, the path is:
+
+1. The operator implementation calls `Tensor::add` in
+   [`tensor/api/numeric.rs`](https://github.com/tracel-ai/burn/blob/main/crates/burn-tensor/src/tensor/api/numeric.rs).
+   The public method checks shape compatibility and forwards the two bridge handles to the numeric
+   operation for their kind.
+2. The `Float` implementation in
+   [`bridge/ops/float.rs`](https://github.com/tracel-ai/burn/blob/main/crates/burn-tensor/src/bridge/ops/float.rs)
+   unwraps the bridge values and calls `Dispatch::float_add`. This layer also handles the distinct
+   paths for quantized float operands.
+3. The implementation in
+   [`burn-dispatch/src/ops/tensor.rs`](https://github.com/tracel-ai/burn/blob/main/crates/burn-dispatch/src/ops/tensor.rs)
+   uses `#[backend_dispatch]` to generate routing to the selected backend's `B::float_add`. Routing
+   uses the runtime tensor variants and autodiff context; it does not pick a new device for each
+   operation. Creation operations instead dispatch from their supplied device.
+4. The selected backend or decorator handles the primitive operation. Autodiff can record backward
+   steps and fusion can defer execution while collecting operations. Reaching this layer does not
+   necessarily launch a kernel immediately.
+5. The returned primitive is wrapped into a dispatch tensor, then a bridge tensor, then the public
+   `Tensor<D, Float>` result.
+
+CUDA, ROCm, WGPU, and the CubeCL CPU runtime share the `Cube` dispatch variant. Within that backend,
+the tensor's device and runtime client select the runtime. Other backends, such as Flex, have their
+own dispatch variants. See [Backend](./backend.md) for the primitive contract and decorators.
+
+## Static and runtime checks
+
+Rank and tensor kind remain compile-time API properties. Shapes, dtypes, device compatibility, and
+autodiff association are runtime properties. In particular, a public `Tensor<D>` type no longer
+proves `B: AutodiffBackend`; when the autodiff feature is enabled, `backward()` validates graph
+participation at runtime. Backend extension code can still use backend trait bounds below the public
+boundary.
+
+## Ownership and autodiff
+
+Tensor handles can be cloned and sent across threads. Operations usually take owned tensors, which
+lets a backend reuse storage when no other handle references it. Cloning a handle does not imply a
+copy of its allocation, nor does it copy an autodiff tape.
+
+Devices provide defaults for newly created tensors; each tensor retains its own autodiff context.
+`to_device` preserves the source context and records a differentiable transfer for tracked floats.
+Use `autodiff` or `without_autodiff` to change association explicitly. Graph participation, gradient
+retention, and whether recorded backward steps are still available are distinct concepts; see the
+[Burn Book autodiff chapter](https://burn.dev/books/burn/building-blocks/autodiff.html).

@@ -670,8 +670,11 @@ impl Device {
         }
     }
 
-    /// Applies `source`'s autodiff context to this device.
-    pub(crate) fn with_autodiff_context_from(self, source: &Self) -> Self {
+    /// Applies `source`'s autodiff association and gradient-checkpointing strategy to this device,
+    /// discarding this device's own.
+    #[must_use]
+    #[doc(hidden)]
+    pub fn with_autodiff_context_from(self, source: &Self) -> Self {
         #[cfg(feature = "autodiff")]
         {
             match source.gradient_checkpointing_strategy() {
@@ -916,7 +919,7 @@ impl Device {
 
     /// Returns the [`DeviceSettings`] for this device.
     ///
-    /// Settings include the default float and integer data types used when creating
+    /// Settings include the default float, integer, and boolean data types used when creating
     /// tensors on this device.
     ///
     /// See [`configure`](Device::configure) to configure them.
@@ -929,23 +932,28 @@ impl Device {
     /// This configures the dtype used when no explicit type is specified at tensor
     /// creation time.
     ///
-    /// Settings can only be initialized once per device, and must happen before any
-    /// tensor is created on the device. The first tensor operation will lock the device
-    /// to its defaults, causing subsequent initializations attempt to return
-    /// [`DeviceError::AlreadyInitialized`].
+    /// Settings can only be initialized once per device. Configure defaults before creating
+    /// tensors or initializing model parameters: the first read of the settings locks them to the
+    /// backend's defaults, and any later call returns [`DeviceError::AlreadyInitialized`].
+    /// Creating any tensor on the device, even with an explicit dtype, and calling
+    /// [`settings`](Device::settings) both read them.
+    ///
+    /// Individual tensors can still use an explicit supported dtype at creation or be converted
+    /// with [`Tensor::cast`](crate::Tensor::cast); neither changes the defaults.
     ///
     /// # Errors
     ///
-    /// Returns [`DeviceError::AlreadyInitialized`] if settings have already been set
-    /// for this device (either by a prior call or because a tensor operation has
-    /// already occurred).
+    /// Returns [`DeviceError::UnsupportedDType`] if a requested dtype is unsupported.
+    /// Returns [`DeviceError::AlreadyInitialized`] if settings have already been initialized
+    /// for this device, either by a prior call or by a read of the settings.
     ///
     /// # Example
     ///
     /// ```rust,ignore
-    /// let device = Default::default();
+    /// use burn_tensor::{Device, FloatDType, Int, IntDType, Tensor};
     ///
-    /// device.configure((FloatDType::F16, IntDType::I32))?
+    /// let mut device = Device::cuda(0);
+    /// device.configure((FloatDType::F16, IntDType::I32))?;
     ///
     /// // Float tensors will now use F16
     /// let floats = Tensor::<2>::zeros([2, 3], &device);
@@ -1463,10 +1471,11 @@ impl Devices {
     /// This configures the dtype used when no explicit type is specified at tensor
     /// creation time.
     ///
-    /// Settings can only be initialized once per device, and must happen before any
-    /// tensor is created on the device. The first tensor operation will lock the device
-    /// to its defaults, causing subsequent initializations attempt to return
-    /// [`DeviceError::AlreadyInitialized`].
+    /// Settings can only be initialized once per device. Configure defaults before creating
+    /// tensors or initializing model parameters; the first read of a device's settings, including
+    /// by tensor creation, locks them.
+    ///
+    /// Stops at the first error; devices configured before it keep their settings.
     ///
     /// See [`Device::configure`].
     pub fn configure(&mut self, config: impl Into<DeviceConfig>) -> Result<(), DeviceError> {

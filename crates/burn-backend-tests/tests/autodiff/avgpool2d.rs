@@ -1,6 +1,47 @@
 use super::*;
 use burn_tensor::module::avg_pool2d;
-use burn_tensor::{Shape, Tolerance};
+use burn_tensor::{Shape, TensorData, Tolerance};
+
+#[test]
+fn test_avg_pool2d_ceil_mode_nonuniform_gradient() {
+    let device = AutodiffDevice::new();
+    for count_include_pad in [true, false] {
+        for (width, kernel, padding, upstream, expected) in [
+            (5, 2, 0, vec![2.0, 4.0, 8.0], vec![1.0, 1.0, 2.0, 2.0, 8.0]),
+            (
+                3,
+                3,
+                1,
+                vec![6.0, 8.0],
+                if count_include_pad {
+                    vec![2.0, 2.0, 4.0]
+                } else {
+                    vec![3.0, 3.0, 8.0]
+                },
+            ),
+        ] {
+            let x = TestTensor::<4>::ones([1, 1, 1, width], &device).require_grad();
+            let output = avg_pool2d(
+                x.clone(),
+                [1, kernel],
+                [1, kernel],
+                [0, padding],
+                count_include_pad,
+                true,
+            );
+            let upstream =
+                TestTensor::from_data(TensorData::new(upstream, output.shape()), &device);
+            let grads = (output * upstream).backward();
+            x.grad(&grads)
+                .unwrap()
+                .into_data()
+                .assert_approx_eq::<FloatElem>(
+                    &TensorData::new(expected, [1, 1, 1, width]),
+                    Tolerance::default(),
+                );
+        }
+    }
+}
 
 #[test]
 fn test_avg_pool2d_simple() {

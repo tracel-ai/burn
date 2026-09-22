@@ -133,7 +133,7 @@ macro_rules! module {
 ///
 /// Modules should be created using the [derive](burn_derive::Module) attribute.
 /// This will make your module trainable, savable and loadable via
-/// `state` and `load`.
+/// [`into_record`](Module::into_record) and [`load_record`](Module::load_record).
 ///
 /// # Example
 ///
@@ -159,9 +159,16 @@ macro_rules! module {
 pub trait Module: Clone + Send + core::fmt::Debug {
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
+    ///
+    /// Device collection should not initialize lazy parameters. Use [`Param::lazy_device`]
+    /// to inspect their devices without accessing tensor values.
     fn collect_devices(&self, devices: Devices) -> Devices;
 
     /// Return all the devices found in the underneath module tree without duplicates.
+    ///
+    /// Lazy tensor parameters report their initialization device without being initialized.
+    /// Device equality ignores autodiff and checkpointing settings, so this list is not a summary
+    /// of the module's training state.
     fn devices(&self) -> Devices {
         self.collect_devices(Devices::new())
     }
@@ -175,6 +182,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Both transfers preserve the source tensors' autodiff association and checkpointing
     /// strategy. The destination's autodiff defaults do not enable training; use
     /// [`train`](Module::train) first when starting from a validation module.
+    ///
+    /// A parameter not initialized yet initializes on the destination, unless a clone shares
+    /// it, in which case it initializes where it is and is then copied.
     fn fork(self, device: &Device) -> Self;
 
     /// Move the module and all of its sub-modules to the given device.
@@ -185,6 +195,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// not be what you want. The output model will be an intermediary model, meaning that you
     /// can't optimize it with gradient descent. If you want to optimize the output network on the
     /// target device, use [fork](Module::fork) instead.
+    ///
+    /// A parameter not initialized yet initializes on the destination, unless a clone shares
+    /// it, in which case it initializes where it is and is then moved.
     fn to_device(self, device: &Device) -> Self;
 
     /// Set whether every floating-point tensor parameter in the module tree requires gradients.

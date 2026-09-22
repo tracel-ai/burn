@@ -58,7 +58,7 @@ impl MyModuleConfig {
 Then we could add this line to the above `main`:
 
 ```rust, ignore
-use burn::backend::Wgpu;
-let device = Default::default();
-let my_module = config.init::<Wgpu>(&device);
+use burn::tensor::Device;
+let device = Device::wgpu(Default::default());
+let my_module = config.init(&device);
 ```

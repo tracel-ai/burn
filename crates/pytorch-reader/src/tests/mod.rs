@@ -8,6 +8,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::{ByteOrder, DType, FileFormat, PytorchReader, Tensor};
+use std::error::Error;
 use std::path::PathBuf;
 
 pub(crate) fn test_data_path(filename: &str) -> PathBuf {
@@ -812,11 +813,12 @@ fn test_small_invalid_file() {
     let result = PytorchReader::new(&path);
     assert!(result.is_err(), "Expected error for broken file");
 
-    // The error should be a pickle error since the file is too small to be valid
+    // The file is too small to hold any container header, so it is rejected as an invalid
+    // format (or, for a short pickle-looking file, as a pickle error)
     if let Err(e) = result {
         let err_str = format!("{}", e);
         assert!(
-            err_str.contains("Pickle") || err_str.contains("Invalid"),
+            err_str.contains("pickle") || err_str.contains("invalid"),
             "Error should mention pickle or invalid format: {}",
             err_str
         );
@@ -1583,7 +1585,7 @@ fn test_tar_absurd_storage_count_is_an_error() {
 
     let err = PytorchReader::new(&path).expect_err("absurd count must be rejected");
     assert!(
-        err.to_string().contains("Pickle"),
+        err.to_string().contains("pickle"),
         "unexpected error: {err}"
     );
 }
@@ -1872,6 +1874,49 @@ fn test_deflated_checksum_mismatch_is_an_error() {
     assert!(err.to_string().contains("Invalid checksum"), "{err}");
 }
 
+#[test]
+fn test_zip_without_checksums_loads() {
+    // Saved with `torch.utils.serialization.config.save.compute_crc32 = False`, which
+    // writes a CRC of 0 for every entry. `torch.load` accepts the file, so a CRC of 0 is
+    // taken as absent rather than as a checksum to fail.
+    let path = test_data_path("no_crc32.pt");
+    let reader = PytorchReader::new(&path).expect("a file saved without checksums must open");
+    let tensor = reader.get("tensor").unwrap();
+    assert_eq!(read_as::<f32>(tensor), [1.0, 2.5, -3.7, 0.0]);
+}
+
+#[test]
+fn test_deflated_zip_without_checksums_loads() {
+    // The same rule for a storage on the stream path: `torch.save` writes only stored
+    // entries, so a deflated storage whose central directory declares a CRC of 0 has to be
+    // made here.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("deflated_no_crc32.pt");
+    rezip(
+        &test_data_path("float32.pt"),
+        &path,
+        "float32/",
+        zip::CompressionMethod::Deflated,
+        |_, _| {},
+    );
+    let crc_offsets: Vec<usize> = {
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+        (0..archive.len())
+            // The CRC-32 is at offset 16 of the 46 byte central directory header.
+            .map(|i| archive.by_index_raw(i).unwrap().central_header_start() as usize + 16)
+            .collect()
+    };
+    let mut bytes = std::fs::read(&path).unwrap();
+    for offset in crc_offsets {
+        bytes[offset..offset + 4].fill(0);
+    }
+    std::fs::write(&path, &bytes).unwrap();
+
+    let reader = PytorchReader::new(&path).unwrap();
+    let tensor = reader.get("tensor").unwrap();
+    assert_eq!(read_as::<f32>(tensor), [1.0, 2.5, -3.7, 0.0]);
+}
+
 // The positional path's own check; the stream path reports this as a checksum failure.
 #[cfg(unix)]
 #[test]
@@ -2043,6 +2088,57 @@ fn test_legacy_big_endian_file_is_refused() {
     let err = PytorchReader::new(&path).expect_err("big-endian legacy files are refused");
     assert!(
         err.to_string().contains("Big-endian"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn source_chain_reaches_io_error() {
+    let err = PytorchReader::new("/nonexistent/x.pt").unwrap_err();
+    assert!(
+        err.source().is_some(),
+        "expected source() to reach the underlying io::Error"
+    );
+}
+
+#[test]
+fn rejects_non_pytorch_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("not_a_checkpoint.json");
+    std::fs::write(&path, b"{\"hello\": \"world\"}").unwrap();
+
+    let err = PytorchReader::new(&path).expect_err("non-checkpoint file must be rejected");
+    assert!(
+        err.to_string()
+            .to_lowercase()
+            .contains("not a pytorch checkpoint"),
+        "unexpected error: {err}"
+    );
+}
+
+/// A safetensors file opens with its JSON header's length, and a 128-byte header makes
+/// that length's first byte `0x80`, the pickle `PROTO` opcode.
+#[test]
+fn rejects_safetensors_whose_header_length_looks_like_a_pickle_opcode() {
+    let json = format!(
+        "{{\"__metadata__\":{{\"k\":\"{}\"}}}}",
+        "x".repeat(128 - 25)
+    );
+    assert_eq!(json.len(), 128);
+
+    let mut bytes = (json.len() as u64).to_le_bytes().to_vec();
+    bytes.extend_from_slice(json.as_bytes());
+    assert_eq!(bytes[0], 0x80);
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.safetensors");
+    std::fs::write(&path, &bytes).unwrap();
+
+    let err = PytorchReader::new(&path).expect_err("safetensors must be rejected");
+    assert!(
+        err.to_string()
+            .to_lowercase()
+            .contains("not a pytorch checkpoint"),
         "unexpected error: {err}"
     );
 }

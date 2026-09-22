@@ -11,20 +11,20 @@ Please note that better performance maybe gained by adopting a convolution layer
 
 ```sh
 # Cuda backend
-cargo run --example wgan-mnist --release --features cuda
+cargo run -p wgan --example wgan-mnist --release --features cuda
 
 # Wgpu backend
-cargo run --example wgan-mnist --release --features wgpu
+cargo run -p wgan --example wgan-mnist --release --features wgpu
 
 # Tch GPU backend
 export TORCH_CUDA_VERSION=cu128 # Set the cuda version
-cargo run --example wgan-mnist --release --features tch-gpu
+cargo run -p wgan --example wgan-mnist --release --features tch-gpu
 
 # Tch CPU backend
-cargo run --example wgan-mnist --release --features tch-cpu
+cargo run -p wgan --example wgan-mnist --release --features tch-cpu
 
 # Flex backend (CPU)
-cargo run --example wgan-mnist --release --features flex                   # f32
+cargo run -p wgan --example wgan-mnist --release --features flex                   # f32
 ```
 
 ### Generating
@@ -32,5 +32,5 @@ cargo run --example wgan-mnist --release --features flex                   # f32
 To generate a sample of images, you can use `wgan-generate`. The same feature flags are used to select a backend.
 
 ```sh
-cargo run --example wgan-generate --release --features cuda
+cargo run -p wgan --example wgan-generate --release --features cuda
 ```

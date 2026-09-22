@@ -384,7 +384,8 @@ impl<T: Parameter> Param<T> {
     ///
     /// The initializer receives the device and effective gradient requirement, which is false
     /// on devices without autodiff. The requested `is_require_grad` setting is preserved for
-    /// [`Module::train`](crate::module::Module::train).
+    /// [`Module::train`](crate::module::Module::train). The initializer must create the value on
+    /// the device it receives, which is not `device` when the parameter moves before initializing.
     pub fn uninitialized<F>(
         id: ParamId,
         init: F,
@@ -482,17 +483,27 @@ impl<T: Parameter> Param<T> {
                 let shape = value.shape.clone();
                 core::mem::drop(init);
 
-                let base = self;
+                let mut base = self;
                 Self {
                     id: base.id,
                     param_mapper: base.param_mapper.clone(),
                     is_active: base.is_active,
                     reparameterization: None,
                     state: LazyInitState::uninitialized(Uninitialized {
-                        // `base` initializes on the same device. `func` maps an untracked value:
-                        // mapped from a tracked leaf, it would be a non-leaf that can't require grad.
-                        init: new_init_fn(move |_device, require_grad| {
-                            func(base.val().set_require_grad(false)).set_require_grad(require_grad)
+                        // A clone sharing `base` still initializes it where it was built. `func`
+                        // maps an untracked value: mapped from a tracked leaf, it would be a
+                        // non-leaf that can't require grad.
+                        init: new_init_fn(move |device, require_grad| {
+                            // Move the base and attached state together before materializing.
+                            // Detaching here prevents the map_to_device fallback from dropping it.
+                            let reparameterization = base.reparameterization.take();
+                            let base = base
+                                .map_to_device(device, |value| value.load_to_device(device))
+                                .with_dyn_reparameterization(
+                                    reparameterization.map(|state| state.to_device_dyn(device)),
+                                );
+                            let value = base.val().set_require_grad(false);
+                            func(value).set_require_grad(require_grad)
                         }),
                         device,
                         is_require_grad,
@@ -526,6 +537,33 @@ impl<T: Parameter> Param<T> {
         match init.as_ref() {
             Some(value) => value.device.clone(),
             None => self.device(),
+        }
+    }
+
+    /// Put the parameter on `device`: one not initialized yet initializes there, unless a clone
+    /// shares it, and any other is initialized if needed and moved with `move_value`. Either way it
+    /// keeps the autodiff context it was built with, as moving a value does.
+    pub(crate) fn map_to_device(
+        mut self,
+        device: &Device,
+        move_value: impl FnOnce(T) -> T,
+    ) -> Self {
+        let retargeted = Arc::get_mut(&mut self.state)
+            .and_then(|state| state.initialization.as_ref())
+            .is_some_and(|initialization| match initialization.write().as_mut() {
+                Some(uninitialized) => {
+                    uninitialized.device = device
+                        .clone()
+                        .with_autodiff_context_from(&uninitialized.device);
+                    true
+                }
+                None => false,
+            });
+
+        if retargeted {
+            self
+        } else {
+            self.map(move_value)
         }
     }
 

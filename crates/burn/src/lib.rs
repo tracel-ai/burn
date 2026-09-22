@@ -35,10 +35,13 @@
 //! We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
 //! then deploy on customer hardwares, which vary from user to user.
 //!
-//! Compared to other frameworks, Burn has a very different approach to supporting many backends.
-//! By design, most code is generic over the Backend trait, which allows us to build Burn with swappable backends.
-//! This makes composing backend possible, augmenting them with additional functionalities such as
-//! autodifferentiation and automatic kernel fusion.
+//! Burn's backend architecture lets you swap backends while keeping the same model code. You can
+//! enable multiple backends in the same application and choose the device for your tensors and
+//! modules at runtime through [`tensor::Device`]. This gives you the freedom to use different
+//! backends side by side and select the hardware best suited to each workload.
+//!
+//! Autodifferentiation and automatic kernel fusion integrate with the same tensor and module APIs,
+//! so models benefit from these capabilities on supported backends without changing their implementation.
 //!
 //! - WGPU (WebGPU): Cross-Platform GPU Backend
 //! - LibTorch: Backend using the LibTorch bindings (deprecated)
@@ -75,7 +78,8 @@
 //! ## Feature Flags
 //!
 //! The following feature flags are available.
-//! Default features include `std` but no execution backend.
+//! Default features include `std`, `optim` (and therefore `autodiff`), and `rl`, but no execution
+//! backend.
 //! Select a backend explicitly, for example `features = ["wgpu"]` or `["flex"]`.
 //! Specialized operations are also opt-in, for example `features = ["flex", "signal"]`.
 //! Backend-free builds can define tensor/model APIs without installing an execution backend.
@@ -83,15 +87,17 @@
 //! available through `Device::capture()` with the `capture` feature.
 //!
 //! - Training
-//!   - `train`: Enables features `dataset` and `autodiff` and provides a training environment
-//!   - `tui`: Includes Text UI with progress bar and plots
-//!   - `metrics`: Includes system info metrics (CPU/GPU usage, etc.)
+//!   - `train`: Enables features `dataset` and `optim` and provides a training environment
+//!   - `optim`: Enables optimizers and learning rate schedulers (implies `autodiff`)
+//!   - `rl`: Enables reinforcement learning utilities
+//!   - `tui`: Includes Text UI with progress bar and plots (requires `train`)
+//!   - `metrics`: Includes system info metrics (CPU/GPU usage, etc.) (requires `train`)
 //! - Dataset
 //!   - `dataset`: Includes a datasets library
 //!   - `audio`: Enables audio datasets (SpeechCommandsDataset)
 //!   - `sqlite`: Stores datasets in an SQLite database, backed by [Turso](https://turso.tech/)
 //!   - `sqlite-bundled`: Deprecated alias for `sqlite`
-//!   - `vision`: Enables vision datasets (MnistDataset)
+//!   - `vision`: Enables vision datasets (MnistDataset) and the `burn-vision` ops module
 //! - Backends
 //!   - `wgpu`: Makes available the WGPU backend
 //!   - `webgpu`: Makes available the `wgpu` backend with the WebGPU Shading Language (WGSL) compiler
@@ -111,19 +117,29 @@
 //!   - `openblas`: If supported, Openblas will be use
 //!   - `openblas-system`: If supported, Openblas installed on the system will be use
 //!   - `autotune`: Enable running benchmarks to select the best kernel in backends that support it.
+//!   - `autotune-checks`: Check that every autotune candidate produces the same output (debugging).
+//!   - `x86-v4`: Enable AVX-512 matmul kernels in the Flex backend.
+//!   - `apple-amx`: Enable the experimental Apple AMX matmul kernels in the Flex backend.
+//!   - `template`: Enable template-based custom kernels in the WGPU backend.
 //!   - `fusion`: Enable operation fusion in backends that support it.
 //!   - `tracing`: Enable diagnostic tracing in the selected backends (disabled by default).
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Model Storage
-//!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
+//!   - `store`: Enables the `burn-store` snapshot tooling and burnpack stores; with `std`, this
+//!     also includes SafeTensors
+//!   - `safetensors`: Enables SafeTensors import and export in `no_std` builds (implies `store`)
+//!   - `pytorch`: Enables PyTorch checkpoint import (implies `store`)
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `linalg`: Enables linear algebra operations
 //!   - `capture`: Makes the non-executing graph capture backend available.
 //!   - `ir`: Makes Burn's operation intermediate representation available.
+//!   - `cubecl`: Re-exports CubeCL as `burn::cubecl` for writing custom kernels.
 //!   - `signal`: Enables signal processing operations from `burn-signal`.
-//!   - `server`: Enables the remote server.
+//!   - `extension`: Enables the backend extension API, including `Tensor::from_primitive`.
+//!   - `remote`: Enables remote devices over Iroh; `remote-websocket` adds the WebSocket transport.
+//!   - `remote-server`: Enables the remote server (implies `remote`).
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!
 //! You can also check the details in sub-crates [`burn-core`](https://docs.rs/burn-core) and [`burn-train`](https://docs.rs/burn-train).
@@ -185,8 +201,9 @@ pub mod rl {
 #[cfg(feature = "remote-server")]
 pub use burn_core::tensor::server;
 
-/// Model storage and serialization: the non-generic record system (always available), plus —
-/// with the `store` feature — the snapshot tooling and importers (SafeTensors, PyTorch, burnpack).
+/// Model storage and serialization: the non-generic record system (always available), plus,
+/// with the `store` feature, the snapshot tooling and burnpack stores. The `safetensors` and
+/// `pytorch` features add those importers.
 pub mod store {
     pub use burn_core::store::*;
     #[cfg(feature = "store")]
