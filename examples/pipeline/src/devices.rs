@@ -36,6 +36,7 @@ fn runtimes_in_order() -> Vec<Vec<Device>> {
         .collect()
 }
 
+/// A card no listed runtime enumerated keeps whatever device `enumerate_physical` gave it.
 #[cfg(any(feature = "cuda", feature = "rocm", feature = "wgpu"))]
 fn preferred(devices: Vec<Device>, preference: &[Vec<Device>]) -> Device {
     preference

@@ -79,24 +79,29 @@ pub trait Pipeline: Module {
         let layout = self.layout();
         placement.assert_covers(&layout);
 
-        let model = self.map(&mut PlaceOnOwningSegment {
-            placement,
-            layout: &layout,
-            path: Vec::new(),
-        });
+        let model = Module::map(
+            self,
+            &mut PlaceOnOwningSegment {
+                placement,
+                layout: &layout,
+                path: Vec::new(),
+            },
+        );
 
         PlacedPipeline::new(model, placement.clone())
     }
 }
 
-/// `path` follows the walk, so a parameter no segment owns can be named in the panic.
+/// `layout` says which segment owns a parameter, `placement` says where that segment runs.
 struct PlaceOnOwningSegment<'a> {
     placement: &'a PipelinePlacement,
     layout: &'a PipelineLayout,
+    /// Follows the walk, so a parameter no segment owns can be named in the panic.
     path: Vec<String>,
 }
 
 impl PlaceOnOwningSegment<'_> {
+    /// A parameter no segment owns is a hole in `layout`, never a device to guess at.
     fn fork<P: ParameterValue>(&self, param: Param<P>) -> Param<P>
     where
         Param<P>: Module,
@@ -193,6 +198,7 @@ mod tests {
             }
         }
 
+        /// The reference the split forward has to reproduce.
         fn plain_forward(&self, input: Tensor<2>) -> Tensor<2> {
             let hidden = self
                 .layers
@@ -254,6 +260,7 @@ mod tests {
         }
     }
 
+    /// `SimpleLinear` is a bare pair of parameters, with no forward of its own.
     fn linear(layer: &SimpleLinear, x: Tensor<2>) -> Tensor<2> {
         let out = x.matmul(layer.weight.val().transpose());
         match &layer.bias {

@@ -6,6 +6,8 @@ use crate::module::{Module, ParamId, list_param_ids};
 /// each segment runs.
 #[derive(Debug, Clone, Default)]
 pub struct PipelineLayout {
+    /// Flattened to parameters, since [`place`](super::Pipeline::place) walks parameters, not
+    /// modules.
     owners: BTreeMap<ParamId, PipelineSegment>,
     /// Counted, not read back from `owners`, which a block with no parameters never enters.
     num_blocks: usize,
@@ -75,10 +77,13 @@ impl PipelineLayout {
         self.num_blocks
     }
 
+    /// `None` is a parameter outside the layout, which [`place`](super::Pipeline::place)
+    /// refuses rather than pick a device for.
     pub(crate) fn segment(&self, id: ParamId) -> Option<PipelineSegment> {
         self.owners.get(&id).copied()
     }
 
+    /// Giving one module to the same segment twice is allowed; giving it to two is the panic.
     fn claim<M: Module>(mut self, module: &M, segment: PipelineSegment) -> Self {
         for id in list_param_ids(module) {
             if let Some(owner) = self.owners.insert(id, segment)

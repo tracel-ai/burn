@@ -6,6 +6,8 @@ use burn::{
 
 use crate::model::{Model, ModelConfig};
 
+/// Load a trained record straight onto the stages it was placed on, then check the split
+/// against the same weights on one device.
 pub fn infer(devices: Vec<Device>) {
     assert!(!devices.is_empty(), "no device to place the model on");
 
