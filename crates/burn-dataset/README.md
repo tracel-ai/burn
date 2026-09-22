@@ -13,5 +13,5 @@ process. It offers a variety of dataset implementations, transformation function
 - `audio` - enables audio dataset (SpeechCommandsDataset). Run the following example to try it out:
 
   ```shell
-  cargo run --example speech_commands --features audio
+  cargo run -p burn-dataset --example speech_commands --features audio
   ```
