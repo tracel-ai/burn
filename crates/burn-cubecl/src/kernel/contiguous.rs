@@ -236,17 +236,17 @@ mod storage_tiled {
         assert_close(&values(tiled), &values(plain), "packed weight");
     }
 
-    /// The fragments written by the plain layout ops, then relabeled: `[k, n]` reshaped to
-    /// `[k / tr, tr, n / tc, tc]`, its middle dims swapped and laid down is the buffer cubek's
-    /// pack stores, and stating the tiling on it is all that is left: the same metadata, so the
-    /// same reads as [`a_packed_weight_computes_the_same_product`].
+    /// The fragments written by the plain layout ops, then stated: `[k, n]` reshaped to
+    /// `[k / tr, tr, n / tc, tc]` with its middle dims swapped is the view `into_tiled` lays down
+    /// as the buffer cubek's pack stores: the same metadata, so the same reads as
+    /// [`a_packed_weight_computes_the_same_product`].
     #[test]
     fn into_tiled_states_the_tiling_the_layout_ops_wrote() {
         let device = CubeDevice::default();
         let (k, n) = (64, 96);
         let rhs = tensor(&[k, n], &device, 5);
         let fragments = reshape(rhs.clone(), Shape::new([k / 16, 16, n / 32, 32]));
-        let fragments = into_contiguous(swap_dims(fragments, 1, 2));
+        let fragments = swap_dims(fragments, 1, 2);
         let weight = CubeBackend::float_into_tiled(fragments, Tiling::new(&[2, 2]).unwrap());
 
         assert_eq!(weight.meta, packed(&rhs, (16, 32)).meta);

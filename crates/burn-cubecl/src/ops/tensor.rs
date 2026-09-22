@@ -166,15 +166,17 @@ impl FloatTensorOps<Self> for CubeBackend {
         super::reshape(tensor, shape)
     }
 
-    /// The buffer already lies in its fragments: only the metadata changes, to say so. The
-    /// kernels that read storage tiles map each logical coordinate onto them; everything else
-    /// lays the tensor back into rows first ([`untile`](crate::kernel::untile)).
-    fn float_into_tiled(mut tensor: FloatTensor<Self>, tiling: Tiling) -> FloatTensor<Self> {
+    /// The fragments laid down row-major over their own dims, copied only where the strides do
+    /// not already (a `swap_dims` view), and the tiling stated on the metadata. The kernels that
+    /// read storage tiles map each logical coordinate onto them; everything else lays the tensor
+    /// back into rows first ([`untile`](crate::kernel::untile)).
+    fn float_into_tiled(tensor: FloatTensor<Self>, tiling: Tiling) -> FloatTensor<Self> {
         assert!(
             !tensor.meta.is_tiled(),
             "into_tiled: the tensor is already storage-tiled ({:?})",
             tensor.meta.tiling
         );
+        let mut tensor = kernel::into_contiguous(tensor);
         tensor.meta = Box::new(
             tensor
                 .meta
