@@ -125,6 +125,14 @@ pub fn irfft<const D: usize>(
         .try_dim_index(D)
         .unwrap_or_else(|error| panic!("IRFFT: {error}"));
 
+    assert!(
+        spectrum_re.shape() == spectrum_im.shape(),
+        "irfft: spectrum_re and spectrum_im must have the same shape, \
+         got {:?} and {:?}",
+        spectrum_re.shape(),
+        spectrum_im.shape(),
+    );
+
     if let Some(n) = n {
         assert!(n >= 1, "irfft: n must be >= 1, got {n}");
     }
