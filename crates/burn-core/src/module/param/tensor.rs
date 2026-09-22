@@ -220,7 +220,7 @@ impl<const D: usize> Module for Param<Tensor<D>> {
     }
 
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
-        let device = self.base().device();
+        let device = self.lazy_device();
 
         if !devices.contains(&device) {
             devices.push(device)
@@ -303,7 +303,7 @@ impl<const D: usize> Module for Param<Tensor<D, Int>> {
     }
 
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
-        let device = self.val().device();
+        let device = self.lazy_device();
 
         if !devices.contains(&device) {
             devices.push(device)
@@ -359,7 +359,7 @@ impl<const D: usize> Module for Param<Tensor<D, Bool>> {
     }
 
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
-        let device = self.val().device();
+        let device = self.lazy_device();
 
         if !devices.contains(&device) {
             devices.push(device)
@@ -402,11 +402,121 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 #[cfg(all(test, feature = "std", feature = "autodiff"))]
 mod tests {
     use super::*;
+    use crate as burn;
     use crate::{
         module::{LoraAdapter, Module},
         test_device,
     };
     use burn_tensor::Distribution;
+
+    fn lazy_param_for_device_inspection<T: Parameter>(
+        device: &Device,
+        shape: [usize; 2],
+    ) -> Param<T> {
+        Param::uninitialized(
+            ParamId::new(),
+            |_, _| panic!("device inspection must not initialize parameters"),
+            device.clone(),
+            false,
+            shape.into(),
+        )
+    }
+
+    #[test]
+    fn devices_preserves_lazy_parameters_of_all_tensor_kinds() {
+        #[derive(Module, Debug)]
+        struct MixedParameters {
+            float: Param<Tensor<2>>,
+            int: Param<Tensor<2, Int>>,
+            bool: Param<Tensor<2, Bool>>,
+            initialized: Param<Tensor<2>>,
+        }
+
+        let device = test_device();
+        let model = MixedParameters {
+            float: lazy_param_for_device_inspection(&device, [2, 3]),
+            int: lazy_param_for_device_inspection(&device, [2, 3]),
+            bool: lazy_param_for_device_inspection(&device, [2, 3]),
+            initialized: Param::from_tensor(Tensor::ones([2, 3], &device)),
+        };
+        let clone = model.clone();
+
+        assert_eq!(model.devices(), alloc::vec![device.clone()]);
+        assert_eq!(clone.devices(), alloc::vec![device]);
+        assert!(!model.float.is_initialized());
+        assert!(!model.int.is_initialized());
+        assert!(!model.bool.is_initialized());
+    }
+
+    #[test]
+    fn devices_preserves_lazy_reparameterization_state() {
+        let device = test_device();
+        let param: Param<Tensor<2>> = lazy_param_for_device_inspection(&device, [2, 3]);
+
+        // Cover both lazy and initialized bases with lazy adapter parameters.
+        for base in [
+            param,
+            Param::from_tensor(Tensor::<2>::ones([2, 3], &device)),
+        ] {
+            let was_initialized = base.is_initialized();
+            let param = base.with_reparameterization(LoraAdapter {
+                a: lazy_param_for_device_inspection(&device, [2, 1]),
+                b: lazy_param_for_device_inspection(&device, [1, 3]),
+                scale: 1.0,
+            });
+
+            assert_eq!(param.devices(), alloc::vec![device.clone()]);
+            assert_eq!(param.is_initialized(), was_initialized);
+            let adapter = param.adapter().unwrap();
+            assert!(!adapter.a.is_initialized());
+            assert!(!adapter.b.is_initialized());
+        }
+    }
+
+    #[test]
+    fn devices_preserves_gradients_after_a_lazy_module_move() {
+        let device = test_device().autodiff();
+        let model = crate::test_utils::SimpleLinear {
+            weight: Param::uninitialized(
+                ParamId::new(),
+                |device, require_grad| Tensor::ones([1, 2], device).set_require_grad(require_grad),
+                device.clone(),
+                true,
+                [1, 2].into(),
+            ),
+            bias: Some(Param::uninitialized(
+                ParamId::new(),
+                |device, require_grad| Tensor::zeros([1], device).set_require_grad(require_grad),
+                device.clone(),
+                true,
+                [1].into(),
+            )),
+        };
+
+        assert_eq!(model.devices(), alloc::vec![device.clone()]);
+        assert!(!model.weight.is_initialized());
+        assert!(!model.bias.as_ref().unwrap().is_initialized());
+
+        let model = model.to_device(&device);
+        let output = Tensor::<2>::ones([1, 2], &device).matmul(model.weight.val().transpose())
+            + model.bias.as_ref().unwrap().val().unsqueeze();
+        let grads = output.sum().backward();
+
+        model
+            .weight
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_eq(&TensorData::from([[1.0f32, 1.0f32]]), false);
+        model
+            .bias
+            .as_ref()
+            .unwrap()
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_eq(&TensorData::from([1.0f32]), false);
+    }
 
     #[test]
     fn set_require_grad_updates_lazy_lifecycle_state() {

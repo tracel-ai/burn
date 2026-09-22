@@ -309,6 +309,7 @@ fn should_support_rad2deg_ops() {
 #[cfg(any(feature = "flex", feature = "ndarray"))]
 #[test]
 fn degree_radian_conversions_preserve_f64_precision() {
+    use burn_tensor::DType;
     let device = Default::default();
 
     let radians = TestTensor::<1>::from_data(TensorData::from([180.0f64]), (&device, DType::F64))
