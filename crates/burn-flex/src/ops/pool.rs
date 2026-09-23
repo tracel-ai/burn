@@ -145,15 +145,25 @@ fn pool_output_size(
     assert!(stride > 0, "pool: stride must be > 0");
     let effective_kernel = dilation * (kernel - 1) + 1;
     let padded = input + 2 * padding;
-    if padded < effective_kernel {
-        return if ceil_mode { 1 } else { 0 };
-    }
-    let numerator = padded - effective_kernel;
-    if ceil_mode {
-        numerator.div_ceil(stride) + 1
+
+    let mut out = if padded >= effective_kernel {
+        let numerator = padded - effective_kernel;
+        if ceil_mode {
+            numerator.div_ceil(stride) + 1
+        } else {
+            numerator / stride + 1
+        }
+    } else if ceil_mode && (effective_kernel - padded) < stride {
+        // Only produces an extra window if the deficit is smaller than the stride
+        1
     } else {
-        numerator / stride + 1
+        0
+    };
+
+    if out > 0 && (out - 1) * stride >= input + padding {
+        out -= 1;
     }
+    out
 }
 
 // ============================================================================
@@ -1190,6 +1200,18 @@ max_pool3d_backward_typed!(max_pool3d_backward_f32, f32, DType::F32, 0.0f32);
 max_pool3d_backward_typed!(max_pool3d_backward_f64, f64, DType::F64, 0.0f64);
 max_pool3d_backward_typed!(max_pool3d_backward_f16, f16, DType::F16, f16::from_f32(0.0));
 
+/// Max pool 3D backward for bf16.
+pub fn max_pool3d_backward_bf16(
+    x: FlexTensor,
+    grad: FlexTensor,
+    indices: FlexTensor,
+) -> FlexTensor {
+    let x_f32 = convert_bf16_to_f32(&x);
+    let grad_f32 = convert_bf16_to_f32(&grad);
+    let result_f32 = max_pool3d_backward_f32(x_f32, grad_f32, indices);
+    convert_f32_to_bf16(&result_f32)
+}
+
 /// Generic max pool 3D backward implementation.
 fn max_pool3d_backward_impl<T, I>(
     x: FlexTensor,
@@ -1374,6 +1396,28 @@ avg_pool3d_backward_typed!(
     f16::from_f32(0.0),
     |val: f16, count| f16::from_f32(val.to_f32() / count as f32)
 );
+
+/// Avg pool 3D backward for bf16.
+pub fn avg_pool3d_backward_bf16(
+    x: FlexTensor,
+    grad: FlexTensor,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    count_include_pad: bool,
+) -> FlexTensor {
+    let x_f32 = convert_bf16_to_f32(&x);
+    let grad_f32 = convert_bf16_to_f32(&grad);
+    let result_f32 = avg_pool3d_backward_f32(
+        x_f32,
+        grad_f32,
+        kernel_size,
+        stride,
+        padding,
+        count_include_pad,
+    );
+    convert_f32_to_bf16(&result_f32)
+}
 
 /// Generic avg pool 3D backward implementation.
 #[allow(clippy::too_many_arguments)]
@@ -1755,6 +1799,19 @@ mod tests {
         // effective_kernel = 2*(2-1)+1 = 3
         // output = (7 - 3) / 1 + 1 = 5
         assert_eq!(pool_output_size(7, 2, 0, 1, 2, false), 5);
+
+        // Discard branch: input=5, kernel=2, padding=1, stride=2, ceil_mode=true
+        // window starting at 6 >= input(5) + padding(1) is discarded -> 3
+        assert_eq!(pool_output_size(5, 2, 1, 2, 1, true), 3);
+        assert_eq!(pool_output_size(5, 2, 1, 2, 1, false), 3);
+
+        // Degenerate input: input + 2*padding < effective_kernel
+        // in=1, k=3, s=1, p=0: deficit (3 - 1 = 2) >= stride (1), so output is 0 for both floor and ceil
+        assert_eq!(pool_output_size(1, 3, 0, 1, 1, false), 0);
+        assert_eq!(pool_output_size(1, 3, 0, 1, 1, true), 0);
+
+        // When deficit (3 - 2 = 1) < stride (2), ceil mode produces 1
+        assert_eq!(pool_output_size(2, 3, 0, 2, 1, true), 1);
     }
 
     #[test]
