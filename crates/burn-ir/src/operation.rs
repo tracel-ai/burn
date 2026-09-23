@@ -210,6 +210,8 @@ pub enum FloatOperationIr {
     Dequantize(DequantizeOpIr),
     /// Operation corresponding to [grid_sample_2d](burn_backend::ops::FloatTensorOps::float_grid_sample_2d).
     GridSample2d(GridSample2dOpIr),
+    /// Operation corresponding to [grid_sample_3d](burn_backend::ops::FloatTensorOps::float_grid_sample_3d).
+    GridSample3d(GridSample3dOpIr),
     /// Operation corresponding to [powf](burn_backend::ops::FloatTensorOps::float_powi).
     Powf(BinaryOpIr),
     /// Operation corresponding to [hypot](burn_backend::ops::FloatTensorOps::float_hypot).
@@ -2124,6 +2126,15 @@ pub struct GridSample2dOpIr {
     pub out: TensorIr,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct GridSample3dOpIr {
+    pub tensor: TensorIr,
+    pub grid: TensorIr,
+    pub options: GridSampleOptionsIr,
+    pub out: TensorIr,
+}
+
 impl From<GridSamplePaddingModeIr> for GridSamplePaddingMode {
     fn from(val: GridSamplePaddingModeIr) -> Self {
         match val {
@@ -3212,6 +3223,9 @@ impl FloatOperationIr {
             FloatOperationIr::GridSample2d(repr) => {
                 Box::new([&repr.tensor, &repr.grid].into_iter())
             }
+            FloatOperationIr::GridSample3d(repr) => {
+                Box::new([&repr.tensor, &repr.grid].into_iter())
+            }
             FloatOperationIr::Tan(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::Cosh(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::Sinh(repr) => Box::new([&repr.input].into_iter()),
@@ -3251,6 +3265,7 @@ impl FloatOperationIr {
             FloatOperationIr::IsNan(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::GridSample2d(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::GridSample3d(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Tan(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Cosh(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Sinh(repr) => Box::new([&repr.out].into_iter()),
@@ -3341,6 +3356,10 @@ impl FloatOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::GridSample2d(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.grid.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::GridSample3d(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
                 repr.grid.mark_read_only(nodes, &mut output);
             }
@@ -3467,6 +3486,11 @@ impl FloatOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
             }
             FloatOperationIr::GridSample2d(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.grid);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::GridSample3d(repr) => {
                 v.visit_tensor_mut(&mut repr.tensor);
                 v.visit_tensor_mut(&mut repr.grid);
                 v.visit_tensor_mut(&mut repr.out);

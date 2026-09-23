@@ -1431,6 +1431,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::float_grid_sample_2d(tensor, grid, desc.options.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                FloatOperationIr::GridSample3d(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let grid = handles.get_float_tensor::<B>(&desc.grid);
+
+                    let output = B::float_grid_sample_3d(tensor, grid, desc.options.clone().into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::Module(op) => match op {
                 ModuleOperationIr::BatchNorm(desc) => {

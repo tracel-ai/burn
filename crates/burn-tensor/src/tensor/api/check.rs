@@ -528,6 +528,53 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn grid_sample_3d<const D: usize, K>(
+        tensor: &Tensor<D, K>,
+        grid: &Tensor<D, K>,
+    ) -> Self
+    where
+        K: BasicOps,
+    {
+        let mut check = Self::Ok;
+
+        check = check.binary_ops_device("GridSample3d", &tensor.device(), &grid.device());
+
+        if D != 5 {
+            return check.register(
+                "GridSample3d",
+                TensorError::new(format!(
+                    "Grid sampling in three dimensions requires rank 5 tensors, \
+                     (N, C, D_in, H_in, W_in) and (N, D_out, H_out, W_out, 3), but got rank {D}."
+                )),
+            );
+        }
+
+        let shape_tensor = tensor.shape();
+        let shape_grid = grid.shape();
+
+        if shape_grid[4] != 3 {
+            check = check.register(
+                "GridSample3d",
+                TensorError::new(format!(
+                    "The grid's last dimension holds the (x, y, z) coordinates and must have size 3, but got {}.",
+                    shape_grid[4]
+                )),
+            );
+        }
+
+        if shape_tensor[0] != shape_grid[0] {
+            check = check.register(
+                "GridSample3d",
+                TensorError::new(format!(
+                    "The tensor and grid batch sizes must match, but got {} and {}.",
+                    shape_tensor[0], shape_grid[0]
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn cross<const D: usize, K>(
         lhs: &Tensor<D, K>,
         rhs: &Tensor<D, K>,

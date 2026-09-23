@@ -949,6 +949,25 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    GridSample3dOpIr {
+        tensor: TensorIr,
+        grid: TensorIr,
+        options: GridSampleOptionsIr
+    },
+    // Input tensor: [N, C, D_in, H_in, W_in]
+    // Grid: [N, D_out, H_out, W_out, 3]
+    // Output: [N, C, D_out, H_out, W_out]
+    shape = Shape::new([
+        tensor.shape[0],
+        tensor.shape[1],
+        grid.shape[1],
+        grid.shape[2],
+        grid.shape[3]
+    ]),
+    dtype = tensor.dtype
+);
+
+impl_ir_create!(
     EmbeddingOpIr {
         weights: TensorIr,
         indices: TensorIr,

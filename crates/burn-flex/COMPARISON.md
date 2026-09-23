@@ -191,6 +191,7 @@ All operations listed below are implemented by both backends unless marked other
 | round / floor / ceil                                              | Yes       | Yes          |                                                       |
 | cast                                                              | Yes       | Yes          |                                                       |
 | grid_sample_2d                                                    | Yes       | Yes          |                                                       |
+| grid_sample_3d                                                    | Yes       | Yes          |                                                       |
 | bool_select                                                       | Yes       | Yes          |                                                       |
 | int_powi                                                          | Yes       | Yes          |                                                       |
 

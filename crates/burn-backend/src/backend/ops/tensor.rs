@@ -1,5 +1,5 @@
 use super::cat::cat_with_slice_assign;
-use super::grid_sample::float_grid_sample_2d_ref;
+use super::grid_sample::{float_grid_sample_2d_ref, float_grid_sample_3d_ref};
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
@@ -1910,6 +1910,31 @@ pub trait FloatTensorOps<B: Backend> {
     ) -> FloatTensor<B> {
         // TODO: default impl should get int default dtype
         float_grid_sample_2d_ref::<B>(tensor, grid, options)
+    }
+
+    /// Samples tensor as a three-dimensional spatial grid of (possibly multi-channel) values,
+    /// using the given locations in [-1, 1].
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor being sampled from, must be contiguous with shape
+    ///   (N, C, D_in, H_in, W_in)
+    /// * `grid` - A tensor of locations, with shape (N, D_out, H_out, W_out, 3). Values are
+    ///   [-1, 1] and the last dimension is ordered `(x, y, z)`, where `x` indexes `W_in`,
+    ///   `y` indexes `H_in` and `z` indexes `D_in`. A [x = -1, y = -1, z = -1] means the
+    ///   front-top-left corner, and [x = 1, y = 1, z = 1] the back-bottom-right one
+    /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
+    ///
+    /// # Returns
+    ///
+    /// A tensor with shape (N, C, D_out, H_out, W_out)
+    fn float_grid_sample_3d(
+        tensor: FloatTensor<B>,
+        grid: FloatTensor<B>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<B> {
+        // TODO: default impl should get int default dtype
+        float_grid_sample_3d_ref::<B>(tensor, grid, options)
     }
 
     /// Unfold windows along a dimension.
