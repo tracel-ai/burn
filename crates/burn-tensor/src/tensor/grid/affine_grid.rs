@@ -18,27 +18,22 @@ use alloc::vec;
 ///
 /// Tensor with shape (batch_size, height, width, 2), where dim 2 is (x, y)
 /// All coordinates are broadcast on the batch dim
+///
+/// The identity transform places -1 and 1 on the centers of the corner pixels, so the grid
+/// pairs with `align_corners = true` when sampling. An axis of extent one has a single center,
+/// at 0.
 pub fn affine_grid_2d(transform: Tensor<3>, dims: [usize; 4]) -> Tensor<4> {
     let [batch_size, _c, height, width] = dims;
 
     let device = &transform.device();
 
-    let x = Tensor::<1, Int>::arange(0..width as i64, device)
+    // Normalized (-1.0..1.0) coordinates along each axis, laid out to broadcast over [H, W]
+    let x = normalized_axis(width, device)
         .reshape([1, width])
         .expand([height, width]);
-    let y = Tensor::<1, Int>::arange(0..height as i64, device)
+    let y = normalized_axis(height, device)
         .reshape([height, 1])
         .expand([height, width]);
-
-    // from ints (0..(width-1)) and (0..(height-1)), to (-1.0..1.0)
-    let x = x
-        .float()
-        .div_scalar(((width - 1) as f32 / 2.0).elem::<f32>())
-        .sub_scalar((1_f32).elem::<f32>());
-    let y = y
-        .float()
-        .div_scalar(((height - 1) as f32 / 2.0).elem::<f32>())
-        .sub_scalar((1_f32).elem::<f32>());
 
     // Broadcast to batch dimension
     let x = x.unsqueeze_dim::<3>(0).expand([batch_size, height, width]); // [B, H, W]
@@ -135,9 +130,9 @@ pub fn affine_grid_3d(transform: Tensor<3>, dims: [usize; 5]) -> Tensor<5> {
 }
 
 /// The `size` evenly spaced coordinates from -1.0 to 1.0 inclusive, i.e. the centers of the
-/// voxels along one axis with `align_corners = true`.
+/// pixels along one axis with `align_corners = true`.
 ///
-/// A single voxel has no span to divide, so its center is 0 rather than the `0 / 0` the
+/// A single pixel has no span to divide, so its center is 0 rather than the `0 / 0` the
 /// general formula would produce.
 fn normalized_axis(size: usize, device: &Device) -> Tensor<1> {
     if size <= 1 {

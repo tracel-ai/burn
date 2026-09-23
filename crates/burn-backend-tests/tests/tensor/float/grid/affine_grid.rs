@@ -81,6 +81,23 @@ fn test_affine_grid_translation() {
     output.into_data().assert_eq(&expected.into_data(), false);
 }
 
+#[test]
+fn test_affine_grid_singleton_axis() {
+    let batch_size = 1;
+    let channels = 1;
+    let height = 1;
+    let width = 3;
+
+    let transform = create_identity_transform(batch_size);
+
+    let output = affine_grid_2d(transform, [batch_size, channels, height, width]);
+
+    // A single row sits at the center of the y range, while x still spans it.
+    let expected = TestTensor::<4>::from([[[[-1f32, 0.], [0., 0.], [1., 0.]]]]);
+
+    output.into_data().assert_eq(&expected.into_data(), false);
+}
+
 fn create_identity_transform_3d(batch_size: usize) -> TestTensor<3> {
     // Identity affine transform (batch_size, 3, 4)
     TestTensor::<3>::from([[[1f32, 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.]]])

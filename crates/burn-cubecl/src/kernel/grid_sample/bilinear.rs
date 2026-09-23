@@ -38,10 +38,15 @@ fn grid_sample_bilinear_kernel<F: Float>(
     let h_in = input.shape(2) as u32;
     let w_in = input.shape(3) as u32;
 
-    // Read grid coordinates once per spatial position
+    // Read grid coordinates once per spatial position.
+    //
+    // The component axis is strided like every other one rather than assumed contiguous: a
+    // `[N, 2, H, W].permute([0, 2, 3, 1])` view has the required `[N, H, W, 2]` shape but
+    // `stride(3) != 1`, and reading `offset + 1` there would pick up the neighbouring storage
+    // element instead of the y coordinate.
     let grid_offset = n * grid.stride(0) + h_out * grid.stride(1) + w_out * grid.stride(2);
     let gx = grid[grid_offset]; // x coordinate in [-1, 1]
-    let gy = grid[grid_offset + 1]; // y coordinate in [-1, 1]
+    let gy = grid[grid_offset + grid.stride(3)]; // y coordinate in [-1, 1]
 
     // Convert normalized coordinates to pixel coordinates
     let (px, py) = if align_corners {
@@ -133,8 +138,14 @@ pub(crate) fn grid_sample_bilinear_launch(
     options: GridSampleOptions,
 ) -> CubeTensor {
     let [batch_size, channels, _h_in, _w_in] = input.meta.shape().dims();
-    let [_n, h_out, w_out, two] = grid.meta.shape().dims();
+    let [n, h_out, w_out, two] = grid.meta.shape().dims();
     assert_eq!(two, 2, "Grid last dimension must be 2");
+    // The output is allocated and the kernel launched over the input's batch, so a shorter
+    // grid would be read past its storage and a longer one silently truncated.
+    assert_eq!(
+        batch_size, n,
+        "Input batch ({batch_size}) and grid batch ({n}) must match"
+    );
 
     // Create output tensor [N, C, H_out, W_out]
     let output_shape = Shape::new([batch_size, channels, h_out, w_out]);
