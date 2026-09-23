@@ -34,6 +34,11 @@ CubeCL runtimes share `burn_cubecl::CubeBackend`; the device selects CUDA, ROCm,
 `burn_cubecl::Cube` wraps that backend with `Fusion` when the fusion feature is enabled. Runtime
 facade names such as `Cuda` and `Wgpu` are aliases of `Cube`, not distinct extension selectors.
 
+Runtime dispatch uses a fixed backend catalog defined in
+`crates/burn-backend-extension/src/catalog.rs`, shared by generated and handwritten routing.
+`#[backend_extension]` extends the operations available on supported backends; it does not provide a
+mechanism for registering additional backends.
+
 ## Autodiff
 
 `burn_autodiff::Autodiff<B, C>` decorates a backend with first-order reverse-mode differentiation,
@@ -50,3 +55,8 @@ rejected; parameter leaves can be reused in fresh forwards.
 supplies its implementation for `Autodiff<B, C>` (a composition of differentiable operations or a
 custom backward pass). See the
 [extension guide](https://burn.dev/books/burn/advanced/backend-extension/).
+
+When writing a custom backward pass, obtain input `NodeGuard`s with `AutodiffTensor::node()` or
+`into_parts()` and pass them to `Backward::prepare`. They must stay alive through child-step
+registration, but must not be stored in backward or checkpoint state. Access the primitive with
+`primitive()` or `into_parts()`; the old public fields are private.

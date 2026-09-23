@@ -49,6 +49,25 @@ The `launch` method will start the training and return the trained model once fi
 Again, please refer to the [training section](../basic-workflow/training.md) for a relevant code
 snippet.
 
+## Gradient Accumulation
+
+Gradient accumulation lets each optimizer update use gradients from several batches without
+increasing the dataloader's batch size. This is useful when a larger batch would exceed device
+memory.
+
+Enable it with `SupervisedTraining::grads_accumulation(n)`, where `n` must be greater than zero. On
+a single device, Burn computes gradients for each batch and sums them over `n` batches before
+updating the model parameters.
+
+Burn applies any remaining accumulated gradients at the end of each epoch. Learning-rate
+schedulers advance once per optimizer update, so warmup and decay durations should use that unit.
+
+Accumulated gradients are summed without normalization. Account for this when choosing loss
+scaling and learning rates.
+
+Custom training strategies and loops are responsible for their own accumulation and scheduler
+timing.
+
 ## Parameter Groups
 
 It's common to use different learning rates or optimizer settings for different parts of a model.
@@ -96,8 +115,8 @@ let result = training.launch(Learner::new(
 
 The composed base schedule multiplies the values of its three component schedules at every step.
 `ModuleLrSchedulerConfig` assigns that base policy to parameters outside the `conv` group and the
-separate linear policy to parameters inside it. Configure the groups before calling `init()`;
-the individual scheduler configurations' `build()` methods are internal APIs.
+separate linear policy to parameters inside it. Configure the groups before calling `init()`; the
+individual scheduler configurations' `build()` methods are internal APIs.
 
 For group-specific optimizers, matching precedence, gradient clipping, and optimizer state, see
 [Optimizer](./optimizer.md#parameter-groups).
