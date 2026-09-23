@@ -34,7 +34,7 @@ burn-linalg = { workspace = true }
 num-traits = { workspace = true }
 
 [dev-dependencies]
-burn-core = { workspace = true, features = ["autodiff"] }
+burn-core = { workspace = true, features = ["autodiff", "flex"] }
 rstest = { workspace = true }
 
 [package.metadata.docs.rs]
