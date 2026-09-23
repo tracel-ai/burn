@@ -159,12 +159,13 @@ impl<const D: usize> LrDecayState<D> {
 
 #[cfg(test)]
 mod tests {
+    use crate::optim::test_utils::assert_optimizer_resume;
     use burn::tensor::Tolerance;
 
     use super::*;
     use crate::GradientsParams;
     use burn::module::Param;
-    use burn::tensor::{Distribution, Tensor, TensorData};
+    use burn::tensor::{Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -173,25 +174,11 @@ mod tests {
     fn test_adagrad_optimizer_save_load_state() {
         let device = Device::default().autodiff();
         let linear = LinearConfig::new(6, 6).init(&device);
-        let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
-        let mut optimizer = create_adagrad();
-        let grads = linear.forward(x).backward();
-        let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
-
-        let bytes = optimizer.into_bytes().unwrap();
-        assert!(!bytes.is_empty());
-
-        #[cfg(feature = "std")]
-        optimizer
-            .save(std::env::temp_dir().as_path().join("test_optim_adagrad"))
-            .unwrap();
-
-        let state_optim_before = optimizer.to_record();
-        let optimizer = create_adagrad().from_bytes(bytes).unwrap();
-        let state_optim_after = optimizer.to_record();
-
-        assert_eq!(state_optim_before.len(), state_optim_after.len());
+        assert_optimizer_resume(
+            || AdaGradConfig::new().with_lr_decay(0.1).init(),
+            linear,
+            LEARNING_RATE,
+        );
     }
 
     #[test]
@@ -275,17 +262,5 @@ mod tests {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
         }
-    }
-
-    fn create_adagrad() -> ModuleOptimizer {
-        let config = AdaGradConfig::new();
-        AdaGrad {
-            lr_decay: LrDecay {
-                lr_decay: config.lr_decay,
-                epsilon: config.epsilon,
-            },
-            weight_decay: config.weight_decay.as_ref().map(WeightDecay::new),
-        }
-        .into()
     }
 }
