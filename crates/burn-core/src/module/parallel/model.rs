@@ -1,10 +1,15 @@
 use burn_tensor::Device;
 
-use super::{
-    DistributedLayer, LayerParallelism, LayerParallelismInput, LayerParallelismOutput,
-    LayerPlacement, LayerStage,
-};
+use super::{DistributedLayer, LayerParallelism, LayerPlacement, LayerStage};
 use crate::module::{Devices, Module, ModuleMapper, ModuleVisitor};
+
+/// What a [`LayerParallelism`] model takes: its input layer's input.
+pub type LayerParallelismInput<M> =
+    <<M as LayerParallelism>::InputLayer as DistributedLayer>::Input;
+
+/// What a [`LayerParallelism`] model returns: its output layer's output.
+pub type LayerParallelismOutput<M> =
+    <<M as LayerParallelism>::OutputLayer as DistributedLayer>::Output;
 
 /// A [`LayerParallelism`] model split across devices, holding where each of its layers runs so
 /// the forward reads it rather than working it out again on every call. Dereferences to the model,

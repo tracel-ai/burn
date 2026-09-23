@@ -5,14 +5,6 @@ use crate::module::Module;
 /// layer produces.
 pub type HiddenLayerSignal<M> = <<M as LayerParallelism>::InputLayer as DistributedLayer>::Output;
 
-/// What a [`LayerParallelism`] model takes: its input layer's input.
-pub type LayerParallelismInput<M> =
-    <<M as LayerParallelism>::InputLayer as DistributedLayer>::Input;
-
-/// What a [`LayerParallelism`] model returns: its output layer's output.
-pub type LayerParallelismOutput<M> =
-    <<M as LayerParallelism>::OutputLayer as DistributedLayer>::Output;
-
 /// A model that runs as an input layer, then hidden layers in order, then an output layer, so its
 /// layers can be split across devices by a [`DistributedLayeredModel`](super::DistributedLayeredModel).
 ///
@@ -22,6 +14,20 @@ pub type LayerParallelismOutput<M> =
 /// it, so the model never exists whole on one device.
 ///
 /// ```rust,ignore
+/// impl Model {
+///     fn new(config: &ModelConfig, placement: &LayerPlacement) -> Self {
+///         Self {
+///             embedding: Embedding::new(config, &placement.input),
+///             blocks: placement
+///                 .hidden
+///                 .iter()
+///                 .map(|device| Block::new(config, device))
+///                 .collect(),
+///             head: Head::new(config, &placement.output),
+///         }
+///     }
+/// }
+///
 /// impl LayerParallelism for Model {
 ///     type InputLayer = Embedding;
 ///     type HiddenLayer = Block;
