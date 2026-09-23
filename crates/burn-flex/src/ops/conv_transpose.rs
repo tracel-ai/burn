@@ -671,9 +671,9 @@ mod tests {
             for spatial in [[1, 1, 11], [1, 5, 7], [3, 4, 5]] {
                 let options =
                     ConvTransposeOptions::new([2, 1, 3], [1, 1, 2], [1, 0, 2], [2, 2, 1], groups);
-                check_tiles::<{ 7 * 3 * 3 * 2 * 4 * 4 }>(spatial, options.clone());
+                check_tiled_matches_untiled::<{ 7 * 3 * 3 * 2 * 4 * 4 }>(spatial, options.clone());
                 // A single position can exceed the byte limit.
-                check_tiles::<1>(spatial, options);
+                check_tiled_matches_untiled::<1>(spatial, options);
             }
         }
     }
@@ -739,7 +739,7 @@ mod tests {
 
     #[cfg(feature = "rayon")]
     macro_rules! check_parallel_channels {
-        ($name:ident, $ty:ty, $dtype:expr, $zero:expr, $gemm:ident) => {
+        ($name:ident, $lower_limit_name:ident, $ty:ty, $dtype:expr, $zero:expr, $gemm:ident) => {
             #[test]
             fn $name() {
                 let serial = rayon::ThreadPoolBuilder::new()
@@ -814,7 +814,18 @@ mod tests {
                     });
                     assert_eq!(expected.storage::<$ty>(), untiled.storage::<$ty>());
                 }
+            }
 
+            #[test]
+            fn $lower_limit_name() {
+                let serial = rayon::ThreadPoolBuilder::new()
+                    .num_threads(1)
+                    .build()
+                    .unwrap();
+                let parallel = rayon::ThreadPoolBuilder::new()
+                    .num_threads(4)
+                    .build()
+                    .unwrap();
                 let x_shape = [1, 64, 1, 1, 6145];
                 let w_shape = [64, 8, 1, 1, 8];
                 let x = FlexTensor::from_data(
@@ -865,6 +876,7 @@ mod tests {
     #[cfg(feature = "rayon")]
     check_parallel_channels!(
         test_conv_transpose_parallel_channels_f32,
+        test_conv_transpose_parallel_channels_lower_limit_and_serial_tail_f32,
         f32,
         DType::F32,
         0.0,
@@ -873,6 +885,7 @@ mod tests {
     #[cfg(feature = "rayon")]
     check_parallel_channels!(
         test_conv_transpose_parallel_channels_f64,
+        test_conv_transpose_parallel_channels_lower_limit_and_serial_tail_f64,
         f64,
         DType::F64,
         0.0,
@@ -881,6 +894,7 @@ mod tests {
     #[cfg(feature = "rayon")]
     check_parallel_channels!(
         test_conv_transpose_parallel_channels_f16,
+        test_conv_transpose_parallel_channels_lower_limit_and_serial_tail_f16,
         f16,
         DType::F16,
         f16::from_f32(0.0),
