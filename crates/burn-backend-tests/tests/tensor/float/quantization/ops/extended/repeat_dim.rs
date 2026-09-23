@@ -48,4 +48,6 @@ fn should_repeat_dim_0_times_empty() {
     let output = tensor.repeat_dim(1, 0);
 
     assert_eq!(output.dims(), [2, 0]);
+    // Quantized inputs fall back to the default float dtype
+    assert_eq!(output.dtype(), <FloatElem as burn_tensor::Element>::dtype());
 }

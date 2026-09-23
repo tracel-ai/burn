@@ -235,4 +235,6 @@ fn should_support_empty_slice() {
     let output = tensor.slice([0..2, 1..1]);
 
     assert_eq!(output.dims(), [2, 0]);
+    // Quantized inputs fall back to the default float dtype
+    assert_eq!(output.dtype(), <FloatElem as burn_tensor::Element>::dtype());
 }
