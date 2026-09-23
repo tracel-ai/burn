@@ -177,7 +177,7 @@ pub(crate) fn handle_backend_tests(
             "--test",
             "lazy_param_device",
             "--test",
-            "pipeline_placement",
+            "layer_placement",
         ]);
         build_helpers::custom_crates_tests(
             vec!["burn-core"],

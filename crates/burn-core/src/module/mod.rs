@@ -1,8 +1,8 @@
 mod base;
 mod display;
 mod lora;
+pub mod parallel;
 mod param;
-pub mod pipeline;
 mod quantize;
 
 pub use base::*;

@@ -10,8 +10,8 @@ used independently or together:
   distributed data-parallel (DDP) training.
 - A remote `Device` sends normal tensor operations to a Burn compute server. A set of remote devices
   can also participate in DDP.
-- `burn::module::pipeline::Pipeline` splits one model by whole layers across several devices, so a
-  model too large for one device runs as a sequence of stages.
+- `burn::module::parallel::LayerParallelism` splits one model by whole layers across several
+  devices, so a model too large for one device runs as a sequence of stages.
 
 ## Distributed Tensor Operations
 
@@ -106,110 +106,112 @@ DDP differs from `ExecutionStrategy::MultiDevice`: DDP gives each device a model
 collectives to synchronize gradients, whereas the multi-device strategy coordinates optimization
 through Burn's non-DDP multi-device training path.
 
-## Pipeline Parallelism
+## Layer Parallelism
 
 DDP and the multi-device strategy keep a whole copy of the model on each device. When the model does
-not fit on one, pipeline parallelism cuts it by whole layers instead: each device holds a run of
-consecutive layers, a stage, and the activations move from one device to the next. A model opts in
-by implementing `burn::module::pipeline::Pipeline`, splitting its forward pass into segments and
-stating which submodules each one runs:
+not fit on one, layer parallelism splits it by whole layers instead: each device holds a run of
+consecutive layers, and what one layer returns moves to the next layer's device.
+
+The split is described by a struct built for it, usually not the one the model trained with, since
+a split layer may be represented differently. Each layer implements
+`burn::module::parallel::DistributedLayer`, and the model implements `LayerParallelism`, naming its
+input layer, its hidden layers and its output layer:
 
 ```rust, ignore
-impl Pipeline for Model {
+impl DistributedLayer for Block {
     type Input = Tensor<2>;
     type Output = Tensor<2>;
-    type Carry = Tensor<2>;
 
-    fn layout(&self) -> PipelineLayout {
-        PipelineLayout::new()
-            .input(&self.input)
-            .blocks(&self.blocks)
-            .output(&self.output)
+    fn forward(&self, hidden: Tensor<2>) -> Tensor<2> {
+        relu(self.linear.forward(hidden.clone())) + hidden
+    }
+}
+
+impl LayerParallelism for Model {
+    type InputLayer = Embedding;
+    type HiddenLayer = Block;
+    type OutputLayer = Head;
+
+    fn layer_input(&self) -> &Embedding {
+        &self.embedding
     }
 
-    fn forward_input(&self, features: Tensor<2>) -> Tensor<2> {
-        relu(self.input.forward(features))
+    fn layer_hidden(&self, index: usize) -> Option<&Block> {
+        self.blocks.get(index)
     }
 
-    fn forward_block(&self, index: usize, hidden: Tensor<2>) -> Tensor<2> {
-        relu(self.blocks[index].forward(hidden.clone())) + hidden
-    }
-
-    fn forward_output(&self, hidden: Tensor<2>) -> Tensor<2> {
-        self.output.forward(hidden)
+    fn layer_output(&self) -> &Head {
+        &self.head
     }
 }
 ```
 
-What a segment passes to the next is its `Carry`: the activations, and whatever rides along with
-them, such as a transformer's masks. It is a module, so it can move between devices. Tensors,
-tuples, arrays, `Vec` and `Option` already are, and a struct of tensors can derive `Module`.
+What the input layer returns is what every hidden layer takes and returns, `HiddenLayerSignal`. It
+is a module, so it can move between devices: tensors, tuples, arrays, `Vec` and `Option` already
+are, and a struct of tensors with a transformer's masks can derive `Module`.
 
-A `PipelinePlacement` gives every segment a device, either evenly across some devices or as stages
-of chosen sizes. `place` forks each parameter onto the device of the segment that owns it and
-returns a `PlacedPipeline`, which runs each segment where its own parameters ended up. It
-dereferences to the model and is itself a `Module`, so records and the model's own methods work as
-they do on one device:
+A `LayerPlacement` gives every layer a device, either evenly across some devices or as stages of
+chosen sizes, and each layer is built on its device:
 
 ```rust, ignore
-// One device per card: `enumerate_physical` returns each card once, with every runtime that
-// reaches it, so a GPU both CUDA and Vulkan see is not used twice.
-let devices: Vec<Device> = Device::enumerate_physical()
-    .into_iter()
-    .map(|gpu| gpu.devices[0].clone())
-    .collect();
-
-let model = model.place(&PipelinePlacement::even(&devices, 8));
-let predictions = model.forward(features);
+impl Model {
+    pub fn new(config: &ModelConfig, placement: &LayerPlacement) -> Self {
+        Self {
+            embedding: Embedding::new(config, &placement.input),
+            blocks: placement.hidden.iter().map(|device| Block::new(config, device)).collect(),
+            head: Head::new(config, &placement.output),
+        }
+    }
+}
 ```
 
-A parameter that has not initialized yet is not copied: it takes its segment's device and
-initializes there on first use. The `burn-nn` layers built from a config initialize lazily, so a
-model built on any device never lands on it whole, and weights loaded after `place` go straight to
-their segment's device. That is how a model too large for one device loads:
+`DistributedLayeredModel::new` moves nothing. It checks the placement has a device for every hidden
+layer and that every layer's parameters and held tensors are on that device. The result runs each
+layer where it is, dereferences to the model and is itself a `Module`.
+
+The `burn-nn` layers built from a config initialize lazily, so the model allocates nothing until its
+weights load, and each weight then loads onto its own layer's device. The model never lands whole on
+one device, which is how one too large for a device loads. Weights trained on another struct load by
+remapping their keys:
 
 ```rust, ignore
-let model = ModelConfig::new().init(&device).place(&placement).load_record(record);
+let placement = LayerPlacement::even(&devices, config.num_blocks);
+let mut model = DistributedLayeredModel::new(Model::new(&config, &placement), &placement);
+let mut store = SafetensorsStore::from_file("model.safetensors")
+    .with_key_remapping(r"^layers\.", "blocks.");
+model.load_from(&mut store)?;
 ```
 
-Three things to watch:
+Two things to watch:
 
-- **A lazy parameter shared with a live clone** initializes where it is and is copied instead, since
-  every clone must see one value. Drop other clones before placing.
-- **Only parameters move.** A tensor a module holds directly, such as a precomputed positional
-  table, stays where the model was built, so the segment reading it has to move it. Create tensors
-  inside a segment on the device of the tensors you were handed, never on a device of the model.
-- **Every parameter belongs to exactly one segment.** A segment reading a parameter another owns,
-  such as an output head tied to the input embedding, has to `to_device` it on every forward pass.
-  When that parameter does not train, place the two segments on one device instead.
+- **A weight shared by two layers is on one device.** An output head tied to the input embedding
+  can only be split when the placement puts both on the same device; otherwise `new` refuses it.
+- **A model already built moves with `fork`, not `to_device`.** To split one that exists on a single
+  device, fork each layer onto its device before `new`. A moved parameter is no longer a leaf, so it
+  gets no gradient and the optimizer skips it.
 
-Stages run one after another, so what this buys today is capacity rather than speed: each device
-waits for the one before it, and every move costs the size of the carry. Overlapping them takes a
+Layers run one after another, so what this buys today is capacity rather than speed: each device
+waits for the one before it, and every move costs the size of the signal. Overlapping them takes a
 schedule that splits a batch into microbatches, such as GPipe or 1F1B, which is not implemented yet.
+The `layer-parallelism` example splits a small model across one device per GPU, loading a
+checkpoint of its single-device shape, and checks the predictions against that shape.
 
-The `pipeline` example splits a small model across one device per GPU, loads its weights onto each
-stage, and checks its predictions against the same model on one device.
+### Training a Split Model
 
-### Training a Pipeline
-
-A placed model trains as it would on one device. `place` forks rather than moves, so every parameter
-stays a leaf on its segment's device: its gradient lands there and the optimizer updates it there.
-Place the model on autodiff devices, and put the targets on the output segment's device, where the
-loss runs:
+A split model trains as it would on one device. Every parameter is built on its layer's device, so
+its gradient lands there and the optimizer updates it there. Build the model on autodiff devices,
+and put the targets on the output layer's device, where the loss runs:
 
 ```rust, ignore
 let devices = [Device::cuda(0).autodiff(), Device::cuda(1).autodiff()];
-let placement = PipelinePlacement::even(&devices, 8);
-let mut model = model.place(&placement);
+let placement = LayerPlacement::even(&devices, 8);
+let mut model = DistributedLayeredModel::new(Model::new(&config, &placement), &placement);
 
 let predictions = model.forward(features);
 let loss = loss_fn.forward(predictions, targets.to_device(&placement.output), Reduction::Mean);
 let grads = GradientsParams::from_grads(loss.backward(), &model);
 model = optim.step(lr, model, grads);
 ```
-
-A parameter a segment moves from its owner, such as a tied output head, sends its gradient back to
-the owner. The `pipeline-train` example trains the same small model split this way.
 
 ## Remote Devices
 
@@ -271,7 +273,7 @@ across the selected server devices.
   synchronization.
 - Use local DDP when several devices are directly available to the training process.
 - Use remote devices with DDP when a Burn server exposes several accelerators to a client.
-- Use a pipeline when one copy of the model does not fit on a device, or to run a model across
-  devices of different backends.
+- Use layer parallelism when one copy of the model does not fit on a device, or to run a model
+  across devices of different backends.
 
 Distributed execution assumes that participating devices support the required collective operations.
