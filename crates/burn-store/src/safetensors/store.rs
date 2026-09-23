@@ -112,7 +112,8 @@ impl SafetensorsStore {
     /// Saving is atomic: the container is built in a scratch sibling of `path` and renamed
     /// into place only once every byte is on disk, so a tensor that fails to materialize
     /// partway through leaves the checkpoint already at `path` exactly as it was, rather than
-    /// truncated.
+    /// truncated. Without [`overwrite`](Self::overwrite) it is hard-linked into place instead,
+    /// which refuses a file that appeared at `path` while the save was running.
     ///
     /// Replacing rather than truncating has consequences worth knowing about. The saved file
     /// is a new inode, so `path`'s ownership and hard links do not survive a save; its
@@ -708,11 +709,13 @@ impl ModuleStore for SafetensorsStore {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
-                // Check if file exists and overwrite is disabled
-                if p.path.exists() && !p.overwrite {
-                    return Err(SafetensorsStoreError::Other(format!(
-                        "File already exists: {}. Use .overwrite(true) to overwrite.",
-                        p.path.display()
+                // Fail fast before any tensor is read back. This check alone is racy; the
+                // no-clobber commit below is what enforces `overwrite` (apart from filesystems
+                // without hard links, see `AtomicFile::commit_new`). `symlink_metadata` rather
+                // than `exists` so a dangling symlink is caught here too, not after the save.
+                if !p.overwrite && std::fs::symlink_metadata(&p.path).is_ok() {
+                    return Err(pack(burn_pack::Error::AlreadyExists(
+                        p.path.display().to_string(),
                     )));
                 }
 
@@ -723,8 +726,8 @@ impl ModuleStore for SafetensorsStore {
                 // at a time), so a device readback that fails partway must not truncate
                 // whatever was already at this path: `serialize_to_file` opens with
                 // `File::create`, which empties the destination before the first tensor is
-                // even asked for. Build the container beside it and rename it into place, the
-                // way `BurnpackStore` does. See #5479.
+                // even asked for. Build the container beside it and publish it once complete,
+                // the way `BurnpackStore` does. See #5479.
                 //
                 // The reserved handle is dropped because `serialize_to_file` opens the path
                 // itself; the exclusive create has already ruled out a pre-existing file or a
@@ -738,7 +741,11 @@ impl ModuleStore for SafetensorsStore {
                     safetensors::serialize_to_file(tensors, Some(std_metadata), &scratch_path)
                 })??;
 
-                scratch.commit().map_err(pack)?;
+                if p.overwrite {
+                    scratch.commit().map_err(pack)?;
+                } else {
+                    scratch.commit_new().map_err(pack)?;
+                }
                 Ok(())
             }
             Self::Memory(p) => {
