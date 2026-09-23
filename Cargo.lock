@@ -2819,8 +2819,6 @@ dependencies = [
 [[package]]
 name = "cubek"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "352213ba7a38c005692afb9c875e7c55488a01e62c39c057531af1737106403e"
 dependencies = [
  "cubecl",
  "cubek-attention",
@@ -2838,8 +2836,6 @@ dependencies = [
 [[package]]
 name = "cubek-attention"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71703e2a799a9284db56586dedc1a888db32f053ef6095eea4b4fa3b17060a87"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2853,8 +2849,6 @@ dependencies = [
 [[package]]
 name = "cubek-convolution"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cd422e3a0cd71cd8a7593749d8fd61513757e55a07907063b86080e14e2b7a3"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2870,8 +2864,6 @@ dependencies = [
 [[package]]
 name = "cubek-fft"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e2ff6a07dfc85b50885e862d4cdc3edc9e0c5b6c8be2446abb3fbc30dee4ef5"
 dependencies = [
  "cubecl",
 ]
@@ -2879,8 +2871,6 @@ dependencies = [
 [[package]]
 name = "cubek-interpolate"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2ddcebaf44bf8d558db019eccaa2b184b66235088c652c0696c674902599070"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2893,8 +2883,6 @@ dependencies = [
 [[package]]
 name = "cubek-matmul"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e39f7792c814db74d404034be39c4f23c6b6edb6069a7dc9526b811756e9c0fc"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2908,8 +2896,6 @@ dependencies = [
 [[package]]
 name = "cubek-pool"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1701dd5693c9bf2f8fbba1f043632408140d65e335de694aa509eb9ab367dd7"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2919,8 +2905,6 @@ dependencies = [
 [[package]]
 name = "cubek-quant"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6faae0d99bbdcaafca8487be160e9e8bb725ba49c3be06a29a48531d7435278"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2932,8 +2916,6 @@ dependencies = [
 [[package]]
 name = "cubek-random"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74dfac87c253f845e218d82064736902977bae8c39efb309f301598f95c2d77e"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2948,8 +2930,6 @@ dependencies = [
 [[package]]
 name = "cubek-reduce"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c5fd3d3821203d0435f5880b729745c47736928ce9519c77ee6f087c90bf733"
 dependencies = [
  "cubecl",
  "cubek-std",
@@ -2962,8 +2942,6 @@ dependencies = [
 [[package]]
 name = "cubek-std"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdabaf0a21d3fe860aded4e60ebdd6e05096efa8924046cce9a60027f88d9f4a"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2973,8 +2951,6 @@ dependencies = [
 [[package]]
 name = "cubek-tile"
 version = "0.3.0-pre.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "763963d824d39f14e1606b942361a9431ff85d5e166c179f5bb2a82e65a8f72d"
 dependencies = [
  "bytemuck",
  "cubecl",

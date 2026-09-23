@@ -251,3 +251,19 @@ cubek = { version = "=0.3.0-pre.4", default-features = false }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
+
+# TEMPORARY: cubek's `qa/tiled_storage` branch (a storage tile that is no level's tile is read
+# through its layout), until it lands and is published.
+[patch.crates-io]
+cubek = { path = "../cubek/crates/cubek" }
+cubek-attention = { path = "../cubek/crates/cubek-attention" }
+cubek-convolution = { path = "../cubek/crates/cubek-convolution" }
+cubek-fft = { path = "../cubek/crates/cubek-fft" }
+cubek-interpolate = { path = "../cubek/crates/cubek-interpolate" }
+cubek-matmul = { path = "../cubek/crates/cubek-matmul" }
+cubek-pool = { path = "../cubek/crates/cubek-pool" }
+cubek-quant = { path = "../cubek/crates/cubek-quant" }
+cubek-random = { path = "../cubek/crates/cubek-random" }
+cubek-reduce = { path = "../cubek/crates/cubek-reduce" }
+cubek-std = { path = "../cubek/crates/cubek-std" }
+cubek-tile = { path = "../cubek/crates/cubek-tile" }
