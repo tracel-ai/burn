@@ -9,8 +9,7 @@ pub use burn_backend::cubecl::{
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions,
-    ProfileTicks, SlicedPool, SlicedPoolReport, TimingMethod,
+    MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileTicks, SlicedPoolReport, TimingMethod,
 };
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
@@ -857,41 +856,6 @@ impl Device {
     /// Calling this method does not guarantee that any memory will be freed.
     pub fn memory_cleanup(&self) {
         Dispatch::memory_cleanup(self.as_dispatch());
-    }
-
-    /// Installs a layout for this device's dynamic memory pools.
-    ///
-    /// The allocator otherwise keeps whatever a workload's worst moment asked
-    /// for. To reserve a measured amount instead, install a growable layout,
-    /// run the workload, read [`memory_pool_report`](Self::memory_pool_report),
-    /// and install the same layout capped at what it reported.
-    ///
-    /// Pools are rebuilt only while nothing is live in them, so this belongs at
-    /// a quiescent point — after the previous workload's tensors have dropped
-    /// and a [`memory_cleanup`](Self::memory_cleanup). Long-lived allocations
-    /// that would block every rebuild (a model's parameters, say) belong in the
-    /// persistent pool
-    /// → [`memory_persistent_allocations`](Self::memory_persistent_allocations).
-    ///
-    /// ```rust,ignore
-    /// device.memory_cleanup();
-    /// device.memory_install_pools(MemoryPoolLayout::Sliced(vec![SlicedPool {
-    ///     page_size: 256 * 1024 * 1024,
-    ///     pages: Some(8),
-    ///     max_slice: None,
-    /// }]))?;
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// As [`Backend::memory_install_pools`](burn_backend::Backend::memory_install_pools).
-    /// The layout in force is unchanged in every case, so discarding the error
-    /// leaves a caller believing in a reservation the device is not running.
-    pub fn memory_install_pools(
-        &self,
-        layout: MemoryPoolLayout,
-    ) -> Result<(), InstallMemoryPoolsError> {
-        Dispatch::memory_install_pools(self.as_dispatch(), layout)
     }
 
     /// This device's dynamic pools, in the order they were installed. `None` on
