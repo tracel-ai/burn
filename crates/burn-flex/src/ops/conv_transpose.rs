@@ -618,7 +618,10 @@ mod tests {
     use super::*;
     use burn_backend::TensorData;
 
-    fn check_tiles<const BYTES: usize>(spatial: [usize; 3], options: ConvTransposeOptions<3>) {
+    fn check_tiled_matches_untiled<const BYTES: usize>(
+        spatial: [usize; 3],
+        options: ConvTransposeOptions<3>,
+    ) {
         let [d, h, w] = spatial;
         let x_shape = [2, 4, d, h, w];
         let w_shape = [4, 3, 3, 2, 4];
@@ -629,11 +632,22 @@ mod tests {
             .map(|i| ((i * 7 % 19) as f32 - 9.0) / 16.0)
             .collect();
         let bias_values: Vec<f32> = (0..3 * options.groups).map(|i| i as f32 / 4.0).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_values.clone(), x_shape));
-        let weight = FlexTensor::from_data(TensorData::new(w_values.clone(), w_shape));
-        let bias =
-            FlexTensor::from_data(TensorData::new(bias_values.clone(), [3 * options.groups]));
-        let result = conv_transpose3d_impl::<f32, BYTES, true>(
+        let x = FlexTensor::from_data(TensorData::new(x_values, x_shape));
+        let weight = FlexTensor::from_data(TensorData::new(w_values, w_shape));
+        let bias = FlexTensor::from_data(TensorData::new(bias_values, [3 * options.groups]));
+
+        // Public backend tests check convolution correctness. Here, check that
+        // splitting the column buffer into tiles preserves the untiled result.
+        let expected = conv_transpose3d_impl::<f32, { usize::MAX }, false>(
+            x.clone(),
+            weight.clone(),
+            Some(bias.clone()),
+            &options,
+            DType::F32,
+            0.0,
+            conv_transpose_gemm_f32,
+        );
+        let actual = conv_transpose3d_impl::<f32, BYTES, true>(
             x,
             weight,
             Some(bias),
@@ -642,67 +656,13 @@ mod tests {
             0.0,
             conv_transpose_gemm_f32,
         );
-        let shape = result.layout().shape();
-        let [od, oh, ow] = [shape[2], shape[3], shape[4]];
-        let output = result.storage::<f32>();
-
-        // Gather each output from the input directly, without a column matrix.
-        for b in 0..2 {
-            for (oc, &bias_value) in bias_values.iter().enumerate() {
-                let group = oc / 3;
-                for z in 0..od {
-                    for y in 0..oh {
-                        for x in 0..ow {
-                            let mut expected = 0.0;
-                            for kz in 0..3 {
-                                for ky in 0..2 {
-                                    for kx in 0..4 {
-                                        let mut input = [0; 3];
-                                        let mut valid = true;
-                                        for (axis, (o, k)) in
-                                            [z, y, x].into_iter().zip([kz, ky, kx]).enumerate()
-                                        {
-                                            let i = o as isize + options.padding[axis] as isize
-                                                - (k * options.dilation[axis]) as isize;
-                                            let stride = options.stride[axis] as isize;
-                                            if i < 0
-                                                || i % stride != 0
-                                                || i / stride >= spatial[axis] as isize
-                                            {
-                                                valid = false;
-                                                break;
-                                            }
-                                            input[axis] = (i / stride) as usize;
-                                        }
-                                        if !valid {
-                                            continue;
-                                        }
-                                        let mut dot = 0.0;
-                                        for ci in group * (4 / options.groups)
-                                            ..(group + 1) * (4 / options.groups)
-                                        {
-                                            let xi = (((b * 4 + ci) * d + input[0]) * h + input[1])
-                                                * w
-                                                + input[2];
-                                            let wi =
-                                                (((ci * 3 + oc % 3) * 3 + kz) * 2 + ky) * 4 + kx;
-                                            dot += x_values[xi] * w_values[wi];
-                                        }
-                                        expected += dot;
-                                    }
-                                }
-                            }
-                            expected += bias_value;
-                            let index = (((b * shape[1] + oc) * od + z) * oh + y) * ow + x;
-                            assert_eq!(
-                                output[index], expected,
-                                "output {index}, tile limit {BYTES}"
-                            );
-                        }
-                    }
-                }
-            }
-        }
+        assert_eq!(actual.layout().shape(), expected.layout().shape());
+        assert_eq!(
+            actual.storage::<f32>(),
+            expected.storage::<f32>(),
+            "spatial {spatial:?}, groups {}, tile limit {BYTES}",
+            options.groups
+        );
     }
 
     #[test]
