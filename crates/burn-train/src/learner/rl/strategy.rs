@@ -10,6 +10,8 @@ use crate::{
 
 /// Struct to minimise parameters passed to [RLStrategy::train].
 pub struct RLComponents<RLC: RLComponentsTypes> {
+    /// An optional label for this training.
+    pub label: Option<String>,
     /// The total number of environment steps.
     pub num_steps: usize,
     /// The step number from which to continue the training.
@@ -59,6 +61,7 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
             .event_processor
             .process_train(RLEvent::Start {
                 total_items: training_components.num_steps,
+                label: training_components.label.clone(),
             });
 
         // Training loop

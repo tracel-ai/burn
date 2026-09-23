@@ -12,6 +12,7 @@ use ratatui::{
 
 /// Show the training status with various information.
 pub(crate) struct StatusState {
+    label: Option<String>,
     progress: Option<ProgressSnapshot>,
     mode: Mode,
     event_counters: BTreeMap<String, usize>,
@@ -29,11 +30,17 @@ impl Default for StatusState {
             progress: None,
             mode: Mode::Train,
             event_counters: BTreeMap::new(),
+            label: None,
         }
     }
 }
 
 impl StatusState {
+    /// Reset all counters at the end of a split.
+    pub(crate) fn update_label(&mut self, label: Option<&str>) {
+        self.label = label.map(str::to_string)
+    }
+
     /// Update the training information.
     pub(crate) fn update_train(&mut self, progress: &ProgressSnapshot) {
         self.progress = Some(progress.clone());
@@ -63,7 +70,12 @@ impl StatusState {
 
     /// Create a view.
     pub(crate) fn view(&self) -> StatusView {
-        StatusView::new(self.progress.as_ref(), &self.mode, &self.event_counters)
+        StatusView::new(
+            self.label.as_deref(),
+            self.progress.as_ref(),
+            &self.mode,
+            &self.event_counters,
+        )
     }
 }
 
@@ -81,6 +93,7 @@ fn capitalize(s: &str) -> String {
 
 impl StatusView {
     fn new(
+        label: Option<&str>,
         progress: Option<&ProgressSnapshot>,
         mode: &Mode,
         event_counters: &BTreeMap<String, usize>,
@@ -105,10 +118,16 @@ impl StatusView {
             .max("Mode".len())
             .max(event_counters.keys().map(|k| k.len()).max().unwrap_or(0));
 
-        let mut lines = vec![vec![
+        let mut lines = vec![];
+
+        if let Some(name) = label {
+            lines.push(vec![title(name)]);
+        }
+
+        lines.push(vec![
             title(&format!("{: <width$} :", "Mode")),
             value(mode_str.to_string()),
-        ]];
+        ]);
 
         if let Some(p) = progress {
             let g = &p.global;

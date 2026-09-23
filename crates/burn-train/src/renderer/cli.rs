@@ -7,6 +7,7 @@ use crate::{
 
 /// A simple renderer for when the cli feature is not enabled.
 pub struct CliMetricsRenderer {
+    label: String,
     training_progress: ProgressSnapshot,
     eval_progress: ProgressSnapshot,
 }
@@ -19,6 +20,7 @@ impl CliMetricsRenderer {
         Self {
             training_progress: ProgressSnapshot::new(init.clone(), init.clone()),
             eval_progress: ProgressSnapshot::new(init.clone(), init),
+            label: String::from("training"),
         }
     }
 }
@@ -30,13 +32,20 @@ impl MetricsRendererTraining for CliMetricsRenderer {
 }
 
 impl TrainingProgressLogger for CliMetricsRenderer {
-    fn start(&mut self, total_epochs: usize, starting_epoch: usize, total_items: Option<usize>) {
+    fn start(
+        &mut self,
+        total_epochs: usize,
+        starting_epoch: usize,
+        total_items: Option<usize>,
+        label: Option<&str>,
+    ) {
         self.training_progress.global =
             Progress::new(starting_epoch, total_epochs, Some("epochs".to_string()));
         if let Some(items) = total_items {
             self.training_progress.split = Progress::new(0, items, Some("items".to_string()));
         }
-        println!("Starting training for {total_epochs} epochs.");
+        self.label = label.unwrap_or("training").to_string();
+        println!("Starting {} for {} epochs.", self.label, total_epochs);
     }
 
     fn start_split(&mut self, split_name: &str, total_items: usize) {
@@ -67,7 +76,7 @@ impl TrainingProgressLogger for CliMetricsRenderer {
     }
 
     fn end(&mut self) {
-        println!("Training ended.");
+        println!("{} ended.", self.label);
     }
 
     fn log_event_training(&mut self, _event: String) {}
