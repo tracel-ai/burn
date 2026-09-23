@@ -23,7 +23,6 @@ workspace = true
 
 [features]
 default = [
-    "rl",
     "std",
     "optim",
     "burn-core/default",
@@ -44,6 +43,7 @@ doc = [
     "burn-nn/doc",
     "linalg",
     "burn-optim?/doc",
+    "rl",
     "signal",
 ]
 std = [
