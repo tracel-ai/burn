@@ -3,13 +3,16 @@ use super::{
         adaptive_avg_pool2d, adaptive_avg_pool2d_backward, adaptive_avg_pool3d,
         adaptive_avg_pool3d_backward,
     },
-    avgpool::{avg_pool2d, avg_pool2d_backward},
+    avgpool::{avg_pool2d, avg_pool2d_backward, avg_pool3d, avg_pool3d_backward},
     conv::{conv_transpose2d, conv_transpose3d, conv2d, conv3d},
     deform_conv::{backward::deform_conv2d_backward, deform_conv2d},
     interpolate::{
         bicubic_interpolate, bilinear_interpolate, lanczos3_interpolate, nearest_interpolate,
     },
-    maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
+    maxpool::{
+        max_pool2d, max_pool2d_backward, max_pool2d_with_indices, max_pool3d, max_pool3d_backward,
+        max_pool3d_with_indices,
+    },
 };
 use crate::ops::interpolate::nearest_interpolate_backward;
 #[cfg(feature = "simd")]
@@ -185,6 +188,48 @@ impl ModuleOps<Self> for NdArray {
         .into())
     }
 
+    fn avg_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x), opt(), E, |x| {
+            avg_pool3d::<E>(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                count_include_pad,
+                ceil_mode,
+            )
+            .into()
+        })
+    }
+
+    fn avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x, grad), opt(), E, |x, grad| avg_pool3d_backward::<E>(
+            x,
+            grad,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode
+        )
+        .into())
+    }
+
     fn max_pool2d(
         x: FloatTensor<Self>,
         kernel_size: [usize; 2],
@@ -255,6 +300,70 @@ impl ModuleOps<Self> for NdArray {
                     idx_s,
                 );
                 MaxPool2dBackward::new(output.into())
+            })
+        })
+    }
+
+    fn max_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x), opt(), E, |x| {
+            max_pool3d::<E>(x, kernel_size, stride, padding, dilation, ceil_mode).into()
+        })
+    }
+
+    fn max_pool3d_with_indices(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<Self> {
+        execute_with_int_out_dtype!(indices_dtype, I, {
+            module_op!(inp(x), opt(), E, |x| {
+                let (output, indices) = max_pool3d_with_indices::<E, I>(
+                    x,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                );
+                MaxPool3dWithIndices::new(output.into(), indices.into())
+            })
+        })
+    }
+
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<Self>,
+        indices: NdArrayTensor,
+    ) -> MaxPool3dBackward<Self> {
+        execute_with_int_dtype!(indices, IntElem, |idx_s: SharedArray<IntElem>| {
+            module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
+                let output = max_pool3d_backward::<E, IntElem>(
+                    x,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                    output_grad,
+                    idx_s,
+                );
+                MaxPool3dBackward::new(output.into())
             })
         })
     }
