@@ -8,7 +8,8 @@ use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::ops::GridSampleOptions;
+use burn_backend::ops::grid_sample::float_grid_sample_3d_ref;
+use burn_backend::ops::{GridSampleOptions, InterpolateMode};
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
@@ -864,5 +865,19 @@ impl FloatTensorOps<Self> for CubeBackend {
         options: GridSampleOptions,
     ) -> FloatTensor<Self> {
         kernel::grid_sample::grid_sample(tensor, grid, options)
+    }
+
+    fn float_grid_sample_3d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        match options.mode {
+            // Trilinear has a dedicated kernel. Every other mode falls back to the reference
+            // implementation, which decomposes into primitive tensor ops and so still runs on
+            // the device.
+            InterpolateMode::Bilinear => kernel::grid_sample::grid_sample_3d(tensor, grid, options),
+            _ => float_grid_sample_3d_ref::<Self>(tensor, grid, options),
+        }
     }
 }
