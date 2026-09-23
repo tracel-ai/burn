@@ -154,7 +154,6 @@ pub trait Backend:
     #[allow(unused_variables)]
     fn memory_cleanup(device: &Self::Device) {}
 
-
     /// The dynamic pools' measured state, in the order allocations are routed
     /// through them. `None` on a backend that does not report one, or whose
     /// stream has failed.

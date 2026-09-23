@@ -8,7 +8,7 @@ use burn_backend::{
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
 use cubecl::{
-    MemoryPoolKind,
+    MemoryPoolKind, MemoryScope,
     client::{Client, ProfileWindow},
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
@@ -242,11 +242,13 @@ impl Backend for CubeBackend {
 
     fn memory_cleanup(device: &Self::Device) {
         let client = device.client();
-        client.memory_cleanup();
+        // Refused only while a stream records a graph, which keeps its pages
+        // for the replay. The memory is released by the next cleanup instead.
+        let _ = client.memory_cleanup();
     }
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        let report = device.client().memory_report();
+        let report = device.client().memory_report(MemoryScope::Device);
 
         // One entry per pool that carves pages — the pool sized to what it
         // serves, the pools a growth left behind, and the metadata pool —
@@ -254,8 +256,9 @@ impl Backend for CubeBackend {
         // allocations own their page have no page size to report.
         Some(
             report
-                .dynamic
+                .streams
                 .iter()
+                .flat_map(|stream| &stream.pools.dynamic)
                 .filter_map(|pool| {
                     let page_size = match pool.kind {
                         MemoryPoolKind::Sliced { page_size, .. } => page_size,
@@ -274,7 +277,7 @@ impl Backend for CubeBackend {
     }
 
     fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        let usage = device.client().memory_usage();
+        let usage = device.client().memory_report(MemoryScope::Device).usage();
 
         Some(MemoryPoolUsage {
             number_allocs: usage.number_allocs,

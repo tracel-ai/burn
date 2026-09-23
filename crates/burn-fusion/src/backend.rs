@@ -5,8 +5,7 @@ use crate::{
 };
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, MemoryPoolUsage,
-    ProfileDuration, ProfileOptions, ProfileToken,
-    SlicedPoolReport, profile_with_tokens,
+    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -154,7 +153,6 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
     }
-
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
         // Reads the *calling* stream, which is the one the layout was installed

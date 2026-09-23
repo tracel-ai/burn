@@ -858,7 +858,6 @@ impl Device {
         Dispatch::memory_cleanup(self.as_dispatch());
     }
 
-
     /// This device's dynamic pools, in the order they were installed. `None` on
     /// a backend that does not report them.
     pub fn memory_pool_report(&self) -> Option<Vec<SlicedPoolReport>> {

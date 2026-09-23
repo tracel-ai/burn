@@ -9,7 +9,6 @@
 //! [`Backend`](super::Backend) is also implemented by backends with no pools at
 //! all.
 
-
 /// One dynamic pool's measured state, in the order allocations are routed
 /// through the pools.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -38,4 +37,3 @@ pub struct MemoryPoolUsage {
     /// held for reuse.
     pub bytes_reserved: u64,
 }
-
