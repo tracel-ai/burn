@@ -57,3 +57,17 @@ fn one_hot_fill_with_positive_axis_and_indices() {
 
     one_hot_tensor.into_data().assert_eq(&expected, false);
 }
+
+// I64 is not supported on every backend (e.g. WGSL has no i64)
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[test]
+fn one_hot_fill_should_keep_dtype() {
+    let tensor = TestTensorInt::<1>::from([0, 2]).cast(burn_tensor::DType::I64);
+
+    let one_hot_tensor: TestTensorInt<2> = tensor.one_hot_fill(3, 5.0, 1.0, -1);
+
+    assert_eq!(one_hot_tensor.dtype(), burn_tensor::DType::I64);
+    one_hot_tensor
+        .into_data()
+        .assert_eq(&TensorData::from([[5i64, 1, 1], [1, 1, 5]]), false);
+}

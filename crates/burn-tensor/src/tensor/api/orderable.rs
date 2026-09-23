@@ -328,6 +328,7 @@ where
         // Initialize shape from the current tensor dimensions and prepare for modification
         let mut shape = self.shape();
         let device = self.device();
+        let dtype = self.creation_dtype();
 
         // Convert the input tensor to integer indices
         let indices: Tensor<D, Int> = Tensor::from_data(self.to_data().convert::<i64>(), &device);
@@ -343,11 +344,12 @@ where
         let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
 
         // Initialize the output tensor with the off_value
-        let output = Tensor::full(shape.clone(), off_value, &device);
+        let output = Tensor::full(shape.clone(), off_value, (&device, dtype));
 
         // Prepare scatter tensor for on_value and off_value adjustments
-        let scatter_on_values = Tensor::full(indices_unsqueezed.shape(), on_value, &device)
-            - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());
+        let scatter_on_values =
+            Tensor::full(indices_unsqueezed.shape(), on_value, (&device, dtype))
+                - Tensor::full(indices_unsqueezed.shape(), off_value, (&device, dtype));
 
         // Scatter on_value at the appropriate indices to create the one-hot representation
         output.scatter(
