@@ -244,8 +244,8 @@ fn test_avg_pool2d_ceil_mode_drops_window_in_padding() {
 
 #[test]
 fn test_avg_pool2d_ceil_mode_drops_window_in_padding_count_include_pad() {
-    // Input 5x5, kernel 2, stride 2, padding 1, ceil_mode: every window stays inside
-    // the padded input, so each divisor is 4.
+    // Input 5x5, kernel 2, stride 2, padding 1, ceil_mode: PyTorch gives 3x3. With the 4th
+    // window dropped, every remaining window stays inside the padded input, so each divisor is 4.
     let x = TestTensor::from([[[
         [0.0, 1.0, 2.0, 3.0, 4.0],
         [5.0, 6.0, 7.0, 8.0, 9.0],

@@ -254,9 +254,11 @@ pub fn calculate_pool_output_size(
     let kernel_extent = dilation * (kernel_size - 1) + 1;
     if ceil_mode {
         // Ceiling division: (a + b - 1) / b. Adding `stride - 1` before subtracting
-        // keeps a kernel larger than the padded input from underflowing.
+        // allows a kernel up to `stride - 1` larger than the padded input, where one
+        // window still fits (PyTorch rejects anything larger).
         let size_out = (size_padded + stride - 1 - kernel_extent) / stride + 1;
-        // Drop the last window if it would start in the trailing padding
+        // Drop the last window if it would start at or past the end of the input
+        // (in the trailing padding, or beyond the input without padding)
         if (size_out - 1) * stride >= size_in + padding {
             size_out - 1
         } else {
@@ -1574,10 +1576,10 @@ mod tests {
         // in the trailing padding.
         assert_eq!(calculate_pool_output_size(2, 2, 1, 1, 5, true), 3);
 
-        // Same with dilation 2: a 3rd window would start at padded index 6.
+        // With dilation 2 and stride 3: a 3rd window would start at padded index 6.
         assert_eq!(calculate_pool_output_size(2, 3, 1, 2, 5, true), 2);
 
-        // Without padding, when stride > kernel a 3rd window would start at 6, past the input.
+        // No padding, kernel 1, stride 3: a 3rd window would start at 6, past the input.
         assert_eq!(calculate_pool_output_size(1, 3, 0, 1, 5, true), 2);
 
         // The last window starts inside the input, so it is kept.
@@ -1587,7 +1589,8 @@ mod tests {
 
     #[test]
     fn test_calculate_pool_output_size_ceil_mode_kernel_larger_than_input() {
-        // PyTorch gives 1: the single window starts inside the input.
+        // PyTorch gives 1: the single window starts at padded index 0, in the input
+        // without padding and in the left padding with padding 1.
         assert_eq!(calculate_pool_output_size(3, 2, 0, 1, 2, true), 1);
         assert_eq!(calculate_pool_output_size(4, 2, 1, 1, 2, true), 1);
     }

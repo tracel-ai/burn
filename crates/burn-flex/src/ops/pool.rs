@@ -151,7 +151,8 @@ fn pool_output_size(
     let numerator = padded - effective_kernel;
     if ceil_mode {
         let out = numerator.div_ceil(stride) + 1;
-        // Drop the last window if it would start in the trailing padding (PyTorch/ONNX)
+        // Drop the last window if it would start at or past the end of the input
+        // (in the trailing padding, or beyond the input without padding) (PyTorch/ONNX)
         if (out - 1) * stride >= input + padding {
             out - 1
         } else {
@@ -1765,7 +1766,7 @@ mod tests {
         // Ceil mode drops a last window that would start in the trailing padding:
         // input=5, kernel=2, padding=1, stride=2 -> 3 (PyTorch), not 4
         assert_eq!(pool_output_size(5, 2, 1, 2, 1, true), 3);
-        // Same with dilation 2: input=5, kernel=2, padding=1, stride=3 -> 2
+        // With dilation 2 and stride 3: input=5, kernel=2, padding=1 -> 2
         assert_eq!(pool_output_size(5, 2, 1, 3, 2, true), 2);
     }
 
