@@ -346,17 +346,14 @@ where
         // Initialize the output tensor with the off_value
         let output = Tensor::full(shape.clone(), off_value, (&device, dtype));
 
-        // Prepare scatter tensor for on_value and off_value adjustments
-        let scatter_on_values =
-            Tensor::full(indices_unsqueezed.shape(), on_value, (&device, dtype))
-                - Tensor::full(indices_unsqueezed.shape(), off_value, (&device, dtype));
+        let on_values = Tensor::full(indices_unsqueezed.shape(), on_value, (&device, dtype));
 
         // Scatter on_value at the appropriate indices to create the one-hot representation
         output.scatter(
             axis,
             indices_unsqueezed,
-            scatter_on_values,
-            IndexingUpdateOp::Add,
+            on_values,
+            IndexingUpdateOp::Assign,
         )
     }
 
