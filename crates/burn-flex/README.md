@@ -150,7 +150,7 @@ as fast or faster on every operation category.
 | Conv transpose                      | **1.5-1.9x**         |                                  |
 | Max/min reductions                  | **3.8-5.1x**         | SIMD + zero-alloc                |
 | Pooling (k=3 s=2)                   | **1.8-2.5x**         |                                  |
-| Layer norm (fused)                  | **1.6-3.4x**         | Two-pass Welford kernel          |
+| Layer norm (fused)                  | **1.6-3.4x**         | Three-pass row kernel            |
 | Softmax (fused)                     | **1.4-1.7x**         | Three-pass row kernel            |
 | Cat, gather, select                 | **1.3-2.5x**         |                                  |
 | Nearest2d interpolation             | **1.3-1.4x**         |                                  |

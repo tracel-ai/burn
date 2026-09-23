@@ -521,9 +521,9 @@ softmax_last_dtype!(
 // ============================================================================
 //
 // Backs the `ModuleOps::layer_norm` hook, replacing the default decomposition
-// into ~6 primitive tensor ops with intermediate allocations. Two-pass row
-// kernel (sum+sumsq sweep, then normalize+affine sweep), both vectorized via
-// macerator.
+// into ~6 primitive tensor ops with intermediate allocations. The f32 SIMD
+// row kernel makes three passes (mean, centered variance, normalize+affine)
+// via macerator; the scalar fallback and f64 paths use Welford.
 
 /// Fused layer normalization along the last axis.
 ///
@@ -532,9 +532,9 @@ softmax_last_dtype!(
 /// `gamma` and `beta` are 1-D tensors of length `input.shape()[-1]`;
 /// `beta` is optional (set to `None` for a bias-free layer norm).
 ///
-/// Two-pass row kernel (mean/variance via a single sum+sum-of-squares
-/// sweep, then one normalize+affine sweep). Both passes are SIMD via
-/// macerator; each row stays cache-hot across both passes.
+/// The f32 SIMD row kernel makes three passes (mean, centered variance,
+/// normalize+affine) via macerator; each row stays cache-hot across them.
+/// With the `simd` feature off, the scalar fallback uses Welford.
 ///
 /// Supports `f32` (SIMD-vectorized), `f64` (scalar + LLVM autovec), and
 /// `f16`/`bf16` (via an f32 cast-fuse-cast shell; the f32 row kernel
@@ -879,8 +879,7 @@ fn layer_norm_rows_f32_no_beta(
 }
 
 /// Scalar fallback row kernel for layer_norm when the `simd` feature is
-/// disabled. Two-pass algorithm matching the SIMD version (sum+sumsq,
-/// then normalize+affine).
+/// disabled. Welford mean/variance, then normalize+affine.
 #[cfg(not(feature = "simd"))]
 #[inline]
 fn layer_norm_row_f32_scalar(
@@ -890,14 +889,9 @@ fn layer_norm_row_f32_scalar(
     beta: Option<&[f32]>,
     epsilon: f32,
 ) {
-    // Welford's online algorithm for mean and variance, rather than the
-    // `sumsq / n - mean * mean` identity the SIMD path uses. The identity
-    // is vulnerable to catastrophic cancellation when the two terms are
-    // close in magnitude (large mean relative to variance). Welford's
-    // single-pass formulation avoids that by tracking the running mean
-    // and accumulating squared deviations from it. The scalar path is
-    // the contract used when `simd` is disabled, so we prefer numerical
-    // stability over bit-for-bit match with the SIMD tree reduction.
+    // Welford's online algorithm tracks a running mean instead of a raw
+    // sum, so it avoids the E[x^2] - E[x]^2 cancellation and the mean stays
+    // finite for inputs whose raw sum would overflow f32.
     let len = input.len();
     let mut mean = 0.0f32;
     let mut m2 = 0.0f32;
@@ -959,7 +953,8 @@ fn layer_norm_rows_f32_no_beta_simd<S: macerator::Simd>(
     }
 }
 
-/// Single-row layer_norm kernel. Two vectorized passes.
+/// Single-row layer_norm kernel. Three vectorized passes: mean, centered
+/// variance, normalize+affine. The row stays cache-hot across all three.
 #[cfg(feature = "simd")]
 #[inline(always)]
 fn layer_norm_row_f32_simd<S: macerator::Simd>(
@@ -973,55 +968,49 @@ fn layer_norm_row_f32_simd<S: macerator::Simd>(
     let lanes = <f32 as Scalar>::lanes::<S>();
     let len = input.len();
     let simd_len = len / lanes * lanes;
-
-    // Pass 1: compute sum and sum-of-squares in one sweep, then derive
-    // mean and variance. Two independent SIMD accumulators (sum, sumsq)
-    // expose ILP to the two FMA ports.
-    let (sum, sumsq) = if simd_len >= lanes {
-        let mut acc_sum = 0.0f32.splat::<S>();
-        let mut acc_sumsq = 0.0f32.splat::<S>();
-        let mut i = 0;
-        while i < simd_len {
-            unsafe {
-                let v = vload_unaligned::<S, _>(input.as_ptr().add(i));
-                acc_sum += v;
-                // acc_sumsq += v * v; Vector::mul_add(self, a, b) = self*a + b,
-                // so v.mul_add(v, acc_sumsq) = v*v + acc_sumsq.
-                acc_sumsq = v.mul_add(v, acc_sumsq);
-            }
-            i += lanes;
-        }
-        let mut s = acc_sum.reduce_add();
-        let mut sq = acc_sumsq.reduce_add();
-        for &x in &input[simd_len..] {
-            s += x;
-            sq += x * x;
-        }
-        (s, sq)
-    } else {
-        let mut s = 0.0f32;
-        let mut sq = 0.0f32;
-        for &x in input {
-            s += x;
-            sq += x * x;
-        }
-        (s, sq)
-    };
-
     let n = len as f32;
+
+    // Pass 1: mean.
+    let mut acc = 0.0f32.splat::<S>();
+    let mut i = 0;
+    while i < simd_len {
+        unsafe {
+            acc += vload_unaligned::<S, _>(input.as_ptr().add(i));
+        }
+        i += lanes;
+    }
+    let mut sum = acc.reduce_add();
+    for &x in &input[simd_len..] {
+        sum += x;
+    }
     let mean = sum / n;
-    // Biased variance: E[x^2] - E[x]^2. Matches burn::nn::LayerNorm which
-    // uses var_mean_bias (the biased estimator) rather than Bessel's
-    // correction.
-    let var = (sumsq / n) - mean * mean;
+    let mean_vec = mean.splat::<S>();
+
+    // Pass 2: biased variance, centered to avoid the E[x^2] - E[x]^2
+    // cancellation (#5607). Matches burn::nn::LayerNorm (var_mean_bias).
+    let mut acc = 0.0f32.splat::<S>();
+    let mut i = 0;
+    while i < simd_len {
+        unsafe {
+            let d = vload_unaligned::<S, _>(input.as_ptr().add(i)) - mean_vec;
+            // Vector::mul_add(self, a, b) = self*a + b, so d*d + acc.
+            acc = d.mul_add(d, acc);
+        }
+        i += lanes;
+    }
+    let mut sumsq = acc.reduce_add();
+    for &x in &input[simd_len..] {
+        let d = x - mean;
+        sumsq += d * d;
+    }
+    let var = sumsq / n;
     let inv_std = 1.0f32 / (var + epsilon).sqrt();
 
-    // Pass 2: normalize and affine transform.
+    // Pass 3: normalize and affine transform.
     //   out[i] = (x[i] - mean) * inv_std * gamma[i] + beta[i]
-    // mean_vec and inv_std_vec are hoisted outside the loop (one splat
-    // each per row). gamma and beta are read once per element; both
-    // fit in L1 and are shared across all rows within a rayon chunk.
-    let mean_vec = mean.splat::<S>();
+    // mean_vec and inv_std_vec are splatted once per row. gamma and beta
+    // are read once per element; both fit in L1 and are shared across all
+    // rows within a rayon chunk.
     let inv_std_vec = inv_std.splat::<S>();
     let mut i = 0;
     while i < simd_len {
@@ -1325,6 +1314,30 @@ mod tests {
         fused.into_data().assert_approx_eq::<bf16>(
             &TensorData::new(expected, vec![n_rows, d_cols]),
             Tolerance::absolute(5e-2),
+        );
+    }
+
+    #[test]
+    fn test_layer_norm_large_mean_small_spread() {
+        // Row mean far larger than row spread. A one-pass E[x^2] - E[x]^2
+        // variance cancels catastrophically here and is off by ~1.0 (issue
+        // #5607). Odd length also covers the SIMD tail. Larger means are
+        // omitted: f32 rounding of the mean itself then exceeds the tolerance.
+        let data: Vec<f32> = (0..17).map(|i| 100.0 + i as f32 * 1e-3).collect();
+        let data_f64: Vec<f64> = data.iter().map(|&x| x as f64).collect();
+        let expected: Vec<f32> = layer_norm_last_ref(&data_f64, &[1.0; 17], None, 1e-5, 17)
+            .into_iter()
+            .map(|x| x as f32)
+            .collect();
+        let out = crate::ops::activation::layer_norm(
+            flex_f32(data, &[1, 17]),
+            flex_f32(vec![1.0; 17], &[17]),
+            None,
+            1e-5,
+        );
+        out.into_data().assert_approx_eq::<f32>(
+            &TensorData::new(expected, vec![1, 17]),
+            Tolerance::absolute(1e-2),
         );
     }
 
