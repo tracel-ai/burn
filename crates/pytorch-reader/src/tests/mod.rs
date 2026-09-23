@@ -1396,13 +1396,103 @@ fn test_top_level_key_that_is_not_a_dict() {
     let path = test_data_path("checkpoint.pt");
     let err = PytorchReader::with_top_level_key(&path, "epoch").expect_err("epoch is an int");
     assert!(
-        err.to_string().contains("does not hold a dictionary"),
+        err.to_string()
+            .contains("does not hold a dictionary, found int"),
         "unexpected error: {err}"
     );
 
     // Reading it as pickle data is fine, though.
     let value = PytorchReader::read_pickle_data(&path, Some("epoch")).unwrap();
     assert_eq!(value, crate::PickleValue::Int(42));
+}
+
+#[test]
+fn test_root_that_is_not_a_dict() {
+    // pickle.dumps(7, protocol=2): what torch.save of a bare value looks like at the root.
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "seven.pkl", b"\x80\x02K\x07.");
+    let err = PytorchReader::new(&path).expect_err("an int is not a state dict");
+    assert!(
+        err.to_string()
+            .contains("at the root of the PyTorch file, found int"),
+        "unexpected error: {err}"
+    );
+}
+
+/// `reader` holds the same tensors as `expected`: the same names, and for each the same
+/// element type, shape and bytes.
+fn assert_same_tensors(reader: &PytorchReader, expected: &PytorchReader) {
+    let mut names = reader.keys();
+    let mut expected_names = expected.keys();
+    names.sort();
+    expected_names.sort();
+    assert_eq!(names, expected_names);
+    for name in names {
+        let (tensor, expected) = (reader.get(&name).unwrap(), expected.get(&name).unwrap());
+        assert_eq!(tensor.dtype(), expected.dtype(), "{name}");
+        assert_eq!(tensor.shape(), expected.shape(), "{name}");
+        assert_eq!(read(tensor), read(expected), "{name}");
+    }
+}
+
+#[test]
+fn test_full_model_save_loads_as_its_state_dict() {
+    // torch.save(model) beside torch.save(model.state_dict()) of the same model: see
+    // create_full_model.py for what the model holds.
+    let reader =
+        PytorchReader::new(test_data_path("full_model.pt")).expect("Failed to load full_model.pt");
+    let state_dict = PytorchReader::new(test_data_path("full_model_state_dict.pt"))
+        .expect("Failed to load full_model_state_dict.pt");
+    assert_eq!(state_dict.len(), 13);
+    assert_same_tensors(&reader, &state_dict);
+
+    // Children are named as state_dict() names them, Sequential entries by index, and a
+    // child registered under a second name under both.
+    let running_mean = reader.get("running_mean").unwrap();
+    assert_eq!(read_as::<f32>(running_mean), [0.0, 1.0, 2.0]);
+    let tracked = reader.get("blocks.1.num_batches_tracked").unwrap();
+    assert_eq!(tracked.dtype(), DType::I64);
+    assert_eq!(tracked.shape(), [] as [usize; 0]);
+    assert_eq!(read_as::<i64>(tracked), [0]);
+    assert_eq!(reader.get("head.weight").unwrap().shape(), [2, 3]);
+    assert_eq!(
+        read(reader.get("tied.weight").unwrap()),
+        read(reader.get("fc.weight").unwrap())
+    );
+
+    // Not in the state dict: the None bias slot, the non-persistent buffer and the tensor
+    // assigned as a plain attribute.
+    assert!(reader.get("head.bias").is_none());
+    assert!(reader.get("mask").is_none());
+    assert!(reader.get("scale").is_none());
+}
+
+#[test]
+fn test_full_model_under_a_top_level_key() {
+    // {"model": model, "epoch": 3} at protocol 4, whose set opcodes differ from protocol 2.
+    let path = test_data_path("full_model_checkpoint.pt");
+    let state_dict = PytorchReader::new(test_data_path("full_model_state_dict.pt")).unwrap();
+
+    let reader = PytorchReader::with_top_level_key(&path, "model")
+        .expect("Failed to load full_model_checkpoint.pt");
+    assert_same_tensors(&reader, &state_dict);
+
+    let reader = PytorchReader::new(&path).unwrap();
+    assert_eq!(reader.len(), 13);
+    assert!(reader.get("model.blocks.0.weight").is_some());
+
+    // The module reads as a dict of its state, like a nested state_dict does.
+    let value = PytorchReader::read_pickle_data(&path, Some("model")).unwrap();
+    let crate::PickleValue::Dict(module) = value else {
+        panic!("expected the module as a dict, got {value:?}");
+    };
+    let crate::PickleValue::Dict(fc) = &module["fc"] else {
+        panic!("expected the child module as a dict");
+    };
+    assert_eq!(
+        fc["weight"],
+        crate::PickleValue::Unsupported("torch.Tensor".to_string())
+    );
 }
 
 #[test]

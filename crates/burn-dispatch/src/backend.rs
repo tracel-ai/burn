@@ -12,9 +12,8 @@ use alloc::vec;
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
-    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError,
-    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions,
-    ProfileToken, SlicedPoolReport,
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError, MemoryPoolUsage,
+    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -301,16 +300,6 @@ impl Backend for Dispatch {
 
     fn memory_cleanup(device: &Self::Device) {
         dispatch_device!(device, |device| B::memory_cleanup(device))
-    }
-
-    fn memory_install_pools(
-        device: &Self::Device,
-        layout: MemoryPoolLayout,
-    ) -> Result<(), InstallMemoryPoolsError> {
-        dispatch_device!(device, |device| B::memory_install_pools(
-            device,
-            layout.clone()
-        ))
     }
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {

@@ -392,12 +392,13 @@ impl ModuleStore for BurnpackStore {
                 // Process path with auto-extension logic
                 let final_path = self.process_path(path);
 
-                // Check if file exists and overwrite is disabled
-                if final_path.exists() && !self.overwrite {
-                    return Err(PackError::IoError(format!(
-                        "File already exists: {}. Use .overwrite(true) to overwrite.",
-                        final_path.display()
-                    )));
+                // Fail fast before any tensor is read back. This check alone is racy; the
+                // writer's own no-clobber publish below is what enforces `overwrite` (apart
+                // from filesystems without hard links, see `AtomicFile::commit_new`).
+                // `symlink_metadata` rather than `exists` so a dangling symlink is caught here
+                // too, not after the save.
+                if !self.overwrite && std::fs::symlink_metadata(&final_path).is_ok() {
+                    return Err(PackError::AlreadyExists(final_path.display().to_string()));
                 }
                 // Atomic: tensors materialize mid-write, so a device readback that
                 // fails partway must not truncate whatever was already at this path.
@@ -405,6 +406,7 @@ impl ModuleStore for BurnpackStore {
                 // the writer's default so an explicitly extensionless path stays exact.
                 writer
                     .auto_extension(false)
+                    .overwrite(self.overwrite)
                     .write_to_file_atomic(&final_path)?;
             }
             StoreMode::Bytes(_) => {

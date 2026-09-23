@@ -87,6 +87,11 @@ where
     ///
     /// Returns a [`PrimitiveConversionError`] if the tensor does not currently live on the requested
     /// backend `B` (including `Autodiff<B>` mismatch).
+    ///
+    /// CubeCL aliases such as `Wgpu` and `Cuda` share a backend type. A successful downcast checks
+    /// that type, not the execution runtime; inspect the primitive's device before invoking a
+    /// runtime-specific kernel. With fusion enabled, the primitive is a fusion handle rather than
+    /// a raw CubeCL tensor.
     pub fn try_into_primitive<B: Backend>(
         self,
     ) -> Result<<K as BackendPrimitive<B>>::Primitive, PrimitiveConversionError>
@@ -124,7 +129,8 @@ where
 pub enum PrimitiveConversionError {
     /// The dispatch tensor's backend variant does not match the requested backend.
     ///
-    /// For example, extracting a `Wgpu` primitive from a `Cuda` dispatch tensor.
+    /// For example, extracting a `Flex` primitive from a CubeCL dispatch tensor. CubeCL runtime
+    /// aliases such as `Wgpu` and `Cuda` are not distinct backend types.
     BackendMismatch(String),
     /// The tensor kind does not match the requested primitive kind.
     ///

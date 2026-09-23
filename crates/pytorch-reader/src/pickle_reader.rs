@@ -6,15 +6,16 @@
 //!
 //! Original source: <https://github.com/huggingface/candle/blob/main/candle-core/src/pickle.rs>
 //!
-//! The parser is a stack machine like CPython's unpickler. Two hooks make it PyTorch aware:
+//! The parser is a stack machine like CPython's unpickler. Three hooks make it PyTorch aware:
 //! persistent ids resolve to storage references (or, for the old TAR container, to tensors
-//! built ahead of time), and `REDUCE` calls of `torch._utils._rebuild_tensor*` turn a storage
-//! reference into a tensor whose bytes are read only when asked for.
+//! built ahead of time), `REDUCE` calls of `torch._utils._rebuild_tensor*` turn a storage
+//! reference into a tensor whose bytes are read only when asked for, and a `BUILD` of a
+//! `torch.nn.Module` (a full-model save) is read as the module's `state_dict()`.
 
 use crate::storage::{StorageSource, read_exact_len};
 use crate::{DType, MAX_TENSOR_SIZE, Tensor};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead};
 use std::sync::Arc;
 use thiserror::Error;
@@ -43,7 +44,7 @@ pub enum PickleError {
     #[error("unexpected pickle opcode {0:?} in current context")]
     UnexpectedOpCode(OpCode),
     #[error(
-        "unsupported Python type '{0}'. This may indicate a full model save rather than a state_dict."
+        "unsupported Python type '{0}'. The file holds tensor data in a form this reader cannot represent."
     )]
     UnsupportedType(String),
     #[error("invalid data in pickle file: {0}")]
@@ -512,7 +513,8 @@ fn resolve_persistent_id(pid: Object, ids: &PersistentIds) -> Result<Object> {
 
 /// Apply a `REDUCE`: call `callable` with `args`.
 ///
-/// Only the calls PyTorch uses to rebuild tensors and dicts are interpreted. Any other call
+/// Only the calls PyTorch uses to rebuild tensors, and the `OrderedDict`, `set` and
+/// `frozenset` constructors, are interpreted. Any other call
 /// is kept as an opaque object (see [`opaque`] for the one exception) so a checkpoint
 /// carrying, say, numpy scalars or a device in its metadata still loads its tensors.
 fn reduce(callable: Object, args: Object) -> Result<Object> {
@@ -523,6 +525,12 @@ fn reduce(callable: Object, args: Object) -> Result<Object> {
 
     match (module_name, name) {
         ("collections", "OrderedDict") => ordered_dict(args),
+        // Protocols before 4 spell a set as `set(items)`, and below 3 name the module
+        // `__builtin__` (the Python 2 name) rather than `builtins`. A set is read as a
+        // list, as the protocol 4 `EMPTY_SET` and `FROZENSET` opcodes are.
+        ("builtins" | "__builtin__", "set" | "frozenset") => {
+            sequence_arg(args, name).map(Object::List)
+        }
         ("torch._utils", "_rebuild_tensor") => rebuild_tensor(args, TensorRebuild::Legacy),
         ("torch._utils", "_rebuild_tensor_v2") => rebuild_tensor(args, TensorRebuild::V2),
         ("torch._utils", "_rebuild_tensor_v3") => rebuild_tensor(args, TensorRebuild::V3),
@@ -570,8 +578,8 @@ fn reduce(callable: Object, args: Object) -> Result<Object> {
 /// A call whose arguments hold a storage or tensor (sparse, quantized and nested tensors,
 /// or a tensor subclass) is a tensor this reader cannot represent. That is worth an error
 /// rather than an entry that silently goes missing. The same check guards `BUILD` state,
-/// so a pickled module whose attributes hold tensors (a full model save) is refused rather
-/// than loaded empty.
+/// so an object whose attributes hold tensors is refused rather than loaded empty; a
+/// `torch.nn.Module` is the one object read instead (see [`module_state_dict`]).
 fn opaque(callable: &Object, args: &Object) -> Result<Object> {
     let name = callable.python_type_name();
     if callable.holds_tensor_data() || args.holds_tensor_data() {
@@ -580,27 +588,36 @@ fn opaque(callable: &Object, args: &Object) -> Result<Object> {
     Ok(Object::Opaque(name))
 }
 
-/// `OrderedDict()` or `OrderedDict([(key, value), ...])`.
-fn ordered_dict(args: Object) -> Result<Object> {
-    let items = match args {
-        Object::Tuple(fields) if fields.is_empty() => Vec::new(),
-        Object::Tuple(mut fields) => match fields.swap_remove(0) {
-            Object::List(items) | Object::Tuple(items) => items,
-            other => {
-                return Err(PickleError::InvalidData(format!(
-                    "OrderedDict argument must be a list of pairs, got {}",
-                    other.type_name()
-                )));
-            }
-        },
+/// The items of a call taking one sequence: `f()` or `f(items)`.
+fn sequence_arg(args: Object, what: &str) -> Result<Vec<Object>> {
+    let mut fields = match args {
+        Object::Tuple(fields) => fields,
         other => {
             return Err(PickleError::InvalidData(format!(
-                "OrderedDict arguments must be a tuple, got {}",
+                "{what} arguments must be a tuple, got {}",
                 other.type_name()
             )));
         }
     };
+    if fields.len() > 1 {
+        return Err(PickleError::InvalidData(format!(
+            "{what} takes one argument, got {}",
+            fields.len()
+        )));
+    }
+    match fields.pop() {
+        None => Ok(Vec::new()),
+        Some(Object::List(items) | Object::Tuple(items)) => Ok(items),
+        Some(other) => Err(PickleError::InvalidData(format!(
+            "{what} argument must be a list, got {}",
+            other.type_name()
+        ))),
+    }
+}
 
+/// `OrderedDict()` or `OrderedDict([(key, value), ...])`.
+fn ordered_dict(args: Object) -> Result<Object> {
+    let items = sequence_arg(args, "OrderedDict")?;
     let mut dict = HashMap::with_capacity(items.len());
     for item in items {
         match item {
@@ -615,6 +632,70 @@ fn ordered_dict(args: Object) -> Result<Object> {
                     other.type_name()
                 )));
             }
+        }
+    }
+    Ok(Object::Dict(dict))
+}
+
+/// The tables every `torch.nn.Module` keeps in its `__dict__`.
+const MODULE_TABLES: [&str; 3] = ["_parameters", "_buffers", "_modules"];
+
+/// Whether `attrs` is the `__dict__` of a `torch.nn.Module`: the three tables, each a dict.
+/// The class is not looked at, since a model is pickled under its own (`__main__.Net`).
+fn is_module_state(attrs: &HashMap<String, Object>) -> bool {
+    MODULE_TABLES
+        .into_iter()
+        .all(|table| matches!(attrs.get(table), Some(Object::Dict(_))))
+}
+
+/// Read a pickled `torch.nn.Module` as its `state_dict()`.
+///
+/// `torch.save(model)` pickles the module object with its `__dict__` as `BUILD` state. The
+/// parameters and buffers are in there under `_parameters` and `_buffers`, and the children
+/// under `_modules`, each already read this way because a pickle builds inner objects
+/// first. The result is a dict with a dict per child, which [`extract_tensors`] flattens to
+/// the names `state_dict()` gives (`layer1.weight`), so a full-model save loads its
+/// parameters and buffers as its state_dict would. Also as in `state_dict()`, `None`
+/// entries, buffers in `_non_persistent_buffers_set` and every other attribute (`training`,
+/// hooks, a tensor assigned without `register_buffer`) are left out. What `state_dict()`
+/// computes rather than stores, `get_extra_state()` and the work of state dict hooks, is
+/// not in the pickle and so not here either.
+fn module_state_dict(mut attrs: HashMap<String, Object>) -> Result<Object> {
+    let non_persistent = match attrs.remove("_non_persistent_buffers_set") {
+        None => HashSet::new(),
+        Some(Object::List(names)) => names
+            .iter()
+            .map(|name| key_string(name, "non-persistent buffer name"))
+            .collect::<Result<HashSet<_>>>()?,
+        Some(other) => {
+            return Err(PickleError::InvalidData(format!(
+                "module _non_persistent_buffers_set must be a set, got {}",
+                other.type_name()
+            )));
+        }
+    };
+
+    let mut dict = HashMap::new();
+    for table in MODULE_TABLES {
+        let Some(Object::Dict(entries)) = attrs.remove(table) else {
+            return Err(PickleError::InvalidData(format!(
+                "module is missing its {table} table"
+            )));
+        };
+        for (name, value) in entries {
+            if matches!(value, Object::None)
+                || (table == "_buffers" && non_persistent.contains(&name))
+            {
+                continue;
+            }
+            // A module cannot register the same name twice, so a file that does has
+            // two values for one name and neither may silently win.
+            if dict.contains_key(&name) {
+                return Err(PickleError::InvalidData(format!(
+                    "module registers '{name}' more than once"
+                )));
+            }
+            dict.insert(name, value);
         }
     }
     Ok(Object::Dict(dict))
@@ -944,6 +1025,9 @@ const MAX_NESTING_DEPTH: u32 = 1000;
 struct Entry {
     object: Object,
     depth: u32,
+    /// The memo slot holding a copy of this object, once memoized. CPython's memo aliases
+    /// the object itself, so `BUILD` refreshes the copy to keep a later fetch in step.
+    memo: Option<u32>,
 }
 
 struct Unpickler<'a> {
@@ -969,7 +1053,11 @@ impl<'a> Unpickler<'a> {
     }
 
     fn push_scalar(&mut self, object: Object) {
-        self.stack.push(Entry { object, depth: 0 });
+        self.stack.push(Entry {
+            object,
+            depth: 0,
+            memo: None,
+        });
     }
 
     fn push(&mut self, object: Object, depth: u32) -> Result<()> {
@@ -978,7 +1066,11 @@ impl<'a> Unpickler<'a> {
                 "pickle nesting exceeds {MAX_NESTING_DEPTH} levels"
             )));
         }
-        self.stack.push(Entry { object, depth });
+        self.stack.push(Entry {
+            object,
+            depth,
+            memo: None,
+        });
         Ok(())
     }
 
@@ -1057,7 +1149,9 @@ impl<'a> Unpickler<'a> {
     }
 
     fn memo_put(&mut self, idx: u32) -> Result<()> {
-        let entry = self.top()?.clone();
+        let top = self.top_mut()?;
+        top.memo = Some(idx);
+        let entry = top.clone();
         self.charge_copy(&entry.object)?;
         self.memo.insert(idx, entry);
         Ok(())
@@ -1365,10 +1459,11 @@ impl<'a> Unpickler<'a> {
                 OpCode::Build => {
                     let state = self.pop()?;
                     let object = self.pop()?;
-                    match (object.object, state.object) {
+                    let memo = object.memo;
+                    let (built, depth) = match (object.object, state.object) {
                         (Object::Dict(mut dict), Object::Dict(update)) => {
                             dict.extend(update);
-                            self.push(Object::Dict(dict), object.depth.max(state.depth))?;
+                            (Object::Dict(dict), object.depth.max(state.depth))
                         }
                         // A dict subclass with non-dict state: the items are what matter,
                         // but state holding tensor data must not vanish silently.
@@ -1378,13 +1473,31 @@ impl<'a> Unpickler<'a> {
                                     "dict with tensor-bearing state".to_string(),
                                 ));
                             }
-                            self.push(dict, object.depth)?;
+                            (dict, object.depth)
                         }
-                        (object, state) => {
-                            let obj = opaque(&object, &state)?;
-                            self.push_scalar(obj);
+                        // A module instance (a full-model save) becomes its state_dict,
+                        // which nests no deeper than the attributes it came from.
+                        (Object::Opaque(_), Object::Dict(attrs)) if is_module_state(&attrs) => {
+                            (module_state_dict(attrs)?, state.depth)
                         }
+                        (object, state) => (opaque(&object, &state)?, 0),
+                    };
+                    // The pickler memoizes an object before writing its state, so the memo
+                    // holds it as it was before `BUILD`. CPython's memo aliases the object
+                    // and sees the state set on it; here the copy is refreshed, so a module
+                    // assigned under two names is read built the second time as well.
+                    if let Some(idx) = memo {
+                        self.charge_copy(&built)?;
+                        self.memo.insert(
+                            idx,
+                            Entry {
+                                object: built.clone(),
+                                depth,
+                                memo: Some(idx),
+                            },
+                        );
                     }
+                    self.push(built, depth)?;
                 }
 
                 OpCode::Ext1
@@ -2374,12 +2487,139 @@ mod tests {
         assert!(matches!(err, PickleError::UnsupportedType(_)));
     }
 
+    /// A module pickled without torch: a class `M` whose `__dict__` holds the module
+    /// tables, with ints in place of tensors. The root has a parameter slot holding None,
+    /// a persistent and a non-persistent buffer, a child module, a child slot holding None
+    /// and two plain attributes. Protocol 2 writes the set as `REDUCE __builtin__.set`,
+    /// protocol 4 as `EMPTY_SET` and `ADDITEMS`.
+    const MODULE_PICKLE_PROTO2: &[u8] = b"\x80\x02c__main__\nM\nq\x00)\x81q\x01}q\x02(X\x0b\x00\x00\x00_parametersq\x03}q\x04X\x04\x00\x00\x00biasq\x05NsX\x08\x00\x00\x00_buffersq\x06}q\x07(X\x07\x00\x00\x00runningq\x08K\x02X\x04\x00\x00\x00maskq\x09K\x03uX\x1b\x00\x00\x00_non_persistent_buffers_setq\x0ac__builtin__\nset\nq\x0b]q\x0ch\x09a\x85q\x0dRq\x0eX\x08\x00\x00\x00_modulesq\x0f}q\x10(X\x02\x00\x00\x00fcq\x11h\x00)\x81q\x12}q\x13(h\x03}q\x14X\x06\x00\x00\x00weightq\x15K\x01sh\x06}q\x16h\x0f}q\x17ubX\x04\x00\x00\x00goneq\x18NuX\x08\x00\x00\x00trainingq\x19\x88X\x05\x00\x00\x00scaleq\x1aK\x04ub.";
+    const MODULE_PICKLE_PROTO4: &[u8] = b"\x80\x04\x95\xcf\x00\x00\x00\x00\x00\x00\x00\x8c\x08__main__\x94\x8c\x01M\x94\x93\x94)\x81\x94}\x94(\x8c\x0b_parameters\x94}\x94\x8c\x04bias\x94Ns\x8c\x08_buffers\x94}\x94(\x8c\x07running\x94K\x02\x8c\x04mask\x94K\x03u\x8c\x1b_non_persistent_buffers_set\x94\x8f\x94(h\x0b\x90\x8c\x08_modules\x94}\x94(\x8c\x02fc\x94h\x02)\x81\x94}\x94(h\x05}\x94\x8c\x06weight\x94K\x01sh\x08}\x94h\x0e}\x94ub\x8c\x04gone\x94Nu\x8c\x08training\x94\x88\x8c\x05scale\x94K\x04ub.";
+
+    #[test]
+    fn module_build_becomes_its_state_dict() {
+        for bytes in [MODULE_PICKLE_PROTO2, MODULE_PICKLE_PROTO4] {
+            let Object::Dict(dict) = plain(bytes).unwrap_or_else(|e| panic!("{e}")) else {
+                panic!("expected dict");
+            };
+            // The None slots, the non-persistent buffer and the plain attributes are gone.
+            let mut keys: Vec<_> = dict.keys().cloned().collect();
+            keys.sort();
+            assert_eq!(keys, ["fc", "running"]);
+            assert!(matches!(dict["running"], Object::Int(2)));
+            let Object::Dict(child) = &dict["fc"] else {
+                panic!("expected the child module as a dict");
+            };
+            assert_eq!(child.len(), 1);
+            assert!(matches!(child["weight"], Object::Int(1)));
+        }
+    }
+
+    #[test]
+    fn module_shared_under_two_names_is_built_under_both() {
+        // {"model": root, "ema": root} where root has _modules {"a": child, "b": child}:
+        // the second reference to each instance is a memo fetch (BINGET) of an object
+        // memoized before its BUILD, which state_dict() nonetheless lists under both names.
+        let bytes = b"\x80\x02}q\x00(X\x05\x00\x00\x00modelq\x01c__main__\nM\nq\x02)\x81q\x03}q\x04(X\x0b\x00\x00\x00_parametersq\x05}q\x06X\x08\x00\x00\x00_buffersq\x07}q\x08X\x08\x00\x00\x00_modulesq\x09}q\n(X\x01\x00\x00\x00aq\x0bh\x02)\x81q\x0c}q\x0d(h\x05}q\x0eX\x06\x00\x00\x00weightq\x0fK\x01sh\x07}q\x10h\x09}q\x11ubX\x01\x00\x00\x00bq\x12h\x0cuubX\x03\x00\x00\x00emaq\x13h\x03u.";
+        let Object::Dict(checkpoint) = plain(bytes).unwrap_or_else(|e| panic!("{e}")) else {
+            panic!("expected dict");
+        };
+        for key in ["model", "ema"] {
+            let Object::Dict(root) = &checkpoint[key] else {
+                panic!("expected {key} as a dict, got {:?}", checkpoint[key]);
+            };
+            for child in ["a", "b"] {
+                assert!(
+                    matches!(&root[child], Object::Dict(d) if matches!(d["weight"], Object::Int(1))),
+                    "{key}.{child}: {:?}",
+                    root[child]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn object_with_a_tensor_attribute_is_refused() {
+        // An instance of `C` whose `__dict__` is {"w": tensor}: not a module, so the
+        // tensor must not vanish. The storage is key "0" of the fixture.
+        let bytes = b"\x80\x02c__main__\nC\nq\x00)\x81q\x01}q\x02X\x01\x00\x00\x00wq\x03ctorch._utils\n_rebuild_tensor_v2\nq\x04((X\x07\x00\x00\x00storageq\x05ctorch\nFloatStorage\nq\x06X\x01\x00\x00\x000q\x07X\x03\x00\x00\x00cpuq\x08K tq\x09QK\x00K\x02\x85q\nK\x01\x85q\x0b\x89ccollections\nOrderedDict\nq\x0c)Rq\x0dtq\x0eRq\x0fsb.";
+        let ids = PersistentIds::Storages(fixture_source());
+        assert!(matches!(
+            read_pickle(&mut Cursor::new(&bytes[..]), &ids),
+            Err(PickleError::UnsupportedType(name)) if name == "__main__.C"
+        ));
+    }
+
+    #[test]
+    fn object_without_module_tables_stays_opaque() {
+        // An instance of `M` whose `__dict__` is {"x": 1}.
+        let bytes = b"\x80\x02c__main__\nM\nq\x00)\x81q\x01}q\x02X\x01\x00\x00\x00xq\x03K\x01sb.";
+        assert!(matches!(
+            plain(bytes).unwrap(),
+            Object::Opaque(name) if name == "__main__.M"
+        ));
+    }
+
+    #[test]
+    fn module_registering_a_name_twice_is_an_error() {
+        let table = |value| Object::Dict(HashMap::from([("w".to_string(), value)]));
+        let attrs = HashMap::from([
+            ("_parameters".to_string(), table(Object::Int(1))),
+            ("_buffers".to_string(), table(Object::Int(2))),
+            ("_modules".to_string(), Object::Dict(HashMap::new())),
+        ]);
+        assert!(matches!(
+            module_state_dict(attrs),
+            Err(PickleError::InvalidData(msg)) if msg.contains("'w' more than once")
+        ));
+    }
+
+    #[test]
+    fn module_state_dict_rejects_a_malformed_buffer_set() {
+        let mut attrs =
+            HashMap::from([("_non_persistent_buffers_set".to_string(), Object::Int(1))]);
+        for table in MODULE_TABLES {
+            attrs.insert(table.to_string(), Object::Dict(HashMap::new()));
+        }
+        assert!(matches!(
+            module_state_dict(attrs),
+            Err(PickleError::InvalidData(msg)) if msg.contains("must be a set, got int")
+        ));
+    }
+
+    #[test]
+    fn set_reduce_is_read_as_a_list() {
+        // pickle.dumps({"mask"}, protocol=2) and pickle.dumps(frozenset(), protocol=2).
+        let items = match plain(
+            b"\x80\x02c__builtin__\nset\nq\x00]q\x01X\x04\x00\x00\x00maskq\x02a\x85q\x03Rq\x04.",
+        )
+        .unwrap()
+        {
+            Object::List(items) => items,
+            other => panic!("expected list, got {other:?}"),
+        };
+        assert!(matches!(&items[..], [Object::String(s)] if s == "mask"));
+        assert!(matches!(
+            plain(b"\x80\x02c__builtin__\nfrozenset\nq\x00]q\x01\x85q\x02Rq\x03.").unwrap(),
+            Object::List(items) if items.is_empty()
+        ));
+    }
+
     #[test]
     fn ordered_dict_rejects_non_list_argument() {
         let args = Object::Tuple(vec![Object::Int(3)]);
         assert!(matches!(
             ordered_dict(args),
-            Err(PickleError::InvalidData(msg)) if msg.contains("list of pairs")
+            Err(PickleError::InvalidData(msg)) if msg.contains("must be a list")
+        ));
+    }
+
+    #[test]
+    fn call_with_extra_arguments_is_an_error() {
+        // set(items, extra) is a TypeError in Python, and the extra could hold anything.
+        let args = Object::Tuple(vec![Object::List(Vec::new()), Object::Int(1)]);
+        assert!(matches!(
+            sequence_arg(args, "set"),
+            Err(PickleError::InvalidData(msg)) if msg == "set takes one argument, got 2"
         ));
     }
 

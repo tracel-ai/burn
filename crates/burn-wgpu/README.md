@@ -8,36 +8,39 @@
 This crate provides a WGPU backend for [Burn](https://github.com/tracel-ai/burn) using the
 [wgpu](https://github.com/gfx-rs/wgpu).
 
-The backend supports Vulkan, Metal, DirectX11/12, OpenGL, WebGPU.
+The backend supports Vulkan, Metal, DirectX 12, OpenGL, and WebGPU.
 
 ## Usage Example
 
-```rust
-#[cfg(feature = "wgpu")]
-mod wgpu {
-    use burn_autodiff::Autodiff;
-    use burn_wgpu::{Wgpu, WgpuDevice};
-    use mnist::training;
+For application code, enable Burn's `wgpu` feature and select the device at runtime:
 
-    pub fn run() {
-        let device = WgpuDevice::default();
-        training::run::<Autodiff<Wgpu<f32, i32>>>(device);
-    }
-}
+```toml
+burn = { version = "0.22", features = ["wgpu"] }
 ```
+
+```rust
+use burn::tensor::{Device, Tensor};
+
+let device = Device::wgpu(Default::default());
+let input = Tensor::<2>::ones([2, 3], &device);
+let output = input + 1.0;
+```
+
+For training, enable `autodiff` (also enabled by `train`) and use `device.autodiff()` before
+initializing model parameters and inputs. Tensor and model types have no backend parameter.
 
 ## Configuration
 
-You can set `BURN_WGPU_MAX_TASKS` to a positive integer that determines how many computing tasks are
-submitted in batches to the graphics API.
+Use `Device::configure` to set dtype defaults before creating tensors. Runtime initialization and
+memory configuration are exposed through `burn_wgpu::init_setup` and `RuntimeOptions`; see the
+[backend API](https://docs.rs/burn-wgpu/latest/burn_wgpu/type.Wgpu.html).
 
-## Alternative SPIR-V backend
+## Graphics API and shader compiler
 
-When targeting Vulkan, the `spirv` feature flag can be enabled to enable the SPIR-V compiler
-backend, which performs significantly better than WGSL. This is especially true for matrix
-multiplication, where SPIR-V can make use of TensorCores and run at `f16` precision. This isn't
-currently supported by WGSL. The compiler can also be selected at runtime by setting the
-corresponding generic parameter to either `SpirV` or `Wgsl`.
+Enable `vulkan`, `metal`, or `webgpu` and select the corresponding `Device` constructor to target
+that graphics API. `AutoCompiler` selects the shader compiler at runtime. There is no `spirv`
+feature or compiler type parameter on `Wgpu` in 0.22. The low-level `Wgpu`, `Vulkan`, `Metal`, and
+`WebGpu` aliases share a backend type; the device determines the runtime.
 
 ## Platform Support
 
@@ -47,4 +50,4 @@ corresponding generic parameter to either `SpirV` or `Wgsl`.
 | Vulkan    | Yes | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
 | OpenGL    | No  | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
 | WebGpu    | No  | Yes |  No   |  No   |   No    |   No    | No  | Yes  |
-| Dx11/Dx12 | No  | Yes |  No   |  No   |   Yes   |   No    | No  |  No  |
+| Dx12      | No  | Yes |  No   |  No   |   Yes   |   No    | No  |  No  |

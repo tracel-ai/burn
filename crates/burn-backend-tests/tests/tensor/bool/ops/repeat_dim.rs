@@ -32,3 +32,14 @@ fn should_support_bool_repeat_on_dims_larger_than_1() {
 
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn should_keep_dtype_on_repeat_dim_0_times() {
+    let tensor = TestTensorBool::<2>::from([[true, false], [false, true]]);
+    let dtype = tensor.dtype();
+
+    let output = tensor.repeat_dim(1, 0);
+
+    assert_eq!(output.dims(), [2, 0]);
+    assert_eq!(output.dtype(), dtype);
+}

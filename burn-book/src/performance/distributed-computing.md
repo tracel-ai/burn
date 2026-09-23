@@ -12,6 +12,10 @@ hosted by another process. These capabilities can be used independently or toget
 
 ## Distributed Tensor Operations
 
+Collective support depends on the execution runtime. The current CubeCL implementation supplies
+all-reduce on CUDA. Remote DDP also requires collective support on the server's devices. Use the
+non-DDP multi-device strategy when the selected runtimes do not provide collectives.
+
 The distributed tensor API currently centers on all-reduce:
 
 | Type or function     | Purpose                                                                           |
