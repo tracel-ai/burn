@@ -24,6 +24,10 @@ backend constructor you use; `burn` has no default execution backend.
 With `default-features = false`, enable `optim` explicitly if you use `burn::optim` or
 `burn::lr_scheduler`; `train` also enables it.
 
+Reinforcement learning is opt-in. Enable the `rl` feature on `burn` to use `burn::rl` and the RL
+learner in `burn::train`. If you depend on `burn-train` directly, `rl` is no longer one of its
+default features.
+
 ## Types and devices
 
 | Previous API                                        | 0.22 API                                                                          |
