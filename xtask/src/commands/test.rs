@@ -177,7 +177,7 @@ pub(crate) fn handle_backend_tests(
                     "--test",
                     "lazy_param_device",
                     "--test",
-                    "pipeline_placement",
+                    "layer_placement",
                     "--test",
                     "backend_extension_runtime",
                 ],
