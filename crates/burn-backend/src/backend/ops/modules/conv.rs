@@ -1577,6 +1577,9 @@ mod tests {
         // Same with dilation 2: a 3rd window would start at padded index 6.
         assert_eq!(calculate_pool_output_size(2, 3, 1, 2, 5, true), 2);
 
+        // Without padding, when stride > kernel a 3rd window would start at 6, past the input.
+        assert_eq!(calculate_pool_output_size(1, 3, 0, 1, 5, true), 2);
+
         // The last window starts inside the input, so it is kept.
         assert_eq!(calculate_pool_output_size(3, 2, 1, 1, 6, true), 4);
         assert_eq!(calculate_pool_output_size(3, 2, 0, 1, 6, true), 3);
