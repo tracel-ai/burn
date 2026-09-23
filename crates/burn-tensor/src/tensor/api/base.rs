@@ -190,6 +190,17 @@ where
         Self::new(K::empty(self.shape(), &self.device(), self.dtype()))
     }
 
+    /// The dtype to create a new tensor with so that it matches this one, used by ops that
+    /// build their output from scratch (e.g. short-circuiting to an empty result). Quantized
+    /// dtypes fall back to the device default float dtype, since tensors can't be created
+    /// directly in a quantized dtype.
+    pub(crate) fn creation_dtype(&self) -> DType {
+        match self.dtype() {
+            DType::QFloat(_) => TensorCreationOptions::new(self.device()).resolve_dtype::<K>(),
+            dtype => dtype,
+        }
+    }
+
     /// Create a tensor of the given shape where each element is zero.
     ///
     /// # Example
@@ -1318,7 +1329,7 @@ where
 
         // Return empty tensor if any dimension is 0 (empty slice)
         if output_dims.contains(&0) {
-            return Self::empty(output_dims, &self.device());
+            return Self::new(K::empty(output_dims, &self.device(), self.creation_dtype()));
         }
         Self::new(K::slice(self.primitive, &slices))
     }
@@ -2351,7 +2362,7 @@ where
             Self::new(K::repeat_dim(self.primitive, dim, times))
         } else {
             let shape = self.shape().repeat(dim, times).unwrap();
-            Self::empty(shape, &self.device())
+            Self::new(K::empty(shape, &self.device(), self.creation_dtype()))
         }
     }
 
@@ -2389,7 +2400,7 @@ where
                 shape = shape.repeat(dim, times).unwrap();
             }
 
-            return Self::empty(shape, &self.device());
+            return Self::new(K::empty(shape, &self.device(), self.creation_dtype()));
         }
 
         let mut tensor = self;
@@ -2543,6 +2554,7 @@ where
         // Safety: TensorCheck::cat ensures tensors is non-empty
         let first_tensor = tensors.first().unwrap();
         let device = first_tensor.device();
+        let dtype = first_tensor.creation_dtype();
         let mut shape = first_tensor.shape();
 
         let non_empty_primitives: Vec<_> = tensors
@@ -2554,7 +2566,7 @@ where
         // If all tensors were empty, return an empty tensor with size 0 on concat dim
         if non_empty_primitives.is_empty() {
             shape[dim] = 0;
-            return Self::empty(shape, &device);
+            return Self::new(K::empty(shape, &device, dtype));
         }
 
         Self::new(K::cat(non_empty_primitives, dim))

@@ -11,19 +11,24 @@ crates.
 
 ## Usage Example
 
-```rust
-#[cfg(feature = "cuda")]
-mod cuda {
-    use burn_autodiff::Autodiff;
-    use burn_cuda::{Cuda, CudaDevice};
-    use mnist::training;
+For application code, enable Burn's `cuda` feature and select the device at runtime:
 
-    pub fn run() {
-        let device = CudaDevice::default();
-        training::run::<Autodiff<Cuda<f32, i32>>>(device);
-    }
-}
+```toml
+burn = { version = "0.22", features = ["cuda"] }
 ```
+
+```rust
+use burn::tensor::{Device, Tensor};
+
+let device = Device::cuda(0);
+let input = Tensor::<2>::ones([2, 3], &device);
+let output = input + 1.0;
+```
+
+For training, enable `autodiff` (also enabled by `train`) and use `device.autodiff()` before
+initializing model parameters and inputs. Tensor and model types have no backend parameter.
+Use `Device::configure` for dtype defaults; the low-level `Cuda` alias no longer takes element
+type parameters.
 
 ## Dependencies
 

@@ -124,9 +124,10 @@ impl Optimizer for Lion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::optim::test_utils::assert_optimizer_resume;
     use crate::{AdamWConfig, GradientsParams, ModuleOptimizer};
     use burn::module::Param;
-    use burn::tensor::{Distribution, TensorData, Tolerance};
+    use burn::tensor::{TensorData, Tolerance};
     use burn_nn::loss::{MseLoss, Reduction};
     use burn_nn::{Linear, LinearConfig};
 
@@ -168,16 +169,7 @@ mod tests {
     fn test_lion_optimizer_save_load_state() {
         let device = Device::default().autodiff();
         let linear = LinearConfig::new(4, 3).init(&device);
-        let input = Tensor::<2>::random([2, 4], Distribution::Default, &device);
-        let mut optimizer = LionConfig::new().init();
-        let grads = GradientsParams::from_grads(linear.forward(input).backward(), &linear);
-        let _linear = optimizer.step(1e-4, linear, grads);
-
-        let state_before = optimizer.to_record();
-        let bytes = optimizer.into_bytes().unwrap();
-        let optimizer = LionConfig::new().init().from_bytes(bytes).unwrap();
-
-        assert_eq!(state_before.len(), optimizer.to_record().len());
+        assert_optimizer_resume(|| LionConfig::new().init(), linear, 1e-4);
     }
 
     // A resource-light analogue of the paper's training experiments. It is intentionally

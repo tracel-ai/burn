@@ -165,6 +165,19 @@ fn should_repeat_dim_0_times_empty() {
     assert_eq!(output.shape(), [2, 3, 0].into());
 }
 
+// Skip on metal - F64 not supported
+#[cfg(not(feature = "metal"))]
+#[test]
+fn should_keep_dtype_on_repeat_dim_0_times() {
+    let tensor =
+        TestTensor::<3>::ones([2, 3, 4], &Default::default()).cast(burn_tensor::DType::F64);
+
+    let output = tensor.repeat_dim(2, 0);
+
+    assert_eq!(output.shape(), [2, 3, 0].into());
+    assert_eq!(output.dtype(), burn_tensor::DType::F64);
+}
+
 #[test]
 fn should_support_unsqueeze_of_repeat_dim_view() {
     // `repeat_dim` on a size-1 dim returns a broadcast view (stride 0 on

@@ -420,3 +420,96 @@ fn an_atomic_write_keeps_the_permissions_of_the_container_it_replaces() {
         "the rewrite republished the container at the process umask"
     );
 }
+
+/// A tensor whose provider plants `planted` at `dest` when it runs, i.e. partway through the
+/// write and after any check a caller could have made beforehand.
+fn plants_a_file_mid_write(dest: &std::path::Path, planted: &'static [u8]) -> Tensor {
+    let dest = dest.to_path_buf();
+    Tensor::deferred("t".to_string(), DType::U8, vec![4], None, 4, move || {
+        std::fs::write(&dest, planted).unwrap();
+        Ok(Bytes::from_bytes_vec(vec![1, 2, 3, 4]))
+    })
+}
+
+/// `overwrite(false)` has to hold at the moment of publishing, not only when the write
+/// starts: a file created by someone else in between must survive.
+#[test]
+fn a_no_overwrite_atomic_write_keeps_a_file_that_appears_mid_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let err = Writer::new(vec![plants_a_file_mid_write(&dest, b"theirs")])
+        .overwrite(false)
+        .write_to_file_atomic(&dest)
+        .unwrap_err();
+
+    assert!(matches!(err, Error::AlreadyExists(_)), "got {err:?}");
+    assert_eq!(std::fs::read(&dest).unwrap(), b"theirs");
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        1,
+        "the scratch file should have been cleaned up"
+    );
+}
+
+#[test]
+fn a_no_overwrite_atomic_write_publishes_when_the_path_is_free() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let log = Log::default();
+    Writer::new(deferred_tensors(entries(&log)))
+        .overwrite(false)
+        .write_to_file_atomic(&dest)
+        .unwrap();
+
+    assert_eq!(
+        Reader::from_file(&dest)
+            .unwrap()
+            .into_tensors()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        1,
+        "no scratch file should survive a successful write"
+    );
+}
+
+#[test]
+fn a_no_overwrite_plain_write_refuses_an_existing_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+    std::fs::write(&dest, b"theirs").unwrap();
+
+    let log = Log::default();
+    let err = Writer::new(deferred_tensors(entries(&log)))
+        .overwrite(false)
+        .write_to_file(&dest)
+        .unwrap_err();
+
+    assert!(matches!(err, Error::AlreadyExists(_)), "got {err:?}");
+    assert_eq!(std::fs::read(&dest).unwrap(), b"theirs");
+}
+
+#[test]
+fn commit_new_refuses_an_existing_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("model.bpk");
+
+    let (scratch, _reserved) = burn_pack::AtomicFile::create(&dest).unwrap();
+    std::fs::write(scratch.path(), b"ours").unwrap();
+    std::fs::write(&dest, b"theirs").unwrap();
+
+    let err = scratch.commit_new().unwrap_err();
+
+    assert!(matches!(err, Error::AlreadyExists(_)), "got {err:?}");
+    assert_eq!(std::fs::read(&dest).unwrap(), b"theirs");
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        1,
+        "the scratch file should have been cleaned up"
+    );
+}

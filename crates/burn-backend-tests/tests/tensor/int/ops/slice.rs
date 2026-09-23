@@ -27,3 +27,15 @@ fn test_slice_int_tensor_with_steps() {
     let expected = TensorData::from([[4i32, 3, 2, 1], [8, 7, 6, 5], [12, 11, 10, 9]]);
     sliced.into_data().assert_eq(&expected, false);
 }
+
+// I64 is not supported on every backend (e.g. WGSL has no i64)
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[test]
+fn should_keep_dtype_on_empty_slice() {
+    let tensor = TestTensorInt::<2>::from([[0, 1, 2], [3, 4, 5]]).cast(burn_tensor::DType::I64);
+
+    let output = tensor.slice([0..2, 1..1]);
+
+    assert_eq!(output.dims(), [2, 0]);
+    assert_eq!(output.dtype(), burn_tensor::DType::I64);
+}

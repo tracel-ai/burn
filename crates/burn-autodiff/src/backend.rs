@@ -8,9 +8,8 @@ use core::marker::PhantomData;
 
 use burn_backend::{
     backend::{
-        AutodiffBackend, Backend, BackendTypes, ExecutionError, InstallMemoryPoolsError,
-        MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken,
-        SlicedPoolReport,
+        AutodiffBackend, Backend, BackendTypes, ExecutionError, MemoryPoolUsage, ProfileDuration,
+        ProfileOptions, ProfileToken, SlicedPoolReport,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -98,13 +97,6 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
-    }
-
-    fn memory_install_pools(
-        device: &Self::Device,
-        layout: MemoryPoolLayout,
-    ) -> Result<(), InstallMemoryPoolsError> {
-        B::memory_install_pools(device, layout)
     }
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {

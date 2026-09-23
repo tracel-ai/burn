@@ -788,13 +788,20 @@ fn extract_tensors_at(
     root: Object,
     top_level_key: Option<&str>,
 ) -> Result<HashMap<String, Tensor>> {
-    let Object::Dict(dict) = select_top_level(root, top_level_key)? else {
-        return Err(PytorchError::InvalidFormat(match top_level_key {
-            Some(key) => format!("Top-level key '{key}' does not hold a dictionary"),
-            None => "Expected a dictionary at the root of the PyTorch file, but found a different type. The file may be a full model save rather than a state_dict.".to_string(),
-        }));
-    };
-    Ok(extract_tensors(dict))
+    match select_top_level(root, top_level_key)? {
+        Object::Dict(dict) => Ok(extract_tensors(dict)),
+        other => {
+            let found = other.python_type_name();
+            Err(PytorchError::InvalidFormat(match top_level_key {
+                Some(key) => {
+                    format!("Top-level key '{key}' does not hold a dictionary, found {found}")
+                }
+                None => {
+                    format!("Expected a dictionary at the root of the PyTorch file, found {found}")
+                }
+            }))
+        }
+    }
 }
 
 /// Convert an internal object to the public [`PickleValue`].

@@ -4,9 +4,8 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, InstallMemoryPoolsError,
-    MemoryPoolLayout, MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken,
-    SlicedPoolReport, profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, MemoryPoolUsage,
+    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -153,21 +152,6 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
-    }
-
-    fn memory_install_pools(
-        device: &Self::Device,
-        layout: MemoryPoolLayout,
-    ) -> Result<(), InstallMemoryPoolsError> {
-        // Pools belong to a stream, and fused operations allocate on the fusion
-        // server thread's — so the rebuild has to be issued from that thread to
-        // reach the right one. `sync` also drains what has already been
-        // recorded, so the rebuild sees a quiescent stream rather than refusing
-        // over operations that have not run yet.
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        let device = device.clone();
-
-        client.sync(move || B::memory_install_pools(&device, layout))
     }
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
