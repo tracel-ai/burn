@@ -640,7 +640,7 @@ pub trait ModuleOps<B: Backend> {
 
     /// Four dimensional fold (`col2im`), the adjoint of [unfold4d](ModuleOps::unfold4d).
     ///
-    /// Composes [conv_transpose2d](ModuleOps::conv_transpose2d) with the same one-hot weight
+    /// Composes [conv_transpose2d](ModuleOps::conv_transpose2d) with the same one-hot channel mapping
     /// [unfold4d](ModuleOps::unfold4d) uses, so backends inherit a correct (and differentiable)
     /// implementation for free and may override it with a custom one.
     ///
@@ -684,8 +684,11 @@ pub trait ModuleOps<B: Backend> {
             "fold4d: number of blocks ({num_blocks}) does not match the expected grid ({blocks_height} x {blocks_width}) for the given output size and options"
         );
 
-        // The fold weight is identical to the one `unfold4d` builds for its `conv2d` — fold is its adjoint.
-        let weight = create_unfolding_weight::<B>(channels, kernel_size, &x.device(), x.dtype());
+        // Fold is the adjoint of unfold and uses the same one-hot channel mapping. Grouping by
+        // channel removes the otherwise unused cross-channel weights.
+        let groups = channels.max(1);
+        let weight =
+            create_unfolding_weight::<B>(channels, kernel_size, groups, &x.device(), x.dtype());
 
         // Reshape the columns into the spatial grid of blocks, then scatter-add them back.
         let x = B::float_reshape(
@@ -710,7 +713,7 @@ pub trait ModuleOps<B: Backend> {
                 options.padding,
                 padding_out,
                 options.dilation,
-                1,
+                groups,
             ),
         )
     }
