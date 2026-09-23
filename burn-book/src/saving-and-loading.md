@@ -128,7 +128,7 @@ model.load_from(&mut store)?;
 
 #### Exporting from PyTorch
 
-Save only the model weights (state_dict), not the entire model:
+Save the model weights (state_dict):
 
 ```python
 import torch
@@ -144,9 +144,15 @@ class Net(nn.Module):
         return self.conv2(self.conv1(x))
 
 model = Net()
-torch.save(model.state_dict(), "model.pt")  # Correct: save state_dict
-# torch.save(model, "model.pt")             # Wrong: saves entire model
+torch.save(model.state_dict(), "model.pt")
 ```
+
+A file saved with `torch.save(model)` (the whole module rather than its `state_dict()`) loads
+too: its parameters and buffers are read under the names `state_dict()` gives them, so the
+tensor names are the same either way. Non-persistent buffers and tensors assigned as plain
+attributes are not part of it, exactly as `state_dict()` leaves them out. A module that
+customizes its state dict (`get_extra_state()`, state dict hooks) is read from its stored
+parameters and buffers only, so entries those would add are absent.
 
 #### Accessing Nested State Dicts
 
@@ -493,13 +499,10 @@ model2.apply(snapshots, Some(filter), None, false);
 
 #### Common Issues
 
-1. **"Missing source values" error**: You saved the entire PyTorch model instead of the state_dict.
-   Re-export with `torch.save(model.state_dict(), "model.pt")`.
-
-2. **Shape mismatch**: Your Burn model doesn't match the source architecture. Verify layer
+1. **Shape mismatch**: Your Burn model doesn't match the source architecture. Verify layer
    configurations (channels, kernel sizes, bias settings).
 
-3. **Key not found**: Parameter names don't match. Use `with_key_remapping()` or inspect keys:
+2. **Key not found**: Parameter names don't match. Use `with_key_remapping()` or inspect keys:
 
    ```rust, ignore
    let store = PytorchStore::from_file("model.pt");
