@@ -58,7 +58,12 @@ macro_rules! int_shift {
 macro_rules! int_shift_scalar {
     ($lhs:expr, $rhs:expr, $shift:ident) => {{
         let lhs = $lhs;
-        let amount = $rhs.to_i64().unwrap() as u32;
+        let rhs = $rhs;
+        let amount = if lhs.dtype() == DType::U64 {
+            rhs.to_u64().unwrap() as u32
+        } else {
+            rhs.to_i64().unwrap() as u32
+        };
         match lhs.dtype() {
             DType::I64 => scalar_op_typed(lhs, 0i64, move |a, _| a.$shift(amount)),
             DType::I32 => scalar_op_typed(lhs, 0i32, move |a, _| a.$shift(amount)),
@@ -1547,25 +1552,34 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_right_shift_is_arithmetic() {
-        let a = FlexTensor::from_data(TensorData::new(vec![i8::MIN, -1], [2]));
-        let result = Flex::bitwise_right_shift_scalar(a, 1i64.into());
-        let data: Vec<i8> = result.into_data().try_into_vec().unwrap();
-        assert_eq!(data, vec![i8::MIN >> 1, -1]);
+    fn test_int_shift_negative_amount() {
+        // -1 as u32 is masked to BITS - 1, the same on tensor and scalar paths.
+        let a = FlexTensor::from_data(TensorData::new(vec![1i32], [1]));
+        let min = FlexTensor::from_data(TensorData::new(vec![i32::MIN], [1]));
+        let b = FlexTensor::from_data(TensorData::new(vec![-1i32], [1]));
+        for (result, expected) in [
+            (Flex::bitwise_left_shift(a.clone(), b.clone()), i32::MIN),
+            (Flex::bitwise_left_shift_scalar(a, (-1i64).into()), i32::MIN),
+            (Flex::bitwise_right_shift(min.clone(), b), -1),
+            (Flex::bitwise_right_shift_scalar(min, (-1i64).into()), -1),
+        ] {
+            let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
+            assert_eq!(data, vec![expected]);
+        }
     }
 
     #[test]
-    fn test_unsigned_right_shift_is_logical() {
-        let a = FlexTensor::from_data(TensorData::new(vec![u8::MAX, 1 << 7], [2]));
-        let b = FlexTensor::from_data(TensorData::new(vec![1u8, 7], [2]));
-        let result = Flex::bitwise_right_shift(a, b);
-        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
-        assert_eq!(data, vec![u8::MAX >> 1, 1]);
+    fn test_u64_shift_scalar_above_i64_max() {
+        // u64::MAX as a shift amount is masked to 63 instead of failing to_i64.
+        let a = FlexTensor::from_data(TensorData::new(vec![1u64], [1]));
+        let result = Flex::bitwise_left_shift_scalar(a, u64::MAX.into());
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![1u64 << 63]);
     }
 
     #[test]
     fn test_u64_right_shift_is_logical() {
-        // Values above i64::MAX must not sign-extend through the i64 widening.
+        // Values above i64::MAX have the top bit set; the right shift must still fill with zeros.
         let values = vec![u64::MAX, 1u64 << 63, 12];
         let a = FlexTensor::from_data(TensorData::new(values.clone(), [3]));
         let b = FlexTensor::from_data(TensorData::new(vec![1u64, 63, 2], [3]));
