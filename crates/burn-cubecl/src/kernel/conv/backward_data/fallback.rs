@@ -6,10 +6,7 @@ use burn_std::Shape;
 use cubek::convolution::components::ConvSetupError;
 
 use crate::{
-    kernel::{
-        conv::{conv_transpose2d_direct_nhwc, conv_transpose3d},
-        slice,
-    },
+    kernel::{conv::conv_transpose2d, conv::conv_transpose3d, slice},
     ops::{permute_nchw_to_nhwc, permute_nhwc_to_nchw, reshape},
     tensor::CubeTensor,
 };
@@ -63,40 +60,49 @@ pub(crate) fn conv_data_backward_fallback<const N_DIM: usize>(
         );
     }
 
-    // 1D and 2D stay in NHWC, the layout the rest of the convolution stack works in and the one
-    // `conv_transpose2d_direct_nhwc` reads coalesced. 3D has no NHWC kernel yet and flips below.
-    //
-    // The direct kernel rather than the strategy dispatch: the only other transposition
-    // `ConvTranspose2dStrategy` offers is col2im, which is NCHW, and the GEMM routes for a data
-    // gradient are already candidates one level up in `dgrad_autotune`. Choosing here would only
-    // nest a second autotune inside one of that set's candidates.
+    // Through `conv_transpose2d` so its autotune keeps both routes: the direct NHWC kernel
+    // (its direct candidate) and col2im. 3D has neither and flips to NCHW below.
     match N_DIM {
-        1 => conv_transpose1d_from_conv_transpose2d_nhwc(
-            out_grad,
-            weights,
-            ConvTransposeOptions::new(
-                [options.stride[0]],
-                [options.padding_begin()[0]],
-                [padding_out[0]],
-                [options.dilation[0]],
-                options.groups,
-            ),
-        ),
-        2 => conv_transpose2d_direct_nhwc(
-            out_grad,
-            weights,
-            None,
-            ConvTransposeOptions::new(
-                [options.stride[0], options.stride[1]],
-                [options.padding_begin()[0], options.padding_begin()[1]],
-                [padding_out[0], padding_out[1]],
-                [options.dilation[0], options.dilation[1]],
-                options.groups,
-            ),
-        ),
+        1 => {
+            let out_grad = permute_nhwc_to_nchw(out_grad);
+            let weights = permute_nhwc_to_nchw(weights);
+
+            let in_grad = conv_transpose1d_from_conv_transpose2d(
+                out_grad,
+                weights,
+                ConvTransposeOptions::new(
+                    [options.stride[0]],
+                    [options.padding_begin()[0]],
+                    [padding_out[0]],
+                    [options.dilation[0]],
+                    options.groups,
+                ),
+            )?;
+
+            Ok(permute_nchw_to_nhwc(in_grad))
+        }
+        2 => {
+            let out_grad = permute_nhwc_to_nchw(out_grad);
+            let weights = permute_nhwc_to_nchw(weights);
+
+            let in_grad = conv_transpose2d(
+                out_grad,
+                weights,
+                None,
+                ConvTransposeOptions::new(
+                    [options.stride[0], options.stride[1]],
+                    [options.padding_begin()[0], options.padding_begin()[1]],
+                    [padding_out[0], padding_out[1]],
+                    [options.dilation[0], options.dilation[1]],
+                    options.groups,
+                ),
+                Default::default(),
+            )?;
+
+            Ok(permute_nchw_to_nhwc(in_grad))
+        }
         3 => {
-            // `conv_transpose3d` is NCHW-only, so this dimensionality still pays for the round
-            // trip. `conv_transpose2d_direct_nhwc` is the shape the fix would take here too.
+            // `conv_transpose3d` is NCHW-only.
             let out_grad = permute_nhwc_to_nchw(out_grad);
             let weights = permute_nhwc_to_nchw(weights);
 
@@ -129,29 +135,21 @@ pub(crate) fn conv_data_backward_fallback<const N_DIM: usize>(
 }
 
 /// Runs a 1D transposition as a 2D one whose width is a single column.
-///
-/// The unit axis goes between the length and the channels so the channel axis stays last, which
-/// is the order the 2D kernel decomposes. Its `x_start..x_end` loop then runs exactly once per
-/// output element.
-///
-/// Logical order only: these tensors were permuted from NCHW, so the channel axis is still the
-/// strided one and the kernel materializes it. Placing the unit axis correctly is what lets that
-/// one copy be the whole cost, rather than a copy plus a kernel reading against its layout.
-fn conv_transpose1d_from_conv_transpose2d_nhwc(
+fn conv_transpose1d_from_conv_transpose2d(
     x: CubeTensor,
     weight: CubeTensor,
     options: ConvTransposeOptions<1>,
 ) -> Result<CubeTensor, ConvSetupError> {
-    let [channels_in, kernel_size, channels_out] = weight.shape().dims();
-    let [batch_size, length_in, _channels_in] = x.shape().dims();
+    let [channels_in, channels_out, kernel_size] = weight.shape().dims();
+    let [batch_size, _channels_in, length_in] = x.shape().dims();
 
     let weight = reshape(
         weight,
-        Shape::new([channels_in, kernel_size, 1, channels_out]),
+        Shape::new([channels_in, channels_out, kernel_size, 1]),
     );
-    let x = reshape(x, Shape::new([batch_size, length_in, 1, channels_in]));
+    let x = reshape(x, Shape::new([batch_size, channels_in, length_in, 1]));
 
-    let tensor = conv_transpose2d_direct_nhwc(
+    let tensor = conv_transpose2d(
         x,
         weight,
         None,
@@ -162,10 +160,11 @@ fn conv_transpose1d_from_conv_transpose2d_nhwc(
             [options.dilation[0], 1],
             options.groups,
         ),
+        Default::default(),
     )?;
-    let [batch_size, height_out, _width_out, channels_out] = tensor.shape().dims();
+    let [batch_size, channels_out, height_out, _width_out] = tensor.shape().dims();
     Ok(reshape(
         tensor,
-        Shape::from([batch_size, height_out, channels_out]),
+        Shape::from([batch_size, channels_out, height_out]),
     ))
 }
