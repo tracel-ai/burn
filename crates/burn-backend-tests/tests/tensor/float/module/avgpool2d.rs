@@ -218,3 +218,48 @@ fn test_avg_pool2d_ceil_mode_count_include_pad() {
         Tolerance::default().set_half_precision_relative(1e-2),
     );
 }
+
+#[test]
+fn test_avg_pool2d_ceil_mode_drops_window_in_padding() {
+    // Input 5x5, kernel 2, stride 2, padding 1, ceil_mode: PyTorch gives 3x3.
+    // A 4th window would start at padded index 6, in the trailing padding, and cover no input.
+    // Windows cover input rows/cols {0}, {1, 2}, {3, 4}.
+    let x = TestTensor::from([[[
+        [0.0, 1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0, 9.0],
+        [10.0, 11.0, 12.0, 13.0, 14.0],
+        [15.0, 16.0, 17.0, 18.0, 19.0],
+        [20.0, 21.0, 22.0, 23.0, 24.0],
+    ]]]);
+    let expected =
+        TestTensor::<4>::from([[[[0.0, 1.5, 3.5], [7.5, 9.0, 11.0], [17.5, 19.0, 21.0]]]]);
+
+    let output = avg_pool2d(x, [2, 2], [2, 2], [1, 1], false, true);
+
+    expected.to_data().assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::default().set_half_precision_relative(1e-3),
+    );
+}
+
+#[test]
+fn test_avg_pool2d_ceil_mode_drops_window_in_padding_count_include_pad() {
+    // Input 5x5, kernel 2, stride 2, padding 1, ceil_mode: every window stays inside
+    // the padded input, so each divisor is 4.
+    let x = TestTensor::from([[[
+        [0.0, 1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0, 9.0],
+        [10.0, 11.0, 12.0, 13.0, 14.0],
+        [15.0, 16.0, 17.0, 18.0, 19.0],
+        [20.0, 21.0, 22.0, 23.0, 24.0],
+    ]]]);
+    let expected =
+        TestTensor::<4>::from([[[[0.0, 0.75, 1.75], [3.75, 9.0, 11.0], [8.75, 19.0, 21.0]]]]);
+
+    let output = avg_pool2d(x, [2, 2], [2, 2], [1, 1], true, true);
+
+    expected.to_data().assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::default().set_half_precision_relative(1e-3),
+    );
+}
