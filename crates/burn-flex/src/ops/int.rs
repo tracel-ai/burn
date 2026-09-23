@@ -34,6 +34,45 @@ fn scalar_to_int_pair(dtype: DType, rhs: &Scalar) -> (i64, u64) {
     }
 }
 
+// Shifts run on each dtype's native type instead of going through the i64
+// widening of int_binary_op/int_scalar_op. That keeps u64 right shifts logical
+// and makes wrapping_shl/wrapping_shr mask the shift amount to the operand's
+// own bit width.
+macro_rules! int_shift {
+    ($lhs:expr, $rhs:expr, $shift:ident) => {{
+        let (lhs, rhs) = crate::ops::expand::broadcast_binary($lhs, $rhs);
+        match lhs.dtype() {
+            DType::I64 => binary_op_typed(lhs, rhs, |a: i64, b: i64| a.$shift(b as u32)),
+            DType::I32 => binary_op_typed(lhs, rhs, |a: i32, b: i32| a.$shift(b as u32)),
+            DType::I16 => binary_op_typed(lhs, rhs, |a: i16, b: i16| a.$shift(b as u32)),
+            DType::I8 => binary_op_typed(lhs, rhs, |a: i8, b: i8| a.$shift(b as u32)),
+            DType::U64 => binary_op_typed(lhs, rhs, |a: u64, b: u64| a.$shift(b as u32)),
+            DType::U32 => binary_op_typed(lhs, rhs, |a: u32, b: u32| a.$shift(b)),
+            DType::U16 => binary_op_typed(lhs, rhs, |a: u16, b: u16| a.$shift(b as u32)),
+            DType::U8 => binary_op_typed(lhs, rhs, |a: u8, b: u8| a.$shift(b as u32)),
+            dtype => panic!("{}: unsupported dtype {:?}", stringify!($shift), dtype),
+        }
+    }};
+}
+
+macro_rules! int_shift_scalar {
+    ($lhs:expr, $rhs:expr, $shift:ident) => {{
+        let lhs = $lhs;
+        let amount = $rhs.to_i64().unwrap() as u32;
+        match lhs.dtype() {
+            DType::I64 => scalar_op_typed(lhs, 0i64, move |a, _| a.$shift(amount)),
+            DType::I32 => scalar_op_typed(lhs, 0i32, move |a, _| a.$shift(amount)),
+            DType::I16 => scalar_op_typed(lhs, 0i16, move |a, _| a.$shift(amount)),
+            DType::I8 => scalar_op_typed(lhs, 0i8, move |a, _| a.$shift(amount)),
+            DType::U64 => scalar_op_typed(lhs, 0u64, move |a, _| a.$shift(amount)),
+            DType::U32 => scalar_op_typed(lhs, 0u32, move |a, _| a.$shift(amount)),
+            DType::U16 => scalar_op_typed(lhs, 0u16, move |a, _| a.$shift(amount)),
+            DType::U8 => scalar_op_typed(lhs, 0u8, move |a, _| a.$shift(amount)),
+            dtype => panic!("{}: unsupported dtype {:?}", stringify!($shift), dtype),
+        }
+    }};
+}
+
 impl IntTensorOps<Flex> for Flex {
     fn int_from_data(data: TensorData, _device: &Device<Flex>) -> IntTensor<Flex> {
         FlexTensor::from_data(data)
@@ -924,34 +963,20 @@ impl IntTensorOps<Flex> for Flex {
         int_scalar_op(tensor, 0, |a, _| !a)
     }
 
-    // int_binary_op/int_scalar_op widen to i64 before applying the closure, so
-    // wrapping_shl/wrapping_shr mask the shift amount to 64, not to the operand
-    // dtype's own width. The result is truncated back to the operand dtype.
     fn bitwise_left_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a.wrapping_shl(b as u32))
+        int_shift!(lhs, rhs, wrapping_shl)
     }
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shl(b as u32))
+        int_shift_scalar!(lhs, rhs, wrapping_shl)
     }
 
-    // u64 values > i64::MAX are negative as i64, so the widened right shift
-    // would be arithmetic and fill with ones. Shift them as u64 instead.
     fn bitwise_right_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        if lhs.dtype() == DType::U64 {
-            let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
-            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a.wrapping_shr(b as u32));
-        }
-        int_binary_op(lhs, rhs, |a, b| a.wrapping_shr(b as u32))
+        int_shift!(lhs, rhs, wrapping_shr)
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        if lhs.dtype() == DType::U64 {
-            return scalar_op_typed(lhs, rhs.to_i64().unwrap() as u64, |a: u64, b: u64| {
-                a.wrapping_shr(b as u32)
-            });
-        }
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shr(b as u32))
+        int_shift_scalar!(lhs, rhs, wrapping_shr)
     }
 
     fn int_cast(tensor: IntTensor<Flex>, dtype: IntDType) -> IntTensor<Flex> {
@@ -1486,16 +1511,56 @@ mod tests {
     }
 
     #[test]
-    fn test_int_shift_masks_to_64_not_operand_width() {
-        // int_binary_op widens to i64, so wrapping_shl masks the shift amount
-        // to 64 and the i64 result is truncated back to i32. A native i32
-        // wrapping_shl would mask 33 to 1 and yield 2 instead of 0.
-        let a = FlexTensor::from_data(TensorData::new(vec![1i32], [1]));
-        let b = FlexTensor::from_data(TensorData::new(vec![33i32], [1]));
-        let result = Flex::bitwise_left_shift(a, b);
-        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
-        assert_eq!(data, vec![0i32]);
-        assert_eq!(1i32.wrapping_shl(33), 2i32);
+    fn test_int_shift_masks_to_operand_width() {
+        // wrapping_shl/wrapping_shr mask the shift amount to the operand's own
+        // bit width, so shifting by BITS + 1 behaves like shifting by 1.
+        macro_rules! check {
+            ($t:ty) => {{
+                let amount = <$t>::BITS as $t + 1;
+                let a = FlexTensor::from_data(TensorData::new(vec![4 as $t], [1]));
+                let b = FlexTensor::from_data(TensorData::new(vec![amount], [1]));
+                for (result, expected) in [
+                    (Flex::bitwise_left_shift(a.clone(), b.clone()), 8 as $t),
+                    (Flex::bitwise_right_shift(a.clone(), b), 2),
+                    (
+                        Flex::bitwise_left_shift_scalar(a.clone(), (amount as i64).into()),
+                        8,
+                    ),
+                    (
+                        Flex::bitwise_right_shift_scalar(a, (amount as i64).into()),
+                        2,
+                    ),
+                ] {
+                    let data: Vec<$t> = result.into_data().try_into_vec().unwrap();
+                    assert_eq!(data, vec![expected], "{}", stringify!($t));
+                }
+            }};
+        }
+        check!(i8);
+        check!(i16);
+        check!(i32);
+        check!(i64);
+        check!(u8);
+        check!(u16);
+        check!(u32);
+        check!(u64);
+    }
+
+    #[test]
+    fn test_signed_right_shift_is_arithmetic() {
+        let a = FlexTensor::from_data(TensorData::new(vec![i8::MIN, -1], [2]));
+        let result = Flex::bitwise_right_shift_scalar(a, 1i64.into());
+        let data: Vec<i8> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![i8::MIN >> 1, -1]);
+    }
+
+    #[test]
+    fn test_unsigned_right_shift_is_logical() {
+        let a = FlexTensor::from_data(TensorData::new(vec![u8::MAX, 1 << 7], [2]));
+        let b = FlexTensor::from_data(TensorData::new(vec![1u8, 7], [2]));
+        let result = Flex::bitwise_right_shift(a, b);
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![u8::MAX >> 1, 1]);
     }
 
     #[test]
