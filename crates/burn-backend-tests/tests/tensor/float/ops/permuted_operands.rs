@@ -88,6 +88,24 @@ fn unary_on_a_permuted_operand_matches_the_contiguous_answer() {
 }
 
 #[test]
+fn cast_on_a_permuted_operand_matches_the_contiguous_answer() {
+    let (permuted, contiguous) = permuted_and_contiguous();
+
+    // Two casts in a row: the second walks the first's output, which keeps the
+    // input's memory order rather than the logical one.
+    let permuted = permuted.mul_scalar(100.0);
+    let contiguous = contiguous.mul_scalar(100.0);
+    assert_same(
+        permuted.clone().int().float(),
+        contiguous.clone().int().float(),
+    );
+    assert_same(
+        permuted.int().float().reshape([120]),
+        contiguous.int().float().reshape([120]),
+    );
+}
+
+#[test]
 fn expanded_singleton_keeps_the_contiguous_answer() {
     let device = Default::default();
     let tensor = TestTensorInt::arange(0..1024, &device).float();
