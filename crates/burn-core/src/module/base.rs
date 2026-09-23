@@ -162,10 +162,6 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     fn collect_devices(&self, devices: Devices) -> Devices;
 
     /// Return all the devices found in the underneath module tree without duplicates.
-    ///
-    /// This traversal currently initializes lazy tensor parameters. For parameter-level inspection
-    /// without initialization, use [`Param::lazy_device`]. Device equality ignores autodiff and
-    /// checkpointing settings, so this list is not a summary of the module's training state.
     fn devices(&self) -> Devices {
         self.collect_devices(Devices::new())
     }
@@ -195,8 +191,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// A parameter not initialized yet initializes on the destination, unless a clone shares
     /// it, in which case it initializes where it is and is then moved.
-    /// Direct initialization creates a leaf rather than a transfer node; use [`fork`](Module::fork)
-    /// for destination training regardless of whether parameters have been initialized or cloned.
+    /// To train the module on the destination device, use [`fork`](Module::fork). This preserves
+    /// gradient retention whether the parameters are uninitialized, initialized, or shared with clones.
     fn to_device(self, device: &Device) -> Self;
 
     /// Set whether every floating-point tensor parameter in the module tree requires gradients.

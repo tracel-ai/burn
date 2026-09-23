@@ -219,16 +219,17 @@ let independent = model.fork(&destination); // Optimize this module on the desti
 
 Once a parameter's tensor has been initialized, `to_device` records the transfer in its autodiff
 graph, even if the compute device is unchanged. Gradients flow through the transferred tensor, but
-are not retained for that tensor itself, so an optimizer cannot update the moved parameter.
-`fork` detaches the transferred tensor from the original graph and restores its gradient-retention
-setting, allowing the destination parameter to be optimized independently.
+are not retained for that tensor itself, so an optimizer cannot update the moved parameter. `fork`
+detaches the transferred tensor from the original graph and restores its gradient-retention setting,
+allowing the destination parameter to be optimized independently.
 
 Burn initializes module parameters lazily by default: their tensor values are created when first
 accessed. If a parameter is still uninitialized and no clone shares its state, both `to_device` and
-`fork` simply change where it will be initialized. No transfer is recorded in this case, and built-in initializers
-use the destination device's random number generator and default dtype. If a clone still shares the
-state, the parameter is initialized on the source device before being transferred. Use `fork` for
-training on the destination so that your code works regardless of initialization or cloning.
+`fork` simply change where it will be initialized. No transfer is recorded in this case, and
+built-in initializers use the destination device's random number generator and default dtype. If a
+clone still shares the state, the parameter is initialized on the source device before being
+transferred. Use `fork` for training on the destination so that your code works regardless of
+initialization or cloning.
 
 Both operations preserve the source tensors' autodiff association and checkpointing strategy; the
 destination's autodiff defaults do not enable training. For a module created without autodiff or
@@ -239,7 +240,9 @@ configured training state, and create independent destination parameters.
 
 The `Module` trait provides both `valid()` and `train()`. Importing `Module` is sufficient for these
 transitions; there is no separate `AutodiffModule` trait. A `Module` bound does not establish the
-current autodiff state. Training and validation modules have the same Rust type.
+current autodiff state. Training and validation modules have the same Rust type. Inspect individual
+parameter tensors with `is_autodiff()` to check whether autodiff is enabled and `is_require_grad()`
+to check whether their gradients are retained.
 
 | Burn API         | PyTorch Equivalent |
 | ---------------- | ------------------ |
@@ -258,17 +261,6 @@ Ordinary model inputs need no `require_grad()` unless their own gradients are ne
 
 Burn's `freeze()` and `unfreeze()` persistently set both tensor gradient tracking and module-owned
 training flags, so they have no direct PyTorch equivalent.
-
-### Inspecting a module
-
-`module.devices()` lists the compute devices used by the module, and `module.num_params()` returns
-the total number of parameter elements.
-
-The device list does not describe the module's training state: devices that differ only in autodiff
-or checkpointing settings count as the same device. Inspect individual parameter tensors with
-`is_autodiff()` to check whether autodiff is enabled and `is_require_grad()` to check whether their
-gradients are retained. Layer behavior, such as whether dropout is active, also depends on the
-module-owned training flags described above.
 
 ## Visitor & Mapper
 
