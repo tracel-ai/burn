@@ -27,9 +27,12 @@ pub use cubecl_zspace::{Strides, metadata::Metadata, strides};
 ///
 /// A tensor is considered contiguous if its elements are stored in memory
 /// such that the stride at position `k` is equal to the product of the shapes
-/// of all dimensions greater than `k`.
+/// of all dimensions greater than `k`, except for dimensions of size one.
 ///
-/// This means that strides increase as you move from the rightmost to the leftmost dimension.
+/// This means that strides increase as you move from the rightmost to the leftmost dimension,
+/// ignoring dimensions of size one.
+///
+/// Dimensions of size one may have any stride, including zero, since their stride is never applied.
 pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     if shape.is_empty() {
         return true;
