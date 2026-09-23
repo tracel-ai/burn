@@ -212,7 +212,7 @@ jobs:
     # runtime here, without adding one to either crate's default features.
     steps: &publish-with-runtime
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
       - name: validate version and check registry
