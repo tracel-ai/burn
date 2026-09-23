@@ -154,3 +154,71 @@ fn should_grid_sample_2d_nearest_round_half_to_even() {
         .to_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
+
+/// A grid held component-first, `[N, 2, H, W]`, and moved to the trailing position with a
+/// `permute` view has the required shape but a non-unit component stride. It must sample the
+/// same points as the contiguous grid.
+#[test]
+fn should_grid_sample_2d_permuted_grid_view() {
+    let device = Default::default();
+    let tensor = TestTensor::<4>::from_data(
+        [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
+        &device,
+    );
+    let grid = TestTensor::<4>::from_data(
+        [[[[0.0, 0.0], [-1.0, 0.25]], [[1.0, 1.0], [0.2, -0.8]]]],
+        &device,
+    );
+    // The same four points, stored as all x then all y.
+    let permuted = TestTensor::<4>::from_data(
+        [[[[0.0, -1.0], [1.0, 0.2]], [[0.0, 0.25], [1.0, -0.8]]]],
+        &device,
+    )
+    .permute([0, 2, 3, 1]);
+    assert_eq!(permuted.dims(), grid.dims());
+
+    let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+        .with_padding_mode(GridSamplePaddingMode::Reflection);
+    let expected = tensor
+        .clone()
+        .grid_sample_2d(grid, options.clone())
+        .to_data();
+    let output = tensor.grid_sample_2d(permuted, options);
+    output
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+/// Both tensors must be rank 4.
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn should_grid_sample_2d_reject_wrong_rank() {
+    let device = Default::default();
+    let tensor = TestTensor::<3>::zeros([1, 2, 2], &device);
+    let grid = TestTensor::<3>::zeros([2, 2, 2], &device);
+
+    let _ = tensor.grid_sample_2d(grid, GridSampleOptions::default());
+}
+
+/// The grid's last dimension must hold exactly the two `(x, y)` coordinates.
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn should_grid_sample_2d_reject_wrong_coordinate_count() {
+    let device = Default::default();
+    let tensor = TestTensor::<4>::zeros([1, 1, 2, 2], &device);
+    let grid = TestTensor::<4>::zeros([1, 2, 2, 3], &device);
+
+    let _ = tensor.grid_sample_2d(grid, GridSampleOptions::default());
+}
+
+/// The output is allocated over the input's batch, so a grid with a different batch extent is
+/// rejected up front rather than read out of bounds or silently truncated.
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn should_grid_sample_2d_reject_batch_mismatch() {
+    let device = Default::default();
+    let tensor = TestTensor::<4>::zeros([2, 1, 2, 2], &device);
+    let grid = TestTensor::<4>::zeros([1, 2, 2, 2], &device);
+
+    let _ = tensor.grid_sample_2d(grid, GridSampleOptions::default());
+}

@@ -660,6 +660,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// A tensor with shape (N, C, H_out, W_out)
     ///
+    /// # Panics
+    ///
+    /// If the tensors are not rank 4, the grid's last dimension is not 2, or the batch sizes
+    /// differ.
+    ///
     /// # Example
     ///
     /// ```ignore
@@ -679,6 +684,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         grid: Tensor<D>,
         options: impl Into<GridSampleOptions>,
     ) -> Tensor<D> {
+        check!(TensorCheck::grid_sample_2d(&self, &grid));
         Tensor::new(grid_sample_2d_impl(
             self.primitive,
             grid.primitive,

@@ -528,6 +528,16 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn grid_sample_2d<const D: usize, K>(
+        tensor: &Tensor<D, K>,
+        grid: &Tensor<D, K>,
+    ) -> Self
+    where
+        K: BasicOps,
+    {
+        Self::grid_sample::<D, K>("GridSample2d", tensor, grid, 4, 2)
+    }
+
     pub(crate) fn grid_sample_3d<const D: usize, K>(
         tensor: &Tensor<D, K>,
         grid: &Tensor<D, K>,
@@ -535,16 +545,31 @@ impl TensorCheck {
     where
         K: BasicOps,
     {
+        Self::grid_sample::<D, K>("GridSample3d", tensor, grid, 5, 3)
+    }
+
+    /// Grid sampling takes a `(N, C, spatial...)` tensor and a `(N, spatial..., coords)` grid of
+    /// the same rank, with one coordinate per spatial dimension, over the same batch.
+    fn grid_sample<const D: usize, K>(
+        ops: &str,
+        tensor: &Tensor<D, K>,
+        grid: &Tensor<D, K>,
+        rank: usize,
+        coords: usize,
+    ) -> Self
+    where
+        K: BasicOps,
+    {
         let mut check = Self::Ok;
 
-        check = check.binary_ops_device("GridSample3d", &tensor.device(), &grid.device());
+        check = check.binary_ops_device(ops, &tensor.device(), &grid.device());
 
-        if D != 5 {
+        if D != rank {
             return check.register(
-                "GridSample3d",
+                ops,
                 TensorError::new(format!(
-                    "Grid sampling in three dimensions requires rank 5 tensors, \
-                     (N, C, D_in, H_in, W_in) and (N, D_out, H_out, W_out, 3), but got rank {D}."
+                    "Grid sampling in {coords} dimensions requires rank {rank} tensors, \
+                     (N, C, spatial...) and (N, spatial..., {coords}), but got rank {D}."
                 )),
             );
         }
@@ -552,19 +577,19 @@ impl TensorCheck {
         let shape_tensor = tensor.shape();
         let shape_grid = grid.shape();
 
-        if shape_grid[4] != 3 {
+        if shape_grid[D - 1] != coords {
             check = check.register(
-                "GridSample3d",
+                ops,
                 TensorError::new(format!(
-                    "The grid's last dimension holds the (x, y, z) coordinates and must have size 3, but got {}.",
-                    shape_grid[4]
+                    "The grid's last dimension holds the sampling coordinates and must have size {coords}, but got {}.",
+                    shape_grid[D - 1]
                 )),
             );
         }
 
         if shape_tensor[0] != shape_grid[0] {
             check = check.register(
-                "GridSample3d",
+                ops,
                 TensorError::new(format!(
                     "The tensor and grid batch sizes must match, but got {} and {}.",
                     shape_tensor[0], shape_grid[0]
