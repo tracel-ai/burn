@@ -16,7 +16,10 @@ use crate::{
 };
 use crate::{NdArrayDevice, SEED, execute_with_float_out_dtype, execute_with_int_out_dtype, slice};
 use crate::{SharedArray, element::ExpElement};
-use crate::{execute_with_float_dtype, ops::grid_sample::grid_sample_2d};
+use crate::{
+    execute_with_float_dtype,
+    ops::grid_sample::{grid_sample_2d, grid_sample_3d},
+};
 
 // Workspace crates
 use crate::rand::get_seeded_rng;
@@ -835,6 +838,16 @@ impl FloatTensorOps<Self> for NdArray {
         options: GridSampleOptions,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, grid), |tensor, grid| grid_sample_2d(
+            tensor, grid, options
+        ))
+    }
+
+    fn float_grid_sample_3d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        execute_with_float_dtype!((tensor, grid), |tensor, grid| grid_sample_3d(
             tensor, grid, options
         ))
     }

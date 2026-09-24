@@ -2969,6 +2969,49 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn float_grid_sample_3d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct GridSample3dOps<B: FusionBackend> {
+            desc: GridSample3dOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for GridSample3dOps<B> {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
+                let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
+                let grid = handles.get_float_tensor::<B>(&self.desc.grid);
+                let output =
+                    B::float_grid_sample_3d(tensor, grid, self.desc.options.clone().into());
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc =
+            GridSample3dOpIr::create(tensor.into_ir(), grid.into_ir(), options.into(), || {
+                client.create_empty_handle()
+            });
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::GridSample3d(desc.clone())),
+                GridSample3dOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn float_hypot(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         binary_float_ops!(HypotOps, B::float_hypot);
 

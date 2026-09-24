@@ -12,10 +12,10 @@ use burn_backend::{
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
     FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, GridSample2dOpIr,
-    InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr,
-    OperationOutput, PadOpIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr,
-    ReduceDimsOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr,
-    SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr,
+    GridSample3dOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr,
+    OperationIr, OperationOutput, PadOpIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
+    ReduceDimWithIndicesOpIr, ReduceDimsOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr,
+    ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr,
     SortWithIndicesOpIr, SwapDimsOpIr, TopKWithIndicesOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
@@ -333,6 +333,25 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .register(OperationIr::Float(
                 desc.out.dtype,
                 FloatOperationIr::GridSample2d(desc),
+            ))
+            .output()
+    }
+
+    fn float_grid_sample_3d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: burn_backend::ops::GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc =
+            GridSample3dOpIr::create(tensor.into_ir(), grid.into_ir(), options.into(), || {
+                client.create_empty_handle()
+            });
+
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::GridSample3d(desc),
             ))
             .output()
     }

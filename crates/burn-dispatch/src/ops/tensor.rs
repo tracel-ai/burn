@@ -672,6 +672,14 @@ impl FloatTensorOps<Self> for Dispatch {
         B::float_grid_sample_2d(tensor, grid, options)
     }
 
+    fn float_grid_sample_3d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: burn_backend::ops::GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        B::float_grid_sample_3d(tensor, grid, options)
+    }
+
     fn float_is_nan(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
         B::float_is_nan(tensor, out_dtype)
     }

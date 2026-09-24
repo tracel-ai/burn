@@ -660,6 +660,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// A tensor with shape (N, C, H_out, W_out)
     ///
+    /// # Panics
+    ///
+    /// If the tensors are not rank 4, the grid's last dimension is not 2, or the batch sizes
+    /// differ.
+    ///
     /// # Example
     ///
     /// ```ignore
@@ -679,7 +684,67 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         grid: Tensor<D>,
         options: impl Into<GridSampleOptions>,
     ) -> Tensor<D> {
+        check!(TensorCheck::grid_sample_2d(&self, &grid));
         Tensor::new(grid_sample_2d_impl(
+            self.primitive,
+            grid.primitive,
+            options.into(),
+        ))
+    }
+
+    /// Samples tensor as a three-dimensional spatial grid of (possibly multi-channel) values,
+    /// using the given locations in [-1, 1].
+    ///
+    /// `self` must be contiguous with shape (N, C, D_in, H_in, W_in).
+    ///
+    /// # Arguments
+    ///
+    /// * `grid` - A tensor of locations, with shape (N, D_out, H_out, W_out, 3). Values are
+    ///   [-1, 1] and the last dimension is ordered `(x, y, z)` — the reverse of the spatial
+    ///   dimension order, matching PyTorch. `x` indexes `W_in`, `y` indexes `H_in` and `z`
+    ///   indexes `D_in`, so [x = -1, y = -1, z = -1] means the front-top-left corner and
+    ///   [x = 1, y = 1, z = 1] the back-bottom-right one
+    /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
+    ///
+    /// With `align_corners = true`, -1 and 1 address the centers of the corner voxels, so a
+    /// coordinate maps to pixel space as `(v + 1) * (size - 1) / 2`. With `align_corners = false`
+    /// (the default) they address the outer corners of those voxels, mapping as
+    /// `(v + 1) * size / 2 - 0.5`.
+    ///
+    /// [`InterpolateMode::Bilinear`] selects trilinear interpolation at this rank.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with shape (N, C, D_out, H_out, W_out)
+    ///
+    /// # Panics
+    ///
+    /// If the tensors are not rank 5, the grid's last dimension is not 3, or the batch sizes
+    /// differ.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+    ///
+    /// // Default options (trilinear, zeros padding, align_corners=false)
+    /// let output = tensor.grid_sample_3d(grid, GridSampleOptions::default());
+    ///
+    /// // Custom options
+    /// let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    ///     .with_padding_mode(GridSamplePaddingMode::Border)
+    ///     .with_align_corners(true);
+    /// let output = tensor.grid_sample_3d(grid, options);
+    /// ```
+    ///
+    /// [`InterpolateMode::Bilinear`]: burn_backend::ops::InterpolateMode::Bilinear
+    pub fn grid_sample_3d(
+        self,
+        grid: Tensor<D>,
+        options: impl Into<GridSampleOptions>,
+    ) -> Tensor<D> {
+        check!(TensorCheck::grid_sample_3d(&self, &grid));
+        Tensor::new(grid_sample_3d_impl(
             self.primitive,
             grid.primitive,
             options.into(),
@@ -1231,6 +1296,18 @@ fn grid_sample_2d_impl(
     options: GridSampleOptions,
 ) -> BridgeTensor {
     BridgeTensor::float(Dispatch::float_grid_sample_2d(
+        p.into_float(),
+        grid.into_float(),
+        options,
+    ))
+}
+
+fn grid_sample_3d_impl(
+    p: BridgeTensor,
+    grid: BridgeTensor,
+    options: GridSampleOptions,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_grid_sample_3d(
         p.into_float(),
         grid.into_float(),
         options,

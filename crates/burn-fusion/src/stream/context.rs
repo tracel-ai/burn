@@ -852,6 +852,14 @@ impl RelativeOps for FloatOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            FloatOperationIr::GridSample3d(desc) => {
+                FloatOperationIr::GridSample3d(GridSample3dOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    grid: desc.grid.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }

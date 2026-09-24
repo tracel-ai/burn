@@ -1134,6 +1134,14 @@ impl FloatTensorOps<Flex> for Flex {
         crate::ops::grid_sample::grid_sample_2d(tensor, grid, options)
     }
 
+    fn float_grid_sample_3d(
+        tensor: FloatTensor<Flex>,
+        grid: FloatTensor<Flex>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<Flex> {
+        crate::ops::grid_sample::grid_sample_3d(tensor, grid, options)
+    }
+
     fn float_zeros(shape: Shape, _device: &Device<Flex>, dtype: FloatDType) -> FloatTensor<Flex> {
         FlexTensor::zeros(shape, dtype.into())
     }

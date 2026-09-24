@@ -21,7 +21,10 @@ use crate::{
 
 use burn_backend::{
     Backend, ExecutionError, TensorData, TensorMetadata, get_device_settings,
-    ops::FloatTensorOps,
+    ops::{
+        FloatTensorOps, GridSampleOptions,
+        grid_sample::{float_grid_sample_3d_grid_backward, float_grid_sample_3d_x_backward},
+    },
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Scalar, ops::unfold::calculate_unfold_windows};
@@ -4789,6 +4792,124 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::UnTracked(prep) => {
                 prep.finish(B::float_unfold(tensor.primitive, dim, size, step))
             }
+        }
+    }
+
+    /// Samples a volume on a grid of locations, differentiating through both parents.
+    ///
+    /// Without this override `Autodiff` inherits the default trait body, which decomposes the op
+    /// into primitive tensor ops and gets a correct gradient for free — but at the cost of
+    /// abandoning the inner backend's fused forward kernel the moment autodiff is switched on.
+    /// This runs `B::float_grid_sample_3d` (the fast path) forward and applies the closed-form
+    /// gradient backward.
+    fn float_grid_sample_3d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        /// Backward pass of trilinear (and nearest) grid sampling.
+        ///
+        /// # Gradients
+        ///
+        /// Writing the forward as a sum over the eight corners of the voxel a sample lands in,
+        ///
+        /// ```text
+        /// out[n, c, o] = sum_corners  mu * V[n, c, corner] * w_x * w_y * w_z
+        /// ```
+        ///
+        /// with `w_0 = 1 - t` and `w_1 = t` the per-axis interpolation weights and `mu` the
+        /// corner's in-bounds flag under `Zeros` padding, there are exactly two derivatives:
+        ///
+        /// * **w.r.t. the sampled tensor** — only `V` depends on it, so the transpose scatter-adds
+        ///   `grad_output * mu * w_x w_y w_z` back onto each of the eight corner locations.
+        /// * **w.r.t. the grid** — only the weights depend on it, and they are separable and
+        ///   piecewise linear, so `d w / d q` is `-1` for a corner's lower neighbour along an axis
+        ///   and `+1` for its upper one, leaving the other two axes' weights as a factor:
+        ///   `d out / d q_x = sum_corners mu * V[corner] * (±1) * w_y * w_z`. That is summed over
+        ///   channels (one grid coordinate drives every channel of a position) and chained through
+        ///   the padding-mode derivative `d q / d p` and the `[-1, 1]`-to-pixel scale
+        ///   `d p / d g`, which is `(size - 1) / 2` when `align_corners` and `size / 2` otherwise.
+        ///
+        /// Padding modes differ only in `d q / d p`: `Zeros` is 1 (out-of-bounds handling is
+        /// carried entirely by `mu`), `Border` is 1 strictly inside `(0, size - 1)` and 0 at or
+        /// beyond both borders, and `Reflection` is the triangle wave's `±1`. Nearest mode is
+        /// piecewise constant in the grid, so its grid gradient is zero.
+        ///
+        /// The math itself lives beside the forward it differentiates, in
+        /// `burn_backend::ops::grid_sample`, so that the two share one definition of the
+        /// coordinate unnormalization, the reflection, the in-bounds test and the voxel
+        /// linearization. See `float_grid_sample_3d_x_backward` and
+        /// `float_grid_sample_3d_grid_backward` for the full derivation and the PyTorch parity
+        /// statement.
+        #[derive(Debug)]
+        struct GridSample3d;
+
+        impl<B: Backend> Backward<B, 2> for GridSample3d {
+            /// The checkpointed sampled tensor (only needed for the grid gradient), the
+            /// checkpointed grid (needed by both), the sampled tensor's shape and the options.
+            type State = (Option<NodeId>, NodeId, Shape, GridSampleOptions);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let (tensor_state, grid_state, tensor_shape, options) = ops.state;
+
+                let grid = checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(grid_state);
+                let [grid_4tensor, grid_4grid] = duplicate(&ops.parents, Some(grid));
+                let tensor = tensor_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
+                let options_4grid = options.clone();
+
+                binary::<B, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        float_grid_sample_3d_x_backward::<B>(
+                            tensor_shape,
+                            grid_4tensor.unwrap(),
+                            grad,
+                            options,
+                        )
+                    },
+                    |grad| {
+                        float_grid_sample_3d_grid_backward::<B>(
+                            tensor.unwrap(),
+                            grid_4grid.unwrap(),
+                            grad,
+                            options_4grid,
+                        )
+                    },
+                );
+            }
+        }
+
+        // The input gradient needs only the grid; the grid gradient needs the sampled tensor too,
+        // so that one is checkpointed only when the grid is actually tracked.
+        let grid_tracked = grid.is_tracked();
+        let tensor_shape = tensor.primitive.shape();
+
+        match GridSample3d
+            .prepare::<C>([tensor.node(), grid.node()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let tensor_state = grid_tracked.then(|| prep.checkpoint(&tensor));
+                let grid_state = prep.checkpoint(&grid);
+                let output =
+                    B::float_grid_sample_3d(tensor.primitive, grid.primitive, options.clone());
+
+                prep.finish((tensor_state, grid_state, tensor_shape, options), output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_grid_sample_3d(
+                tensor.primitive,
+                grid.primitive,
+                options,
+            )),
         }
     }
 }
