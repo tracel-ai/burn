@@ -163,7 +163,7 @@ impl StatusView {
                 Block::default()
                     .borders(Borders::ALL)
                     .title(match &self.label {
-                        Some(label) => format!("Status: {label}"),
+                        Some(label) => format!("Status: {label} "),
                         None => "Status".to_owned(),
                     }),
             )
