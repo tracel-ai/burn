@@ -1,6 +1,6 @@
 use crate::{
     base::{Address, CommunicationChannel, CommunicationError, Message, ProtocolClient},
-    websocket::base::parse_ws_address,
+    websocket::base::{DeadPeerTimeout, parse_ws_address},
 };
 use burn_std::future::DynFut;
 use futures::{
@@ -43,6 +43,7 @@ async fn connect_ws(address: Address, route: String) -> Result<WsClientChannel, 
         true,
     )
     .await?;
+    stream.get_ref().get_ref().set_dead_peer_timeout();
 
     Ok(WsClientChannel { inner: stream })
 }
@@ -203,5 +204,40 @@ impl From<std::io::Error> for WsClientError {
 impl From<tungstenite::Error> for WsClientError {
     fn from(err: tungstenite::Error) -> Self {
         Self::Tungstenite(err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use socket2::SockRef;
+    use tokio::net::TcpListener;
+
+    use super::*;
+    use crate::{
+        base::ProtocolServer,
+        websocket::{WsServer, WsServerChannel},
+    };
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_connected_client_probes_an_idle_server() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server =
+            WsServer::new(port).route("/probe", |mut channel: WsServerChannel| async move {
+                let _ = channel.recv().await;
+            });
+        tokio::spawn(server.serve_on(listener, std::future::pending()));
+
+        let address = Address::from(format!("ws://127.0.0.1:{port}").as_str());
+        let channel = WsClient::connect(address, "probe").await.unwrap();
+
+        let socket = SockRef::from(channel.inner.get_ref().get_ref());
+        assert!(socket.keepalive().unwrap());
+        assert_eq!(
+            socket.tcp_keepalive_time().unwrap(),
+            Duration::from_secs(10)
+        );
     }
 }
