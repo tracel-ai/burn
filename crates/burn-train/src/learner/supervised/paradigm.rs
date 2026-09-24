@@ -67,6 +67,7 @@ pub struct SupervisedTraining<M: LearnerModel> {
     summary_metrics: BTreeSet<String>,
     summary: bool,
     progress_logger: Option<Box<dyn TrainingProgressLogger>>,
+    label: Option<String>,
 }
 
 impl<M: LearnerModel> SupervisedTraining<M> {
@@ -116,6 +117,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
             dataloader_train,
             dataloader_valid,
             progress_logger: None,
+            label: None,
         }
     }
 }
@@ -355,6 +357,12 @@ impl<M: LearnerModel> SupervisedTraining<M> {
         self.summary = true;
         self
     }
+
+    /// Set a label for this training, making it easier to differentiate multiple runs.
+    pub fn label(mut self, label: &str) -> Self {
+        self.label = Some(label.to_string());
+        self
+    }
 }
 
 impl<M: LearnerModel> SupervisedTraining<M> {
@@ -411,6 +419,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
             num_epochs: self.num_epochs,
             grad_accumulation: self.grad_accumulation,
             summary,
+            label: self.label,
         };
 
         // Default to single device based on model

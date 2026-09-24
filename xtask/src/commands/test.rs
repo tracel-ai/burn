@@ -632,6 +632,7 @@ pub(crate) fn handle_command(
                             "burn-vision/flex",
                             "burn-vision/loss",
                             "burn-train/default",
+                            "burn-train/rl",
                             "burn-train/vision",
                         ],
                         args.release,

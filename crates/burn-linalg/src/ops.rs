@@ -71,7 +71,7 @@ where
         sweeps: usize,
         swap: bool,
     ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
-        use alloc::vec;
+        use alloc::{vec, vec::Vec};
         use burn_core::tensor::Shape;
         use burn_fusion::{
             ExecutionError, FusionBackend, FusionRuntime,

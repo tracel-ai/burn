@@ -42,6 +42,18 @@ pub(crate) fn handle_command(
                     &format!("backend-free no-std with target {}", *build_target),
                 )?;
 
+                // Fusion does not build on embedded targets, so only cover it on the host.
+                // Without this, the fusion paths in burn-linalg are only compiled with std.
+                if *build_target == "Default" {
+                    build_helpers::custom_crates_build(
+                        vec!["burn-linalg"],
+                        vec!["--no-default-features", "--features", "fusion"],
+                        None,
+                        None,
+                        "no-std with fusion",
+                    )?;
+                }
+
                 let mut crates = NO_STD_CRATES.to_vec();
 
                 if *build_target == ARM_NO_ATOMIC_PTR_TARGET {

@@ -13,6 +13,8 @@ pub enum RLEvent<TS, ES> {
     Start {
         /// The total number of items to process during training (e.g., total number of environment steps).
         total_items: usize,
+        /// An optional label for this training.
+        label: Option<String>,
     },
     /// Signal an agent's training step.
     TrainStep(EvaluationItem<TS>),
@@ -106,7 +108,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
 {
     fn process_train(&mut self, event: RLEvent<TS, ES>) {
         match event {
-            RLEvent::Start { total_items } => {
+            RLEvent::Start { total_items, label } => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(Event::MetricsInit(definitions.clone()));
@@ -114,9 +116,10 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.start(0, 0, Some(total_items));
+                    logger.start(0, 0, Some(total_items), label.as_deref());
                 }
-                self.renderer.start(0, 0, Some(total_items));
+                self.renderer
+                    .start(0, 0, Some(total_items), label.as_deref());
             }
             RLEvent::TrainStep(item) => {
                 let item = item.sync();

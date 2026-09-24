@@ -153,3 +153,31 @@ fn test_max_pool1d_ceil_mode() {
         .to_data()
         .assert_approx_eq::<FloatElem>(&output_ceil.into_data(), Tolerance::default());
 }
+
+#[test]
+fn test_max_pool1d_ceil_mode_kernel_larger_than_input() {
+    // Input 2, kernel 3, stride 2, no padding, ceil_mode: PyTorch gives a single window
+    // that starts at 0 and runs past the input.
+    let x = TestTensor::from([[[0.0, 1.0]]]);
+    let expected = TestTensor::<3>::from([[[1.0]]]);
+
+    let output = max_pool1d(x, 3, 2, 0, 1, true);
+
+    expected
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_max_pool1d_ceil_mode_drops_window_past_input() {
+    // Input 5, kernel 1, stride 3, no padding, ceil_mode: PyTorch gives 2.
+    // A 3rd window would start at index 6, past the input.
+    let x = TestTensor::from([[[0.0, 1.0, 2.0, 3.0, 4.0]]]);
+    let expected = TestTensor::<3>::from([[[0.0, 3.0]]]);
+
+    let output = max_pool1d(x, 1, 3, 0, 1, true);
+
+    expected
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+}

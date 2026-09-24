@@ -191,13 +191,15 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// # Warnings
     ///
-    /// The operation supports autodiff and it will be registered when activated. However, this may
-    /// not be what you want. The output model will be an intermediary model, meaning that you
+    /// For initialized parameters, the operation supports autodiff and is registered when activated.
+    /// This may not be what you want. The output model will be an intermediary model, meaning that you
     /// can't optimize it with gradient descent. If you want to optimize the output network on the
     /// target device, use [fork](Module::fork) instead.
     ///
     /// A parameter not initialized yet initializes on the destination, unless a clone shares
     /// it, in which case it initializes where it is and is then moved.
+    /// To train the module on the destination device, use [`fork`](Module::fork). This preserves
+    /// gradient retention whether the parameters are uninitialized, initialized, or shared with clones.
     fn to_device(self, device: &Device) -> Self;
 
     /// Set whether every floating-point tensor parameter in the module tree requires gradients.

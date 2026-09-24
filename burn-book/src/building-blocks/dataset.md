@@ -40,6 +40,11 @@ collection of items.
 However, you can compose multiple dataset transformations to lazily obtain what you want with zero
 pre-processing, so that your training can start instantly!
 
+The built-in dataloader currently accepts only datasets using the default `DatasetError` type.
+For a custom error type (including `SqliteDatasetError`), wrap the dataset and map retrieval errors
+with `DatasetError::new` before passing it to `DataLoaderBuilder::build`. Forward `get_many` as well
+as `get` to preserve a dataset's batched retrieval optimization.
+
 ## Transformation
 
 Transformations in Burn are all lazy and modify one or multiple input datasets. The goal of these
@@ -92,7 +97,7 @@ let explicit = SelectionDataset::from_indices_checked(dataset.clone(), vec![0, 1
 let shuffled = SelectionDataset::new_shuffled(dataset.clone(), &mut rng);
 let shuffled = SelectionDataset::new_shuffled(dataset.clone(), 42);
 
-let mut mutable = SelectionDataset::new_select_all(dataset.clone(), vec![0, 1, 2, 0]);
+let mut mutable = SelectionDataset::new_select_all(dataset.clone());
 mutable.shuffle(42);
 mutable.shuffle(&mut rng);
 ```
@@ -104,8 +109,8 @@ mutable.shuffle(&mut rng);
   The `ShuffledDataset` is a thin wrapper around the `SelectionDataset`.
 
 ```rust, ignore
-let dataset = ShuffledDataset<DbPedia, DbPediaItem>::new(dataset, &mut rng);
-let dataset = ShuffledDataset<DbPedia, DbPediaItem>::new(dataset, 42);
+let dataset = ShuffledDataset::<DbPedia, DbPediaItem>::new(dataset, &mut rng);
+let dataset = ShuffledDataset::<DbPedia, DbPediaItem>::new(dataset, 42);
 ```
 
 - **PartialDataset**: This transform is useful to return a view of the dataset with specified start
@@ -114,7 +119,7 @@ let dataset = ShuffledDataset<DbPedia, DbPediaItem>::new(dataset, 42);
 
 ```rust, ignore
 // define chained dataset type here for brevity
-type PartialData = PartialDataset<ShuffledDataset<DbPedia, DbPediaItem>>;
+type PartialData = PartialDataset<ShuffledDataset<DbPedia, DbPediaItem>, DbPediaItem>;
 let len = dataset.len();
 let split = "train"; // or "val"/"test"
 

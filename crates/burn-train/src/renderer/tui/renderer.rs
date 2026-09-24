@@ -56,6 +56,7 @@ enum TuiRendererEvent {
         reset: bool,
     },
     CounterUpdate(String),
+    LabelUpdate(Option<String>),
     SplitEnd,
     ManualClose,
     Close,
@@ -228,7 +229,14 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
 }
 
 impl TrainingProgressLogger for TuiMetricsRendererWrapper {
-    fn start(&mut self, total_epochs: usize, starting_epoch: usize, total_items: Option<usize>) {
+    fn start(
+        &mut self,
+        total_epochs: usize,
+        starting_epoch: usize,
+        total_items: Option<usize>,
+        label: Option<&str>,
+    ) {
+        self.send_event(TuiRendererEvent::LabelUpdate(label.map(str::to_string)));
         self.training_progress.global =
             Progress::new(starting_epoch, total_epochs, Some("epochs".to_string()));
         if let Some(items) = total_items {
@@ -446,6 +454,7 @@ impl TuiMetricsRenderer {
             TuiRendererEvent::CounterUpdate(event) => {
                 self.status.update_counter(event);
             }
+            TuiRendererEvent::LabelUpdate(label) => self.status.update_label(label.as_deref()),
             TuiRendererEvent::SplitEnd => {
                 self.status.reset_counters();
             }

@@ -21,6 +21,13 @@ backend constructor you use; `burn` has no default execution backend.
 | `candle`, `candle-cuda`, `candle-metal`                                       | Removed                                                                                                                                                |
 | `router`, `dispatch`, `distributed`, `collective`, `record-item-custom-serde` | Removed; runtime dispatch and `burn::tensor::distributed` are built in                                                                                 |
 
+With `default-features = false`, enable `optim` explicitly if you use `burn::optim` or
+`burn::lr_scheduler`; `train` also enables it.
+
+Reinforcement learning is opt-in. Enable the `rl` feature on `burn` to use `burn::rl` and the RL
+learner in `burn::train`. If you depend on `burn-train` directly, `rl` is no longer one of its
+default features.
+
 ## Types and devices
 
 | Previous API                                        | 0.22 API                                                                          |
@@ -33,6 +40,10 @@ backend constructor you use; `burn` has no default execution backend.
 | Backend element type parameters                     | Device dtype defaults, explicit creation dtypes, and `tensor.cast(...)`           |
 | `tensor.into_scalar()`                              | `tensor.into_scalar::<f32>()`, or an inferred element type                        |
 | Backend-generic optimizers                          | `ModuleOptimizer`, returned by optimizer configuration `init()`                   |
+| `burn::module::Initializer`                         | `burn::nn::Initializer`                                                           |
+
+Device-level operations previously called through `B: Backend`, such as seeding and synchronization,
+are now methods on `Device`. See [Using a Device](./building-blocks/backend.md#using-a-device).
 
 When upgrading a model, remove its backend parameter and the corresponding parameters on fields and
 methods. The rank and kind remain part of the tensor type:
@@ -70,10 +81,10 @@ assert!(model.linear.weight.grad(&gradients).is_some());
 Configure device dtype defaults before creating tensors. Configuration is shared by the compute
 device and can only be initialized once. See [Backend and Device](./building-blocks/backend.md).
 
-Scalar readback is now generic over the returned element type. Specify it explicitly with
-`tensor.into_scalar::<f32>()` or let a typed binding infer it:
-`let value: f32 = tensor.into_scalar();`. The same applies to asynchronous and fallible scalar
-readback methods.
+Prefer explicit device constructors during migration. `Device::default()` chooses from compiled-in
+backends, not from available hardware. Enabling an additional backend through Cargo feature
+unification can therefore change the default. This also affects implicit device selection by
+`Tensor::from(...)` and dataloaders without `set_device(...)`.
 
 ## Autodiff is runtime state
 
@@ -104,9 +115,12 @@ or combine losses sharing intermediates before backward. See
 to an autodiff device does not enable autodiff; moving an autodiff tensor to a plain device does not
 disable it. Device equality ignores those settings.
 
-For modules, `to_device()` preserves gradient connections to source parameters. Its tracked output
-parameters are intermediates that cannot themselves be optimized. Use `fork(&destination)` for
-independent destination leaves. Starting from a plain or validation module, use
+For initialized module parameters, `to_device()` preserves gradient connections to source
+parameters. Its tracked output parameters are intermediates that cannot themselves be optimized. An
+uninitialized, unshared parameter instead initializes directly on the destination and remains a
+leaf. Cloning a lazy parameter shares its initialization state; moving a shared parameter
+initializes it on the source first. Use `fork(&destination)` for independent destination leaves
+regardless of initialization state. Starting from a plain or validation module, use
 `model.train().fork(&destination)` to enable training explicitly.
 
 `AutodiffModule` has been merged into `Module`. Replace its imports and bounds with `Module`;
@@ -123,35 +137,26 @@ tensor checkpointing strategies, which `train()` does not restore.
 Dropout additionally checks its input tensor's autodiff context, so create model inputs on the
 training device even when their gradients are not needed. See [Module](./building-blocks/module.md).
 
-## Datasets and dataloaders
-
-`Dataset<I>` now has an optional error type parameter: `Dataset<I, E = DatasetError>`. Change
-`get(&self, index: usize) -> Option<I>` implementations to return `Result<I, E>`. Return `Ok(item)`
-for an in-bounds item and `Err(error)` for a retrieval failure, such as an I/O or decoding error.
-Accessing `index >= len()` must panic; it no longer returns `None`. A custom error type must
-implement `std::error::Error + Send + Sync + 'static`.
-
-Dataset iterators yield `Result<I, E>`, and dataloader iterators yield
-`Result<Batch, DatasetError>`. In custom loops, handle each result before passing the item or batch
-to your model, for example with `let batch = batch?;` in a function returning `Result`. An iterator
-returns `None` only when it is exhausted; a retrieval error is an item to handle, not an end-of-data
-marker. See [Dataset](./building-blocks/dataset.md) for the updated trait and a fallible batch loop.
-
-`ImageDatasetItem.image` now stores `PixelData` instead of `Vec<PixelDepth>`. Match `PixelData::U8`,
-`PixelData::U16`, or `PixelData::F32` to access the packed vector, and construct the matching
-variant when producing image items. For depth-independent processing, `image.iter()` still yields
-individual `PixelDepth` values. See [Images](./building-blocks/dataset.md#images).
-
-`SqliteDataset` is backed by Turso instead of `rusqlite`, so `SqliteDatasetError::Sql` now wraps
-`turso::Error`, and the `Row` and `Deserialize` variants are new. Its `sqlite` feature is no longer
-enabled by `dataset`; see [Cargo features and toolchain](#cargo-features-and-toolchain).
-
 ## Migrating checkpoints
 
 Records now use burnpack and `ModuleRecord`; the old `Recorder`, `PrecisionSettings`, generated
 record types, and `#[derive(Record)]` are removed. Burn 0.22 cannot directly load their MessagePack
 (`.mpk`), binary (`.bin`), or JSON files, including compressed variants. Renaming a file to `.bpk`
 does not convert it.
+
+For burnpack checkpoints, loading and saving no longer require a recorder. Weights are loaded onto
+the model's devices.
+
+| Previous API                                 | 0.22 API                     |
+| -------------------------------------------- | ---------------------------- |
+| `model.load_file(path, &recorder, &device)?` | `model.try_load_file(path)?` |
+| `model.save_file(path, &recorder)?`          | `model.save_file(path)?`     |
+
+Use `try_load_file` to handle loading errors; `load_file` now panics on failure.
+
+Loaded weights retain the checkpoint's dtype by default. To use the model's dtype instead, load a
+`ModuleRecord` and call `cast_to_module_dtype()` before applying it. See
+[Saving and Loading Models](./saving-and-loading.md).
 
 To migrate model weights, load the checkpoint in an older Burn project that can read it, using the
 original model definition, recorder, and precision settings. Export the loaded model through
@@ -207,118 +212,211 @@ scheduler records, so it does not resume the full training checkpoint. Start wit
 scheduler state, or implement a separate conversion if preserving that state is required. See
 [Record](./building-blocks/record.md) for the 0.22 record APIs.
 
-## Training with `burn-train`
+## Datasets and dataloaders
 
-`SupervisedTraining` no longer takes a recorder for checkpointing. Replace
-`with_file_checkpointer(CompactRecorder::new())` with `with_default_checkpointers()`, which writes
-burnpack files for the model, optimizer, and scheduler under the artifact directory. `renderer(..)`
-now takes a `Box<dyn MetricsRenderer>`, and `with_progress_logger(..)` registers a
-`TrainingProgressLogger` that observes the training lifecycle. See
-[Learner](./building-blocks/learner.md).
+Dataset access is now fallible. Update custom datasets and training loops to handle these return
+types:
 
-`AurocMetric::new()` and `AurocInput` are removed. Construct the metric with
-`AurocMetric::binary()`, `multiclass(ClassReduction)`, or `multilabel(ClassReduction)`; it adapts
-from `ClassificationOutput` and `MultiLabelClassificationOutput` like the other classification
-metrics.
+| API                      | Previous    | 0.22                          |
+| ------------------------ | ----------- | ----------------------------- |
+| `Dataset::get`           | `Option<I>` | `Result<I, E>`                |
+| Dataset iterator item    | `I`         | `Result<I, E>`                |
+| Dataloader iterator item | `Batch`     | `Result<Batch, DatasetError>` |
 
-`CosineAnnealingLrScheduler` no longer resets to the initial learning rate after each cycle.
-`num_iters` is the number of steps from the initial rate to the minimum; subsequent steps continue
-along the cosine curve and the rate rises again. Existing 0.21 configurations that relied on warm
-restarts will produce a different schedule. See
-[Cosine annealing](./building-blocks/lr-scheduler.md#cosine-annealing).
+In custom datasets, return `Ok(item)` on success and `Err(error)` for retrieval failures.
+Out-of-bounds access must panic. The error type `E` defaults to `DatasetError`.
+
+In custom training loops, handle each batch's result before using it, for example with
+`let batch = batch?;`. See [Dataset](./building-blocks/dataset.md) for examples and dataloader
+compatibility with custom error types.
+
+For specialized dataset APIs:
+
+- **Windows:** `window()` returns `Result<Option<Vec<I>>, DatasetError>`. Handle the error before
+  checking whether a window fits. Window iterator items are also wrapped in `Result`.
+- **Images:** replace `Vec<PixelDepth>` with `PixelData` when constructing `ImageDatasetItem`. Match
+  its `U8`, `U16`, or `F32` variant for the packed values, or use `image.iter()` for individual
+  `PixelDepth` values. See [Images](./building-blocks/dataset.md#images).
+- **SQLite:** enable `sqlite` explicitly. Update error matches: `SqliteDatasetError::Sql` wraps
+  `turso::Error`, and `Row` and `Deserialize` are new variants.
+
+## Training
+
+Update your training configuration:
+
+| Previous API                                     | 0.22 API                                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `with_file_checkpointer(CompactRecorder::new())` | `with_default_checkpointers()`                                                                         |
+| `renderer(renderer)`                             | `renderer(Box::new(renderer))`                                                                         |
+| `AurocMetric::new()`                             | `AurocMetric::binary()`, `AurocMetric::multiclass(reduction)`, or `AurocMetric::multilabel(reduction)` |
+| `AurocInput`                                     | `ClassificationOutput` or `MultiLabelClassificationOutput`                                             |
+
+Default checkpointers save the model, optimizer, and scheduler as burnpack files. AUROC's multiclass
+and multilabel constructors take a `ClassReduction`. See [Learner](./building-blocks/learner.md) for
+training configuration.
+
+Review configurations and numerical baselines affected by these behavior changes:
+
+- **Cosine annealing:** cycles no longer restart abruptly. `num_iters` specifies the descent to the
+  minimum, after which the rate rises along the cosine curve. Update schedules that relied on warm
+  restarts. See [Cosine annealing](./building-blocks/lr-scheduler.md#cosine-annealing).
+- **Padding:** cross-entropy loss and accuracy exclude padded targets from their denominators,
+  including the weight sum for weighted loss. An entirely padded cross-entropy batch returns NaN.
 
 ## Tensor data and numeric semantics
 
-`TensorData::to_vec` and `into_vec` are deprecated in favor of `try_to_vec` and `try_into_vec`,
-which return `Result<Vec<E>, DataError>` and fail when `E` does not match the stored dtype. Use
-`try_to_vec_as::<E>()` and `try_into_vec_as::<E>()` to convert to another element type, on both
-`TensorData` and `Tensor`. `Tensor::try_into_scalar` now returns `TensorReadError`, and the
-`DataError` variants were reworked.
+Replace the deprecated `TensorData` vector methods and handle their errors:
 
-Extrema reductions propagate NaN on every backend: `max`, `min`, and `max_abs` return NaN when the
-reduced slice contains one, `argmax` and `argmin` return the index of the first NaN, and `cummax`
-and `cummin` are NaN from the first NaN onward. Reducing a zero-length axis returns the identity for
-`sum` (0), `prod` (1), `any` (false), and `all` (true), NaN for a float `mean`, and panics for `max`
-and `min`. `max_abs_dims(&[])` and the `*_norm_dims(&[])` variants apply the elementwise
-transformation without reducing.
+| Previous API           | 0.22 API                   |
+| ---------------------- | -------------------------- |
+| `data.to_vec::<E>()`   | `data.try_to_vec::<E>()`   |
+| `data.into_vec::<E>()` | `data.try_into_vec::<E>()` |
 
-Dimension arguments accept negative indices across the tensor API, counting from the last axis. Most
-calls are source-compatible; untyped empty inputs now need an annotation, for example
-`flip([] as [isize; 0])` or `squeeze_dims(&[] as &[isize])`.
+These methods return `Result<Vec<E>, DataError>` and require `E` to match the stored dtype. For
+conversion, use `try_to_vec_as::<E>()` or `try_into_vec_as::<E>()` on `TensorData` or `Tensor`.
+Update error matches for the revised `DataError` variants and `Tensor::try_into_scalar`'s
+`TensorReadError`.
 
-`ConvOptions::padding` is now `[(usize, usize); N]`, holding the padding at the beginning and end of
-each spatial dimension. `ConvOptions::new(..)` still takes symmetric padding; use
-`ConvOptions::new_with_padding(..)` for asymmetric padding. `PaddedConvOptions` is deprecated.
+Other source changes:
 
-Quantization schemes select their granularity and scale dtype with `per_tensor(ScaleDtype)` and
-`per_block(block, ScaleDtype)` instead of `with_level(..)` and `with_param(..)`. See
-[Quantization](./performance/quantization.md).
+- **Dimensions:** negative indices are supported. Annotate untyped empty inputs, such as
+  `flip([] as [isize; 0])` or `squeeze_dims(&[] as &[isize])`.
+- **Convolution:** `ConvOptions::padding` stores `(before, after)` pairs. Keep
+  `ConvOptions::new(..)` for symmetric padding; replace deprecated `PaddedConvOptions` with
+  `ConvOptions::new_with_padding(..)` for asymmetric padding.
+- **Quantization:** replace `with_level(..)` and `with_param(..)` with `per_tensor(ScaleDtype)` or
+  `per_block(block, ScaleDtype)`. See [Quantization](./performance/quantization.md).
+- **Softplus:** use `SoftplusConfig::new().with_beta(beta).with_threshold(threshold)` instead of
+  struct literals to account for the new `threshold` field (default: 20).
+
+Update numerical expectations for these cases:
+
+| Case                                          | 0.22 behavior                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| NaN in a `max`, `min`, or `max_abs` reduction | Returns NaN                                                                           |
+| NaN in an `argmax` or `argmin` reduction      | Returns the first NaN's index                                                         |
+| NaN in `cummax` or `cummin`                   | Returns NaN from that position onward                                                 |
+| Reducing a zero-length axis                   | `sum`: 0; `prod`: 1; `any`: false; `all`: true; float `mean`: NaN; `max`/`min`: panic |
+| Empty axes in `max_abs_dims` or `*_norm_dims` | Applies the elementwise transformation without reducing                               |
 
 ## Custom integrations
 
 The following sections apply when you implement Burn traits yourself or use lower-level APIs. Skip
 them if your project only uses the built-in modules, optimizers, metrics, and stores.
 
-### Modules and optimizers
+### Modules
 
 For handwritten implementations, consult the `Module` trait documentation for the required methods;
 `#[derive(Module)]` generates them automatically.
 
-`ParamId::serialize()` and `deserialize()` are replaced by its `Display` and `FromStr`
-implementations. Optimizer implementations use the per-tensor `Optimizer` trait, wrapped by
-`ModuleOptimizer`. See [Module](./building-blocks/module.md) and
-[Optimizer](./building-blocks/optimizer.md).
+Other module API changes:
+
+- `BatchNorm` and `Dropout` now include `Param<Flag>` training controls; use their config builders
+  instead of struct literals.
+- Replace `ParamId::serialize()` / `deserialize()` with `Display` / `FromStr`.
+- Replace `Reinitializer` with `burn::nn::Initializer` for new parameters or a `ModuleMapper` for
+  existing ones. Use `Param::map` to preserve IDs and configured trainability, and keep trainable
+  tensors as gradient-retaining leaves. See the
+  [mapper example](./building-blocks/module.md#visitor--mapper).
+
+`Parameter` is sealed through `ParameterValue`. Replace custom `Param<T>` types with tensor
+parameters, `Param<Flag>` for training controls, or ordinary module fields for other state.
+
+### Optimizers and schedulers
+
+Replace `SimpleOptimizer` / `OptimizerAdaptor` with the per-tensor `Optimizer` trait and its
+`ModuleOptimizer` wrapper. Use `RecordState` and the new record types instead of `#[derive(Record)]`
+for optimizer and scheduler state. See [Optimizer](./building-blocks/optimizer.md).
+
+For custom `LrScheduler` implementations, remove the associated `Record` type and backend-generic
+record methods. Implement:
+
+- `to_record(&self) -> LrSchedulerRecord`
+- `load_record(&mut self, record: LrSchedulerRecord)` — loading now mutates the scheduler.
+
+Derive `Clone` to obtain the blanket `LrSchedulerClone` implementation.
 
 ### Custom metrics
 
-Custom metrics must implement `Metric::compute(&mut self)`, which produces the epoch value after the
-per-batch `update` calls. `Numeric::value()` and `running_value()` now return
-`Option<NumericEntry>`, returning `None` for metrics that are only defined at the end of an epoch,
-and `final_value()` returns the computed epoch value. See
-[Custom Metric](./building-blocks/metric.md#custom-metric).
+Update the metric lifecycle:
+
+- Implement `Metric::compute(&mut self)` to compute the epoch value after per-batch updates.
+- Return `Option<NumericEntry>` from `Numeric::value()` and `running_value()`. Use `None` when the
+  metric is only defined at the end of an epoch.
+- Return the computed epoch value from `final_value()`.
+
+See [Custom Metric](./building-blocks/metric.md#custom-metric) for an implementation example.
 
 ### Renderers and event processors
 
-Custom `MetricsRenderer` implementations must also implement `TrainingProgressLogger` and
-`EvaluationProgressLogger`. The `render_train`, `render_valid`, and `render_test` methods and the
-`TrainingProgress`, `EvaluationProgress`, and `ProgressType` types are removed; progress arrives
-through the logger callbacks instead. In custom event processors, `LearnerEvent::Start` and
-`EvaluatorEvent::Start` are now struct variants carrying `total_epochs`/`starting_epoch` and
-`total_tests`, and the `LearnerEvent::StartSplit`, `LearnerEvent::EndSplit`,
-`EvaluatorEvent::StartTest`, and `EvaluatorEvent::EndTest` variants are new.
+Implement `TrainingProgressLogger` and `EvaluationProgressLogger` for custom `MetricsRenderer`
+types. Move progress handling from the removed `render_train`, `render_valid`, and `render_test`
+methods to logger callbacks. The old `TrainingProgress`, `EvaluationProgress`, and `ProgressType`
+types are removed.
+
+Update custom event matches:
+
+| Event                                   | Required change                                         |
+| --------------------------------------- | ------------------------------------------------------- |
+| `LearnerEvent::Start`                   | Match struct fields `total_epochs` and `starting_epoch` |
+| `EvaluatorEvent::Start`                 | Match struct field `total_tests`                        |
+| `LearnerEvent::StartSplit` / `EndSplit` | Handle the new split lifecycle events                   |
+| `EvaluatorEvent::StartTest` / `EndTest` | Handle the new test lifecycle events                    |
 
 ### Distributed training
 
-The `distributed` and `collective` Cargo features and the `burn-collective` crate are gone;
-collective operations live in `burn::tensor::distributed` without a feature flag.
-`DistributedSession` and `DistributedRuntime` are replaced by `DistributedContext`, and the DDP
-strategy is created with `ExecutionStrategy::ddp(devices, DistributedConfig { .. })`.
-`Device::enumerate(..)` returns a `Devices` wrapper; call `into_vec()` to obtain the `Vec<Device>`.
-See [Distributed Computing](./performance/distributed-computing.md).
+Remove the `distributed` and `collective` feature flags and the `burn-collective` dependency.
+Collective operations are available through `burn::tensor::distributed`.
+
+- Replace `DistributedSession` / `DistributedRuntime` with `DistributedContext`.
+- Construct DDP strategies with `ExecutionStrategy::ddp(devices, DistributedConfig { .. })`.
+- Call `.into_vec()` on `Device::enumerate(..)` when a `Vec<Device>` is required.
+
+Check runtime support before using collectives: CubeCL all-reduce currently requires CUDA, including
+on remote servers. See [Distributed Computing](./performance/distributed-computing.md).
 
 ### Storage adapters and checkpointers
 
-`burn-store` transports tensors as `burn_pack::Tensor` instead of `TensorSnapshot`: `collect` and
-`apply` take and return it, `get_snapshot` and `get_all_snapshots` are renamed to `get_tensor` and
-`get_all_tensors`, and `ModuleAdapter::adapt` receives the tensor and a borrowed `ModuleContext`.
-The `burnpack` feature is gone; burnpack support is always available. PyTorch checkpoints are read
-through the `pytorch-reader` crate. See [Saving and Loading Models](./saving-and-loading.md).
+Update custom `burn-store` integrations:
 
-To store training checkpoints elsewhere than the default burnpack files, pass
-`Checkpointer<ModuleRecord>`, `Checkpointer<OptimizerRecord>`, and `Checkpointer<LrSchedulerRecord>`
-implementations to `SupervisedTraining::with_custom_checkpointers(..)`.
+| Previous API        | 0.22 API                                                |
+| ------------------- | ------------------------------------------------------- |
+| `TensorSnapshot`    | `burn_pack::Tensor`, including in `collect` and `apply` |
+| `get_snapshot`      | `get_tensor`                                            |
+| `get_all_snapshots` | `get_all_tensors`                                       |
+
+`ModuleAdapter::adapt` now takes a `burn_pack::Tensor` and `ModuleContext<'_>`, and returns the
+tensor. Remove the `burnpack` feature flag; support is always enabled. PyTorch readers now use the
+`pytorch-reader` crate. See [Saving and Loading Models](./saving-and-loading.md).
+
+For custom training checkpoints, pass implementations of these traits to
+`SupervisedTraining::with_custom_checkpointers(..)`:
+
+- `Checkpointer<ModuleRecord>`
+- `Checkpointer<OptimizerRecord>`
+- `Checkpointer<LrSchedulerRecord>`
 
 ### Backend extensions
 
-Enable the `extension` feature. Use `#[backend_extension(...)]` on your low-level trait, implement
-it on the supported backends, and expose a `Tensor<D>` wrapper using `Dispatch` and
-`into_dispatch()` / `from_dispatch()`. The macro generates routing; it does not generate a custom
-derivative. The CubeCL selector is `Cube`, covering runtime aliases such as WGPU and CUDA. See
+To migrate custom operations:
+
+1. Enable `extension` for low-level access through `burn::backend`.
+2. Annotate your backend trait with `#[backend_extension(...)]` and implement it on the supported
+   backends. Use the `Cube` selector for CubeCL runtimes such as WGPU and CUDA.
+3. Expose a `Tensor<D>` wrapper using `Dispatch` and `into_dispatch()` / `from_dispatch()`.
+
+The macro generates routing. Custom derivatives still need an autodiff implementation. See
 [Backend Extension](./advanced/backend-extension/) for a complete example and Fusion requirements.
 
-`Tensor::from_primitive` is generic over the backend, for example
-`Tensor::from_primitive::<B>(primitive)`. `into_primitive` is replaced by
-`try_into_primitive::<B>()`, which returns an error when the tensor is not on backend `B`.
-`TensorKind` no longer has a backend type parameter or a `Primitive` associated type, is sealed, and
-identifies the kind through the `TensorKind::KIND` constant of type `Kind`. `AutodiffTensor` fields
-are no longer public.
+Update low-level tensor access:
+
+- Specify the backend when constructing a tensor: `Tensor::from_primitive::<B>(primitive)`.
+- Replace `into_primitive` with `try_into_primitive::<B>()` and handle backend mismatches. Shared
+  CubeCL backend aliases do not establish which runtime the tensor uses.
+- Remove backend parameters from `TensorKind` bounds. The trait is sealed and its `Primitive`
+  associated type is removed; use the conversion methods above for primitives and `KIND` to inspect
+  the tensor kind.
+- Use accessors for the now-private `AutodiffTensor` fields.
+
+Out-of-tree backends are not supported in Burn 0.22. `#[backend_extension]` adds operations to
+Burn's supported backends; it does not currently allow registering new backends.
