@@ -15,8 +15,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["sys-metrics", "tui", "rl"]
-doc = ["default"]
+default = ["sys-metrics", "tui"]
+doc = ["default", "rl"]
 vision = ["burn-nn", "burn-linalg", "burn-store/pytorch", "burn-std/network", "dirs"]
 tracing = ["burn-core/tracing", "burn-optim/tracing"]
 
