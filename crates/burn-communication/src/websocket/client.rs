@@ -194,6 +194,17 @@ impl core::fmt::Display for WsClientError {
 
 impl std::error::Error for WsClientError {}
 
+impl WsClientError {
+    /// Whether nothing was listening at the address, as when its server has not started yet.
+    pub fn is_connection_refused(&self) -> bool {
+        let err = match self {
+            Self::Io(err) | Self::Tungstenite(tungstenite::Error::Io(err)) => err,
+            _ => return false,
+        };
+        err.kind() == std::io::ErrorKind::ConnectionRefused
+    }
+}
+
 impl From<std::io::Error> for WsClientError {
     fn from(err: std::io::Error) -> Self {
         Self::Io(err)
