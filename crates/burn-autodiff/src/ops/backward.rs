@@ -37,8 +37,7 @@ where
         self,
         nodes: [NodeGuard; N],
     ) -> OpsPrep<Self, B, Self::State, C, N> {
-        let requirement =
-            Requirement::from_nodes(&nodes.each_ref().map(|guard| guard.node_ref().clone()));
+        let requirement = Requirement::from_nodes(&NodeGuard::nodes(&nodes));
         OpsPrep::new(
             nodes,
             requirement,

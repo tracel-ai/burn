@@ -47,6 +47,16 @@ impl NodeGuard {
     pub(crate) fn node_ref(&self) -> &NodeRef {
         &self.node
     }
+
+    pub(crate) fn nodes<const N: usize>(guards: &[Self; N]) -> [NodeRef; N] {
+        guards.each_ref().map(|guard| guard.node.clone())
+    }
+
+    pub(crate) fn parents<const N: usize>(guards: &[Self; N]) -> [Option<NodeRef>; N] {
+        guards
+            .each_ref()
+            .map(|guard| guard.node.clone_if_require_grad())
+    }
 }
 
 /// Registers a child step before releasing its input guards.
@@ -223,14 +233,11 @@ where
     pub fn finish(self, output: FloatTensor<B>) -> AutodiffTensor<B> {
         let output = AutodiffTensor::from_parents(
             output,
-            &self.nodes.each_ref().map(|guard| guard.node.clone()),
+            &NodeGuard::nodes(&self.nodes),
             self.requirement,
             self.compute_property,
         );
-        let parents = self
-            .nodes
-            .each_ref()
-            .map(|guard| guard.node.clone_if_require_grad());
+        let parents = NodeGuard::parents(&self.nodes);
         let ops = Ops::new(parents, output.node.clone(), ());
 
         // We register the ops in the graph even if untracked, otherwise memory bound operations
@@ -254,14 +261,11 @@ where
     pub fn finish(self, state: S, output: FloatTensor<B>) -> AutodiffTensor<B> {
         let output = AutodiffTensor::from_parents(
             output,
-            &self.nodes.each_ref().map(|guard| guard.node.clone()),
+            &NodeGuard::nodes(&self.nodes),
             self.requirement,
             self.compute_property,
         );
-        let parents = self
-            .nodes
-            .each_ref()
-            .map(|guard| guard.node.clone_if_require_grad());
+        let parents = NodeGuard::parents(&self.nodes);
         let ops = Ops::new(parents, output.node.clone(), state);
 
         register_step(
