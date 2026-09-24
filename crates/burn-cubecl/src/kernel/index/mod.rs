@@ -1,3 +1,4 @@
+mod argwhere;
 mod flip;
 mod gather;
 mod gather_nd;
@@ -9,6 +10,7 @@ mod select_assign;
 mod slice;
 mod slice_assign;
 
+pub(crate) use argwhere::*;
 pub(crate) use flip::*;
 pub(crate) use gather_nd::*;
 pub(crate) use repeat_dim::*;
