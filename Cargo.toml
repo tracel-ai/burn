@@ -139,11 +139,6 @@ unicode-width = "0.2"
 # WGPU stuff
 text_placeholder = "0.5.1"
 
-bincode = { version = "2.0.1", features = [
-    "alloc",
-    "serde",
-], default-features = false }
-
 #
 # The following packages disable the "std" feature for no_std compatibility
 #
