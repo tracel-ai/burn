@@ -16,7 +16,7 @@ use crate::pickle_reader::{
     Object, PersistentIds, PickleError, StorageRef, build_tensor, extract_tensors, key_string,
     non_negative, read_pickle, storage_type_to_dtype,
 };
-use crate::storage::{LegacyBacking, LegacySource, StorageSource, TarSource, ZipSource};
+use crate::storage::{Backing, LegacySource, StorageSource, TarSource, ZipSource};
 use byteorder::{LittleEndian, ReadBytesExt};
 use thiserror::Error;
 
@@ -505,15 +505,15 @@ fn load_zip(container: &Container) -> Result<Loaded> {
 }
 
 fn load_legacy(container: &Container) -> Result<Loaded> {
-    let (mut reader, backing): (Box<dyn ContainerRead>, LegacyBacking) = match container {
+    let (mut reader, backing): (Box<dyn ContainerRead>, Backing) = match container {
         Container::File(path) => {
             let file = File::open(path)?;
             let stream = file.try_clone()?;
-            (Box::new(BufReader::new(stream)), LegacyBacking::File(file))
+            (Box::new(BufReader::new(stream)), Backing::File(file))
         }
         Container::Memory(buf) => (
             Box::new(Cursor::new(ArcBytes(Arc::clone(buf)))),
-            LegacyBacking::Memory(Arc::clone(buf)),
+            Backing::Memory(Arc::clone(buf)),
         ),
     };
 

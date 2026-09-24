@@ -2659,7 +2659,7 @@ mod tests {
         assert!(expected.raw_os_error().is_some(), "{expected}");
 
         let source = Arc::new(StorageSource::Legacy(crate::storage::LegacySource::new(
-            crate::storage::LegacyBacking::File(file),
+            crate::storage::Backing::File(file),
         )));
         let args = rebuild_args("FloatStorage", "0", 3, 0, &[3], &[1], &source);
         let StorageSource::Legacy(legacy) = &*source else {
