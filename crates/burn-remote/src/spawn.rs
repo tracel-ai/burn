@@ -21,6 +21,7 @@ where
 /// The single shutdown trigger shared by the turnkey WebSocket and Iroh server entry points.
 #[cfg(all(
     not(target_family = "wasm"),
+    feature = "server",
     any(feature = "websocket", feature = "iroh")
 ))]
 pub(crate) async fn os_shutdown_signal() {

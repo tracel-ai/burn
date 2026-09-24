@@ -8,6 +8,7 @@ pub use secret::RemoteSecret;
 
 mod link;
 pub mod node;
+mod path;
 
 #[cfg(feature = "server")]
 pub mod protocol;

@@ -16,7 +16,7 @@ use core::future::Future;
 ///
 /// Iroh streams are `!Send` on wasm (they live on the JS event loop), so the link traits cannot
 /// require `Send` unconditionally. The real `Send` requirement is applied where session tasks are
-/// spawned, via the cfg'd [`spawn_detached`](crate::server::spawn::spawn_detached) /
+/// spawned, via the cfg'd [`spawn_detached`](crate::spawn::spawn_detached) /
 /// [`Executor`](crate::client::service::Executor) helpers — exactly as the concrete channel enums
 /// did before this abstraction existed.
 #[cfg(not(target_family = "wasm"))]

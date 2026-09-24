@@ -14,7 +14,10 @@ use burn_communication::{
 };
 
 use super::transfer::WebSocketTransfer;
-use crate::server::{pump::drive_session, session::SessionManager, spawn::os_shutdown_signal};
+use crate::{
+    server::{pump::drive_session, session::SessionManager},
+    spawn::os_shutdown_signal,
+};
 
 /// Serve a WebSocket compute node on the given port, until shutdown.
 ///

@@ -52,6 +52,7 @@ burn-fusion = { workspace = true, optional = true }
 burn-communication = { workspace = true, optional = true }
 
 bytes = { workspace = true }
+futures-util = { workspace = true }
 log = { workspace = true }
 rand = { workspace = true }
 
@@ -71,7 +72,6 @@ tokio = { workspace = true, features = ["rt-multi-thread", "time", "signal"] }
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
 wasm-bindgen-futures = { workspace = true }
 gloo-timers = { version = "0.3", features = ["futures"] }
-futures-util = { workspace = true }
 
 [dev-dependencies]
 # Use path instead of workspace dep (which specifies a version, creating a circular publish dependency chain)

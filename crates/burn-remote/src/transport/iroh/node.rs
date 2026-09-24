@@ -9,6 +9,7 @@ use iroh::{
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
+use super::path::SelectedPath;
 use crate::{PeerAddr, PeerId};
 
 /// ALPN used by the version-one Burn Remote protocol.
@@ -165,7 +166,7 @@ impl RemoteNode {
             let peer_for_connect = peer.clone();
             let connection = cell
                 .get_or_try_init(|| async move {
-                    endpoint
+                    let connection = endpoint
                         .connect(peer_for_connect.clone(), BURN_REMOTE_ALPN)
                         .await
                         .map_err(|err| {
@@ -173,7 +174,9 @@ impl RemoteNode {
                                 "Failed to connect to Iroh peer {}: {err}",
                                 peer_for_connect.id
                             )
-                        })
+                        })?;
+                    SelectedPath::log_changes(&connection);
+                    Ok::<_, String>(connection)
                 })
                 .await?;
             return Ok(connection.clone());

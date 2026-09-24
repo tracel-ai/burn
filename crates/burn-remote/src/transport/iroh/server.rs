@@ -1,4 +1,4 @@
-use crate::server::spawn::os_shutdown_signal;
+use crate::spawn::os_shutdown_signal;
 use crate::telemetry::TelemetryProbe;
 use crate::transport::iroh::node::BURN_REMOTE_ALPN;
 use crate::transport::iroh::protocol::{AllowAll, IrohRemoteProtocol};

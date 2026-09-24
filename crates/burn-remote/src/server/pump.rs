@@ -10,10 +10,10 @@ use std::sync::Arc;
 
 use crate::PeerId;
 use crate::server::service::{SessionService, parse_init_handshake};
-use crate::server::spawn::spawn_detached;
 use crate::shared::{
     PROTOCOL_VERSION, RemoteMessage, SessionInfo, SessionInit, TaskResponse, TaskResponseContent,
 };
+use crate::spawn::spawn_detached;
 use crate::transport::link::{FrameSink, FrameSource};
 
 /// Drive one session to completion over a duplex link.

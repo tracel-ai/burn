@@ -10,10 +10,10 @@ use tokio::sync::{Mutex, mpsc};
 use crate::metrics::{MetricSide, logger_task};
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::SessionService;
-use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
 use crate::server::worker::SessionHandler;
 use crate::shared::{SessionId, Task, TaskResponse};
+use crate::spawn::spawn_detached;
 use crate::telemetry::{TelemetryEvent, TelemetryProbe};
 
 /// Capacity for the per-session response queue.

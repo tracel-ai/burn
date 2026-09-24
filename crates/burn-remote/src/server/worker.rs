@@ -43,9 +43,9 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::local_comm::LocalCommService;
-use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
 use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
+use crate::spawn::spawn_detached;
 use crate::telemetry::{
     TelemetryEvent, TelemetryProbe, TransferPhase, TransferScope, serialized_len,
 };

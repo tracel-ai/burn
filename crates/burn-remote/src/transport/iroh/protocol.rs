@@ -13,13 +13,15 @@ use iroh::{
 
 use crate::{
     PeerId,
-    server::{pump::drive_session, session::SessionManager, spawn::spawn_detached},
+    server::{pump::drive_session, session::SessionManager},
+    spawn::spawn_detached,
     telemetry::TelemetryProbe,
 };
 
 use super::{
     IrohTransfer,
     node::{RemoteNode, StreamKind},
+    path::SelectedPath,
 };
 
 /// Information presented to a compute node before a remote session is accepted.
@@ -164,6 +166,7 @@ impl From<RemoteProtocol> for Box<dyn DynProtocolHandler> {
 impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         let remote_id = connection.remote_id();
+        SelectedPath::log_changes(&connection);
         self.node.remember_connection(connection.clone()).await;
         loop {
             let Some((kind, send, recv)) = RemoteNode::accept_stream(&connection)

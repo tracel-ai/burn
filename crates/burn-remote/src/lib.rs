@@ -14,6 +14,8 @@ mod client;
 pub mod server;
 
 pub(crate) mod shared;
+#[cfg(any(feature = "server", feature = "iroh"))]
+pub(crate) mod spawn;
 pub mod telemetry;
 mod transport;
 

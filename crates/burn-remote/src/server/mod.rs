@@ -2,7 +2,6 @@ pub(crate) mod local_comm;
 pub(crate) mod pump;
 pub(crate) mod service;
 pub(crate) mod session;
-pub(crate) mod spawn;
 pub(crate) mod transfer;
 pub(crate) mod worker;
 
