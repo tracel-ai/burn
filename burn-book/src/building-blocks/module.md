@@ -387,11 +387,37 @@ reparameterized parameters. Use `Param::base()` to access the stored base direct
 
 ### Validation and materialization
 
-`valid()` disables autodiff and training flags while keeping base weights and adapters separate.
-Use it for evaluation and to save learned adapter factors without the base weights.
+`valid()` disables autodiff and training flags while keeping base weights and adapters separate. It
+does not select which parameters are saved: `valid().into_record()` includes both the base weights
+and adapter factors. For adapter-only export, select the factors with `into_record_group`:
+
+```rust, ignore
+use burn::module::{Lora, Module, ParamGroup};
+use burn::store::ModuleRecord;
+
+// Select the built-in LoRA factors, including those used by QLoRA.
+let adapters = ParamGroup::from_regex(r"(^|\.)lora\.(a|b)$").unwrap();
+model
+    .valid()
+    .into_record_group(adapters)
+    .save("adapters.bpk")
+    .unwrap();
+
+// Start from the original base checkpoint and attach the same adapter configuration.
+let restored = base_model
+    .apply_lora(Lora::new(8, 16.0))
+    .valid()
+    .load_record(ModuleRecord::load("adapters.bpk").unwrap().allow_partial(true));
+```
+
+Here, `base_model` has already loaded the original base weights, and the LoRA configuration matches
+the one used for training. For QLoRA, recreate the same packed base and adapters with `apply_qlora`
+instead. Adapter-only records contain the factor tensors; they do not include the base weights or
+adapter configuration. `allow_partial(true)` leaves parameters absent from the record unchanged.
 
 `materialize()` folds reparameterizations into the weights and removes their structure. Use a merged
-snapshot for repeated inference without recomputing adapter updates, or to export a standalone model:
+snapshot for repeated inference without recomputing adapter updates, or to export a standalone
+model:
 
 ```rust, ignore
 let validation = model.valid(); // Keep adapters for evaluation and adapter-only export.
