@@ -8,7 +8,11 @@ use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
 #[cfg(not(target_family = "wasm"))]
 use burn_router::CustomOpRegistry;
-use iroh::{Endpoint, endpoint::presets, protocol::Router};
+use iroh::{
+    Endpoint,
+    endpoint::{QuicTransportConfig, presets},
+    protocol::Router,
+};
 use std::sync::Arc;
 
 /// Serve Burn Remote over Iroh until the process receives its shutdown signal.
@@ -22,9 +26,15 @@ pub(crate) async fn start_iroh_async<B: BackendIr>(
     devices: Vec<Device<B>>,
     custom_ops: CustomOpRegistry<B>,
 ) {
+    // Iroh keeps sending GSO batches on open connections after the kernel refuses one, which
+    // kills them: https://github.com/n0-computer/iroh/issues/4555
+    let transport = QuicTransportConfig::builder()
+        .enable_segmentation_offload(false)
+        .build();
     let endpoint = Endpoint::builder(presets::N0)
         .secret_key(secret.secret_key())
         .alpns(vec![BURN_REMOTE_ALPN.to_vec()])
+        .transport_config(transport)
         .bind()
         .await
         .expect("Can bind the Burn Remote server endpoint");

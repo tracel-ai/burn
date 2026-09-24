@@ -125,12 +125,24 @@ fixed WebSocket address. The server exposes a local device with `Channel::Iroh` 
 `RemoteSecret`; clients connect through an Iroh endpoint and receive the same unified `Device`:
 
 ```rust, ignore
-let endpoint = Endpoint::builder(presets::N0).bind().await?;
+let transport = QuicTransportConfig::builder()
+    .enable_segmentation_offload(false)
+    .build();
+let endpoint = Endpoint::builder(presets::N0)
+    .transport_config(transport)
+    .bind()
+    .await?;
 let device = Device::remote_iroh(&endpoint, server_id, 0);
 
 let tensor = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
 let output = tensor.square().sum(); // Executed by the remote server.
 ```
+
+Segmentation offload (GSO) is off because of an Iroh bug
+([iroh#4555](https://github.com/n0-computer/iroh/issues/4555)). On Linux before 6.11, a network card
+without TX checksum offload, such as most MediaTek wifi cards, refuses GSO sends, and Iroh keeps
+sending them on connections that are already open until those connections time out. The built-in
+server turns GSO off for the same reason.
 
 A system should generate a random `RemoteSecret` and distribute its public identity through a
 trusted channel. `Device::remote_iroh_authorized` also sends an application-defined credential to
