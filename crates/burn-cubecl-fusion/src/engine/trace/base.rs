@@ -33,13 +33,15 @@ impl FuseTrace {
     }
 
     /// Bytes a kernel running this trace moves at least, with the relative ids resolved against
-    /// the context's `tensors`: one read of every input and one write of every output. An
-    /// intermediate the trace keeps in registers is in neither.
+    /// the context's `tensors`: one read of every input, one write of every output, and one read
+    /// back of every output a later block reads. An intermediate the trace keeps in registers is
+    /// in none of them.
     pub fn traffic(&self, tensors: &hashbrown::HashMap<TensorId, TensorIr>) -> usize {
         self.resources
             .inputs
             .iter()
             .chain(self.resources.outputs.iter())
+            .chain(self.resources.buffers.iter())
             .filter_map(|registered| match registered {
                 RegisterTensor::Normal(tensor, _) | RegisterTensor::QuantValues(tensor) => {
                     tensors.get(&tensor.id)
