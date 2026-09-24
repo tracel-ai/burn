@@ -1,6 +1,6 @@
 use burn_backend::{ExecutionError, StreamId};
 use burn_ir::HandleContainer;
-use burn_std::arena::ReservedMemory;
+use burn_std::arena::{ReservedMemory, UninitReservedMemory};
 use std::{cell::RefCell, sync::Arc};
 
 use crate::{FusionRuntime, stream::Operation};
@@ -27,7 +27,7 @@ impl<R: FusionRuntime> UnfusedOp<R> {
     /// Creates a new unfused [operation](Operation) that will execute on the given [StreamId].
     pub fn new<O: Operation<R> + 'static>(op: O, stream_id: StreamId) -> Self {
         let arena_item = match Arena::accept::<O>() {
-            true => ARENA.with_borrow_mut(|arena| arena.reserve()),
+            true => reserve_in_arena(),
             false => None,
         };
 
@@ -91,6 +91,10 @@ impl<R: FusionRuntime> UnfusedOpInArena<R> {
     ) -> Result<(), ExecutionError> {
         (self.ptr_execute)(self.reserved.as_ref(), handles)
     }
+}
+
+fn reserve_in_arena() -> Option<UninitReservedMemory<MAX_ITEM_SIZE>> {
+    ARENA.with_borrow_mut(|arena| arena.reserve())
 }
 
 fn shim_execute<R: FusionRuntime, O: Operation<R>>(

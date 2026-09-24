@@ -101,6 +101,15 @@ where
     where
         O: Operation<R> + 'static,
     {
+        self.register_unfused(stream, repr, UnfusedOp::new(operation, stream))
+    }
+
+    fn register_unfused(
+        &self,
+        stream: StreamId,
+        repr: OperationIr,
+        operation: UnfusedOp<R>,
+    ) -> Vec<FusionTensor<R>> {
         // Create output tensors returned by this operation
         let outputs = repr
             .outputs()
@@ -115,24 +124,9 @@ where
             })
             .collect();
 
-        // By doing this comparison, we reduce the number of bytes transferred in the device handle
-        // queue.
-        if size_of::<O>() < size_of::<UnfusedOp<R>>() {
-            // Here the [`O`] type is smaller than the [`UnfusedOp`] type, so it's better to
-            // transfer it directly.
-            self.server.submit(move |server| {
-                let operation = UnfusedOp::new(operation, stream);
-                server.register(stream, repr, operation);
-            });
-        } else {
-            // Here the [`O`] type is larger than the [`UnfusedOp`] type, so it's better to
-            // first create the [`UnfusedOp`] before transferring it to the server.
-            let operation = UnfusedOp::new(operation, stream);
-
-            self.server.submit(move |server| {
-                server.register(stream, repr, operation);
-            });
-        }
+        self.server.submit(move |server| {
+            server.register(stream, repr, operation);
+        });
 
         outputs
     }
@@ -145,8 +139,8 @@ where
     where
         O: Operation<R> + 'static,
     {
+        let operation = UnfusedOp::new(operation, stream);
         self.server.submit(move |server| {
-            let operation = UnfusedOp::new(operation, stream);
             server.register_foreign_drop(stream, ir, operation);
         });
     }
