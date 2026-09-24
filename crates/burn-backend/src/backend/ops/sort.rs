@@ -11,43 +11,26 @@ use burn_std::{bf16, f16};
 
 /// Macro used to dispatch sort operations based on dtype.
 macro_rules! sort_dispatch_dtype {
-    // Dispatch both element dtype and index dtype.
-    ($fn:ident, |$index_dtype:ident|, $data:ident, $($args:expr),*) => {{
-        macro_rules! dispatch_index {
-            ($index_ty:ty) => {
-                match $data.dtype {
-                    DType::F64 => $fn::<f64, $index_ty>($data, $($args),*),
-                    DType::F32 | DType::Flex32 => {
-                        $fn::<f32, $index_ty>($data, $($args),*)
-                    }
-                    DType::F16 => $fn::<f16, $index_ty>($data, $($args),*),
-                    DType::BF16 => $fn::<bf16, $index_ty>($data, $($args),*),
-                    DType::I64 => $fn::<i64, $index_ty>($data, $($args),*),
-                    DType::I32 => $fn::<i32, $index_ty>($data, $($args),*),
-                    DType::I16 => $fn::<i16, $index_ty>($data, $($args),*),
-                    DType::I8 => $fn::<i8, $index_ty>($data, $($args),*),
-                    DType::U64 => $fn::<u64, $index_ty>($data, $($args),*),
-                    DType::U32 => $fn::<u32, $index_ty>($data, $($args),*),
-                    DType::U16 => $fn::<u16, $index_ty>($data, $($args),*),
-                    DType::U8 => $fn::<u8, $index_ty>($data, $($args),*),
-                    DType::Bool(_) | DType::QFloat(_) => {
-                        unimplemented!("not supported for sorting operations")
-                    }
-                }
-            };
+    // Dispatch the element dtype with a fixed index type.
+    ($fn:ident, [$index_ty:ty], $data:ident, $($args:expr),*) => {
+        match $data.dtype {
+            DType::F64 => $fn::<f64, $index_ty>($data, $($args),*),
+            DType::F32 | DType::Flex32 => $fn::<f32, $index_ty>($data, $($args),*),
+            DType::F16 => $fn::<f16, $index_ty>($data, $($args),*),
+            DType::BF16 => $fn::<bf16, $index_ty>($data, $($args),*),
+            DType::I64 => $fn::<i64, $index_ty>($data, $($args),*),
+            DType::I32 => $fn::<i32, $index_ty>($data, $($args),*),
+            DType::I16 => $fn::<i16, $index_ty>($data, $($args),*),
+            DType::I8 => $fn::<i8, $index_ty>($data, $($args),*),
+            DType::U64 => $fn::<u64, $index_ty>($data, $($args),*),
+            DType::U32 => $fn::<u32, $index_ty>($data, $($args),*),
+            DType::U16 => $fn::<u16, $index_ty>($data, $($args),*),
+            DType::U8 => $fn::<u8, $index_ty>($data, $($args),*),
+            DType::Bool(_) | DType::QFloat(_) => {
+                unimplemented!("not supported for sorting operations")
+            }
         }
-
-        match $index_dtype {
-            IntDType::I64 => dispatch_index!(i64),
-            IntDType::I32 => dispatch_index!(i32),
-            IntDType::I16 => dispatch_index!(i16),
-            IntDType::I8 => dispatch_index!(i8),
-            IntDType::U64 => dispatch_index!(u64),
-            IntDType::U32 => dispatch_index!(u32),
-            IntDType::U16 => dispatch_index!(u16),
-            IntDType::U8 => dispatch_index!(u8),
-        }
-    }};
+    };
 
     // Dispatch only element dtype.
     ($fn:ident, $data:ident, $($args:expr),*) => {
@@ -106,8 +89,35 @@ where
 {
     let data = into_data(tensor);
     let dtype = data.dtype;
-    let data = sort_dispatch_dtype!(sort_data, data, dim, descending);
-    from_data(data, &device, dtype)
+    from_data(sort_any_data(data, dim, descending), &device, dtype)
+}
+
+fn sort_any_data(data: TensorData, dim: usize, descending: bool) -> TensorData {
+    sort_dispatch_dtype!(sort_data, data, dim, descending)
+}
+
+fn sort_any_data_with_indices(
+    data: TensorData,
+    dim: usize,
+    descending: bool,
+    indices_dtype: IntDType,
+) -> (TensorData, TensorData) {
+    match indices_dtype {
+        IntDType::I32 => sort_dispatch_dtype!(sort_data_with_indices, [i32], data, dim, descending),
+        _ => sort_dispatch_dtype!(sort_data_with_indices, [i64], data, dim, descending),
+    }
+}
+
+fn argsort_any_data(
+    data: TensorData,
+    dim: usize,
+    descending: bool,
+    out_dtype: IntDType,
+) -> TensorData {
+    match out_dtype {
+        IntDType::I32 => sort_dispatch_dtype!(argsort_data, [i32], data, dim, descending),
+        _ => sort_dispatch_dtype!(argsort_data, [i64], data, dim, descending),
+    }
 }
 
 pub fn sort_data<E: ElementOrdered>(
@@ -165,8 +175,7 @@ where
 {
     let data = into_data(tensor);
     let dtype = data.dtype;
-    let (values, indices) =
-        sort_dispatch_dtype!(sort_data_with_indices, |indices_dtype|, data, dim, descending);
+    let (values, indices) = sort_any_data_with_indices(data, dim, descending, indices_dtype);
 
     (
         from_data(values, &device, dtype),
@@ -263,9 +272,9 @@ where
     ID: Fn(T) -> TensorData,
 {
     let data = into_data(tensor);
-    let data = sort_dispatch_dtype!(argsort_data, |out_dtype|, data, dim, descending);
+    let data = argsort_any_data(data, dim, descending, out_dtype);
 
-    B::int_from_data(data, &device)
+    B::int_from_data(data.convert_dtype(out_dtype.into()), &device)
 }
 
 fn argsort_data<E: ElementOrdered, I: Element>(
