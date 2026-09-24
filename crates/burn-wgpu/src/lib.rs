@@ -130,8 +130,9 @@ mod tests {
             assert!(B::supports_dtype(&device, DType::U16));
             assert!(B::supports_dtype(&device, DType::U8));
 
-            assert!(B::supports_dtype(&device, DType::BF16));
             assert!(!B::supports_dtype(&device, DType::F64));
+            // MSL 3.2 carries bfloat natively.
+            assert!(B::supports_dtype(&device, DType::BF16));
             assert!(!B::supports_dtype(&device, DType::Flex32));
 
             // fp8 block scales are stored and converted in software: NVFP4 and MXFP4 quantize.
