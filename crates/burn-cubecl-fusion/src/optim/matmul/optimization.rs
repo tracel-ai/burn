@@ -67,7 +67,7 @@ pub struct MatmulOptimizationTuneArg {
 }
 
 pub(crate) struct MatmulOptimizationInfo {
-    trace: FuseTrace,
+    pub(crate) trace: FuseTrace,
     trace_fallback: FuseTrace,
     pub(crate) client: Client,
     pub(crate) device: cubecl::Device,
